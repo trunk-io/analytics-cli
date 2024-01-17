@@ -1,0 +1,70 @@
+[package]
+name = "trunk-analytics-cli"
+edition = "2021"
+version = "0.3.0"
+
+[[bin]]
+name = "trunk-analytics-cli"
+path = "src/main.rs"
+
+[lib]
+name = "trunk_analytics_cli"
+path = "src/lib.rs"
+
+[dependencies]
+anyhow = "1.0.44"
+chrono = "0.4.19"
+clap = { version = "4.4.18", features = ["derive", "env"] }
+env_logger = "0.10.1"
+log = "0.4.14"
+exitcode = "1.1.1"
+tokio = { version = "1.12.0", default-features = false, features = [
+    "rt-multi-thread",
+    "macros",
+] }
+tempfile = "3.2.0"
+tokio-retry = { version = "0.3", default-features = false }
+gix = { version = "0.57.1", default-features = false, features = [
+    "comfort",
+    "basic",
+    "extras",
+] }
+glob = "0.3.0"
+regex = { version = "1.5.4", default-features = false }
+reqwest = { version = "0.11.6", default-features = false, features = [
+    "rustls-tls-native-roots",
+    "hyper-rustls",
+    "rustls",
+    "stream",
+] }
+serde = { version = "1.0.130", default-features = false, features = ["derive"] }
+serde_json = "1.0.68"
+zstd = "0.13.0"
+tar = "0.4.30"
+
+[build-dependencies]
+vergen = { version = "8.2.5", features = [
+    "build",
+    "cargo",
+    "git",
+    "gitcl",
+    "rustc",
+    "si",
+] }
+
+[profile.release]
+codegen-units = 1
+debug = false
+lto = "thin"
+opt-level = "s"
+panic = "abort"
+
+[profile.dev.package."*"]
+opt-level = 3
+debug = true
+incremental = true
+
+[profile.dev]
+opt-level = 0
+debug = true
+incremental = true
