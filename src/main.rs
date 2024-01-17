@@ -136,10 +136,7 @@ async fn run(cli: Cli) -> anyhow::Result<()> {
         tags,
         file_sets,
         envs,
-        upload_time_epoch: SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_secs(),
+        upload_time_epoch: SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs(),
     };
     log::info!("Total files pack and upload: {}", file_counter.count_file());
     if file_counter.count_file() == 0 {
