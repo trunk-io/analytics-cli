@@ -10,9 +10,9 @@ use trunk_analytics_cli::utils::{from_non_empty_or_default, parse_custom_tags};
 
 #[derive(Debug, Parser)]
 #[command(
-    version = "1.0",
-    name = "trunk-metrics-cli",
-    about = "Trunk Metrics CLI"
+    version = std::env!("CARGO_PKG_VERSION"),
+    name = "trunk-analytics-cli",
+    about = "Trunk Analytics CLI"
 )]
 struct Cli {
     #[command(subcommand)]
@@ -95,6 +95,12 @@ async fn run(cli: Cli) -> anyhow::Result<()> {
         dry_run,
     } = cli.command;
 
+    log::info!("Starting trunk-analytics-cli {} (git={}) rustc={}",
+        env!("CARGO_PKG_VERSION"),
+        env!("VERGEN_GIT_SHA"),
+        env!("VERGEN_RUSTC_SEMVER")
+    );
+
     let api_address = from_non_empty_or_default(
         std::env::var("TRUNK_API_ADDRESS").ok(),
         DEFAULT_API_ADDRESS.to_string(),
@@ -157,7 +163,7 @@ async fn run(cli: Cli) -> anyhow::Result<()> {
     log::info!("Flushed temporary tarball to {:?}", bundle_time_file);
 
     let upload = Retry::spawn(default_delay(), || {
-        trunk_metrics_uploader_lib::clients::get_bundle_upload_location(
+        trunk_analytics_cli::clients::get_bundle_upload_location(
             &api_address,
             &token,
             &org_url_slug,
@@ -172,7 +178,7 @@ async fn run(cli: Cli) -> anyhow::Result<()> {
     }
 
     Retry::spawn(default_delay(), || {
-        trunk_metrics_uploader_lib::clients::put_bundle_to_s3(&upload.url, &bundle_time_file)
+        trunk_analytics_cli::clients::put_bundle_to_s3(&upload.url, &bundle_time_file)
     })
     .await?;
 

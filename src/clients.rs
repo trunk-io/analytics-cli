@@ -1,5 +1,4 @@
 use std::path::PathBuf;
-use std::str::FromStr;
 
 use crate::types::{BundleUploadLocation, Repo};
 
@@ -7,10 +6,10 @@ pub const TRUNK_API_TIMEOUT: std::time::Duration = std::time::Duration::from_sec
 pub const TRUNK_API_TOKEN_HEADER: &str = "x-api-token";
 
 pub async fn get_bundle_upload_location(
-    api_address: &str,
-    api_token: &str,
-    org_slug: &str,
-    repo: &Repo,
+    _api_address: &str,
+    _api_token: &str,
+    _org_slug: &str,
+    _repo: &Repo,
 ) -> anyhow::Result<BundleUploadLocation> {
     todo!("TRUNK-10274")
 }

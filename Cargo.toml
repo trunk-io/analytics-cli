@@ -51,7 +51,7 @@ vergen = { version = "8.2.5", features = [
 
 [profile.release]
 codegen-units = 1
-debug = true
+debug = false
 lto = "thin"
 opt-level = "s"
 panic = "abort"
