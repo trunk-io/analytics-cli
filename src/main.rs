@@ -1,4 +1,5 @@
 use std::io::Write;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use clap::{Parser, Subcommand};
 use tokio_retry::strategy::ExponentialBackoff;
@@ -95,7 +96,8 @@ async fn run(cli: Cli) -> anyhow::Result<()> {
         dry_run,
     } = cli.command;
 
-    log::info!("Starting trunk-analytics-cli {} (git={}) rustc={}",
+    log::info!(
+        "Starting trunk-analytics-cli {} (git={}) rustc={}",
         env!("CARGO_PKG_VERSION"),
         env!("VERGEN_GIT_SHA"),
         env!("VERGEN_RUSTC_SEMVER")
@@ -134,6 +136,10 @@ async fn run(cli: Cli) -> anyhow::Result<()> {
         tags,
         file_sets,
         envs,
+        upload_time_epoch: SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs(),
     };
     log::info!("Total files pack and upload: {}", file_counter.count_file());
     if file_counter.count_file() == 0 {
