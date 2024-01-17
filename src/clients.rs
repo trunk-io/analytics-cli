@@ -31,6 +31,9 @@ pub async fn put_bundle_to_s3(url: &str, bundle_path: &PathBuf) -> anyhow::Resul
         Ok(resp) => resp,
         Err(e) => {
             log::error!("Failed to upload bundle to S3. Status: {:?}", e.status());
+            if e.status() == Some(reqwest::StatusCode::UNAUTHORIZED) {
+                log::info!("Your Trunk token may be incorrect - find it on the Trunk app (Settings -> Manage Organization -> Organization API Token -> View).")
+            }
             return Err(anyhow::anyhow!(
                 "Failed to upload bundle to S3. Error: {}",
                 e
