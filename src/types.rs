@@ -23,23 +23,38 @@ impl Repo {
 
         let parts = if re1.is_match(url) {
             let caps = re1.captures(url).expect("failed to parse url");
+            if caps.len() != 6 {
+                return Err(anyhow::anyhow!(
+                    "Invalid repo url format. Expected 6 parts: {:?} (url: {})",
+                    caps,
+                    url
+                ));
+            }
             let domain = caps.get(3).map(|m| m.as_str()).unwrap_or("");
             let owner = caps.get(4).map(|m| m.as_str()).unwrap_or("");
             let name = caps.get(5).map(|m| m.as_str()).unwrap_or("");
-            vec![domain, owner, name]
+            (domain, owner, name)
         } else if re2.is_match(url) {
             let caps = re2.captures(url).expect("failed to parse url");
+            if caps.len() != 5 {
+                return Err(anyhow::anyhow!(
+                    "Invalid repo url format. Expected 6 parts: {:?} (url: {})",
+                    caps,
+                    url
+                ));
+            }
             let domain = caps.get(2).map(|m| m.as_str()).unwrap_or("");
             let owner = caps.get(3).map(|m| m.as_str()).unwrap_or("");
             let name = caps.get(4).map(|m| m.as_str()).unwrap_or("");
-            vec![domain, owner, name]
+            (domain, owner, name)
         } else {
             return Err(anyhow::anyhow!("Invalid repo url format: {}", url));
         };
 
-        let host = parts[0].trim().to_string();
-        let owner = parts[1].trim().to_string();
-        let name = parts[2]
+        let host = parts.0.trim().to_string();
+        let owner = parts.1.trim().to_string();
+        let name = parts
+            .2
             .trim()
             .trim_end_matches('/')
             .trim_end_matches(".git")
@@ -260,6 +275,14 @@ mod tests {
             ),
         ];
 
+        let bad_urls = &[
+            "sshy://github.com/github/testrepo",
+            "ssh://github.com//testrepo",
+            "ssh:/github.com//testrepo",
+            "ssh:///testrepo",
+            "ssh://github.com/github/",
+        ];
+
         for (url, expected) in good_urls {
             let actual1 = Repo::from_url(url).unwrap();
             assert_eq!(actual1, *expected);
@@ -267,6 +290,11 @@ mod tests {
             assert_eq!(actual2, *expected);
             let actual3 = Repo::from_url(&(url.to_string() + ".git/")).unwrap();
             assert_eq!(actual3, *expected);
+        }
+
+        for url in bad_urls {
+            let actual = Repo::from_url(url);
+            assert!(actual.is_err());
         }
     }
 
