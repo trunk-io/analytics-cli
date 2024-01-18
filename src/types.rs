@@ -1,3 +1,4 @@
+use regex::Regex;
 use serde::Serialize;
 
 use crate::scanner::{BundleRepo, FileSet};
@@ -17,47 +18,32 @@ pub struct Repo {
 
 impl Repo {
     pub fn from_url(url: &str) -> anyhow::Result<Self> {
-        let parts = if url.starts_with("https://") {
-            let url_without_scheme = url.trim_start_matches("https://");
-            let parts = url_without_scheme.split('/').collect::<Vec<&str>>();
-            if parts.len() != 3 {
-                return Err(anyhow::anyhow!(
-                    "Invalid repo url format. Expected exactly 3 parts: {:?} (url: {})",
-                    parts,
-                    url
-                ));
-            }
-            let domain = parts[0];
-            let owner = parts[1];
-            let name = parts[2].trim_end_matches(".git");
+        let re1 = Regex::new(r"^(ssh|git|http|https|ftp|ftps)://([^/]*?@)?([^/]*)/(.+)/([^/]+)")?;
+        let re2 = Regex::new(r"^([^/]*?@)([^/]*):(.+)/([^/]+)")?;
+
+        let parts = if re1.is_match(url) {
+            let caps = re1.captures(url).expect("failed to parse url");
+            let domain = caps.get(3).map(|m| m.as_str()).unwrap_or("");
+            let owner = caps.get(4).map(|m| m.as_str()).unwrap_or("");
+            let name = caps.get(5).map(|m| m.as_str()).unwrap_or("");
             vec![domain, owner, name]
-        } else if url.starts_with("git@") {
-            // Example: "git@github.com:owner/repo"
-            let domain_and_path = url.split('@').collect::<Vec<&str>>()[1];
-            let parts = domain_and_path.split(':').collect::<Vec<&str>>();
-            if parts.len() != 2 {
-                return Err(anyhow::anyhow!(
-                    "Invalid repo url format. Expected exactly 2 parts: {:?} (url: {})",
-                    parts,
-                    url
-                ));
-            }
-            let domain = parts[0];
-            let path = parts[1];
-            let path_parts = path.split('/').collect::<Vec<&str>>();
-            let owner = path_parts[0];
-            let name = path_parts[1];
+        } else if re2.is_match(url) {
+            let caps = re2.captures(url).expect("failed to parse url");
+            let domain = caps.get(2).map(|m| m.as_str()).unwrap_or("");
+            let owner = caps.get(3).map(|m| m.as_str()).unwrap_or("");
+            let name = caps.get(4).map(|m| m.as_str()).unwrap_or("");
             vec![domain, owner, name]
         } else {
-            return Err(anyhow::anyhow!(
-                "Invalid repo url format. Expected https:// or git@: {}",
-                url
-            ));
+            return Err(anyhow::anyhow!("Invalid repo url format: {}", url));
         };
 
         let host = parts[0].trim().to_string();
         let owner = parts[1].trim().to_string();
-        let name = parts[2].trim().trim_end_matches(".git").to_string();
+        let name = parts[2]
+            .trim()
+            .trim_end_matches('/')
+            .trim_end_matches(".git")
+            .to_string();
 
         if host.is_empty() || owner.is_empty() || name.is_empty() {
             return Err(anyhow::anyhow!(
@@ -162,7 +148,6 @@ mod tests {
         }
     }
 
-    // TODO(TRUNK-10142): add more tests for URL parsing and git integration.
     #[test]
     fn test_parse_https_urls() {
         let good_urls = &[
@@ -211,6 +196,77 @@ mod tests {
         for (url, expected) in good_urls {
             let actual = Repo::from_url(url).unwrap();
             assert_eq!(actual, *expected);
+        }
+    }
+
+    #[test]
+    fn test_parse_git_urls() {
+        let good_urls = &[
+            (
+                "ssh://github.com/github/testrepo",
+                Repo {
+                    host: "github.com".to_string(),
+                    owner: "github".to_string(),
+                    name: "testrepo".to_string(),
+                },
+            ),
+            (
+                "git://github.com/github/testrepo",
+                Repo {
+                    host: "github.com".to_string(),
+                    owner: "github".to_string(),
+                    name: "testrepo".to_string(),
+                },
+            ),
+            (
+                "http://github.com/github/testrepo",
+                Repo {
+                    host: "github.com".to_string(),
+                    owner: "github".to_string(),
+                    name: "testrepo".to_string(),
+                },
+            ),
+            (
+                "https://github.com/github/testrepo",
+                Repo {
+                    host: "github.com".to_string(),
+                    owner: "github".to_string(),
+                    name: "testrepo".to_string(),
+                },
+            ),
+            (
+                "ftp://github.com/github/testrepo",
+                Repo {
+                    host: "github.com".to_string(),
+                    owner: "github".to_string(),
+                    name: "testrepo".to_string(),
+                },
+            ),
+            (
+                "ftps://github.com/github/testrepo",
+                Repo {
+                    host: "github.com".to_string(),
+                    owner: "github".to_string(),
+                    name: "testrepo".to_string(),
+                },
+            ),
+            (
+                "user@github.com:github/testrepo",
+                Repo {
+                    host: "github.com".to_string(),
+                    owner: "github".to_string(),
+                    name: "testrepo".to_string(),
+                },
+            ),
+        ];
+
+        for (url, expected) in good_urls {
+            let actual1 = Repo::from_url(url).unwrap();
+            assert_eq!(actual1, *expected);
+            let actual2 = Repo::from_url(&(url.to_string() + ".git")).unwrap();
+            assert_eq!(actual2, *expected);
+            let actual3 = Repo::from_url(&(url.to_string() + ".git/")).unwrap();
+            assert_eq!(actual3, *expected);
         }
     }
 
