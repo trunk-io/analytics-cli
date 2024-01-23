@@ -63,7 +63,7 @@ enum Commands {
     },
 }
 
-const DEFAULT_API_ADDRESS: &str = "https://api.trunk.io:5022";
+const DEFAULT_API_ADDRESS: &str = "https://api.trunk.io/v1/metrics/createBundleUpload";
 // Tokio-retry uses base ^ retry * factor formula.
 // This will give us 8ms, 64ms, 512ms, 4096ms, 32768ms
 const RETRY_BASE_MS: u64 = 8;

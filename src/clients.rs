@@ -6,12 +6,45 @@ pub const TRUNK_API_TIMEOUT: std::time::Duration = std::time::Duration::from_sec
 pub const TRUNK_API_TOKEN_HEADER: &str = "x-api-token";
 
 pub async fn get_bundle_upload_location(
-    _api_address: &str,
-    _api_token: &str,
-    _org_slug: &str,
-    _repo: &Repo,
+    api_address: &str,
+    api_token: &str,
+    org_slug: &str,
+    repo: &Repo,
 ) -> anyhow::Result<BundleUploadLocation> {
-    todo!("TRUNK-10274")
+    let req_body = serde_json::json!({
+        "repo": {
+            "host": repo.host.clone(),
+            "owner": repo.owner.clone(),
+            "name": repo.name.clone(),
+        },
+        "orgUrlSlug": org_slug.to_string(),
+    });
+
+    let client = reqwest::Client::new();
+    let resp = match client
+        .post(api_address)
+        .header(reqwest::header::CONTENT_TYPE, "application/json")
+        .header("x-api-token", api_token)
+        .json(&req_body)
+        .send()
+        .await
+    {
+        Ok(resp) => resp,
+        Err(e) => {
+            log::error!("Failed to upload bundle to S3. Status: {:?}", e.status());
+            if e.status() == Some(reqwest::StatusCode::UNAUTHORIZED) {
+                log::info!("Your Trunk token may be incorrect - find it on the Trunk app (Settings -> Manage Organization -> Organization API Token -> View).");
+            }
+            return Err(anyhow::anyhow!(
+                "Failed to upload bundle to S3. Error: {}",
+                e
+            ));
+        }
+    };
+
+    resp.json::<BundleUploadLocation>()
+        .await
+        .map_err(|e| anyhow::anyhow!("Failed to get repsonse body as json. Error: {}", e))
 }
 
 /// Puts file to S3 using pre-signed link.
