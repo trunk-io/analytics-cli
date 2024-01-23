@@ -138,7 +138,7 @@ async fn run(cli: Cli) -> anyhow::Result<()> {
         envs,
         upload_time_epoch: SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs(),
     };
-    log::info!("Total files pack and upload: {}", file_counter.count_file());
+    log::info!("Total files pack and upload: {}", file_counter.get_count());
     if file_counter.get_count() == 0 {
         log::warn!(
             "No JUnit files found to pack and upload using globs: {:?}",
