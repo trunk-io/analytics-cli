@@ -124,10 +124,25 @@ async fn run(cli: Cli) -> anyhow::Result<()> {
         return Ok(());
     }
     let mut file_counter = FileSetCounter::default();
-    let file_sets = junit_paths
+    let mut file_sets = junit_paths
         .iter()
         .map(|path| FileSet::scan_from_glob(&repo.repo_root, path.to_string(), &mut file_counter))
         .collect::<anyhow::Result<Vec<FileSet>>>()?;
+
+    // Handle case when junit paths are not globs.
+    if file_counter.get_count() == 0 {
+        file_sets = junit_paths
+            .iter()
+            .map(|path| {
+                let mut path = path.clone();
+                if !path.ends_with("/") {
+                    path.push_str("/");
+                }
+                path.push_str("**/*.xml");
+                FileSet::scan_from_glob(&repo.repo_root, path.to_string(), &mut file_counter)
+            })
+            .collect::<anyhow::Result<Vec<FileSet>>>()?;
+    }
 
     let envs = EnvScanner::scan_env();
     let meta = BundleMeta {
