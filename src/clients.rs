@@ -1,5 +1,7 @@
 use std::path::PathBuf;
 
+use anyhow::Context;
+
 use crate::types::{BundleUploadLocation, Repo};
 
 pub const TRUNK_API_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
@@ -23,28 +25,28 @@ pub async fn get_bundle_upload_location(
     let client = reqwest::Client::new();
     let resp = match client
         .post(api_address)
+        .timeout(TRUNK_API_TIMEOUT)
         .header(reqwest::header::CONTENT_TYPE, "application/json")
-        .header("x-api-token", api_token)
+        .header(TRUNK_API_TOKEN_HEADER, api_token)
         .json(&req_body)
         .send()
         .await
     {
         Ok(resp) => resp,
         Err(e) => {
-            log::error!("Failed to upload bundle to S3. Status: {:?}", e.status());
+            log::error!("Failed to create bundle upload. Status: {:?}", e.status());
             if e.status() == Some(reqwest::StatusCode::UNAUTHORIZED) {
-                log::info!("Your Trunk token may be incorrect - find it on the Trunk app (Settings -> Manage Organization -> Organization API Token -> View).");
+                log::error!("Your Trunk token may be incorrect - find it on the Trunk app (Settings -> Manage Organization -> Organization API Token -> View).");
+            } else if e.status() == Some(reqwest::StatusCode::NOT_FOUND) {
+                log::error!("Your Trunk organization URL slug may be incorrect - find it on the Trunk app (Settings -> Manage Organization -> Organization Slug).");
             }
-            return Err(anyhow::anyhow!(
-                "Failed to upload bundle to S3. Error: {}",
-                e
-            ));
+            return Err(anyhow::anyhow!(e).context("Failed to create bundle upload"));
         }
     };
 
     resp.json::<BundleUploadLocation>()
         .await
-        .map_err(|e| anyhow::anyhow!("Failed to get repsonse body as json. Error: {}", e))
+        .context("Failed to get repsonse body as json")
 }
 
 /// Puts file to S3 using pre-signed link.
