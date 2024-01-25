@@ -87,6 +87,7 @@ pub enum FileSetType {
 pub struct BundledFile {
     pub original_path: String,
     pub path: String,
+    pub last_modified_epoch_ns: u128,
 }
 
 /// Custom tags defined by the user.
