@@ -89,6 +89,11 @@ impl FileSet {
             files.push(BundledFile {
                 original_path,
                 path: format!("junit/{}", file_counter.count_file()),
+                last_modified_epoch_ns: path
+                    .metadata()?
+                    .modified()?
+                    .duration_since(std::time::UNIX_EPOCH)?
+                    .as_nanos() as u64,
             });
 
             Ok(())
