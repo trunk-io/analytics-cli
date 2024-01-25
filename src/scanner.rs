@@ -93,7 +93,7 @@ impl FileSet {
                     .metadata()?
                     .modified()?
                     .duration_since(std::time::UNIX_EPOCH)?
-                    .as_nanos() as u64,
+                    .as_nanos() as u128,
             });
 
             Ok(())
