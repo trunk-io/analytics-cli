@@ -1,9 +1,9 @@
 use regex::Regex;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::scanner::{BundleRepo, FileSet};
 
-#[derive(Debug, Serialize, Clone)]
+#[derive(Debug, Serialize, Clone, Deserialize)]
 pub struct BundleUploadLocation {
     pub url: String,
     pub key: String,
