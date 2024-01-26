@@ -42,7 +42,7 @@ jobs:
       env:
         TRUNK_API_ADDRESS: https://api.trunk.io/v1/metrics/createBundleUpload
       run: |
-        cargo run -- upload
-          --junit-paths ${{ github.workspace }}/target/**/*junit.xml
-          --org-slug trunk
+        cargo run -- upload \
+          --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
+          --org-slug trunk \
           --token ${{ secrets.TRUNK_STAGING_ORG_API_TOKEN }}
