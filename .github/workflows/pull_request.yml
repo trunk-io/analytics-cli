@@ -31,7 +31,7 @@ jobs:
     - name: Install JUnit transformer
       run: cargo install cargo-junit
     - name: Generate JUnit report
-      run: cargo junit --output ${{ github.workspace }}/target/junit.xml
+      run: cargo junit --name ${{ github.workspace }}/target/junit.xml
     - name: Upload results
       if: "!cancelled()"
       uses: trunk-io/analytics-uploader@main
