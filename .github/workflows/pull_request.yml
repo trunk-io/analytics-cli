@@ -44,5 +44,5 @@ jobs:
       run: |
         cargo run -- upload \
           --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
-          --org-slug trunk \
+          --org-slug trunk-staging-org \
           --token ${{ secrets.TRUNK_STAGING_ORG_API_TOKEN }}
