@@ -28,3 +28,15 @@ jobs:
       run: cargo build --verbose
     - name: Run tests
       run: cargo test --verbose
+    - name: Install JUnit transformer
+      run: cargo install cargo-junit
+    - name: Generate JUnit report
+      run: cargo junit --output ${{ github.workspace }}/target/junit.xml
+    - name: Upload results
+      if: "!cancelled()"
+      uses: trunk-io/analytics-uploader@main
+      with:
+        junit-paths: ${{ github.workspace }}/target/**/*junit.xml
+        org-slug: trunk-io
+        token: ${{ secrets.TRUNK_API_TOKEN }}
+      continue-on-error: true
