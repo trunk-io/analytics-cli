@@ -39,9 +39,18 @@ jobs:
           version: latest
           files: target/${{ matrix.target }}/release/trunk-analytics-cli
           args: --best --lzma
+      - name: Upload results cli release built from source
+        if: "!cancelled()"
+        env:
+          TRUNK_API_ADDRESS: https://api.trunk-staging.io/v1/metrics/createBundleUpload
+        run: |
+          target/${{ matrix.target }}/release/trunk-analytics-cli upload \
+            --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
+            --org-url-slug trunk-staging-org \
+            --token ${{ secrets.TRUNK_STAGING_ORG_API_TOKEN }}
 
   build:
-    name: Build and Test
+    name: Unit Tests
     runs-on: ubuntu-latest-8-cores
     steps:
       - uses: actions/checkout@v3
