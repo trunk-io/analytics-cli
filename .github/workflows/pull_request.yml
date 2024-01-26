@@ -30,11 +30,19 @@ jobs:
       run: cargo install cargo2junit
     - name: Run tests
       run: cargo test --verbose -- -Z unstable-options --format json --report-time | cargo2junit >  ${{ github.workspace }}/target/junit.xml
-    - name: Upload results
+    - name: Upload results using action
       if: "!cancelled()"
       uses: trunk-io/analytics-uploader@main
       with:
         junit-paths: ${{ github.workspace }}/target/**/*junit.xml
         org-slug: trunk
         token: ${{ secrets.TRUNK_PROD_ORG_API_TOKEN }}
-      continue-on-error: true
+    - name: Upload results cli build from source
+      if: "!cancelled()"
+      env:
+        TRUNK_API_ADDRESS: https://api.trunk.io/v1/metrics/createBundleUpload
+      run: |
+        cargo run -- upload
+          --junit-paths ${{ github.workspace }}/target/**/*junit.xml
+          --org-slug trunk
+          --token ${{ secrets.TRUNK_STAGING_ORG_API_TOKEN }}
