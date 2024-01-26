@@ -39,8 +39,6 @@ jobs:
           version: latest
           files: target/${{ matrix.target }}/release/trunk-analytics-cli
           args: --best --lzma
-      - name: Write sha256
-        run: sha256 target/${{ matrix.target }}/release/trunk-analytics-cli > target/${{ matrix.target }}/release/sha256
 
   build:
     name: Build and Test
