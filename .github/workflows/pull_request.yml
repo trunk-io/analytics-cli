@@ -20,7 +20,7 @@ env:
 jobs:
   build:
     name: Build and Test
-    runs-on: monorepo-amd64-large
+    runs-on: public-amd64-2xlarge
 
     steps:
     - uses: actions/checkout@v3

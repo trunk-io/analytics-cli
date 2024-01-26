@@ -13,39 +13,35 @@ path = "src/lib.rs"
 
 [dependencies]
 anyhow = "1.0.44"
-chrono = {version = "0.4.19", default-features = false, features = ["clock"] }
+chrono = { version = "0.4.33", default-features = false, features = ["clock"] }
 clap = { version = "4.4.18", features = ["derive", "env"] }
-env_logger = {version = "0.10.1", default-features = false, features = ["auto-color", "humantime"] }
+env_logger = { version = "0.11.0", default-features = false }
 log = "0.4.14"
 exitcode = "1.1.1"
-tokio = { version = "1.12.0", default-features = false, features = [
+tokio = { version = "*", default-features = false, features = [
   "rt-multi-thread",
   "macros",
 ] }
 tempfile = "3.2.0"
 tokio-retry = { version = "0.3", default-features = false }
-gix = { version = "0.57.1", default-features = false, features = [
-  "index",
-  "revision",
-  "worktree-stream",
-  "worktree-archive",
-]}
+gix = { version = "0.58.0", default-features = false, features = [] }
 glob = "0.3.0"
-regex = { version = "1.5.4", default-features = false, features = ["std"] }
+regex = { version = "1.10.3", default-features = false, features = ["std"] }
 reqwest = { version = "0.11.6", default-features = false, features = [
   "rustls-tls-native-roots",
-  "hyper-rustls",
-  "rustls",
   "stream",
   "json",
 ] }
 serde = { version = "1.0.130", default-features = false, features = ["derive"] }
 serde_json = "1.0.68"
-zstd = {version = "0.13.0", default-features = false }
-tar = {version = "0.4.30", default-features = false }
+zstd = { version = "0.13.0", default-features = false }
+tar = { version = "0.4.30", default-features = false }
+
+[dev-dependencies]
+git2 = "0.18.1" # Used for creating test repos with libgit2
 
 [build-dependencies]
-vergen = { version = "8.2.5", features = [
+vergen = { version = "8.3.1", features = [
   "build",
   "cargo",
   "git",
@@ -62,7 +58,6 @@ opt-level = "s"
 panic = "abort"
 
 [profile.dev.package."*"]
-opt-level = 3
 debug = true
 incremental = true
 
