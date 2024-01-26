@@ -1,2 +1,2 @@
 [toolchain]
-channel = "1.75.0"
+channel = "nightly-2024-01-20" # Output tests in JSON requires nightly
