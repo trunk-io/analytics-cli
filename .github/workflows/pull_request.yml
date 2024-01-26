@@ -25,13 +25,11 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - name: Build
-      run: cargo build -q
-    - name: Run tests
-      run: cargo test --verbose
+      run: cargo build -q --all
     - name: Install JUnit transformer
-      run: cargo install cargo-junit
-    - name: Generate JUnit report
-      run: cargo junit --name ${{ github.workspace }}/target/junit.xml
+      run: cargo install cargo2junit
+    - name: Run tests
+      run: cargo test --verbose -- -Z unstable-options --format json --report-time | cargo2junit >  ${{ github.workspace }}/target/junit.xml
     - name: Upload results
       if: "!cancelled()"
       uses: trunk-io/analytics-uploader@main
