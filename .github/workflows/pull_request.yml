@@ -42,7 +42,7 @@ jobs:
       env:
         TRUNK_API_ADDRESS: https://api.trunk-staging.io/v1/metrics/createBundleUpload
       run: |
-        cargo +nightly run -Z build-std=std,panic_abort --release -- upload \
+        cargo run --release -- upload \
           --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
           --org-url-slug trunk-staging-org \
           --token ${{ secrets.TRUNK_STAGING_ORG_API_TOKEN }}
