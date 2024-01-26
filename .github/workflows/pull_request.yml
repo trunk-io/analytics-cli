@@ -40,7 +40,7 @@ jobs:
     - name: Upload results cli build from source
       if: "!cancelled()"
       env:
-        TRUNK_API_ADDRESS: https://api.trunk.io/v1/metrics/createBundleUpload
+        TRUNK_API_ADDRESS: https://api.trunk-staging.io/v1/metrics/createBundleUpload
       run: |
         cargo run -- upload \
           --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
