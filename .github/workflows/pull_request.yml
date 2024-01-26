@@ -21,51 +21,51 @@ jobs:
   build_release:
     strategy:
       matrix:
-        target: [
-          "x86_64-unknown-linux-musl",
-          "x86_64-unknown-linux-gnu",
-        ]
+        target: [x86_64-unknown-linux-musl, x86_64-unknown-linux-gnu]
     name: Build CLI for ${{ matrix.target }}
+    # trunk-ignore(actionlint/runner-label)
     runs-on: ubuntu-latest-8-cores
     steps:
-    - uses: actions/checkout@v3
-    - name: add target
-      run: rustup target add ${{ matrix.target }}
-    - name: Build CLI
-      run: cargo build -q --all --release --target ${{ matrix.target }}
-    - name: Check size
-      run: ls -h target/${{ matrix.target }}/release/trunk-analytics-cli
-    - name: Run UPX
-      uses: crazy-max/ghaction-upx@v3
-      with:
-        version: latest
-        files: target/${{ matrix.target }}/release/trunk-analytics-cli
-        args: --best --lzma
+      - uses: actions/checkout@v3
+      - name: add target
+        run: rustup target add ${{ matrix.target }}
+      - name: Build CLI
+        run: cargo build -q --all --release --target ${{ matrix.target }}
+      - name: Check size
+        run: ls -h target/${{ matrix.target }}/release/trunk-analytics-cli
+      - name: Run UPX
+        uses: crazy-max/ghaction-upx@v3
+        with:
+          version: latest
+          files: target/${{ matrix.target }}/release/trunk-analytics-cli
+          args: --best --lzma
+      - name: Write sha256
+        run: sha256 target/${{ matrix.target }}/release/trunk-analytics-cli > target/${{ matrix.target }}/release/sha256
 
   build:
     name: Build and Test
     runs-on: ubuntu-latest-8-cores
     steps:
-    - uses: actions/checkout@v3
-    - name: Build
-      run: cargo build -q --all
-    - name: Install JUnit transformer
-      run: cargo install cargo2junit
-    - name: Run tests
-      run: cargo test --verbose -- -Z unstable-options --format json --report-time | cargo2junit >  ${{ github.workspace }}/target/junit.xml
-    - name: Upload results using action
-      if: "!cancelled()"
-      uses: trunk-io/analytics-uploader@main
-      with:
-        junit-paths: ${{ github.workspace }}/target/**/*junit.xml
-        org-slug: trunk
-        token: ${{ secrets.TRUNK_PROD_ORG_API_TOKEN }}
-    - name: Upload results cli release built from source
-      if: "!cancelled()"
-      env:
-        TRUNK_API_ADDRESS: https://api.trunk-staging.io/v1/metrics/createBundleUpload
-      run: |
-        cargo run --release -- upload \
-          --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
-          --org-url-slug trunk-staging-org \
-          --token ${{ secrets.TRUNK_STAGING_ORG_API_TOKEN }}
+      - uses: actions/checkout@v3
+      - name: Build
+        run: cargo build -q --all
+      - name: Install JUnit transformer
+        run: cargo install cargo2junit
+      - name: Run tests
+        run: cargo test --verbose -- -Z unstable-options --format json --report-time | cargo2junit >  ${{ github.workspace }}/target/junit.xml
+      - name: Upload results using action
+        if: "!cancelled()"
+        uses: trunk-io/analytics-uploader@main
+        with:
+          junit-paths: ${{ github.workspace }}/target/**/*junit.xml
+          org-slug: trunk
+          token: ${{ secrets.TRUNK_PROD_ORG_API_TOKEN }}
+      - name: Upload results cli release built from source
+        if: "!cancelled()"
+        env:
+          TRUNK_API_ADDRESS: https://api.trunk-staging.io/v1/metrics/createBundleUpload
+        run: |
+          cargo run --release -- upload \
+            --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
+            --org-url-slug trunk-staging-org \
+            --token ${{ secrets.TRUNK_STAGING_ORG_API_TOKEN }}
