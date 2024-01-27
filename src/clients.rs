@@ -43,7 +43,7 @@ pub async fn get_bundle_upload_location(
                      -> Manage Organization -> \
                      Organization Slug)."
                 ),
-                _ => {}
+                _ => ()
             }
             return Err(anyhow::anyhow!(e).context("Failed to create bundle upload"));
         }
