@@ -34,6 +34,8 @@ jobs:
           mkdir -p target
       - name: add target
         run: rustup target add ${{ matrix.target }}
+      - name: Install JUnit transformer
+        run: cargo install cargo2junit
       - name: Run tests
         run: cargo test -q -- -Z unstable-options --format json --report-time | cargo2junit >  ${{ github.workspace }}/target/junit.xml
       - name: Build release CLI binary
