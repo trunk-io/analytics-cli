@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use anyhow::Context;
 
-use crate::types::{BundleUploadLocation, Repo};
+use crate::types::{BundleUploadLocation, CreateBundleUploadRequest, Repo};
 
 pub const TRUNK_API_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
 pub const TRUNK_API_TOKEN_HEADER: &str = "x-api-token";
@@ -13,32 +13,37 @@ pub async fn get_bundle_upload_location(
     org_slug: &str,
     repo: &Repo,
 ) -> anyhow::Result<BundleUploadLocation> {
-    let req_body = serde_json::json!({
-        "repo": {
-            "host": repo.host.clone(),
-            "owner": repo.owner.clone(),
-            "name": repo.name.clone(),
-        },
-        "orgUrlSlug": org_slug.to_string(),
-    });
-
     let client = reqwest::Client::new();
     let resp = match client
         .post(api_address)
         .timeout(TRUNK_API_TIMEOUT)
         .header(reqwest::header::CONTENT_TYPE, "application/json")
         .header(TRUNK_API_TOKEN_HEADER, api_token)
-        .json(&req_body)
+        .json(&CreateBundleUploadRequest {
+            org_url_slug: org_slug.to_owned(),
+            repo: repo.clone(),
+        })
         .send()
         .await
     {
         Ok(resp) => resp,
         Err(e) => {
             log::error!("Failed to create bundle upload. Status: {:?}", e.status());
-            if e.status() == Some(reqwest::StatusCode::UNAUTHORIZED) {
-                log::error!("Your Trunk token may be incorrect - find it on the Trunk app (Settings -> Manage Organization -> Organization API Token -> View).");
-            } else if e.status() == Some(reqwest::StatusCode::NOT_FOUND) {
-                log::error!("Your Trunk organization URL slug may be incorrect - find it on the Trunk app (Settings -> Manage Organization -> Organization Slug).");
+            match e.status() {
+                Some(reqwest::StatusCode::UNAUTHORIZED) => log::error!(
+                    "Your Trunk token may be incorrect - \
+                     find it on the Trunk app (Settings -> \
+                     Manage Organization -> Organization \
+                     API Token -> View)."
+                ),
+                Some(reqwest::StatusCode::NOT_FOUND) => log::error!(
+                    "Your Trunk organization URL \
+                     slug may be incorrect - find \
+                     it on the Trunk app (Settings \
+                     -> Manage Organization -> \
+                     Organization Slug)."
+                ),
+                _ => {}
             }
             return Err(anyhow::anyhow!(e).context("Failed to create bundle upload"));
         }
