@@ -34,7 +34,7 @@ jobs:
       - name: add target
         run: rustup target add ${{ matrix.target }}
       - name: Run tests
-        run: cargo test --verbose -- -Z unstable-options --format json --report-time | cargo2junit >  ${{ github.workspace }}/target/junit.xml
+        run: cargo test --target ${{ matrix.target }} -q -- -Z unstable-options --format json --report-time | cargo2junit >  ${{ github.workspace }}/target/junit.xml
       - name: Build release CLI binary
         run: cargo build -q --all --release --target ${{ matrix.target }}
       - name: Check size
