@@ -33,16 +33,22 @@ jobs:
           sudo apt-get install -y musl-tools
       - name: add target
         run: rustup target add ${{ matrix.target }}
-      - name: Build CLI
+      - name: Run tests
+        run: cargo test --verbose -- -Z unstable-options --format json --report-time | cargo2junit >  ${{ github.workspace }}/target/junit.xml
+      - name: Build release CLI binary
         run: cargo build -q --all --release --target ${{ matrix.target }}
       - name: Check size
-        run: ls -h target/${{ matrix.target }}/release/trunk-analytics-cli
+        run: ls -lh target/${{ matrix.target }}/release/trunk-analytics-cli
       - name: Run UPX
         uses: crazy-max/ghaction-upx@v3
         with:
           version: latest
           files: target/${{ matrix.target }}/release/trunk-analytics-cli
           args: --best --lzma
+      - name: Check final size
+        run: ls -lh target/${{ matrix.target }}/release/trunk-analytics-cli
+      - name: Check binary dependencies
+        run: ldd target/${{ matrix.target }}/release/trunk-analytics-cli
       - name: Upload results cli release built from source
         if: "!cancelled()"
         env:
