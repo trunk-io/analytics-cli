@@ -40,6 +40,12 @@ jobs:
         run: cargo test -q -- -Z unstable-options --format json --report-time | cargo2junit >  ${{ github.workspace }}/target/junit.xml
       - name: Build release CLI binary
         run: cargo build -q --all --release --target ${{ matrix.target }}
+      - name: Run UPX
+        uses: crazy-max/ghaction-upx@v3
+        with:
+          version: latest
+          files: target/${{ matrix.target }}/release/trunk-analytics-cli
+          args: --best --lzma
       - name: Check size
         run: ls -lh target/${{ matrix.target }}/release/trunk-analytics-cli
       - name: Upload results cli release built from source
