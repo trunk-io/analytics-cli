@@ -28,7 +28,7 @@ jobs:
     steps:
 
       - name: Build ${{ matrix.target }} target
-        uses: actions/build_target
+        uses: ./.github/actions/build_target
         if: "!cancelled()"
         with:
           target: ${{ matrix.target }}
