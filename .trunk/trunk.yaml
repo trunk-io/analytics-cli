@@ -23,7 +23,7 @@ lint:
     - git-diff-check
     - markdownlint@0.38.0
     - prettier@3.2.4
-    - rustfmt@1.65.0
+    - rustfmt@1.75.0
     - taplo@0.8.1
     - trivy@0.48.3
     - trufflehog@3.64.0

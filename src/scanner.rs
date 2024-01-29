@@ -211,8 +211,9 @@ impl EnvScanner {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::io::Write;
+
+    use super::*;
 
     const TEST_BRANCH: &str = "trunk/test";
     const TEST_ORIGIN: &str = "https://github.com/trunk-io/analytics-cli.git";
@@ -277,7 +278,7 @@ mod tests {
             Repo {
                 host: "github.com".to_string(),
                 owner: "trunk-io".to_string(),
-                name: "analytics-cli".to_string()
+                name: "analytics-cli".to_string(),
             }
         );
         assert_eq!(bundle_repo.repo_url, TEST_ORIGIN);
@@ -312,7 +313,7 @@ mod tests {
             Repo {
                 host: "host.com".to_string(),
                 owner: "owner".to_string(),
-                name: "repo".to_string()
+                name: "repo".to_string(),
             }
         );
         assert_eq!(bundle_repo.repo_url, origin_url);
@@ -347,7 +348,7 @@ mod tests {
             Repo {
                 host: "github.com".to_string(),
                 owner: "trunk-io".to_string(),
-                name: "analytics-cli".to_string()
+                name: "analytics-cli".to_string(),
             }
         );
         assert_eq!(bundle_repo.repo_url, TEST_ORIGIN);
@@ -382,7 +383,7 @@ mod tests {
             Repo {
                 host: "github.com".to_string(),
                 owner: "trunk-io".to_string(),
-                name: "analytics-cli".to_string()
+                name: "analytics-cli".to_string(),
             }
         );
         assert_eq!(bundle_repo.repo_url, TEST_ORIGIN);
@@ -414,7 +415,7 @@ mod tests {
             Repo {
                 host: "github.com".to_string(),
                 owner: "trunk-io".to_string(),
-                name: "analytics-cli".to_string()
+                name: "analytics-cli".to_string(),
             }
         );
         assert_eq!(bundle_repo.repo_url, TEST_ORIGIN);
