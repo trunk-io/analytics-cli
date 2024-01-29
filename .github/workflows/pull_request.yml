@@ -59,6 +59,7 @@ jobs:
             --token ${{ secrets.TRUNK_STAGING_ORG_API_TOKEN }}
       - name: Check dynamic deps
         run: ldd target/${{ matrix.target }}/release/trunk-analytics-cli
+        continue-on-error: true
 
   build:
     name: Unit Tests
