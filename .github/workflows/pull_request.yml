@@ -27,6 +27,9 @@ jobs:
     runs-on: ubuntu-latest-8-cores
     steps:
 
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Build ${{ matrix.target }} target
         uses: ./.github/actions/build_target
         if: "!cancelled()"
