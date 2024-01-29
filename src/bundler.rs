@@ -1,8 +1,7 @@
+use std::io::{Seek, Write};
+use std::path::PathBuf;
+
 use crate::types::BundleMeta;
-use std::{
-    io::{Seek, Write},
-    path::PathBuf,
-};
 
 /// Utility type for packing files into tarball.
 ///
