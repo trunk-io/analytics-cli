@@ -78,8 +78,3 @@ jobs:
             --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
             --org-url-slug trunk-staging-org \
             --token ${{ secrets.TRUNK_STAGING_ORG_API_TOKEN }}
-      - name: Build ${{ matrix.target }} target
-        uses: ./.github/actions/build_target
-        if: "!cancelled()"
-        with:
-          target: ${{ matrix.target }}
