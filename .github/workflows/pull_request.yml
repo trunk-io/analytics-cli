@@ -36,52 +36,50 @@ jobs:
         with:
           target: ${{ matrix.target }}
 
+      - name: Install JUnit transformer
+        run: cargo install cargo2junit
 
-      # - name: Install JUnit transformer
-      #   run: cargo install cargo2junit
+      - name: Run tests
+        run: cargo test -q -- -Z unstable-options --format json --report-time | cargo2junit >  ${{ github.workspace }}/target/junit.xml
 
-      # - name: Run tests
-      #   run: cargo test -q -- -Z unstable-options --format json --report-time | cargo2junit >  ${{ github.workspace }}/target/junit.xml
+      - name: Upload results using action from ${{ matrix.target }}
+        env:
+          TRUNK_API_ADDRESS: https://api.trunk-staging.io/v1/metrics/createBundleUpload
+        run: |
+          target/${{ matrix.target }}/release/trunk-analytics-cli upload \
+            --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
+            --org-url-slug trunk-staging-org \
+            --token ${{ secrets.TRUNK_STAGING_ORG_API_TOKEN }}
 
-      # - name: Upload results using action from ${{ matrix.target }}
-      #   uses: action/upload_junit_xml
-      #   if: "!cancelled()"
-      #   with:
-      #     target: ${{ matrix.target }}
-
-      #   if: "!cancelled()"
-      #   env:
-      #     TRUNK_API_ADDRESS: https://api.trunk-staging.io/v1/metrics/createBundleUpload
-      #   run: |
-      #     target/${{ matrix.target }}/release/trunk-analytics-cli upload \
-      #       --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
-      #       --org-url-slug trunk-staging-org \
-      #       --token ${{ secrets.TRUNK_STAGING_ORG_API_TOKEN }}
-
-  # build:
-  #   name: Unit Tests
-  #   runs-on: ubuntu-latest-8-cores
-  #   steps:
-  #     - uses: actions/checkout@v3
-  #     - name: Build
-  #       run: cargo build -q --all
-  #     - name: Install JUnit transformer
-  #       run: cargo install cargo2junit
-  #     - name: Run tests
-  #       run: cargo test --verbose -- -Z unstable-options --format json --report-time | cargo2junit >  ${{ github.workspace }}/target/junit.xml
-  #     - name: Upload results using action
-  #       if: "!cancelled()"
-  #       uses: trunk-io/analytics-uploader@main
-  #       with:
-  #         junit-paths: ${{ github.workspace }}/target/**/*junit.xml
-  #         org-slug: trunk
-  #         token: ${{ secrets.TRUNK_PROD_ORG_API_TOKEN }}
-  #     - name: Upload results cli release built from source
-  #       if: "!cancelled()"
-  #       env:
-  #         TRUNK_API_ADDRESS: https://api.trunk-staging.io/v1/metrics/createBundleUpload
-  #       run: |
-  #         cargo run --release -- upload \
-  #           --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
-  #           --org-url-slug trunk-staging-org \
-  #           --token ${{ secrets.TRUNK_STAGING_ORG_API_TOKEN }}
+  build:
+    name: Unit Tests
+    runs-on: ubuntu-latest-8-cores
+    steps:
+      - uses: actions/checkout@v3
+      - name: Build
+        run: cargo build -q --all
+      - name: Install JUnit transformer
+        run: cargo install cargo2junit
+      - name: Run tests
+        run: cargo test --verbose -- -Z unstable-options --format json --report-time | cargo2junit >  ${{ github.workspace }}/target/junit.xml
+      - name: Upload results using action
+        if: "!cancelled()"
+        uses: trunk-io/analytics-uploader@main
+        with:
+          junit-paths: ${{ github.workspace }}/target/**/*junit.xml
+          org-slug: trunk
+          token: ${{ secrets.TRUNK_PROD_ORG_API_TOKEN }}
+      - name: Upload results cli release built from source
+        if: "!cancelled()"
+        env:
+          TRUNK_API_ADDRESS: https://api.trunk-staging.io/v1/metrics/createBundleUpload
+        run: |
+          cargo run --release -- upload \
+            --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
+            --org-url-slug trunk-staging-org \
+            --token ${{ secrets.TRUNK_STAGING_ORG_API_TOKEN }}
+      - name: Build ${{ matrix.target }} target
+        uses: ./.github/actions/build_target
+        if: "!cancelled()"
+        with:
+          target: ${{ matrix.target }}
