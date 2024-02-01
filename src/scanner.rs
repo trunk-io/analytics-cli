@@ -159,6 +159,49 @@ impl BundleRepo {
 
             log::info!("Found git_branch is_detacted: {:?}", git_repo.head()?.is_detached());
 
+            log::info!("LOOK HERE: {:?}", git_repo.head()?.peel_to_commit_in_place()?);
+            log::info!("LOOK HERE 2: {:?}", git_repo.config_snapshot().to_string());
+
+            // """
+            // [filter \"lfs\"]
+            // clean=git-lfs clean -- %f
+            // smudge=git-lfs smudge -- %f
+            // process=git-lfs filter-process
+            // required=true
+            // [user]
+            // name=riya-n
+            // email=riya@trunk.io
+            // [features]
+            // manyFiles=true
+            // [fetch]
+            // prune=true
+            // [pull]
+            // ff=only
+            // [feature]
+            // manyFiles=true
+            // [filter \"lfs\"]
+            // clean=git-lfs clean -- %f
+            // smudge=git-lfs smudge -- %f
+            // process=git-lfs filter-process
+            // required=true
+            // [index]
+            // skipHash=false
+            // [core]
+            // repositoryformatversion=0
+            // filemode=true
+            // bare=false
+            // logallrefupdates=true
+            // [remote \"origin\"]
+            // url=git@github.com:trunk-io/analytics-cli.git
+            // fetch=+refs/heads/*:refs/remotes/origin/*
+            // [branch \"main\"]
+            // remote=origin
+            // merge=refs/heads/main
+            // [branch \"riya/branch-protection\"]
+            // remote=origin
+            // merge=refs/heads/riya/branch-protection
+            // """
+
             log::info!("Found git_url: {:?}", git_url);
             log::info!("Found git_sha: {:?}", git_head_sha);
             log::info!("Found git_branch: {:?}", git_head_branch);
