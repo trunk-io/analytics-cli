@@ -3,7 +3,7 @@ use crate::types::CustomTag;
 pub const MAX_KEY_LEN: usize = 32;
 pub const MAX_VAL_LEN: usize = 1024 * 8;
 
-pub fn print_status_code_help(status: reqwest::StatusCode) -> String {
+pub fn status_code_help(status: reqwest::StatusCode) -> String {
     match status {
         reqwest::StatusCode::UNAUTHORIZED => {
             "Your Trunk token may be incorrect - \

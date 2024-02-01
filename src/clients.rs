@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use anyhow::Context;
 
 use crate::types::{BundleUploadLocation, CreateBundleUploadRequest, Repo};
-use crate::utils::print_status_code_help;
+use crate::utils::status_code_help;
 
 pub const TRUNK_API_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
 pub const TRUNK_API_TOKEN_HEADER: &str = "x-api-token";
@@ -32,12 +32,10 @@ pub async fn get_bundle_upload_location(
     };
 
     if resp.status() != reqwest::StatusCode::OK {
-        return Err(anyhow::anyhow!(
-            "{}: {}",
-            resp.status(),
-            print_status_code_help(resp.status())
-        )
-        .context("Failed to create bundle upload"));
+        return Err(
+            anyhow::anyhow!("{}: {}", resp.status(), status_code_help(resp.status()))
+                .context("Failed to create bundle upload"),
+        );
     }
 
     resp.json::<BundleUploadLocation>()
