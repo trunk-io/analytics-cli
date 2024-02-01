@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use anyhow::Context;
 
 use crate::types::{BundleUploadLocation, CreateBundleUploadRequest, Repo};
+use crate::utils::status_code_help;
 
 pub const TRUNK_API_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
 pub const TRUNK_API_TOKEN_HEADER: &str = "x-api-token";
@@ -27,27 +28,15 @@ pub async fn get_bundle_upload_location(
         .await
     {
         Ok(resp) => resp,
-        Err(e) => {
-            log::error!("Failed to create bundle upload. Status: {:?}", e.status());
-            match e.status() {
-                Some(reqwest::StatusCode::UNAUTHORIZED) => log::error!(
-                    "Your Trunk token may be incorrect - \
-                     find it on the Trunk app (Settings -> \
-                     Manage Organization -> Organization \
-                     API Token -> View)."
-                ),
-                Some(reqwest::StatusCode::NOT_FOUND) => log::error!(
-                    "Your Trunk organization URL \
-                     slug may be incorrect - find \
-                     it on the Trunk app (Settings \
-                     -> Manage Organization -> \
-                     Organization Slug)."
-                ),
-                _ => (),
-            }
-            return Err(anyhow::anyhow!(e).context("Failed to create bundle upload"));
-        }
+        Err(e) => return Err(anyhow::anyhow!(e).context("Failed to create bundle upload")),
     };
+
+    if resp.status() != reqwest::StatusCode::OK {
+        return Err(
+            anyhow::anyhow!("{}: {}", resp.status(), status_code_help(resp.status()))
+                .context("Failed to create bundle upload"),
+        );
+    }
 
     resp.json::<BundleUploadLocation>()
         .await
