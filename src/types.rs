@@ -4,12 +4,19 @@ use serde::{Deserialize, Serialize};
 use crate::scanner::{BundleRepo, FileSet};
 
 #[derive(Debug, Serialize, Clone, Deserialize)]
+pub struct CreateBundleUploadRequest {
+    pub repo: Repo,
+    #[serde(rename = "orgUrlSlug")]
+    pub org_url_slug: String,
+}
+
+#[derive(Debug, Serialize, Clone, Deserialize)]
 pub struct BundleUploadLocation {
     pub url: String,
     pub key: String,
 }
 
-#[derive(Debug, Serialize, Clone, PartialEq, Eq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub struct Repo {
     pub host: String,
     pub owner: String,

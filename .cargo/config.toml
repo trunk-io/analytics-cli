@@ -1,8 +1,11 @@
 [target.x86_64-pc-windows-msvc]
 linker = "rust-lld.exe"
-
+rustflags = []
 [target.x86_64-apple-darwin]
-
+rustflags = []
 [target.aarch64-apple-darwin]
-
-[target.x86_64-linux-unknown]
+rustflags = []
+[target.x86_64-unknown-linux-gnu]
+rustflags = []
+[target.x86_64-unknown-linux-musl]
+rustflags = []
