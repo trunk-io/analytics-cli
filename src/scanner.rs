@@ -157,6 +157,8 @@ impl BundleRepo {
             let git_head_branch = git_head.referent_name().map(|s| s.as_bstr().to_string());
             let git_head_commit_time = git_head.peel_to_commit_in_place()?.time()?;
 
+            log::info!("Found git_branch is_detacted: {:?}", git_repo.head()?.is_detached());
+
             log::info!("Found git_url: {:?}", git_url);
             log::info!("Found git_sha: {:?}", git_head_sha);
             log::info!("Found git_branch: {:?}", git_head_branch);
