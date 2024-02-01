@@ -68,7 +68,7 @@ const DEFAULT_API_ADDRESS: &str = "https://api.trunk.io/v1/metrics/createBundleU
 // This will give us 8ms, 64ms, 512ms, 4096ms, 32768ms
 const RETRY_BASE_MS: u64 = 8;
 const RETRY_FACTOR: u64 = 1;
-const RETRY_COUNT: usize = 3;
+const RETRY_COUNT: usize = 5;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
