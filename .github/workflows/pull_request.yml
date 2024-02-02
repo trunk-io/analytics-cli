@@ -92,3 +92,5 @@ jobs:
             --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
             --org-url-slug trunk-staging-org \
             --token ${{ secrets.TRUNK_STAGING_ORG_API_TOKEN }}
+            --repo-head-sha ${{ github.event.pull_request.head.sha }}
+            --repo-head-branch ${{ github.event.pull_request.head.branch }}
