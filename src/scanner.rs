@@ -157,7 +157,15 @@ impl BundleRepo {
             let git_head_branch = git_head.referent_name().map(|s| s.as_bstr().to_string());
             let git_head_commit_time = git_head.peel_to_commit_in_place()?.time()?;
 
+            EnvScanner::scan_env();
+
             log::info!("LOOK HERE: {:?}", git_repo.config_snapshot().to_string());
+            log::info!(
+                "ENV VARS: {:?}, {:?}, {:?}",
+                std::env::var("GITHUB_HEAD_REF")?,
+                std::env::var("GITHUB_REF")?,
+                std::env::var("GITHUB_SHA")?
+            );
 
             log::info!("Found git_url: {:?}", git_url);
             log::info!("Found git_sha: {:?}", git_head_sha);
@@ -204,6 +212,7 @@ impl EnvScanner {
         let mut envs = std::collections::HashMap::with_capacity(ENVS_TO_GET.len());
         for env in ENVS_TO_GET {
             if let Ok(val) = std::env::var(env) {
+                log::info!("FOUND ENV VAR: {}={}", env.to_string(), val);
                 envs.insert(env.to_string(), val);
             }
         }
