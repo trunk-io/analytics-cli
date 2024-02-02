@@ -74,7 +74,7 @@ jobs:
         run: cargo test --verbose -- -Z unstable-options --format json --report-time | cargo2junit >  ${{ github.workspace }}/target/junit.xml
       - name: Upload results using action
         if: "!cancelled()"
-        uses: trunk-io/analytics-uploader@main
+        uses: trunk-io/analytics-uploader@riya/checkout
         with:
           junit-paths: ${{ github.workspace }}/target/**/*junit.xml
           org-slug: trunk
