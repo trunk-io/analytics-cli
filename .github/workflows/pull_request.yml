@@ -28,7 +28,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          lfs: true
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
       - name: Install musl-gcc
         run: |
           sudo apt-get update
@@ -69,7 +70,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          lfs: true
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
       - name: Build
         run: cargo build -q --all
       - name: Install JUnit transformer
