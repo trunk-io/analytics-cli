@@ -222,11 +222,13 @@ mod tests {
     const TEST_BRANCH: &str = "trunk/test";
     const TEST_ORIGIN: &str = "https://github.com/trunk-io/analytics-cli.git";
     const TEST_FILE: &str = "file.txt";
+    const TEST_AUTHOR: &str = "test-author-name";
 
     fn setup_repo_with_commit(root: &std::path::PathBuf) -> anyhow::Result<()> {
         let branch = TEST_BRANCH;
         let repo = git2::Repository::init(root.clone()).expect("failed to init repo");
         repo.remote_set_url("origin", TEST_ORIGIN)?;
+        repo.config()?.set_str("user.name", TEST_AUTHOR)?;
         let file_name = TEST_FILE;
 
         let file_path = std::path::Path::new(&repo.workdir().unwrap()).join(file_name);
@@ -240,7 +242,7 @@ mod tests {
 
         // Create a new commit
         let oid = index.write_tree()?;
-        let signature = git2::Signature::now("Your Name", "your.email@example.com")?;
+        let signature = git2::Signature::now(TEST_AUTHOR, "your.email@example.com")?;
         let tree = repo.find_tree(oid)?;
         repo.commit(
             Some("HEAD"),
@@ -292,6 +294,7 @@ mod tests {
         );
         assert_eq!(bundle_repo.repo_head_sha.len(), 40);
         assert!(bundle_repo.repo_head_commit_epoch > 0);
+        assert_eq!(bundle_repo.repo_head_author, TEST_AUTHOR);
     }
 
     #[test]
@@ -327,6 +330,7 @@ mod tests {
         );
         assert_eq!(bundle_repo.repo_head_sha.len(), 40);
         assert!(bundle_repo.repo_head_commit_epoch > 0);
+        assert_eq!(bundle_repo.repo_head_author, TEST_AUTHOR);
     }
 
     #[test]
@@ -362,6 +366,7 @@ mod tests {
         );
         assert_eq!(bundle_repo.repo_head_sha, sha);
         assert!(bundle_repo.repo_head_commit_epoch > 0);
+        assert_eq!(bundle_repo.repo_head_author, TEST_AUTHOR);
     }
 
     #[test]
@@ -394,6 +399,7 @@ mod tests {
         assert_eq!(bundle_repo.repo_head_branch, branch);
         assert_eq!(bundle_repo.repo_head_sha.len(), 40);
         assert!(bundle_repo.repo_head_commit_epoch > 0);
+        assert_eq!(bundle_repo.repo_head_author, TEST_AUTHOR);
     }
 
     #[test]
@@ -429,5 +435,6 @@ mod tests {
         );
         assert_eq!(bundle_repo.repo_head_sha.len(), 40);
         assert_eq!(bundle_repo.repo_head_commit_epoch, 123);
+        assert_eq!(bundle_repo.repo_head_author, TEST_AUTHOR);
     }
 }
