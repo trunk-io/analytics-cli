@@ -152,6 +152,7 @@ async fn run(cli: Cli) -> anyhow::Result<()> {
         file_sets,
         envs,
         upload_time_epoch: SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs(),
+        author: envs.get("GITHUB_ACTOR").cloned().unwrap_or("".to_string()),
     };
     log::info!("Total files pack and upload: {}", file_counter.get_count());
     if file_counter.get_count() == 0 {

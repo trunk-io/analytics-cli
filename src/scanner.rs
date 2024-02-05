@@ -138,9 +138,7 @@ impl BundleRepo {
                 )
             });
         let out_repo_root =
-            from_non_empty_or_default(in_repo_root, Self::default_to_working_directory(), |s| {
-                Some(s)
-            });
+            from_non_empty_or_default(in_repo_root, Self::default_to_working_directory(), Some);
 
         // If repo root found, try to get repo details from git.
         if let Some(repo_root) = &out_repo_root {
@@ -159,24 +157,22 @@ impl BundleRepo {
 
             EnvScanner::scan_env();
 
+            log::info!("Got the author: {:?}", git_repo.author());
+            log::info!("Got the head commit: {:?}", git_repo.head_commit());
+            log::info!("Got the committer: {:?}", git_repo.committer());
+
             log::info!("LOOK HERE: {:?}", git_repo.config_snapshot().to_string());
-            log::info!(
-                "ENV VARS: {:?}, {:?}, {:?}",
-                std::env::var("GITHUB_HEAD_REF")?,
-                std::env::var("GITHUB_REF")?,
-                std::env::var("GITHUB_SHA")?
-            );
 
             log::info!("Found git_url: {:?}", git_url);
             log::info!("Found git_sha: {:?}", git_head_sha);
             log::info!("Found git_branch: {:?}", git_head_branch);
             log::info!("Found git_commit_time: {:?}", git_head_commit_time);
+            // TODO: need to do this by provider
 
-            out_repo_url = from_non_empty_or_default(in_repo_url, git_url, |s| Some(s));
-            out_repo_head_sha =
-                from_non_empty_or_default(in_repo_head_sha, git_head_sha, |s| Some(s));
+            out_repo_url = from_non_empty_or_default(in_repo_url, git_url, Some);
+            out_repo_head_sha = from_non_empty_or_default(in_repo_head_sha, git_head_sha, Some);
             out_repo_head_branch =
-                from_non_empty_or_default(in_repo_head_branch, git_head_branch, |s| Some(s));
+                from_non_empty_or_default(in_repo_head_branch, git_head_branch, Some);
             if out_repo_head_commit_epoch.is_none() {
                 out_repo_head_commit_epoch = Some(git_head_commit_time.seconds);
             }

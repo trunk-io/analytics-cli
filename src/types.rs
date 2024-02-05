@@ -113,6 +113,7 @@ pub struct BundleMeta {
     pub file_sets: Vec<FileSet>,
     pub envs: std::collections::HashMap<String, String>,
     pub upload_time_epoch: u64,
+    pub author: String,
 }
 
 #[cfg(test)]
