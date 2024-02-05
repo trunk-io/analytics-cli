@@ -115,6 +115,7 @@ pub struct BundleRepo {
     pub repo_head_sha: String,
     pub repo_head_branch: String,
     pub repo_head_commit_epoch: i64,
+    pub repo_head_author: String,
 }
 
 impl BundleRepo {
@@ -138,10 +139,9 @@ impl BundleRepo {
                 )
             });
         let out_repo_root =
-            from_non_empty_or_default(in_repo_root, Self::default_to_working_directory(), |s| {
-                Some(s)
-            });
+            from_non_empty_or_default(in_repo_root, Self::default_to_working_directory(), Some);
 
+        let mut git_head_author = None;
         // If repo root found, try to get repo details from git.
         if let Some(repo_root) = &out_repo_root {
             // Read git repo.
@@ -156,17 +156,20 @@ impl BundleRepo {
             let git_head_sha = git_head.id().map(|id| id.to_string());
             let git_head_branch = git_head.referent_name().map(|s| s.as_bstr().to_string());
             let git_head_commit_time = git_head.peel_to_commit_in_place()?.time()?;
+            git_head_author = git_repo.author().map(|author_res| {
+                author_res.map_or("".to_string(), |author| author.name.to_string())
+            });
 
             log::info!("Found git_url: {:?}", git_url);
             log::info!("Found git_sha: {:?}", git_head_sha);
             log::info!("Found git_branch: {:?}", git_head_branch);
             log::info!("Found git_commit_time: {:?}", git_head_commit_time);
+            log::info!("Found git_author: {:?}", git_head_author);
 
-            out_repo_url = from_non_empty_or_default(in_repo_url, git_url, |s| Some(s));
-            out_repo_head_sha =
-                from_non_empty_or_default(in_repo_head_sha, git_head_sha, |s| Some(s));
+            out_repo_url = from_non_empty_or_default(in_repo_url, git_url, Some);
+            out_repo_head_sha = from_non_empty_or_default(in_repo_head_sha, git_head_sha, Some);
             out_repo_head_branch =
-                from_non_empty_or_default(in_repo_head_branch, git_head_branch, |s| Some(s));
+                from_non_empty_or_default(in_repo_head_branch, git_head_branch, Some);
             if out_repo_head_commit_epoch.is_none() {
                 out_repo_head_commit_epoch = Some(git_head_commit_time.seconds);
             }
@@ -184,6 +187,7 @@ impl BundleRepo {
             repo_head_sha: out_repo_head_sha.expect("failed to get repo head sha"),
             repo_head_commit_epoch: out_repo_head_commit_epoch
                 .expect("failed to get repo head commit time"),
+            repo_head_author: git_head_author.unwrap_or_default(),
         })
     }
 
