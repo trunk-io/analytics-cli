@@ -212,7 +212,6 @@ impl EnvScanner {
         let mut envs = std::collections::HashMap::with_capacity(ENVS_TO_GET.len());
         for env in ENVS_TO_GET {
             if let Ok(val) = std::env::var(env) {
-                log::info!("FOUND ENV VAR: {}={}", env.to_string(), val);
                 envs.insert(env.to_string(), val);
             }
         }
