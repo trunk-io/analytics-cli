@@ -1,0 +1,41 @@
+name: Build Release Target
+description: Build release binary for target
+
+inputs:
+  target:
+    description: Rust target triple, e.g. x86_64-unknown-linux-musl
+
+runs:
+  using: composite
+  steps:
+
+    - name: Install musl deps
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y musl-tools
+        mkdir -p target
+
+    - name: Add target
+      shell: bash
+      run: rustup target add ${{ inputs.target }}
+
+    - name: Compile binary
+      shell: bash
+      run: cargo build -q --all --release --target ${{ inputs.target }}
+
+    - name: Compress binary
+      uses: crazy-max/ghaction-upx@v3
+      with:
+        version: latest
+        files: target/${{ inputs.target }}/release/trunk-analytics-cli
+        args: --best --lzma
+
+    - name: Check size
+      shell: bash
+      run: ls -lh target/${{ inputs.target }}/release/trunk-analytics-cli
+
+    - name: Check dynamic deps
+      shell: bash
+      run: ldd target/${{ inputs.target }}/release/trunk-analytics-cli
+      continue-on-error: true

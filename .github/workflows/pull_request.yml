@@ -26,30 +26,23 @@ jobs:
     # trunk-ignore(actionlint/runner-label)
     runs-on: ubuntu-latest-8-cores
     steps:
-      - uses: actions/checkout@v3
-      - name: Install musl-gcc
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y musl-tools
-          mkdir -p target
-      - name: Add target ${{ matrix.target }}
-        run: rustup target add ${{ matrix.target }}
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build ${{ matrix.target }} target
+        uses: ./.github/actions/build_target
+        if: "!cancelled()"
+        with:
+          target: ${{ matrix.target }}
+
       - name: Install JUnit transformer
         run: cargo install cargo2junit
+
       - name: Run tests
         run: cargo test -q -- -Z unstable-options --format json --report-time | cargo2junit >  ${{ github.workspace }}/target/junit.xml
-      - name: Build release CLI binary
-        run: cargo build -q --all --release --target ${{ matrix.target }}
-      - name: Run UPX
-        uses: crazy-max/ghaction-upx@v3
-        with:
-          version: latest
-          files: target/${{ matrix.target }}/release/trunk-analytics-cli
-          args: --best --lzma
-      - name: Check size
-        run: ls -lh target/${{ matrix.target }}/release/trunk-analytics-cli
-      - name: Upload results cli release built from source
-        if: "!cancelled()"
+
+      - name: Upload results using action from ${{ matrix.target }}
         env:
           TRUNK_API_ADDRESS: https://api.trunk-staging.io/v1/metrics/createBundleUpload
         run: |
@@ -57,9 +50,6 @@ jobs:
             --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
             --org-url-slug trunk-staging-org \
             --token ${{ secrets.TRUNK_STAGING_ORG_API_TOKEN }}
-      - name: Check dynamic deps
-        run: ldd target/${{ matrix.target }}/release/trunk-analytics-cli
-        continue-on-error: true
 
   build:
     name: Unit Tests
