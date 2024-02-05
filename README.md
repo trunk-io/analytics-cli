@@ -1,6 +1,6 @@
 # Trunk Analytics CLI
 
-Please follow instructions on the official website: https://docs.trunk.io/flaky-tests/other-ci-providers-quickstart
+Please follow the instructions on the official website: https://docs.trunk.io/flaky-tests/other-ci-providers-quickstart
 
 <div align="center">
 
@@ -8,3 +8,6 @@ Please follow instructions on the official website: https://docs.trunk.io/flaky-
 [![dependency status](https://deps.rs/repo/github/trunk-io/analytics-cli/status.svg)](https://deps.rs/repo/trunk-io/analytics-cli)
 
 </div>
+
+
+TEST
