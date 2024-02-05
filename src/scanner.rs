@@ -158,7 +158,7 @@ impl BundleRepo {
             let git_head_sha = git_head_commit.id().to_string();
             let git_head_branch = git_head.name().map(|s| s.to_string());
             let git_head_commit_time = git_head_commit.time();
-            git_head_author = git_head_commit.author().email().map(|s| s.to_string());
+            git_head_author = git_head_commit.author().name().map(|s| s.to_string());
 
             log::info!("Found git_url: {:?}", git_url);
             log::info!("Found git_sha: {:?}", git_head_sha);
