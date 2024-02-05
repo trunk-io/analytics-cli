@@ -147,32 +147,18 @@ impl BundleRepo {
             // Read git repo.
             log::info!("Reading git repo at {:?}", &repo_root);
 
-            let git_repo = gix::open(&repo_root)?;
+            let git_repo = git2::Repository::open(repo_root)?;
             let git_url = git_repo
-                .config_snapshot()
-                .string_by_key(GIT_REMOTE_ORIGIN_URL_CONFIG)
-                .map(|s| s.to_string());
-            let mut git_head = git_repo.head()?;
-            let git_head_sha = git_head.id().map(|id| id.to_string());
-            let git_head_branch = git_head.referent_name().map(|s| s.as_bstr().to_string());
-            let git_head_commit_time = git_head.peel_to_commit_in_place()?.time()?;
-            git_head_author = git_repo.author().map(|author_res| {
-                author_res.map_or("".to_string(), |author| author.name.to_string())
-            });
-
-            let git_repo_2 = git2::Repository::open(&repo_root)?;
-            log::info!("Found info 0: {:?}", git_repo_2.config()?.snapshot()?.get_string(GIT_REMOTE_ORIGIN_URL_CONFIG)); // git url?
-            log::info!("Found info 1: {:?}", git_repo_2.head()?.peel_to_commit()?.id()); // head sha
-            log::info!("Found info 2: {:?}", git_repo_2.head()?.name()); // head branch
-            log::info!("Found info 3: {:?}", git_repo_2.head()?.peel_to_commit()?.time()); // head commit time
-            log::info!("Found info 4: {:?}", git_repo_2.head()?.peel_to_commit()?.author().name()); // head author
-
-// 2024-02-05T08:42:25 [INFO] - Reading git repo at "/home/riya/analytics-cli"
-// 2024-02-05T08:42:25 [INFO] - Found git_url: Some("git@github.com:trunk-io/analytics-cli.git")
-// 2024-02-05T08:42:25 [INFO] - Found git_sha: Some("dc734a92f1265b147ad3f816a117c7dc3f3d9f8d")
-// 2024-02-05T08:42:25 [INFO] - Found git_branch: Some("refs/heads/riya/branch-protection")
-// 2024-02-05T08:42:25 [INFO] - Found git_commit_time: Time { seconds: 1707150934, offset: -28800, sign: Minus }
-// 2024-02-05T08:42:25 [INFO] - Found git_author: Some("riya-n")
+                .config()?
+                .snapshot()?
+                .get_string(GIT_REMOTE_ORIGIN_URL_CONFIG)
+                .ok();
+            let git_head = git_repo.head()?;
+            let git_head_commit = git_head.peel_to_commit()?;
+            let git_head_sha = git_head_commit.id().to_string();
+            let git_head_branch = git_head.name().map(|s| s.to_string());
+            let git_head_commit_time = git_head_commit.time();
+            git_head_author = git_head_commit.author().name().map(|s| s.to_string());
 
             log::info!("Found git_url: {:?}", git_url);
             log::info!("Found git_sha: {:?}", git_head_sha);
@@ -181,11 +167,12 @@ impl BundleRepo {
             log::info!("Found git_author: {:?}", git_head_author);
 
             out_repo_url = from_non_empty_or_default(in_repo_url, git_url, Some);
-            out_repo_head_sha = from_non_empty_or_default(in_repo_head_sha, git_head_sha, Some);
+            out_repo_head_sha =
+                from_non_empty_or_default(in_repo_head_sha, Some(git_head_sha), Some);
             out_repo_head_branch =
                 from_non_empty_or_default(in_repo_head_branch, git_head_branch, Some);
             if out_repo_head_commit_epoch.is_none() {
-                out_repo_head_commit_epoch = Some(git_head_commit_time.seconds);
+                out_repo_head_commit_epoch = Some(git_head_commit_time.seconds());
             }
         }
 
