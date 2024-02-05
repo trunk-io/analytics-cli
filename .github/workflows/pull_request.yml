@@ -27,6 +27,8 @@ jobs:
     runs-on: ubuntu-latest-8-cores
     steps:
       - uses: actions/checkout@v3
+        with:
+          ref: ${{ github.head_ref }}
       - name: Install musl-gcc
         run: |
           sudo apt-get update
@@ -66,6 +68,8 @@ jobs:
     runs-on: ubuntu-latest-8-cores
     steps:
       - uses: actions/checkout@v3
+        with:
+          ref: ${{ github.head_ref }}
       - name: Build
         run: cargo build -q --all
       - name: Install JUnit transformer
