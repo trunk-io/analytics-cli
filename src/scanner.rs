@@ -175,6 +175,7 @@ impl BundleRepo {
             }
             out_head_author = from_non_empty_or_default(
                 git_head_author,
+                // Default to GITHUB_ACTOR env var.
                 std::env::var("GITHUB_ACTOR").ok(),
                 Some,
             );
