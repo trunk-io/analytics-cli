@@ -150,7 +150,7 @@ async fn run(cli: Cli) -> anyhow::Result<()> {
         repo: repo.clone(),
         tags,
         file_sets,
-        envs,
+        envs: envs.clone(),
         upload_time_epoch: SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs(),
         author: envs.get("GITHUB_ACTOR").cloned().unwrap_or("".to_string()),
     };
