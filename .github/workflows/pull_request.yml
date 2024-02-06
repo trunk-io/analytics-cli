@@ -39,7 +39,9 @@ jobs:
       - name: Run tests
         run: cargo test -q -- -Z unstable-options --format json --report-time | cargo2junit >  ${{ github.workspace }}/target/junit.xml
       - name: Build release CLI binary
-        run: cargo build -q --all --release --target ${{ matrix.target }}
+        run: |
+          sudo apt install pkg-config
+          cargo build -q --all --release --target ${{ matrix.target }}
       - name: Run UPX
         uses: crazy-max/ghaction-upx@v3
         with:
