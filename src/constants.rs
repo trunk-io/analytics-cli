@@ -15,6 +15,7 @@ pub const ENVS_TO_GET: &'static [&'static str] = &[
     "GITHUB_SERVER_URL",
     "GITHUB_SHA",
     "GITHUB_WORKFLOW",
+    "GITHUB_WORKFLOW_REF",
     // Jenkins
     "GIT_BRANCH",
     "GIT_COMMIT",
