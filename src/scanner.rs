@@ -157,7 +157,8 @@ impl BundleRepo {
             let git_head_branch = git_head
                 .referent_name()
                 .map(|s| s.as_bstr().to_string())
-                .or(std::env::var("GITHUB_REF").ok());
+                .or(std::env::var("GITHUB_HEAD_REF")
+                    .map_or(None, |s| Some("refs/heads/".to_string() + &s)));
             let git_head_commit_time = git_head.peel_to_commit_in_place()?.time()?;
             git_head_author = git_repo.author().map(|author_res| {
                 author_res.map_or("".to_string(), |author| author.name.to_string())
