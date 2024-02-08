@@ -154,7 +154,10 @@ impl BundleRepo {
                 .map(|s| s.to_string());
             let mut git_head = git_repo.head()?;
             let git_head_sha = git_head.id().map(|id| id.to_string());
-            let git_head_branch = git_head.referent_name().map(|s| s.as_bstr().to_string());
+            let git_head_branch = git_head
+                .referent_name()
+                .map(|s| s.as_bstr().to_string())
+                .or(std::env::var("GITHUB_REF").ok());
             let git_head_commit_time = git_head.peel_to_commit_in_place()?.time()?;
             git_head_author = git_repo.author().map(|author_res| {
                 author_res.map_or("".to_string(), |author| author.name.to_string())
