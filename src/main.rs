@@ -188,8 +188,6 @@ async fn run(cli: Cli) -> anyhow::Result<()> {
     bundler.make_tarball(&bundle_time_file)?;
     log::info!("Flushed temporary tarball to {:?}", bundle_time_file);
 
-    log::info!("Uploading to Trunk API: {}", api_address);
-
     let upload = Retry::spawn(default_delay(), || {
         trunk_analytics_cli::clients::get_bundle_upload_location(
             &api_address,
