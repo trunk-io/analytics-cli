@@ -1,2 +1,2 @@
 [toolchain]
-channel = "stable" # Output tests in JSON for Junit reports requires nightly
+channel = "nightly-2024-01-19" # Output tests in JSON for Junit reports requires nightly

@@ -163,13 +163,20 @@ impl BundleRepo {
             let git_head_sha = git_head.id().map(|id| id.to_string());
             let git_head_branch = git_head.referent_name().map(|s| s.as_bstr().to_string());
             let git_head_commit_time = git_head.peel_to_commit_in_place()?.time()?;
-            git_head_author = git_head.peel_to_commit_in_place().map(|commit| {
-                if let Ok(author) = commit.author() {
-                    Some(HeadAuthor{name: author.name.to_string(), email: author.email.to_string()})
-                } else {
-                    None
-                }
-            }).ok().flatten();
+            git_head_author = git_head
+                .peel_to_commit_in_place()
+                .map(|commit| {
+                    if let Ok(author) = commit.author() {
+                        Some(HeadAuthor {
+                            name: author.name.to_string(),
+                            email: author.email.to_string(),
+                        })
+                    } else {
+                        None
+                    }
+                })
+                .ok()
+                .flatten();
             log::info!("Found git_url: {:?}", git_url);
             log::info!("Found git_sha: {:?}", git_head_sha);
             log::info!("Found git_branch: {:?}", git_head_branch);

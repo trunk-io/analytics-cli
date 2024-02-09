@@ -147,7 +147,8 @@ async fn run(cli: Cli) -> anyhow::Result<()> {
     let envs = EnvScanner::scan_env();
     let meta = BundleMeta {
         version: META_VERSION.to_string(),
-        cli_version: format!("cargo={} git={} rustc={}",
+        cli_version: format!(
+            "cargo={} git={} rustc={}",
             env!("CARGO_PKG_VERSION"),
             env!("VERGEN_GIT_SHA"),
             env!("VERGEN_RUSTC_SEMVER")
