@@ -138,6 +138,9 @@ impl BundleRepo {
                         .expect("failed to parse commit epoch override"),
                 )
             });
+
+        log::info!("In repo root: {:?}", in_repo_root);
+        log::info!("Default repo root: {:?}", Self::default_to_working_directory());
         let out_repo_root =
             from_non_empty_or_default(in_repo_root, Self::default_to_working_directory(), Some);
 
@@ -146,6 +149,11 @@ impl BundleRepo {
         if let Some(repo_root) = &out_repo_root {
             // Read git repo.
             log::info!("Reading git repo at {:?}", &repo_root);
+
+            let g = gix::commitgraph::at(repo_root)?;
+            g.iter_commits().for_each(|c| {
+                log::info!("Commit: {:?}", c);
+            });
 
             let git_repo = gix::open(&repo_root)?;
             let git_url = git_repo
@@ -160,6 +168,9 @@ impl BundleRepo {
                 .or(std::env::var("GITHUB_HEAD_REF")
                     .map_or(None, |s| Some("refs/heads/".to_string() + &s)));
             let git_head_commit_time = git_head.peel_to_commit_in_place()?.time()?;
+            // Looks like you can reflog with git2 and get the previous commit and the committer of it - author.
+            // https://docs.rs/git2/latest/git2/struct.Reflog.html
+            // https://docs.rs/git2/latest/git2/struct.ReflogEntry.html
             git_head_author = git_repo.author().map(|author_res| {
                 author_res.map_or("".to_string(), |author| author.name.to_string())
             });
