@@ -6,7 +6,7 @@ use tokio_retry::strategy::ExponentialBackoff;
 use tokio_retry::Retry;
 use trunk_analytics_cli::bundler::BundlerUtil;
 use trunk_analytics_cli::scanner::{BundleRepo, EnvScanner, FileSet, FileSetCounter};
-use trunk_analytics_cli::types::BundleMeta;
+use trunk_analytics_cli::types::{BundleMeta, META_VERSION};
 use trunk_analytics_cli::utils::{from_non_empty_or_default, parse_custom_tags};
 
 #[derive(Debug, Parser)]
@@ -146,6 +146,12 @@ async fn run(cli: Cli) -> anyhow::Result<()> {
 
     let envs = EnvScanner::scan_env();
     let meta = BundleMeta {
+        version: META_VERSION.to_string(),
+        cli_version: format!("cargo={} git={} rustc={}",
+            env!("CARGO_PKG_VERSION"),
+            env!("VERGEN_GIT_SHA"),
+            env!("VERGEN_RUSTC_SEMVER")
+        ),
         org: org_url_slug.clone(),
         repo: repo.clone(),
         tags,
@@ -153,6 +159,7 @@ async fn run(cli: Cli) -> anyhow::Result<()> {
         envs,
         upload_time_epoch: SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs(),
     };
+
     log::info!("Total files pack and upload: {}", file_counter.get_count());
     if file_counter.get_count() == 0 {
         log::warn!(
@@ -179,6 +186,8 @@ async fn run(cli: Cli) -> anyhow::Result<()> {
     let bundler = BundlerUtil::new(meta);
     bundler.make_tarball(&bundle_time_file)?;
     log::info!("Flushed temporary tarball to {:?}", bundle_time_file);
+
+    log::info!("Uploading to Trunk API: {}", api_address);
 
     let upload = Retry::spawn(default_delay(), || {
         trunk_analytics_cli::clients::get_bundle_upload_location(
