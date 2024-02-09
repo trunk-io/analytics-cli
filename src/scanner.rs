@@ -7,6 +7,12 @@ use crate::utils::from_non_empty_or_default;
 
 pub const GIT_REMOTE_ORIGIN_URL_CONFIG: &str = "remote.origin.url";
 
+#[derive(Debug)]
+struct HeadAuthor {
+    pub name: String,
+    pub email: String,
+}
+
 #[derive(Default, Debug)]
 pub struct FileSetCounter {
     inner: usize,
@@ -115,7 +121,8 @@ pub struct BundleRepo {
     pub repo_head_sha: String,
     pub repo_head_branch: String,
     pub repo_head_commit_epoch: i64,
-    pub repo_head_author: String,
+    pub repo_head_author_name: String,
+    pub repo_head_author_email: String,
 }
 
 impl BundleRepo {
@@ -150,10 +157,7 @@ impl BundleRepo {
             // Read git repo.
             log::info!("Reading git repo at {:?}", &repo_root);
 
-            let g = gix::commitgraph::at(repo_root)?;
-            g.iter_commits().for_each(|c| {
-                log::info!("Commit: {:?}", c);
-            });
+            let g = gix::refs::log();
 
             let git_repo = gix::open(&repo_root)?;
             let git_url = git_repo
@@ -171,10 +175,20 @@ impl BundleRepo {
             // Looks like you can reflog with git2 and get the previous commit and the committer of it - author.
             // https://docs.rs/git2/latest/git2/struct.Reflog.html
             // https://docs.rs/git2/latest/git2/struct.ReflogEntry.html
-            git_head_author = git_repo.author().map(|author_res| {
-                author_res.map_or("".to_string(), |author| author.name.to_string())
-            });
-
+            git_head_author = git_head
+                .peel_to_commit_in_place()
+                .map(|commit| {
+                    if let Ok(author) = commit.author() {
+                        Some(HeadAuthor {
+                            name: author.name.to_string(),
+                            email: author.email.to_string(),
+                        })
+                    } else {
+                        None
+                    }
+                })
+                .ok()
+                .flatten();
             log::info!("Found git_url: {:?}", git_url);
             log::info!("Found git_sha: {:?}", git_head_sha);
             log::info!("Found git_branch: {:?}", git_head_branch);
@@ -193,6 +207,11 @@ impl BundleRepo {
         // Require URL which should be known at this point.
         let repo_url = out_repo_url.expect("failed to get repo url");
         let repo = Repo::from_url(&repo_url)?;
+        let (git_head_author_name, git_head_author_email) = if let Some(author) = git_head_author {
+            (author.name, author.email)
+        } else {
+            (String::default(), String::default())
+        };
 
         Ok(BundleRepo {
             repo,
@@ -202,7 +221,8 @@ impl BundleRepo {
             repo_head_sha: out_repo_head_sha.expect("failed to get repo head sha"),
             repo_head_commit_epoch: out_repo_head_commit_epoch
                 .expect("failed to get repo head commit time"),
-            repo_head_author: git_head_author.unwrap_or_default(),
+            repo_head_author_name: git_head_author_name,
+            repo_head_author_email: git_head_author_email,
         })
     }
 

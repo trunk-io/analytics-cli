@@ -105,8 +105,12 @@ pub struct CustomTag {
     pub value: String,
 }
 
+pub const META_VERSION: &str = "1";
+
 #[derive(Debug, Serialize, Clone)]
 pub struct BundleMeta {
+    pub version: String,
+    pub cli_version: String,
     pub org: String,
     pub repo: BundleRepo,
     pub tags: Vec<CustomTag>,
