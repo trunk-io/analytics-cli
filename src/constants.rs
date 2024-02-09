@@ -16,6 +16,9 @@ pub const ENVS_TO_GET: &'static [&'static str] = &[
     "GITHUB_SHA",
     "GITHUB_WORKFLOW",
     // Jenkins
+    "BUILD_ID",
+    "CI",
+    "JENKINS_URL",
     "GIT_BRANCH",
     "GIT_COMMIT",
     "GIT_URL",
@@ -25,6 +28,7 @@ pub const ENVS_TO_GET: &'static [&'static str] = &[
     "NODE_NAME",
     "WORKSPACE",
     // CircleCI
+    "CIRCLECI",
     "CIRCLE_BRANCH",
     "CIRCLE_BUILD_NUM",
     "CIRCLE_BUILD_URL",
@@ -41,6 +45,7 @@ pub const ENVS_TO_GET: &'static [&'static str] = &[
     "CIRCLE_USERNAME",
     "CIRCLE_WORKFLOW_ID",
     // Buildkite
+    "BUILDKITE",
     "BUILDKITE_BRANCH",
     "BUILDKITE_BUILD_ID",
     "BUILDKITE_BUILD_NUMBER",
@@ -61,6 +66,7 @@ pub const ENVS_TO_GET: &'static [&'static str] = &[
     "BUILDKITE_RETRY_COUNT",
     "BUILDKITE_TAG",
     // Semaphore
+    "SEMAPHORE",
     "SEMAPHORE_AGENT_MACHINE_ENVIRONMENT_TYPE",
     "SEMAPHORE_AGENT_MACHINE_OS_IMAGE",
     "SEMAPHORE_AGENT_MACHINE_TYPE",
@@ -81,6 +87,7 @@ pub const ENVS_TO_GET: &'static [&'static str] = &[
     "SEMAPHORE_WORKFLOW_ID",
     "SEMAPHORE_WORKFLOW_NUMBER",
     // Travis CI
+    "TRAVIS",
     "TRAVIS_BRANCH",
     "TRAVIS_BUILD_DIR",
     "TRAVIS_BUILD_ID",
@@ -165,6 +172,7 @@ pub const ENVS_TO_GET: &'static [&'static str] = &[
     "BITBUCKET_STEP_OIDC_TOKEN",
     "BITBUCKET_SSH_KEY_FILE",
     // Azure Pipelines
+    "TF_BUILD",
     "BUILD_BUILDID",
     "BUILD_BUILDNUMBER",
     "BUILD_BUILDURI",
