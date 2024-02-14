@@ -157,8 +157,6 @@ impl BundleRepo {
             // Read git repo.
             log::info!("Reading git repo at {:?}", &repo_root);
 
-            let g = gix::refs::log();
-
             let git_repo = gix::open(&repo_root)?;
             let git_url = git_repo
                 .config_snapshot()
@@ -241,6 +239,7 @@ impl EnvScanner {
         let mut envs = std::collections::HashMap::with_capacity(ENVS_TO_GET.len());
         for env in ENVS_TO_GET {
             if let Ok(val) = std::env::var(env) {
+                log::info!("Found env var {:?}={:?}", env, val);
                 envs.insert(env.to_string(), val);
             }
         }
