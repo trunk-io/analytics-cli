@@ -38,11 +38,11 @@ jobs:
         with:
           target: ${{ matrix.target }}
 
-      - name: Install JUnit transformer
-        run: cargo install cargo2junit
+      - name: Install nextest
+        run: curl -LsSf https://get.nexte.st/latest/linux | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin
 
       - name: Run tests
-        run: cargo test -q -- -Z unstable-options --format json --report-time | cargo2junit >  ${{ github.workspace }}/target/junit.xml
+        run: cargo nextest run --profile=ci
 
       - name: Upload results using action from ${{ matrix.target }}
         env:
@@ -65,11 +65,13 @@ jobs:
       - name: Build
         run: cargo build -q --all
 
-      - name: Install JUnit transformer
-        run: cargo install cargo2junit
+        - name: Install nextest
+        run: curl -LsSf https://get.nexte.st/latest/linux | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin
+
       - name: Run tests
-        run: cargo test --verbose -- -Z unstable-options --format json --report-time | cargo2junit >  ${{ github.workspace }}/target/junit.xml
-      - name: Upload results using action
+        run: cargo nextest run --profile=ci
+
+        - name: Upload results using action
         if: "!cancelled()"
         uses: trunk-io/analytics-uploader@main
         with:
