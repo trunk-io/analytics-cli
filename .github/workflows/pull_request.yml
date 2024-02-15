@@ -58,11 +58,11 @@ jobs:
     runs-on: [self-hosted, ubuntu-x64]
     steps:
       - uses: actions/checkout@v3
-      - name: Build
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@nightly
 
+      - name: Build
         run: cargo build -q --all
 
       - name: Install JUnit transformer
