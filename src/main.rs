@@ -109,6 +109,11 @@ async fn run(cli: Cli) -> anyhow::Result<()> {
         |s| s,
     );
 
+    if token.trim().is_empty() {
+        log::error!("Trunk API token is required.");
+        return Ok(());
+    }
+
     let tags = parse_custom_tags(&tags)?;
 
     let repo = BundleRepo::try_read_from_root(
