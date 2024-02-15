@@ -110,8 +110,7 @@ async fn run(cli: Cli) -> anyhow::Result<()> {
     );
 
     if token.trim().is_empty() {
-        log::error!("Trunk API token is required.");
-        return Ok(());
+        return Err(anyhow::anyhow!("Trunk API token is required."));
     }
 
     let tags = parse_custom_tags(&tags)?;
@@ -125,8 +124,7 @@ async fn run(cli: Cli) -> anyhow::Result<()> {
     )?;
 
     if junit_paths.len() == 0 {
-        log::error!("No junit paths provided.");
-        return Ok(());
+        return Err(anyhow::anyhow!("No junit paths provided."));
     }
     let mut file_counter = FileSetCounter::default();
     let mut file_sets = junit_paths
