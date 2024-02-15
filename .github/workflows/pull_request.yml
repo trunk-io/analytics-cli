@@ -71,7 +71,7 @@ jobs:
       - name: Run tests
         run: cargo nextest run --profile=ci
 
-        - name: Upload results using action
+      - name: Upload results using action
         if: "!cancelled()"
         uses: trunk-io/analytics-uploader@main
         with:
