@@ -8,7 +8,6 @@ inputs:
 runs:
   using: composite
   steps:
-
     - name: Install musl deps
       shell: bash
       run: |
@@ -31,11 +30,18 @@ runs:
         files: target/${{ inputs.target }}/release/trunk-analytics-cli
         args: --best --lzma
 
-    - name: Check size
+    - name: Report binary size
       shell: bash
       run: ls -lh target/${{ inputs.target }}/release/trunk-analytics-cli
 
     - name: Check dynamic deps
       shell: bash
-      run: ldd target/${{ inputs.target }}/release/trunk-analytics-cli
-      continue-on-error: true
+      run: |
+        # Confirm that the binary is statically linked
+        set +e
+        ldd target/${{ inputs.target }}/release/trunk-analytics-cli
+        if [ $? -ne 1 ]; then
+          echo "trunk-analytics-cli has dynamic deps - we expect it to be statically linked"
+          exit 1
+        fi
+        exit 0
