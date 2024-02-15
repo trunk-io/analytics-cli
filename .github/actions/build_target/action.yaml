@@ -43,3 +43,4 @@ runs:
           echo "trunk-analytics-cli has dynamic deps - we expect it to be statically linked"
           exit 1
         fi
+        exit 0
