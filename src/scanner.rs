@@ -158,6 +158,8 @@ impl BundleRepo {
             log::info!("Reading git repo at {:?}", &repo_root);
 
             let git_repo = gix::open(&repo_root)?;
+            log::info!("Git repo config snapshot: {:?}", git_repo.config_snapshot());
+
             let git_url = git_repo
                 .config_snapshot()
                 .string_by_key(GIT_REMOTE_ORIGIN_URL_CONFIG)
