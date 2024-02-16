@@ -159,7 +159,36 @@ impl BundleRepo {
 
             let git_repo = gix::open(&repo_root)?;
             log::info!("Git repo config snapshot: {:?}", git_repo.config_snapshot());
+            git_repo.branch_names().iter().for_each(|branch| {
+                log::info!("Git branch names: {:?}", branch);
+            });
+            git_repo.remote_names().iter().for_each(|remote| {
+                log::info!("Git remote names: {:?}", remote);
+            });
+            git_repo.commit_graph().map(|graph| {
+                graph.iter_commits().for_each(|commit| {
+                    log::info!("Git commit graph: {:?}", commit);
+                });
+            });
 
+            git_repo.head_ref().map(|head| {
+                log::info!("Git head ref: {:?}", head);
+            });
+
+            log::info!("Git repo head commit: {:?}", git_repo.head_commit());
+
+            git_repo.references().iter().for_each(|reference| {
+                match reference.all() {
+                    Ok(refs) => {
+                        refs.for_each(|r| {
+                            log::info!("Git references: {:?}", r);
+                        });
+                    }
+                    Err(e) => {
+                        log::error!("Error reading git references: {:?}", e);
+                    }
+                }
+            });
             let git_url = git_repo
                 .config_snapshot()
                 .string_by_key(GIT_REMOTE_ORIGIN_URL_CONFIG)
