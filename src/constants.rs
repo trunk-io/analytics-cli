@@ -1,8 +1,10 @@
 pub const ALLOW_LIST: &[&'static str] = &[r".*\.xml$"];
 
 pub const ENVS_TO_GET: &'static [&'static str] = &[
+    "CI",
     // GitHub
     "GITHUB_ACTIONS",
+    "GITHUB_ACTION_REPOSITORY",
     "GITHUB_ACTOR",
     "GITHUB_BASE_REF",
     "GITHUB_EVENT_NAME",
@@ -15,9 +17,11 @@ pub const ENVS_TO_GET: &'static [&'static str] = &[
     "GITHUB_SERVER_URL",
     "GITHUB_SHA",
     "GITHUB_WORKFLOW",
+    "GITHUB_REF_PROTECTED",
+    "RUNNER_ARCH",
+    "RUNNER_OS",
     // Jenkins
     "BUILD_ID",
-    "CI",
     "JENKINS_URL",
     "GIT_BRANCH",
     "GIT_COMMIT",

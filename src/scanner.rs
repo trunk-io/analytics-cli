@@ -147,7 +147,10 @@ impl BundleRepo {
             });
 
         log::info!("In repo root: {:?}", in_repo_root);
-        log::info!("Default repo root: {:?}", Self::default_to_working_directory());
+        log::info!(
+            "Default repo root: {:?}",
+            Self::default_to_working_directory()
+        );
         let out_repo_root =
             from_non_empty_or_default(in_repo_root, Self::default_to_working_directory(), Some);
 
@@ -165,20 +168,22 @@ impl BundleRepo {
             git_repo.remote_names().iter().for_each(|remote| {
                 log::info!("Git remote names: {:?}", remote);
             });
-            git_repo.commit_graph().map(|graph| {
+            if let Ok(graph) = git_repo.commit_graph() {
                 graph.iter_commits().for_each(|commit| {
                     log::info!("Git commit graph: {:?}", commit);
                 });
-            });
+            }
 
-            git_repo.head_ref().map(|head| {
-                log::info!("Git head ref: {:?}", head);
-            });
+            if let Ok(head) = git_repo.head_ref() {
+                log::info!("Git head ref: {:?}", head)
+            }
 
             log::info!("Git repo head commit: {:?}", git_repo.head_commit());
 
-            git_repo.references().iter().for_each(|reference| {
-                match reference.all() {
+            git_repo
+                .references()
+                .iter()
+                .for_each(|reference| match reference.all() {
                     Ok(refs) => {
                         refs.for_each(|r| {
                             log::info!("Git references: {:?}", r);
@@ -187,19 +192,14 @@ impl BundleRepo {
                     Err(e) => {
                         log::error!("Error reading git references: {:?}", e);
                     }
-                }
-            });
+                });
             let git_url = git_repo
                 .config_snapshot()
                 .string_by_key(GIT_REMOTE_ORIGIN_URL_CONFIG)
                 .map(|s| s.to_string());
             let mut git_head = git_repo.head()?;
             let git_head_sha = git_head.id().map(|id| id.to_string());
-            let git_head_branch = git_head
-                .referent_name()
-                .map(|s| s.as_bstr().to_string())
-                .or(std::env::var("GITHUB_HEAD_REF")
-                    .map_or(None, |s| Some("refs/heads/".to_string() + &s)));
+            let git_head_branch = git_head.referent_name().map(|s| s.as_bstr().to_string());
             let git_head_commit_time = git_head.peel_to_commit_in_place()?.time()?;
             // Looks like you can reflog with git2 and get the previous commit and the committer of it - author.
             // https://docs.rs/git2/latest/git2/struct.Reflog.html
