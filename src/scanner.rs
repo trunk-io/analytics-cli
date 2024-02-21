@@ -154,6 +154,8 @@ impl BundleRepo {
         let out_repo_root =
             from_non_empty_or_default(in_repo_root, Self::default_to_working_directory(), Some);
 
+        EnvScanner::scan_env();
+
         let mut git_head_author = None;
         // If repo root found, try to get repo details from git.
         if let Some(repo_root) = &out_repo_root {
