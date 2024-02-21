@@ -4,8 +4,7 @@ pipeline {
     stages {
         stage('Hello') {
             steps {
-                echo 'List of env vars'
-                env
+                echo 'Hello world'
             }
         }
     }
