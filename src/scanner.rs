@@ -176,7 +176,6 @@ impl BundleRepo {
 
             if let Ok(head) = git_repo.head_ref() {
                 log::info!("Git head ref: {:?}", head)
-
             }
 
             log::info!("Git repo head commit: {:?}", git_repo.head_commit());
