@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     stages {
-        stage('Env Vars') {
+        stage('env') {
             steps {
                 echo "BRANCH_NAME: ${env.BRANCH_NAME}"
                 echo "BRANCH_IS_PRIMARY: ${env.BRANCH_IS_PRIMARY}"
@@ -18,6 +18,15 @@ pipeline {
                 echo "GIT_AUTHOR_NAME: ${env.GIT_AUTHOR_NAME}"
                 echo "GIT_COMMITTER_EMAIL: ${env.GIT_COMMITTER_EMAIL}"
                 echo "GIT_AUTHOR_EMAIL: ${env.GIT_AUTHOR_EMAIL}"
+                echo "env: ${env}"
+            }
+        }
+
+        stage('currentBuild') {
+            steps {
+                echo "currentBuild.number: ${currentBuild.number}"
+                echo "currentBuild.changeSets: ${currentBuild.changeSets}"
+                echo "currentBuild: ${currentBuild}"
             }
         }
     }
