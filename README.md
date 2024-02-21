@@ -8,7 +8,3 @@ Please follow instructions on the official website: https://docs.trunk.io/flaky-
 [![dependency status](https://deps.rs/repo/github/trunk-io/analytics-cli/status.svg)](https://deps.rs/repo/trunk-io/analytics-cli)
 
 </div>
-
-test for jenkins
-try again
-and again
