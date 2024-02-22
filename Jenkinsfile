@@ -33,7 +33,6 @@ pipeline {
 
         stage('currentBuild') {
             steps {
-                def changeLogSets = currentBuild.changeSets
 
 
 
@@ -43,16 +42,16 @@ pipeline {
                 echo "currentBuild.changeSets: ${currentBuild.changeSets[0].items[0].commitId}"
                 echo "currentBuild.changeSets: ${currentBuild.changeSets[0].items[0].author}"
 
-                sh """
-                    currentBuild.changeSets.forEach({ changeSet ->
-                        changeSet.items.forEach({ item ->
-                            echo "commitId: ${item.commitId}"
-                            echo "author: ${item.author}"
-                            echo "timestamp: ${new Date(item.timestamp)}"
-                            echo "msg: ${item.msg}"
-                        })
-                    })
-                """
+                // sh """
+                //     currentBuild.changeSets.forEach({ changeSet ->
+                //         changeSet.items.forEach({ item ->
+                //             echo "commitId: ${item.commitId}"
+                //             echo "author: ${item.author}"
+                //             echo "timestamp: ${new Date(item.timestamp)}"
+                //             echo "msg: ${item.msg}"
+                //         })
+                //     })
+                // """
                 // def changeLogSets = currentBuild.changeSets
                 // for (int i = 0; i < changeLogSets.size(); i++) {
                 //     def entries = changeLogSets[i].items
