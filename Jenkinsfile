@@ -13,6 +13,8 @@ pipeline {
                 echo "currentBuild.number: ${currentBuild.number}"
                 echo "currentBuild.getBuildCauses: ${currentBuild.getBuildCauses()}"
                 echo "currentBuild.changeSets: ${currentBuild.changeSets[0].items[0].commitId}"
+                echo "currentBuild.changeSets.getKind(): ${currentBuild.changeSets.getKind()}"
+                echo "currentBuild.changeSets.getItems(): ${currentBuild.changeSets.getItems()}"
 
                 sh """
                     currentBuild.changeSets.forEach({ changeSet ->
@@ -21,9 +23,6 @@ pipeline {
                             echo "author: ${item.author}"
                             echo "timestamp: ${new Date(item.timestamp)}"
                             echo "msg: ${item.msg}"
-                            item.affectedFiles.each({ file ->
-                                echo "  ${file.editType.name} ${file.path}"
-                            })
                         })
                     })
                 """
