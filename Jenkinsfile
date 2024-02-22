@@ -29,5 +29,21 @@ pipeline {
                 echo "currentBuild: ${currentBuild}"
             }
         }
+
+        stage('build') {
+            steps {
+                echo "Build"
+                sh "cargo build -q --all"
+
+                echo "Install nextest"
+                sh "curl -LsSf https://get.nexte.st/latest/linux | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin"
+
+                echo "Run tests"
+                sh "cargo nextest run --profile=ci"
+
+                echo "Upload results cli release built from source"
+                sh "cargo run --release -- upload --junit-paths target/**/*junit.xml --org-url-slug trunk-staging-org --token 1234"
+            }
+        }
     }
 }
