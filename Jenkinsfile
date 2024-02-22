@@ -43,7 +43,7 @@ pipeline {
 
                 echo "Install rust using rustup"
                 sh "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y"
-                sh "source $HOME/.cargo/env"
+                sh ". $HOME/.cargo/env"
                 sh "export PATH=$HOME/.cargo/bin:$PATH"
 
                 echo "Check rustc and cargo versions"
