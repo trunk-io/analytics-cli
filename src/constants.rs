@@ -2,6 +2,13 @@ pub const ALLOW_LIST: &[&'static str] = &[r".*\.xml$"];
 
 pub const ENVS_TO_GET: &'static [&'static str] = &[
     "CI",
+    "GIT_BRANCH",
+    "GIT_COMMIT",
+    "GIT_URL",
+    "GIT_COMMITTER_NAME",
+    "GIT_AUTHOR_NAME",
+    "GIT_COMMITTER_EMAIL",
+    "GIT_AUTHOR_EMAIL",
     // GitHub
     "GITHUB_ACTIONS",
     "GITHUB_ACTION_REPOSITORY",
@@ -23,9 +30,6 @@ pub const ENVS_TO_GET: &'static [&'static str] = &[
     // Jenkins
     "BUILD_ID",
     "JENKINS_URL",
-    "GIT_BRANCH",
-    "GIT_COMMIT",
-    "GIT_URL",
     "EXECUTOR_NUMBER",
     "JOB_NAME",
     "JOB_URL",
@@ -41,10 +45,6 @@ pub const ENVS_TO_GET: &'static [&'static str] = &[
     "BRANCH_NAME",
     "BRANCH_IS_PRIMARY",
     "BUILD_URL",
-    "GIT_COMMITTER_NAME",
-    "GIT_AUTHOR_NAME",
-    "GIT_COMMITTER_EMAIL",
-    "GIT_AUTHOR_EMAIL",
     // CircleCI
     "CIRCLECI",
     "CIRCLE_BRANCH",
