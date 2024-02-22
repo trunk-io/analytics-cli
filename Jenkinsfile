@@ -10,10 +10,23 @@ pipeline {
 
         stage('currentBuild') {
             steps {
-                echo "currentBuild.getBuildCauses: ${currentBuild.getBuildCauses()}"
                 echo "currentBuild.number: ${currentBuild.number}"
+                echo "currentBuild.getBuildCauses: ${currentBuild.getBuildCauses()}"
                 echo "currentBuild.changeSets: ${currentBuild.changeSets[0].items[0].commitId}"
-                echo "currentBuild: ${currentBuild}"
+
+                sh """
+                    currentBuild.changeSets.forEach({ changeSet ->
+                        changeSet.items.forEach({ item ->
+                            echo "commitId: ${item.commitId}"
+                            echo "author: ${item.author}"
+                            echo "timestamp: ${new Date(item.timestamp)}"
+                            echo "msg: ${item.msg}"
+                            item.affectedFiles.each({ file ->
+                                echo "  ${file.editType.name} ${file.path}"
+                            })
+                        })
+                    })
+                """
                 // def changeLogSets = currentBuild.changeSets
                 // for (int i = 0; i < changeLogSets.size(); i++) {
                 //     def entries = changeLogSets[i].items
