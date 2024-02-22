@@ -41,6 +41,15 @@ pipeline {
                 // echo "Run tests"
                 // sh "cargo nextest run --profile=ci"
 
+                echo "Install rust using rustup"
+                sh "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y"
+                sh "source $HOME/.cargo/env"
+                sh "export PATH=$HOME/.cargo/bin:$PATH"
+
+                echo "Check rustc and cargo versions"
+                sh "rustc --version"
+                sh "cargo --version"
+
                 echo "Upload results cli release built from source"
                 sh "cargo run --release -- upload --junit-paths target/**/*junit.xml --org-url-slug trunk-staging-org --token 1234"
             }
