@@ -19,6 +19,7 @@ pipeline {
                 echo "GIT_COMMITTER_EMAIL: ${env.GIT_COMMITTER_EMAIL}"
                 echo "GIT_AUTHOR_EMAIL: ${env.GIT_AUTHOR_EMAIL}"
                 echo "env: ${env}"
+                sh "printenv"
             }
         }
 
@@ -27,31 +28,6 @@ pipeline {
                 echo "currentBuild.number: ${currentBuild.number}"
                 echo "currentBuild.changeSets: ${currentBuild.changeSets}"
                 echo "currentBuild: ${currentBuild}"
-            }
-        }
-
-        stage('build') {
-            steps {
-                // echo "Build"
-                // sh "cargo build -q --all"
-
-                // echo "Install nextest"
-                // sh "curl -LsSf https://get.nexte.st/latest/linux | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin"
-
-                // echo "Run tests"
-                // sh "cargo nextest run --profile=ci"
-
-                echo "Install rust using rustup"
-                sh "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y"
-                sh ". $HOME/.cargo/env"
-                sh "export PATH=$HOME/.cargo/bin:$PATH"
-
-                echo "Check rustc and cargo versions"
-                sh "rustc --version"
-                sh "cargo --version"
-
-                echo "Upload results cli release built from source"
-                sh "cargo run --release -- upload --junit-paths target/**/*junit.xml --org-url-slug trunk-staging-org --token 1234"
             }
         }
     }
