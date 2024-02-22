@@ -10,11 +10,15 @@ pipeline {
 
         stage('currentBuild') {
             steps {
+                def changeLogSets = currentBuild.changeSets
+
+
+
                 echo "currentBuild.number: ${currentBuild.number}"
                 echo "currentBuild.getBuildCauses: ${currentBuild.getBuildCauses()}"
+                echo "currentBuild.changeSets.kind: ${currentBuild.changeSets.kind}"
                 echo "currentBuild.changeSets: ${currentBuild.changeSets[0].items[0].commitId}"
-                echo "currentBuild.changeSets.getKind(): ${currentBuild.changeSets.getKind()}"
-                echo "currentBuild.changeSets.getItems(): ${currentBuild.changeSets.getItems()}"
+                echo "currentBuild.changeSets: ${currentBuild.changeSets[0].items[0].author}"
 
                 sh """
                     currentBuild.changeSets.forEach({ changeSet ->
