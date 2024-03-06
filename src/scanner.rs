@@ -62,8 +62,7 @@ impl FileSet {
             let path = match entry {
                 Ok(path) => path,
                 Err(e) => {
-                    log::error!("Error scanning file set: {:?}", e);
-                    return Ok::<(), anyhow::Error>(());
+                    return Err(anyhow::anyhow!("Error scanning file set: {:?}", e));
                 }
             };
 
