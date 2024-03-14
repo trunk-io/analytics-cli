@@ -167,7 +167,7 @@ impl BundleRepo {
             git_head_commit_message = git_head.peel_to_commit_in_place().map_or(None, |commit| {
                 commit
                     .message()
-                    .map_or(None, |msg| Some(msg.title.to_string()))
+                    .map_or(None, |msg| Some(msg.body?.to_string()))
             });
             git_head_author = git_head
                 .peel_to_commit_in_place()
