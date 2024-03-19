@@ -185,6 +185,8 @@ async fn run(cli: Cli) -> anyhow::Result<()> {
         }
     }
 
+    println!("Uploading to Trunk API: {:?}", meta);
+
     let bundle_temp_dir = tempfile::tempdir()?;
     let bundle_time_file = bundle_temp_dir.path().join("bundle.tar.zstd");
     let bundler = BundlerUtil::new(meta);
