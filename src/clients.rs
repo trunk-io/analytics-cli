@@ -56,7 +56,8 @@ pub async fn get_quarantine_bulk_test_status(
 ) -> anyhow::Result<QuarantineBulkTestStatus> {
     let client = reqwest::Client::new();
     let resp = match client
-        .post(format!("{}/v1/metrics/getQuarantineBulkTestStatus", origin,))
+        .post(format!("{}/v1/metrics/getQuarantineBulkTestStatus", origin))
+        .timeout(TRUNK_API_TIMEOUT)
         .header(reqwest::header::CONTENT_TYPE, "application/json")
         .header(TRUNK_API_TOKEN_HEADER, api_token)
         .json(&GetQuarantineBulkTestStatusRequest {

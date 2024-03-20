@@ -6,7 +6,7 @@ use tokio_retry::strategy::ExponentialBackoff;
 use tokio_retry::Retry;
 use trunk_analytics_cli::bundler::BundlerUtil;
 use trunk_analytics_cli::clients::get_quarantine_bulk_test_status;
-use trunk_analytics_cli::constants::{TRUNK_API_ADDRESS_ENV, EXIT_SUCCESS};
+use trunk_analytics_cli::constants::{EXIT_SUCCESS, TRUNK_API_ADDRESS_ENV};
 use trunk_analytics_cli::runner::run_test_command;
 use trunk_analytics_cli::scanner::{BundleRepo, EnvScanner, FileSet, FileSetCounter};
 use trunk_analytics_cli::types::{BundleMeta, QuarantineBulkTestStatus, META_VERSION};
@@ -299,7 +299,7 @@ async fn run_test(test_args: TestArgs) -> anyhow::Result<i32> {
     });
     // use the exit code from the command if the group is not quarantined
     // override exit code to be exit_success if the group is quarantined
-    let exit_code = if !run_result.exit_code != 0 && !quarantine_results.group_is_quarantined {
+    let exit_code = if !run_result.exit_code != EXIT_SUCCESS && !quarantine_results.group_is_quarantined {
         run_result.exit_code
     } else {
         EXIT_SUCCESS
