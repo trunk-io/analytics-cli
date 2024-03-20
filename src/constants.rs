@@ -7,6 +7,7 @@ pub const ENVS_TO_GET: &'static [&'static str] = &[
     "CI",
     "GIT_BRANCH",
     "GIT_COMMIT",
+    "GIT_COMMIT_TITLE",
     "GIT_URL",
     "GIT_COMMITTER_NAME",
     "GIT_AUTHOR_NAME",
@@ -148,6 +149,7 @@ pub const ENVS_TO_GET: &'static [&'static str] = &[
     "TRAVIS_TAG",
     "TRAVIS_TEST_RESULT",
     // Webapp.io
+    "WEBAPPIO",
     "JOB_ID",
     "PULL_REQUEST_URL",
     "ORGANIZATION_NAME",

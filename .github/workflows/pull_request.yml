@@ -86,3 +86,15 @@ jobs:
             --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
             --org-url-slug trunk-staging-org \
             --token ${{ secrets.TRUNK_STAGING_ORG_API_TOKEN }}
+
+  trunk_check_runner:
+    name: Trunk Check runner [linux]
+    runs-on: [self-hosted, linux]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Trunk Check
+        uses: trunk-io/trunk-action@v1
+        with:
+          cache: false
