@@ -13,14 +13,14 @@ pub const TRUNK_API_TIMEOUT: std::time::Duration = std::time::Duration::from_sec
 pub const TRUNK_API_TOKEN_HEADER: &str = "x-api-token";
 
 pub async fn get_bundle_upload_location(
-    hostname: &str,
+    origin: &str,
     api_token: &str,
     org_slug: &str,
     repo: &Repo,
 ) -> anyhow::Result<BundleUploadLocation> {
     let client = reqwest::Client::new();
     let resp = match client
-        .post(format!("{}/metrics/createBundleUpload", hostname))
+        .post(format!("{}/v1/metrics/createBundleUpload", origin))
         .timeout(TRUNK_API_TIMEOUT)
         .header(reqwest::header::CONTENT_TYPE, "application/json")
         .header(TRUNK_API_TOKEN_HEADER, api_token)
@@ -48,7 +48,7 @@ pub async fn get_bundle_upload_location(
 }
 
 pub async fn get_quarantine_bulk_test_status(
-    hostname: &str,
+    origin: &str,
     api_token: &str,
     org_slug: &str,
     repo: &Repo,
@@ -56,7 +56,7 @@ pub async fn get_quarantine_bulk_test_status(
 ) -> anyhow::Result<QuarantineBulkTestStatus> {
     let client = reqwest::Client::new();
     let resp = match client
-        .post(format!("{}/metrics/getQuarantineBulkTestStatus", hostname,))
+        .post(format!("{}/v1/metrics/getQuarantineBulkTestStatus", origin,))
         .header(reqwest::header::CONTENT_TYPE, "application/json")
         .header(TRUNK_API_TOKEN_HEADER, api_token)
         .json(&GetQuarantineBulkTestStatusRequest {

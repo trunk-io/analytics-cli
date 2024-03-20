@@ -1,9 +1,11 @@
-use crate::scanner::{BundleRepo, FileSet, FileSetCounter};
-use std::process::Stdio;
-use crate::types::{RunResult, Test};
 use crate::constants::EXIT_FAILURE;
+use crate::scanner::{BundleRepo, FileSet, FileSetCounter};
+use crate::types::{RunResult, Test};
 use junit_parser;
+use std::fs::metadata;
 use std::process::Command;
+use std::process::Stdio;
+use std::time::SystemTime;
 
 pub async fn run_test_command(
     repo: &BundleRepo,
@@ -11,6 +13,7 @@ pub async fn run_test_command(
     args: Vec<&String>,
     output_paths: Vec<&String>,
 ) -> anyhow::Result<RunResult> {
+    let start = SystemTime::now();
     let mut child = Command::new(command)
         .args(args)
         .stdout(Stdio::inherit())
@@ -29,6 +32,12 @@ pub async fn run_test_command(
             .collect::<anyhow::Result<Vec<FileSet>>>()?;
         for file_set in &file_sets {
             for file in &file_set.files {
+                let metadata = metadata(&file.original_path)?;
+                let time = metadata.modified()?;
+                // skip files that were last modified before the test started
+                if time <= start {
+                    continue;
+                }
                 let file = std::fs::File::open(&file.original_path)?;
                 let reader = std::io::BufReader::new(file);
                 let junitxml = junit_parser::from_reader(reader)?;

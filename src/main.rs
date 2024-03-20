@@ -5,8 +5,8 @@ use clap::{Parser, Subcommand};
 use tokio_retry::strategy::ExponentialBackoff;
 use tokio_retry::Retry;
 use trunk_analytics_cli::bundler::BundlerUtil;
-use trunk_analytics_cli::constants::EXIT_SUCCESS;
 use trunk_analytics_cli::clients::get_quarantine_bulk_test_status;
+use trunk_analytics_cli::constants::EXIT_SUCCESS;
 use trunk_analytics_cli::runner::run_test_command;
 use trunk_analytics_cli::scanner::{BundleRepo, EnvScanner, FileSet, FileSetCounter};
 use trunk_analytics_cli::types::{BundleMeta, META_VERSION};
@@ -73,7 +73,7 @@ enum Commands {
     },
 }
 
-const DEFAULT_HOSTNAME: &str = "https://api.trunk.io/v1";
+const DEFAULT_ORIGIN: &str = "https://api.trunk.io";
 // Tokio-retry uses base ^ retry * factor formula.
 // This will give us 8ms, 64ms, 512ms, 4096ms, 32768ms
 const RETRY_BASE_MS: u64 = 8;
@@ -123,7 +123,7 @@ async fn run(cli: Cli) -> anyhow::Result<i32> {
 
     let api_address = from_non_empty_or_default(
         std::env::var("TRUNK_API_ADDRESS").ok(),
-        DEFAULT_HOSTNAME.to_string(),
+        DEFAULT_ORIGIN.to_string(),
         |s| s,
     );
     log::info!("Using Trunk API address: {}", api_address);
