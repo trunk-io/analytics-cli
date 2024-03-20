@@ -1,0 +1,64 @@
+name: Release Analytics CLI
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        type: string
+        description: Tag to create
+        required: True
+concurrency: ${{ github.workflow }}
+
+jobs:
+  build:
+    name: Build ${{ matrix.target }}
+    strategy:
+      matrix:
+        target: [x86_64-unknown-linux-musl, x86_64-unknown-linux-gnu]
+    runs-on: [ubuntu-latest]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@nightly
+
+      - name: Build ${{ matrix.target }} target
+        uses: ./.github/actions/build_target
+        if: "!cancelled()"
+        with:
+          target: ${{ matrix.target }}
+
+      - uses: actions/upload-artifact@v3
+        with:
+          name: ${{ matrix.target }}
+          path: target/${{ matrix.target }}/release/trunk-analytics-cli
+
+  tag_and_release:
+    name: Tag and Release [ ${{ github.event.inputs.release_tag }} ]
+    runs-on: [self-hosted, Linux]
+    needs: [build]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: download
+        uses: actions/download-artifact@v3
+        with:
+          path: build
+
+      - name: Compress binaries
+        run: |
+          for target in $(ls build)
+          do
+            chmod u+x build/${target}/trunk-analytics-cli
+            tar czvf \
+              build/trunk-analytics-cli-${{ github.event.inputs.release_tag }}-${target}.tar.gz \
+              -C build/${target} trunk-analytics-cli
+          done
+
+      - name: Create GH release and upload binary
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create --target ${{ github.ref }} --generate-notes \
+            ${{ github.event.inputs.release_tag }} ./build/*.tar.gz
