@@ -299,11 +299,12 @@ async fn run_test(test_args: TestArgs) -> anyhow::Result<i32> {
     });
     // use the exit code from the command if the group is not quarantined
     // override exit code to be exit_success if the group is quarantined
-    let exit_code = if !run_result.exit_code != EXIT_SUCCESS && !quarantine_results.group_is_quarantined {
-        run_result.exit_code
-    } else {
-        EXIT_SUCCESS
-    };
+    let exit_code =
+        if !run_result.exit_code != EXIT_SUCCESS && !quarantine_results.group_is_quarantined {
+            run_result.exit_code
+        } else {
+            EXIT_SUCCESS
+        };
 
     let upload_exit_code = run_upload(upload_args).await.unwrap_or(EXIT_SUCCESS);
     // use the upload exit code if the command exit code is exit_success
