@@ -9,7 +9,7 @@ use trunk_analytics_cli::clients::get_quarantine_bulk_test_status;
 use trunk_analytics_cli::constants::EXIT_SUCCESS;
 use trunk_analytics_cli::runner::run_test_command;
 use trunk_analytics_cli::scanner::{BundleRepo, EnvScanner, FileSet, FileSetCounter};
-use trunk_analytics_cli::types::{BundleMeta, META_VERSION};
+use trunk_analytics_cli::types::{BundleMeta, QuarantineBulkTestStatus, META_VERSION};
 use trunk_analytics_cli::utils::{from_non_empty_or_default, parse_custom_tags};
 
 #[derive(Debug, Parser)]
@@ -87,7 +87,7 @@ const DEFAULT_ORIGIN: &str = "https://api.trunk.io";
 // This will give us 8ms, 64ms, 512ms, 4096ms, 32768ms
 const RETRY_BASE_MS: u64 = 8;
 const RETRY_FACTOR: u64 = 1;
-const RETRY_COUNT: usize = 5;
+const RETRY_COUNT: usize = 3;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -284,14 +284,19 @@ async fn run_test(test_args: TestArgs) -> anyhow::Result<i32> {
         junit_paths.iter().collect(),
     )
     .await?;
-    let quarantine_results = get_quarantine_bulk_test_status(
-        &api_address,
-        token,
-        org_url_slug,
-        &repo.repo,
-        &run_result.failures,
-    )
-    .await?;
+    let quarantine_results = Retry::spawn(default_delay(), || {
+        get_quarantine_bulk_test_status(
+            &api_address,
+            token,
+            org_url_slug,
+            &repo.repo,
+            &run_result.failures,
+        )
+    })
+    .await
+    .unwrap_or(QuarantineBulkTestStatus {
+        group_is_quarantined: false,
+    });
     // use the exit code from the command if the group is not quarantined
     // override exit code to be exit_success if the group is quarantined
     let exit_code = if !run_result.exit_code != 0 && !quarantine_results.group_is_quarantined {
@@ -300,7 +305,7 @@ async fn run_test(test_args: TestArgs) -> anyhow::Result<i32> {
         EXIT_SUCCESS
     };
 
-    let upload_exit_code = run_upload(upload_args).await?;
+    let upload_exit_code = run_upload(upload_args).await.unwrap_or(EXIT_SUCCESS);
     // use the upload exit code if the command exit code is exit_success
     if exit_code == EXIT_SUCCESS {
         Ok(upload_exit_code)
