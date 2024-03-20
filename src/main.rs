@@ -240,22 +240,22 @@ async fn run_upload(upload_args: UploadArgs) -> anyhow::Result<i32> {
 
 async fn run_test(test_args: TestArgs) -> anyhow::Result<i32> {
     let TestArgs {
-        ref command,
+        command,
         upload_args,
     } = test_args;
     let UploadArgs {
-        ref junit_paths,
-        ref org_url_slug,
-        ref token,
-        ref repo_root,
-        ref repo_url,
-        ref repo_head_sha,
-        ref repo_head_branch,
-        ref repo_head_commit_epoch,
+        junit_paths,
+        org_url_slug,
+        token,
+        repo_root,
+        repo_url,
+        repo_head_sha,
+        repo_head_branch,
+        repo_head_commit_epoch,
         tags: _,
         print_files: _,
         dry_run: _,
-    } = upload_args;
+    } = &upload_args;
 
     let repo = BundleRepo::try_read_from_root(
         repo_root.clone(),
