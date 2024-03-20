@@ -1,7 +1,7 @@
 use std::io::Write;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use clap::{Parser, Subcommand};
+use clap::{Args, Parser, Subcommand};
 use tokio_retry::strategy::ExponentialBackoff;
 use tokio_retry::Retry;
 use trunk_analytics_cli::bundler::BundlerUtil;
@@ -23,54 +23,63 @@ struct Cli {
     pub command: Commands,
 }
 
+#[derive(Args, Clone, Debug)]
+struct UploadArgs {
+    #[arg(
+        long,
+        required = true,
+        value_delimiter = ',',
+        help = "Comma-separated list of glob paths to junit files."
+    )]
+    junit_paths: Vec<String>,
+    #[arg(long, help = "Organization url slug.")]
+    org_url_slug: String,
+    #[arg(
+        long,
+        required = true,
+        env = "TRUNK_API_TOKEN",
+        help = "Organization token. Defaults to TRUNK_API_TOKEN env var."
+    )]
+    token: String,
+    #[arg(long, help = "Path to repository root. Defaults to current directory.")]
+    repo_root: Option<String>,
+    #[arg(long, help = "Value to override URL of repository.")]
+    repo_url: Option<String>,
+    #[arg(long, help = "Value to override SHA of repository head.")]
+    repo_head_sha: Option<String>,
+    #[arg(long, help = "Value to override branch of repository head.")]
+    repo_head_branch: Option<String>,
+    #[arg(long, help = "Value to override commit epoch of repository head.")]
+    repo_head_commit_epoch: Option<String>,
+    #[arg(
+        long,
+        value_delimiter = ',',
+        help = "Comma separated list of custom tag=value pairs."
+    )]
+    tags: Vec<String>,
+    #[arg(long, help = "Print files which will be uploaded to stdout.")]
+    print_files: bool,
+    #[arg(long, help = "Run metrics CLI without uploading to API.")]
+    dry_run: bool,
+}
+
+#[derive(Args, Clone, Debug)]
+struct TestArgs {
+    #[command(flatten)]
+    upload_args: UploadArgs,
+    #[arg(
+        required = false,
+        allow_hyphen_values = true,
+        trailing_var_arg = true,
+        help = "Test command to invoke."
+    )]
+    command: Vec<String>,
+}
+
 #[derive(Debug, Subcommand)]
 enum Commands {
-    #[clap(name = "upload")]
-    Upload {
-        #[arg(
-            long,
-            required = false,
-            value_delimiter = ' ',
-            help = "Test command to invoke."
-        )]
-        command: Vec<String>,
-        #[arg(
-            long,
-            required = true,
-            value_delimiter = ',',
-            help = "Comma-separated list of glob paths to junit files."
-        )]
-        junit_paths: Vec<String>,
-        #[arg(long, help = "Organization url slug.")]
-        org_url_slug: String,
-        #[arg(
-            long,
-            required = true,
-            env = "TRUNK_API_TOKEN",
-            help = "Organization token. Defaults to TRUNK_API_TOKEN env var."
-        )]
-        token: String,
-        #[arg(long, help = "Path to repository root. Defaults to current directory.")]
-        repo_root: Option<String>,
-        #[arg(long, help = "Value to override URL of repository.")]
-        repo_url: Option<String>,
-        #[arg(long, help = "Value to override SHA of repository head.")]
-        repo_head_sha: Option<String>,
-        #[arg(long, help = "Value to override branch of repository head.")]
-        repo_head_branch: Option<String>,
-        #[arg(long, help = "Value to override commit epoch of repository head.")]
-        repo_head_commit_epoch: Option<String>,
-        #[arg(
-            long,
-            value_delimiter = ',',
-            help = "Comma separated list of custom tag=value pairs."
-        )]
-        tags: Vec<String>,
-        #[arg(long, help = "Print files which will be uploaded to stdout.")]
-        print_files: bool,
-        #[arg(long, help = "Run metrics CLI without uploading to API.")]
-        dry_run: bool,
-    },
+    Upload(UploadArgs),
+    Test(TestArgs),
 }
 
 const DEFAULT_ORIGIN: &str = "https://api.trunk.io";
@@ -93,9 +102,8 @@ async fn main() -> anyhow::Result<()> {
     }
 }
 
-async fn run(cli: Cli) -> anyhow::Result<i32> {
-    let Commands::Upload {
-        command,
+async fn run_upload(upload_args: UploadArgs) -> anyhow::Result<i32> {
+    let UploadArgs {
         junit_paths,
         org_url_slug,
         token,
@@ -107,7 +115,7 @@ async fn run(cli: Cli) -> anyhow::Result<i32> {
         tags,
         print_files,
         dry_run,
-    } = cli.command;
+    } = upload_args;
 
     let repo = BundleRepo::try_read_from_root(
         repo_root,
@@ -117,7 +125,7 @@ async fn run(cli: Cli) -> anyhow::Result<i32> {
         repo_head_commit_epoch,
     )?;
 
-    if junit_paths.len() == 0 {
+    if junit_paths.is_empty() {
         return Err(anyhow::anyhow!("No junit paths provided."));
     }
 
@@ -126,37 +134,7 @@ async fn run(cli: Cli) -> anyhow::Result<i32> {
         DEFAULT_ORIGIN.to_string(),
         |s| s,
     );
-    log::info!("Using Trunk API address: {}", api_address);
-
-    let mut exit_code: i32 = EXIT_SUCCESS;
-
-    // run the command
-    if command.len() != 0 {
-        log::info!("running command: {:?}", command);
-        // check with the API if the group is quarantined
-        let run_result = run_test_command(
-            &repo,
-            command.get(0).unwrap(),
-            command.iter().skip(1).collect(),
-            junit_paths.iter().skip(0).collect(),
-        )
-        .await?;
-        let quarantine_results = get_quarantine_bulk_test_status(
-            &api_address,
-            &token,
-            &org_url_slug,
-            &repo.repo,
-            &run_result.failures,
-        )
-        .await?;
-        // use the exit code from the command if the group is not quarantined
-        // override exit code to be exit_success if the group is quarantined
-        if !run_result.exit_code != 0 && !quarantine_results.group_is_quarantined {
-            exit_code = run_result.exit_code;
-        } else {
-            exit_code = EXIT_SUCCESS;
-        }
-    }
+    let exit_code: i32 = EXIT_SUCCESS;
 
     log::info!(
         "Starting trunk-analytics-cli {} (git={}) rustc={}",
@@ -258,6 +236,84 @@ async fn run(cli: Cli) -> anyhow::Result<i32> {
 
     log::info!("Done");
     Ok(exit_code)
+}
+
+async fn run_test(test_args: TestArgs) -> anyhow::Result<i32> {
+    let TestArgs {
+        ref command,
+        upload_args,
+    } = test_args;
+    let UploadArgs {
+        ref junit_paths,
+        ref org_url_slug,
+        ref token,
+        ref repo_root,
+        ref repo_url,
+        ref repo_head_sha,
+        ref repo_head_branch,
+        ref repo_head_commit_epoch,
+        tags: _,
+        print_files: _,
+        dry_run: _,
+    } = upload_args;
+
+    let repo = BundleRepo::try_read_from_root(
+        repo_root.clone(),
+        repo_url.clone(),
+        repo_head_sha.clone(),
+        repo_head_branch.clone(),
+        repo_head_commit_epoch.clone(),
+    )?;
+
+    if junit_paths.is_empty() {
+        return Err(anyhow::anyhow!("No junit paths provided."));
+    }
+
+    let api_address = from_non_empty_or_default(
+        std::env::var("TRUNK_API_ADDRESS").ok(),
+        DEFAULT_ORIGIN.to_string(),
+        |s| s,
+    );
+
+    log::info!("running command: {:?}", command);
+    // check with the API if the group is quarantined
+    let run_result = run_test_command(
+        &repo,
+        command.first().unwrap(),
+        command.iter().skip(1).collect(),
+        junit_paths.iter().collect(),
+    )
+    .await?;
+    let quarantine_results = get_quarantine_bulk_test_status(
+        &api_address,
+        token,
+        org_url_slug,
+        &repo.repo,
+        &run_result.failures,
+    )
+    .await?;
+    // use the exit code from the command if the group is not quarantined
+    // override exit code to be exit_success if the group is quarantined
+    let exit_code = if !run_result.exit_code != 0 && !quarantine_results.group_is_quarantined {
+        run_result.exit_code
+    } else {
+        EXIT_SUCCESS
+    };
+
+    let upload_exit_code = run_upload(upload_args).await?;
+    // use the upload exit code if the command exit code is exit_success
+    if exit_code == EXIT_SUCCESS {
+        Ok(upload_exit_code)
+    } else {
+        Ok(exit_code)
+    }
+}
+
+async fn run(cli: Cli) -> anyhow::Result<i32> {
+    match cli.command {
+        Commands::Upload(upload_args) => run_upload(upload_args).await,
+        Commands::Test(test_args) => run_test(test_args).await,
+    }
 }
 
 fn default_delay() -> std::iter::Take<ExponentialBackoff> {

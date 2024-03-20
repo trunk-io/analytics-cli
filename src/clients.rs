@@ -52,7 +52,7 @@ pub async fn get_quarantine_bulk_test_status(
     api_token: &str,
     org_slug: &str,
     repo: &Repo,
-    test_identifiers: &Vec<Test>,
+    test_identifiers: &[Test],
 ) -> anyhow::Result<QuarantineBulkTestStatus> {
     let client = reqwest::Client::new();
     let resp = match client
@@ -62,7 +62,7 @@ pub async fn get_quarantine_bulk_test_status(
         .json(&GetQuarantineBulkTestStatusRequest {
             org_url_slug: org_slug.to_owned(),
             repo: repo.clone(),
-            test_identifiers: test_identifiers.clone(),
+            test_identifiers: test_identifiers.to_vec(),
         })
         .send()
         .await

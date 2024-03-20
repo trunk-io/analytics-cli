@@ -56,8 +56,8 @@ pub async fn run_test_command(
         }
     }
     let exit_code = result.code().unwrap_or(EXIT_FAILURE);
-    return Ok(RunResult {
-        exit_code: exit_code,
-        failures: failures,
-    });
+    Ok(RunResult {
+        exit_code,
+        failures,
+    })
 }
