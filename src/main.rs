@@ -5,6 +5,9 @@ use clap::{Parser, Subcommand};
 use tokio_retry::strategy::ExponentialBackoff;
 use tokio_retry::Retry;
 use trunk_analytics_cli::bundler::BundlerUtil;
+use trunk_analytics_cli::constants::EXIT_SUCCESS;
+use trunk_analytics_cli::clients::get_quarantine_bulk_test_status;
+use trunk_analytics_cli::runner::run_test_command;
 use trunk_analytics_cli::scanner::{BundleRepo, EnvScanner, FileSet, FileSetCounter};
 use trunk_analytics_cli::types::{BundleMeta, META_VERSION};
 use trunk_analytics_cli::utils::{from_non_empty_or_default, parse_custom_tags};
@@ -24,6 +27,13 @@ struct Cli {
 enum Commands {
     #[clap(name = "upload")]
     Upload {
+        #[arg(
+            long,
+            required = false,
+            value_delimiter = ' ',
+            help = "Test command to invoke."
+        )]
+        command: Vec<String>,
         #[arg(
             long,
             required = true,
@@ -63,7 +73,7 @@ enum Commands {
     },
 }
 
-const DEFAULT_API_ADDRESS: &str = "https://api.trunk.io/v1/metrics/createBundleUpload";
+const DEFAULT_HOSTNAME: &str = "https://api.trunk.io/v1";
 // Tokio-retry uses base ^ retry * factor formula.
 // This will give us 8ms, 64ms, 512ms, 4096ms, 32768ms
 const RETRY_BASE_MS: u64 = 8;
@@ -74,15 +84,18 @@ const RETRY_COUNT: usize = 5;
 async fn main() -> anyhow::Result<()> {
     setup_logger()?;
     let cli = Cli::parse();
-    if let Err(e) = run(cli).await {
-        log::error!("Error: {:?}", e);
-        std::process::exit(exitcode::SOFTWARE);
+    match run(cli).await {
+        Ok(exit_code) => std::process::exit(exit_code),
+        Err(e) => {
+            log::error!("Error: {:?}", e);
+            std::process::exit(exitcode::SOFTWARE);
+        }
     }
-    Ok(())
 }
 
-async fn run(cli: Cli) -> anyhow::Result<()> {
+async fn run(cli: Cli) -> anyhow::Result<i32> {
     let Commands::Upload {
+        command,
         junit_paths,
         org_url_slug,
         token,
@@ -96,25 +109,6 @@ async fn run(cli: Cli) -> anyhow::Result<()> {
         dry_run,
     } = cli.command;
 
-    log::info!(
-        "Starting trunk-analytics-cli {} (git={}) rustc={}",
-        env!("CARGO_PKG_VERSION"),
-        env!("VERGEN_GIT_SHA"),
-        env!("VERGEN_RUSTC_SEMVER")
-    );
-
-    let api_address = from_non_empty_or_default(
-        std::env::var("TRUNK_API_ADDRESS").ok(),
-        DEFAULT_API_ADDRESS.to_string(),
-        |s| s,
-    );
-
-    if token.trim().is_empty() {
-        return Err(anyhow::anyhow!("Trunk API token is required."));
-    }
-
-    let tags = parse_custom_tags(&tags)?;
-
     let repo = BundleRepo::try_read_from_root(
         repo_root,
         repo_url,
@@ -126,6 +120,57 @@ async fn run(cli: Cli) -> anyhow::Result<()> {
     if junit_paths.len() == 0 {
         return Err(anyhow::anyhow!("No junit paths provided."));
     }
+
+    let api_address = from_non_empty_or_default(
+        std::env::var("TRUNK_API_ADDRESS").ok(),
+        DEFAULT_HOSTNAME.to_string(),
+        |s| s,
+    );
+    log::info!("Using Trunk API address: {}", api_address);
+
+    let mut exit_code: i32 = EXIT_SUCCESS;
+
+    // run the command
+    if command.len() != 0 {
+        log::info!("running command: {:?}", command);
+        // check with the API if the group is quarantined
+        let run_result = run_test_command(
+            &repo,
+            command.get(0).unwrap(),
+            command.iter().skip(1).collect(),
+            junit_paths.iter().skip(0).collect(),
+        )
+        .await?;
+        let quarantine_results = get_quarantine_bulk_test_status(
+            &api_address,
+            &token,
+            &org_url_slug,
+            &repo.repo,
+            &run_result.failures,
+        )
+        .await?;
+        // use the exit code from the command if the group is not quarantined
+        // override exit code to be exit_success if the group is quarantined
+        if !run_result.exit_code != 0 && !quarantine_results.group_is_quarantined {
+            exit_code = run_result.exit_code;
+        } else {
+            exit_code = EXIT_SUCCESS;
+        }
+    }
+
+    log::info!(
+        "Starting trunk-analytics-cli {} (git={}) rustc={}",
+        env!("CARGO_PKG_VERSION"),
+        env!("VERGEN_GIT_SHA"),
+        env!("VERGEN_RUSTC_SEMVER")
+    );
+
+    if token.trim().is_empty() {
+        return Err(anyhow::anyhow!("Trunk API token is required."));
+    }
+
+    let tags = parse_custom_tags(&tags)?;
+
     let mut file_counter = FileSetCounter::default();
     let mut file_sets = junit_paths
         .iter()
@@ -203,7 +248,7 @@ async fn run(cli: Cli) -> anyhow::Result<()> {
 
     if dry_run {
         log::info!("Dry run, skipping upload.");
-        return Ok(());
+        return Ok(exit_code);
     }
 
     Retry::spawn(default_delay(), || {
@@ -212,7 +257,7 @@ async fn run(cli: Cli) -> anyhow::Result<()> {
     .await?;
 
     log::info!("Done");
-    Ok(())
+    Ok(exit_code)
 }
 
 fn default_delay() -> std::iter::Take<ExponentialBackoff> {

@@ -3,11 +3,38 @@ use serde::{Deserialize, Serialize};
 
 use crate::scanner::{BundleRepo, FileSet};
 
+pub struct RunResult {
+    pub exit_code: i32,
+    pub failures: Vec<Test>,
+}
+
 #[derive(Debug, Serialize, Clone, Deserialize)]
 pub struct CreateBundleUploadRequest {
     pub repo: Repo,
     #[serde(rename = "orgUrlSlug")]
     pub org_url_slug: String,
+}
+
+#[derive(Debug, Serialize, Clone, Deserialize)]
+pub struct GetQuarantineBulkTestStatusRequest {
+    pub repo: Repo,
+    #[serde(rename = "orgUrlSlug")]
+    pub org_url_slug: String,
+    #[serde(rename = "testIdentifiers")]
+    pub test_identifiers: Vec<Test>,
+}
+
+#[derive(Debug, Serialize, Clone, Deserialize)]
+pub struct Test {
+    pub name: String,
+    #[serde(rename = "parentName")]
+    pub parent_name: String,
+}
+
+#[derive(Debug, Serialize, Clone, Deserialize)]
+pub struct QuarantineBulkTestStatus {
+    #[serde(rename = "groupIsQuarantined")]
+    pub group_is_quarantined: bool,
 }
 
 #[derive(Debug, Serialize, Clone, Deserialize)]

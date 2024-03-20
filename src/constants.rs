@@ -1,5 +1,7 @@
 pub const ALLOW_LIST: &[&'static str] = &[r".*\.xml$"];
 
+pub const EXIT_SUCCESS: i32 = 0;
+pub const EXIT_FAILURE: i32 = 1;
 pub const ENVS_TO_GET: &'static [&'static str] = &[
     "CI",
     "GIT_BRANCH",
