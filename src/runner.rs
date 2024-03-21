@@ -45,9 +45,11 @@ pub async fn run_test_command(
                     for case in suite.cases {
                         let failure = case.status.is_failure();
                         if failure {
+                            let parent_name = format!("{}/{}", junitxml.name, suite.name);
+                            let name = case.original_name;
                             failures.push(Test {
-                                parent_name: suite.name.clone(),
-                                name: case.name.clone(),
+                                parent_name: parent_name.clone(),
+                                name: name.clone(),
                             });
                         }
                     }

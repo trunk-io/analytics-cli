@@ -68,7 +68,7 @@ struct TestArgs {
     #[command(flatten)]
     upload_args: UploadArgs,
     #[arg(
-        required = false,
+        required = true,
         allow_hyphen_values = true,
         trailing_var_arg = true,
         help = "Test command to invoke."
@@ -297,14 +297,18 @@ async fn run_test(test_args: TestArgs) -> anyhow::Result<i32> {
     .unwrap_or(QuarantineBulkTestStatus {
         group_is_quarantined: false,
     });
+    log::info!("Quarantine results: {:?}", quarantine_results);
     // use the exit code from the command if the group is not quarantined
     // override exit code to be exit_success if the group is quarantined
-    let exit_code =
-        if !run_result.exit_code != EXIT_SUCCESS && !quarantine_results.group_is_quarantined {
-            run_result.exit_code
-        } else {
-            EXIT_SUCCESS
-        };
+    let exit_code = if !quarantine_results.group_is_quarantined {
+        log::info!("Not all test failures were quarantined, returning exit code from command.");
+        run_result.exit_code
+    } else if run_result.exit_code != EXIT_SUCCESS {
+        log::info!("All test failures were quarantined, overriding exit code to be exit_success");
+        EXIT_SUCCESS
+    } else {
+        run_result.exit_code
+    };
 
     let upload_exit_code = run_upload(upload_args).await.unwrap_or(EXIT_SUCCESS);
     // use the upload exit code if the command exit code is exit_success
