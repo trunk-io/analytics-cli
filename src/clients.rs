@@ -1,22 +1,26 @@
+use std::format;
 use std::path::PathBuf;
 
 use anyhow::Context;
 
-use crate::types::{BundleUploadLocation, CreateBundleUploadRequest, Repo};
+use crate::types::{
+    BundleUploadLocation, CreateBundleUploadRequest, GetQuarantineBulkTestStatusRequest,
+    QuarantineBulkTestStatus, Repo, Test,
+};
 use crate::utils::status_code_help;
 
 pub const TRUNK_API_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
 pub const TRUNK_API_TOKEN_HEADER: &str = "x-api-token";
 
 pub async fn get_bundle_upload_location(
-    api_address: &str,
+    origin: &str,
     api_token: &str,
     org_slug: &str,
     repo: &Repo,
 ) -> anyhow::Result<BundleUploadLocation> {
     let client = reqwest::Client::new();
     let resp = match client
-        .post(api_address)
+        .post(format!("{}/v1/metrics/createBundleUpload", origin))
         .timeout(TRUNK_API_TIMEOUT)
         .header(reqwest::header::CONTENT_TYPE, "application/json")
         .header(TRUNK_API_TOKEN_HEADER, api_token)
@@ -39,6 +43,43 @@ pub async fn get_bundle_upload_location(
     }
 
     resp.json::<BundleUploadLocation>()
+        .await
+        .context("Failed to get repsonse body as json")
+}
+
+pub async fn get_quarantine_bulk_test_status(
+    origin: &str,
+    api_token: &str,
+    org_slug: &str,
+    repo: &Repo,
+    test_identifiers: &[Test],
+) -> anyhow::Result<QuarantineBulkTestStatus> {
+    let client = reqwest::Client::new();
+    let resp = match client
+        .post(format!("{}/v1/metrics/getQuarantineBulkTestStatus", origin))
+        .timeout(TRUNK_API_TIMEOUT)
+        .header(reqwest::header::CONTENT_TYPE, "application/json")
+        .header(TRUNK_API_TOKEN_HEADER, api_token)
+        .json(&GetQuarantineBulkTestStatusRequest {
+            org_url_slug: org_slug.to_owned(),
+            repo: repo.clone(),
+            test_identifiers: test_identifiers.to_vec(),
+        })
+        .send()
+        .await
+    {
+        Ok(resp) => resp,
+        Err(e) => return Err(anyhow::anyhow!(e).context("Failed to get quarantine bulk test")),
+    };
+
+    if resp.status() != reqwest::StatusCode::OK {
+        return Err(
+            anyhow::anyhow!("{}: {}", resp.status(), status_code_help(resp.status()))
+                .context("Failed to get quarantine bulk test"),
+        );
+    }
+
+    resp.json::<QuarantineBulkTestStatus>()
         .await
         .context("Failed to get repsonse body as json")
 }
