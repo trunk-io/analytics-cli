@@ -35,3 +35,6 @@ actions:
     - trunk-fmt-pre-commit
   enabled:
     - trunk-upgrade-available
+tools:
+  enabled:
+    - gh@2.46.0
