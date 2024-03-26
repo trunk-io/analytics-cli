@@ -14,7 +14,7 @@ jobs:
     strategy:
       matrix:
         target: [x86_64-unknown-linux-musl, x86_64-unknown-linux-gnu]
-    runs-on: [self-hosted, Linux]
+    runs-on: [ubuntu-20.04]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
