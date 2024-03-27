@@ -32,21 +32,31 @@ pub async fn run_test_command(
             .collect::<anyhow::Result<Vec<FileSet>>>()?;
         for file_set in &file_sets {
             for file in &file_set.files {
+                log::debug!("Checking file: {}", file.original_path);
                 let metadata = metadata(&file.original_path)?;
                 let time = metadata.modified()?;
                 // skip files that were last modified before the test started
                 if time <= start {
+                    log::debug!(
+                        "Skipping file because of lack of modification: {}",
+                        file.original_path
+                    );
                     continue;
                 }
                 let file = std::fs::File::open(&file.original_path)?;
                 let reader = std::io::BufReader::new(file);
                 let junitxml = junit_parser::from_reader(reader)?;
                 for suite in junitxml.suites {
+                    let parent_name = if junitxml.name.is_empty() {
+                        suite.name
+                    } else {
+                        format!("{}/{}", junitxml.name, suite.name)
+                    };
                     for case in suite.cases {
                         let failure = case.status.is_failure();
                         if failure {
-                            let parent_name = format!("{}/{}", junitxml.name, suite.name);
                             let name = case.original_name;
+                            log::debug!("Test failed: {} -> {}", parent_name, name);
                             failures.push(Test {
                                 parent_name: parent_name.clone(),
                                 name: name.clone(),
