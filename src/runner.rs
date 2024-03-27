@@ -20,32 +20,75 @@ pub async fn run_test_command(
         .stderr(Stdio::inherit())
         .spawn()
         .unwrap();
-    let result = child.wait()?;
+    let result = match child.wait() {
+        Ok(result) => result,
+        Err(e) => {
+            log::error!("Error waiting for execution: {}", e);
+            return Ok(RunResult {
+                exit_code: EXIT_FAILURE,
+                failures: Vec::new(),
+            });
+        }
+    };
     let mut failures = Vec::<Test>::new();
     if !result.success() {
         let mut file_counter = FileSetCounter::default();
-        let file_sets = output_paths
+        let file_sets = match output_paths
             .iter()
             .map(|path| {
                 FileSet::scan_from_glob(&repo.repo_root, path.to_string(), &mut file_counter)
             })
-            .collect::<anyhow::Result<Vec<FileSet>>>()?;
+            .collect::<anyhow::Result<Vec<FileSet>>>()
+        {
+            Ok(file_sets) => file_sets,
+            Err(e) => {
+                log::error!("Error scanning file sets: {}", e);
+                return Ok(RunResult {
+                    exit_code: result.code().unwrap_or(EXIT_FAILURE),
+                    failures,
+                });
+            }
+        };
         for file_set in &file_sets {
             for file in &file_set.files {
-                log::debug!("Checking file: {}", file.original_path);
-                let metadata = metadata(&file.original_path)?;
-                let time = metadata.modified()?;
+                log::info!("Checking file: {}", file.original_path);
+                let metadata = match metadata(&file.original_path) {
+                    Ok(metadata) => metadata,
+                    Err(e) => {
+                        log::warn!("Error getting metadata: {}", e);
+                        continue;
+                    }
+                };
+                let time = match metadata.modified() {
+                    Ok(time) => time,
+                    Err(e) => {
+                        log::warn!("Error getting modified time: {}", e);
+                        continue;
+                    }
+                };
                 // skip files that were last modified before the test started
                 if time <= start {
-                    log::debug!(
+                    log::info!(
                         "Skipping file because of lack of modification: {}",
                         file.original_path
                     );
                     continue;
                 }
-                let file = std::fs::File::open(&file.original_path)?;
+                let file = match std::fs::File::open(&file.original_path) {
+                    Ok(file) => file,
+                    Err(e) => {
+                        log::warn!("Error opening file: {}", e);
+                        continue;
+                    }
+                };
                 let reader = std::io::BufReader::new(file);
-                let junitxml = junit_parser::from_reader(reader)?;
+                let junitxml = match junit_parser::from_reader(reader) {
+                    Ok(junitxml) => junitxml,
+                    Err(e) => {
+                        log::warn!("Error parsing junitxml: {}", e);
+                        continue;
+                    }
+                };
                 for suite in junitxml.suites {
                     let parent_name = if junitxml.name.is_empty() {
                         suite.name
