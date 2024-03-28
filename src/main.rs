@@ -289,11 +289,12 @@ async fn run_test(test_args: TestArgs) -> anyhow::Result<i32> {
         failures: Vec::new(),
     });
 
-    let quarantine_results = match run_result.failures.is_empty() {
-        true => QuarantineBulkTestStatus {
+    let quarantine_results = if run_result.failures.is_empty() {
+        QuarantineBulkTestStatus {
             group_is_quarantined: false,
-        },
-        false => Retry::spawn(default_delay(), || {
+        }
+    } else {
+        Retry::spawn(default_delay(), || {
             get_quarantine_bulk_test_status(
                 &api_address,
                 token,
@@ -305,7 +306,7 @@ async fn run_test(test_args: TestArgs) -> anyhow::Result<i32> {
         .await
         .unwrap_or(QuarantineBulkTestStatus {
             group_is_quarantined: false,
-        }),
+        })
     };
 
     log::info!("Quarantine results: {:?}", quarantine_results);
@@ -321,7 +322,17 @@ async fn run_test(test_args: TestArgs) -> anyhow::Result<i32> {
         run_result.exit_code
     };
 
-    let upload_exit_code = run_upload(upload_args).await.unwrap_or(EXIT_FAILURE);
+    let upload_exit_code = match run_upload(upload_args).await {
+        Ok(EXIT_SUCCESS) => EXIT_SUCCESS,
+        Ok(code) => {
+            log::error!("Error uploading test results: {}", code);
+            code
+        }
+        Err(e) => {
+            log::error!("Error uploading test results: {:?}", e);
+            EXIT_FAILURE
+        }
+    };
     if upload_exit_code != EXIT_SUCCESS {
         log::error!("Error uploading test results: {}", upload_exit_code);
     }
