@@ -102,7 +102,7 @@ async fn main() -> anyhow::Result<()> {
     }
 }
 
-async fn run_upload(upload_args: UploadArgs) -> anyhow::Result<i32> {
+async fn run_upload(upload_args: UploadArgs, test_command: Option<String>) -> anyhow::Result<i32> {
     let UploadArgs {
         junit_paths,
         org_url_slug,
@@ -185,6 +185,7 @@ async fn run_upload(upload_args: UploadArgs) -> anyhow::Result<i32> {
         file_sets,
         envs,
         upload_time_epoch: SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs(),
+        test_command,
     };
 
     log::info!("Total files pack and upload: {}", file_counter.get_count());
@@ -322,7 +323,7 @@ async fn run_test(test_args: TestArgs) -> anyhow::Result<i32> {
         run_result.exit_code
     };
 
-    let upload_exit_code = match run_upload(upload_args).await {
+    let upload_exit_code = match run_upload(upload_args, Some(command.join(" "))).await {
         Ok(EXIT_SUCCESS) => EXIT_SUCCESS,
         Ok(code) => {
             log::error!("Error uploading test results: {}", code);
@@ -341,7 +342,7 @@ async fn run_test(test_args: TestArgs) -> anyhow::Result<i32> {
 
 async fn run(cli: Cli) -> anyhow::Result<i32> {
     match cli.command {
-        Commands::Upload(upload_args) => run_upload(upload_args).await,
+        Commands::Upload(upload_args) => run_upload(upload_args, None).await,
         Commands::Test(test_args) => run_test(test_args).await,
     }
 }
