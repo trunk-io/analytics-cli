@@ -323,20 +323,12 @@ async fn run_test(test_args: TestArgs) -> anyhow::Result<i32> {
         run_result.exit_code
     };
 
-    let upload_exit_code = match run_upload(upload_args, Some(command.join(" "))).await {
-        Ok(EXIT_SUCCESS) => EXIT_SUCCESS,
-        Ok(code) => {
-            log::error!("Error uploading test results: {}", code);
-            code
-        }
-        Err(e) => {
-            log::error!("Error uploading test results: {:?}", e);
-            EXIT_FAILURE
-        }
-    };
-    if upload_exit_code != EXIT_SUCCESS {
-        log::error!("Error uploading test results: {}", upload_exit_code);
+    match run_upload(upload_args, Some(command.join(" "))).await {
+        Ok(EXIT_SUCCESS) => (),
+        Ok(code) => log::error!("Error uploading test results: {}", code),
+        Err(e) => log::error!("Error uploading test results: {:?}", e),
     }
+
     Ok(exit_code)
 }
 
