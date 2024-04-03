@@ -1,3 +1,4 @@
+use std::env;
 use std::io::Write;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -171,6 +172,7 @@ async fn run_upload(upload_args: UploadArgs, test_command: Option<String>) -> an
     }
 
     let envs = EnvScanner::scan_env();
+    let os_info: String = env::consts::OS.to_string();
     let meta = BundleMeta {
         version: META_VERSION.to_string(),
         cli_version: format!(
@@ -186,6 +188,7 @@ async fn run_upload(upload_args: UploadArgs, test_command: Option<String>) -> an
         envs,
         upload_time_epoch: SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs(),
         test_command,
+        os_info: Some(os_info),
     };
 
     log::info!("Total files pack and upload: {}", file_counter.get_count());

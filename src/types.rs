@@ -145,6 +145,7 @@ pub struct BundleMeta {
     pub envs: std::collections::HashMap<String, String>,
     pub upload_time_epoch: u64,
     pub test_command: Option<String>,
+    pub os_info: Option<String>,
 }
 
 #[cfg(test)]
