@@ -1,4 +1,5 @@
 use regex::Regex;
+use std::format;
 use serde::Serialize;
 
 use crate::constants::{ALLOW_LIST, ENVS_TO_GET};
@@ -161,8 +162,25 @@ impl BundleRepo {
                 .string_by_key(GIT_REMOTE_ORIGIN_URL_CONFIG)
                 .map(|s| s.to_string());
             let mut git_head = git_repo.head()?;
+
+            let reference = git_repo.references().unwrap();
+            let git_head_id = git_head.id().unwrap();
+            let mut git_head_branch = git_head.referent_name().map(|s| s.as_bstr().to_string());
+            reference.remote_branches()?.for_each(|r| {
+                match r {
+                    Ok(r) => {
+                        let target = r.target();
+                        let id = target.try_id();
+                        if id.is_some() && id.unwrap().to_string() == git_head_id.to_string() {
+                            git_head_branch = Some(r.name().to_path().to_str().unwrap().to_string());
+                        };
+                    }
+                    Err(e) => {
+                        log::info!("reference {:?}", e);
+                    }
+                }
+            });
             let git_head_sha = git_head.id().map(|id| id.to_string());
-            let git_head_branch = git_head.referent_name().map(|s| s.as_bstr().to_string());
             let git_head_commit_time = git_head.peel_to_commit_in_place()?.time()?;
             git_head_commit_message = git_head.peel_to_commit_in_place().map_or(None, |commit| {
                 commit
