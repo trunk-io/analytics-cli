@@ -177,7 +177,7 @@ impl BundleRepo {
                         };
                     }
                     Err(e) => {
-                        log::info!("reference {:?}", e);
+                        log::warn!("unable to match reference {:?}", e);
                     }
                 });
             }
