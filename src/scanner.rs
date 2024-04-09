@@ -180,7 +180,7 @@ impl BundleRepo {
                             };
                         }
                         Err(e) => {
-                            log::info!("Unexpected error when trying to find reference {:?}", e);
+                            log::debug!("Unexpected error when trying to find reference {:?}", e);
                         }
                     }
                 }
