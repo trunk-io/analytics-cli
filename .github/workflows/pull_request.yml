@@ -23,7 +23,7 @@ jobs:
       matrix:
         target: [x86_64-unknown-linux-musl, x86_64-unknown-linux-gnu]
     name: Build CLI for ${{ matrix.target }}
-    runs-on: [self-hosted, linux]
+    runs-on: public-amd64-small
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -57,7 +57,7 @@ jobs:
 
   build:
     name: Unit Tests
-    runs-on: [self-hosted, linux]
+    runs-on: public-amd64-small
     steps:
       - uses: actions/checkout@v4
 
@@ -92,7 +92,7 @@ jobs:
 
   trunk_check_runner:
     name: Trunk Check runner [linux]
-    runs-on: [self-hosted, linux]
+    runs-on: public-amd64-small
 
     steps:
       - uses: actions/checkout@v4
