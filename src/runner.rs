@@ -103,6 +103,8 @@ pub async fn run_test_command(
                             failures.push(Test {
                                 parent_name: parent_name.clone(),
                                 name: name.clone(),
+                                classname: case.classname.clone(),
+                                file: case.file.clone(),
                             });
                         }
                     }
