@@ -174,13 +174,12 @@ impl BundleRepo {
                                 && git_head.id().is_some()
                                 && id.unwrap().to_string() == git_head.id().unwrap().to_string()
                             {
-                                git_head_branch =
-                                    Some(r.name().to_path().to_str().unwrap().to_string());
+                                git_head_branch = r.name().to_path().to_str().map(|s| s.to_string());
                                 break;
                             };
                         }
                         Err(e) => {
-                            log::warn!("unable to match reference {:?}", e);
+                            log::info!("Unexpected error when trying to find reference {:?}", e);
                         }
                     }
                 }
