@@ -1,5 +1,6 @@
 use regex::Regex;
 use serde::Serialize;
+use std::format;
 
 use crate::constants::{ALLOW_LIST, ENVS_TO_GET};
 use crate::types::{BundledFile, FileSetType, Repo};
@@ -161,8 +162,30 @@ impl BundleRepo {
                 .string_by_key(GIT_REMOTE_ORIGIN_URL_CONFIG)
                 .map(|s| s.to_string());
             let mut git_head = git_repo.head()?;
+
+            let mut git_head_branch = git_head.referent_name().map(|s| s.as_bstr().to_string());
+            if git_head_branch.is_none() {
+                for r in git_repo.references()?.remote_branches()? {
+                    match r {
+                        Ok(r) => {
+                            let target = r.target();
+                            let id = target.try_id();
+                            if id.is_some()
+                                && git_head.id().is_some()
+                                && id.unwrap().to_string() == git_head.id().unwrap().to_string()
+                            {
+                                git_head_branch =
+                                    r.name().to_path().to_str().map(|s| s.to_string());
+                                break;
+                            };
+                        }
+                        Err(e) => {
+                            log::debug!("Unexpected error when trying to find reference {:?}", e);
+                        }
+                    }
+                }
+            }
             let git_head_sha = git_head.id().map(|id| id.to_string());
-            let git_head_branch = git_head.referent_name().map(|s| s.as_bstr().to_string());
             let git_head_commit_time = git_head.peel_to_commit_in_place()?.time()?;
             git_head_commit_message = git_head.peel_to_commit_in_place().map_or(None, |commit| {
                 commit
