@@ -29,6 +29,9 @@ pub struct Test {
     pub name: String,
     #[serde(rename = "parentName")]
     pub parent_name: String,
+    #[serde(rename = "className")]
+    pub class_name: Option<String>,
+    pub file: Option<String>,
 }
 
 #[derive(Debug, Serialize, Clone, Deserialize)]
