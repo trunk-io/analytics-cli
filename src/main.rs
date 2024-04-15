@@ -62,6 +62,8 @@ struct UploadArgs {
     print_files: bool,
     #[arg(long, help = "Run metrics CLI without uploading to API.")]
     dry_run: bool,
+    #[arg(long, help = "Value to tag team owner of upload.")]
+    team: Option<String>,
 }
 
 #[derive(Args, Clone, Debug)]
@@ -116,6 +118,7 @@ async fn run_upload(upload_args: UploadArgs, test_command: Option<String>) -> an
         tags,
         print_files,
         dry_run,
+        team,
     } = upload_args;
 
     let repo = BundleRepo::try_read_from_root(
@@ -153,7 +156,7 @@ async fn run_upload(upload_args: UploadArgs, test_command: Option<String>) -> an
     let mut file_counter = FileSetCounter::default();
     let mut file_sets = junit_paths
         .iter()
-        .map(|path| FileSet::scan_from_glob(&repo.repo_root, path.to_string(), &mut file_counter))
+        .map(|path| FileSet::scan_from_glob(&repo.repo_root, path.to_string(), &mut file_counter, team.clone()))
         .collect::<anyhow::Result<Vec<FileSet>>>()?;
 
     // Handle case when junit paths are not globs.
@@ -166,7 +169,7 @@ async fn run_upload(upload_args: UploadArgs, test_command: Option<String>) -> an
                     path.push_str("/");
                 }
                 path.push_str("**/*.xml");
-                FileSet::scan_from_glob(&repo.repo_root, path.to_string(), &mut file_counter)
+                FileSet::scan_from_glob(&repo.repo_root, path.to_string(), &mut file_counter, team.clone())
             })
             .collect::<anyhow::Result<Vec<FileSet>>>()?;
     }
@@ -259,6 +262,7 @@ async fn run_test(test_args: TestArgs) -> anyhow::Result<i32> {
         tags: _,
         print_files: _,
         dry_run: _,
+        team,
     } = &upload_args;
 
     let repo = BundleRepo::try_read_from_root(
@@ -286,6 +290,7 @@ async fn run_test(test_args: TestArgs) -> anyhow::Result<i32> {
         command.first().unwrap(),
         command.iter().skip(1).collect(),
         junit_paths.iter().collect(),
+        team.clone(),
     )
     .await
     .unwrap_or(RunResult {

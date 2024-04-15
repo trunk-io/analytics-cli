@@ -12,6 +12,7 @@ pub async fn run_test_command(
     command: &String,
     args: Vec<&String>,
     output_paths: Vec<&String>,
+    team: Option<String>
 ) -> anyhow::Result<RunResult> {
     let start = SystemTime::now();
     let mut child = Command::new(command)
@@ -36,7 +37,7 @@ pub async fn run_test_command(
         let file_sets = match output_paths
             .iter()
             .map(|path| {
-                FileSet::scan_from_glob(&repo.repo_root, path.to_string(), &mut file_counter)
+                FileSet::scan_from_glob(&repo.repo_root, path.to_string(), &mut file_counter, team.clone())
             })
             .collect::<anyhow::Result<Vec<FileSet>>>()
         {
