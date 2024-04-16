@@ -62,7 +62,7 @@ impl FileSet {
         // TODO: check correct path to locate in.
         let owners_of_paths =
             codeowners::locate(".").map(|path| codeowners::from_path(path.as_path()));
-        log::info!("Owners of paths: {:?}", owners_of_paths, path_to_scan);
+        log::info!("Owners of paths: {:?} and {}", owners_of_paths, path_to_scan);
 
         let mut files = Vec::new();
 
