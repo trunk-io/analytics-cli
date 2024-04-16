@@ -59,8 +59,7 @@ impl FileSet {
         };
 
         // Parse codeowners.
-        let owners_of_paths =
-            codeowners::locate(".").map(|path| codeowners::from_path(path.as_path()));
+        let codeowners = codeowners::locate(".").map(|path| codeowners::from_path(path.as_path()));
 
         let mut files = Vec::new();
 
@@ -97,10 +96,9 @@ impl FileSet {
 
             // Get owners of file.
             let mut owners = Vec::new();
-            let file_path = path.as_path();
-            if let Some(owners_of_paths) = &owners_of_paths {
-                if let Some(owners_of_path) = owners_of_paths.of(file_path) {
-                    for owner in owners_of_path {
+            if let Some(codeowners) = &codeowners {
+                if let Some(codeowners) = codeowners.of(path.as_path()) {
+                    for owner in codeowners {
                         owners.push(owner.to_string());
                     }
                 }
