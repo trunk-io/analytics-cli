@@ -58,6 +58,11 @@ impl FileSet {
             glob_path.clone()
         };
 
+        // Parse codeowners.
+        // TODO: check correct path to locate in.
+        let owners_of_paths =
+            codeowners::locate(".").map(|path| codeowners::from_path(path.as_path()));
+
         let mut files = Vec::new();
 
         glob::glob(&path_to_scan)?.try_for_each(|entry| {
@@ -91,6 +96,19 @@ impl FileSet {
                 return Ok::<(), anyhow::Error>(());
             }
 
+            // Get owners of file.
+            let mut owners = Vec::new();
+            let file_path = path.as_path();
+            if let Some(owners_of_paths) = &owners_of_paths {
+                if let Some(owners_of_path) = owners_of_paths.of(file_path) {
+                    for owner in owners_of_path {
+                        // TODO: is this the format we want it in.
+                        owners.push(owner.to_string());
+                    }
+                }
+                log::info!("{:?}: {}", file_path.to_str(), owners.join(", "));
+            }
+
             // Save file under junit/0, junit/1, etc.
             // This is to avoid having to deal with potential file name collisions.
             files.push(BundledFile {
@@ -101,6 +119,7 @@ impl FileSet {
                     .modified()?
                     .duration_since(std::time::UNIX_EPOCH)?
                     .as_nanos() as u128,
+                owners,
                 team: team.clone(),
             });
 
