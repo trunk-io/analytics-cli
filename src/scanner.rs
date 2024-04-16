@@ -62,7 +62,7 @@ impl FileSet {
         // TODO: check correct path to locate in.
         let owners_of_paths =
             codeowners::locate(".").map(|path| codeowners::from_path(path.as_path()));
-        log::info!("Owners of paths: {:?}", owners_of_paths);
+        log::info!("Owners of paths: {:?}", owners_of_paths, path_to_scan);
 
         let mut files = Vec::new();
 
@@ -108,7 +108,7 @@ impl FileSet {
                     }
                 }
             }
-            log::info!("{:?}: {}", file_path.to_str(), owners.join(", "));
+            log::info!("owners with path {:?}: {}", file_path.to_str(), owners.join(", "));
 
             // Save file under junit/0, junit/1, etc.
             // This is to avoid having to deal with potential file name collisions.
