@@ -156,7 +156,14 @@ async fn run_upload(upload_args: UploadArgs, test_command: Option<String>) -> an
     let mut file_counter = FileSetCounter::default();
     let mut file_sets = junit_paths
         .iter()
-        .map(|path| FileSet::scan_from_glob(&repo.repo_root, path.to_string(), &mut file_counter, team.clone()))
+        .map(|path| {
+            FileSet::scan_from_glob(
+                &repo.repo_root,
+                path.to_string(),
+                &mut file_counter,
+                team.clone(),
+            )
+        })
         .collect::<anyhow::Result<Vec<FileSet>>>()?;
 
     // Handle case when junit paths are not globs.
@@ -169,7 +176,12 @@ async fn run_upload(upload_args: UploadArgs, test_command: Option<String>) -> an
                     path.push_str("/");
                 }
                 path.push_str("**/*.xml");
-                FileSet::scan_from_glob(&repo.repo_root, path.to_string(), &mut file_counter, team.clone())
+                FileSet::scan_from_glob(
+                    &repo.repo_root,
+                    path.to_string(),
+                    &mut file_counter,
+                    team.clone(),
+                )
             })
             .collect::<anyhow::Result<Vec<FileSet>>>()?;
     }
