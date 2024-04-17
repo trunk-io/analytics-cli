@@ -46,6 +46,7 @@ impl FileSet {
         repo_root: &str,
         glob_path: String,
         file_counter: &mut FileSetCounter,
+        team: Option<String>,
     ) -> anyhow::Result<FileSet> {
         let path_to_scan = if !std::path::Path::new(&glob_path).is_absolute() {
             std::path::Path::new(repo_root)
@@ -100,6 +101,7 @@ impl FileSet {
                     .modified()?
                     .duration_since(std::time::UNIX_EPOCH)?
                     .as_nanos() as u128,
+                team: team.clone(),
             });
 
             Ok(())
