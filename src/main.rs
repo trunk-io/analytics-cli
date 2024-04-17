@@ -64,6 +64,8 @@ struct UploadArgs {
     dry_run: bool,
     #[arg(long, help = "Value to tag team owner of upload.")]
     team: Option<String>,
+    #[arg(long, help = "Value to override CODEOWNERS file or directory path.")]
+    codeowners_path: Option<String>,
 }
 
 #[derive(Args, Clone, Debug)]
@@ -119,6 +121,7 @@ async fn run_upload(upload_args: UploadArgs, test_command: Option<String>) -> an
         print_files,
         dry_run,
         team,
+        codeowners_path,
     } = upload_args;
 
     let repo = BundleRepo::try_read_from_root(
@@ -162,6 +165,7 @@ async fn run_upload(upload_args: UploadArgs, test_command: Option<String>) -> an
                 path.to_string(),
                 &mut file_counter,
                 team.clone(),
+                codeowners_path.clone(),
             )
         })
         .collect::<anyhow::Result<Vec<FileSet>>>()?;
@@ -181,6 +185,7 @@ async fn run_upload(upload_args: UploadArgs, test_command: Option<String>) -> an
                     path.to_string(),
                     &mut file_counter,
                     team.clone(),
+                    codeowners_path.clone(),
                 )
             })
             .collect::<anyhow::Result<Vec<FileSet>>>()?;
@@ -275,6 +280,7 @@ async fn run_test(test_args: TestArgs) -> anyhow::Result<i32> {
         print_files: _,
         dry_run: _,
         team,
+        codeowners_path,
     } = &upload_args;
 
     let repo = BundleRepo::try_read_from_root(
@@ -303,6 +309,7 @@ async fn run_test(test_args: TestArgs) -> anyhow::Result<i32> {
         command.iter().skip(1).collect(),
         junit_paths.iter().collect(),
         team.clone(),
+        codeowners_path.clone(),
     )
     .await
     .unwrap_or(RunResult {

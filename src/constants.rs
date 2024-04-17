@@ -2,6 +2,9 @@ pub const ALLOW_LIST: &[&'static str] = &[r".*\.xml$"];
 
 pub const EXIT_SUCCESS: i32 = 0;
 pub const EXIT_FAILURE: i32 = 1;
+
+pub const CODEOWNERS_LOCATIONS: &[&str] = &[".github/", ".bitbucket/", ".gitlab/", "docs/"];
+
 pub const TRUNK_API_ADDRESS_ENV: &str = "TRUNK_API_ADDRESS";
 pub const ENVS_TO_GET: &'static [&'static str] = &[
     "CI",

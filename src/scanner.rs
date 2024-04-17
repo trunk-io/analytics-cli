@@ -2,7 +2,7 @@ use regex::Regex;
 use serde::Serialize;
 use std::format;
 
-use crate::constants::{ALLOW_LIST, ENVS_TO_GET};
+use crate::constants::{ALLOW_LIST, CODEOWNERS_LOCATIONS, ENVS_TO_GET};
 use crate::types::{BundledFile, FileSetType, Repo};
 use crate::utils::from_non_empty_or_default;
 
@@ -47,6 +47,7 @@ impl FileSet {
         glob_path: String,
         file_counter: &mut FileSetCounter,
         team: Option<String>,
+        codeowners_path: Option<String>,
     ) -> anyhow::Result<FileSet> {
         let path_to_scan = if !std::path::Path::new(&glob_path).is_absolute() {
             std::path::Path::new(repo_root)
@@ -57,6 +58,21 @@ impl FileSet {
         } else {
             glob_path.clone()
         };
+
+        // Parse codeowners.
+        let mut codeowners_file = None;
+        if let Some(codeowners_path) = codeowners_path {
+            codeowners_file = codeowners::locate(codeowners_path);
+        }
+        if codeowners_file.is_none() {
+            for codeowner_path in CODEOWNERS_LOCATIONS {
+                codeowners_file = codeowners::locate(codeowner_path);
+                if codeowners_file.is_some() {
+                    break;
+                }
+            }
+        }
+        let codeowners = codeowners_file.map(|path| codeowners::from_path(path.as_path()));
 
         let mut files = Vec::new();
 
@@ -91,6 +107,16 @@ impl FileSet {
                 return Ok::<(), anyhow::Error>(());
             }
 
+            // Get owners of file.
+            let mut owners = Vec::new();
+            if let Some(codeowners) = &codeowners {
+                if let Some(codeowners) = codeowners.of(path.as_path()) {
+                    for owner in codeowners {
+                        owners.push(owner.to_string());
+                    }
+                }
+            }
+
             // Save file under junit/0, junit/1, etc.
             // This is to avoid having to deal with potential file name collisions.
             files.push(BundledFile {
@@ -101,6 +127,7 @@ impl FileSet {
                     .modified()?
                     .duration_since(std::time::UNIX_EPOCH)?
                     .as_nanos() as u128,
+                owners,
                 team: team.clone(),
             });
 

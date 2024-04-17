@@ -13,6 +13,7 @@ pub async fn run_test_command(
     args: Vec<&String>,
     output_paths: Vec<&String>,
     team: Option<String>,
+    codeowners_path: Option<String>,
 ) -> anyhow::Result<RunResult> {
     let start = SystemTime::now();
     let mut child = Command::new(command)
@@ -42,6 +43,7 @@ pub async fn run_test_command(
                     path.to_string(),
                     &mut file_counter,
                     team.clone(),
+                    codeowners_path.clone(),
                 )
             })
             .collect::<anyhow::Result<Vec<FileSet>>>()
