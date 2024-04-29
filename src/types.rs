@@ -151,6 +151,7 @@ pub struct BundleMeta {
     pub upload_time_epoch: u64,
     pub test_command: Option<String>,
     pub os_info: Option<String>,
+    pub group_is_quarantined: bool,
 }
 
 #[cfg(test)]

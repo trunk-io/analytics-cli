@@ -107,7 +107,11 @@ async fn main() -> anyhow::Result<()> {
     }
 }
 
-async fn run_upload(upload_args: UploadArgs, test_command: Option<String>) -> anyhow::Result<i32> {
+async fn run_upload(
+    upload_args: UploadArgs,
+    test_command: Option<String>,
+    group_is_quarantined: bool,
+) -> anyhow::Result<i32> {
     let UploadArgs {
         junit_paths,
         org_url_slug,
@@ -208,6 +212,7 @@ async fn run_upload(upload_args: UploadArgs, test_command: Option<String>) -> an
         envs,
         upload_time_epoch: SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs(),
         test_command,
+        group_is_quarantined,
         os_info: Some(os_info),
     };
 
@@ -350,7 +355,13 @@ async fn run_test(test_args: TestArgs) -> anyhow::Result<i32> {
         run_result.exit_code
     };
 
-    match run_upload(upload_args, Some(command.join(" "))).await {
+    match run_upload(
+        upload_args,
+        Some(command.join(" ")),
+        quarantine_results.group_is_quarantined,
+    )
+    .await
+    {
         Ok(EXIT_SUCCESS) => (),
         Ok(code) => log::error!("Error uploading test results: {}", code),
         Err(e) => log::error!("Error uploading test results: {:?}", e),
@@ -361,7 +372,7 @@ async fn run_test(test_args: TestArgs) -> anyhow::Result<i32> {
 
 async fn run(cli: Cli) -> anyhow::Result<i32> {
     match cli.command {
-        Commands::Upload(upload_args) => run_upload(upload_args, None).await,
+        Commands::Upload(upload_args) => run_upload(upload_args, None, false).await,
         Commands::Test(test_args) => run_test(test_args).await,
     }
 }
