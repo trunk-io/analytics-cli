@@ -337,7 +337,7 @@ async fn run_test(test_args: TestArgs) -> anyhow::Result<i32> {
             quarantine_results: Vec::new(),
         }
     } else {
-        Retry::spawn(default_delay(), || {
+        match Retry::spawn(default_delay(), || {
             get_quarantine_bulk_test_status(
                 &api_address,
                 token,
@@ -347,10 +347,16 @@ async fn run_test(test_args: TestArgs) -> anyhow::Result<i32> {
             )
         })
         .await
-        .unwrap_or(QuarantineBulkTestStatus {
-            group_is_quarantined: false,
-            quarantine_results: Vec::new(),
-        })
+        {
+            Ok(quarantine_results) => quarantine_results,
+            Err(e) => {
+                log::error!("Failed to get quarantine results: {:?}", e);
+                QuarantineBulkTestStatus {
+                    group_is_quarantined: false,
+                    quarantine_results: Vec::new(),
+                }
+            }
+        }
     };
 
     log::info!("Quarantine results: {:?}", quarantine_results);

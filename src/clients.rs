@@ -81,7 +81,7 @@ pub async fn get_quarantine_bulk_test_status(
 
     resp.json::<QuarantineBulkTestStatus>()
         .await
-        .context("Failed to get repsonse body as json")
+        .context("Failed to get response body as json")
 }
 
 /// Puts file to S3 using pre-signed link.

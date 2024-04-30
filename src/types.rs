@@ -37,9 +37,10 @@ pub struct Test {
 #[derive(Debug, Serialize, Clone, Deserialize)]
 pub struct QuarantineResult {
     pub name: String,
+    #[serde(rename = "parentName")]
     pub parent_name: String,
     #[serde(rename = "quarantinedSince")]
-    pub quarantined_since: i64,
+    pub quarantined_since: String,
     pub file: String,
     #[serde(rename = "className")]
     pub class_name: String,
