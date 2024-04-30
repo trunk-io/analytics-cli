@@ -7,7 +7,7 @@ use tokio_retry::strategy::ExponentialBackoff;
 use tokio_retry::Retry;
 use trunk_analytics_cli::bundler::BundlerUtil;
 use trunk_analytics_cli::clients::get_quarantine_bulk_test_status;
-use trunk_analytics_cli::constants::{EXIT_FAILURE, EXIT_SUCCESS, TRUNK_API_ADDRESS_ENV};
+use trunk_analytics_cli::constants::{EXIT_FAILURE, EXIT_SUCCESS, TRUNK_PUBLIC_API_ADDRESS_ENV};
 use trunk_analytics_cli::runner::run_test_command;
 use trunk_analytics_cli::scanner::{BundleRepo, EnvScanner, FileSet, FileSetCounter};
 use trunk_analytics_cli::types::{BundleMeta, QuarantineBulkTestStatus, RunResult, META_VERSION};
@@ -137,7 +137,7 @@ async fn run_upload(upload_args: UploadArgs, test_command: Option<String>) -> an
     }
 
     let api_address = from_non_empty_or_default(
-        std::env::var(TRUNK_API_ADDRESS_ENV).ok(),
+        std::env::var(TRUNK_PUBLIC_API_ADDRESS_ENV).ok(),
         DEFAULT_ORIGIN.to_string(),
         |s| s,
     );
@@ -296,7 +296,7 @@ async fn run_test(test_args: TestArgs) -> anyhow::Result<i32> {
     }
 
     let api_address = from_non_empty_or_default(
-        std::env::var(TRUNK_API_ADDRESS_ENV).ok(),
+        std::env::var(TRUNK_PUBLIC_API_ADDRESS_ENV).ok(),
         DEFAULT_ORIGIN.to_string(),
         |s| s,
     );
