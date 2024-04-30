@@ -48,7 +48,7 @@ jobs:
 
       - name: Upload results using action from ${{ matrix.target }}
         env:
-          TRUNK_API_ADDRESS: https://api.trunk-staging.io
+          TRUNK_PUBLIC_API_ADDRESS: https://api.trunk-staging.io
         run: |
           target/${{ matrix.target }}/release/trunk-analytics-cli upload \
             --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
@@ -83,7 +83,7 @@ jobs:
       - name: Upload results cli release built from source
         if: "!cancelled()"
         env:
-          TRUNK_API_ADDRESS: https://api.trunk-staging.io
+          TRUNK_PUBLIC_API_ADDRESS: https://api.trunk-staging.io
         run: |
           cargo run --release -- upload \
             --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
