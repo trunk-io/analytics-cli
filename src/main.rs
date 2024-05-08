@@ -107,7 +107,11 @@ async fn main() -> anyhow::Result<()> {
     }
 }
 
-async fn run_upload(upload_args: UploadArgs, test_command: Option<String>) -> anyhow::Result<i32> {
+async fn run_upload(
+    upload_args: UploadArgs,
+    test_command: Option<String>,
+    quarantine_results: Option<QuarantineBulkTestStatus>,
+) -> anyhow::Result<i32> {
     let UploadArgs {
         junit_paths,
         org_url_slug,
@@ -193,6 +197,10 @@ async fn run_upload(upload_args: UploadArgs, test_command: Option<String>) -> an
 
     let envs = EnvScanner::scan_env();
     let os_info: String = env::consts::OS.to_string();
+    let resolved_quarantine_results = quarantine_results.unwrap_or(QuarantineBulkTestStatus {
+        group_is_quarantined: false,
+        quarantine_results: Vec::new(),
+    });
     let meta = BundleMeta {
         version: META_VERSION.to_string(),
         cli_version: format!(
@@ -208,6 +216,12 @@ async fn run_upload(upload_args: UploadArgs, test_command: Option<String>) -> an
         envs,
         upload_time_epoch: SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs(),
         test_command,
+        group_is_quarantined: resolved_quarantine_results.group_is_quarantined,
+        quarantined_tests: resolved_quarantine_results
+            .quarantine_results
+            .iter()
+            .map(|qr| qr.run_info_id.clone())
+            .collect(),
         os_info: Some(os_info),
     };
 
@@ -320,9 +334,10 @@ async fn run_test(test_args: TestArgs) -> anyhow::Result<i32> {
     let quarantine_results = if run_result.failures.is_empty() {
         QuarantineBulkTestStatus {
             group_is_quarantined: false,
+            quarantine_results: Vec::new(),
         }
     } else {
-        Retry::spawn(default_delay(), || {
+        match Retry::spawn(default_delay(), || {
             get_quarantine_bulk_test_status(
                 &api_address,
                 token,
@@ -332,9 +347,16 @@ async fn run_test(test_args: TestArgs) -> anyhow::Result<i32> {
             )
         })
         .await
-        .unwrap_or(QuarantineBulkTestStatus {
-            group_is_quarantined: false,
-        })
+        {
+            Ok(quarantine_results) => quarantine_results,
+            Err(e) => {
+                log::error!("Failed to get quarantine results: {:?}", e);
+                QuarantineBulkTestStatus {
+                    group_is_quarantined: false,
+                    quarantine_results: Vec::new(),
+                }
+            }
+        }
     };
 
     log::info!("Quarantine results: {:?}", quarantine_results);
@@ -350,7 +372,13 @@ async fn run_test(test_args: TestArgs) -> anyhow::Result<i32> {
         run_result.exit_code
     };
 
-    match run_upload(upload_args, Some(command.join(" "))).await {
+    match run_upload(
+        upload_args,
+        Some(command.join(" ")),
+        Some(quarantine_results),
+    )
+    .await
+    {
         Ok(EXIT_SUCCESS) => (),
         Ok(code) => log::error!("Error uploading test results: {}", code),
         Err(e) => log::error!("Error uploading test results: {:?}", e),
@@ -361,7 +389,7 @@ async fn run_test(test_args: TestArgs) -> anyhow::Result<i32> {
 
 async fn run(cli: Cli) -> anyhow::Result<i32> {
     match cli.command {
-        Commands::Upload(upload_args) => run_upload(upload_args, None).await,
+        Commands::Upload(upload_args) => run_upload(upload_args, None, None).await,
         Commands::Test(test_args) => run_test(test_args).await,
     }
 }
