@@ -272,7 +272,13 @@ async fn run_upload(
 
     let remote_urls = vec![repo.repo_url.clone()];
     Retry::spawn(default_delay(), || {
-        create_trunk_repo(&api_address, &token, &org_url_slug, &repo.repo, &remote_urls)
+        create_trunk_repo(
+            &api_address,
+            &token,
+            &org_url_slug,
+            &repo.repo,
+            &remote_urls,
+        )
     })
     .await?;
 

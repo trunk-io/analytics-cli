@@ -67,7 +67,8 @@ pub struct QuarantineBulkTestStatus {
 
 #[derive(Debug, Serialize, Clone, Deserialize)]
 pub struct TrunkRepo {
-    pub id: String,
+    #[serde(rename = "repoId")]
+    pub repo_id: String,
 }
 
 #[derive(Debug, Serialize, Clone, Deserialize)]
