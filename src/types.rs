@@ -9,6 +9,15 @@ pub struct RunResult {
 }
 
 #[derive(Debug, Serialize, Clone, Deserialize)]
+pub struct CreateRepoRequest {
+    pub repo: Repo,
+    #[serde(rename = "orgUrlSlug")]
+    pub org_url_slug: String,
+    #[serde(rename = "remoteUrls")]
+    pub remote_urls: Vec<String>,
+}
+
+#[derive(Debug, Serialize, Clone, Deserialize)]
 pub struct CreateBundleUploadRequest {
     pub repo: Repo,
     #[serde(rename = "orgUrlSlug")]
@@ -54,6 +63,11 @@ pub struct QuarantineBulkTestStatus {
     pub group_is_quarantined: bool,
     #[serde(rename = "quarantineResults")]
     pub quarantine_results: Vec<QuarantineResult>,
+}
+
+#[derive(Debug, Serialize, Clone, Deserialize)]
+pub struct TrunkRepo {
+    pub id: String,
 }
 
 #[derive(Debug, Serialize, Clone, Deserialize)]

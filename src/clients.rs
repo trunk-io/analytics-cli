@@ -4,13 +4,50 @@ use std::path::PathBuf;
 use anyhow::Context;
 
 use crate::types::{
-    BundleUploadLocation, CreateBundleUploadRequest, GetQuarantineBulkTestStatusRequest,
-    QuarantineBulkTestStatus, Repo, Test,
+    BundleUploadLocation, CreateBundleUploadRequest, CreateRepoRequest,
+    GetQuarantineBulkTestStatusRequest, QuarantineBulkTestStatus, Repo, Test, TrunkRepo,
 };
 use crate::utils::status_code_help;
 
 pub const TRUNK_API_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
 pub const TRUNK_API_TOKEN_HEADER: &str = "x-api-token";
+
+pub async fn create_trunk_repo(
+    origin: &str,
+    api_token: &str,
+    org_slug: &str,
+    repo: &Repo,
+    remote_urls: &[String],
+) -> anyhow::Result<TrunkRepo> {
+    let client = reqwest::Client::new();
+    let resp = match client
+        .post(format!("{}/v1/repo/create", origin))
+        .timeout(TRUNK_API_TIMEOUT)
+        .header(reqwest::header::CONTENT_TYPE, "application/json")
+        .header(TRUNK_API_TOKEN_HEADER, api_token)
+        .json(&CreateRepoRequest {
+            org_url_slug: org_slug.to_owned(),
+            repo: repo.clone(),
+            remote_urls: remote_urls.to_vec(),
+        })
+        .send()
+        .await
+    {
+        Ok(resp) => resp,
+        Err(e) => return Err(anyhow::anyhow!(e).context("Failed to create trunk repo")),
+    };
+
+    if resp.status() != reqwest::StatusCode::OK {
+        return Err(
+            anyhow::anyhow!("{}: {}", resp.status(), status_code_help(resp.status()))
+                .context("Failed to create trunk repo"),
+        );
+    }
+
+    resp.json::<TrunkRepo>()
+        .await
+        .context("Failed to get repsonse body as json")
+}
 
 pub async fn get_bundle_upload_location(
     origin: &str,
