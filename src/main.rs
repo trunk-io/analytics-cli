@@ -6,7 +6,10 @@ use clap::{Args, Parser, Subcommand};
 use tokio_retry::strategy::ExponentialBackoff;
 use tokio_retry::Retry;
 use trunk_analytics_cli::bundler::BundlerUtil;
-use trunk_analytics_cli::clients::get_quarantine_bulk_test_status;
+use trunk_analytics_cli::clients::{
+    create_trunk_repo, get_bundle_upload_location, get_quarantine_bulk_test_status,
+    put_bundle_to_s3,
+};
 use trunk_analytics_cli::constants::{EXIT_FAILURE, EXIT_SUCCESS, TRUNK_PUBLIC_API_ADDRESS_ENV};
 use trunk_analytics_cli::runner::run_test_command;
 use trunk_analytics_cli::scanner::{BundleRepo, EnvScanner, FileSet, FileSetCounter};
@@ -253,12 +256,7 @@ async fn run_upload(
     log::info!("Flushed temporary tarball to {:?}", bundle_time_file);
 
     let upload = Retry::spawn(default_delay(), || {
-        trunk_analytics_cli::clients::get_bundle_upload_location(
-            &api_address,
-            &token,
-            &org_url_slug,
-            &repo.repo,
-        )
+        get_bundle_upload_location(&api_address, &token, &org_url_slug, &repo.repo)
     })
     .await?;
 
@@ -268,7 +266,19 @@ async fn run_upload(
     }
 
     Retry::spawn(default_delay(), || {
-        trunk_analytics_cli::clients::put_bundle_to_s3(&upload.url, &bundle_time_file)
+        put_bundle_to_s3(&upload.url, &bundle_time_file)
+    })
+    .await?;
+
+    let remote_urls = vec![repo.repo_url.clone()];
+    Retry::spawn(default_delay(), || {
+        create_trunk_repo(
+            &api_address,
+            &token,
+            &org_url_slug,
+            &repo.repo,
+            &remote_urls,
+        )
     })
     .await?;
 
