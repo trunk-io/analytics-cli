@@ -5,7 +5,7 @@ use anyhow::Context;
 
 use crate::types::{
     BundleUploadLocation, CreateBundleUploadRequest, CreateRepoRequest,
-    GetQuarantineBulkTestStatusRequest, QuarantineBulkTestStatus, Repo, Test, TrunkRepo,
+    GetQuarantineBulkTestStatusRequest, QuarantineBulkTestStatus, Repo, Test,
 };
 use crate::utils::status_code_help;
 
@@ -18,7 +18,7 @@ pub async fn create_trunk_repo(
     org_slug: &str,
     repo: &Repo,
     remote_urls: &[String],
-) -> anyhow::Result<TrunkRepo> {
+) -> anyhow::Result<()> {
     let client = reqwest::Client::new();
     let resp = match client
         .post(format!("{}/v1/repo/create", origin))
@@ -44,9 +44,7 @@ pub async fn create_trunk_repo(
         );
     }
 
-    resp.json::<TrunkRepo>()
-        .await
-        .context("Failed to get repsonse body as json")
+    Ok(())
 }
 
 pub async fn get_bundle_upload_location(
