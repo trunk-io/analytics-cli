@@ -302,7 +302,7 @@ async fn run_test(test_args: TestArgs) -> anyhow::Result<i32> {
         repo_head_commit_epoch,
         tags: _,
         print_files: _,
-        dry_run: _,
+        dry_run,
         team,
         codeowners_path,
     } = &upload_args;
@@ -372,7 +372,10 @@ async fn run_test(test_args: TestArgs) -> anyhow::Result<i32> {
     log::info!("Quarantine results: {:?}", quarantine_results);
     // use the exit code from the command if the group is not quarantined
     // override exit code to be exit_success if the group is quarantined
-    let exit_code = if !quarantine_results.group_is_quarantined {
+    let exit_code = if *dry_run {
+        log::info!("Dry run, skipping exit code override.");
+        run_result.exit_code
+    } else if !quarantine_results.group_is_quarantined {
         log::info!("Not all test failures were quarantined, returning exit code from command.");
         run_result.exit_code
     } else if run_result.exit_code != EXIT_SUCCESS {
