@@ -98,11 +98,7 @@ pub async fn run_test_command(
                     }
                 };
                 for suite in junitxml.suites {
-                    let parent_name = if junitxml.name.is_empty() {
-                        suite.name
-                    } else {
-                        format!("{}/{}", junitxml.name, suite.name)
-                    };
+                    let parent_name = suite.name;
                     for case in suite.cases {
                         let failure = case.status.is_failure();
                         if failure {
