@@ -28,8 +28,10 @@ jobs:
           sed -i "s/0.0.0/$VERSION/g" Cargo.toml
 
       - name: Build ${{ matrix.target }} target
+        uses: ./.github/actions/build_target
         if: "!cancelled()"
-        run: cargo build -q --all --release --target ${{ matrix.target }}
+        with:
+          target: ${{ matrix.target }}
 
       - uses: actions/upload-artifact@v3
         with:
@@ -55,10 +57,8 @@ jobs:
           sed -i "s/0.0.0/$VERSION/g" Cargo.toml
 
       - name: Build ${{ matrix.target }} target
-        uses: ./.github/actions/build_target
         if: "!cancelled()"
-        with:
-          target: ${{ matrix.target }}
+        run: cargo build -q --all --release --target ${{ matrix.target }}
 
       - uses: actions/upload-artifact@v3
         with:
