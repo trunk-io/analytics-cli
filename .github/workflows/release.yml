@@ -9,7 +9,7 @@ on:
 concurrency: ${{ github.workflow }}
 
 jobs:
-  build:
+  build_linux:
     name: Build ${{ matrix.target }}
     strategy:
       matrix:
@@ -38,10 +38,43 @@ jobs:
           name: ${{ matrix.target }}
           path: target/${{ matrix.target }}/release/trunk-analytics-cli
 
+  build_osx:
+    name: Build ${{ matrix.target }}
+    strategy:
+      matrix:
+        target: [x86_64-apple-darwin, aarch64-apple-darwin]
+    runs-on: [macos-latest]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@nightly
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Update version
+        run: |
+          export VERSION=${{ github.event.inputs.release_tag }}
+          sed -i "s/0.0.0/$VERSION/g" Cargo.toml
+
+      - name: Add target
+        shell: bash
+        run: rustup target add ${{ matrix.target }}
+
+      - name: Build ${{ matrix.target }} target
+        if: "!cancelled()"
+        run: cargo build -q --all --release --target ${{ matrix.target }}
+
+      - uses: actions/upload-artifact@v3
+        with:
+          name: ${{ matrix.target }}
+          path: target/${{ matrix.target }}/release/trunk-analytics-cli
+
   tag_and_release:
     name: Tag and Release [ ${{ github.event.inputs.release_tag }} ]
     runs-on: public-amd64-small
-    needs: [build]
+    needs: [build_linux, build_osx]
 
     steps:
       - uses: actions/checkout@v4
