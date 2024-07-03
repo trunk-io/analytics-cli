@@ -23,9 +23,8 @@ jobs:
       matrix:
         target: [x86_64-apple-darwin, arm64e-apple-darwin]
     name: Build CLI for ${{ matrix.target }}
-    runs-on: macos-10.14
+    runs-on: macos-latest
     steps:
-
       - name: Checkout
         uses: actions/checkout@v4
 
@@ -53,8 +52,6 @@ jobs:
             --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
             --org-url-slug trunk-staging-org \
             --token ${{ secrets.TRUNK_STAGING_ORG_API_TOKEN }}
-
-
 
   build_release_linux:
     strategy:

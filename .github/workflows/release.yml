@@ -63,6 +63,7 @@ jobs:
       - uses: actions/upload-artifact@v3
         with:
           name: ${{ matrix.target }}
+          path: target/${{ matrix.target }}/release/trunk-analytics-cli
 
   tag_and_release:
     name: Tag and Release [ ${{ github.event.inputs.release_tag }} ]
