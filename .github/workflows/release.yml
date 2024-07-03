@@ -58,6 +58,10 @@ jobs:
           export VERSION=${{ github.event.inputs.release_tag }}
           sed -i "s/0.0.0/$VERSION/g" Cargo.toml
 
+      - name: Add target
+        shell: bash
+        run: rustup target add ${{ matrix.target }}
+
       - name: Build ${{ matrix.target }} target
         if: "!cancelled()"
         run: cargo build -q --all --release --target ${{ matrix.target }}
