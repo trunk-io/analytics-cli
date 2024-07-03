@@ -36,7 +36,6 @@ jobs:
       - name: Install Trunk
         uses: trunk-io/trunk-action/install@54ccfcf9add644a36a5aa1d0046c92f654ff9e45
 
-
       - name: Add target
         shell: bash
         run: rustup target add ${{ matrix.target }}
