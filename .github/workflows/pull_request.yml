@@ -18,7 +18,47 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  build_release:
+  build_release_osx:
+    strategy:
+      matrix:
+        target: [x86_64-apple-darwin, arm64e-apple-darwin]
+    name: Build CLI for ${{ matrix.target }}
+    runs-on: macos-10.14
+    steps:
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@nightly
+
+      - name: Install Trunk
+        uses: trunk-io/trunk-action/install@54ccfcf9add644a36a5aa1d0046c92f654ff9e45
+
+      - name: Build ${{ matrix.target }} target
+        uses: ./.github/actions/build_target
+        if: "!cancelled()"
+        with:
+          target: ${{ matrix.target }}
+
+      - name: Install nextest
+        run: curl -LsSf https://get.nexte.st/latest/macos | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin
+
+      - name: Run tests
+        run: cargo nextest run --profile=ci
+
+      - name: Upload results using action from ${{ matrix.target }}
+        env:
+          TRUNK_PUBLIC_API_ADDRESS: https://api.trunk-staging.io
+        run: |
+          target/${{ matrix.target }}/release/trunk-analytics-cli upload \
+            --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
+            --org-url-slug trunk-staging-org \
+            --token ${{ secrets.TRUNK_STAGING_ORG_API_TOKEN }}
+
+
+
+  build_release_linux:
     strategy:
       matrix:
         target: [x86_64-unknown-linux-musl, x86_64-unknown-linux-gnu]
