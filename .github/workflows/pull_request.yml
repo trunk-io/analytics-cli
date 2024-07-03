@@ -21,7 +21,7 @@ jobs:
   build_release_osx:
     strategy:
       matrix:
-        target: [x86_64-apple-darwin, arm64e-apple-darwin]
+        target: [x86_64-apple-darwin, aarch64-apple-darwin]
     name: Build CLI for ${{ matrix.target }}
     runs-on: macos-latest
     steps:
