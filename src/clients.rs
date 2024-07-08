@@ -34,14 +34,17 @@ pub async fn create_trunk_repo(
         .await
     {
         Ok(resp) => resp,
-        Err(e) => return Err(anyhow::anyhow!(e).context("Failed to create trunk repo")),
+        Err(e) => return Err(anyhow::anyhow!(e).context("Failed to validate trunk repo")),
     };
 
-    if resp.status() != reqwest::StatusCode::OK {
-        return Err(
-            anyhow::anyhow!("{}: {}", resp.status(), status_code_help(resp.status()))
-                .context("Failed to create trunk repo"),
-        );
+    if resp.status() != reqwest::StatusCode::OK
+        && resp.text().await?.contains("Organization not found")
+    {
+        return Err(anyhow::anyhow!(
+            "Organization not found. Please double check the provided organization url slug: {}",
+            org_slug
+        )
+        .context("Failed to validate trunk repo"));
     }
 
     Ok(())
@@ -52,7 +55,7 @@ pub async fn get_bundle_upload_location(
     api_token: &str,
     org_slug: &str,
     repo: &Repo,
-) -> anyhow::Result<BundleUploadLocation> {
+) -> anyhow::Result<Option<BundleUploadLocation>> {
     let client = reqwest::Client::new();
     let resp = match client
         .post(format!("{}/v1/metrics/createBundleUpload", origin))
@@ -71,15 +74,20 @@ pub async fn get_bundle_upload_location(
     };
 
     if resp.status() != reqwest::StatusCode::OK {
-        return Err(
-            anyhow::anyhow!("{}: {}", resp.status(), status_code_help(resp.status()))
-                .context("Failed to create bundle upload"),
-        );
+        if resp.text().await?.contains("Organization not found") {
+            return Err(
+                anyhow::anyhow!("Organization not found. Please double check the provided organization url slug: {}", org_slug)
+                    .context("Failed to create bundle upload"),
+            );
+        } else {
+            log::info!("Failed to create bundle upload. We will try again at a later time.");
+            return Ok(None);
+        }
     }
 
-    resp.json::<BundleUploadLocation>()
+    resp.json::<Option<BundleUploadLocation>>()
         .await
-        .context("Failed to get repsonse body as json")
+        .context("Failed to get response body as json")
 }
 
 pub async fn get_quarantine_bulk_test_status(
