@@ -18,7 +18,7 @@ use trunk_analytics_cli::utils::{from_non_empty_or_default, parse_custom_tags};
 
 #[derive(Debug, Parser)]
 #[command(
-    version = std::env!("CARGO_PKG_VERSION"),
+    version = env!("CARGO_PKG_VERSION"),
     name = "trunk-analytics-cli",
     about = "Trunk Analytics CLI"
 )]
@@ -206,12 +206,7 @@ async fn run_upload(
     });
     let meta = BundleMeta {
         version: META_VERSION.to_string(),
-        cli_version: format!(
-            "cargo={} git={} rustc={}",
-            env!("CARGO_PKG_VERSION"),
-            env!("VERGEN_GIT_SHA"),
-            env!("VERGEN_RUSTC_SEMVER")
-        ),
+        cli_version: env!("CARGO_PKG_VERSION").to_string(),
         org: org_url_slug.clone(),
         repo: repo.clone(),
         tags,
