@@ -95,7 +95,7 @@ const DEFAULT_ORIGIN: &str = "https://api.trunk.io";
 // This will give us 8ms, 64ms, 512ms, 4096ms, 32768ms
 const RETRY_BASE_MS: u64 = 8;
 const RETRY_FACTOR: u64 = 1;
-const RETRY_COUNT: usize = 3;
+const RETRY_COUNT: usize = 5;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -255,7 +255,7 @@ async fn run_upload(
     bundler.make_tarball(&bundle_time_file)?;
     log::info!("Flushed temporary tarball to {:?}", bundle_time_file);
 
-    let upload = Retry::spawn(default_delay(), || {
+    let upload_op = Retry::spawn(default_delay(), || {
         get_bundle_upload_location(&api_address, &token, &org_url_slug, &repo.repo)
     })
     .await?;
@@ -265,10 +265,12 @@ async fn run_upload(
         return Ok(exit_code);
     }
 
-    Retry::spawn(default_delay(), || {
-        put_bundle_to_s3(&upload.url, &bundle_time_file)
-    })
-    .await?;
+    if let Some(upload) = upload_op {
+        Retry::spawn(default_delay(), || {
+            put_bundle_to_s3(&upload.url, &bundle_time_file)
+        })
+        .await?;
+    }
 
     let remote_urls = vec![repo.repo_url.clone()];
     Retry::spawn(default_delay(), || {

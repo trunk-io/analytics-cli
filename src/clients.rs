@@ -34,14 +34,15 @@ pub async fn create_trunk_repo(
         .await
     {
         Ok(resp) => resp,
-        Err(e) => return Err(anyhow::anyhow!(e).context("Failed to create trunk repo")),
+        Err(e) => return Err(anyhow::anyhow!(e).context("Failed to validate trunk repo")),
     };
 
-    if resp.status() != reqwest::StatusCode::OK {
-        return Err(
-            anyhow::anyhow!("{}: {}", resp.status(), status_code_help(resp.status()))
-                .context("Failed to create trunk repo"),
-        );
+    if resp.status().is_client_error() {
+        return Err(anyhow::anyhow!(
+            "Organization not found. Please double check the provided organization token and url slug: {}",
+            org_slug
+        )
+        .context("Failed to validate trunk repo"));
     }
 
     Ok(())
@@ -52,7 +53,7 @@ pub async fn get_bundle_upload_location(
     api_token: &str,
     org_slug: &str,
     repo: &Repo,
-) -> anyhow::Result<BundleUploadLocation> {
+) -> anyhow::Result<Option<BundleUploadLocation>> {
     let client = reqwest::Client::new();
     let resp = match client
         .post(format!("{}/v1/metrics/createBundleUpload", origin))
@@ -70,16 +71,27 @@ pub async fn get_bundle_upload_location(
         Err(e) => return Err(anyhow::anyhow!(e).context("Failed to create bundle upload")),
     };
 
-    if resp.status() != reqwest::StatusCode::OK {
-        return Err(
-            anyhow::anyhow!("{}: {}", resp.status(), status_code_help(resp.status()))
-                .context("Failed to create bundle upload"),
-        );
+    if resp.status().is_success() {
+        return resp
+            .json::<Option<BundleUploadLocation>>()
+            .await
+            .context("Failed to get response body as json");
     }
 
-    resp.json::<BundleUploadLocation>()
-        .await
-        .context("Failed to get repsonse body as json")
+    if resp.status().is_client_error() {
+        return Err(anyhow::anyhow!(
+            "Organization not found. Please double check the provided organization token and url slug: {}",
+            org_slug
+        )
+        .context("Failed to create bundle upload"));
+    }
+
+    log::warn!(
+        "Failed to create bundle upload. {}: {}",
+        resp.status(),
+        status_code_help(resp.status())
+    );
+    Ok(None)
 }
 
 pub async fn get_quarantine_bulk_test_status(
