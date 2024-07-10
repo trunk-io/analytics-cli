@@ -37,9 +37,7 @@ pub async fn create_trunk_repo(
         Err(e) => return Err(anyhow::anyhow!(e).context("Failed to validate trunk repo")),
     };
 
-    if resp.status() != reqwest::StatusCode::OK
-        && resp.text().await?.contains("Organization not found")
-    {
+    if resp.status() == reqwest::StatusCode::NOT_FOUND {
         return Err(anyhow::anyhow!(
             "Organization not found. Please double check the provided organization url slug: {}",
             org_slug
@@ -73,16 +71,15 @@ pub async fn get_bundle_upload_location(
         Err(e) => return Err(anyhow::anyhow!(e).context("Failed to create bundle upload")),
     };
 
-    if resp.status() != reqwest::StatusCode::OK {
-        if resp.text().await?.contains("Organization not found") {
-            return Err(
-                anyhow::anyhow!("Organization not found. Please double check the provided organization url slug: {}", org_slug)
-                    .context("Failed to create bundle upload"),
-            );
-        } else {
-            log::info!("Failed to create bundle upload. We will try again at a later time.");
-            return Ok(None);
-        }
+    if resp.status() == reqwest::StatusCode::NOT_FOUND {
+        return Err(anyhow::anyhow!(
+            "Organization not found. Please double check the provided organization url slug: {}",
+            org_slug
+        )
+        .context("Failed to create bundle upload"));
+    } else if resp.status() != reqwest::StatusCode::OK {
+        log::info!("Failed to create bundle upload. We will try again at a later time.");
+        return Ok(None);
     }
 
     resp.json::<Option<BundleUploadLocation>>()
