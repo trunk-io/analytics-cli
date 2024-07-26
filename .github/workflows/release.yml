@@ -13,7 +13,11 @@ jobs:
     name: Build ${{ matrix.target }}
     strategy:
       matrix:
-        target: [x86_64-unknown-linux-musl, aarch64-unknown-linux-musl]
+        include:
+          - target: x86_64-unknown-linux-musl
+            runs-on: public-amd64-small
+          - target: aarch64-unknown-linux-musl
+            runs-on: public-arm64-medium
     runs-on: [ubuntu-20.04]
     steps:
       - name: Checkout
