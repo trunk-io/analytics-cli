@@ -62,7 +62,7 @@ jobs:
   build_release_linux:
     strategy:
       matrix:
-        target: [x86_64-unknown-linux-musl, x86_64-unknown-linux-gnu]
+        target: [x86_64-unknown-linux-musl, aarch64-unknown-linux-musl]
     name: Build CLI for ${{ matrix.target }}
     runs-on: public-amd64-small
     steps:
