@@ -24,15 +24,11 @@ runs:
       shell: bash
       run: rustup target add ${{ inputs.target }}
 
-    - name: Set arm64 env vars
-      if: matrix.target == 'aarch64-unknown-linux-musl'
-      shell: bash
-      run: |
-        export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=aarch64-linux-gnu-gcc
-        export CC=aarch64-linux-gnu-gcc
-
     - name: Compile binary
       shell: bash
+      env:
+        CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER: ${{ matrix.target == 'aarch64-unknown-linux-musl' && 'aarch64-linux-gnu-gcc' || '' }}
+        CC: ${{ matrix.target == 'aarch64-unknown-linux-musl' && 'aarch64-linux-gnu-gcc' || '' }}
       run: cargo build -q --all --release --target ${{ inputs.target }}
 
     - name: Compress binary
