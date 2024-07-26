@@ -68,7 +68,7 @@ jobs:
           - target: aarch64-unknown-linux-musl
             runs-on: public-arm64-medium
     name: Build CLI for ${{ matrix.target }}
-    runs-on: public-amd64-small
+    runs-on: ${{ matrix.runs-on }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
