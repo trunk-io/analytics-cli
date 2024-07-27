@@ -24,11 +24,19 @@ runs:
       run: cargo build -q --all --release --target ${{ inputs.target }}
 
     - name: Compress binary
-      uses: mmatheson/ghaction-upx@v1.0.2
+      if: matrix.target != 'aarch64-unknown-linux-musl'
+      uses: crazy-max/ghaction-upx@v3
       with:
         version: latest
         files: target/${{ inputs.target }}/release/trunk-analytics-cli
         args: --best --lzma
+
+    - name: Compress binary (arm64)
+      if: matrix.target == 'aarch64-unknown-linux-musl'
+      shell: bash
+      run: |
+        sudo apt-get install -y upx
+        upx --best --lzma target/${{ inputs.target }}/release/trunk-analytics-cli
 
     - name: Report binary size
       shell: bash
