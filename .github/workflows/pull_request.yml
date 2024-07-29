@@ -86,7 +86,12 @@ jobs:
           target: ${{ matrix.target }}
 
       - name: Install nextest
+        if: matrix.target != 'aarch64-unknown-linux-musl'
         run: curl -LsSf https://get.nexte.st/latest/linux | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin
+
+      - name: Install nextest for ARM
+        if: matrix.target == 'aarch64-unknown-linux-musl'
+        run: curl -LsSf https://get.nexte.st/latest/linux-arm | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin
 
       - name: Run tests
         run: cargo nextest run --profile=ci
@@ -101,8 +106,15 @@ jobs:
             --token ${{ secrets.TRUNK_STAGING_ORG_API_TOKEN }}
 
   build:
-    name: Unit Tests
-    runs-on: public-amd64-small
+    strategy:
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-musl
+            runs-on: public-amd64-small
+          - target: aarch64-unknown-linux-musl
+            runs-on: public-arm64-medium
+    name: Unit Tests for ${{ matrix.target }}
+    runs-on: ${{ matrix.runs-on }}
     steps:
       - uses: actions/checkout@v4
 
@@ -113,7 +125,12 @@ jobs:
         run: cargo build -q --all
 
       - name: Install nextest
+        if: matrix.target != 'aarch64-unknown-linux-musl'
         run: curl -LsSf https://get.nexte.st/latest/linux | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin
+
+      - name: Install nextest for ARM
+        if: matrix.target == 'aarch64-unknown-linux-musl'
+        run: curl -LsSf https://get.nexte.st/latest/linux-arm | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin
 
       - name: Run tests
         run: cargo nextest run --profile=ci
@@ -125,6 +142,7 @@ jobs:
           junit-paths: ${{ github.workspace }}/target/**/*junit.xml
           org-slug: trunk
           token: ${{ secrets.TRUNK_PROD_ORG_API_TOKEN }}
+
       - name: Upload results cli release built from source
         if: "!cancelled()"
         env:
