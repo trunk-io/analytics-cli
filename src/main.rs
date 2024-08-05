@@ -7,13 +7,13 @@ use tokio_retry::strategy::ExponentialBackoff;
 use tokio_retry::Retry;
 use trunk_analytics_cli::bundler::BundlerUtil;
 use trunk_analytics_cli::clients::{
-    create_trunk_repo, get_bundle_upload_location, get_quarantine_bulk_test_status,
+    create_trunk_repo, get_bundle_upload_location,
     put_bundle_to_s3,
 };
 use trunk_analytics_cli::constants::{EXIT_FAILURE, EXIT_SUCCESS, TRUNK_PUBLIC_API_ADDRESS_ENV};
-use trunk_analytics_cli::runner::run_test_command;
+use trunk_analytics_cli::runner::{run_quarantine, run_test_command};
 use trunk_analytics_cli::scanner::{BundleRepo, EnvScanner, FileSet, FileSetCounter};
-use trunk_analytics_cli::types::{BundleMeta, QuarantineBulkTestStatus, RunResult, META_VERSION};
+use trunk_analytics_cli::types::{BundleMeta, QuarantineBulkTestStatus, RunResult, META_VERSION, QuarantineRunResult};
 use trunk_analytics_cli::utils::{from_non_empty_or_default, parse_custom_tags};
 
 #[derive(Debug, Parser)]
@@ -69,6 +69,8 @@ struct UploadArgs {
     team: Option<String>,
     #[arg(long, help = "Value to override CODEOWNERS file or directory path.")]
     codeowners_path: Option<String>,
+    #[arg(long, help = "Run commands without the quarantining step.")]
+    no_quarantine: bool,
 }
 
 #[derive(Args, Clone, Debug)]
@@ -127,6 +129,7 @@ async fn run_upload(
         tags,
         print_files,
         dry_run,
+        no_quarantine: _,
         team,
         codeowners_path,
     } = upload_args;
@@ -304,7 +307,8 @@ async fn run_test(test_args: TestArgs) -> anyhow::Result<i32> {
         repo_head_commit_epoch,
         tags: _,
         print_files: _,
-        dry_run,
+        dry_run: _,
+        no_quarantine,
         team,
         codeowners_path,
     } = &upload_args;
@@ -328,7 +332,6 @@ async fn run_test(test_args: TestArgs) -> anyhow::Result<i32> {
     );
 
     log::info!("running command: {:?}", command);
-    // check with the API if the group is quarantined
     let run_result = run_test_command(
         &repo,
         command.first().unwrap(),
@@ -343,54 +346,30 @@ async fn run_test(test_args: TestArgs) -> anyhow::Result<i32> {
         failures: Vec::new(),
     });
 
-    let quarantine_results = if run_result.failures.is_empty() {
-        QuarantineBulkTestStatus {
-            group_is_quarantined: false,
-            quarantine_results: Vec::new(),
+    let quarantine_run_result = if *no_quarantine {
+        log::info!("Skipping quarantining step.");
+        QuarantineRunResult {
+            exit_code: run_result.exit_code,
+            quarantine_status: QuarantineBulkTestStatus {
+                group_is_quarantined: false,
+                quarantine_results: Vec::new(),
+            },
         }
     } else {
-        match Retry::spawn(default_delay(), || {
-            get_quarantine_bulk_test_status(
-                &api_address,
-                token,
-                org_url_slug,
-                &repo.repo,
-                &run_result.failures,
-            )
-        })
-        .await
-        {
-            Ok(quarantine_results) => quarantine_results,
-            Err(e) => {
-                log::error!("Failed to get quarantine results: {:?}", e);
-                QuarantineBulkTestStatus {
-                    group_is_quarantined: false,
-                    quarantine_results: Vec::new(),
-                }
-            }
-        }
-    };
-
-    log::info!("Quarantine results: {:?}", quarantine_results);
-    // use the exit code from the command if the group is not quarantined
-    // override exit code to be exit_success if the group is quarantined
-    let exit_code = if *dry_run {
-        log::info!("Dry run, skipping exit code override.");
-        run_result.exit_code
-    } else if !quarantine_results.group_is_quarantined {
-        log::info!("Not all test failures were quarantined, returning exit code from command.");
-        run_result.exit_code
-    } else if run_result.exit_code != EXIT_SUCCESS {
-        log::info!("All test failures were quarantined, overriding exit code to be exit_success");
-        EXIT_SUCCESS
-    } else {
-        run_result.exit_code
+        run_quarantine(
+            &run_result,
+            &api_address,
+            token,
+            org_url_slug,
+            &repo,
+            default_delay(),
+        ).await?
     };
 
     match run_upload(
         upload_args,
         Some(command.join(" ")),
-        Some(quarantine_results),
+        Some(quarantine_run_result.quarantine_status),
     )
     .await
     {
@@ -399,7 +378,7 @@ async fn run_test(test_args: TestArgs) -> anyhow::Result<i32> {
         Err(e) => log::error!("Error uploading test results: {:?}", e),
     }
 
-    Ok(exit_code)
+    Ok(quarantine_run_result.exit_code)
 }
 
 async fn run(cli: Cli) -> anyhow::Result<i32> {

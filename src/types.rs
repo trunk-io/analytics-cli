@@ -8,6 +8,11 @@ pub struct RunResult {
     pub failures: Vec<Test>,
 }
 
+pub struct QuarantineRunResult {
+    pub exit_code: i32,
+    pub quarantine_status: QuarantineBulkTestStatus,
+}
+
 #[derive(Debug, Serialize, Clone, Deserialize)]
 pub struct CreateRepoRequest {
     pub repo: Repo,
