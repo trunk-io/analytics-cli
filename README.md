@@ -1,6 +1,6 @@
 # Trunk Analytics CLI
 
-Please follow instructions on the official website: https://docs.trunk.io/flaky-tests/other-ci-providers-quickstart
+Please follow instructions on the official website: https://docs.trunk.io/flaky-tests/ci-providers/other-ci-providers-quickstart
 
 <div align="center">
 
