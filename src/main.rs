@@ -13,7 +13,7 @@ use trunk_analytics_cli::clients::{
 use trunk_analytics_cli::constants::{EXIT_FAILURE, EXIT_SUCCESS, TRUNK_PUBLIC_API_ADDRESS_ENV};
 use trunk_analytics_cli::runner::{run_quarantine, run_test_command};
 use trunk_analytics_cli::scanner::{BundleRepo, EnvScanner, FileSet, FileSetCounter};
-use trunk_analytics_cli::types::{BundleMeta, QuarantineBulkTestStatus, RunResult, META_VERSION, QuarantineRunResult};
+use trunk_analytics_cli::types::{BundleMeta, QuarantineBulkTestStatus, RunResult, META_VERSION};
 use trunk_analytics_cli::utils::{from_non_empty_or_default, parse_custom_tags};
 
 #[derive(Debug, Parser)]
@@ -70,7 +70,7 @@ struct UploadArgs {
     #[arg(long, help = "Value to override CODEOWNERS file or directory path.")]
     codeowners_path: Option<String>,
     #[arg(long, help = "Run commands without the quarantining step.")]
-    no_quarantine: bool,
+    no_quarantining: bool,
 }
 
 #[derive(Args, Clone, Debug)]
@@ -129,7 +129,7 @@ async fn run_upload(
         tags,
         print_files,
         dry_run,
-        no_quarantine: _,
+        no_quarantining: _,
         team,
         codeowners_path,
     } = upload_args;
@@ -308,7 +308,7 @@ async fn run_test(test_args: TestArgs) -> anyhow::Result<i32> {
         tags: _,
         print_files: _,
         dry_run: _,
-        no_quarantine,
+        no_quarantining,
         team,
         codeowners_path,
     } = &upload_args;
@@ -346,16 +346,7 @@ async fn run_test(test_args: TestArgs) -> anyhow::Result<i32> {
         failures: Vec::new(),
     });
 
-    let quarantine_run_result = if *no_quarantine {
-        log::info!("Skipping quarantining step.");
-        QuarantineRunResult {
-            exit_code: run_result.exit_code,
-            quarantine_status: QuarantineBulkTestStatus {
-                group_is_quarantined: false,
-                quarantine_results: Vec::new(),
-            },
-        }
-    } else {
+    let quarantine_run_result = 
         run_quarantine(
             &run_result,
             &api_address,
@@ -363,8 +354,8 @@ async fn run_test(test_args: TestArgs) -> anyhow::Result<i32> {
             org_url_slug,
             &repo,
             default_delay(),
-        ).await?
-    };
+            no_quarantining,
+        ).await?;
 
     match run_upload(
         upload_args,
