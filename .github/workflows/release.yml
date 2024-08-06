@@ -96,7 +96,7 @@ jobs:
           do
             chmod u+x build/${target}/trunk-analytics-cli
             tar czvf \
-              build/trunk-analytics-cli-${{ github.event.inputs.release_tag }}-${target}.tar.gz \
+              build/trunk-analytics-cli-${target}.tar.gz \
               -C build/${target} trunk-analytics-cli
           done
 
