@@ -11,8 +11,8 @@ use trunk_analytics_cli::clients::{
     put_bundle_to_s3,
 };
 use trunk_analytics_cli::constants::{EXIT_FAILURE, EXIT_SUCCESS, TRUNK_PUBLIC_API_ADDRESS_ENV};
-use trunk_analytics_cli::runner::{run_quarantine, run_test_command};
-use trunk_analytics_cli::scanner::{BundleRepo, EnvScanner, FileSet, FileSetCounter};
+use trunk_analytics_cli::runner::{run_quarantine, run_test_command, get_files};
+use trunk_analytics_cli::scanner::{BundleRepo, EnvScanner};
 use trunk_analytics_cli::types::{BundleMeta, QuarantineBulkTestStatus, RunResult, META_VERSION};
 use trunk_analytics_cli::utils::{from_non_empty_or_default, parse_custom_tags};
 
@@ -166,40 +166,12 @@ async fn run_upload(
 
     let tags = parse_custom_tags(&tags)?;
 
-    let mut file_counter = FileSetCounter::default();
-    let mut file_sets = junit_paths
-        .iter()
-        .map(|path| {
-            FileSet::scan_from_glob(
-                &repo.repo_root,
-                path.to_string(),
-                &mut file_counter,
-                team.clone(),
-                codeowners_path.clone(),
-            )
-        })
-        .collect::<anyhow::Result<Vec<FileSet>>>()?;
-
-    // Handle case when junit paths are not globs.
-    if file_counter.get_count() == 0 {
-        file_sets = junit_paths
-            .iter()
-            .map(|path| {
-                let mut path = path.clone();
-                if !path.ends_with("/") {
-                    path.push_str("/");
-                }
-                path.push_str("**/*.xml");
-                FileSet::scan_from_glob(
-                    &repo.repo_root,
-                    path.to_string(),
-                    &mut file_counter,
-                    team.clone(),
-                    codeowners_path.clone(),
-                )
-            })
-            .collect::<anyhow::Result<Vec<FileSet>>>()?;
-    }
+    let (file_sets, file_counter) = get_files(
+        &repo,
+        junit_paths.clone(),
+        team.clone(),
+        codeowners_path.clone(),
+    )?;
 
     let envs = EnvScanner::scan_env();
     let os_info: String = env::consts::OS.to_string();
@@ -336,7 +308,7 @@ async fn run_test(test_args: TestArgs) -> anyhow::Result<i32> {
         &repo,
         command.first().unwrap(),
         command.iter().skip(1).collect(),
-        junit_paths.iter().collect(),
+        junit_paths.iter().cloned().collect(),
         team.clone(),
         codeowners_path.clone(),
     )

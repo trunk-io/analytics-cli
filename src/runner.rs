@@ -15,14 +15,14 @@ pub async fn run_test_command(
     repo: &BundleRepo,
     command: &String,
     args: Vec<&String>,
-    output_paths: Vec<&String>,
+    output_paths: Vec<String>,
     team: Option<String>,
     codeowners_path: Option<String>,
 ) -> anyhow::Result<RunResult> {
     let start = SystemTime::now();
     let exit_code = run_test_and_get_exit_code(command, args).await?;
     log::info!("Command exit code: {}", exit_code);
-    let file_sets = get_file_sets(repo, output_paths, team.clone(), codeowners_path.clone())?;
+    let (file_sets, _file_counter) = get_files(repo, output_paths, team.clone(), codeowners_path.clone())?;
     let failures = if exit_code != EXIT_SUCCESS {
         get_failures(file_sets, start).await?
     } else {
@@ -51,14 +51,14 @@ async fn run_test_and_get_exit_code(command: &String, args: Vec<&String>) -> any
     Ok(result.code().unwrap_or(EXIT_FAILURE))
 }
 
-fn get_file_sets(
+pub fn get_files(
     repo: &BundleRepo,
-    output_paths: Vec<&String>,
+    junit_paths: Vec<String>,
     team: Option<String>,
     codeowners_path: Option<String>,
-) -> anyhow::Result<Vec<FileSet>> {
+) -> anyhow::Result<(Vec<FileSet>, FileSetCounter)>  {
     let mut file_counter = FileSetCounter::default();
-    let file_sets = output_paths
+    let mut file_sets = junit_paths
         .iter()
         .map(|path| {
             FileSet::scan_from_glob(
@@ -70,10 +70,32 @@ fn get_file_sets(
             )
         })
         .collect::<anyhow::Result<Vec<FileSet>>>()?;
-    Ok(file_sets)
+
+    // Handle case when junit paths are not globs.
+    if file_counter.get_count() == 0 {
+        file_sets = junit_paths
+            .iter()
+            .map(|path| {
+                let mut path = path.clone();
+                if !path.ends_with("/") {
+                    path.push_str("/");
+                }
+                path.push_str("**/*.xml");
+                FileSet::scan_from_glob(
+                    &repo.repo_root,
+                    path.to_string(),
+                    &mut file_counter,
+                    team.clone(),
+                    codeowners_path.clone(),
+                )
+            })
+            .collect::<anyhow::Result<Vec<FileSet>>>()?;
+    }
+
+    Ok((file_sets, file_counter))
 }
 
-async fn get_failures(
+pub async fn get_failures(
     file_sets: Vec<FileSet>,
     start: SystemTime,
 ) -> anyhow::Result<Vec<Test>> {
