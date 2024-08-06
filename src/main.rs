@@ -7,11 +7,10 @@ use tokio_retry::strategy::ExponentialBackoff;
 use tokio_retry::Retry;
 use trunk_analytics_cli::bundler::BundlerUtil;
 use trunk_analytics_cli::clients::{
-    create_trunk_repo, get_bundle_upload_location,
-    put_bundle_to_s3,
+    create_trunk_repo, get_bundle_upload_location, put_bundle_to_s3,
 };
 use trunk_analytics_cli::constants::{EXIT_FAILURE, EXIT_SUCCESS, TRUNK_PUBLIC_API_ADDRESS_ENV};
-use trunk_analytics_cli::runner::{run_quarantine, run_test_command, get_files};
+use trunk_analytics_cli::runner::{get_failures, get_files, run_quarantine, run_test_command};
 use trunk_analytics_cli::scanner::{BundleRepo, EnvScanner};
 use trunk_analytics_cli::types::{BundleMeta, QuarantineBulkTestStatus, RunResult, META_VERSION};
 use trunk_analytics_cli::utils::{from_non_empty_or_default, parse_custom_tags};
@@ -129,7 +128,7 @@ async fn run_upload(
         tags,
         print_files,
         dry_run,
-        no_quarantining: _,
+        no_quarantining,
         team,
         codeowners_path,
     } = upload_args;
@@ -151,7 +150,7 @@ async fn run_upload(
         DEFAULT_ORIGIN.to_string(),
         |s| s,
     );
-    let exit_code: i32 = EXIT_SUCCESS;
+    let mut exit_code: i32 = EXIT_SUCCESS;
 
     log::info!(
         "Starting trunk-analytics-cli {} (git={}) rustc={}",
@@ -168,10 +167,27 @@ async fn run_upload(
 
     let (file_sets, file_counter) = get_files(
         &repo,
-        junit_paths.clone(),
+        &junit_paths,
         team.clone(),
         codeowners_path.clone(),
     )?;
+    let failures = get_failures(&file_sets, None).await?;
+
+    // Run the quarantine step and update the exit code.
+    let quarantine_run_result = run_quarantine(
+        &RunResult {
+            exit_code,
+            failures,
+        },
+        &api_address,
+        &token,
+        &org_url_slug,
+        &repo,
+        default_delay(),
+        no_quarantining,
+    )
+    .await?;
+    exit_code = quarantine_run_result.exit_code;
 
     let envs = EnvScanner::scan_env();
     let os_info: String = env::consts::OS.to_string();
@@ -277,12 +293,10 @@ async fn run_test(test_args: TestArgs) -> anyhow::Result<i32> {
         repo_head_sha,
         repo_head_branch,
         repo_head_commit_epoch,
-        tags: _,
-        print_files: _,
-        dry_run: _,
         no_quarantining,
         team,
         codeowners_path,
+        ..
     } = &upload_args;
 
     let repo = BundleRepo::try_read_from_root(
@@ -308,7 +322,7 @@ async fn run_test(test_args: TestArgs) -> anyhow::Result<i32> {
         &repo,
         command.first().unwrap(),
         command.iter().skip(1).collect(),
-        junit_paths.iter().cloned().collect(),
+        junit_paths.to_vec(),
         team.clone(),
         codeowners_path.clone(),
     )
@@ -318,16 +332,16 @@ async fn run_test(test_args: TestArgs) -> anyhow::Result<i32> {
         failures: Vec::new(),
     });
 
-    let quarantine_run_result = 
-        run_quarantine(
-            &run_result,
-            &api_address,
-            token,
-            org_url_slug,
-            &repo,
-            default_delay(),
-            no_quarantining,
-        ).await?;
+    let quarantine_run_result = run_quarantine(
+        &run_result,
+        &api_address,
+        token,
+        org_url_slug,
+        &repo,
+        default_delay(),
+        *no_quarantining,
+    )
+    .await?;
 
     match run_upload(
         upload_args,
