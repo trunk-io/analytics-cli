@@ -165,12 +165,8 @@ async fn run_upload(
 
     let tags = parse_custom_tags(&tags)?;
 
-    let (file_sets, file_counter) = get_files(
-        &repo,
-        &junit_paths,
-        team.clone(),
-        codeowners_path.clone(),
-    )?;
+    let (file_sets, file_counter) =
+        get_files(&repo, &junit_paths, team.clone(), codeowners_path.clone())?;
     let failures = get_failures(&file_sets, None).await?;
 
     // Run the quarantine step and update the exit code.
@@ -322,7 +318,7 @@ async fn run_test(test_args: TestArgs) -> anyhow::Result<i32> {
         &repo,
         command.first().unwrap(),
         command.iter().skip(1).collect(),
-        junit_paths.to_vec(),
+        junit_paths,
         team.clone(),
         codeowners_path.clone(),
     )

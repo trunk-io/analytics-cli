@@ -1,30 +1,30 @@
-use crate::clients::get_quarantine_bulk_test_status;
-use crate::constants::{EXIT_FAILURE, EXIT_SUCCESS};
-use crate::scanner::{BundleRepo, FileSet, FileSetCounter};
-use crate::types::QuarantineBulkTestStatus;
-use crate::types::{QuarantineRunResult, RunResult, Test};
+use crate::{
+    clients::get_quarantine_bulk_test_status,
+    constants::{EXIT_FAILURE, EXIT_SUCCESS},
+    scanner::{BundleRepo, FileSet, FileSetCounter},
+    types::{QuarantineBulkTestStatus, QuarantineRunResult, RunResult, Test},
+};
 use junit_parser;
-use std::fs::metadata;
-use std::process::Command;
-use std::process::Stdio;
-use std::time::SystemTime;
-use tokio_retry::strategy::ExponentialBackoff;
-use tokio_retry::Retry;
+use std::{
+    fs::metadata,
+    process::{Command, Stdio},
+    time::SystemTime,
+};
+use tokio_retry::{strategy::ExponentialBackoff, Retry};
 
 pub async fn run_test_command(
     repo: &BundleRepo,
     command: &String,
     args: Vec<&String>,
-    output_paths: Vec<String>,
+    output_paths: &[String],
     team: Option<String>,
     codeowners_path: Option<String>,
 ) -> anyhow::Result<RunResult> {
-    let start = SystemTime::now();
     let exit_code = run_test_and_get_exit_code(command, args).await?;
     log::info!("Command exit code: {}", exit_code);
-    let (file_sets, _file_counter) =
-        get_files(repo, &output_paths, team.clone(), codeowners_path.clone())?;
+    let (file_sets, ..) = get_files(repo, output_paths, team, codeowners_path)?;
     let failures = if exit_code != EXIT_SUCCESS {
+        let start = SystemTime::now();
         get_failures(&file_sets, Some(start)).await?
     } else {
         Vec::new()
@@ -40,16 +40,20 @@ async fn run_test_and_get_exit_code(command: &String, args: Vec<&String>) -> any
         .args(args)
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit())
-        .spawn()
-        .unwrap();
-    let result = match child.wait() {
-        Ok(result) => result,
-        Err(e) => {
-            log::error!("Error waiting for execution: {}", e);
-            return Ok(EXIT_FAILURE);
-        }
-    };
-    Ok(result.code().unwrap_or(EXIT_FAILURE))
+        .spawn()?;
+
+    let result = child
+        .wait()
+        .map_or_else(
+            |e| {
+                log::error!("Error waiting for execution: {}", e);
+                None
+            },
+            |exit_status| exit_status.code(),
+        )
+        .unwrap_or(EXIT_FAILURE);
+
+    Ok(result)
 }
 
 pub fn get_files(
@@ -205,7 +209,7 @@ pub async fn run_quarantine(
             )
         })
         .await;
-        
+
         result.unwrap_or_else(|e| {
             log::error!("Failed to get quarantine results: {:?}", e);
             QuarantineBulkTestStatus {
