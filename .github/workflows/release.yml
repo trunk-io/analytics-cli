@@ -107,6 +107,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release create --prerelease --target ${{ github.ref }} \
+          gh release create --prerelease --latest=false \
+            --target ${{ github.ref }} \
             --generate-notes ${{ github.event.inputs.release_tag }} \
             ./build/*.tar.gz
