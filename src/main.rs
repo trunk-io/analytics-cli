@@ -206,7 +206,6 @@ async fn run_upload(
         envs,
         upload_time_epoch: SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs(),
         test_command,
-        group_is_quarantined: resolved_quarantine_results.group_is_quarantined,
         quarantined_tests: resolved_quarantine_results
             .quarantine_results
             .iter()
