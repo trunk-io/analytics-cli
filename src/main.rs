@@ -69,7 +69,7 @@ struct UploadArgs {
     #[arg(long, help = "Value to override CODEOWNERS file or directory path.")]
     codeowners_path: Option<String>,
     #[arg(long, help = "Run commands without the quarantining step.")]
-    no_quarantining: bool,
+    quarantining: bool,
 }
 
 #[derive(Args, Clone, Debug)]
@@ -128,7 +128,7 @@ async fn run_upload(
         tags,
         print_files,
         dry_run,
-        no_quarantining,
+        quarantining,
         team,
         codeowners_path,
     } = upload_args;
@@ -180,7 +180,7 @@ async fn run_upload(
         &org_url_slug,
         &repo,
         default_delay(),
-        no_quarantining,
+        quarantining,
     )
     .await?;
     exit_code = quarantine_run_result.exit_code;
@@ -289,7 +289,7 @@ async fn run_test(test_args: TestArgs) -> anyhow::Result<i32> {
         repo_head_sha,
         repo_head_branch,
         repo_head_commit_epoch,
-        no_quarantining,
+        quarantining,
         team,
         codeowners_path,
         ..
@@ -335,7 +335,7 @@ async fn run_test(test_args: TestArgs) -> anyhow::Result<i32> {
         org_url_slug,
         &repo,
         default_delay(),
-        *no_quarantining,
+        *quarantining,
     )
     .await?;
 
