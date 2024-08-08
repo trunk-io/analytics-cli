@@ -181,7 +181,7 @@ pub struct BundleMeta {
     pub upload_time_epoch: u64,
     pub test_command: Option<String>,
     pub os_info: Option<String>,
-    pub quarantined_tests: Vec<String>,
+    pub quarantined_tests: Vec<QuarantineResult>,
 }
 
 #[cfg(test)]

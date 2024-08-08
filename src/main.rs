@@ -68,8 +68,8 @@ struct UploadArgs {
     team: Option<String>,
     #[arg(long, help = "Value to override CODEOWNERS file or directory path.")]
     codeowners_path: Option<String>,
-    #[arg(long, help = "Run commands without the quarantining step.")]
-    quarantining: bool,
+    #[arg(long, help = "Run commands with the quarantining step.")]
+    enable_quarantining: bool,
 }
 
 #[derive(Args, Clone, Debug)]
@@ -128,7 +128,7 @@ async fn run_upload(
         tags,
         print_files,
         dry_run,
-        quarantining,
+        enable_quarantining,
         team,
         codeowners_path,
     } = upload_args;
@@ -150,7 +150,6 @@ async fn run_upload(
         DEFAULT_ORIGIN.to_string(),
         |s| s,
     );
-    let mut exit_code: i32 = EXIT_SUCCESS;
 
     log::info!(
         "Starting trunk-analytics-cli {} (git={}) rustc={}",
@@ -172,7 +171,7 @@ async fn run_upload(
     // Run the quarantine step and update the exit code.
     let quarantine_run_result = run_quarantine(
         &RunResult {
-            exit_code,
+            exit_code: EXIT_SUCCESS,
             failures,
         },
         &api_address,
@@ -180,10 +179,11 @@ async fn run_upload(
         &org_url_slug,
         &repo,
         default_delay(),
-        quarantining,
+        enable_quarantining,
     )
     .await?;
-    exit_code = quarantine_run_result.exit_code;
+
+    let exit_code: i32 = quarantine_run_result.exit_code;
 
     let envs = EnvScanner::scan_env();
     let os_info: String = env::consts::OS.to_string();
@@ -206,11 +206,7 @@ async fn run_upload(
         envs,
         upload_time_epoch: SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs(),
         test_command,
-        quarantined_tests: resolved_quarantine_results
-            .quarantine_results
-            .iter()
-            .map(|qr| qr.run_info_id.clone())
-            .collect(),
+        quarantined_tests: resolved_quarantine_results.quarantine_results.to_vec(),
         os_info: Some(os_info),
     };
 
@@ -288,7 +284,7 @@ async fn run_test(test_args: TestArgs) -> anyhow::Result<i32> {
         repo_head_sha,
         repo_head_branch,
         repo_head_commit_epoch,
-        quarantining,
+        enable_quarantining,
         team,
         codeowners_path,
         ..
@@ -334,7 +330,7 @@ async fn run_test(test_args: TestArgs) -> anyhow::Result<i32> {
         org_url_slug,
         &repo,
         default_delay(),
-        *quarantining,
+        *enable_quarantining,
     )
     .await?;
 

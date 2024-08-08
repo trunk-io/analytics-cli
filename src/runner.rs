@@ -176,9 +176,9 @@ pub async fn run_quarantine(
     org_url_slug: &str,
     repo: &BundleRepo,
     delay: std::iter::Take<ExponentialBackoff>,
-    quarantining: bool,
+    enable_quarantining: bool,
 ) -> anyhow::Result<QuarantineRunResult> {
-    if !quarantining {
+    if !enable_quarantining {
         log::info!("Skipping quarantining step.");
         return Ok(QuarantineRunResult {
             exit_code: run_result.exit_code,
@@ -189,7 +189,7 @@ pub async fn run_quarantine(
         });
     }
     // check with the API if the group is quarantined
-    log::info!(
+    log::debug!(
         "Checking quarantine status for failures: {:?}",
         run_result.failures
     );
