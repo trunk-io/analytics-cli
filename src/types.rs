@@ -8,6 +8,11 @@ pub struct RunResult {
     pub failures: Vec<Test>,
 }
 
+pub struct QuarantineRunResult {
+    pub exit_code: i32,
+    pub quarantine_status: QuarantineBulkTestStatus,
+}
+
 #[derive(Debug, Serialize, Clone, Deserialize)]
 pub struct CreateRepoRequest {
     pub repo: Repo,
@@ -176,8 +181,7 @@ pub struct BundleMeta {
     pub upload_time_epoch: u64,
     pub test_command: Option<String>,
     pub os_info: Option<String>,
-    pub group_is_quarantined: bool,
-    pub quarantined_tests: Vec<String>,
+    pub quarantined_tests: Vec<QuarantineResult>,
 }
 
 #[cfg(test)]
