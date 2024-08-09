@@ -176,9 +176,9 @@ pub async fn run_quarantine(
     org_url_slug: &str,
     repo: &BundleRepo,
     delay: std::iter::Take<ExponentialBackoff>,
-    enable_quarantining: bool,
+    use_quarantining: bool,
 ) -> anyhow::Result<QuarantineRunResult> {
-    if !enable_quarantining {
+    if !use_quarantining {
         log::info!("Skipping quarantining step.");
         return Ok(QuarantineRunResult {
             exit_code: run_result.exit_code,
