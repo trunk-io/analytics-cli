@@ -10,9 +10,13 @@ use trunk_analytics_cli::clients::{
     create_trunk_repo, get_bundle_upload_location, put_bundle_to_s3,
 };
 use trunk_analytics_cli::constants::{EXIT_FAILURE, EXIT_SUCCESS, TRUNK_PUBLIC_API_ADDRESS_ENV};
-use trunk_analytics_cli::runner::{get_failures, get_files, run_quarantine, run_test_command};
+use trunk_analytics_cli::runner::{
+    build_filesets, extract_failed_tests, run_quarantine, run_test_command,
+};
 use trunk_analytics_cli::scanner::{BundleRepo, EnvScanner};
-use trunk_analytics_cli::types::{BundleMeta, QuarantineBulkTestStatus, RunResult, META_VERSION};
+use trunk_analytics_cli::types::{
+    BundleMeta, QuarantineBulkTestStatus, QuarantineRunResult, RunResult, META_VERSION,
+};
 use trunk_analytics_cli::utils::{from_non_empty_or_default, parse_custom_tags};
 
 #[derive(Debug, Parser)]
@@ -114,7 +118,7 @@ async fn main() -> anyhow::Result<()> {
 async fn run_upload(
     upload_args: UploadArgs,
     test_command: Option<String>,
-    quarantine_results: Option<QuarantineBulkTestStatus>,
+    quarantine_results: Option<QuarantineRunResult>,
 ) -> anyhow::Result<i32> {
     let UploadArgs {
         junit_paths,
@@ -165,32 +169,44 @@ async fn run_upload(
     let tags = parse_custom_tags(&tags)?;
 
     let (file_sets, file_counter) =
-        get_files(&repo, &junit_paths, team.clone(), codeowners_path.clone())?;
-    let failures = get_failures(&file_sets, None).await?;
+        build_filesets(&repo, &junit_paths, team.clone(), codeowners_path.clone())?;
+    let failures = extract_failed_tests(&file_sets, None).await?;
 
     // Run the quarantine step and update the exit code.
-    let quarantine_run_result = run_quarantine(
-        &RunResult {
-            exit_code: EXIT_SUCCESS,
-            failures,
-        },
-        &api_address,
-        &token,
-        &org_url_slug,
-        &repo,
-        default_delay(),
-        use_quarantining,
-    )
-    .await?;
+    let quarantine_run_results = if use_quarantining && quarantine_results.is_none() {
+        Some(
+            run_quarantine(
+                &RunResult {
+                    exit_code: EXIT_SUCCESS,
+                    failures,
+                },
+                &api_address,
+                &token,
+                &org_url_slug,
+                &repo,
+                default_delay(),
+            )
+            .await?,
+        )
+    } else {
+        quarantine_results
+    };
 
-    let exit_code: i32 = quarantine_run_result.exit_code;
+    let (exit_code, resolved_quarantine_results) = if let Some(r) = quarantine_run_results.as_ref()
+    {
+        (r.exit_code, r.quarantine_status.clone())
+    } else {
+        (
+            EXIT_SUCCESS,
+            QuarantineBulkTestStatus {
+                group_is_quarantined: false,
+                quarantine_results: Vec::new(),
+            },
+        )
+    };
 
     let envs = EnvScanner::scan_env();
     let os_info: String = env::consts::OS.to_string();
-    let resolved_quarantine_results = quarantine_results.unwrap_or(QuarantineBulkTestStatus {
-        group_is_quarantined: false,
-        quarantine_results: Vec::new(),
-    });
     let meta = BundleMeta {
         version: META_VERSION.to_string(),
         cli_version: format!(
@@ -323,30 +339,41 @@ async fn run_test(test_args: TestArgs) -> anyhow::Result<i32> {
         failures: Vec::new(),
     });
 
-    let quarantine_run_result = run_quarantine(
-        &run_result,
-        &api_address,
-        token,
-        org_url_slug,
-        &repo,
-        default_delay(),
-        *use_quarantining,
-    )
-    .await?;
+    if *use_quarantining {
+        let quarantine_run_result = run_quarantine(
+            &run_result,
+            &api_address,
+            token,
+            org_url_slug,
+            &repo,
+            default_delay(),
+        )
+        .await?;
 
-    match run_upload(
-        upload_args,
-        Some(command.join(" ")),
-        Some(quarantine_run_result.quarantine_status),
-    )
-    .await
-    {
+        let exit_code = quarantine_run_result.exit_code;
+
+        match run_upload(
+            upload_args,
+            Some(command.join(" ")),
+            Some(quarantine_run_result),
+        )
+        .await
+        {
+            Ok(EXIT_SUCCESS) => (),
+            Ok(code) => log::error!("Error uploading test results: {}", code),
+            Err(e) => log::error!("Error uploading test results: {:?}", e),
+        }
+
+        return Ok(exit_code);
+    }
+
+    match run_upload(upload_args, Some(command.join(" ")), None).await {
         Ok(EXIT_SUCCESS) => (),
         Ok(code) => log::error!("Error uploading test results: {}", code),
         Err(e) => log::error!("Error uploading test results: {:?}", e),
     }
 
-    Ok(quarantine_run_result.exit_code)
+    Ok(EXIT_SUCCESS)
 }
 
 async fn run(cli: Cli) -> anyhow::Result<i32> {

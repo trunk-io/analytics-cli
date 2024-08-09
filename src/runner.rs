@@ -6,6 +6,7 @@ use crate::{
 };
 use junit_parser;
 use std::{
+    collections::HashSet,
     fs::metadata,
     process::{Command, Stdio},
     time::SystemTime,
@@ -22,10 +23,10 @@ pub async fn run_test_command(
 ) -> anyhow::Result<RunResult> {
     let exit_code = run_test_and_get_exit_code(command, args).await?;
     log::info!("Command exit code: {}", exit_code);
-    let (file_sets, ..) = get_files(repo, output_paths, team, codeowners_path)?;
+    let (file_sets, ..) = build_filesets(repo, output_paths, team, codeowners_path)?;
     let failures = if exit_code != EXIT_SUCCESS {
         let start = SystemTime::now();
-        get_failures(&file_sets, Some(start)).await?
+        extract_failed_tests(&file_sets, Some(start)).await?
     } else {
         Vec::new()
     };
@@ -56,7 +57,7 @@ async fn run_test_and_get_exit_code(command: &String, args: Vec<&String>) -> any
     Ok(result)
 }
 
-pub fn get_files(
+pub fn build_filesets(
     repo: &BundleRepo,
     junit_paths: &[String],
     team: Option<String>,
@@ -100,7 +101,7 @@ pub fn get_files(
     Ok((file_sets, file_counter))
 }
 
-pub async fn get_failures(
+pub async fn extract_failed_tests(
     file_sets: &[FileSet],
     start: Option<SystemTime>,
 ) -> anyhow::Result<Vec<Test>> {
@@ -176,29 +177,14 @@ pub async fn run_quarantine(
     org_url_slug: &str,
     repo: &BundleRepo,
     delay: std::iter::Take<ExponentialBackoff>,
-    use_quarantining: bool,
 ) -> anyhow::Result<QuarantineRunResult> {
-    if !use_quarantining {
-        log::info!("Skipping quarantining step.");
-        return Ok(QuarantineRunResult {
-            exit_code: run_result.exit_code,
-            quarantine_status: QuarantineBulkTestStatus {
-                group_is_quarantined: false,
-                quarantine_results: Vec::new(),
-            },
-        });
-    }
-    // check with the API if the group is quarantined
-    log::debug!(
-        "Checking quarantine status for failures: {:?}",
-        run_result.failures
-    );
     let quarantine_results = if run_result.failures.is_empty() {
         QuarantineBulkTestStatus {
             group_is_quarantined: false,
             quarantine_results: Vec::new(),
         }
     } else {
+        log::info!("Quarantining failed tests");
         let result = Retry::spawn(delay, || {
             get_quarantine_bulk_test_status(
                 api_address,
@@ -218,7 +204,22 @@ pub async fn run_quarantine(
             }
         })
     };
-    log::info!("Quarantine results: {:?}", quarantine_results);
+
+    // Print out failed tests and their quarantine status
+    let quarantined_names: HashSet<_> = quarantine_results
+        .quarantine_results
+        .iter()
+        .map(|qr| &qr.name)
+        .collect();
+
+    for failure in &run_result.failures {
+        if quarantined_names.contains(&failure.name) {
+            log::error!("{} -> {} [QUARANTINED]", failure.parent_name, failure.name);
+        } else {
+            log::error!("{} -> {}", failure.parent_name, failure.name);
+        }
+    }
+
     // use the exit code from the command if the group is not quarantined
     // override exit code to be exit_success if the group is quarantined
     let exit_code = if !quarantine_results.group_is_quarantined {
