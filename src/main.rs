@@ -104,6 +104,14 @@ const RETRY_COUNT: usize = 5;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    let _guard = sentry::init((
+        "https://4814eaf1df0e8a1e3303bb7e2f89095a@o681886.ingest.us.sentry.io/4507772986982400",
+        sentry::ClientOptions {
+            release: sentry::release_name!(),
+            ..Default::default()
+        },
+    ));
+
     setup_logger()?;
     let cli = Cli::parse();
     match run(cli).await {
