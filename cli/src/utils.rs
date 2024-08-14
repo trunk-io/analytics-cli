@@ -29,7 +29,7 @@ pub fn from_non_empty_or_default<R, F: Fn(String) -> R>(
     from_non_empty: F,
 ) -> R {
     if let Some(s) = s {
-        if s.trim().len() > 0 {
+        if !s.trim().is_empty() {
             return from_non_empty(s);
         }
     }
@@ -38,7 +38,7 @@ pub fn from_non_empty_or_default<R, F: Fn(String) -> R>(
 
 pub fn parse_custom_tags(tags: &[String]) -> anyhow::Result<Vec<CustomTag>> {
     let parsed = tags.iter()
-        .filter(|tag_str| tag_str.trim().len() > 0)
+        .filter(|tag_str| !tag_str.trim().is_empty())
         .map(|tag_str| {
             let parts = tag_str.split('=').collect::<Vec<&str>>();
             if parts.len() != 2 {
@@ -52,7 +52,7 @@ pub fn parse_custom_tags(tags: &[String]) -> anyhow::Result<Vec<CustomTag>> {
             let key = parts[0].trim().to_owned();
             let value = parts[1].trim().to_owned();
 
-            if key.len() == 0 || value.len() == 0 {
+            if key.is_empty() || value.is_empty() {
                 return Err(anyhow::anyhow!(
                     "Invalid custom tag format. Key/Value is empty: {:?}",
                     tags
@@ -72,5 +72,5 @@ pub fn parse_custom_tags(tags: &[String]) -> anyhow::Result<Vec<CustomTag>> {
         })
         .collect::<anyhow::Result<Vec<CustomTag>>>()?;
 
-    return Ok(parsed);
+    Ok(parsed)
 }

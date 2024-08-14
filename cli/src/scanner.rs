@@ -127,7 +127,7 @@ impl FileSet {
                     .metadata()?
                     .modified()?
                     .duration_since(std::time::UNIX_EPOCH)?
-                    .as_nanos() as u128,
+                    .as_nanos(),
                 owners,
                 team: team.clone(),
             });
@@ -201,7 +201,7 @@ impl BundleRepo {
             // Read git repo.
             log::info!("Reading git repo at {:?}", &repo_root);
 
-            let git_repo = gix::open(&repo_root)?;
+            let git_repo = gix::open(repo_root)?;
             let git_url = git_repo
                 .config_snapshot()
                 .string_by_key(GIT_REMOTE_ORIGIN_URL_CONFIG)
