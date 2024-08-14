@@ -67,6 +67,7 @@ inherits = "release"
 strip = false
 debug = true
 split-debuginfo = "packed"
+panic = "unwind"
 
 [profile.dev.package."*"]
 debug = true
