@@ -1,6 +1,7 @@
 use regex::Regex;
 use serde::Serialize;
 use std::format;
+use std::path::{Path, PathBuf};
 
 use crate::constants::{ALLOW_LIST, CODEOWNERS_LOCATIONS, ENVS_TO_GET};
 use crate::types::{BundledFile, FileSetType, Repo};
@@ -62,11 +63,11 @@ impl FileSet {
         // Parse codeowners.
         let mut codeowners_file = None;
         if let Some(codeowners_path) = codeowners_path {
-            codeowners_file = codeowners::locate(codeowners_path);
+            codeowners_file = locate_codeowners(repo_root, codeowners_path);
         }
         if codeowners_file.is_none() {
             for codeowner_path in CODEOWNERS_LOCATIONS {
-                codeowners_file = codeowners::locate(codeowner_path);
+                codeowners_file = locate_codeowners(repo_root, codeowner_path);
                 if codeowners_file.is_some() {
                     break;
                 }
@@ -139,6 +140,21 @@ impl FileSet {
             files,
             glob: glob_path,
         })
+    }
+}
+
+const CODEOWNERS: &str = "CODEOWNERS";
+
+fn locate_codeowners<T, U>(repo_root: T, location: U) -> Option<PathBuf>
+where
+    T: AsRef<Path>,
+    U: AsRef<Path>,
+{
+    let file = repo_root.as_ref().join(location).join(CODEOWNERS);
+    if file.exists() {
+        Some(file)
+    } else {
+        None
     }
 }
 
