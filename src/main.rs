@@ -104,7 +104,7 @@ const RETRY_COUNT: usize = 5;
 
 // "the Sentry client must be initialized before starting an async runtime or spawning threads"
 // https://docs.sentry.io/platforms/rust/#async-main-function
-fn main() {
+fn main() -> anyhow::Result<()> {
     let _guard = sentry::init((
         "https://4814eaf1df0e8a1e3303bb7e2f89095a@o681886.ingest.us.sentry.io/4507772986982400",
         sentry::ClientOptions {
@@ -118,7 +118,7 @@ fn main() {
         .build()
         .unwrap()
         .block_on(async {
-            setup_logger().expect("Setup Logger");
+            setup_logger()?;
             let cli = Cli::parse();
             match run(cli).await {
                 Ok(exit_code) => std::process::exit(exit_code),
@@ -127,7 +127,7 @@ fn main() {
                     std::process::exit(exitcode::SOFTWARE);
                 }
             }
-        });
+        })
 }
 
 async fn run_upload(
