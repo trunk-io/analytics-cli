@@ -9,7 +9,9 @@ use trunk_analytics_cli::bundler::BundlerUtil;
 use trunk_analytics_cli::clients::{
     create_trunk_repo, get_bundle_upload_location, put_bundle_to_s3,
 };
-use trunk_analytics_cli::constants::{EXIT_FAILURE, EXIT_SUCCESS, TRUNK_PUBLIC_API_ADDRESS_ENV};
+use trunk_analytics_cli::constants::{
+    EXIT_FAILURE, EXIT_SUCCESS, SENTRY_DSN, TRUNK_PUBLIC_API_ADDRESS_ENV,
+};
 use trunk_analytics_cli::runner::{
     build_filesets, extract_failed_tests, run_quarantine, run_test_command,
 };
@@ -106,7 +108,7 @@ const RETRY_COUNT: usize = 5;
 // https://docs.sentry.io/platforms/rust/#async-main-function
 fn main() -> anyhow::Result<()> {
     let _guard = sentry::init((
-        "https://4814eaf1df0e8a1e3303bb7e2f89095a@o681886.ingest.us.sentry.io/4507772986982400",
+        SENTRY_DSN,
         sentry::ClientOptions {
             release: sentry::release_name!(),
             ..Default::default()
