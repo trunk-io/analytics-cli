@@ -4,6 +4,8 @@ description: Build release binary for target
 inputs:
   target:
     description: Rust target triple, e.g. x86_64-unknown-linux-musl
+  profile:
+    description: Rust profile to build, e.g. release-with-debug
 
 runs:
   using: composite
@@ -21,14 +23,14 @@ runs:
 
     - name: Compile binary
       shell: bash
-      run: cargo build -q --all --profile=release-with-debug --target ${{ inputs.target }}
+      run: cargo build -q --all --profile=${{ inputs.profile }} --target ${{ inputs.target }}
 
     - name: Compress binary
       if: matrix.target != 'aarch64-unknown-linux-musl'
       uses: crazy-max/ghaction-upx@v3
       with:
         version: latest
-        files: target/${{ inputs.target }}/release/trunk-analytics-cli
+        files: target/${{ inputs.target }}/${{ inputs.profile }}/trunk-analytics-cli
         args: --best --lzma
 
     - name: Compress binary (arm64)
@@ -36,18 +38,18 @@ runs:
       shell: bash
       run: |
         sudo apt-get install -y upx
-        upx --best --lzma target/${{ inputs.target }}/release/trunk-analytics-cli
+        upx --best --lzma target/${{ inputs.target }}/${{ inputs.profile }}/trunk-analytics-cli
 
     - name: Report binary size
       shell: bash
-      run: ls -lh target/${{ inputs.target }}/release/trunk-analytics-cli
+      run: ls -lh target/${{ inputs.target }}/${{ inputs.profile }}/trunk-analytics-cli
 
     - name: Check dynamic deps
       shell: bash
       run: |
         # Confirm that the binary is statically linked
         set +e
-        ldd target/${{ inputs.target }}/release/trunk-analytics-cli
+        ldd target/${{ inputs.target }}/${{ inputs.profile }}/trunk-analytics-cli
         if [ $? -ne 1 ]; then
           echo "trunk-analytics-cli has dynamic deps - we expect it to be statically linked"
           exit 1

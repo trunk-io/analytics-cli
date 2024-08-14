@@ -38,6 +38,7 @@ jobs:
         if: "!cancelled()"
         with:
           target: ${{ matrix.target }}
+          profile: release-with-debug
 
       - name: Install sentry-cli
         run: curl -sL https://sentry.io/get-cli/ | sh
