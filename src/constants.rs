@@ -3,7 +3,20 @@ pub const ALLOW_LIST: &[&str] = &[r".*\.xml$", r".*\.junit$"];
 pub const EXIT_SUCCESS: i32 = 0;
 pub const EXIT_FAILURE: i32 = 1;
 
-pub const CODEOWNERS_LOCATIONS: &[&str] = &[".github/", ".bitbucket/", ".gitlab/", "docs/"];
+// NOTE: The order of these locations matters! Each provider looks at each of these locations in
+// order, to find the relevant `CODEOWNERS` file.
+//
+// GitHub: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners#codeowners-file-location
+//      .github
+//      root
+//      docs
+// GitLab: https://docs.gitlab.com/ee/user/project/codeowners/#codeowners-file
+//      root
+//      docs
+//      .gitlab
+// BitBucket: https://support.atlassian.com/bitbucket-cloud/docs/set-up-and-use-code-owners/#Set-up-your-CODEOWNERS-file
+//      .bitbucket
+pub const CODEOWNERS_LOCATIONS: &[&str] = &[".github", ".bitbucket", ".", "docs", ".gitlab"];
 
 pub const TRUNK_PUBLIC_API_ADDRESS_ENV: &str = "TRUNK_PUBLIC_API_ADDRESS";
 pub const ENVS_TO_GET: &'static [&'static str] = &[
