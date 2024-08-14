@@ -79,7 +79,7 @@ jobs:
 
       - name: Build ${{ matrix.target }} target
         if: "!cancelled()"
-        run: cargo build -q --all --release --target ${{ matrix.target }}
+        run: cargo build -q --all --profile=release-with-debug --target ${{ matrix.target }}
 
       - uses: actions/upload-artifact@v4
         with:
