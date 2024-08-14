@@ -39,10 +39,19 @@ jobs:
         with:
           target: ${{ matrix.target }}
 
+      - name: Install sentry-cli
+        run: curl -sL https://sentry.io/get-cli/ | sh
+
+      - name: Upload debug info to Sentry
+        run: sentry-cli debug-files upload --include-sources target/${{ matrix.target }}/release-with-debug/trunk-analytics-cli --org=${{ secrets.SENTRY_ORG }} --project=${{ secrets.SENTRY_PROJECT }} --token=${{ secrets.SENTRY_AUTH_TOKEN }}
+
+      - name: Strip debug symbols
+        run: strip target/${{ matrix.target }}/release-with-debug/trunk-analytics-cli
+
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact-name }}
-          path: target/${{ matrix.target }}/release/trunk-analytics-cli
+          path: target/${{ matrix.target }}/release-with-debug/trunk-analytics-cli
 
   build_osx:
     name: Build ${{ matrix.target }}
@@ -76,6 +85,12 @@ jobs:
         with:
           name: ${{ matrix.target }}
           path: target/${{ matrix.target }}/release/trunk-analytics-cli
+
+      - name: Install sentry-cli
+        run: curl -sL https://sentry.io/get-cli/ | sh
+
+      - name: Upload debug info to Sentry
+        run: sentry-cli debug-files upload --include-sources target/${{ matrix.target }}/release-with-debug/deps --org=${{ secrets.SENTRY_ORG }} --project=${{ secrets.SENTRY_PROJECT }} --token=${{ secrets.SENTRY_AUTH_TOKEN }}
 
   tag_and_release:
     name: Tag and Release [ ${{ github.event.inputs.release_tag }} ]

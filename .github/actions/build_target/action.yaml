@@ -21,7 +21,7 @@ runs:
 
     - name: Compile binary
       shell: bash
-      run: cargo build -q --all --release --target ${{ inputs.target }}
+      run: cargo build -q --all --profile=release-with-debug --target ${{ inputs.target }}
 
     - name: Compress binary
       if: matrix.target != 'aarch64-unknown-linux-musl'
