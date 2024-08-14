@@ -15,7 +15,7 @@
 //! fn main() {
 //!   if let (Some(owners_file), Some(path)) =
 //!      (env::args().nth(1), env::args().nth(2)) {
-//!      let owners = codeowners::from_path(owners_file);
+//!      let owners = codeowners::from_path(owners_file).unwrap();
 //!      match owners.of(&path) {
 //!        None => println!("{} is up for adoption", path),
 //!        Some(owners) => {
@@ -183,11 +183,11 @@ where
 }
 
 /// Parse a CODEOWNERS file existing at a given path
-pub fn from_path<P>(path: P) -> Owners
+pub fn from_path<P>(path: P) -> anyhow::Result<Owners>
 where
     P: AsRef<Path>,
 {
-    crate::from_reader(File::open(path).unwrap())
+    crate::from_reader(File::open(path)?)
 }
 
 /// Parse a CODEOWNERS file from some readable source
@@ -197,7 +197,7 @@ where
 /// [patterns](https://www.kernel.org/pub/software/scm/git/docs/gitignore.html#_pattern_format)
 /// followed by an identifier for an owner. More information can be found
 /// [here](https://help.github.com/articles/about-codeowners/#codeowners-syntax)
-pub fn from_reader<R>(read: R) -> Owners
+pub fn from_reader<R>(read: R) -> anyhow::Result<Owners>
 where
     R: Read,
 {
@@ -206,7 +206,7 @@ where
         /* trunk-ignore(clippy/lines_filter_map_ok) */
         .filter_map(Result::ok)
         .filter(|line| !line.is_empty() && !line.starts_with('#'))
-        .fold(Vec::new(), |mut paths, line| {
+        .try_fold(Vec::new(), |mut paths, line| -> anyhow::Result<_> {
             let mut elements = line.split_whitespace();
             if let Some(path) = elements.next() {
                 let owners = elements.fold(Vec::new(), |mut result, owner| {
@@ -215,16 +215,16 @@ where
                     }
                     result
                 });
-                paths.push((pattern(path), owners))
+                paths.push((pattern(path)?, owners))
             }
-            paths
-        });
+            Ok(paths)
+        })?;
     // last match takes precedence
     paths.reverse();
-    Owners { paths }
+    Ok(Owners { paths })
 }
 
-fn pattern(path: &str) -> Pattern {
+fn pattern(path: &str) -> anyhow::Result<Pattern> {
     // if pattern starts with anchor or explicit wild card, it should
     // match any prefix
     let prefixed = if path.starts_with('*') || path.starts_with('/') {
@@ -239,7 +239,7 @@ fn pattern(path: &str) -> Pattern {
     if normalized.ends_with('/') {
         normalized.push_str("**");
     }
-    Pattern::new(&normalized).unwrap()
+    Pattern::new(&normalized).map_err(anyhow::Error::msg)
 }
 
 #[cfg(test)]
@@ -301,7 +301,7 @@ apps/ @octocat
 
     #[test]
     fn from_reader_parses() {
-        let owners = from_reader(EXAMPLE.as_bytes());
+        let owners = from_reader(EXAMPLE.as_bytes()).unwrap();
         assert_eq!(
             owners,
             Owners {
@@ -344,7 +344,7 @@ apps/ @octocat
 
     #[test]
     fn owners_owns_wildcard() {
-        let owners = from_reader(EXAMPLE.as_bytes());
+        let owners = from_reader(EXAMPLE.as_bytes()).unwrap();
         assert_eq!(
             owners.of("foo.txt"),
             Some(&vec![
@@ -363,7 +363,7 @@ apps/ @octocat
 
     #[test]
     fn owners_owns_js_extention() {
-        let owners = from_reader(EXAMPLE.as_bytes());
+        let owners = from_reader(EXAMPLE.as_bytes()).unwrap();
         assert_eq!(
             owners.of("foo.js"),
             Some(&vec![Owner::Username("@js-owner".into())])
@@ -376,7 +376,7 @@ apps/ @octocat
 
     #[test]
     fn owners_owns_go_extention() {
-        let owners = from_reader(EXAMPLE.as_bytes());
+        let owners = from_reader(EXAMPLE.as_bytes()).unwrap();
         assert_eq!(
             owners.of("foo.go"),
             Some(&vec![Owner::Email("docs@example.com".into())])
@@ -389,7 +389,7 @@ apps/ @octocat
 
     #[test]
     fn owners_owns_anchored_build_logs() {
-        let owners = from_reader(EXAMPLE.as_bytes());
+        let owners = from_reader(EXAMPLE.as_bytes()).unwrap();
         // relative to root
         assert_eq!(
             owners.of("build/logs/foo.go"),
@@ -408,7 +408,7 @@ apps/ @octocat
 
     #[test]
     fn owners_owns_unanchored_docs() {
-        let owners = from_reader(EXAMPLE.as_bytes());
+        let owners = from_reader(EXAMPLE.as_bytes()).unwrap();
         // docs anywhere
         assert_eq!(
             owners.of("foo/docs/foo.js"),
@@ -427,7 +427,7 @@ apps/ @octocat
 
     #[test]
     fn owners_owns_unanchored_apps() {
-        let owners = from_reader(EXAMPLE.as_bytes());
+        let owners = from_reader(EXAMPLE.as_bytes()).unwrap();
         assert_eq!(
             owners.of("foo/apps/foo.js"),
             Some(&vec![Owner::Username("@octocat".into())])
@@ -436,7 +436,7 @@ apps/ @octocat
 
     #[test]
     fn owners_owns_anchored_docs() {
-        let owners = from_reader(EXAMPLE.as_bytes());
+        let owners = from_reader(EXAMPLE.as_bytes()).unwrap();
         // relative to root
         assert_eq!(
             owners.of("docs/foo.js"),
@@ -446,7 +446,7 @@ apps/ @octocat
 
     #[test]
     fn implied_children_owners() {
-        let owners = from_reader("foo/bar @doug".as_bytes());
+        let owners = from_reader("foo/bar @doug".as_bytes()).unwrap();
         assert_eq!(
             owners.of("foo/bar/baz.rs"),
             Some(&vec![Owner::Username("@doug".into())])

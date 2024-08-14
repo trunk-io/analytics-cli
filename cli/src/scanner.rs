@@ -73,7 +73,16 @@ impl FileSet {
                 }
             }
         }
-        let codeowners = codeowners_file.map(|path| codeowners::from_path(path.as_path()));
+        let codeowners = codeowners_file.and_then(|path| {
+            if let Ok(owners) = codeowners::from_path(path.as_path()) {
+                return Some(owners);
+            }
+            log::debug!(
+                "Found CODEOWNERS file `{}`, but couldn't parse it.",
+                path.to_string_lossy()
+            );
+            None
+        });
 
         let mut files = Vec::new();
 
