@@ -44,7 +44,7 @@ jobs:
         run: curl -sL https://sentry.io/get-cli/ | sh
 
       - name: Upload debug info to Sentry
-        run: sentry-cli debug-files upload --include-sources target/${{ matrix.target }}/release-with-debug/deps --org=${{ secrets.SENTRY_ORG }} --project=${{ secrets.SENTRY_PROJECT }} --auth-token=${{ secrets.SENTRY_AUTH_TOKEN }}
+        run: sentry-cli debug-files upload --include-sources target/${{ matrix.target }}/release-with-debug/trunk-analytics-cli.debug --org=${{ secrets.SENTRY_ORG }} --project=${{ secrets.SENTRY_PROJECT }} --auth-token=${{ secrets.SENTRY_AUTH_TOKEN }}
 
       - uses: actions/upload-artifact@v4
         with:
@@ -80,6 +80,15 @@ jobs:
         if: "!cancelled()"
         run: cargo build -q --all --profile=release-with-debug --target ${{ matrix.target }}
 
+      - name: Strip debug info
+        run: strip target/${{ matrix.target }}/release-with-debug/trunk-analytics-cli
+
+      - name: Install upx
+        run: brew install upx
+
+      - name: Compress binary
+        run: upx --best --lzma target/${{ matrix.target }}/release-with-debug/trunk-analytics-cli
+
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.target }}
@@ -90,7 +99,7 @@ jobs:
         run: curl -sL https://sentry.io/get-cli/ | sh
 
       - name: Upload debug info to Sentry
-        run: sentry-cli debug-files upload --include-sources target/${{ matrix.target }}/release-with-debug/deps --org=${{ secrets.SENTRY_ORG }} --project=${{ secrets.SENTRY_PROJECT }} --auth-token=${{ secrets.SENTRY_AUTH_TOKEN }}
+        run: sentry-cli debug-files upload --include-sources target/${{ matrix.target }}/release-with-debug/trunk-analytics-cli.dSYM --org=${{ secrets.SENTRY_ORG }} --project=${{ secrets.SENTRY_PROJECT }} --auth-token=${{ secrets.SENTRY_AUTH_TOKEN }}
 
   tag_and_release:
     name: Tag and Release [ ${{ github.event.inputs.release_tag }} ]

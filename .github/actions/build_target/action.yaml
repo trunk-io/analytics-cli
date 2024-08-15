@@ -1,5 +1,5 @@
 name: Build Release Target
-description: Build release binary for target
+description: Build release binary for target. An uncompressed binary with debug info is created as trunk-analytics-cli.debug, and a stripped, compresed binary is created as trunk-analytics-cli.
 
 inputs:
   target:
@@ -24,6 +24,14 @@ runs:
     - name: Compile binary
       shell: bash
       run: cargo build -q --all --profile=${{ inputs.profile }} --target ${{ inputs.target }}
+
+    - name: Create binary with debug info
+      shell: bash
+      run: cp target/${{ inputs.target }}/${{ inputs.profile }}/trunk-analytics-cli target/${{ inputs.target }}/${{ inputs.profile }}/trunk-analytics-cli.debug
+
+    - name: Strip debug info
+      shell: bash
+      run: strip -s target/${{ inputs.target }}/${{ inputs.profile }}/trunk-analytics-cli
 
     - name: Compress binary
       if: matrix.target != 'aarch64-unknown-linux-musl'
