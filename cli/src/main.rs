@@ -136,6 +136,7 @@ async fn run_upload(
     upload_args: UploadArgs,
     test_command: Option<String>,
     quarantine_results: Option<QuarantineRunResult>,
+    codeowners: Option<CodeOwners>,
 ) -> anyhow::Result<i32> {
     let UploadArgs {
         junit_paths,
@@ -172,7 +173,8 @@ async fn run_upload(
         |s| s,
     );
 
-    let codeowners = CodeOwners::find_file(&repo.repo_root, &codeowners_path);
+    let codeowners =
+        codeowners.or_else(|| CodeOwners::find_file(&repo.repo_root, &codeowners_path));
 
     log::info!(
         "Starting trunk-analytics-cli {} (git={}) rustc={}",
@@ -377,6 +379,7 @@ async fn run_test(test_args: TestArgs) -> anyhow::Result<i32> {
             upload_args,
             Some(command.join(" ")),
             Some(quarantine_run_result),
+            codeowners,
         )
         .await
         {
@@ -388,7 +391,7 @@ async fn run_test(test_args: TestArgs) -> anyhow::Result<i32> {
         return Ok(exit_code);
     }
 
-    match run_upload(upload_args, Some(command.join(" ")), None).await {
+    match run_upload(upload_args, Some(command.join(" ")), None, codeowners).await {
         Ok(EXIT_SUCCESS) => (),
         Ok(code) => log::error!("Error uploading test results: {}", code),
         Err(e) => log::error!("Error uploading test results: {:?}", e),
@@ -399,7 +402,7 @@ async fn run_test(test_args: TestArgs) -> anyhow::Result<i32> {
 
 async fn run(cli: Cli) -> anyhow::Result<i32> {
     match cli.command {
-        Commands::Upload(upload_args) => run_upload(upload_args, None, None).await,
+        Commands::Upload(upload_args) => run_upload(upload_args, None, None, None).await,
         Commands::Test(test_args) => run_test(test_args).await,
     }
 }
