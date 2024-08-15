@@ -9,7 +9,9 @@ use trunk_analytics_cli::bundler::BundlerUtil;
 use trunk_analytics_cli::clients::{
     create_trunk_repo, get_bundle_upload_location, put_bundle_to_s3,
 };
-use trunk_analytics_cli::constants::{EXIT_FAILURE, EXIT_SUCCESS, TRUNK_PUBLIC_API_ADDRESS_ENV};
+use trunk_analytics_cli::constants::{
+    EXIT_FAILURE, EXIT_SUCCESS, SENTRY_DSN, TRUNK_PUBLIC_API_ADDRESS_ENV,
+};
 use trunk_analytics_cli::runner::{
     build_filesets, extract_failed_tests, run_quarantine, run_test_command,
 };
@@ -102,17 +104,31 @@ const RETRY_BASE_MS: u64 = 8;
 const RETRY_FACTOR: u64 = 1;
 const RETRY_COUNT: usize = 5;
 
-#[tokio::main]
-async fn main() -> anyhow::Result<()> {
-    setup_logger()?;
-    let cli = Cli::parse();
-    match run(cli).await {
-        Ok(exit_code) => std::process::exit(exit_code),
-        Err(e) => {
-            log::error!("Error: {:?}", e);
-            std::process::exit(exitcode::SOFTWARE);
-        }
-    }
+// "the Sentry client must be initialized before starting an async runtime or spawning threads"
+// https://docs.sentry.io/platforms/rust/#async-main-function
+fn main() -> anyhow::Result<()> {
+    let _guard = sentry::init((
+        SENTRY_DSN,
+        sentry::ClientOptions {
+            release: sentry::release_name!(),
+            ..Default::default()
+        },
+    ));
+
+    tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()?
+        .block_on(async {
+            setup_logger()?;
+            let cli = Cli::parse();
+            match run(cli).await {
+                Ok(exit_code) => std::process::exit(exit_code),
+                Err(e) => {
+                    log::error!("Error: {:?}", e);
+                    std::process::exit(exitcode::SOFTWARE);
+                }
+            }
+        })
 }
 
 async fn run_upload(

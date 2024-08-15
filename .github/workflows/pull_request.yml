@@ -84,6 +84,7 @@ jobs:
         if: "!cancelled()"
         with:
           target: ${{ matrix.target }}
+          profile: release
 
       - name: Install nextest
         if: matrix.target != 'aarch64-unknown-linux-musl'

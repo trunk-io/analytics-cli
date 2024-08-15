@@ -38,11 +38,19 @@ jobs:
         if: "!cancelled()"
         with:
           target: ${{ matrix.target }}
+          profile: release-with-debug
+
+      - name: Install sentry-cli
+        run: curl -sL https://sentry.io/get-cli/ | sh
+
+      - name: Upload debug info to Sentry
+        run: sentry-cli debug-files upload --include-sources target/${{ matrix.target }}/release-with-debug/trunk-analytics-cli.debug --org=${{ secrets.SENTRY_ORG }} --project=${{ secrets.SENTRY_PROJECT }} --auth-token=${{ secrets.SENTRY_AUTH_TOKEN }}
 
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact-name }}
-          path: target/${{ matrix.target }}/release/trunk-analytics-cli
+          path: target/${{ matrix.target }}/release-with-debug/trunk-analytics-cli
+          if-no-files-found: error
 
   build_osx:
     name: Build ${{ matrix.target }}
@@ -70,12 +78,22 @@ jobs:
 
       - name: Build ${{ matrix.target }} target
         if: "!cancelled()"
-        run: cargo build -q --all --release --target ${{ matrix.target }}
+        run: cargo build -q --all --profile=release-with-debug --target ${{ matrix.target }}
+
+      - name: Strip debug info
+        run: strip target/${{ matrix.target }}/release-with-debug/trunk-analytics-cli
 
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.target }}
-          path: target/${{ matrix.target }}/release/trunk-analytics-cli
+          path: target/${{ matrix.target }}/release-with-debug/trunk-analytics-cli
+          if-no-files-found: error
+
+      - name: Install sentry-cli
+        run: curl -sL https://sentry.io/get-cli/ | sh
+
+      - name: Upload debug info to Sentry
+        run: sentry-cli debug-files upload --include-sources target/${{ matrix.target }}/release-with-debug/trunk-analytics-cli.dSYM --org=${{ secrets.SENTRY_ORG }} --project=${{ secrets.SENTRY_PROJECT }} --auth-token=${{ secrets.SENTRY_AUTH_TOKEN }}
 
   tag_and_release:
     name: Tag and Release [ ${{ github.event.inputs.release_tag }} ]
@@ -111,3 +129,13 @@ jobs:
             --target ${{ github.ref }} \
             --generate-notes ${{ github.event.inputs.release_tag }} \
             ./build/*.tar.gz
+
+      - name: Create Sentry release
+        uses: getsentry/action-release@v1
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
+        with:
+          environment: production
+          version: ${{ github.event.inputs.release_tag }}

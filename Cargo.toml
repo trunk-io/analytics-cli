@@ -10,6 +10,13 @@ lto = "thin"
 opt-level = "s"
 panic = "abort"
 
+[profile.release-with-debug]
+inherits = "release"
+debug = true
+split-debuginfo = "packed"
+panic = "unwind"
+strip = false
+
 [profile.dev.package."*"]
 debug = true
 incremental = true
