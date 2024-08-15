@@ -242,6 +242,7 @@ async fn run_upload(
         test_command,
         quarantined_tests: resolved_quarantine_results.quarantine_results.to_vec(),
         os_info: Some(os_info),
+        codeowners,
     };
 
     log::info!("Total files pack and upload: {}", file_counter.get_count());

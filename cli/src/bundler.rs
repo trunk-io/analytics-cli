@@ -1,6 +1,7 @@
 use std::io::{Seek, Write};
 use std::path::PathBuf;
 
+use crate::codeowners::CodeOwners;
 use crate::types::BundleMeta;
 
 /// Utility type for packing files into tarball.
@@ -47,6 +48,12 @@ impl BundlerUtil {
             })?;
             Ok::<(), anyhow::Error>(())
         })?;
+
+        if let Some(CodeOwners { ref path, .. }) = self.meta.codeowners {
+            let mut file = std::fs::File::open(path)?;
+            tar.append_file("CODEOWNERS", &mut file)?;
+            total_bytes_in += std::fs::metadata(path)?.len();
+        }
 
         // Flush to disk.
         tar.into_inner()?.finish()?;

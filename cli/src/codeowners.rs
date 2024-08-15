@@ -1,16 +1,14 @@
-use std::{
-    fs::File,
-    path::{Path, PathBuf},
-};
+use std::path::{Path, PathBuf};
 
 use codeowners::Owners;
+use serde::Serialize;
 
 use crate::constants::CODEOWNERS_LOCATIONS;
 
-#[derive(Default, Debug)]
+#[derive(Default, Debug, Serialize, Clone)]
 pub struct CodeOwners {
     pub path: PathBuf,
-    pub file: Option<File>,
+    #[serde(skip_serializing)]
     pub owners: Option<Owners>,
 }
 
@@ -32,19 +30,16 @@ impl CodeOwners {
             all_locations.find_map(|location| locate_codeowners(&repo_root, location));
 
         codeowners_path.map(|path| {
-            let file = Result::ok(File::open(&path));
-            let owners = file.as_ref().and_then(|f| {
-                let owners_result = codeowners::from_reader(f);
-                if let Err(ref err) = owners_result {
-                    log::error!(
-                        "Found CODEOWNERS file `{}`, but couldn't parse it: {}",
-                        path.to_string_lossy(),
-                        err
-                    );
-                }
-                Result::ok(owners_result)
-            });
-            Self { path, file, owners }
+            let owners_result = codeowners::from_path(&path);
+            if let Err(ref err) = owners_result {
+                log::error!(
+                    "Found CODEOWNERS file `{}`, but couldn't parse it: {}",
+                    path.to_string_lossy(),
+                    err
+                );
+            }
+            let owners = Result::ok(owners_result);
+            Self { path, owners }
         })
     }
 }

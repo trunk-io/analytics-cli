@@ -1,7 +1,10 @@
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 
-use crate::scanner::{BundleRepo, FileSet};
+use crate::{
+    codeowners::CodeOwners,
+    scanner::{BundleRepo, FileSet},
+};
 
 pub struct RunResult {
     pub exit_code: i32,
@@ -182,6 +185,7 @@ pub struct BundleMeta {
     pub test_command: Option<String>,
     pub os_info: Option<String>,
     pub quarantined_tests: Vec<QuarantineResult>,
+    pub codeowners: Option<CodeOwners>,
 }
 
 #[cfg(test)]
