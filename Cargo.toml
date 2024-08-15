@@ -64,7 +64,6 @@ panic = "abort"
 
 [profile.release-with-debug]
 inherits = "release"
-strip = false
 debug = true
 split-debuginfo = "packed"
 panic = "unwind"
