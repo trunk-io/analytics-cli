@@ -73,7 +73,18 @@ impl FileSet {
                 }
             }
         }
-        let codeowners = codeowners_file.map(|path| codeowners::from_path(path.as_path()));
+        let codeowners =
+            codeowners_file.and_then(|path| match codeowners::from_path(path.as_path()) {
+                Ok(owners) => Some(owners),
+                Err(err) => {
+                    log::error!(
+                        "Found CODEOWNERS file `{}`, but couldn't parse it: {}",
+                        path.to_string_lossy(),
+                        err
+                    );
+                    None
+                }
+            });
 
         let mut files = Vec::new();
 
@@ -127,7 +138,7 @@ impl FileSet {
                     .metadata()?
                     .modified()?
                     .duration_since(std::time::UNIX_EPOCH)?
-                    .as_nanos() as u128,
+                    .as_nanos(),
                 owners,
                 team: team.clone(),
             });
@@ -151,7 +162,7 @@ where
     U: AsRef<Path>,
 {
     let file = repo_root.as_ref().join(location).join(CODEOWNERS);
-    if file.exists() {
+    if file.is_file() {
         Some(file)
     } else {
         None
@@ -201,7 +212,7 @@ impl BundleRepo {
             // Read git repo.
             log::info!("Reading git repo at {:?}", &repo_root);
 
-            let git_repo = gix::open(&repo_root)?;
+            let git_repo = gix::open(repo_root)?;
             let git_url = git_repo
                 .config_snapshot()
                 .string_by_key(GIT_REMOTE_ORIGIN_URL_CONFIG)
