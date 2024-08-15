@@ -1,5 +1,6 @@
 use crate::{
     clients::get_quarantine_bulk_test_status,
+    codeowners::CodeOwners,
     constants::{EXIT_FAILURE, EXIT_SUCCESS},
     scanner::{BundleRepo, FileSet, FileSetCounter},
     types::{QuarantineBulkTestStatus, QuarantineRunResult, RunResult, Test},
@@ -19,11 +20,11 @@ pub async fn run_test_command(
     args: Vec<&String>,
     output_paths: &[String],
     team: Option<String>,
-    codeowners_path: Option<String>,
+    codeowners: &Option<CodeOwners>,
 ) -> anyhow::Result<RunResult> {
     let exit_code = run_test_and_get_exit_code(command, args).await?;
     log::info!("Command exit code: {}", exit_code);
-    let (file_sets, ..) = build_filesets(repo, output_paths, team, codeowners_path)?;
+    let (file_sets, ..) = build_filesets(repo, output_paths, team, codeowners)?;
     let failures = if exit_code != EXIT_SUCCESS {
         let start = SystemTime::now();
         extract_failed_tests(&file_sets, Some(start)).await?
@@ -61,7 +62,7 @@ pub fn build_filesets(
     repo: &BundleRepo,
     junit_paths: &[String],
     team: Option<String>,
-    codeowners_path: Option<String>,
+    codeowners: &Option<CodeOwners>,
 ) -> anyhow::Result<(Vec<FileSet>, FileSetCounter)> {
     let mut file_counter = FileSetCounter::default();
     let mut file_sets = junit_paths
@@ -72,7 +73,7 @@ pub fn build_filesets(
                 path.to_string(),
                 &mut file_counter,
                 team.clone(),
-                codeowners_path.clone(),
+                codeowners,
             )
         })
         .collect::<anyhow::Result<Vec<FileSet>>>()?;
@@ -92,7 +93,7 @@ pub fn build_filesets(
                     path.to_string(),
                     &mut file_counter,
                     team.clone(),
-                    codeowners_path.clone(),
+                    codeowners,
                 )
             })
             .collect::<anyhow::Result<Vec<FileSet>>>()?;
