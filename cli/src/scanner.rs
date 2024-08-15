@@ -1,9 +1,9 @@
 use regex::Regex;
 use serde::Serialize;
 use std::format;
-use std::path::{Path, PathBuf};
 
-use crate::constants::{ALLOW_LIST, CODEOWNERS_LOCATIONS, ENVS_TO_GET};
+use crate::codeowners::CodeOwners;
+use crate::constants::{ALLOW_LIST, ENVS_TO_GET};
 use crate::types::{BundledFile, FileSetType, Repo};
 use crate::utils::from_non_empty_or_default;
 
@@ -48,7 +48,7 @@ impl FileSet {
         glob_path: String,
         file_counter: &mut FileSetCounter,
         team: Option<String>,
-        codeowners_path: Option<String>,
+        codeowners: &Option<CodeOwners>,
     ) -> anyhow::Result<FileSet> {
         let path_to_scan = if !std::path::Path::new(&glob_path).is_absolute() {
             std::path::Path::new(repo_root)
@@ -59,32 +59,6 @@ impl FileSet {
         } else {
             glob_path.clone()
         };
-
-        // Parse codeowners.
-        let mut codeowners_file = None;
-        if let Some(codeowners_path) = codeowners_path {
-            codeowners_file = locate_codeowners(repo_root, codeowners_path);
-        }
-        if codeowners_file.is_none() {
-            for codeowner_path in CODEOWNERS_LOCATIONS {
-                codeowners_file = locate_codeowners(repo_root, codeowner_path);
-                if codeowners_file.is_some() {
-                    break;
-                }
-            }
-        }
-        let codeowners =
-            codeowners_file.and_then(|path| match codeowners::from_path(path.as_path()) {
-                Ok(owners) => Some(owners),
-                Err(err) => {
-                    log::error!(
-                        "Found CODEOWNERS file `{}`, but couldn't parse it: {}",
-                        path.to_string_lossy(),
-                        err
-                    );
-                    None
-                }
-            });
 
         let mut files = Vec::new();
 
@@ -120,14 +94,17 @@ impl FileSet {
             }
 
             // Get owners of file.
-            let mut owners = Vec::new();
-            if let Some(codeowners) = &codeowners {
-                if let Some(codeowners) = codeowners.of(path.as_path()) {
-                    for owner in codeowners {
-                        owners.push(owner.to_string());
-                    }
-                }
-            }
+            let owners = codeowners
+                .as_ref()
+                .and_then(|codeowners| codeowners.owners.as_ref())
+                .and_then(|codeowners_owners| codeowners_owners.of(path.as_path()))
+                .map(|codeowners_owners_of_path| {
+                    codeowners_owners_of_path
+                        .iter()
+                        .map(|owner| owner.to_string())
+                        .collect::<Vec<String>>()
+                })
+                .unwrap_or_default();
 
             // Save file under junit/0, junit/1, etc.
             // This is to avoid having to deal with potential file name collisions.
@@ -151,21 +128,6 @@ impl FileSet {
             files,
             glob: glob_path,
         })
-    }
-}
-
-const CODEOWNERS: &str = "CODEOWNERS";
-
-fn locate_codeowners<T, U>(repo_root: T, location: U) -> Option<PathBuf>
-where
-    T: AsRef<Path>,
-    U: AsRef<Path>,
-{
-    let file = repo_root.as_ref().join(location).join(CODEOWNERS);
-    if file.is_file() {
-        Some(file)
-    } else {
-        None
     }
 }
 

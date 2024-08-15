@@ -9,6 +9,7 @@ use trunk_analytics_cli::bundler::BundlerUtil;
 use trunk_analytics_cli::clients::{
     create_trunk_repo, get_bundle_upload_location, put_bundle_to_s3,
 };
+use trunk_analytics_cli::codeowners::CodeOwners;
 use trunk_analytics_cli::constants::{
     EXIT_FAILURE, EXIT_SUCCESS, SENTRY_DSN, TRUNK_PUBLIC_API_ADDRESS_ENV,
 };
@@ -135,6 +136,7 @@ async fn run_upload(
     upload_args: UploadArgs,
     test_command: Option<String>,
     quarantine_results: Option<QuarantineRunResult>,
+    codeowners: Option<CodeOwners>,
 ) -> anyhow::Result<i32> {
     let UploadArgs {
         junit_paths,
@@ -171,6 +173,9 @@ async fn run_upload(
         |s| s,
     );
 
+    let codeowners =
+        codeowners.or_else(|| CodeOwners::find_file(&repo.repo_root, &codeowners_path));
+
     log::info!(
         "Starting trunk-analytics-cli {} (git={}) rustc={}",
         env!("CARGO_PKG_VERSION"),
@@ -184,8 +189,7 @@ async fn run_upload(
 
     let tags = parse_custom_tags(&tags)?;
 
-    let (file_sets, file_counter) =
-        build_filesets(&repo, &junit_paths, team.clone(), codeowners_path.clone())?;
+    let (file_sets, file_counter) = build_filesets(&repo, &junit_paths, team.clone(), &codeowners)?;
     let failures = extract_failed_tests(&file_sets, None).await?;
 
     // Run the quarantine step and update the exit code.
@@ -240,6 +244,7 @@ async fn run_upload(
         test_command,
         quarantined_tests: resolved_quarantine_results.quarantine_results.to_vec(),
         os_info: Some(os_info),
+        codeowners,
     };
 
     log::info!("Total files pack and upload: {}", file_counter.get_count());
@@ -340,6 +345,8 @@ async fn run_test(test_args: TestArgs) -> anyhow::Result<i32> {
         |s| s,
     );
 
+    let codeowners = CodeOwners::find_file(&repo.repo_root, codeowners_path);
+
     log::info!("running command: {:?}", command);
     let run_result = run_test_command(
         &repo,
@@ -347,7 +354,7 @@ async fn run_test(test_args: TestArgs) -> anyhow::Result<i32> {
         command.iter().skip(1).collect(),
         junit_paths,
         team.clone(),
-        codeowners_path.clone(),
+        &codeowners,
     )
     .await
     .unwrap_or(RunResult {
@@ -372,6 +379,7 @@ async fn run_test(test_args: TestArgs) -> anyhow::Result<i32> {
             upload_args,
             Some(command.join(" ")),
             Some(quarantine_run_result),
+            codeowners,
         )
         .await
         {
@@ -383,7 +391,7 @@ async fn run_test(test_args: TestArgs) -> anyhow::Result<i32> {
         return Ok(exit_code);
     }
 
-    match run_upload(upload_args, Some(command.join(" ")), None).await {
+    match run_upload(upload_args, Some(command.join(" ")), None, codeowners).await {
         Ok(EXIT_SUCCESS) => (),
         Ok(code) => log::error!("Error uploading test results: {}", code),
         Err(e) => log::error!("Error uploading test results: {:?}", e),
@@ -394,7 +402,7 @@ async fn run_test(test_args: TestArgs) -> anyhow::Result<i32> {
 
 async fn run(cli: Cli) -> anyhow::Result<i32> {
     match cli.command {
-        Commands::Upload(upload_args) => run_upload(upload_args, None, None).await,
+        Commands::Upload(upload_args) => run_upload(upload_args, None, None, None).await,
         Commands::Test(test_args) => run_test(test_args).await,
     }
 }

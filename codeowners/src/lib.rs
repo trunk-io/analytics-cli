@@ -59,7 +59,7 @@ const CODEOWNERS: &str = "CODEOWNERS";
 ///   raw
 /// );
 /// ```
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Owner {
     /// Owner in the form @username
     Username(String),
@@ -102,7 +102,7 @@ impl FromStr for Owner {
 }
 
 /// Mappings of owners to path patterns
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct Owners {
     paths: Vec<(Pattern, Vec<Owner>)>,
 }
