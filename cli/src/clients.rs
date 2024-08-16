@@ -5,7 +5,7 @@ use anyhow::Context;
 
 use crate::types::{
     BundleUploadLocation, CreateBundleUploadRequest, CreateRepoRequest,
-    GetQuarantineBulkTestStatusRequest, QuarantineBulkTestStatus, QuarantineConfig, Repo,
+    GetQuarantineBulkTestStatusRequest, QuarantineConfig, Repo,
 };
 use crate::utils::status_code_help;
 
@@ -94,12 +94,12 @@ pub async fn get_bundle_upload_location(
     Ok(None)
 }
 
-pub async fn get_quarantine_bulk_test_status(
+pub async fn get_quarantining_config(
     origin: &str,
     api_token: &str,
     org_slug: &str,
     repo: &Repo,
-) -> anyhow::Result<QuarantineBulkTestStatus> {
+) -> anyhow::Result<QuarantineConfig> {
     let client = reqwest::Client::new();
     let resp = match client
         .post(format!("{}/v1/metrics/getQuarantineConfig", origin))
@@ -124,17 +124,9 @@ pub async fn get_quarantine_bulk_test_status(
         );
     }
 
-    let parsed_response = resp
-        .json::<QuarantineConfig>()
+    resp.json::<QuarantineConfig>()
         .await
-        .context("Failed to get response body as json");
-
-    log::info!("Parsed response: {:?}", parsed_response);
-
-    Ok(QuarantineBulkTestStatus {
-        group_is_quarantined: false,
-        quarantine_results: Vec::new(),
-    })
+        .context("Failed to get response body as json")
 }
 
 /// Puts file to S3 using pre-signed link.

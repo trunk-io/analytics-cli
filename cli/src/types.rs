@@ -51,25 +51,11 @@ pub struct Test {
 }
 
 #[derive(Debug, Serialize, Clone, Deserialize)]
-pub struct QuarantineResult {
-    pub name: String,
-    #[serde(rename = "parentName")]
-    pub parent_name: String,
-    #[serde(rename = "quarantinedSince")]
-    pub quarantined_since: String,
-    pub file: String,
-    #[serde(rename = "className")]
-    pub class_name: String,
-    #[serde(rename = "runInfoId")]
-    pub run_info_id: String,
-}
-
-#[derive(Debug, Serialize, Clone, Deserialize)]
 pub struct QuarantineBulkTestStatus {
     #[serde(rename = "groupIsQuarantined")]
     pub group_is_quarantined: bool,
     #[serde(rename = "quarantineResults")]
-    pub quarantine_results: Vec<QuarantineResult>,
+    pub quarantine_results: Vec<Test>,
 }
 
 #[derive(Debug, Serialize, Clone, Deserialize)]
@@ -191,7 +177,7 @@ pub struct BundleMeta {
     pub upload_time_epoch: u64,
     pub test_command: Option<String>,
     pub os_info: Option<String>,
-    pub quarantined_tests: Vec<QuarantineResult>,
+    pub quarantined_tests: Vec<Test>,
     pub codeowners: Option<CodeOwners>,
 }
 

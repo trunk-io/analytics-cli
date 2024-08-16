@@ -1,9 +1,9 @@
 use crate::{
-    clients::get_quarantine_bulk_test_status,
+    clients::get_quarantining_config,
     codeowners::CodeOwners,
     constants::{EXIT_FAILURE, EXIT_SUCCESS},
     scanner::{BundleRepo, FileSet, FileSetCounter},
-    types::{QuarantineBulkTestStatus, QuarantineRunResult, RunResult, Test},
+    types::{QuarantineBulkTestStatus, QuarantineConfig, QuarantineRunResult, RunResult, Test},
 };
 use junit_parser;
 use std::{
@@ -202,42 +202,44 @@ pub async fn run_quarantine(
     repo: &BundleRepo,
     delay: std::iter::Take<ExponentialBackoff>,
 ) -> anyhow::Result<QuarantineRunResult> {
-    let quarantine_results = if run_result.failures.is_empty() {
-        QuarantineBulkTestStatus {
-            group_is_quarantined: false,
-            quarantine_results: Vec::new(),
-        }
-    } else {
+    let mut quarantine_results = QuarantineBulkTestStatus {
+        group_is_quarantined: false,
+        quarantine_results: Vec::new(),
+    };
+    let quarantine_config: QuarantineConfig = if !run_result.failures.is_empty() {
         log::info!("Quarantining failed tests");
         let result = Retry::spawn(delay, || {
-            get_quarantine_bulk_test_status(api_address, token, org_url_slug, &repo.repo)
+            get_quarantining_config(api_address, token, org_url_slug, &repo.repo)
         })
         .await;
 
         result.unwrap_or_else(|e| {
             log::error!("Failed to get quarantine results: {:?}", e);
-            QuarantineBulkTestStatus {
-                group_is_quarantined: false,
-                quarantine_results: Vec::new(),
+            QuarantineConfig {
+                is_preview_mode: false,
+                quarantined_tests: Vec::new(),
             }
         })
+    } else {
+        log::info!("No failed tests to quarantine");
+        QuarantineConfig {
+            is_preview_mode: false,
+            quarantined_tests: Vec::new(),
+        }
     };
 
-    // Print out failed tests and their quarantine status
-    let quarantined: HashSet<_> = quarantine_results
-        .quarantine_results
-        .iter()
-        .map(|qr| &qr.name)
-        .collect();
-
+    // quarantine the failed tests
+    let quarantined: HashSet<_> = quarantine_config.quarantined_tests.iter().collect();
     for failure in &run_result.failures {
-        if quarantined.contains(&failure.name) {
+        if quarantined.contains(&failure.id.as_ref().unwrap()) {
             log::error!(
                 "{} -> {} [QUARANTINED] (id: {:?})",
                 failure.parent_name,
                 failure.name,
                 failure.id.clone().unwrap()
             );
+
+            quarantine_results.quarantine_results.push(failure.clone());
         } else {
             log::error!(
                 "{} -> {} (id: {:?})",
@@ -247,13 +249,19 @@ pub async fn run_quarantine(
             );
         }
     }
+    quarantine_results.group_is_quarantined = run_result.failures.iter().all(|failure| {
+        quarantine_results
+            .quarantine_results
+            .iter()
+            .any(|quarantined_failure| quarantined_failure.id == failure.id)
+    });
 
     // use the exit code from the command if the group is not quarantined
     // override exit code to be exit_success if the group is quarantined
     let exit_code = if !quarantine_results.group_is_quarantined {
         log::info!("Not all test failures were quarantined, returning exit code from command.");
         run_result.exit_code
-    } else if run_result.exit_code != EXIT_SUCCESS {
+    } else if run_result.exit_code != EXIT_SUCCESS && !quarantine_config.is_preview_mode {
         log::info!("All test failures were quarantined, overriding exit code to be exit_success");
         EXIT_SUCCESS
     } else {
