@@ -163,8 +163,6 @@ async fn run_upload(
         repo_head_commit_epoch,
     )?;
 
-    log::info!("Running upload for repo: {:?}", repo);
-
     if junit_paths.is_empty() {
         return Err(anyhow::anyhow!("No junit paths provided."));
     }
