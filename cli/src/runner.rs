@@ -16,6 +16,7 @@ use tokio_retry::{strategy::ExponentialBackoff, Retry};
 
 pub async fn run_test_command(
     repo: &BundleRepo,
+    org_slug: &str,
     command: &String,
     args: Vec<&String>,
     output_paths: &[String],
@@ -27,7 +28,7 @@ pub async fn run_test_command(
     let (file_sets, ..) = build_filesets(repo, output_paths, team, codeowners)?;
     let failures = if exit_code != EXIT_SUCCESS {
         let start = SystemTime::now();
-        extract_failed_tests(&file_sets, Some(start)).await?
+        extract_failed_tests(repo, org_slug, &file_sets, Some(start)).await?
     } else {
         Vec::new()
     };
@@ -102,7 +103,25 @@ pub fn build_filesets(
     Ok((file_sets, file_counter))
 }
 
+pub fn get_run_info_id(test: &Test, org_slug: &str, repo: &BundleRepo) -> String {
+    let repo_full_name = format!("{}/{}/{}", repo.repo.host, repo.repo.owner, repo.repo.name);
+    let info_id_input = [
+        org_slug,
+        &repo_full_name,
+        test.file.as_deref().unwrap_or(""),
+        test.class_name.as_deref().unwrap_or(""),
+        &test.parent_name,
+        &test.name,
+        "JUNIT_TESTCASE",
+    ]
+    .join("#");
+
+    uuid::Uuid::new_v5(&uuid::Uuid::NAMESPACE_URL, info_id_input.as_bytes()).to_string()
+}
+
 pub async fn extract_failed_tests(
+    repo: &BundleRepo,
+    org_slug: &str,
     file_sets: &[FileSet],
     start: Option<SystemTime>,
 ) -> anyhow::Result<Vec<Test>> {
@@ -157,12 +176,16 @@ pub async fn extract_failed_tests(
                     if failure {
                         let name = case.original_name;
                         log::debug!("Test failed: {} -> {}", parent_name, name);
-                        failures.push(Test {
+                        let mut test = Test {
                             parent_name: parent_name.clone(),
                             name: name.clone(),
                             class_name: case.classname.clone(),
                             file: case.file.clone(),
-                        });
+                            id: None,
+                        };
+                        let id = get_run_info_id(&test, org_slug, repo);
+                        test.id = Some(id);
+                        failures.push(test);
                     }
                 }
             }
@@ -187,13 +210,7 @@ pub async fn run_quarantine(
     } else {
         log::info!("Quarantining failed tests");
         let result = Retry::spawn(delay, || {
-            get_quarantine_bulk_test_status(
-                api_address,
-                token,
-                org_url_slug,
-                &repo.repo,
-                &run_result.failures,
-            )
+            get_quarantine_bulk_test_status(api_address, token, org_url_slug, &repo.repo)
         })
         .await;
 
@@ -207,17 +224,27 @@ pub async fn run_quarantine(
     };
 
     // Print out failed tests and their quarantine status
-    let quarantined_names: HashSet<_> = quarantine_results
+    let quarantined: HashSet<_> = quarantine_results
         .quarantine_results
         .iter()
         .map(|qr| &qr.name)
         .collect();
 
     for failure in &run_result.failures {
-        if quarantined_names.contains(&failure.name) {
-            log::error!("{} -> {} [QUARANTINED]", failure.parent_name, failure.name);
+        if quarantined.contains(&failure.name) {
+            log::error!(
+                "{} -> {} [QUARANTINED] (id: {:?})",
+                failure.parent_name,
+                failure.name,
+                failure.id.clone().unwrap()
+            );
         } else {
-            log::error!("{} -> {}", failure.parent_name, failure.name);
+            log::error!(
+                "{} -> {} (id: {:?})",
+                failure.parent_name,
+                failure.name,
+                failure.id.clone().unwrap()
+            );
         }
     }
 

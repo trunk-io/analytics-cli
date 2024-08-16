@@ -37,8 +37,6 @@ pub struct GetQuarantineBulkTestStatusRequest {
     pub repo: Repo,
     #[serde(rename = "orgUrlSlug")]
     pub org_url_slug: String,
-    #[serde(rename = "testIdentifiers")]
-    pub test_identifiers: Vec<Test>,
 }
 
 #[derive(Debug, Serialize, Clone, Deserialize)]
@@ -49,6 +47,7 @@ pub struct Test {
     #[serde(rename = "className")]
     pub class_name: Option<String>,
     pub file: Option<String>,
+    pub id: Option<String>,
 }
 
 #[derive(Debug, Serialize, Clone, Deserialize)]
@@ -71,6 +70,14 @@ pub struct QuarantineBulkTestStatus {
     pub group_is_quarantined: bool,
     #[serde(rename = "quarantineResults")]
     pub quarantine_results: Vec<QuarantineResult>,
+}
+
+#[derive(Debug, Serialize, Clone, Deserialize)]
+pub struct QuarantineConfig {
+    #[serde(rename = "isPreview")]
+    pub is_preview_mode: bool,
+    #[serde(rename = "testIds")]
+    pub quarantined_tests: Vec<String>,
 }
 
 #[derive(Debug, Serialize, Clone, Deserialize)]
