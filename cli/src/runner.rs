@@ -7,7 +7,6 @@ use crate::{
 };
 use junit_parser;
 use std::{
-    collections::HashSet,
     fs::metadata,
     process::{Command, Stdio},
     time::SystemTime,
@@ -203,7 +202,7 @@ pub async fn run_quarantine(
 
     // quarantine the failed tests
     let mut quarantine_results = QuarantineBulkTestStatus::default();
-    let quarantined: HashSet<_> = quarantine_config.quarantined_tests.iter().collect();
+    let quarantined = quarantine_config.quarantined_tests;
     let total_failures = run_result.failures.len();
     quarantine_results.quarantine_results = run_result
         .failures

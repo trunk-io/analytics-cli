@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 
@@ -95,7 +97,7 @@ pub struct QuarantineConfig {
     #[serde(rename = "isPreview")]
     pub is_preview_mode: bool,
     #[serde(rename = "testIds")]
-    pub quarantined_tests: Vec<String>,
+    pub quarantined_tests: HashSet<String>,
 }
 
 #[derive(Debug, Serialize, Clone, Deserialize)]
