@@ -196,7 +196,7 @@ async fn run_upload(
     let quarantine_run_results = if use_quarantining && quarantine_results.is_none() {
         Some(
             run_quarantine(
-                &RunResult {
+                RunResult {
                     exit_code: EXIT_SUCCESS,
                     failures,
                 },
@@ -365,7 +365,7 @@ async fn run_test(test_args: TestArgs) -> anyhow::Result<i32> {
 
     if *use_quarantining {
         let quarantine_run_result = run_quarantine(
-            &run_result,
+            run_result,
             &api_address,
             token,
             org_url_slug,

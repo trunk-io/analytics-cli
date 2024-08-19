@@ -103,22 +103,6 @@ pub fn build_filesets(
     Ok((file_sets, file_counter))
 }
 
-pub fn get_run_info_id(test: &Test, org_slug: &str, repo: &BundleRepo) -> String {
-    let repo_full_name = format!("{}/{}/{}", repo.repo.host, repo.repo.owner, repo.repo.name);
-    let info_id_input = [
-        org_slug,
-        &repo_full_name,
-        test.file.as_deref().unwrap_or(""),
-        test.class_name.as_deref().unwrap_or(""),
-        &test.parent_name,
-        &test.name,
-        "JUNIT_TESTCASE",
-    ]
-    .join("#");
-
-    uuid::Uuid::new_v5(&uuid::Uuid::NAMESPACE_URL, info_id_input.as_bytes()).to_string()
-}
-
 pub async fn extract_failed_tests(
     repo: &BundleRepo,
     org_slug: &str,
@@ -175,16 +159,15 @@ pub async fn extract_failed_tests(
                     let failure = case.status.is_failure();
                     if failure {
                         let name = case.original_name;
-                        log::debug!("Test failed: {} -> {}", parent_name, name);
-                        let mut test = Test {
-                            parent_name: parent_name.clone(),
-                            name: name.clone(),
-                            class_name: case.classname.clone(),
-                            file: case.file.clone(),
-                            id: None,
-                        };
-                        let id = get_run_info_id(&test, org_slug, repo);
-                        test.id = Some(id);
+                        let test = Test::new(
+                            name.clone(),
+                            parent_name.clone(),
+                            case.classname.clone(),
+                            case.file.clone(),
+                            org_slug,
+                            repo,
+                        );
+
                         failures.push(test);
                     }
                 }
@@ -195,17 +178,13 @@ pub async fn extract_failed_tests(
 }
 
 pub async fn run_quarantine(
-    run_result: &RunResult,
+    run_result: RunResult,
     api_address: &str,
     token: &str,
     org_url_slug: &str,
     repo: &BundleRepo,
     delay: std::iter::Take<ExponentialBackoff>,
 ) -> anyhow::Result<QuarantineRunResult> {
-    let mut quarantine_results = QuarantineBulkTestStatus {
-        group_is_quarantined: false,
-        quarantine_results: Vec::new(),
-    };
     let quarantine_config: QuarantineConfig = if !run_result.failures.is_empty() {
         log::info!("Quarantining failed tests");
         let result = Retry::spawn(delay, || {
@@ -213,48 +192,44 @@ pub async fn run_quarantine(
         })
         .await;
 
-        result.unwrap_or_else(|e| {
-            log::error!("Failed to get quarantine results: {:?}", e);
-            QuarantineConfig {
-                is_preview_mode: false,
-                quarantined_tests: Vec::new(),
-            }
-        })
-    } else {
-        log::info!("No failed tests to quarantine");
-        QuarantineConfig {
-            is_preview_mode: false,
-            quarantined_tests: Vec::new(),
+        if let Err(ref err) = result {
+            log::error!("Failed to get quarantine results: {:?}", err);
         }
+        result.unwrap_or_default()
+    } else {
+        log::debug!("No failed tests to quarantine");
+        QuarantineConfig::default()
     };
 
     // quarantine the failed tests
+    let mut quarantine_results = QuarantineBulkTestStatus::default();
     let quarantined: HashSet<_> = quarantine_config.quarantined_tests.iter().collect();
-    for failure in &run_result.failures {
-        if quarantined.contains(&failure.id.as_ref().unwrap()) {
-            log::error!(
-                "{} -> {} [QUARANTINED] (id: {:?})",
+    let total_failures = run_result.failures.len();
+    quarantine_results.quarantine_results = run_result
+        .failures
+        .into_iter()
+        .filter_map(|failure| {
+            let quarantine_failure = quarantined.contains(&failure.id);
+            log::info!(
+                "{} -> {}{}(id: {})",
                 failure.parent_name,
                 failure.name,
-                failure.id.clone().unwrap()
+                if quarantine_failure {
+                    " [QUARANTINED] "
+                } else {
+                    " "
+                },
+                failure.id
             );
-
-            quarantine_results.quarantine_results.push(failure.clone());
-        } else {
-            log::error!(
-                "{} -> {} (id: {:?})",
-                failure.parent_name,
-                failure.name,
-                failure.id.clone().unwrap()
-            );
-        }
-    }
-    quarantine_results.group_is_quarantined = run_result.failures.iter().all(|failure| {
-        quarantine_results
-            .quarantine_results
-            .iter()
-            .any(|quarantined_failure| quarantined_failure.id == failure.id)
-    });
+            if quarantine_failure {
+                Some(failure)
+            } else {
+                None
+            }
+        })
+        .collect();
+    quarantine_results.group_is_quarantined =
+        quarantine_results.quarantine_results.len() == total_failures;
 
     // use the exit code from the command if the group is not quarantined
     // override exit code to be exit_success if the group is quarantined
