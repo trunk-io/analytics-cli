@@ -5,7 +5,7 @@ use anyhow::Context;
 
 use crate::types::{
     BundleUploadLocation, CreateBundleUploadRequest, CreateRepoRequest,
-    GetQuarantineBulkTestStatusRequest, QuarantineBulkTestStatus, Repo, Test,
+    GetQuarantineBulkTestStatusRequest, QuarantineConfig, Repo,
 };
 use crate::utils::status_code_help;
 
@@ -94,23 +94,21 @@ pub async fn get_bundle_upload_location(
     Ok(None)
 }
 
-pub async fn get_quarantine_bulk_test_status(
+pub async fn get_quarantining_config(
     origin: &str,
     api_token: &str,
     org_slug: &str,
     repo: &Repo,
-    test_identifiers: &[Test],
-) -> anyhow::Result<QuarantineBulkTestStatus> {
+) -> anyhow::Result<QuarantineConfig> {
     let client = reqwest::Client::new();
     let resp = match client
-        .post(format!("{}/v1/metrics/getQuarantineBulkTestStatus", origin))
+        .post(format!("{}/v1/metrics/getQuarantineConfig", origin))
         .timeout(TRUNK_API_TIMEOUT)
         .header(reqwest::header::CONTENT_TYPE, "application/json")
         .header(TRUNK_API_TOKEN_HEADER, api_token)
         .json(&GetQuarantineBulkTestStatusRequest {
             org_url_slug: org_slug.to_owned(),
             repo: repo.clone(),
-            test_identifiers: test_identifiers.to_vec(),
         })
         .send()
         .await
@@ -126,7 +124,7 @@ pub async fn get_quarantine_bulk_test_status(
         );
     }
 
-    resp.json::<QuarantineBulkTestStatus>()
+    resp.json::<QuarantineConfig>()
         .await
         .context("Failed to get response body as json")
 }

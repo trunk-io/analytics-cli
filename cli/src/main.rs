@@ -190,13 +190,13 @@ async fn run_upload(
     let tags = parse_custom_tags(&tags)?;
 
     let (file_sets, file_counter) = build_filesets(&repo, &junit_paths, team.clone(), &codeowners)?;
-    let failures = extract_failed_tests(&file_sets, None).await?;
+    let failures = extract_failed_tests(&repo, &org_url_slug, &file_sets, None).await?;
 
     // Run the quarantine step and update the exit code.
     let quarantine_run_results = if use_quarantining && quarantine_results.is_none() {
         Some(
             run_quarantine(
-                &RunResult {
+                RunResult {
                     exit_code: EXIT_SUCCESS,
                     failures,
                 },
@@ -350,6 +350,7 @@ async fn run_test(test_args: TestArgs) -> anyhow::Result<i32> {
     log::info!("running command: {:?}", command);
     let run_result = run_test_command(
         &repo,
+        org_url_slug,
         command.first().unwrap(),
         command.iter().skip(1).collect(),
         junit_paths,
@@ -364,7 +365,7 @@ async fn run_test(test_args: TestArgs) -> anyhow::Result<i32> {
 
     if *use_quarantining {
         let quarantine_run_result = run_quarantine(
-            &run_result,
+            run_result,
             &api_address,
             token,
             org_url_slug,

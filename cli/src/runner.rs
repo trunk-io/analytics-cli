@@ -1,13 +1,12 @@
 use crate::{
-    clients::get_quarantine_bulk_test_status,
+    clients::get_quarantining_config,
     codeowners::CodeOwners,
     constants::{EXIT_FAILURE, EXIT_SUCCESS},
     scanner::{BundleRepo, FileSet, FileSetCounter},
-    types::{QuarantineBulkTestStatus, QuarantineRunResult, RunResult, Test},
+    types::{QuarantineBulkTestStatus, QuarantineConfig, QuarantineRunResult, RunResult, Test},
 };
 use junit_parser;
 use std::{
-    collections::HashSet,
     fs::metadata,
     process::{Command, Stdio},
     time::SystemTime,
@@ -16,6 +15,7 @@ use tokio_retry::{strategy::ExponentialBackoff, Retry};
 
 pub async fn run_test_command(
     repo: &BundleRepo,
+    org_slug: &str,
     command: &String,
     args: Vec<&String>,
     output_paths: &[String],
@@ -27,7 +27,7 @@ pub async fn run_test_command(
     let (file_sets, ..) = build_filesets(repo, output_paths, team, codeowners)?;
     let failures = if exit_code != EXIT_SUCCESS {
         let start = SystemTime::now();
-        extract_failed_tests(&file_sets, Some(start)).await?
+        extract_failed_tests(repo, org_slug, &file_sets, Some(start)).await?
     } else {
         Vec::new()
     };
@@ -103,6 +103,8 @@ pub fn build_filesets(
 }
 
 pub async fn extract_failed_tests(
+    repo: &BundleRepo,
+    org_slug: &str,
     file_sets: &[FileSet],
     start: Option<SystemTime>,
 ) -> anyhow::Result<Vec<Test>> {
@@ -156,13 +158,16 @@ pub async fn extract_failed_tests(
                     let failure = case.status.is_failure();
                     if failure {
                         let name = case.original_name;
-                        log::debug!("Test failed: {} -> {}", parent_name, name);
-                        failures.push(Test {
-                            parent_name: parent_name.clone(),
-                            name: name.clone(),
-                            class_name: case.classname.clone(),
-                            file: case.file.clone(),
-                        });
+                        let test = Test::new(
+                            name.clone(),
+                            parent_name.clone(),
+                            case.classname.clone(),
+                            case.file.clone(),
+                            org_slug,
+                            repo,
+                        );
+
+                        failures.push(test);
                     }
                 }
             }
@@ -172,61 +177,65 @@ pub async fn extract_failed_tests(
 }
 
 pub async fn run_quarantine(
-    run_result: &RunResult,
+    run_result: RunResult,
     api_address: &str,
     token: &str,
     org_url_slug: &str,
     repo: &BundleRepo,
     delay: std::iter::Take<ExponentialBackoff>,
 ) -> anyhow::Result<QuarantineRunResult> {
-    let quarantine_results = if run_result.failures.is_empty() {
-        QuarantineBulkTestStatus {
-            group_is_quarantined: false,
-            quarantine_results: Vec::new(),
-        }
-    } else {
+    let quarantine_config: QuarantineConfig = if !run_result.failures.is_empty() {
         log::info!("Quarantining failed tests");
         let result = Retry::spawn(delay, || {
-            get_quarantine_bulk_test_status(
-                api_address,
-                token,
-                org_url_slug,
-                &repo.repo,
-                &run_result.failures,
-            )
+            get_quarantining_config(api_address, token, org_url_slug, &repo.repo)
         })
         .await;
 
-        result.unwrap_or_else(|e| {
-            log::error!("Failed to get quarantine results: {:?}", e);
-            QuarantineBulkTestStatus {
-                group_is_quarantined: false,
-                quarantine_results: Vec::new(),
-            }
-        })
+        if let Err(ref err) = result {
+            log::error!("Failed to get quarantine results: {:?}", err);
+        }
+        result.unwrap_or_default()
+    } else {
+        log::debug!("No failed tests to quarantine");
+        QuarantineConfig::default()
     };
 
-    // Print out failed tests and their quarantine status
-    let quarantined_names: HashSet<_> = quarantine_results
-        .quarantine_results
-        .iter()
-        .map(|qr| &qr.name)
+    // quarantine the failed tests
+    let mut quarantine_results = QuarantineBulkTestStatus::default();
+    let quarantined = quarantine_config.quarantined_tests;
+    let total_failures = run_result.failures.len();
+    quarantine_results.quarantine_results = run_result
+        .failures
+        .into_iter()
+        .filter_map(|failure| {
+            let quarantine_failure = quarantined.contains(&failure.id);
+            log::info!(
+                "{} -> {}{}(id: {})",
+                failure.parent_name,
+                failure.name,
+                if quarantine_failure {
+                    " [QUARANTINED] "
+                } else {
+                    " "
+                },
+                failure.id
+            );
+            if quarantine_failure {
+                Some(failure)
+            } else {
+                None
+            }
+        })
         .collect();
-
-    for failure in &run_result.failures {
-        if quarantined_names.contains(&failure.name) {
-            log::error!("{} -> {} [QUARANTINED]", failure.parent_name, failure.name);
-        } else {
-            log::error!("{} -> {}", failure.parent_name, failure.name);
-        }
-    }
+    quarantine_results.group_is_quarantined =
+        quarantine_results.quarantine_results.len() == total_failures;
 
     // use the exit code from the command if the group is not quarantined
     // override exit code to be exit_success if the group is quarantined
     let exit_code = if !quarantine_results.group_is_quarantined {
         log::info!("Not all test failures were quarantined, returning exit code from command.");
         run_result.exit_code
-    } else if run_result.exit_code != EXIT_SUCCESS {
+    } else if run_result.exit_code != EXIT_SUCCESS && !quarantine_config.is_preview_mode {
         log::info!("All test failures were quarantined, overriding exit code to be exit_success");
         EXIT_SUCCESS
     } else {

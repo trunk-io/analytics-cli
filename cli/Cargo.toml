@@ -40,6 +40,7 @@ junit-parser = "1.1.0"
 codeowners = { path = "../codeowners" }
 sentry = { version = "0.34.0", features = ["debug-images"] }
 openssl = { version = "0.10.66", features = ["vendored"] }
+uuid = { version = "1.10.0", features = ["v5"] }
 
 [dev-dependencies]
 git2 = "0.19.0" # Used for creating test repos with libgit2

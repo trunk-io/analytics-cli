@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 
@@ -37,8 +39,6 @@ pub struct GetQuarantineBulkTestStatusRequest {
     pub repo: Repo,
     #[serde(rename = "orgUrlSlug")]
     pub org_url_slug: String,
-    #[serde(rename = "testIdentifiers")]
-    pub test_identifiers: Vec<Test>,
 }
 
 #[derive(Debug, Serialize, Clone, Deserialize)]
@@ -49,28 +49,55 @@ pub struct Test {
     #[serde(rename = "className")]
     pub class_name: Option<String>,
     pub file: Option<String>,
+    pub id: String,
 }
 
-#[derive(Debug, Serialize, Clone, Deserialize)]
-pub struct QuarantineResult {
-    pub name: String,
-    #[serde(rename = "parentName")]
-    pub parent_name: String,
-    #[serde(rename = "quarantinedSince")]
-    pub quarantined_since: String,
-    pub file: String,
-    #[serde(rename = "className")]
-    pub class_name: String,
-    #[serde(rename = "runInfoId")]
-    pub run_info_id: String,
+impl Test {
+    pub fn new(
+        name: String,
+        parent_name: String,
+        class_name: Option<String>,
+        file: Option<String>,
+        org_slug: &str,
+        repo: &BundleRepo,
+    ) -> Self {
+        let repo_full_name = format!("{}/{}/{}", repo.repo.host, repo.repo.owner, repo.repo.name);
+        let info_id_input = [
+            org_slug,
+            &repo_full_name,
+            file.as_deref().unwrap_or(""),
+            class_name.as_deref().unwrap_or(""),
+            &parent_name,
+            &name,
+            "JUNIT_TESTCASE",
+        ]
+        .join("#");
+        let id =
+            uuid::Uuid::new_v5(&uuid::Uuid::NAMESPACE_URL, info_id_input.as_bytes()).to_string();
+        Test {
+            parent_name,
+            name,
+            class_name,
+            file,
+            id,
+        }
+    }
 }
 
-#[derive(Debug, Serialize, Clone, Deserialize)]
+#[derive(Debug, Serialize, Clone, Deserialize, Default)]
 pub struct QuarantineBulkTestStatus {
     #[serde(rename = "groupIsQuarantined")]
     pub group_is_quarantined: bool,
     #[serde(rename = "quarantineResults")]
-    pub quarantine_results: Vec<QuarantineResult>,
+    pub quarantine_results: Vec<Test>,
+}
+
+#[derive(Debug, Serialize, Clone, Deserialize, Default)]
+pub struct QuarantineConfig {
+    #[serde(rename = "isPreview")]
+    pub is_preview_mode: bool,
+    #[serde(rename = "testIds")]
+    pub quarantined_tests: HashSet<String>,
 }
 
 #[derive(Debug, Serialize, Clone, Deserialize)]
@@ -184,7 +211,7 @@ pub struct BundleMeta {
     pub upload_time_epoch: u64,
     pub test_command: Option<String>,
     pub os_info: Option<String>,
-    pub quarantined_tests: Vec<QuarantineResult>,
+    pub quarantined_tests: Vec<Test>,
     pub codeowners: Option<CodeOwners>,
 }
 
@@ -462,5 +489,42 @@ mod tests {
             let actual = crate::utils::parse_custom_tags(&tags_str);
             assert!(actual.is_err());
         }
+    }
+
+    #[test]
+    fn test_test_new() {
+        let name = "test_name".to_string();
+        let parent_name = "parent_name".to_string();
+        let class_name = Some("class_name".to_string());
+        let file = Some("file".to_string());
+        let org_slug = "org_slug";
+        let repo = BundleRepo {
+            repo: crate::types::Repo {
+                host: "host".to_string(),
+                owner: "owner".to_string(),
+                name: "name".to_string(),
+            },
+            repo_root: "repo_root".to_string(),
+            repo_url: "repo_url".to_string(),
+            repo_head_sha: "repo_head_sha".to_string(),
+            repo_head_branch: "repo_head_branch".to_string(),
+            repo_head_commit_epoch: 1724102768,
+            repo_head_commit_message: "repo_head_commit_message".to_string(),
+            repo_head_author_name: "repo_head_author_name".to_string(),
+            repo_head_author_email: "repo_head_author_email".to_string(),
+        };
+        let result = Test::new(
+            name.clone(),
+            parent_name.clone(),
+            class_name.clone(),
+            file.clone(),
+            org_slug,
+            &repo,
+        );
+        assert_eq!(result.name, name);
+        assert_eq!(result.parent_name, parent_name);
+        assert_eq!(result.class_name, class_name);
+        assert_eq!(result.file, file);
+        assert_eq!(result.id, "aad1f138-09ab-5ea9-9c21-af48a03d6edd");
     }
 }
