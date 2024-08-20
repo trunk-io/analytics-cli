@@ -197,7 +197,11 @@ async fn run_upload(
         Some(
             run_quarantine(
                 RunResult {
-                    exit_code: EXIT_SUCCESS,
+                    exit_code: if failures.is_empty() {
+                        EXIT_SUCCESS
+                    } else {
+                        EXIT_FAILURE
+                    },
                     failures,
                 },
                 &api_address,
