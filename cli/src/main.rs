@@ -367,42 +367,44 @@ async fn run_test(test_args: TestArgs) -> anyhow::Result<i32> {
         failures: Vec::new(),
     });
 
-    if *use_quarantining {
-        let quarantine_run_result = run_quarantine(
-            run_result,
-            &api_address,
-            token,
-            org_url_slug,
-            &repo,
-            default_delay(),
+    let run_exit_code = run_result.exit_code;
+
+    let quarantine_run_result = if *use_quarantining {
+        Some(
+            run_quarantine(
+                run_result,
+                &api_address,
+                token,
+                org_url_slug,
+                &repo,
+                default_delay(),
+            )
+            .await?,
         )
-        .await?;
+    } else {
+        None
+    };
 
-        let exit_code = quarantine_run_result.exit_code;
+    let exit_code = quarantine_run_result
+        .as_ref()
+        .map(|r| r.exit_code)
+        .unwrap_or(run_exit_code);
 
-        match run_upload(
-            upload_args,
-            Some(command.join(" ")),
-            Some(quarantine_run_result),
-            codeowners,
-        )
-        .await
-        {
-            Ok(EXIT_SUCCESS) => (),
-            Ok(code) => log::error!("Error uploading test results: {}", code),
-            Err(e) => log::error!("Error uploading test results: {:?}", e),
-        }
-
-        return Ok(exit_code);
-    }
-
-    match run_upload(upload_args, Some(command.join(" ")), None, codeowners).await {
+    match run_upload(
+        upload_args,
+        Some(command.join(" ")),
+        quarantine_run_result,
+        codeowners,
+    )
+    .await
+    {
         Ok(EXIT_SUCCESS) => (),
         Ok(code) => log::error!("Error uploading test results: {}", code),
+        // TODO(TRUNK-12558): We should fail on configuration error _prior_ to running a test
         Err(e) => log::error!("Error uploading test results: {:?}", e),
-    }
+    };
 
-    Ok(EXIT_SUCCESS)
+    Ok(exit_code)
 }
 
 async fn run(cli: Cli) -> anyhow::Result<i32> {
