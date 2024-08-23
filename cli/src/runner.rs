@@ -5,6 +5,7 @@ use crate::{
     scanner::{BundleRepo, FileSet, FileSetCounter},
     types::{QuarantineBulkTestStatus, QuarantineConfig, QuarantineRunResult, RunResult, Test},
 };
+use chrono::{DateTime, Utc};
 use junit_parser;
 use std::{
     fs::metadata,
@@ -131,8 +132,10 @@ pub async fn extract_failed_tests(
             if let Some(start) = start {
                 if time <= start {
                     log::info!(
-                        "Skipping file because of lack of modification: {}",
-                        file.original_path
+                        "Skipping file `{}` because modified time `{}` is before start time `{}`",
+                        file.original_path,
+                        DateTime::<Utc>::from(time),
+                        DateTime::<Utc>::from(start),
                     );
                     continue;
                 }
