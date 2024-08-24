@@ -362,9 +362,12 @@ async fn run_test(test_args: TestArgs) -> anyhow::Result<i32> {
         &codeowners,
     )
     .await
-    .unwrap_or(RunResult {
-        exit_code: EXIT_FAILURE,
-        failures: Vec::new(),
+    .unwrap_or_else(|e| {
+        log::error!("Test command failed to run: {}", e);
+        RunResult {
+            exit_code: EXIT_FAILURE,
+            failures: Vec::new(),
+        }
     });
 
     let run_exit_code = run_result.exit_code;
