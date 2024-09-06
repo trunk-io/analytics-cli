@@ -31,6 +31,9 @@ pub async fn run_test_command(
     } else {
         Vec::new()
     };
+    if failures.is_empty() && exit_code != EXIT_SUCCESS {
+        log::warn!("Command failed but no test failures were found!");
+    }
     Ok(RunResult {
         exit_code,
         failures,
