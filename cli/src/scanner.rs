@@ -1,6 +1,8 @@
+use std::format;
+use std::time::SystemTime;
+
 use regex::Regex;
 use serde::Serialize;
-use std::format;
 
 use crate::codeowners::CodeOwners;
 use crate::constants::{ALLOW_LIST, ENVS_TO_GET};
@@ -49,6 +51,7 @@ impl FileSet {
         file_counter: &mut FileSetCounter,
         team: Option<String>,
         codeowners: &Option<CodeOwners>,
+        start: Option<SystemTime>,
     ) -> anyhow::Result<FileSet> {
         let path_to_scan = if !std::path::Path::new(&glob_path).is_absolute() {
             std::path::Path::new(repo_root)
@@ -91,6 +94,15 @@ impl FileSet {
             if !is_allowed {
                 log::warn!("File {:?} from glob {:?} is not allowed", path, glob_path);
                 return Ok::<(), anyhow::Error>(());
+            }
+
+            // When start is provided, check if file is stale
+            if let Some(start) = start {
+                let modified = path.metadata()?.modified()?;
+                if modified < start {
+                    log::warn!("File {:?} from glob {:?} is stale", path, glob_path);
+                    return Ok::<(), anyhow::Error>(());
+                }
             }
 
             // Get owners of file.

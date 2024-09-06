@@ -189,8 +189,9 @@ async fn run_upload(
 
     let tags = parse_custom_tags(&tags)?;
 
-    let (file_sets, file_counter) = build_filesets(&repo, &junit_paths, team.clone(), &codeowners)?;
-    let failures = extract_failed_tests(&repo, &org_url_slug, &file_sets, None).await?;
+    let (file_sets, file_counter) =
+        build_filesets(&repo, &junit_paths, team.clone(), &codeowners, None)?;
+    let failures = extract_failed_tests(&repo, &org_url_slug, &file_sets).await?;
 
     // Run the quarantine step and update the exit code.
     let quarantine_run_results = if use_quarantining && quarantine_results.is_none() {

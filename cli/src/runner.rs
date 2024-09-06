@@ -1,18 +1,17 @@
-use crate::{
-    clients::get_quarantining_config,
-    codeowners::CodeOwners,
-    constants::{EXIT_FAILURE, EXIT_SUCCESS},
-    scanner::{BundleRepo, FileSet, FileSetCounter},
-    types::{QuarantineBulkTestStatus, QuarantineConfig, QuarantineRunResult, RunResult, Test},
-};
-use chrono::{DateTime, Utc};
+use std::process::{Command, Stdio};
+use std::time::SystemTime;
+
 use junit_parser;
-use std::{
-    fs::metadata,
-    process::{Command, Stdio},
-    time::SystemTime,
+use tokio_retry::strategy::ExponentialBackoff;
+use tokio_retry::Retry;
+
+use crate::clients::get_quarantining_config;
+use crate::codeowners::CodeOwners;
+use crate::constants::{EXIT_FAILURE, EXIT_SUCCESS};
+use crate::scanner::{BundleRepo, FileSet, FileSetCounter};
+use crate::types::{
+    QuarantineBulkTestStatus, QuarantineConfig, QuarantineRunResult, RunResult, Test,
 };
-use tokio_retry::{strategy::ExponentialBackoff, Retry};
 
 pub async fn run_test_command(
     repo: &BundleRepo,
@@ -23,12 +22,12 @@ pub async fn run_test_command(
     team: Option<String>,
     codeowners: &Option<CodeOwners>,
 ) -> anyhow::Result<RunResult> {
+    let start = SystemTime::now();
     let exit_code = run_test_and_get_exit_code(command, args).await?;
     log::info!("Command exit code: {}", exit_code);
-    let (file_sets, ..) = build_filesets(repo, output_paths, team, codeowners)?;
+    let (file_sets, ..) = build_filesets(repo, output_paths, team, codeowners, Some(start))?;
     let failures = if exit_code != EXIT_SUCCESS {
-        let start = SystemTime::now();
-        extract_failed_tests(repo, org_slug, &file_sets, Some(start)).await?
+        extract_failed_tests(repo, org_slug, &file_sets).await?
     } else {
         Vec::new()
     };
@@ -64,6 +63,7 @@ pub fn build_filesets(
     junit_paths: &[String],
     team: Option<String>,
     codeowners: &Option<CodeOwners>,
+    start: Option<SystemTime>,
 ) -> anyhow::Result<(Vec<FileSet>, FileSetCounter)> {
     let mut file_counter = FileSetCounter::default();
     let mut file_sets = junit_paths
@@ -75,6 +75,7 @@ pub fn build_filesets(
                 &mut file_counter,
                 team.clone(),
                 codeowners,
+                start,
             )
         })
         .collect::<anyhow::Result<Vec<FileSet>>>()?;
@@ -95,6 +96,7 @@ pub fn build_filesets(
                     &mut file_counter,
                     team.clone(),
                     codeowners,
+                    start,
                 )
             })
             .collect::<anyhow::Result<Vec<FileSet>>>()?;
@@ -107,39 +109,10 @@ pub async fn extract_failed_tests(
     repo: &BundleRepo,
     org_slug: &str,
     file_sets: &[FileSet],
-    start: Option<SystemTime>,
 ) -> anyhow::Result<Vec<Test>> {
     let mut failures = Vec::<Test>::new();
     for file_set in file_sets {
         for file in &file_set.files {
-            log::info!("Checking file: {}", file.original_path);
-            let metadata = match metadata(&file.original_path) {
-                Ok(metadata) => metadata,
-                Err(e) => {
-                    log::warn!("Error getting metadata: {}", e);
-                    continue;
-                }
-            };
-            let time = match metadata.modified() {
-                Ok(time) => time,
-                Err(e) => {
-                    log::warn!("Error getting modified time: {}", e);
-                    continue;
-                }
-            };
-            // skip files that were last modified before the test started
-            // this is only used when running tests in wrap mode
-            if let Some(start) = start {
-                if time <= start {
-                    log::info!(
-                        "Skipping file `{}` because modified time `{}` is before start time `{}`",
-                        file.original_path,
-                        DateTime::<Utc>::from(time),
-                        DateTime::<Utc>::from(start),
-                    );
-                    continue;
-                }
-            }
             let file = match std::fs::File::open(&file.original_path) {
                 Ok(file) => file,
                 Err(e) => {

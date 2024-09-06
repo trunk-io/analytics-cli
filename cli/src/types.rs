@@ -3,10 +3,8 @@ use std::collections::HashSet;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    codeowners::CodeOwners,
-    scanner::{BundleRepo, FileSet},
-};
+use crate::codeowners::CodeOwners;
+use crate::scanner::{BundleRepo, FileSet};
 
 pub struct RunResult {
     pub exit_code: i32,
