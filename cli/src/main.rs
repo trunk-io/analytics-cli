@@ -137,6 +137,7 @@ async fn run_upload(
     test_command: Option<String>,
     quarantine_results: Option<QuarantineRunResult>,
     codeowners: Option<CodeOwners>,
+    exec_start: Option<SystemTime>,
 ) -> anyhow::Result<i32> {
     let UploadArgs {
         junit_paths,
@@ -190,7 +191,7 @@ async fn run_upload(
     let tags = parse_custom_tags(&tags)?;
 
     let (file_sets, file_counter) =
-        build_filesets(&repo, &junit_paths, team.clone(), &codeowners, None)?;
+        build_filesets(&repo, &junit_paths, team.clone(), &codeowners, exec_start)?;
     let failures = extract_failed_tests(&repo, &org_url_slug, &file_sets).await?;
 
     // Run the quarantine step and update the exit code.
@@ -401,6 +402,8 @@ async fn run_test(test_args: TestArgs) -> anyhow::Result<i32> {
         Some(command.join(" ")),
         None, // don't re-run quarantine checks
         codeowners,
+        run_result.exec_start,
+
     )
     .await
     {
@@ -415,7 +418,7 @@ async fn run_test(test_args: TestArgs) -> anyhow::Result<i32> {
 
 async fn run(cli: Cli) -> anyhow::Result<i32> {
     match cli.command {
-        Commands::Upload(upload_args) => run_upload(upload_args, None, None, None).await,
+        Commands::Upload(upload_args) => run_upload(upload_args, None, None, None, None).await,
         Commands::Test(test_args) => run_test(test_args).await,
     }
 }
