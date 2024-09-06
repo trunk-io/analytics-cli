@@ -23,11 +23,11 @@ pub async fn run_test_command(
     team: Option<String>,
     codeowners: &Option<CodeOwners>,
 ) -> anyhow::Result<RunResult> {
+    let start = SystemTime::now();
     let exit_code = run_test_and_get_exit_code(command, args).await?;
     log::info!("Command exit code: {}", exit_code);
     let (file_sets, ..) = build_filesets(repo, output_paths, team, codeowners)?;
     let failures = if exit_code != EXIT_SUCCESS {
-        let start = SystemTime::now();
         extract_failed_tests(repo, org_slug, &file_sets, Some(start)).await?
     } else {
         Vec::new()
