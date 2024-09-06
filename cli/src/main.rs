@@ -197,13 +197,14 @@ async fn run_upload(
     let quarantine_run_results = if use_quarantining && quarantine_results.is_none() {
         Some(
             run_quarantine(
-                RunResult {
+                &RunResult {
                     exit_code: if failures.is_empty() {
                         EXIT_SUCCESS
                     } else {
                         EXIT_FAILURE
                     },
                     failures,
+                    exec_start: None,
                 },
                 &api_address,
                 &token,
@@ -368,6 +369,7 @@ async fn run_test(test_args: TestArgs) -> anyhow::Result<i32> {
         RunResult {
             exit_code: EXIT_FAILURE,
             failures: Vec::new(),
+            exec_start: None,
         }
     });
 
@@ -376,7 +378,7 @@ async fn run_test(test_args: TestArgs) -> anyhow::Result<i32> {
     let quarantine_run_result = if *use_quarantining {
         Some(
             run_quarantine(
-                run_result,
+                &run_result,
                 &api_address,
                 token,
                 org_url_slug,
@@ -397,7 +399,7 @@ async fn run_test(test_args: TestArgs) -> anyhow::Result<i32> {
     match run_upload(
         upload_args,
         Some(command.join(" ")),
-        quarantine_run_result,
+        None, // don't re-run quarantine checks
         codeowners,
     )
     .await

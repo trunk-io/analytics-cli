@@ -34,6 +34,7 @@ pub async fn run_test_command(
     Ok(RunResult {
         exit_code,
         failures,
+        exec_start: Some(start),
     })
 }
 
@@ -63,7 +64,7 @@ pub fn build_filesets(
     junit_paths: &[String],
     team: Option<String>,
     codeowners: &Option<CodeOwners>,
-    start: Option<SystemTime>,
+    exec_start: Option<SystemTime>,
 ) -> anyhow::Result<(Vec<FileSet>, FileSetCounter)> {
     let mut file_counter = FileSetCounter::default();
     let mut file_sets = junit_paths
@@ -75,7 +76,7 @@ pub fn build_filesets(
                 &mut file_counter,
                 team.clone(),
                 codeowners,
-                start,
+                exec_start,
             )
         })
         .collect::<anyhow::Result<Vec<FileSet>>>()?;
@@ -96,7 +97,7 @@ pub fn build_filesets(
                     &mut file_counter,
                     team.clone(),
                     codeowners,
-                    start,
+                    exec_start,
                 )
             })
             .collect::<anyhow::Result<Vec<FileSet>>>()?;
@@ -153,7 +154,7 @@ pub async fn extract_failed_tests(
 }
 
 pub async fn run_quarantine(
-    run_result: RunResult,
+    run_result: &RunResult,
     api_address: &str,
     token: &str,
     org_url_slug: &str,
@@ -182,6 +183,7 @@ pub async fn run_quarantine(
     let total_failures = run_result.failures.len();
     quarantine_results.quarantine_results = run_result
         .failures
+        .clone()
         .into_iter()
         .filter_map(|failure| {
             let quarantine_failure = quarantined.contains(&failure.id);

@@ -9,6 +9,7 @@ use crate::scanner::{BundleRepo, FileSet};
 pub struct RunResult {
     pub exit_code: i32,
     pub failures: Vec<Test>,
+    pub exec_start: Option<std::time::SystemTime>,
 }
 
 pub struct QuarantineRunResult {
