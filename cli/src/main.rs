@@ -403,7 +403,6 @@ async fn run_test(test_args: TestArgs) -> anyhow::Result<i32> {
         None, // don't re-run quarantine checks
         codeowners,
         run_result.exec_start,
-
     )
     .await
     {
