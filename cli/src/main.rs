@@ -195,18 +195,16 @@ async fn run_upload(
     let failures = extract_failed_tests(&repo, &org_url_slug, &file_sets).await?;
 
     // Run the quarantine step and update the exit code.
+    let exit_code = if failures.is_empty() {
+        EXIT_SUCCESS
+    } else {
+        EXIT_FAILURE
+    };
     let quarantine_run_results = if use_quarantining && quarantine_results.is_none() {
         Some(
             run_quarantine(
-                &RunResult {
-                    exit_code: if failures.is_empty() {
-                        EXIT_SUCCESS
-                    } else {
-                        EXIT_FAILURE
-                    },
-                    failures,
-                    exec_start: None,
-                },
+                exit_code,
+                failures,
                 &api_address,
                 &token,
                 &org_url_slug,
@@ -375,11 +373,13 @@ async fn run_test(test_args: TestArgs) -> anyhow::Result<i32> {
     });
 
     let run_exit_code = run_result.exit_code;
+    let failures = run_result.failures;
 
     let quarantine_run_result = if *use_quarantining {
         Some(
             run_quarantine(
-                &run_result,
+                run_exit_code,
+                failures,
                 &api_address,
                 token,
                 org_url_slug,
@@ -397,12 +397,13 @@ async fn run_test(test_args: TestArgs) -> anyhow::Result<i32> {
         .map(|r| r.exit_code)
         .unwrap_or(run_exit_code);
 
+    let exec_start = run_result.exec_start;
     match run_upload(
         upload_args,
         Some(command.join(" ")),
         None, // don't re-run quarantine checks
         codeowners,
-        run_result.exec_start,
+        exec_start,
     )
     .await
     {

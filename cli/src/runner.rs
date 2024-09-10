@@ -157,14 +157,15 @@ pub async fn extract_failed_tests(
 }
 
 pub async fn run_quarantine(
-    run_result: &RunResult,
+    exit_code: i32,
+    failures: Vec<Test>,
     api_address: &str,
     token: &str,
     org_url_slug: &str,
     repo: &BundleRepo,
     delay: std::iter::Take<ExponentialBackoff>,
 ) -> anyhow::Result<QuarantineRunResult> {
-    let quarantine_config: QuarantineConfig = if !run_result.failures.is_empty() {
+    let quarantine_config: QuarantineConfig = if !failures.is_empty() {
         log::info!("Quarantining failed tests");
         let result = Retry::spawn(delay, || {
             get_quarantining_config(api_address, token, org_url_slug, &repo.repo)
@@ -183,9 +184,8 @@ pub async fn run_quarantine(
     // quarantine the failed tests
     let mut quarantine_results = QuarantineBulkTestStatus::default();
     let quarantined = quarantine_config.quarantined_tests;
-    let total_failures = run_result.failures.len();
-    quarantine_results.quarantine_results = run_result
-        .failures
+    let total_failures = failures.len();
+    quarantine_results.quarantine_results = failures
         .clone()
         .into_iter()
         .filter_map(|failure| {
@@ -215,12 +215,12 @@ pub async fn run_quarantine(
     // override exit code to be exit_success if the group is quarantined
     let exit_code = if !quarantine_results.group_is_quarantined {
         log::info!("Not all test failures were quarantined, returning exit code from command.");
-        run_result.exit_code
-    } else if run_result.exit_code != EXIT_SUCCESS && !quarantine_config.is_preview_mode {
+        exit_code
+    } else if exit_code != EXIT_SUCCESS && !quarantine_config.is_preview_mode {
         log::info!("All test failures were quarantined, overriding exit code to be exit_success");
         EXIT_SUCCESS
     } else {
-        run_result.exit_code
+        exit_code
     };
 
     Ok(QuarantineRunResult {
