@@ -17,7 +17,7 @@ pub struct QuarantineRunResult {
     pub quarantine_status: QuarantineBulkTestStatus,
 }
 
-#[derive(Debug, Serialize, Clone, Deserialize)]
+#[derive(Debug, Serialize, Clone, Deserialize, PartialEq, Eq)]
 pub struct CreateRepoRequest {
     pub repo: Repo,
     #[serde(rename = "orgUrlSlug")]
@@ -26,14 +26,14 @@ pub struct CreateRepoRequest {
     pub remote_urls: Vec<String>,
 }
 
-#[derive(Debug, Serialize, Clone, Deserialize)]
+#[derive(Debug, Serialize, Clone, Deserialize, PartialEq, Eq)]
 pub struct CreateBundleUploadRequest {
     pub repo: Repo,
     #[serde(rename = "orgUrlSlug")]
     pub org_url_slug: String,
 }
 
-#[derive(Debug, Serialize, Clone, Deserialize)]
+#[derive(Debug, Serialize, Clone, Deserialize, PartialEq, Eq)]
 pub struct GetQuarantineBulkTestStatusRequest {
     pub repo: Repo,
     #[serde(rename = "orgUrlSlug")]
@@ -173,13 +173,13 @@ pub struct BundleUploader {
     pub org_slug: String,
 }
 
-#[derive(Debug, Serialize, Clone, Default)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq)]
 pub enum FileSetType {
     #[default]
     Junit,
 }
 
-#[derive(Debug, Serialize, Clone, Default)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct BundledFile {
     pub original_path: String,
     pub path: String,
@@ -190,7 +190,7 @@ pub struct BundledFile {
 
 /// Custom tags defined by the user.
 ///
-#[derive(Debug, Serialize, Clone, PartialEq, Eq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub struct CustomTag {
     pub key: String,
     pub value: String,
@@ -198,7 +198,7 @@ pub struct CustomTag {
 
 pub const META_VERSION: &str = "1";
 
-#[derive(Debug, Serialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct BundleMeta {
     pub version: String,
     pub cli_version: String,

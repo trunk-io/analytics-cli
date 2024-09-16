@@ -43,7 +43,11 @@ openssl = { version = "0.10.66", features = ["vendored"] }
 uuid = { version = "1.10.0", features = ["v5"] }
 
 [dev-dependencies]
-git2 = "0.19.0" # Used for creating test repos with libgit2
+assert_cmd = "2.0.16"
+assert_matches = "1.5.0"
+axum = { version = "0.7.5", features = ["macros"] }
+git2 = "0.19.0"                                     # Used for creating test repos with libgit2
+junit-mock = { path = "../junit-mock" }
 
 [build-dependencies]
 vergen = { version = "8.3.1", features = [
