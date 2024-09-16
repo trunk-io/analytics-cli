@@ -40,15 +40,15 @@ jobs:
         shell: bash
         run: rustup target add ${{ matrix.target }}
 
-      - name: Build ${{ matrix.target }} target
-        if: "!cancelled()"
-        run: cargo build -q --all --release --target ${{ matrix.target }}
-
       - name: Install latest nextest release
         uses: taiki-e/install-action@nextest
 
       - name: Run tests
         run: cargo nextest run --profile=ci
+
+      - name: Build ${{ matrix.target }} target
+        if: "!cancelled()"
+        run: cargo build -q --all --release --target ${{ matrix.target }}
 
       - name: Upload results using action from ${{ matrix.target }}
         env:
@@ -64,7 +64,7 @@ jobs:
       matrix:
         include:
           - target: x86_64-unknown-linux-musl
-            runs-on: public-amd64-small
+            runs-on: public-amd64-2xlarge
           - target: aarch64-unknown-linux-musl
             runs-on: public-arm64-medium
     name: Build CLI for ${{ matrix.target }}
@@ -79,6 +79,17 @@ jobs:
       - name: Install Trunk
         uses: trunk-io/trunk-action/install@54ccfcf9add644a36a5aa1d0046c92f654ff9e45
 
+      - name: Install nextest
+        if: matrix.target != 'aarch64-unknown-linux-musl'
+        run: curl -LsSf https://get.nexte.st/latest/linux | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin
+
+      - name: Install nextest for ARM
+        if: matrix.target == 'aarch64-unknown-linux-musl'
+        run: curl -LsSf https://get.nexte.st/latest/linux-arm | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin
+
+      - name: Run tests
+        run: cargo nextest run --profile=ci
+
       - name: Build ${{ matrix.target }} target
         uses: ./.github/actions/build_target
         if: "!cancelled()"
@@ -86,70 +97,11 @@ jobs:
           target: ${{ matrix.target }}
           profile: release
 
-      - name: Install nextest
-        if: matrix.target != 'aarch64-unknown-linux-musl'
-        run: curl -LsSf https://get.nexte.st/latest/linux | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin
-
-      - name: Install nextest for ARM
-        if: matrix.target == 'aarch64-unknown-linux-musl'
-        run: curl -LsSf https://get.nexte.st/latest/linux-arm | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin
-
-      - name: Run tests
-        run: cargo nextest run --profile=ci
-
       - name: Upload results using action from ${{ matrix.target }}
         env:
           TRUNK_PUBLIC_API_ADDRESS: https://api.trunk-staging.io
         run: |
           target/${{ matrix.target }}/release/trunk-analytics-cli upload \
-            --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
-            --org-url-slug trunk-staging-org \
-            --token ${{ secrets.TRUNK_STAGING_ORG_API_TOKEN }}
-
-  build:
-    strategy:
-      matrix:
-        include:
-          - target: x86_64-unknown-linux-musl
-            runs-on: public-amd64-small
-          - target: aarch64-unknown-linux-musl
-            runs-on: public-arm64-medium
-    name: Unit Tests for ${{ matrix.target }}
-    runs-on: ${{ matrix.runs-on }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@nightly
-
-      - name: Build
-        run: cargo build -q --all
-
-      - name: Install nextest
-        if: matrix.target != 'aarch64-unknown-linux-musl'
-        run: curl -LsSf https://get.nexte.st/latest/linux | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin
-
-      - name: Install nextest for ARM
-        if: matrix.target == 'aarch64-unknown-linux-musl'
-        run: curl -LsSf https://get.nexte.st/latest/linux-arm | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin
-
-      - name: Run tests
-        run: cargo nextest run --profile=ci
-
-      - name: Upload results using action
-        if: "!cancelled()"
-        uses: trunk-io/analytics-uploader@main
-        with:
-          junit-paths: ${{ github.workspace }}/target/**/*junit.xml
-          org-slug: trunk
-          token: ${{ secrets.TRUNK_PROD_ORG_API_TOKEN }}
-
-      - name: Upload results cli release built from source
-        if: "!cancelled()"
-        env:
-          TRUNK_PUBLIC_API_ADDRESS: https://api.trunk-staging.io
-        run: |
-          cargo run --release -- upload \
             --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
             --org-url-slug trunk-staging-org \
             --token ${{ secrets.TRUNK_STAGING_ORG_API_TOKEN }}
