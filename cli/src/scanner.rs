@@ -2,7 +2,7 @@ use std::format;
 use std::time::SystemTime;
 
 use regex::Regex;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::codeowners::CodeOwners;
 use crate::constants::{ALLOW_LIST, ENVS_TO_GET};
@@ -34,7 +34,7 @@ impl FileSetCounter {
     }
 }
 
-#[derive(Debug, Serialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct FileSet {
     pub file_set_type: FileSetType,
     pub files: Vec<BundledFile>,
@@ -143,7 +143,7 @@ impl FileSet {
     }
 }
 
-#[derive(Debug, Serialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct BundleRepo {
     pub repo: Repo,
     pub repo_root: String,
@@ -294,229 +294,5 @@ impl EnvScanner {
             }
         }
         envs
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use std::io::Write;
-
-    use super::*;
-
-    const TEST_BRANCH: &str = "trunk/test";
-    const TEST_ORIGIN: &str = "https://github.com/trunk-io/analytics-cli.git";
-    const TEST_FILE: &str = "file.txt";
-
-    fn setup_repo_with_commit(root: &std::path::PathBuf) -> anyhow::Result<()> {
-        let branch = TEST_BRANCH;
-        let repo = git2::Repository::init(root.clone()).expect("failed to init repo");
-        repo.remote_set_url("origin", TEST_ORIGIN)?;
-        let file_name = TEST_FILE;
-
-        let file_path = std::path::Path::new(&repo.workdir().unwrap()).join(file_name);
-        let mut file = std::fs::File::create(&file_path).expect("Could not create file");
-        writeln!(file, "test content").expect("Could not write to file");
-
-        // Add the new file to the index
-        let mut index = repo.index()?;
-        index.add_path(std::path::Path::new(file_name))?;
-        index.write()?;
-
-        // Create a new commit
-        let oid = index.write_tree()?;
-        let signature = git2::Signature::now("Your Name", "your.email@example.com")?;
-        let tree = repo.find_tree(oid)?;
-        repo.commit(
-            Some("HEAD"),
-            &signature,
-            &signature,
-            "Initial commit",
-            &tree,
-            &[],
-        )?;
-
-        // Create and checkout a new branch
-        let obj = repo.revparse_single("HEAD")?;
-        repo.branch(branch, &obj.as_commit().unwrap(), false)?;
-        repo.set_head(format!("refs/heads/{}", branch).as_str())?;
-        repo.checkout_head(Some(git2::build::CheckoutBuilder::new().force()))?;
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_try_read_from_root() {
-        let root = tempfile::tempdir()
-            .expect("failed to create temp directory")
-            .into_path();
-        setup_repo_with_commit(&root).expect("failed to setup repo");
-        let bundle_repo = BundleRepo::try_read_from_root(
-            Some(root.to_str().unwrap().to_string()),
-            None,
-            None,
-            None,
-            None,
-        );
-
-        assert!(bundle_repo.is_ok());
-        let bundle_repo = bundle_repo.unwrap();
-        assert_eq!(bundle_repo.repo_root, root.to_str().unwrap());
-        assert_eq!(
-            bundle_repo.repo,
-            Repo {
-                host: "github.com".to_string(),
-                owner: "trunk-io".to_string(),
-                name: "analytics-cli".to_string(),
-            }
-        );
-        assert_eq!(bundle_repo.repo_url, TEST_ORIGIN);
-        assert_eq!(
-            bundle_repo.repo_head_branch,
-            format!("refs/heads/{}", TEST_BRANCH)
-        );
-        assert_eq!(bundle_repo.repo_head_sha.len(), 40);
-        assert!(bundle_repo.repo_head_commit_epoch > 0);
-        assert_eq!(bundle_repo.repo_head_commit_message, "Initial commit");
-    }
-
-    #[test]
-    fn test_try_read_from_root_with_url_override() {
-        let root = tempfile::tempdir()
-            .expect("failed to create temp directory")
-            .into_path();
-        setup_repo_with_commit(&root).expect("failed to setup repo");
-        let origin_url = "https://host.com/owner/repo.git";
-        let bundle_repo = BundleRepo::try_read_from_root(
-            Some(root.to_str().unwrap().to_string()),
-            Some(origin_url.to_string()),
-            None,
-            None,
-            None,
-        );
-
-        assert!(bundle_repo.is_ok());
-        let bundle_repo = bundle_repo.unwrap();
-        assert_eq!(bundle_repo.repo_root, root.to_str().unwrap());
-        assert_eq!(
-            bundle_repo.repo,
-            Repo {
-                host: "host.com".to_string(),
-                owner: "owner".to_string(),
-                name: "repo".to_string(),
-            }
-        );
-        assert_eq!(bundle_repo.repo_url, origin_url);
-        assert_eq!(
-            bundle_repo.repo_head_branch,
-            format!("refs/heads/{}", TEST_BRANCH)
-        );
-        assert_eq!(bundle_repo.repo_head_sha.len(), 40);
-        assert!(bundle_repo.repo_head_commit_epoch > 0);
-        assert_eq!(bundle_repo.repo_head_commit_message, "Initial commit");
-    }
-
-    #[test]
-    fn test_try_read_from_root_with_sha_override() {
-        let root = tempfile::tempdir()
-            .expect("failed to create temp directory")
-            .into_path();
-        setup_repo_with_commit(&root).expect("failed to setup repo");
-        let sha = "1234567890123456789012345678901234567890";
-        let bundle_repo = BundleRepo::try_read_from_root(
-            Some(root.to_str().unwrap().to_string()),
-            None,
-            Some(sha.to_string()),
-            None,
-            None,
-        );
-
-        assert!(bundle_repo.is_ok());
-        let bundle_repo = bundle_repo.unwrap();
-        assert_eq!(bundle_repo.repo_root, root.to_str().unwrap());
-        assert_eq!(
-            bundle_repo.repo,
-            Repo {
-                host: "github.com".to_string(),
-                owner: "trunk-io".to_string(),
-                name: "analytics-cli".to_string(),
-            }
-        );
-        assert_eq!(bundle_repo.repo_url, TEST_ORIGIN);
-        assert_eq!(
-            bundle_repo.repo_head_branch,
-            format!("refs/heads/{}", TEST_BRANCH)
-        );
-        assert_eq!(bundle_repo.repo_head_sha, sha);
-        assert!(bundle_repo.repo_head_commit_epoch > 0);
-        assert_eq!(bundle_repo.repo_head_commit_message, "Initial commit");
-    }
-
-    #[test]
-    fn test_try_read_from_root_with_branch_override() {
-        let root = tempfile::tempdir()
-            .expect("failed to create temp directory")
-            .into_path();
-        setup_repo_with_commit(&root).expect("failed to setup repo");
-        let branch = "other-branch";
-        let bundle_repo = BundleRepo::try_read_from_root(
-            Some(root.to_str().unwrap().to_string()),
-            None,
-            None,
-            Some(branch.to_string()),
-            None,
-        );
-
-        assert!(bundle_repo.is_ok());
-        let bundle_repo = bundle_repo.unwrap();
-        assert_eq!(bundle_repo.repo_root, root.to_str().unwrap());
-        assert_eq!(
-            bundle_repo.repo,
-            Repo {
-                host: "github.com".to_string(),
-                owner: "trunk-io".to_string(),
-                name: "analytics-cli".to_string(),
-            }
-        );
-        assert_eq!(bundle_repo.repo_url, TEST_ORIGIN);
-        assert_eq!(bundle_repo.repo_head_branch, branch);
-        assert_eq!(bundle_repo.repo_head_sha.len(), 40);
-        assert!(bundle_repo.repo_head_commit_epoch > 0);
-        assert_eq!(bundle_repo.repo_head_commit_message, "Initial commit");
-    }
-
-    #[test]
-    fn test_try_read_from_root_with_time_override() {
-        let root = tempfile::tempdir()
-            .expect("failed to create temp directory")
-            .into_path();
-        setup_repo_with_commit(&root).expect("failed to setup repo");
-        let epoch = "123";
-        let bundle_repo = BundleRepo::try_read_from_root(
-            Some(root.to_str().unwrap().to_string()),
-            None,
-            None,
-            None,
-            Some(epoch.to_string()),
-        );
-
-        assert!(bundle_repo.is_ok());
-        let bundle_repo = bundle_repo.unwrap();
-        assert_eq!(bundle_repo.repo_root, root.to_str().unwrap());
-        assert_eq!(
-            bundle_repo.repo,
-            Repo {
-                host: "github.com".to_string(),
-                owner: "trunk-io".to_string(),
-                name: "analytics-cli".to_string(),
-            }
-        );
-        assert_eq!(bundle_repo.repo_url, TEST_ORIGIN);
-        assert_eq!(
-            bundle_repo.repo_head_branch,
-            format!("refs/heads/{}", TEST_BRANCH)
-        );
-        assert_eq!(bundle_repo.repo_head_sha.len(), 40);
-        assert_eq!(bundle_repo.repo_head_commit_epoch, 123);
-        assert_eq!(bundle_repo.repo_head_commit_message, "Initial commit");
     }
 }

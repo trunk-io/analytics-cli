@@ -1,14 +1,14 @@
 use std::path::{Path, PathBuf};
 
 use codeowners::Owners;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::constants::CODEOWNERS_LOCATIONS;
 
-#[derive(Default, Debug, Serialize, Clone)]
+#[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct CodeOwners {
     pub path: PathBuf,
-    #[serde(skip_serializing)]
+    #[serde(skip_serializing, skip_deserializing)]
     pub owners: Option<Owners>,
 }
 
