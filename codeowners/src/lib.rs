@@ -1,8 +1,10 @@
 mod github;
+mod gitlab;
 
 use std::{io::Read, path::Path};
 
 pub use github::{GitHubOwner, GitHubOwners};
+pub use gitlab::{GitLabOwner, GitLabOwners};
 
 pub trait OwnersOfPath {
     type Owner;
