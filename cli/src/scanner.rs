@@ -160,6 +160,7 @@ impl BundleRepo {
     /// Read important fields from git repo root.
     ///
     pub fn try_read_from_root(
+        repo_no_file_access: bool,
         in_repo_root: Option<String>,
         in_repo_url: Option<String>,
         in_repo_head_sha: Option<String>,
@@ -181,74 +182,81 @@ impl BundleRepo {
 
         let mut git_head_author = None;
         let mut git_head_commit_message = None;
-        // If repo root found, try to get repo details from git.
-        if let Some(repo_root) = &out_repo_root {
-            // Read git repo.
-            log::info!("Reading git repo at {:?}", &repo_root);
 
-            let git_repo = gix::open(repo_root)?;
-            let git_url = git_repo
-                .config_snapshot()
-                .string_by_key(GIT_REMOTE_ORIGIN_URL_CONFIG)
-                .map(|s| s.to_string());
-            let mut git_head = git_repo.head()?;
+        if !repo_no_file_access {
+            // If repo root found, try to get repo details from git.
+            if let Some(repo_root) = &out_repo_root {
+                // Read git repo.
+                log::info!("Reading git repo at {:?}", &repo_root);
 
-            let mut git_head_branch = git_head.referent_name().map(|s| s.as_bstr().to_string());
-            if git_head_branch.is_none() {
-                for r in git_repo.references()?.remote_branches()? {
-                    match r {
-                        Ok(r) => {
-                            let target = r.target();
-                            let id = target.try_id();
-                            if id.is_some()
-                                && git_head.id().is_some()
-                                && id.unwrap().to_string() == git_head.id().unwrap().to_string()
-                            {
-                                git_head_branch =
-                                    r.name().to_path().to_str().map(|s| s.to_string());
-                                break;
-                            };
-                        }
-                        Err(e) => {
-                            log::debug!("Unexpected error when trying to find reference {:?}", e);
+                let git_repo = gix::open(repo_root)?;
+                let git_url = git_repo
+                    .config_snapshot()
+                    .string_by_key(GIT_REMOTE_ORIGIN_URL_CONFIG)
+                    .map(|s| s.to_string());
+                let mut git_head = git_repo.head()?;
+
+                let mut git_head_branch = git_head.referent_name().map(|s| s.as_bstr().to_string());
+                if git_head_branch.is_none() {
+                    for r in git_repo.references()?.remote_branches()? {
+                        match r {
+                            Ok(r) => {
+                                let target = r.target();
+                                let id = target.try_id();
+                                if id.is_some()
+                                    && git_head.id().is_some()
+                                    && id.unwrap().to_string() == git_head.id().unwrap().to_string()
+                                {
+                                    git_head_branch =
+                                        r.name().to_path().to_str().map(|s| s.to_string());
+                                    break;
+                                };
+                            }
+                            Err(e) => {
+                                log::debug!(
+                                    "Unexpected error when trying to find reference {:?}",
+                                    e
+                                );
+                            }
                         }
                     }
                 }
-            }
-            let git_head_sha = git_head.id().map(|id| id.to_string());
-            let git_head_commit_time = git_head.peel_to_commit_in_place()?.time()?;
-            git_head_commit_message = git_head.peel_to_commit_in_place().map_or(None, |commit| {
-                commit
-                    .message()
-                    .map_or(None, |msg| Some(msg.title.to_string()))
-            });
-            git_head_author = git_head
-                .peel_to_commit_in_place()
-                .map(|commit| {
-                    if let Ok(author) = commit.author() {
-                        Some(HeadAuthor {
-                            name: author.name.to_string(),
-                            email: author.email.to_string(),
-                        })
-                    } else {
-                        None
-                    }
-                })
-                .ok()
-                .flatten();
-            log::info!("Found git_url: {:?}", git_url);
-            log::info!("Found git_sha: {:?}", git_head_sha);
-            log::info!("Found git_branch: {:?}", git_head_branch);
-            log::info!("Found git_commit_time: {:?}", git_head_commit_time);
-            log::info!("Found git_commit_message: {:?}", git_head_commit_message);
-            log::info!("Found git_author: {:?}", git_head_author);
+                let git_head_sha = git_head.id().map(|id| id.to_string());
+                let git_head_commit_time = git_head.peel_to_commit_in_place()?.time()?;
+                git_head_commit_message =
+                    git_head.peel_to_commit_in_place().map_or(None, |commit| {
+                        commit
+                            .message()
+                            .map_or(None, |msg| Some(msg.title.to_string()))
+                    });
+                git_head_author = git_head
+                    .peel_to_commit_in_place()
+                    .map(|commit| {
+                        if let Ok(author) = commit.author() {
+                            Some(HeadAuthor {
+                                name: author.name.to_string(),
+                                email: author.email.to_string(),
+                            })
+                        } else {
+                            None
+                        }
+                    })
+                    .ok()
+                    .flatten();
+                log::info!("Found git_url: {:?}", git_url);
+                log::info!("Found git_sha: {:?}", git_head_sha);
+                log::info!("Found git_branch: {:?}", git_head_branch);
+                log::info!("Found git_commit_time: {:?}", git_head_commit_time);
+                log::info!("Found git_commit_message: {:?}", git_head_commit_message);
+                log::info!("Found git_author: {:?}", git_head_author);
 
-            out_repo_url = from_non_empty_or_default(in_repo_url, git_url, Some);
-            out_repo_head_sha = from_non_empty_or_default(in_repo_head_sha, git_head_sha, Some);
-            out_repo_head_branch =
-                from_non_empty_or_default(in_repo_head_branch, git_head_branch, Some);
-            if out_repo_head_commit_epoch.is_none() {
-                out_repo_head_commit_epoch = Some(git_head_commit_time.seconds);
+                out_repo_url = from_non_empty_or_default(in_repo_url, git_url, Some);
+                out_repo_head_sha = from_non_empty_or_default(in_repo_head_sha, git_head_sha, Some);
+                out_repo_head_branch =
+                    from_non_empty_or_default(in_repo_head_branch, git_head_branch, Some);
+                if out_repo_head_commit_epoch.is_none() {
+                    out_repo_head_commit_epoch = Some(git_head_commit_time.seconds);
+                }
             }
         }
 

@@ -159,3 +159,145 @@ async fn upload_bundle() {
     // HINT: View CLI output with `cargo test -- --nocapture`
     println!("{assert}");
 }
+
+// NOTE: must be multi threaded to start a mock server
+#[tokio::test(flavor = "multi_thread")]
+async fn upload_bundle_repo_no_file_access() {
+    let temp_dir = tempdir().unwrap();
+    generate_mock_junit_xmls(&temp_dir);
+
+    let state = spawn_mock_server().await;
+
+    let mut cmd = Command::cargo_bin("trunk-analytics-cli").unwrap();
+
+    let assert = cmd
+        .current_dir(&temp_dir)
+        .env("TRUNK_PUBLIC_API_ADDRESS", &state.host)
+        .env("CI", "1")
+        .args(&[
+            "upload",
+            "--use-quarantining",
+            "--repo-no-file-access",
+            "--repo-url",
+            "https://github.com/trunk-io/analytics-cli.git",
+            "--repo-head-sha",
+            "0000000000000000000000000000000000000000",
+            "--repo-head-branch",
+            "main",
+            "--repo-head-commit-epoch",
+            chrono::Utc::now().timestamp().to_string().as_str(),
+            "--junit-paths",
+            "./*",
+            "--org-url-slug",
+            "test-org",
+            "--token",
+            "test-token",
+        ])
+        .assert()
+        // should fail due to quarantine and succeed without quarantining
+        .failure();
+
+    let requests = state.requests.lock().unwrap().clone();
+    assert_eq!(requests.len(), 4);
+    let mut requests_iter = requests.into_iter();
+
+    assert_eq!(
+        requests_iter.next().unwrap(),
+        RequestPayload::GetQuarantineBulkTestStatus(GetQuarantineBulkTestStatusRequest {
+            repo: Repo {
+                host: String::from("github.com"),
+                owner: String::from("trunk-io"),
+                name: String::from("analytics-cli"),
+            },
+            org_url_slug: String::from("test-org"),
+        })
+    );
+
+    assert_eq!(
+        requests_iter.next().unwrap(),
+        RequestPayload::CreateBundleUpload(CreateBundleUploadRequest {
+            repo: Repo {
+                host: String::from("github.com"),
+                owner: String::from("trunk-io"),
+                name: String::from("analytics-cli"),
+            },
+            org_url_slug: String::from("test-org"),
+        })
+    );
+
+    let tar_extract_directory =
+        assert_matches!(requests_iter.next().unwrap(), RequestPayload::S3Upload(d) => d);
+
+    let file = fs::File::open(tar_extract_directory.join("meta.json")).unwrap();
+    let reader = BufReader::new(file);
+    let bundle_meta: BundleMeta = serde_json::from_reader(reader).unwrap();
+
+    assert_eq!(bundle_meta.org, "test-org");
+    assert_eq!(
+        bundle_meta.repo.repo,
+        Repo {
+            host: String::from("github.com"),
+            owner: String::from("trunk-io"),
+            name: String::from("analytics-cli"),
+        }
+    );
+    assert_eq!(
+        bundle_meta.repo.repo_url,
+        "https://github.com/trunk-io/analytics-cli.git"
+    );
+    assert_eq!(
+        bundle_meta.repo.repo_head_sha,
+        "0000000000000000000000000000000000000000"
+    );
+    assert_eq!(bundle_meta.repo.repo_head_branch, "main");
+    assert_eq!(bundle_meta.repo.repo_head_author_name, "");
+    assert_eq!(bundle_meta.repo.repo_head_author_email, "");
+    assert_eq!(bundle_meta.tags, &[]);
+    assert_eq!(bundle_meta.file_sets.len(), 1);
+    assert_eq!(bundle_meta.envs.get("CI"), Some(&String::from("1")));
+    let time_since_upload = chrono::Utc::now()
+        - chrono::DateTime::from_timestamp(bundle_meta.upload_time_epoch as i64, 0).unwrap();
+    assert_eq!(time_since_upload.num_minutes(), 0);
+    assert_eq!(bundle_meta.test_command, None);
+    assert!(bundle_meta.os_info.is_some());
+    assert!(bundle_meta.quarantined_tests.is_empty());
+    assert_eq!(bundle_meta.codeowners, None);
+
+    let file_set = bundle_meta.file_sets.get(0).unwrap();
+    assert_eq!(file_set.file_set_type, FileSetType::Junit);
+    assert_eq!(file_set.glob, "./*");
+    assert_eq!(file_set.files.len(), 1);
+
+    let bundled_file = file_set.files.get(0).unwrap();
+    assert_eq!(bundled_file.path, "junit/0");
+    assert!(
+        fs::File::open(tar_extract_directory.join(&bundled_file.path))
+            .unwrap()
+            .metadata()
+            .unwrap()
+            .is_file()
+    );
+    let time_since_junit_modified = chrono::Utc::now()
+        - chrono::DateTime::from_timestamp_nanos(bundled_file.last_modified_epoch_ns as i64);
+    assert_eq!(time_since_junit_modified.num_minutes(), 0);
+    assert!(bundled_file.owners.is_empty());
+    assert_eq!(bundled_file.team, None);
+
+    assert_eq!(
+        requests_iter.next().unwrap(),
+        RequestPayload::CreateRepo(CreateRepoRequest {
+            repo: Repo {
+                host: String::from("github.com"),
+                owner: String::from("trunk-io"),
+                name: String::from("analytics-cli"),
+            },
+            org_url_slug: String::from("test-org"),
+            remote_urls: Vec::from(&[String::from(
+                "https://github.com/trunk-io/analytics-cli.git"
+            )]),
+        })
+    );
+
+    // HINT: View CLI output with `cargo test -- --nocapture`
+    println!("{assert}");
+}

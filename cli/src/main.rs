@@ -51,6 +51,15 @@ struct UploadArgs {
         help = "Organization token. Defaults to TRUNK_API_TOKEN env var."
     )]
     token: String,
+    #[arg(
+        long,
+        requires = "repo_url",
+        requires = "repo_head_sha",
+        requires = "repo_head_branch",
+        requires = "repo_head_commit_epoch",
+        help = "Disable file access for git repo details. Requires passing --repo-url, --repo-head-sha, --repo-head-branch."
+    )]
+    repo_no_file_access: bool,
     #[arg(long, help = "Path to repository root. Defaults to current directory.")]
     repo_root: Option<String>,
     #[arg(long, help = "Value to override URL of repository.")]
@@ -59,7 +68,10 @@ struct UploadArgs {
     repo_head_sha: Option<String>,
     #[arg(long, help = "Value to override branch of repository head.")]
     repo_head_branch: Option<String>,
-    #[arg(long, help = "Value to override commit epoch of repository head.")]
+    #[arg(
+        long,
+        help = "Value to override commit unix epoch in seconds of repository head."
+    )]
     repo_head_commit_epoch: Option<String>,
     #[arg(
         long,
@@ -143,6 +155,7 @@ async fn run_upload(
         junit_paths,
         org_url_slug,
         token,
+        repo_no_file_access,
         repo_root,
         repo_url,
         repo_head_sha,
@@ -157,6 +170,7 @@ async fn run_upload(
     } = upload_args;
 
     let repo = BundleRepo::try_read_from_root(
+        repo_no_file_access,
         repo_root,
         repo_url,
         repo_head_sha,
@@ -321,6 +335,7 @@ async fn run_test(test_args: TestArgs) -> anyhow::Result<i32> {
         junit_paths,
         org_url_slug,
         token,
+        repo_no_file_access,
         repo_root,
         repo_url,
         repo_head_sha,
@@ -333,6 +348,7 @@ async fn run_test(test_args: TestArgs) -> anyhow::Result<i32> {
     } = &upload_args;
 
     let repo = BundleRepo::try_read_from_root(
+        *repo_no_file_access,
         repo_root.clone(),
         repo_url.clone(),
         repo_head_sha.clone(),
