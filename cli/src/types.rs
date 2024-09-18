@@ -40,6 +40,12 @@ pub struct UpdateBundleUploadRequest {
 }
 
 #[derive(Debug, Serialize, Clone, Deserialize, PartialEq, Eq)]
+pub struct UpdateBundleUploadRequest {
+    #[serde(rename = "uploadStatus")]
+    pub upload_status: String,
+}
+
+#[derive(Debug, Serialize, Clone, Deserialize, PartialEq, Eq)]
 pub struct GetQuarantineBulkTestStatusRequest {
     pub repo: Repo,
     #[serde(rename = "orgUrlSlug")]

@@ -8,7 +8,7 @@ use axum::body::Bytes;
 use axum::extract::State;
 use axum::http::StatusCode;
 use axum::response::Response;
-use axum::routing::{any, post, put};
+use axum::routing::{any, patch, post, put};
 use axum::{Json, Router};
 use tempfile::tempdir;
 use tokio::net::TcpListener;
@@ -117,6 +117,7 @@ async fn create_bundle_handler(
     Json(BundleUploadLocation {
         url: format!("{host}/s3upload"),
         key: String::from("unused"),
+        id: String::from("some-arbitrary-test-id"),
     })
 }
 
