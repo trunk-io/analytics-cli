@@ -5,7 +5,7 @@ use anyhow::Context;
 
 use crate::types::{
     BundleUploadLocation, CreateBundleUploadRequest, CreateRepoRequest,
-    GetQuarantineBulkTestStatusRequest, QuarantineConfig, Repo,
+    GetQuarantineBulkTestStatusRequest, QuarantineConfig, UpdateBundleUploadRequest, Repo,
 };
 use crate::utils::status_code_help;
 
@@ -45,6 +45,46 @@ pub async fn create_trunk_repo(
         .context("Failed to validate trunk repo"));
     }
 
+    Ok(())
+}
+pub async fn update_bundle_upload_status(
+    origin: &str,
+    api_token: &str,
+    id: &str,
+    upload_status: &str,
+) -> anyhow::Result<()> {
+    let client = reqwest::Client::new();
+    let resp = match client
+        .patch(format!("{}/v1/metrics/updateBundleUpload/{}", origin, id))
+        .timeout(TRUNK_API_TIMEOUT)
+        .header(reqwest::header::CONTENT_TYPE, "application/json")
+        .header(TRUNK_API_TOKEN_HEADER, api_token)
+        .json(&UpdateBundleUploadRequest{
+            upload_status: upload_status.to_owned()
+        })
+        .send()
+        .await
+    {
+        Ok(resp) => resp,
+        Err(e) => return Err(anyhow::anyhow!(e).context("Failed to update bundle upload status")),
+    };
+
+    if resp.status().is_success() {
+        return Ok(());
+    }
+
+    if resp.status().is_client_error() {
+        return Err(anyhow::anyhow!(
+            "Failed to update bundle upload status. Client error: {}",
+            resp.status()
+        ));
+    }
+
+    log::warn!(
+        "Failed to update bundle upload status. {}: {}",
+        resp.status(),
+        status_code_help(resp.status())
+    );
     Ok(())
 }
 
