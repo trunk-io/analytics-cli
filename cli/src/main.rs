@@ -77,6 +77,8 @@ struct UploadArgs {
     codeowners_path: Option<String>,
     #[arg(long, help = "Run commands with the quarantining step.")]
     use_quarantining: bool,
+    #[arg(long, help = "Do not fail if no junit files are found.")]
+    allow_missing_junit_files: bool,
 }
 
 #[derive(Args, Clone, Debug)]
@@ -152,6 +154,7 @@ async fn run_upload(
         print_files,
         dry_run,
         use_quarantining,
+        allow_missing_junit_files,
         team,
         codeowners_path,
     } = upload_args;
@@ -192,6 +195,11 @@ async fn run_upload(
 
     let (file_sets, file_counter) =
         build_filesets(&repo, &junit_paths, team.clone(), &codeowners, exec_start)?;
+
+    if (!allow_missing_junit_files && file_counter.get_count() == 0) || file_sets.is_empty() {
+        return Err(anyhow::anyhow!("No JUnit files found to upload."));
+    }
+
     let failures = extract_failed_tests(&repo, &org_url_slug, &file_sets).await?;
 
     // Run the quarantine step and update the exit code.
