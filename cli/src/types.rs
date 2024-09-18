@@ -34,6 +34,25 @@ pub struct CreateBundleUploadRequest {
 }
 
 #[derive(Debug, Serialize, Clone, Deserialize, PartialEq, Eq)]
+pub enum BundleUploadStatus {
+    #[serde(rename = "PENDING")]
+    Pending,
+    #[serde(rename = "UPLOAD_COMPLETE")]
+    UploadComplete,
+    #[serde(rename = "UPLOAD_FAILURE")]
+    UploadFailure,
+    #[serde(rename = "DRY_RUN")]
+    DryRun,
+}
+
+#[derive(Debug, Serialize, Clone, Deserialize, PartialEq, Eq)]
+pub struct UpdateBundleUploadRequest {
+    pub id: String,
+    #[serde(rename = "uploadStatus")]
+    pub upload_status: BundleUploadStatus,
+}
+
+#[derive(Debug, Serialize, Clone, Deserialize, PartialEq, Eq)]
 pub struct GetQuarantineBulkTestStatusRequest {
     pub repo: Repo,
     #[serde(rename = "orgUrlSlug")]
@@ -103,6 +122,7 @@ pub struct QuarantineConfig {
 pub struct BundleUploadLocation {
     pub url: String,
     pub key: String,
+    pub id: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
