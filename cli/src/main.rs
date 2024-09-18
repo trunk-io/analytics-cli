@@ -285,15 +285,30 @@ async fn run_upload(
     .await?;
 
     if dry_run {
+        if let Some(upload) = upload_op {
+            if let Err(e) = update_bundle_upload_status(&api_address, &token, &upload.id, "DRY_RUN").await {
+                log::warn!("Failed to update bundle upload status: {}", e);
+            } else {
+                log::debug!("Updated bundle upload status to DRY_RUN");
+            }
+        }
         log::info!("Dry run, skipping upload.");
         return Ok(exit_code);
     }
 
     if let Some(upload) = upload_op {
-        Retry::spawn(default_delay(), || {
-            put_bundle_to_s3(&upload.url, &bundle_time_file)
-        })
-        .await?;
+        let upload_status = match Retry::spawn(default_delay(), || put_bundle_to_s3(&upload.url, &bundle_time_file)).await {
+            Ok(_) => "UPLOAD_COMPLETE",
+            Err(e) => {
+                log::error!("Failed to upload bundle to S3 after retries: {}", e);
+                "UPLOAD_FAILURE"
+            }
+        };
+
+        match update_bundle_upload_status(&api_address, &token, &upload.id, upload_status).await {
+            Ok(_) => log::debug!("Updated bundle upload status to {}", upload_status),
+            Err(e) => log::warn!("Failed to update bundle upload status to {}: {}", upload_status, e),
+        }
     }
 
     let remote_urls = vec![repo.repo_url.clone()];

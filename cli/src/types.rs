@@ -33,6 +33,11 @@ pub struct CreateBundleUploadRequest {
     pub org_url_slug: String,
 }
 
+#[derive(Debug, Serialize, Clone, Deserialize)]
+pub struct UpdateBundleUploadRequest {
+    pub upload_status: String,
+}
+
 #[derive(Debug, Serialize, Clone, Deserialize, PartialEq, Eq)]
 pub struct GetQuarantineBulkTestStatusRequest {
     pub repo: Repo,
@@ -103,6 +108,7 @@ pub struct QuarantineConfig {
 pub struct BundleUploadLocation {
     pub url: String,
     pub key: String,
+    pub id: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
