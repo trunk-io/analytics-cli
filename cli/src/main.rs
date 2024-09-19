@@ -232,16 +232,18 @@ async fn run_upload(
 
     let envs = EnvScanner::scan_env();
     let os_info: String = env::consts::OS.to_string();
+
+    let cli_version = format!(
+        "cargo={} git={} rustc={}",
+        env!("CARGO_PKG_VERSION"),
+        env!("VERGEN_GIT_SHA"),
+        env!("VERGEN_RUSTC_SEMVER")
+    );
     let meta = BundleMeta {
         version: META_VERSION.to_string(),
-        cli_version: format!(
-            "cargo={} git={} rustc={}",
-            env!("CARGO_PKG_VERSION"),
-            env!("VERGEN_GIT_SHA"),
-            env!("VERGEN_RUSTC_SEMVER")
-        ),
         org: org_url_slug.clone(),
         repo: repo.clone(),
+        cli_version: cli_version.clone(),
         tags,
         file_sets,
         envs,
@@ -279,8 +281,12 @@ async fn run_upload(
     bundler.make_tarball(&bundle_time_file)?;
     log::info!("Flushed temporary tarball to {:?}", bundle_time_file);
 
+
+    let client_version = format!("trunk-analytics-cli {}", cli_version);
     let upload_op = Retry::spawn(default_delay(), || {
-        get_bundle_upload_location(&api_address, &token, &org_url_slug, &repo.repo)
+        get_bundle_upload_location(
+            &api_address, &token, &org_url_slug, &repo.repo, &client_version
+        )
     })
     .await?;
 

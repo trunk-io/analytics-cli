@@ -31,6 +31,8 @@ pub struct CreateBundleUploadRequest {
     pub repo: Repo,
     #[serde(rename = "orgUrlSlug")]
     pub org_url_slug: String,
+    #[serde(rename = "clientVersion")]
+    pub client_version: String,
 }
 
 #[derive(Debug, Serialize, Clone, Deserialize, PartialEq, Eq)]
