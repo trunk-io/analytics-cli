@@ -10,8 +10,7 @@ use tempfile::tempdir;
 use test_utils::mock_git_repo::setup_repo_with_commit;
 use test_utils::mock_server::{spawn_mock_server, RequestPayload};
 use trunk_analytics_cli::types::{
-    BundleMeta, CreateBundleUploadRequest, CreateRepoRequest, FileSetType,
-    GetQuarantineBulkTestStatusRequest, Repo,
+    BundleMeta, CreateRepoRequest, FileSetType, GetQuarantineBulkTestStatusRequest, Repo,
 };
 
 mod test_utils;
@@ -72,17 +71,21 @@ async fn upload_bundle() {
         })
     );
 
+    let upload_request = assert_matches!(requests_iter.next().unwrap(), RequestPayload::CreateBundleUpload(ur) => ur);
     assert_eq!(
-        requests_iter.next().unwrap(),
-        RequestPayload::CreateBundleUpload(CreateBundleUploadRequest {
-            repo: Repo {
-                host: String::from("github.com"),
-                owner: String::from("trunk-io"),
-                name: String::from("analytics-cli"),
-            },
-            org_url_slug: String::from("test-org"),
-        })
+        upload_request.repo,
+        Repo {
+            host: String::from("github.com"),
+            owner: String::from("trunk-io"),
+            name: String::from("analytics-cli"),
+        }
     );
+    assert_eq!(upload_request.org_url_slug, String::from("test-org"));
+    assert!(upload_request
+        .client_version
+        .starts_with("trunk-analytics-cli cargo="));
+    assert!(upload_request.client_version.contains(" git="));
+    assert!(upload_request.client_version.contains(" rustc="));
 
     let tar_extract_directory =
         assert_matches!(requests_iter.next().unwrap(), RequestPayload::S3Upload(d) => d);
