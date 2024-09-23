@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use codeowners::Owners;
+use codeowners::{FromPath, GitHubOwners};
 use serde::{Deserialize, Serialize};
 
 use crate::constants::CODEOWNERS_LOCATIONS;
@@ -9,7 +9,7 @@ use crate::constants::CODEOWNERS_LOCATIONS;
 pub struct CodeOwners {
     pub path: PathBuf,
     #[serde(skip_serializing, skip_deserializing)]
-    pub owners: Option<Owners>,
+    pub owners: Option<GitHubOwners>,
 }
 
 impl CodeOwners {
@@ -30,7 +30,7 @@ impl CodeOwners {
             all_locations.find_map(|location| locate_codeowners(&repo_root, location));
 
         codeowners_path.map(|path| {
-            let owners_result = codeowners::from_path(&path);
+            let owners_result = GitHubOwners::from_path(&path);
             if let Err(ref err) = owners_result {
                 log::error!(
                     "Found CODEOWNERS file `{}`, but couldn't parse it: {}",

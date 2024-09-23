@@ -1,6 +1,7 @@
 use std::format;
 use std::time::SystemTime;
 
+use codeowners::OwnersOfPath;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 
