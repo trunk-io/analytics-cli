@@ -196,7 +196,7 @@ async fn run_upload(
     let (file_sets, file_counter) =
         build_filesets(&repo, &junit_paths, team.clone(), &codeowners, exec_start)?;
 
-    if (!allow_missing_junit_files && file_counter.get_count() == 0) || file_sets.is_empty() {
+    if !allow_missing_junit_files && (file_counter.get_count() == 0 || file_sets.is_empty()) {
         return Err(anyhow::anyhow!("No JUnit files found to upload."));
     }
 
