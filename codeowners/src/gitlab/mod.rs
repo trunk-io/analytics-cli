@@ -38,7 +38,7 @@ impl fmt::Display for GitLabOwner {
     }
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct GitLabOwners {
     file: File,
 }
