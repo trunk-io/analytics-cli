@@ -5,7 +5,7 @@ use codeowners::OwnersOfPath;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 
-use crate::codeowners::CodeOwners;
+use crate::codeowners::{CodeOwners, Owners};
 use crate::constants::{ALLOW_LIST, ENVS_TO_GET};
 use crate::types::{BundledFile, FileSetType, Repo};
 use crate::utils::from_non_empty_or_default;
@@ -110,12 +110,13 @@ impl FileSet {
             let owners = codeowners
                 .as_ref()
                 .and_then(|codeowners| codeowners.owners.as_ref())
-                .and_then(|codeowners_owners| codeowners_owners.of(path.as_path()))
-                .map(|codeowners_owners_of_path| {
-                    codeowners_owners_of_path
-                        .iter()
-                        .map(|owner| owner.to_string())
-                        .collect::<Vec<String>>()
+                .and_then(|codeowners_owners| match codeowners_owners {
+                    Owners::GitHubOwners(gho) => gho
+                        .of(path.as_path())
+                        .map(|o| o.iter().map(ToString::to_string).collect::<Vec<String>>()),
+                    Owners::GitLabOwners(glo) => glo
+                        .of(path.as_path())
+                        .map(|o| o.iter().map(ToString::to_string).collect::<Vec<String>>()),
                 })
                 .unwrap_or_default();
 
