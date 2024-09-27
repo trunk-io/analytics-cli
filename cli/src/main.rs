@@ -2,7 +2,6 @@ use std::env;
 use std::io::Write;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use anyhow::Context;
 use clap::{Args, Parser, Subcommand};
 use tokio_retry::strategy::ExponentialBackoff;
 use tokio_retry::Retry;
@@ -242,12 +241,10 @@ async fn run_upload(
     let envs = EnvScanner::scan_env();
     let os_info: String = env::consts::OS.to_string();
 
-    let upload_op = Retry::spawn(default_delay(), || {
+    let upload = Retry::spawn(default_delay(), || {
         create_bundle_upload_intent(&api_address, &token, &org_url_slug, &repo.repo)
     })
     .await?;
-
-    let upload = upload_op.context("Failed to create bundle upload.")?;
 
     let meta = BundleMeta {
         version: META_VERSION.to_string(),
