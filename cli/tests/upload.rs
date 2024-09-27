@@ -9,6 +9,7 @@ use junit_mock::JunitMock;
 use tempfile::tempdir;
 use test_utils::mock_git_repo::setup_repo_with_commit;
 use test_utils::mock_server::{spawn_mock_server, RequestPayload};
+use trunk_analytics_cli::codeowners::CodeOwners;
 use trunk_analytics_cli::types::{
     BundleMeta, BundleUploadStatus, CreateBundleUploadRequest, CreateRepoRequest, FileSetType,
     GetQuarantineBulkTestStatusRequest, Repo, UpdateBundleUploadRequest,
@@ -27,12 +28,21 @@ fn generate_mock_junit_xmls<T: AsRef<Path>>(directory: T) {
     JunitMock::write_reports_to_file(directory.as_ref(), reports).unwrap();
 }
 
+fn generate_mock_codeowners<T: AsRef<Path>>(directory: T) {
+    const CODEOWNERS: &str = r#"
+        [Owners of Everything]
+        * @user
+    "#;
+    fs::write(directory.as_ref().join("CODEOWNERS"), CODEOWNERS).unwrap();
+}
+
 // NOTE: must be multi threaded to start a mock server
 #[tokio::test(flavor = "multi_thread")]
 async fn upload_bundle() {
     let temp_dir = tempdir().unwrap();
     generate_mock_git_repo(&temp_dir);
     generate_mock_junit_xmls(&temp_dir);
+    generate_mock_codeowners(&temp_dir);
 
     let state = spawn_mock_server().await;
 
@@ -110,6 +120,7 @@ async fn upload_bundle() {
         bundle_meta.repo.repo_head_author_email,
         "your.email@example.com"
     );
+    assert_eq!(bundle_meta.bundle_upload_id, "test-bundle-upload-id");
     assert_eq!(bundle_meta.tags, &[]);
     assert_eq!(bundle_meta.file_sets.len(), 1);
     assert_eq!(bundle_meta.envs.get("CI"), Some(&String::from("1")));
@@ -119,7 +130,13 @@ async fn upload_bundle() {
     assert_eq!(bundle_meta.test_command, None);
     assert!(bundle_meta.os_info.is_some());
     assert!(bundle_meta.quarantined_tests.is_empty());
-    assert_eq!(bundle_meta.codeowners, None);
+    assert_eq!(
+        bundle_meta.codeowners,
+        Some(CodeOwners {
+            path: temp_dir.as_ref().join("CODEOWNERS").canonicalize().unwrap(),
+            owners: None,
+        })
+    );
 
     let file_set = bundle_meta.file_sets.get(0).unwrap();
     assert_eq!(file_set.file_set_type, FileSetType::Junit);
@@ -138,7 +155,7 @@ async fn upload_bundle() {
     let time_since_junit_modified = chrono::Utc::now()
         - chrono::DateTime::from_timestamp_nanos(bundled_file.last_modified_epoch_ns as i64);
     assert_eq!(time_since_junit_modified.num_minutes(), 0);
-    assert!(bundled_file.owners.is_empty());
+    assert_eq!(bundled_file.owners, ["@user"]);
     assert_eq!(bundled_file.team, None);
 
     assert_eq!(
