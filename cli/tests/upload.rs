@@ -120,6 +120,7 @@ async fn upload_bundle() {
         bundle_meta.repo.repo_head_author_email,
         "your.email@example.com"
     );
+    assert_eq!(bundle_meta.bundle_upload_id, "test-bundle-upload-id");
     assert_eq!(bundle_meta.tags, &[]);
     assert_eq!(bundle_meta.file_sets.len(), 1);
     assert_eq!(bundle_meta.envs.get("CI"), Some(&String::from("1")));

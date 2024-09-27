@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use anyhow::Context;
 
 use crate::types::{
-    BundleUploadLocation, CreateBundleUploadRequest, CreateRepoRequest,
+    CreateBundleUploadResponse, CreateBundleUploadRequest, CreateRepoRequest,
     GetQuarantineBulkTestStatusRequest, QuarantineConfig, Repo,
 };
 use crate::utils::status_code_help;
@@ -48,12 +48,12 @@ pub async fn create_trunk_repo(
     Ok(())
 }
 
-pub async fn get_bundle_upload_location(
+pub async fn create_bundle_upload_intent(
     origin: &str,
     api_token: &str,
     org_slug: &str,
     repo: &Repo,
-) -> anyhow::Result<Option<BundleUploadLocation>> {
+) -> anyhow::Result<Option<CreateBundleUploadResponse>> {
     let client = reqwest::Client::new();
     let resp = match client
         .post(format!("{}/v1/metrics/createBundleUpload", origin))
@@ -73,7 +73,7 @@ pub async fn get_bundle_upload_location(
 
     if resp.status().is_success() {
         return resp
-            .json::<Option<BundleUploadLocation>>()
+            .json::<Option<CreateBundleUploadResponse>>()
             .await
             .context("Failed to get response body as json");
     }
