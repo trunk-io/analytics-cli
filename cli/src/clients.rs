@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use anyhow::Context;
 
 use crate::types::{
-    CreateBundleUploadResponse, CreateBundleUploadRequest, CreateRepoRequest,
+    CreateBundleUploadRequest, CreateBundleUploadResponse, CreateRepoRequest,
     GetQuarantineBulkTestStatusRequest, QuarantineConfig, Repo,
 };
 use crate::utils::status_code_help;

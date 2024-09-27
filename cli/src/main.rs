@@ -8,7 +8,7 @@ use tokio_retry::strategy::ExponentialBackoff;
 use tokio_retry::Retry;
 use trunk_analytics_cli::bundler::BundlerUtil;
 use trunk_analytics_cli::clients::{
-    create_trunk_repo, create_bundle_upload_intent, put_bundle_to_s3,
+    create_bundle_upload_intent, create_trunk_repo, put_bundle_to_s3,
 };
 use trunk_analytics_cli::codeowners::CodeOwners;
 use trunk_analytics_cli::constants::{
