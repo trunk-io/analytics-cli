@@ -5,7 +5,7 @@ use anyhow::Context;
 
 use crate::types::{
     BundleUploadStatus, CreateBundleUploadRequest, CreateBundleUploadResponse, CreateRepoRequest,
-    GetQuarantineBulkTestStatusRequest, QuarantineConfig, Repo, UpdateBundleUploadRequest
+    GetQuarantineBulkTestStatusRequest, QuarantineConfig, Repo, UpdateBundleUploadRequest,
 };
 use crate::utils::status_code_help;
 

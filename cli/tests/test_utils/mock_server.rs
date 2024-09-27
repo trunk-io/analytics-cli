@@ -15,7 +15,7 @@ use tokio::net::TcpListener;
 use tokio::spawn;
 use trunk_analytics_cli::types::{
     CreateBundleUploadRequest, CreateBundleUploadResponse, CreateRepoRequest,
-    GetQuarantineBulkTestStatusRequest, QuarantineConfig, UpdateBundleUploadRequest
+    GetQuarantineBulkTestStatusRequest, QuarantineConfig, UpdateBundleUploadRequest,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -118,7 +118,6 @@ async fn create_bundle_handler(
         id: String::from("test-bundle-upload-id"),
         url: format!("{host}/s3upload"),
         key: String::from("unused"),
-        id: String::from("some-arbitrary-test-id"),
     })
 }
 

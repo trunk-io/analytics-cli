@@ -161,7 +161,7 @@ async fn upload_bundle() {
     assert_eq!(
         requests_iter.next().unwrap(),
         RequestPayload::UpdateBundleUpload(UpdateBundleUploadRequest {
-            id: "some-arbitrary-test-id".to_string(),
+            id: "test-bundle-upload-id".to_string(),
             upload_status: BundleUploadStatus::UploadComplete
         }),
     );

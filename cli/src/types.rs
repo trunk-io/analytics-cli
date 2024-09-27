@@ -123,7 +123,6 @@ pub struct CreateBundleUploadResponse {
     pub id: String,
     pub url: String,
     pub key: String,
-    pub id: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
