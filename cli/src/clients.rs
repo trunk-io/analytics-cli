@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use anyhow::Context;
 
 use crate::types::{
-    BundleUploadLocation, CreateBundleUploadRequest, CreateRepoRequest,
+    CreateBundleUploadRequest, CreateBundleUploadResponse, CreateRepoRequest,
     GetQuarantineBulkTestStatusRequest, QuarantineConfig, Repo,
 };
 use crate::utils::status_code_help;
@@ -48,12 +48,12 @@ pub async fn create_trunk_repo(
     Ok(())
 }
 
-pub async fn get_bundle_upload_location(
+pub async fn create_bundle_upload_intent(
     origin: &str,
     api_token: &str,
     org_slug: &str,
     repo: &Repo,
-) -> anyhow::Result<Option<BundleUploadLocation>> {
+) -> anyhow::Result<CreateBundleUploadResponse> {
     let client = reqwest::Client::new();
     let resp = match client
         .post(format!("{}/v1/metrics/createBundleUpload", origin))
@@ -71,27 +71,16 @@ pub async fn get_bundle_upload_location(
         Err(e) => return Err(anyhow::anyhow!(e).context("Failed to create bundle upload")),
     };
 
-    if resp.status().is_success() {
-        return resp
-            .json::<Option<BundleUploadLocation>>()
-            .await
-            .context("Failed to get response body as json");
+    if resp.status() != reqwest::StatusCode::OK {
+        return Err(
+            anyhow::anyhow!("{}: {}", resp.status(), status_code_help(resp.status()))
+                .context("Failed to create bundle upload"),
+        );
     }
 
-    if resp.status().is_client_error() {
-        return Err(anyhow::anyhow!(
-            "Organization not found. Please double check the provided organization token and url slug: {}",
-            org_slug
-        )
-        .context("Failed to create bundle upload"));
-    }
-
-    log::warn!(
-        "Failed to create bundle upload. {}: {}",
-        resp.status(),
-        status_code_help(resp.status())
-    );
-    Ok(None)
+    resp.json::<CreateBundleUploadResponse>()
+        .await
+        .context("Failed to get response body as json")
 }
 
 pub async fn get_quarantining_config(
