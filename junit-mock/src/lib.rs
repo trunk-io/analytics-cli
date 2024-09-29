@@ -51,7 +51,7 @@ macro_rules! percentages_parser {
     };
 }
 
-#[derive(Debug, Parser)]
+#[derive(Debug, Parser, Clone)]
 pub struct Options {
     #[command(flatten, next_help_heading = "Global Options")]
     pub global: GlobalOptions,
@@ -80,7 +80,7 @@ fn options_can_be_defaulted_without_panicing() {
     Options::default();
 }
 
-#[derive(Debug, Parser)]
+#[derive(Debug, Parser, Clone)]
 #[group()]
 pub struct GlobalOptions {
     /// Seed for all generated data, defaults to randomly generated seed
@@ -88,7 +88,7 @@ pub struct GlobalOptions {
     pub seed: Option<u64>,
 }
 
-#[derive(Debug, Parser)]
+#[derive(Debug, Parser, Clone)]
 #[group()]
 pub struct ReportOptions {
     /// A list of report names to generate (conflicts with --report-random-count)
@@ -104,7 +104,7 @@ pub struct ReportOptions {
     pub report_duration_range: Vec<humantime::Duration>,
 }
 
-#[derive(Debug, Parser)]
+#[derive(Debug, Parser, Clone)]
 #[group()]
 pub struct TestSuiteOptions {
     /// A list of test suite names to generate (conflicts with --test-suite-random-count)
@@ -130,7 +130,7 @@ pub struct TestSuiteOptions {
 
 percentages_parser!(four_percentages_parser, 4);
 
-#[derive(Debug, Parser)]
+#[derive(Debug, Parser, Clone)]
 #[group()]
 pub struct TestCaseOptions {
     /// A list of test case names to generate (conflicts with --test-case-random-count, requires --test-case-classnames)
@@ -174,7 +174,7 @@ pub struct TestCaseOptions {
 
 percentages_parser!(two_percentages_parser, 2);
 
-#[derive(Debug, Parser)]
+#[derive(Debug, Parser, Clone)]
 #[group()]
 pub struct TestRerunOptions {
     /// Inclusive range of the number of reruns of a test that was not skipped
@@ -186,6 +186,7 @@ pub struct TestRerunOptions {
     pub test_rerun_fail_to_error_percentage: Vec<Vec<u8>>,
 }
 
+#[derive(Debug, Clone)]
 pub struct JunitMock {
     seed: u64,
     rng: StdRng,
