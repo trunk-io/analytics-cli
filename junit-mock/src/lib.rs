@@ -69,6 +69,17 @@ pub struct Options {
     pub test_rerun: TestRerunOptions,
 }
 
+impl Default for Options {
+    fn default() -> Self {
+        Options::try_parse_from([""]).unwrap()
+    }
+}
+
+#[test]
+fn options_can_be_defaulted_without_panicing() {
+    Options::default();
+}
+
 #[derive(Debug, Parser)]
 #[group()]
 pub struct GlobalOptions {
