@@ -4,6 +4,7 @@
 
 pub mod env;
 pub mod junit;
+pub mod repo;
 
 fn safe_truncate_string<'a, const MAX_LEN: usize, T: AsRef<str>>(value: &'a T) -> &'a str {
     safe_truncate_str::<MAX_LEN>(value.as_ref())

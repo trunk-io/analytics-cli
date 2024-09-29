@@ -23,19 +23,6 @@ pub fn status_code_help(status: reqwest::StatusCode) -> String {
     .to_string()
 }
 
-pub fn from_non_empty_or_default<R, F: Fn(String) -> R>(
-    s: Option<String>,
-    default: R,
-    from_non_empty: F,
-) -> R {
-    if let Some(s) = s {
-        if !s.trim().is_empty() {
-            return from_non_empty(s);
-        }
-    }
-    default
-}
-
 pub fn parse_custom_tags(tags: &[String]) -> anyhow::Result<Vec<CustomTag>> {
     let parsed = tags.iter()
         .filter(|tag_str| !tag_str.trim().is_empty())

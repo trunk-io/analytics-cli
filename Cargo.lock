@@ -106,6 +106,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "86fdf8605db99b54d3cd748a44c6d04df638eb5dafb219b135d0149bd0db01f6"
 
 [[package]]
+name = "api"
+version = "0.1.0"
+dependencies = [
+ "context",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "arc-swap"
 version = "1.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -447,11 +456,18 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "chrono",
+ "gix",
  "junit-mock",
+ "openssl",
  "pretty_assertions",
  "quick-junit",
  "quick-xml",
+ "regex",
+ "serde",
+ "serde_json",
  "speedate",
+ "tempfile",
+ "test_utils",
  "thiserror",
 ]
 
@@ -639,9 +655,9 @@ dependencies = [
 
 [[package]]
 name = "flate2"
-version = "1.0.33"
+version = "1.0.34"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "324a1be68054ef05ad64b861cc9eaf1d623d2d8cb25b4bf2cb9cdd902b4bf253"
+checksum = "a1b589b4dc103969ad3cf85c950899926ec64300a1a46d76c03a6072957036f0"
 dependencies = [
  "crc32fast",
  "miniz_oxide",
@@ -2656,6 +2672,21 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3369f5ac52d5eb6ab48c6b4ffdc8efbcad6b89c765749064ba298f2c68a16a76"
 
 [[package]]
+name = "test_utils"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "api",
+ "axum",
+ "git2",
+ "junit-mock",
+ "tar",
+ "tempfile",
+ "tokio",
+ "zstd",
+]
+
+[[package]]
 name = "thiserror"
 version = "1.0.63"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2858,16 +2889,16 @@ name = "trunk-analytics-cli"
 version = "0.0.0"
 dependencies = [
  "anyhow",
+ "api",
  "assert_cmd",
  "assert_matches",
  "axum",
  "chrono",
  "clap",
  "codeowners",
+ "context",
  "env_logger",
  "exitcode",
- "git2",
- "gix",
  "glob",
  "junit-mock",
  "junit-parser",
@@ -2880,6 +2911,7 @@ dependencies = [
  "serde_json",
  "tar",
  "tempfile",
+ "test_utils",
  "tokio",
  "tokio-retry",
  "uuid",
@@ -3318,9 +3350,9 @@ checksum = "589f6da84c646204747d1270a2a5661ea66ed1cced2631d546fdfb155959f9ec"
 
 [[package]]
 name = "winnow"
-version = "0.6.18"
+version = "0.6.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "68a9bda4691f099d435ad181000724da8e5899daa10713c2d432552b9ccd3a6f"
+checksum = "36c1fec1a2bb5866f07c25f68c26e565c4c200aebb96d7e55710c19d3e8ac49b"
 dependencies = [
  "memchr",
 ]
