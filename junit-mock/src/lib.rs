@@ -1,5 +1,5 @@
 use std::fs::File;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use anyhow::Result;
@@ -275,13 +275,17 @@ impl JunitMock {
     pub fn write_reports_to_file<T: AsRef<Path>, U: AsRef<[Report]>>(
         directory: T,
         reports: U,
-    ) -> Result<()> {
-        for (i, report) in reports.as_ref().iter().enumerate() {
-            let path = directory.as_ref().join(format!("junit-{}.xml", i));
-            let file = File::create(path)?;
-            report.serialize(file)?;
-        }
-        Ok(())
+    ) -> Result<Vec<PathBuf>> {
+        reports.as_ref().iter().enumerate().try_fold(
+            Vec::new(),
+            |mut acc, (i, report)| -> Result<Vec<PathBuf>> {
+                let path = directory.as_ref().join(format!("junit-{}.xml", i));
+                let file = File::create(&path)?;
+                report.serialize(file)?;
+                acc.push(path);
+                Ok(acc)
+            },
+        )
     }
 
     fn generate_test_suites(&mut self) -> Vec<TestSuite> {
