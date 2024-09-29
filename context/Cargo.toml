@@ -1,0 +1,16 @@
+[package]
+name = "context"
+version = "0.1.0"
+edition = "2021"
+
+[dev-dependencies]
+pretty_assertions = "0.6"
+junit-mock = { path = "../junit-mock" }
+
+[dependencies]
+anyhow = "1.0.44"
+chrono = "0.4.33"
+quick-junit = "0.5.0"
+quick-xml = "0.36.2"
+speedate = "0.14.4"
+thiserror = "1.0.63"
