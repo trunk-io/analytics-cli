@@ -563,7 +563,7 @@ mod unescape_and_truncate {
 
     use quick_xml::events::{attributes::Attribute, BytesText};
 
-    use crate::safe_truncate_str;
+    use crate::string_safety::safe_truncate_str;
 
     const MAX_TEXT_FIELD_SIZE: usize = 8_000;
 

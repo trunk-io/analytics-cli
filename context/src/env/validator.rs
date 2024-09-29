@@ -1,6 +1,6 @@
 use thiserror::Error;
 
-use crate::{validate_field_len, FieldLen};
+use crate::string_safety::{validate_field_len, FieldLen};
 
 use super::parser::{BranchClass, CIInfo};
 
