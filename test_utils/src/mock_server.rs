@@ -1,22 +1,25 @@
-use std::collections::HashSet;
-use std::fs;
-use std::io::Read;
-use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
+use std::{
+    collections::HashSet,
+    fs,
+    io::Read,
+    path::PathBuf,
+    sync::{Arc, Mutex},
+};
 
-use axum::body::Bytes;
-use axum::extract::State;
-use axum::http::StatusCode;
-use axum::response::Response;
-use axum::routing::{any, post, put};
-use axum::{Json, Router};
-use tempfile::tempdir;
-use tokio::net::TcpListener;
-use tokio::spawn;
-use trunk_analytics_cli::types::{
+use api::{
     CreateBundleUploadRequest, CreateBundleUploadResponse, CreateRepoRequest,
     GetQuarantineBulkTestStatusRequest, QuarantineConfig,
 };
+use axum::{
+    body::Bytes,
+    extract::State,
+    http::StatusCode,
+    response::Response,
+    routing::{any, post, put},
+    {Json, Router},
+};
+use tempfile::tempdir;
+use tokio::{net::TcpListener, spawn};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RequestPayload {
@@ -37,7 +40,6 @@ pub type SharedMockServerState = Arc<MockServerState>;
 /// Mock server spawned in a new thread.
 ///
 /// NOTE: must use a multithreaded executor to have the server run while running tests
-#[allow(dead_code)] // TODO: move this to its own crate to get rid of the need for this
 pub async fn spawn_mock_server() -> SharedMockServerState {
     let listener = TcpListener::bind("localhost:0").await.unwrap();
     let random_port = listener.local_addr().unwrap().port();
@@ -81,7 +83,6 @@ pub async fn spawn_mock_server() -> SharedMockServerState {
     state
 }
 
-#[allow(dead_code)] // TODO: move this to its own crate to get rid of the need for this
 #[axum::debug_handler]
 async fn repo_create_handler(
     State(state): State<SharedMockServerState>,
@@ -95,7 +96,6 @@ async fn repo_create_handler(
     Response::new(String::from("OK"))
 }
 
-#[allow(dead_code)] // TODO: move this to its own crate to get rid of the need for this
 #[axum::debug_handler]
 async fn create_bundle_handler(
     State(state): State<SharedMockServerState>,
@@ -116,7 +116,6 @@ async fn create_bundle_handler(
     })
 }
 
-#[allow(dead_code)] // TODO: move this to its own crate to get rid of the need for this
 #[axum::debug_handler]
 async fn get_quarantining_config_handler(
     State(state): State<SharedMockServerState>,
@@ -135,7 +134,6 @@ async fn get_quarantining_config_handler(
     })
 }
 
-#[allow(dead_code)] // TODO: move this to its own crate to get rid of the need for this
 #[axum::debug_handler]
 async fn s3_upload_handler(
     State(state): State<SharedMockServerState>,

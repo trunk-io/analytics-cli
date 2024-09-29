@@ -1,12 +1,12 @@
-use std::format;
-use std::path::PathBuf;
+use std::{format, path::PathBuf};
 
 use anyhow::Context;
-
-use crate::types::{
+use api::{
     CreateBundleUploadRequest, CreateBundleUploadResponse, CreateRepoRequest,
-    GetQuarantineBulkTestStatusRequest, QuarantineConfig, Repo,
+    GetQuarantineBulkTestStatusRequest, QuarantineConfig,
 };
+use context::repo::RepoUrlParts;
+
 use crate::utils::status_code_help;
 
 pub const TRUNK_API_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
@@ -16,7 +16,7 @@ pub async fn create_trunk_repo(
     origin: &str,
     api_token: &str,
     org_slug: &str,
-    repo: &Repo,
+    repo: &RepoUrlParts,
     remote_urls: &[String],
 ) -> anyhow::Result<()> {
     let client = reqwest::Client::new();
@@ -52,7 +52,7 @@ pub async fn create_bundle_upload_intent(
     origin: &str,
     api_token: &str,
     org_slug: &str,
-    repo: &Repo,
+    repo: &RepoUrlParts,
 ) -> anyhow::Result<CreateBundleUploadResponse> {
     let client = reqwest::Client::new();
     let resp = match client
@@ -87,7 +87,7 @@ pub async fn get_quarantining_config(
     origin: &str,
     api_token: &str,
     org_slug: &str,
-    repo: &Repo,
+    repo: &RepoUrlParts,
 ) -> anyhow::Result<QuarantineConfig> {
     let client = reqwest::Client::new();
     let resp = match client
