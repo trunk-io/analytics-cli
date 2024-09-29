@@ -5,6 +5,8 @@ use gix::Repository;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 
+pub mod validator;
+
 pub const GIT_REMOTE_ORIGIN_URL_CONFIG: &str = "remote.origin.url";
 
 #[derive(Debug, Clone, Default)]
