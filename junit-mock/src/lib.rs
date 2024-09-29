@@ -3,6 +3,7 @@ use std::path::Path;
 use std::time::Duration;
 
 use anyhow::Result;
+use chrono::{DateTime, FixedOffset};
 use clap::Parser;
 use fake::Fake;
 use quick_junit::{NonSuccessKind, Report, TestCase, TestCaseStatus, TestRerun, TestSuite};
@@ -86,6 +87,10 @@ pub struct GlobalOptions {
     /// Seed for all generated data, defaults to randomly generated seed
     #[arg(long)]
     pub seed: Option<u64>,
+
+    /// Timestamp for all data to be based on, defaults to now
+    #[arg(long)]
+    pub timestamp: Option<DateTime<FixedOffset>>,
 }
 
 #[derive(Debug, Parser, Clone)]
@@ -189,22 +194,23 @@ pub struct TestRerunOptions {
 #[derive(Debug, Clone)]
 pub struct JunitMock {
     seed: u64,
-    rng: StdRng,
     options: Options,
 
     // state for generating reports
-    timestamp: chrono::DateTime<chrono::Utc>,
+    rng: StdRng,
+    timestamp: DateTime<FixedOffset>,
     total_duration: Duration,
 }
 
 impl JunitMock {
     pub fn new(options: Options) -> Self {
         let (seed, rng) = JunitMock::rng_from_seed(&options);
+        let timestamp = options.global.timestamp.unwrap_or_default();
         Self {
             seed,
-            rng,
             options,
-            timestamp: chrono::Utc::now(),
+            rng,
+            timestamp,
             total_duration: Duration::new(0, 0),
         }
     }
@@ -231,7 +237,11 @@ impl JunitMock {
     }
 
     pub fn generate_reports(&mut self) -> Vec<Report> {
-        self.timestamp = chrono::Utc::now();
+        self.timestamp = self
+            .options
+            .global
+            .timestamp
+            .unwrap_or_else(|| chrono::Utc::now().fixed_offset());
 
         self.options
             .report
