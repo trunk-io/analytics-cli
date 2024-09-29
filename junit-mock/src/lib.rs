@@ -189,6 +189,18 @@ pub struct TestRerunOptions {
     /// The chance of a test rerun failing and erroring (must add up to 100)
     #[arg(long, value_parser = two_percentages_parser, default_value = "50,50")]
     pub test_rerun_fail_to_error_percentage: Vec<Vec<u8>>,
+
+    /// The chance of a system out message being added to the test rerun
+    #[arg(long, value_parser = clap::value_parser!(u8).range(0..=100), default_value = "50")]
+    pub test_rerun_sys_out_percentage: u8,
+
+    /// Inclusive range of time between test case timestamps
+    #[arg(long, num_args = 1..=2, value_names = ["DURATION_RANGE_START", "DURATION_RANGE_END"], default_values = ["30s", "1m"])]
+    pub test_rerun_duration_range: Vec<humantime::Duration>,
+
+    /// The chance of a system error message being added to the test rerun
+    #[arg(long, value_parser = clap::value_parser!(u8).range(0..=100), default_value = "50")]
+    pub test_rerun_sys_err_percentage: u8,
 }
 
 #[derive(Debug, Clone)]
@@ -355,14 +367,27 @@ impl JunitMock {
             .iter()
             .zip(classnames.iter())
             .map(|(test_case_name, test_case_classname)| -> TestCase {
-                let mut test_case = TestCase::new(test_case_name, self.generate_test_case_status());
+                let last_duration = self.total_duration;
+                let timestamp = self.timestamp;
+
+                let test_case_status = self.generate_test_case_status();
+                let is_skipped = matches!(&test_case_status, TestCaseStatus::Skipped { .. });
+
+                let mut test_case = TestCase::new(test_case_name, test_case_status);
+                let file: String =
+                    fake::faker::filesystem::en::FilePath().fake_with_rng(&mut self.rng);
+                test_case.extra.insert("file".into(), file.into());
                 test_case.set_classname(format!("{test_case_classname}/{test_case_name}"));
                 test_case.set_assertions(self.rng.gen_range(1..10));
-                test_case.set_timestamp(self.timestamp);
-                let duration =
-                    self.fake_duration(self.options.test_case.test_case_duration_range.clone());
-                test_case.set_time(duration);
+                test_case.set_timestamp(timestamp);
+                let duration = if is_skipped {
+                    Default::default()
+                } else {
+                    self.fake_duration(self.options.test_case.test_case_duration_range.clone())
+                };
+                test_case.set_time((self.total_duration + duration) - last_duration);
                 self.increment_duration(duration);
+
                 if self.rand_bool(self.options.test_case.test_case_sys_out_percentage) {
                     test_case.set_system_out(self.fake_paragraphs());
                 }
@@ -438,13 +463,37 @@ impl JunitMock {
             .expect("test rerun failure percentage must be set");
         (0..count)
             .map(|_| {
-                TestRerun::new(if self.rand_percentage() <= failure_to_error_threshold {
-                    NonSuccessKind::Failure
-                } else {
-                    NonSuccessKind::Error
-                })
+                let mut test_rerun =
+                    TestRerun::new(if self.rand_percentage() <= failure_to_error_threshold {
+                        NonSuccessKind::Failure
+                    } else {
+                        NonSuccessKind::Error
+                    });
+
+                test_rerun.set_timestamp(self.timestamp);
+                let duration =
+                    self.fake_duration(self.options.test_rerun.test_rerun_duration_range.clone());
+                test_rerun.set_time(duration);
+                self.increment_duration(duration);
+
+                test_rerun.set_message(self.fake_sentence());
+                if self.rand_bool(self.options.test_rerun.test_rerun_sys_out_percentage) {
+                    test_rerun.set_system_out(self.fake_paragraphs());
+                }
+                if self.rand_bool(self.options.test_rerun.test_rerun_sys_err_percentage) {
+                    test_rerun.set_system_err(self.fake_paragraphs());
+                }
+                test_rerun.set_description(self.fake_sentence());
+
+                test_rerun
             })
             .collect()
+    }
+
+    fn fake_sentence(&mut self) -> String {
+        let paragraphs: Vec<String> =
+            fake::faker::lorem::en::Sentences(1..2).fake_with_rng(&mut self.rng);
+        paragraphs.join(" ")
     }
 
     fn fake_paragraphs(&mut self) -> String {
