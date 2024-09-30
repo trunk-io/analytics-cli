@@ -102,7 +102,8 @@ pub struct QuarantineConfig {
 }
 
 #[derive(Debug, Serialize, Clone, Deserialize)]
-pub struct BundleUploadLocation {
+pub struct CreateBundleUploadResponse {
+    pub id: String,
     pub url: String,
     pub key: String,
 }
@@ -206,6 +207,7 @@ pub struct BundleMeta {
     pub cli_version: String,
     pub org: String,
     pub repo: BundleRepo,
+    pub bundle_upload_id: String,
     pub tags: Vec<CustomTag>,
     pub file_sets: Vec<FileSet>,
     pub envs: std::collections::HashMap<String, String>,

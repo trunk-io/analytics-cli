@@ -1,6 +1,9 @@
-use std::path::{Path, PathBuf};
+use std::{
+    fs::File,
+    path::{Path, PathBuf},
+};
 
-use codeowners::Owners;
+use codeowners::{FromReader, GitHubOwners, GitLabOwners};
 use serde::{Deserialize, Serialize};
 
 use crate::constants::CODEOWNERS_LOCATIONS;
@@ -30,7 +33,15 @@ impl CodeOwners {
             all_locations.find_map(|location| locate_codeowners(&repo_root, location));
 
         codeowners_path.map(|path| {
-            let owners_result = codeowners::from_path(&path);
+            let owners_result = File::open(&path)
+                .map_err(anyhow::Error::from)
+                .and_then(|file| GitHubOwners::from_reader(&file).map(Owners::GitHubOwners))
+                .or_else(|_| {
+                    File::open(&path)
+                        .map_err(anyhow::Error::from)
+                        .and_then(|file| GitLabOwners::from_reader(&file).map(Owners::GitLabOwners))
+                });
+
             if let Err(ref err) = owners_result {
                 log::error!(
                     "Found CODEOWNERS file `{}`, but couldn't parse it: {}",
@@ -38,10 +49,17 @@ impl CodeOwners {
                     err
                 );
             }
+
             let owners = Result::ok(owners_result);
             Self { path, owners }
         })
     }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum Owners {
+    GitHubOwners(GitHubOwners),
+    GitLabOwners(GitLabOwners),
 }
 
 const CODEOWNERS: &str = "CODEOWNERS";

@@ -7,7 +7,7 @@ use tokio_retry::strategy::ExponentialBackoff;
 use tokio_retry::Retry;
 use trunk_analytics_cli::bundler::BundlerUtil;
 use trunk_analytics_cli::clients::{
-    create_trunk_repo, get_bundle_upload_location, put_bundle_to_s3,
+    create_bundle_upload_intent, create_trunk_repo, put_bundle_to_s3,
 };
 use trunk_analytics_cli::codeowners::CodeOwners;
 use trunk_analytics_cli::constants::{
@@ -77,6 +77,8 @@ struct UploadArgs {
     codeowners_path: Option<String>,
     #[arg(long, help = "Run commands with the quarantining step.")]
     use_quarantining: bool,
+    #[arg(long, help = "Do not fail if no junit files are found.")]
+    allow_missing_junit_files: bool,
 }
 
 #[derive(Args, Clone, Debug)]
@@ -152,6 +154,7 @@ async fn run_upload(
         print_files,
         dry_run,
         use_quarantining,
+        allow_missing_junit_files,
         team,
         codeowners_path,
     } = upload_args;
@@ -192,6 +195,11 @@ async fn run_upload(
 
     let (file_sets, file_counter) =
         build_filesets(&repo, &junit_paths, team.clone(), &codeowners, exec_start)?;
+
+    if !allow_missing_junit_files && (file_counter.get_count() == 0 || file_sets.is_empty()) {
+        return Err(anyhow::anyhow!("No JUnit files found to upload."));
+    }
+
     let failures = extract_failed_tests(&repo, &org_url_slug, &file_sets).await?;
 
     // Run the quarantine step and update the exit code.
@@ -239,11 +247,18 @@ async fn run_upload(
         env!("VERGEN_GIT_SHA"),
         env!("VERGEN_RUSTC_SEMVER")
     );
+    let client_version = format!("trunk-analytics-cli {}", cli_version);
+    let upload = Retry::spawn(default_delay(), || {
+        create_bundle_upload_intent(&api_address, &token, &org_url_slug, &repo.repo, &client_version)
+    })
+    .await?;
+
     let meta = BundleMeta {
         version: META_VERSION.to_string(),
         org: org_url_slug.clone(),
         repo: repo.clone(),
         cli_version: cli_version.clone(),
+        bundle_upload_id: upload.id,
         tags,
         file_sets,
         envs,
@@ -281,29 +296,15 @@ async fn run_upload(
     bundler.make_tarball(&bundle_time_file)?;
     log::info!("Flushed temporary tarball to {:?}", bundle_time_file);
 
-    let client_version = format!("trunk-analytics-cli {}", cli_version);
-    let upload_op = Retry::spawn(default_delay(), || {
-        get_bundle_upload_location(
-            &api_address,
-            &token,
-            &org_url_slug,
-            &repo.repo,
-            &client_version,
-        )
-    })
-    .await?;
-
     if dry_run {
         log::info!("Dry run, skipping upload.");
         return Ok(exit_code);
     }
 
-    if let Some(upload) = upload_op {
-        Retry::spawn(default_delay(), || {
-            put_bundle_to_s3(&upload.url, &bundle_time_file)
-        })
-        .await?;
-    }
+    Retry::spawn(default_delay(), || {
+        put_bundle_to_s3(&upload.url, &bundle_time_file)
+    })
+    .await?;
 
     let remote_urls = vec![repo.repo_url.clone()];
     Retry::spawn(default_delay(), || {

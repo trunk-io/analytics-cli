@@ -14,7 +14,7 @@ use tempfile::tempdir;
 use tokio::net::TcpListener;
 use tokio::spawn;
 use trunk_analytics_cli::types::{
-    BundleUploadLocation, CreateBundleUploadRequest, CreateRepoRequest,
+    CreateBundleUploadRequest, CreateBundleUploadResponse, CreateRepoRequest,
     GetQuarantineBulkTestStatusRequest, QuarantineConfig,
 };
 
@@ -100,7 +100,7 @@ async fn repo_create_handler(
 async fn create_bundle_handler(
     State(state): State<SharedMockServerState>,
     Json(create_bundle_upload_request): Json<CreateBundleUploadRequest>,
-) -> Json<BundleUploadLocation> {
+) -> Json<CreateBundleUploadResponse> {
     state
         .requests
         .lock()
@@ -109,7 +109,8 @@ async fn create_bundle_handler(
             create_bundle_upload_request,
         ));
     let host = &state.host;
-    Json(BundleUploadLocation {
+    Json(CreateBundleUploadResponse {
+        id: String::from("test-bundle-upload-id"),
         url: format!("{host}/s3upload"),
         key: String::from("unused"),
     })
