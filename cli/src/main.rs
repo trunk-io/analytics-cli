@@ -203,12 +203,18 @@ async fn run_upload(
     let junit_temp_dir = tempfile::tempdir()?;
     if xcresult_path.is_some() && cfg!(target_os = "macos") {
         let xcresult = XCResultFile::new(xcresult_path.unwrap());
-        let junit = xcresult?.junit();
-        let junit_temp_path = junit_temp_dir.path().join("xcresult_junit.xml");
-        let mut junit_temp = std::fs::File::create(&junit_temp_path)?;
-        junit_temp.write_all(&junit)?;
-        junit_temp.seek(std::io::SeekFrom::Start(0))?;
-        temp_paths.push(junit_temp_path.to_str().unwrap().to_string());
+        let junits = xcresult?.generate_junits();
+        for (i, junit) in junits.iter().enumerate() {
+            let mut junit_writer: Vec<u8> = Vec::new();
+            junit.serialize(&mut junit_writer).unwrap();
+            let junit_temp_path = junit_temp_dir
+                .path()
+                .join(format!("xcresult_junit_{}.xml", i));
+            let mut junit_temp = std::fs::File::create(&junit_temp_path)?;
+            junit_temp.write_all(&junit_writer)?;
+            junit_temp.seek(std::io::SeekFrom::Start(0))?;
+            temp_paths.push(junit_temp_path.to_str().unwrap().to_string());
+        }
     } else if xcresult_path.is_some() && !cfg!(target_os = "macos") {
         log::warn!("xcresult was specified but it is only supported on macOS. Ignoring xcresult.");
     }

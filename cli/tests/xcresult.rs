@@ -22,11 +22,14 @@ fn test_xcresult_with_valid_path() {
     let xcresult = XCResultFile::new(path_str.to_string());
     assert!(xcresult.is_ok());
 
-    let junit = xcresult.unwrap().junit();
+    let junits = xcresult.unwrap().generate_junits();
+    assert_eq!(junits.len(), 1);
+    let junit = junits[0].clone();
+    let mut junit_writer: Vec<u8> = Vec::new();
+    junit.serialize(&mut junit_writer).unwrap();
     let expected_path = "tests/data/test1.junit";
-    // open the expected file
     let expected = std::fs::read_to_string(expected_path).unwrap();
-    assert_eq!(String::from_utf8(junit).unwrap(), expected);
+    assert_eq!(String::from_utf8(junit_writer).unwrap(), expected);
 }
 
 #[cfg(target_os = "macos")]
@@ -60,11 +63,14 @@ fn test_complex_xcresult_with_valid_path() {
     let xcresult = XCResultFile::new(path_str.to_string());
     assert!(xcresult.is_ok());
 
-    let junit = xcresult.unwrap().junit();
+    let junits = xcresult.unwrap().generate_junits();
+    assert_eq!(junits.len(), 1);
+    let junit = junits[0].clone();
+    let mut junit_writer: Vec<u8> = Vec::new();
+    junit.serialize(&mut junit_writer).unwrap();
     let expected_path = "tests/data/test4.junit";
-    // open the expected file
     let expected = std::fs::read_to_string(expected_path).unwrap();
-    assert_eq!(String::from_utf8(junit).unwrap(), expected);
+    assert_eq!(String::from_utf8(junit_writer).unwrap(), expected);
 }
 
 #[cfg(target_os = "linux")]

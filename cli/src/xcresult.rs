@@ -1,20 +1,13 @@
+use indexmap::indexmap;
+use quick_junit::*;
 use serde_json::Value;
 use std::str;
 use std::{fs, process::Command};
-use xml_builder::{XMLBuilder, XMLElement, XMLVersion};
 
 #[derive(Debug, Clone)]
 pub struct XCResultFile {
     pub path: String,
     results_obj: serde_json::Value,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-enum Status {
-    Success,
-    Failure,
-    Error,
-    Skipped,
 }
 
 const LEGACY_FLAG_MIN_VERSION: i32 = 70;
@@ -99,67 +92,28 @@ impl XCResultFile {
         action: &serde_json::Value,
         testcase: &serde_json::Value,
         testcase_group: &serde_json::Value,
-    ) -> (Status, XMLElement) {
-        let mut testcase_xml = XMLElement::new("testcase");
-        testcase_xml.add_attribute(
-            "name",
-            testcase
-                .get("name")
-                .and_then(|r| r.get("_value"))
-                .unwrap()
-                .as_str()
-                .unwrap(),
-        );
-        testcase_xml.add_attribute(
-            "id",
-            self.generate_id(
-                testcase
-                    .get("identifierURL")
-                    .and_then(|r| r.get("_value"))
-                    .unwrap()
-                    .to_string(),
-            )
-            .as_str(),
-        );
-
-        testcase_xml.add_attribute(
-            "classname",
-            testcase_group
-                .get("name")
-                .and_then(|r| r.get("_value"))
-                .unwrap()
-                .as_str()
-                .unwrap(),
-        );
-        let duration = testcase
-            .get("duration")
+    ) -> TestCase {
+        let name = testcase
+            .get("name")
             .and_then(|r| r.get("_value"))
             .unwrap()
             .as_str()
             .unwrap();
-        testcase_xml.add_attribute("time", duration);
-        let status = match testcase
+        let raw_status = testcase
             .get("testStatus")
             .and_then(|r| r.get("_value"))
             .unwrap()
             .as_str()
-            .unwrap()
-        {
-            "Error" => Status::Error,
-            "Failure" => Status::Failure,
-            "Skipped" => Status::Skipped,
-            _ => Status::Success,
+            .unwrap();
+        let mut testcase_status = match raw_status {
+            "Error" => TestCaseStatus::non_success(NonSuccessKind::Error),
+            "Failure" => TestCaseStatus::non_success(NonSuccessKind::Failure),
+            "Skipped" => TestCaseStatus::skipped(),
+            "Success" => TestCaseStatus::success(),
+            _ => TestCaseStatus::non_success(NonSuccessKind::Error),
         };
-        if status == Status::Skipped {
-            let skipped_xml = XMLElement::new("skipped");
-            match testcase_xml.add_child(skipped_xml) {
-                Ok(_) => {}
-                Err(e) => {
-                    log::debug!("failed to add failure to testcase: {:?}", e);
-                }
-            }
-        }
-        if status == Status::Failure {
+        let mut uri = String::new();
+        if raw_status == "Failure" {
             let mut failures = action
                 .get("actionResult")
                 .and_then(|r| r.get("issues"))
@@ -183,19 +137,16 @@ impl XCResultFile {
                         .as_str()
                         .unwrap()
             });
-            let mut failure_xml = XMLElement::new("failure");
-            failure_xml
-                .add_text(String::from(
-                    failure
-                        .unwrap()
-                        .get("message")
-                        .and_then(|r| r.get("_value"))
-                        .unwrap()
-                        .as_str()
-                        .unwrap(),
-                ))
-                .unwrap();
-            let raw_uri = failure
+            testcase_status.set_message(
+                failure
+                    .unwrap()
+                    .get("message")
+                    .and_then(|r| r.get("_value"))
+                    .unwrap()
+                    .as_str()
+                    .unwrap(),
+            );
+            uri = failure
                 .unwrap()
                 .get("documentLocationInCreatingWorkspace")
                 .and_then(|r| r.get("url"))
@@ -205,38 +156,54 @@ impl XCResultFile {
                 .as_str()
                 .unwrap()
                 .replace("file://", "");
-            let uri = raw_uri.split('#').collect::<Vec<&str>>()[0];
-
-            testcase_xml.add_attribute("file", uri);
-            match testcase_xml.add_child(failure_xml) {
-                Ok(_) => {}
-                Err(e) => {
-                    log::debug!("failed to add failure to testcase: {:?}", e);
-                }
-            }
         }
-        (status, testcase_xml)
+        let id = self.generate_id(
+            testcase
+                .get("identifier")
+                .and_then(|r| r.get("_value"))
+                .unwrap()
+                .as_str()
+                .unwrap()
+                .to_string(),
+        );
+        let mut testcase_junit = TestCase::new(name, testcase_status);
+        let file_components = uri.split('#').collect::<Vec<&str>>();
+        let mut index_map = indexmap! {
+           XmlString::new("id") => XmlString::new(id),
+        };
+        if file_components.len() == 2 {
+            index_map.append(&mut indexmap! {
+                XmlString::new("file") => XmlString::new(file_components[0]),
+            });
+        }
+        testcase_junit.extra = index_map;
+        testcase_junit.set_classname(
+            testcase_group
+                .get("name")
+                .and_then(|r| r.get("_value"))
+                .unwrap()
+                .as_str()
+                .unwrap(),
+        );
+
+        let duration = testcase
+            .get("duration")
+            .and_then(|r| r.get("_value"))
+            .unwrap()
+            .as_str()
+            .unwrap()
+            .parse::<f32>()
+            .unwrap();
+        testcase_junit.set_time(std::time::Duration::from_secs_f32(duration));
+        testcase_junit
     }
 
     fn junit_testsuite(
         &self,
         action: &serde_json::Value,
         testsuite: &serde_json::Value,
-    ) -> XMLElement {
-        let mut testsuite_xml = XMLElement::new("testsuite");
-        testsuite_xml.add_attribute(
-            "id",
-            self.generate_id(
-                testsuite
-                    .get("identifierURL")
-                    .and_then(|r| r.get("_value"))
-                    .unwrap()
-                    .to_string(),
-            )
-            .as_str(),
-        );
-        testsuite_xml.add_attribute(
-            "name",
+    ) -> TestSuite {
+        let mut testsuite_junit = TestSuite::new(
             testsuite
                 .get("name")
                 .and_then(|r| r.get("_value"))
@@ -244,23 +211,34 @@ impl XCResultFile {
                 .as_str()
                 .unwrap(),
         );
+        let index_map = indexmap! {
+           XmlString::new("id") => XmlString::new(
+                self.generate_id(
+                    testsuite
+                        .get("identifierURL")
+                        .and_then(|r| r.get("_value"))
+                        .unwrap()
+                        .as_str()
+                        .unwrap()
+                        .to_string(),
+               ))
+        };
+        testsuite_junit.extra = index_map;
         let duration = testsuite
             .get("duration")
             .and_then(|r| r.get("_value"))
             .unwrap()
             .as_str()
+            .unwrap()
+            .parse::<f32>()
             .unwrap();
-        testsuite_xml.add_attribute("time", duration);
+        testsuite_junit.set_time(std::time::Duration::from_secs_f32(duration));
         let testcase_groups = testsuite
             .get("subtests")
             .and_then(|t| t.get("_values"))
             .unwrap()
             .as_array()
             .unwrap();
-        let mut failure_count = 0;
-        let mut total_count = 0;
-        let mut error_count = 0;
-        let mut skipped_count = 0;
         for testcase_group in testcase_groups {
             let testcases = testcase_group
                 .get("subtests")
@@ -269,37 +247,15 @@ impl XCResultFile {
                 .as_array()
                 .unwrap();
             for testcase in testcases {
-                total_count += 1;
-                let (status, testcase_xml) = self.junit_testcase(action, testcase, testcase_group);
-                match status {
-                    Status::Skipped => {
-                        skipped_count += 1;
-                    }
-                    Status::Failure => {
-                        failure_count += 1;
-                    }
-                    Status::Error => {
-                        error_count += 1;
-                    }
-                    _ => {}
-                }
-                match testsuite_xml.add_child(testcase_xml) {
-                    Ok(_) => {}
-                    Err(e) => {
-                        log::debug!("failed to add testcase to testsuite: {:?}", e);
-                    }
-                }
+                let testcase_xml = self.junit_testcase(action, testcase, testcase_group);
+                testsuite_junit.add_test_case(testcase_xml);
             }
         }
-        testsuite_xml.add_attribute("failures", failure_count.to_string().as_str());
-        testsuite_xml.add_attribute("skipped", skipped_count.to_string().as_str());
-        testsuite_xml.add_attribute("errors", error_count.to_string().as_str());
-        testsuite_xml.add_attribute("tests", total_count.to_string().as_str());
-        testsuite_xml
+        testsuite_junit
     }
 
-    fn junit_testsuites(&self, action: &serde_json::Value) -> XMLElement {
-        let mut testsuites_xml = XMLElement::new("testsuites");
+    fn junit_report(&self, action: &serde_json::Value) -> Report {
+        let mut testsuites_junit = Report::new("name");
         const TIME_FORMAT: &str = "%Y-%m-%dT%H:%M:%S%.f%z";
         let ended_time = chrono::DateTime::parse_from_str(
             action
@@ -323,39 +279,7 @@ impl XCResultFile {
         .unwrap();
         let duration =
             (ended_time.timestamp_millis() - started_time.timestamp_millis()) as f32 / 1000.0;
-        testsuites_xml.add_attribute("time", duration.to_string().as_str());
-        let tests = match action
-            .get("actionResult")
-            .and_then(|r| r.get("metrics"))
-            .and_then(|r| r.get("testsCount"))
-            .and_then(|r| r.get("_value"))
-        {
-            Some(val) => val.as_str().unwrap(),
-            None => return testsuites_xml,
-        };
-        testsuites_xml.add_attribute("tests", tests);
-        testsuites_xml.add_attribute(
-            "failures",
-            action
-                .get("actionResult")
-                .and_then(|r| r.get("metrics"))
-                .and_then(|r| r.get("testsFailedCount"))
-                .and_then(|r| r.get("_value"))
-                .unwrap_or(&Value::from("0"))
-                .as_str()
-                .unwrap(),
-        );
-        testsuites_xml.add_attribute(
-            "skipped",
-            action
-                .get("actionResult")
-                .and_then(|r| r.get("metrics"))
-                .and_then(|r| r.get("testsSkippedCount"))
-                .and_then(|r| r.get("_value"))
-                .unwrap_or(&Value::from("0"))
-                .as_str()
-                .unwrap(),
-        );
+        testsuites_junit.set_time(std::time::Duration::from_secs_f32(duration));
         let empty_val = Value::from("");
         let found_tests = self
             .find_tests(
@@ -371,7 +295,7 @@ impl XCResultFile {
             .unwrap();
         let test_summaries = match found_tests.get("summaries").and_then(|r| r.get("_values")) {
             Some(val) => val.as_array().unwrap(),
-            None => return testsuites_xml,
+            None => return testsuites_junit,
         };
         for test_summary in test_summaries {
             let testable_summaries = test_summary
@@ -395,40 +319,31 @@ impl XCResultFile {
                         .as_array()
                         .unwrap();
                     for testsuite in testsuites {
-                        let testsuite_xml = self.junit_testsuite(action, testsuite);
-                        match testsuites_xml.add_child(testsuite_xml) {
-                            Ok(_) => {}
-                            Err(e) => {
-                                log::debug!("failed to add testsuite to testsuites: {:?}", e);
-                            }
-                        }
+                        let testsuite_junit = self.junit_testsuite(action, testsuite);
+                        testsuites_junit.add_test_suite(testsuite_junit);
                     }
                 }
             }
         }
-        testsuites_xml
+        testsuites_junit
     }
 
-    pub fn junit(&self) -> Vec<u8> {
-        let mut xml = XMLBuilder::new()
-            .version(XMLVersion::XML1_0)
-            .encoding("UTF-8".into())
-            .build();
-
+    pub fn generate_junits(&self) -> Vec<Report> {
+        let mut report_junits: Vec<Report> = Vec::new();
         if let Some(actions) = self
             .results_obj
             .get("actions")
             .and_then(|a| a.get("_values"))
         {
             for action in actions.as_array().unwrap() {
-                let testsuites_xml = self.junit_testsuites(action);
-                xml.set_root_element(testsuites_xml);
+                let report_junit = self.junit_report(action);
+                // only add the report if it has test suites
+                // xcresult stores build actions
+                if !report_junit.test_suites.is_empty() {
+                    report_junits.push(report_junit);
+                }
             }
         }
-
-        let mut writer: Vec<u8> = Vec::new();
-        xml.generate(&mut writer).unwrap();
-        log::info!("junit xml: {}", str::from_utf8(&writer).unwrap());
-        writer
+        report_junits
     }
 }
