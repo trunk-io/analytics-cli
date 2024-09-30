@@ -1,10 +1,23 @@
 use std::{collections::HashMap, io::BufReader};
 
 use context::{env, junit, repo};
-use pyo3::{exceptions::PyTypeError, prelude::*};
+use wasm_bindgen::prelude::*;
 
-#[pyfunction]
-fn env_parse(env_vars: HashMap<String, String>) -> PyResult<Option<env::parser::CIInfo>> {
+#[wasm_bindgen]
+pub fn env_parse(env_vars: js_sys::Object) -> Result<Option<env::parser::CIInfo>, JsError> {
+    let env_vars: HashMap<String, String> = js_sys::Object::entries(&env_vars)
+        .iter()
+        .filter_map(|entry| {
+            let key_value_tuple = js_sys::Array::from(&entry);
+            let key = key_value_tuple.get(0);
+            let value = key_value_tuple.get(1);
+            if let (Some(k), Some(v)) = (key.as_string(), value.as_string()) {
+                Some((k, v))
+            } else {
+                None
+            }
+        })
+        .collect();
     let mut env_parser = env::parser::EnvParser::new();
     if env_parser.parse(&env_vars).is_err() {
         let error_message = env_parser
@@ -13,7 +26,7 @@ fn env_parse(env_vars: HashMap<String, String>) -> PyResult<Option<env::parser::
             .map(|e| e.to_string())
             .collect::<Vec<String>>()
             .join("\n");
-        return Err(PyTypeError::new_err(error_message));
+        return Err(JsError::new(&error_message));
     }
 
     let ci_info_class = env_parser
@@ -23,13 +36,13 @@ fn env_parse(env_vars: HashMap<String, String>) -> PyResult<Option<env::parser::
     Ok(ci_info_class)
 }
 
-#[pyfunction]
-fn env_validate(ci_info: env::parser::CIInfo) -> env::validator::EnvValidation {
+#[wasm_bindgen]
+pub fn env_validate(ci_info: env::parser::CIInfo) -> env::validator::EnvValidation {
     env::validator::validate(&ci_info)
 }
 
-#[pyfunction]
-fn junit_parse(xml: Vec<u8>) -> PyResult<Vec<junit::bindings::BindingsReport>> {
+#[wasm_bindgen]
+pub fn junit_parse(xml: Vec<u8>) -> Result<Vec<junit::bindings::BindingsReport>, JsError> {
     let mut junit_parser = junit::parser::JunitParser::new();
     if junit_parser.parse(BufReader::new(&xml[..])).is_err() {
         let error_message = junit_parser
@@ -38,7 +51,7 @@ fn junit_parse(xml: Vec<u8>) -> PyResult<Vec<junit::bindings::BindingsReport>> {
             .map(|e| e.to_string())
             .collect::<Vec<String>>()
             .join("\n");
-        return Err(PyTypeError::new_err(error_message));
+        return Err(JsError::new(&error_message));
     }
 
     Ok(junit_parser
@@ -48,29 +61,14 @@ fn junit_parse(xml: Vec<u8>) -> PyResult<Vec<junit::bindings::BindingsReport>> {
         .collect())
 }
 
-#[pyfunction]
-fn junit_validate(
+#[wasm_bindgen]
+pub fn junit_validate(
     report: junit::bindings::BindingsReport,
 ) -> junit::validator::JunitReportValidation {
     junit::validator::validate(&report.into())
 }
 
-#[pyfunction]
-fn repo_validate(bundle_repo: repo::BundleRepo) -> repo::validator::RepoValidation {
+#[wasm_bindgen]
+pub fn repo_validate(bundle_repo: repo::BundleRepo) -> repo::validator::RepoValidation {
     repo::validator::validate(&bundle_repo)
-}
-
-#[pymodule]
-fn context_py(_py: Python, m: &PyModule) -> PyResult<()> {
-    m.add_function(wrap_pyfunction!(env_parse, m)?)?;
-    m.add_function(wrap_pyfunction!(env_validate, m)?)?;
-
-    m.add_class::<junit::bindings::BindingsReport>()?;
-    m.add_function(wrap_pyfunction!(junit_parse, m)?)?;
-    m.add_function(wrap_pyfunction!(junit_validate, m)?)?;
-
-    m.add_class::<repo::BundleRepo>()?;
-    m.add_class::<repo::RepoUrlParts>()?;
-    m.add_function(wrap_pyfunction!(repo_validate, m)?)?;
-    Ok(())
 }

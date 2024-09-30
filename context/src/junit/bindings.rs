@@ -1,33 +1,29 @@
 use std::{collections::HashMap, time::Duration};
 
 use chrono::DateTime;
-use pyo3::{exceptions::PyTypeError, prelude::*};
+#[cfg(feature = "pyo3")]
+use pyo3::prelude::*;
 use quick_junit::{
     NonSuccessKind, Property, Report, TestCase, TestCaseStatus, TestRerun, TestSuite,
 };
+#[cfg(feature = "wasm")]
+use wasm_bindgen::prelude::*;
 
-#[pyclass]
+#[cfg_attr(feature = "pyo3", pyclass(get_all))]
+#[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
 #[derive(Clone, Debug)]
-pub struct PyReport {
-    #[pyo3(get)]
+pub struct BindingsReport {
     pub name: String,
-    #[pyo3(get)]
     pub uuid: Option<String>,
-    #[pyo3(get)]
     pub timestamp: Option<i64>,
-    #[pyo3(get)]
     pub time: Option<f64>,
-    #[pyo3(get)]
     pub tests: usize,
-    #[pyo3(get)]
     pub failures: usize,
-    #[pyo3(get)]
     pub errors: usize,
-    #[pyo3(get)]
-    pub test_suites: Vec<PyTestSuite>,
+    pub test_suites: Vec<BindingsTestSuite>,
 }
 
-impl From<Report> for PyReport {
+impl From<Report> for BindingsReport {
     fn from(
         Report {
             name,
@@ -48,12 +44,15 @@ impl From<Report> for PyReport {
             tests,
             failures,
             errors,
-            test_suites: test_suites.into_iter().map(PyTestSuite::from).collect(),
+            test_suites: test_suites
+                .into_iter()
+                .map(BindingsTestSuite::from)
+                .collect(),
         }
     }
 }
 
-impl Into<Report> for PyReport {
+impl Into<Report> for BindingsReport {
     fn into(self) -> Report {
         let Self {
             name,
@@ -77,41 +76,59 @@ impl Into<Report> for PyReport {
             tests,
             failures,
             errors,
-            test_suites: test_suites.into_iter().map(PyTestSuite::into).collect(),
+            test_suites: test_suites
+                .into_iter()
+                .map(BindingsTestSuite::into)
+                .collect(),
         }
     }
 }
 
-#[pyclass]
+#[cfg_attr(feature = "pyo3", pyclass(get_all))]
+#[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
 #[derive(Clone, Debug)]
-pub struct PyTestSuite {
-    #[pyo3(get)]
+pub struct BindingsTestSuite {
     pub name: String,
-    #[pyo3(get)]
     pub tests: usize,
-    #[pyo3(get)]
     pub disabled: usize,
-    #[pyo3(get)]
     pub errors: usize,
-    #[pyo3(get)]
     pub failures: usize,
-    #[pyo3(get)]
     pub timestamp: Option<i64>,
-    #[pyo3(get)]
     pub time: Option<f64>,
-    #[pyo3(get)]
-    pub test_cases: Vec<PyTestCase>,
-    #[pyo3(get)]
-    pub properties: Vec<PyProperty>,
-    #[pyo3(get)]
+    pub test_cases: Vec<BindingsTestCase>,
+    pub properties: Vec<BindingsProperty>,
     pub system_out: Option<String>,
-    #[pyo3(get)]
     pub system_err: Option<String>,
-    #[pyo3(get)]
-    pub extra: HashMap<String, String>,
+    extra: HashMap<String, String>,
 }
 
-impl From<TestSuite> for PyTestSuite {
+#[cfg(feature = "pyo3")]
+#[pymethods]
+impl BindingsTestSuite {
+    fn py_extra(&self) -> HashMap<String, String> {
+        self.extra.clone()
+    }
+}
+
+#[cfg(feature = "wasm")]
+#[wasm_bindgen]
+impl BindingsTestSuite {
+    pub fn js_extra(&self) -> Result<js_sys::Object, wasm_bindgen::JsValue> {
+        let entries = self
+            .extra
+            .iter()
+            .fold(js_sys::Array::new(), |acc, (key, value)| {
+                let entry = js_sys::Array::new();
+                entry.push(&js_sys::JsString::from(key.as_str()));
+                entry.push(&js_sys::JsString::from(value.as_str()));
+                acc.push(&entry);
+                acc
+            });
+        js_sys::Object::from_entries(&entries)
+    }
+}
+
+impl From<TestSuite> for BindingsTestSuite {
     fn from(
         TestSuite {
             name,
@@ -139,8 +156,8 @@ impl From<TestSuite> for PyTestSuite {
             failures,
             timestamp: timestamp.map(|t| t.timestamp()),
             time: time.map(|t| t.as_secs_f64()),
-            test_cases: test_cases.into_iter().map(PyTestCase::from).collect(),
-            properties: properties.into_iter().map(PyProperty::from).collect(),
+            test_cases: test_cases.into_iter().map(BindingsTestCase::from).collect(),
+            properties: properties.into_iter().map(BindingsProperty::from).collect(),
             system_out: system_out.map(|s| s.to_string()),
             system_err: system_err.map(|s| s.to_string()),
             extra: HashMap::from_iter(
@@ -152,7 +169,7 @@ impl From<TestSuite> for PyTestSuite {
     }
 }
 
-impl Into<TestSuite> for PyTestSuite {
+impl Into<TestSuite> for BindingsTestSuite {
     fn into(self) -> TestSuite {
         let Self {
             name,
@@ -179,13 +196,13 @@ impl Into<TestSuite> for PyTestSuite {
         test_suite.time = time.map(|secs| Duration::from_secs_f64(secs));
         test_suite.test_cases = test_cases
             .into_iter()
-            .map(PyTestCase::try_into)
+            .map(BindingsTestCase::try_into)
             .filter_map(|t| {
                 // Removes any invalid test cases that could not be parsed correctly
                 t.ok()
             })
             .collect();
-        test_suite.properties = properties.into_iter().map(PyProperty::into).collect();
+        test_suite.properties = properties.into_iter().map(BindingsProperty::into).collect();
         test_suite.system_out = system_out.map(|s| s.into());
         test_suite.system_err = system_err.map(|s| s.into());
         test_suite.extra = extra
@@ -196,16 +213,15 @@ impl Into<TestSuite> for PyTestSuite {
     }
 }
 
-#[pyclass]
+#[cfg_attr(feature = "pyo3", pyclass(get_all))]
+#[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
 #[derive(Clone, Debug)]
-pub struct PyProperty {
-    #[pyo3(get)]
+pub struct BindingsProperty {
     pub name: String,
-    #[pyo3(get)]
     pub value: String,
 }
 
-impl From<Property> for PyProperty {
+impl From<Property> for BindingsProperty {
     fn from(Property { name, value }: Property) -> Self {
         Self {
             name: name.to_string(),
@@ -214,7 +230,7 @@ impl From<Property> for PyProperty {
     }
 }
 
-impl Into<Property> for PyProperty {
+impl Into<Property> for BindingsProperty {
     fn into(self) -> Property {
         let Self { name, value } = self;
         Property {
@@ -224,32 +240,49 @@ impl Into<Property> for PyProperty {
     }
 }
 
-#[pyclass]
+#[cfg_attr(feature = "pyo3", pyclass(get_all))]
+#[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
 #[derive(Clone, Debug)]
-pub struct PyTestCase {
-    #[pyo3(get)]
+pub struct BindingsTestCase {
     pub name: String,
-    #[pyo3(get)]
     pub classname: Option<String>,
-    #[pyo3(get)]
     pub assertions: Option<usize>,
-    #[pyo3(get)]
     pub timestamp: Option<i64>,
-    #[pyo3(get)]
     pub time: Option<f64>,
-    #[pyo3(get)]
-    pub status: PyTestCaseStatus,
-    #[pyo3(get)]
+    pub status: BindingsTestCaseStatus,
     pub system_out: Option<String>,
-    #[pyo3(get)]
     pub system_err: Option<String>,
-    #[pyo3(get)]
-    pub extra: HashMap<String, String>,
-    #[pyo3(get)]
-    pub properties: Vec<PyProperty>,
+    extra: HashMap<String, String>,
+    pub properties: Vec<BindingsProperty>,
 }
 
-impl From<TestCase> for PyTestCase {
+#[cfg(feature = "pyo3")]
+#[pymethods]
+impl BindingsTestCase {
+    fn py_extra(&self) -> HashMap<String, String> {
+        self.extra.clone()
+    }
+}
+
+#[cfg(feature = "wasm")]
+#[wasm_bindgen]
+impl BindingsTestCase {
+    pub fn js_extra(&self) -> Result<js_sys::Object, wasm_bindgen::JsValue> {
+        let entries = self
+            .extra
+            .iter()
+            .fold(js_sys::Array::new(), |acc, (key, value)| {
+                let entry = js_sys::Array::new();
+                entry.push(&js_sys::JsString::from(key.as_str()));
+                entry.push(&js_sys::JsString::from(value.as_str()));
+                acc.push(&entry);
+                acc
+            });
+        js_sys::Object::from_entries(&entries)
+    }
+}
+
+impl From<TestCase> for BindingsTestCase {
     fn from(
         TestCase {
             name,
@@ -273,7 +306,7 @@ impl From<TestCase> for PyTestCase {
             assertions,
             timestamp: timestamp.map(|t| t.timestamp()),
             time: time.map(|t| t.as_secs_f64()),
-            status: PyTestCaseStatus::from(status),
+            status: BindingsTestCaseStatus::from(status),
             system_out: system_out.map(|s| s.to_string()),
             system_err: system_err.map(|s| s.to_string()),
             extra: HashMap::from_iter(
@@ -281,15 +314,15 @@ impl From<TestCase> for PyTestCase {
                     .into_iter()
                     .map(|(k, v)| (k.to_string(), v.to_string())),
             ),
-            properties: properties.into_iter().map(PyProperty::from).collect(),
+            properties: properties.into_iter().map(BindingsProperty::from).collect(),
         }
     }
 }
 
-impl TryInto<TestCase> for PyTestCase {
-    type Error = PyErr;
+impl TryInto<TestCase> for BindingsTestCase {
+    type Error = ();
 
-    fn try_into(self) -> Result<TestCase, PyErr> {
+    fn try_into(self) -> Result<TestCase, Self::Error> {
         let Self {
             name,
             classname,
@@ -315,31 +348,31 @@ impl TryInto<TestCase> for PyTestCase {
             .into_iter()
             .map(|(k, v)| (k.into(), v.into()))
             .collect();
-        test_case.properties = properties.into_iter().map(PyProperty::into).collect();
+        test_case.properties = properties.into_iter().map(BindingsProperty::into).collect();
         Ok(test_case)
     }
 }
 
-#[pyclass]
+#[cfg_attr(feature = "pyo3", pyclass(get_all))]
+#[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
 #[derive(Clone, Debug)]
-pub struct PyTestCaseStatus {
-    #[pyo3(get)]
-    pub status: PyTestCaseStatusStatus,
-    #[pyo3(get)]
-    pub success: Option<PyTestCaseStatusSuccess>,
-    #[pyo3(get)]
-    pub non_success: Option<PyTestCaseStatusNonSuccess>,
-    #[pyo3(get)]
-    pub skipped: Option<PyTestCaseStatusSkipped>,
+pub struct BindingsTestCaseStatus {
+    pub status: BindingsTestCaseStatusStatus,
+    pub success: Option<BindingsTestCaseStatusSuccess>,
+    pub non_success: Option<BindingsTestCaseStatusNonSuccess>,
+    pub skipped: Option<BindingsTestCaseStatusSkipped>,
 }
 
-impl From<TestCaseStatus> for PyTestCaseStatus {
+impl From<TestCaseStatus> for BindingsTestCaseStatus {
     fn from(value: TestCaseStatus) -> Self {
         match value {
             TestCaseStatus::Success { flaky_runs } => Self {
-                status: PyTestCaseStatusStatus::Success,
-                success: Some(PyTestCaseStatusSuccess {
-                    flaky_runs: flaky_runs.into_iter().map(PyTestRerun::from).collect(),
+                status: BindingsTestCaseStatusStatus::Success,
+                success: Some(BindingsTestCaseStatusSuccess {
+                    flaky_runs: flaky_runs
+                        .into_iter()
+                        .map(BindingsTestRerun::from)
+                        .collect(),
                 }),
                 non_success: None,
                 skipped: None,
@@ -351,14 +384,14 @@ impl From<TestCaseStatus> for PyTestCaseStatus {
                 description,
                 reruns,
             } => Self {
-                status: PyTestCaseStatusStatus::NonSuccess,
+                status: BindingsTestCaseStatusStatus::NonSuccess,
                 success: None,
-                non_success: Some(PyTestCaseStatusNonSuccess {
-                    kind: PyNonSuccessKind::from(kind),
+                non_success: Some(BindingsTestCaseStatusNonSuccess {
+                    kind: BindingsNonSuccessKind::from(kind),
                     message: message.map(|m| m.into_string()),
                     ty: ty.map(|t| t.into_string()),
                     description: description.map(|d| d.into_string()),
-                    reruns: reruns.into_iter().map(PyTestRerun::from).collect(),
+                    reruns: reruns.into_iter().map(BindingsTestRerun::from).collect(),
                 }),
                 skipped: None,
             },
@@ -367,10 +400,10 @@ impl From<TestCaseStatus> for PyTestCaseStatus {
                 ty,
                 description,
             } => Self {
-                status: PyTestCaseStatusStatus::Skipped,
+                status: BindingsTestCaseStatusStatus::Skipped,
                 success: None,
                 non_success: None,
-                skipped: Some(PyTestCaseStatusSkipped {
+                skipped: Some(BindingsTestCaseStatusSkipped {
                     message: message.map(|m| m.into_string()),
                     ty: ty.map(|t| t.into_string()),
                     description: description.map(|d| d.into_string()),
@@ -380,10 +413,10 @@ impl From<TestCaseStatus> for PyTestCaseStatus {
     }
 }
 
-impl TryInto<TestCaseStatus> for PyTestCaseStatus {
-    type Error = PyErr;
+impl TryInto<TestCaseStatus> for BindingsTestCaseStatus {
+    type Error = ();
 
-    fn try_into(self) -> Result<TestCaseStatus, PyErr> {
+    fn try_into(self) -> Result<TestCaseStatus, Self::Error> {
         let Self {
             status,
             success,
@@ -391,62 +424,60 @@ impl TryInto<TestCaseStatus> for PyTestCaseStatus {
             skipped,
         } = self;
         match (status, success, non_success, skipped) {
-            (PyTestCaseStatusStatus::Success, Some(success_fields), None, None) => {
+            (BindingsTestCaseStatusStatus::Success, Some(success_fields), None, None) => {
                 Ok(success_fields.into())
             }
-            (PyTestCaseStatusStatus::NonSuccess, None, Some(non_success_fields), None) => {
+            (BindingsTestCaseStatusStatus::NonSuccess, None, Some(non_success_fields), None) => {
                 Ok(non_success_fields.into())
             }
-            (PyTestCaseStatusStatus::Skipped, None, None, Some(skipped_fields)) => {
+            (BindingsTestCaseStatusStatus::Skipped, None, None, Some(skipped_fields)) => {
                 Ok(skipped_fields.into())
             }
-            _ => Err(PyTypeError::new_err(
-                "Could not convert PyTestCaseStatus into TestCaseStatus",
-            )),
+            _ => Err(()),
         }
     }
 }
 
-#[pyclass]
-#[derive(Clone, Debug)]
-pub enum PyTestCaseStatusStatus {
+#[cfg_attr(feature = "pyo3", pyclass)]
+#[cfg_attr(feature = "wasm", wasm_bindgen)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+pub enum BindingsTestCaseStatusStatus {
     Success,
     NonSuccess,
     Skipped,
 }
 
-#[pyclass]
+#[cfg_attr(feature = "pyo3", pyclass(get_all))]
+#[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
 #[derive(Clone, Debug)]
-pub struct PyTestCaseStatusSuccess {
-    #[pyo3(get)]
-    pub flaky_runs: Vec<PyTestRerun>,
+pub struct BindingsTestCaseStatusSuccess {
+    pub flaky_runs: Vec<BindingsTestRerun>,
 }
 
-impl Into<TestCaseStatus> for PyTestCaseStatusSuccess {
+impl Into<TestCaseStatus> for BindingsTestCaseStatusSuccess {
     fn into(self) -> TestCaseStatus {
         let Self { flaky_runs } = self;
         TestCaseStatus::Success {
-            flaky_runs: flaky_runs.into_iter().map(PyTestRerun::into).collect(),
+            flaky_runs: flaky_runs
+                .into_iter()
+                .map(BindingsTestRerun::into)
+                .collect(),
         }
     }
 }
 
-#[pyclass]
+#[cfg_attr(feature = "pyo3", pyclass(get_all))]
+#[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
 #[derive(Clone, Debug)]
-pub struct PyTestCaseStatusNonSuccess {
-    #[pyo3(get)]
-    pub kind: PyNonSuccessKind,
-    #[pyo3(get)]
+pub struct BindingsTestCaseStatusNonSuccess {
+    pub kind: BindingsNonSuccessKind,
     pub message: Option<String>,
-    #[pyo3(get)]
     pub ty: Option<String>,
-    #[pyo3(get)]
     pub description: Option<String>,
-    #[pyo3(get)]
-    pub reruns: Vec<PyTestRerun>,
+    pub reruns: Vec<BindingsTestRerun>,
 }
 
-impl Into<TestCaseStatus> for PyTestCaseStatusNonSuccess {
+impl Into<TestCaseStatus> for BindingsTestCaseStatusNonSuccess {
     fn into(self) -> TestCaseStatus {
         let Self {
             kind,
@@ -460,23 +491,21 @@ impl Into<TestCaseStatus> for PyTestCaseStatusNonSuccess {
             message: message.map(|m| m.into()),
             ty: ty.map(|t| t.into()),
             description: description.map(|d| d.into()),
-            reruns: reruns.into_iter().map(PyTestRerun::into).collect(),
+            reruns: reruns.into_iter().map(BindingsTestRerun::into).collect(),
         }
     }
 }
 
-#[pyclass]
+#[cfg_attr(feature = "pyo3", pyclass(get_all))]
+#[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
 #[derive(Clone, Debug)]
-pub struct PyTestCaseStatusSkipped {
-    #[pyo3(get)]
-    message: Option<String>,
-    #[pyo3(get)]
-    ty: Option<String>,
-    #[pyo3(get)]
-    description: Option<String>,
+pub struct BindingsTestCaseStatusSkipped {
+    pub message: Option<String>,
+    pub ty: Option<String>,
+    pub description: Option<String>,
 }
 
-impl Into<TestCaseStatus> for PyTestCaseStatusSkipped {
+impl Into<TestCaseStatus> for BindingsTestCaseStatusSkipped {
     fn into(self) -> TestCaseStatus {
         let Self {
             message,
@@ -491,30 +520,22 @@ impl Into<TestCaseStatus> for PyTestCaseStatusSkipped {
     }
 }
 
-#[pyclass]
+#[cfg_attr(feature = "pyo3", pyclass(get_all))]
+#[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
 #[derive(Clone, Debug)]
-pub struct PyTestRerun {
-    #[pyo3(get)]
-    pub kind: PyNonSuccessKind,
-    #[pyo3(get)]
+pub struct BindingsTestRerun {
+    pub kind: BindingsNonSuccessKind,
     pub timestamp: Option<i64>,
-    #[pyo3(get)]
     pub time: Option<f64>,
-    #[pyo3(get)]
     pub message: Option<String>,
-    #[pyo3(get)]
     pub ty: Option<String>,
-    #[pyo3(get)]
     pub stack_trace: Option<String>,
-    #[pyo3(get)]
     pub system_out: Option<String>,
-    #[pyo3(get)]
     pub system_err: Option<String>,
-    #[pyo3(get)]
     pub description: Option<String>,
 }
 
-impl From<TestRerun> for PyTestRerun {
+impl From<TestRerun> for BindingsTestRerun {
     fn from(
         TestRerun {
             kind,
@@ -529,7 +550,7 @@ impl From<TestRerun> for PyTestRerun {
         }: TestRerun,
     ) -> Self {
         Self {
-            kind: PyNonSuccessKind::from(kind),
+            kind: BindingsNonSuccessKind::from(kind),
             timestamp: timestamp.map(|t| t.timestamp()),
             time: time.map(|t| t.as_secs_f64()),
             message: message.map(|m| m.to_string()),
@@ -542,7 +563,7 @@ impl From<TestRerun> for PyTestRerun {
     }
 }
 
-impl Into<TestRerun> for PyTestRerun {
+impl Into<TestRerun> for BindingsTestRerun {
     fn into(self) -> TestRerun {
         let Self {
             kind,
@@ -571,27 +592,28 @@ impl Into<TestRerun> for PyTestRerun {
     }
 }
 
-#[pyclass]
+#[cfg_attr(feature = "pyo3", pyclass)]
+#[cfg_attr(feature = "wasm", wasm_bindgen)]
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
-pub enum PyNonSuccessKind {
+pub enum BindingsNonSuccessKind {
     Failure,
     Error,
 }
 
-impl From<NonSuccessKind> for PyNonSuccessKind {
+impl From<NonSuccessKind> for BindingsNonSuccessKind {
     fn from(value: NonSuccessKind) -> Self {
         match value {
-            NonSuccessKind::Failure => PyNonSuccessKind::Failure,
-            NonSuccessKind::Error => PyNonSuccessKind::Error,
+            NonSuccessKind::Failure => BindingsNonSuccessKind::Failure,
+            NonSuccessKind::Error => BindingsNonSuccessKind::Error,
         }
     }
 }
 
-impl Into<NonSuccessKind> for PyNonSuccessKind {
+impl Into<NonSuccessKind> for BindingsNonSuccessKind {
     fn into(self) -> NonSuccessKind {
         match self {
-            PyNonSuccessKind::Failure => NonSuccessKind::Failure,
-            PyNonSuccessKind::Error => NonSuccessKind::Error,
+            BindingsNonSuccessKind::Failure => NonSuccessKind::Failure,
+            BindingsNonSuccessKind::Error => NonSuccessKind::Error,
         }
     }
 }

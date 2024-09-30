@@ -3,6 +3,8 @@ use chrono::{DateTime, FixedOffset, Utc};
 use pyo3::prelude::*;
 use quick_junit::Report;
 use thiserror::Error;
+#[cfg(feature = "wasm")]
+use wasm_bindgen::prelude::*;
 
 use crate::string_safety::{validate_field_len, FieldLen};
 
@@ -14,6 +16,7 @@ const TIMESTAMP_OLD_DAYS: u32 = 30;
 const TIMESTAMP_STALE_HOURS: u32 = 1;
 
 #[cfg_attr(feature = "pyo3", pyclass)]
+#[cfg_attr(feature = "wasm", wasm_bindgen)]
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum JunitValidationLevel {
     Valid = 0,
@@ -164,15 +167,24 @@ pub fn validate(report: &Report) -> JunitReportValidation {
 }
 
 #[cfg_attr(feature = "pyo3", pyclass)]
+#[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct JunitReportValidation {
     test_suites: Vec<JunitTestSuiteValidation>,
 }
 
+#[cfg_attr(feature = "pyo3", pyclass(get_all))]
+#[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct JunitReportValidationFlatIssue {
+    pub level: JunitValidationLevel,
+    pub error_message: String,
+}
+
 #[cfg_attr(feature = "pyo3", pymethods)]
+#[cfg_attr(feature = "wasm", wasm_bindgen)]
 impl JunitReportValidation {
-    /// Only used for python bindings
-    fn test_suites_owned(&self) -> Vec<JunitTestSuiteValidation> {
+    pub fn test_suites_owned(&self) -> Vec<JunitTestSuiteValidation> {
         self.test_suites.clone()
     }
 
@@ -213,6 +225,7 @@ impl ToString for JunitTestSuiteValidationIssue {
 }
 
 #[cfg_attr(feature = "pyo3", pyclass)]
+#[cfg_attr(feature = "wasm", wasm_bindgen)]
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct JunitTestSuiteValidation {
     level: JunitValidationLevel,
@@ -221,21 +234,23 @@ pub struct JunitTestSuiteValidation {
 }
 
 #[cfg_attr(feature = "pyo3", pymethods)]
+#[cfg_attr(feature = "wasm", wasm_bindgen)]
 impl JunitTestSuiteValidation {
     pub fn level(&self) -> JunitValidationLevel {
         self.level
     }
 
-    /// Only used for python bindings
-    fn issues_flat(&self) -> Vec<(JunitValidationLevel, String)> {
+    pub fn issues_flat(&self) -> Vec<JunitReportValidationFlatIssue> {
         self.issues
             .iter()
-            .map(|i| (JunitValidationLevel::from(i), i.to_string()))
+            .map(|i| JunitReportValidationFlatIssue {
+                level: JunitValidationLevel::from(i),
+                error_message: i.to_string(),
+            })
             .collect()
     }
 
-    /// Only used for python bindings
-    fn test_cases_owned(&self) -> Vec<JunitTestCaseValidation> {
+    pub fn test_cases_owned(&self) -> Vec<JunitTestCaseValidation> {
         self.test_cases.clone()
     }
 
@@ -297,6 +312,7 @@ impl ToString for JunitTestCaseValidationIssue {
 }
 
 #[cfg_attr(feature = "pyo3", pyclass)]
+#[cfg_attr(feature = "wasm", wasm_bindgen)]
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct JunitTestCaseValidation {
     level: JunitValidationLevel,
@@ -304,16 +320,19 @@ pub struct JunitTestCaseValidation {
 }
 
 #[cfg_attr(feature = "pyo3", pymethods)]
+#[cfg_attr(feature = "wasm", wasm_bindgen)]
 impl JunitTestCaseValidation {
     pub fn level(&self) -> JunitValidationLevel {
         self.level
     }
 
-    /// Only used for python bindings
-    fn issues_flat(&self) -> Vec<(JunitValidationLevel, String)> {
+    pub fn issues_flat(&self) -> Vec<JunitReportValidationFlatIssue> {
         self.issues
             .iter()
-            .map(|i| (JunitValidationLevel::from(i), i.to_string()))
+            .map(|i| JunitReportValidationFlatIssue {
+                level: JunitValidationLevel::from(i),
+                error_message: i.to_string(),
+            })
             .collect()
     }
 }
