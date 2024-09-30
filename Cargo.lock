@@ -477,6 +477,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "ctor"
+version = "0.2.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "edb49164822f3ee45b17acd4a208cfc1251410cf0cad9a833234c9890774dd9f"
+dependencies = [
+ "quote",
+ "syn 2.0.77",
+]
+
+[[package]]
 name = "debugid"
 version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -625,9 +635,9 @@ dependencies = [
 
 [[package]]
 name = "flate2"
-version = "1.0.33"
+version = "1.0.34"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "324a1be68054ef05ad64b861cc9eaf1d623d2d8cb25b4bf2cb9cdd902b4bf253"
+checksum = "a1b589b4dc103969ad3cf85c950899926ec64300a1a46d76c03a6072957036f0"
 dependencies = [
  "crc32fast",
  "miniz_oxide",
@@ -1902,7 +1912,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3f81e1644e1b54f5a68959a29aa86cde704219254669da328ecfdf6a1f09d427"
 dependencies = [
  "ansi_term",
- "ctor",
+ "ctor 0.1.26",
  "difference",
  "output_vt100",
 ]
@@ -2818,8 +2828,10 @@ dependencies = [
  "chrono",
  "clap",
  "codeowners",
+ "ctor 0.2.8",
  "env_logger",
  "exitcode",
+ "flate2",
  "git2",
  "gix",
  "glob",
@@ -2838,6 +2850,7 @@ dependencies = [
  "tokio-retry",
  "uuid",
  "vergen",
+ "xml-builder",
  "zstd",
 ]
 
@@ -3278,6 +3291,12 @@ checksum = "68a9bda4691f099d435ad181000724da8e5899daa10713c2d432552b9ccd3a6f"
 dependencies = [
  "memchr",
 ]
+
+[[package]]
+name = "xml-builder"
+version = "0.5.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5ef5f40cd674b9d9814545203f175ac29ffdcb6e006727f4d95797d7badd72e2"
 
 [[package]]
 name = "zerocopy"

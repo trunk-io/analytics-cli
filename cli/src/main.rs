@@ -1,6 +1,7 @@
 use std::env;
-use std::io::Write;
+use std::io::{Seek, Write};
 use std::time::{SystemTime, UNIX_EPOCH};
+use trunk_analytics_cli::xcresult::XCResultFile;
 
 use clap::{Args, Parser, Subcommand};
 use tokio_retry::strategy::ExponentialBackoff;
@@ -37,11 +38,13 @@ struct Cli {
 struct UploadArgs {
     #[arg(
         long,
-        required = true,
+        required = false,
         value_delimiter = ',',
         help = "Comma-separated list of glob paths to junit files."
     )]
     junit_paths: Vec<String>,
+    #[arg(long, required = false, help = "Path of xcresult directory")]
+    xcresult_path: Option<String>,
     #[arg(long, help = "Organization url slug.")]
     org_url_slug: String,
     #[arg(
@@ -143,6 +146,7 @@ async fn run_upload(
 ) -> anyhow::Result<i32> {
     let UploadArgs {
         junit_paths,
+        xcresult_path,
         org_url_slug,
         token,
         repo_root,
@@ -167,8 +171,10 @@ async fn run_upload(
         repo_head_commit_epoch,
     )?;
 
-    if junit_paths.is_empty() {
-        return Err(anyhow::anyhow!("No junit paths provided."));
+    if junit_paths.is_empty() && xcresult_path.is_none() {
+        return Err(anyhow::anyhow!(
+            "Neither junit nor xcresult paths were provided."
+        ));
     }
 
     let api_address = from_non_empty_or_default(
@@ -192,9 +198,28 @@ async fn run_upload(
     }
 
     let tags = parse_custom_tags(&tags)?;
+    let mut temp_paths = Vec::new();
+    // NOTE: This temp directory must be in a higher scope, otherwise it will be dropped before we can use it.
+    let junit_temp_dir = tempfile::tempdir()?;
+    if xcresult_path.is_some() && cfg!(target_os = "macos") {
+        let xcresult = XCResultFile::new(xcresult_path.unwrap());
+        let junit = xcresult?.junit();
+        let junit_temp_path = junit_temp_dir.path().join("xcresult_junit.xml");
+        let mut junit_temp = std::fs::File::create(&junit_temp_path)?;
+        junit_temp.write_all(&junit)?;
+        junit_temp.seek(std::io::SeekFrom::Start(0))?;
+        temp_paths.push(junit_temp_path.to_str().unwrap().to_string());
+    } else if xcresult_path.is_some() && !cfg!(target_os = "macos") {
+        log::warn!("xcresult was specified but it is only supported on macOS. Ignoring xcresult.");
+    }
 
-    let (file_sets, file_counter) =
-        build_filesets(&repo, &junit_paths, team.clone(), &codeowners, exec_start)?;
+    let (file_sets, file_counter) = build_filesets(
+        &repo,
+        &[junit_paths.as_slice(), temp_paths.as_slice()].concat(),
+        team.clone(),
+        &codeowners,
+        exec_start,
+    )?;
 
     if !allow_missing_junit_files && (file_counter.get_count() == 0 || file_sets.is_empty()) {
         return Err(anyhow::anyhow!("No JUnit files found to upload."));
