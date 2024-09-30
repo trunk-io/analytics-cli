@@ -319,7 +319,7 @@ async fn run_upload(
     .map(|_| BundleUploadStatus::UploadComplete)
     .unwrap_or_else(|e| {
         log::error!("Failed to upload bundle to S3 after retries: {}", e);
-        BundleUploadStatus::UploadFailure
+        BundleUploadStatus::UploadFailed
     });
     if let Err(e) =
         update_bundle_upload_status(&api_address, &token, &upload.id, &upload_status).await

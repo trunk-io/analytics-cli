@@ -67,11 +67,11 @@ pub async fn update_bundle_upload_status(
         .await
         .map_err(|e| anyhow::anyhow!(e).context("Failed to update bundle upload status"))?;
 
-    if resp.status().is_client_error() {
-        return Err(anyhow::anyhow!(
-            "Failed to update bundle upload status. Client error: {}",
-            resp.status()
-        ));
+    if resp.status() != reqwest::StatusCode::OK {
+        return Err(
+            anyhow::anyhow!("{}: {}", resp.status(), status_code_help(resp.status()))
+                .context("Failed to update bundle upload status"),
+        );
     }
 
     Ok(())

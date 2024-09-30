@@ -39,8 +39,8 @@ pub enum BundleUploadStatus {
     Pending,
     #[serde(rename = "UPLOAD_COMPLETE")]
     UploadComplete,
-    #[serde(rename = "UPLOAD_FAILURE")]
-    UploadFailure,
+    #[serde(rename = "UPLOAD_FAILED")]
+    UploadFailed,
     #[serde(rename = "DRY_RUN")]
     DryRun,
 }
