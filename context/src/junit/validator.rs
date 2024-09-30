@@ -1,4 +1,5 @@
 use chrono::{DateTime, FixedOffset, Utc};
+use pyo3::prelude::*;
 use quick_junit::Report;
 use thiserror::Error;
 
@@ -11,6 +12,7 @@ pub const MAX_FIELD_LEN: usize = 1_000;
 const TIMESTAMP_OLD_DAYS: u32 = 30;
 const TIMESTAMP_STALE_HOURS: u32 = 1;
 
+#[pyclass]
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum JunitValidationLevel {
     Valid = 0,
@@ -160,14 +162,17 @@ pub fn validate(report: &Report) -> JunitReportValidation {
     report_validation
 }
 
+#[pyclass]
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct JunitReportValidation {
     test_suites: Vec<JunitTestSuiteValidation>,
 }
 
+#[pymethods]
 impl JunitReportValidation {
-    pub fn test_suites(&self) -> &[JunitTestSuiteValidation] {
-        &self.test_suites
+    /// Only used for python bindings
+    fn test_suites_owned(&self) -> Vec<JunitTestSuiteValidation> {
+        self.test_suites.clone()
     }
 
     pub fn max_level(&self) -> JunitValidationLevel {
@@ -186,11 +191,27 @@ impl JunitReportValidation {
     }
 }
 
+impl JunitReportValidation {
+    pub fn test_suites(&self) -> &[JunitTestSuiteValidation] {
+        &self.test_suites
+    }
+}
+
 pub type JunitTestSuiteValidationIssue = JunitValidationIssue<
     JunitTestSuiteValidationIssueSubOptimal,
     JunitTestSuiteValidationIssueInvalid,
 >;
 
+impl ToString for JunitTestSuiteValidationIssue {
+    fn to_string(&self) -> String {
+        match self {
+            Self::SubOptimal(i) => i.to_string(),
+            Self::Invalid(i) => i.to_string(),
+        }
+    }
+}
+
+#[pyclass]
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct JunitTestSuiteValidation {
     level: JunitValidationLevel,
@@ -198,17 +219,23 @@ pub struct JunitTestSuiteValidation {
     test_cases: Vec<JunitTestCaseValidation>,
 }
 
+#[pymethods]
 impl JunitTestSuiteValidation {
-    pub fn level(&self) -> &JunitValidationLevel {
-        &self.level
+    pub fn level(&self) -> JunitValidationLevel {
+        self.level
     }
 
-    pub fn issues(&self) -> &[JunitTestSuiteValidationIssue] {
-        &self.issues
+    /// Only used for python bindings
+    fn issues_flat(&self) -> Vec<(JunitValidationLevel, String)> {
+        self.issues
+            .iter()
+            .map(|i| (JunitValidationLevel::from(i), i.to_string()))
+            .collect()
     }
 
-    pub fn test_cases(&self) -> &[JunitTestCaseValidation] {
-        &self.test_cases
+    /// Only used for python bindings
+    fn test_cases_owned(&self) -> Vec<JunitTestCaseValidation> {
+        self.test_cases.clone()
     }
 
     pub fn max_level(&self) -> JunitValidationLevel {
@@ -224,6 +251,16 @@ impl JunitTestSuiteValidation {
             .iter()
             .map(|test_case| test_case.level)
             .max()
+    }
+}
+
+impl JunitTestSuiteValidation {
+    pub fn issues(&self) -> &[JunitTestSuiteValidationIssue] {
+        &self.issues
+    }
+
+    pub fn test_cases(&self) -> &[JunitTestCaseValidation] {
+        &self.test_cases
     }
 
     fn add_issue(&mut self, issue: JunitTestSuiteValidationIssue) {
@@ -249,17 +286,38 @@ pub type JunitTestCaseValidationIssue = JunitValidationIssue<
     JunitTestCaseValidationIssueInvalid,
 >;
 
+impl ToString for JunitTestCaseValidationIssue {
+    fn to_string(&self) -> String {
+        match self {
+            Self::SubOptimal(i) => i.to_string(),
+            Self::Invalid(i) => i.to_string(),
+        }
+    }
+}
+
+#[pyclass]
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct JunitTestCaseValidation {
     level: JunitValidationLevel,
     issues: Vec<JunitTestCaseValidationIssue>,
 }
 
+#[pymethods]
 impl JunitTestCaseValidation {
-    pub fn level(&self) -> &JunitValidationLevel {
-        &self.level
+    pub fn level(&self) -> JunitValidationLevel {
+        self.level
     }
 
+    /// Only used for python bindings
+    fn issues_flat(&self) -> Vec<(JunitValidationLevel, String)> {
+        self.issues
+            .iter()
+            .map(|i| (JunitValidationLevel::from(i), i.to_string()))
+            .collect()
+    }
+}
+
+impl JunitTestCaseValidation {
     pub fn issues(&self) -> &[JunitTestCaseValidationIssue] {
         &self.issues
     }

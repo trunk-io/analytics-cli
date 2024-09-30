@@ -1,3 +1,4 @@
+use pyo3::prelude::*;
 use thiserror::Error;
 
 use crate::string_safety::safe_truncate_string;
@@ -40,6 +41,7 @@ mod ci_platform_env_key {
     pub const DRONE: &str = "DRONE";
 }
 
+#[pyclass]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CIPlatform {
     GitHubActions,
@@ -296,22 +298,36 @@ impl<'a> CIInfoParser<'a> {
     }
 }
 
+#[pyclass]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CIInfo {
+    #[pyo3(get)]
     pub platform: CIPlatform,
+    #[pyo3(get)]
     pub job_url: Option<String>,
+    #[pyo3(get)]
     pub branch: Option<String>,
+    #[pyo3(get)]
     pub branch_class: Option<BranchClass>,
+    #[pyo3(get)]
     pub pr_number: Option<usize>,
+    #[pyo3(get)]
     pub actor: Option<String>,
+    #[pyo3(get)]
     pub committer_name: Option<String>,
+    #[pyo3(get)]
     pub committer_email: Option<String>,
+    #[pyo3(get)]
     pub author_name: Option<String>,
+    #[pyo3(get)]
     pub author_email: Option<String>,
+    #[pyo3(get)]
     pub commit_message: Option<String>,
+    #[pyo3(get)]
     pub title: Option<String>,
 }
 
+#[pyclass]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BranchClass {
     PullRequest,

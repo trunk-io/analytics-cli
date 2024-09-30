@@ -1,0 +1,15 @@
+[package]
+name = "context-py"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[lib]
+name = "context_py"
+crate-type = ["cdylib"]
+
+[dependencies]
+chrono = "0.4.33"
+context = { path = "../context" }
+quick-junit = "0.5.0"
+pyo3 = "0.20.0"
