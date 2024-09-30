@@ -1,3 +1,4 @@
+#[cfg(feature = "pyo3")]
 use pyo3::prelude::*;
 use thiserror::Error;
 
@@ -41,7 +42,7 @@ mod ci_platform_env_key {
     pub const DRONE: &str = "DRONE";
 }
 
-#[pyclass]
+#[cfg_attr(feature = "pyo3", pyclass)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CIPlatform {
     GitHubActions,
@@ -298,36 +299,25 @@ impl<'a> CIInfoParser<'a> {
     }
 }
 
-#[pyclass]
+#[cfg_attr(feature = "pyo3", pyclass(get_all))]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CIInfo {
-    #[pyo3(get)]
     pub platform: CIPlatform,
-    #[pyo3(get)]
     pub job_url: Option<String>,
-    #[pyo3(get)]
     pub branch: Option<String>,
-    #[pyo3(get)]
     pub branch_class: Option<BranchClass>,
-    #[pyo3(get)]
     pub pr_number: Option<usize>,
-    #[pyo3(get)]
     pub actor: Option<String>,
-    #[pyo3(get)]
     pub committer_name: Option<String>,
-    #[pyo3(get)]
     pub committer_email: Option<String>,
-    #[pyo3(get)]
     pub author_name: Option<String>,
-    #[pyo3(get)]
     pub author_email: Option<String>,
-    #[pyo3(get)]
     pub commit_message: Option<String>,
-    #[pyo3(get)]
     pub title: Option<String>,
 }
 
-#[pyclass]
+#[cfg_attr(feature = "pyo3", pyclass)]
+#[wasm_bindgen]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BranchClass {
     PullRequest,

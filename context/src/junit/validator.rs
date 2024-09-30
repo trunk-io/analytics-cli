@@ -1,4 +1,5 @@
 use chrono::{DateTime, FixedOffset, Utc};
+#[cfg(feature = "pyo3")]
 use pyo3::prelude::*;
 use quick_junit::Report;
 use thiserror::Error;
@@ -12,7 +13,7 @@ pub const MAX_FIELD_LEN: usize = 1_000;
 const TIMESTAMP_OLD_DAYS: u32 = 30;
 const TIMESTAMP_STALE_HOURS: u32 = 1;
 
-#[pyclass]
+#[cfg_attr(feature = "pyo3", pyclass)]
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum JunitValidationLevel {
     Valid = 0,
@@ -162,13 +163,13 @@ pub fn validate(report: &Report) -> JunitReportValidation {
     report_validation
 }
 
-#[pyclass]
+#[cfg_attr(feature = "pyo3", pyclass)]
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct JunitReportValidation {
     test_suites: Vec<JunitTestSuiteValidation>,
 }
 
-#[pymethods]
+#[cfg_attr(feature = "pyo3", pymethods)]
 impl JunitReportValidation {
     /// Only used for python bindings
     fn test_suites_owned(&self) -> Vec<JunitTestSuiteValidation> {
@@ -211,7 +212,7 @@ impl ToString for JunitTestSuiteValidationIssue {
     }
 }
 
-#[pyclass]
+#[cfg_attr(feature = "pyo3", pyclass)]
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct JunitTestSuiteValidation {
     level: JunitValidationLevel,
@@ -219,7 +220,7 @@ pub struct JunitTestSuiteValidation {
     test_cases: Vec<JunitTestCaseValidation>,
 }
 
-#[pymethods]
+#[cfg_attr(feature = "pyo3", pymethods)]
 impl JunitTestSuiteValidation {
     pub fn level(&self) -> JunitValidationLevel {
         self.level
@@ -295,14 +296,14 @@ impl ToString for JunitTestCaseValidationIssue {
     }
 }
 
-#[pyclass]
+#[cfg_attr(feature = "pyo3", pyclass)]
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct JunitTestCaseValidation {
     level: JunitValidationLevel,
     issues: Vec<JunitTestCaseValidationIssue>,
 }
 
-#[pymethods]
+#[cfg_attr(feature = "pyo3", pymethods)]
 impl JunitTestCaseValidation {
     pub fn level(&self) -> JunitValidationLevel {
         self.level

@@ -1,4 +1,5 @@
 use chrono::{DateTime, Utc};
+#[cfg(feature = "pyo3")]
 use pyo3::prelude::*;
 use thiserror::Error;
 
@@ -13,7 +14,7 @@ pub const MAX_FIELD_LEN: usize = 1000;
 const TIMESTAMP_OLD_DAYS: u32 = 30;
 const TIMESTAMP_STALE_HOURS: u32 = 1;
 
-#[pyclass]
+#[cfg_attr(feature = "pyo3", pyclass)]
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum RepoValidationLevel {
     Valid = 0,
@@ -171,14 +172,14 @@ pub fn validate(bundle_repo: &BundleRepo) -> RepoValidation {
     repo_validation
 }
 
-#[pyclass]
+#[cfg_attr(feature = "pyo3", pyclass)]
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct RepoValidation {
     level: RepoValidationLevel,
     issues: Vec<RepoValidationIssue>,
 }
 
-#[pymethods]
+#[cfg_attr(feature = "pyo3", pymethods)]
 impl RepoValidation {
     pub fn level(&self) -> RepoValidationLevel {
         self.level

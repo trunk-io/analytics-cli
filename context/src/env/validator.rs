@@ -1,3 +1,4 @@
+#[cfg(feature = "pyo3")]
 use pyo3::prelude::*;
 use thiserror::Error;
 
@@ -9,7 +10,7 @@ pub const MAX_BRANCH_NAME_LEN: usize = 36;
 pub const MAX_EMAIL_LEN: usize = 254;
 pub const MAX_FIELD_LEN: usize = 1000;
 
-#[pyclass]
+#[cfg_attr(feature = "pyo3", pyclass)]
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum EnvValidationLevel {
     Valid = 0,
@@ -255,14 +256,14 @@ pub fn validate(ci_info: &CIInfo) -> EnvValidation {
     env_validation
 }
 
-#[pyclass]
+#[cfg_attr(feature = "pyo3", pyclass)]
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct EnvValidation {
     level: EnvValidationLevel,
     issues: Vec<EnvValidationIssue>,
 }
 
-#[pymethods]
+#[cfg_attr(feature = "pyo3", pymethods)]
 impl EnvValidation {
     pub fn level(&self) -> EnvValidationLevel {
         self.level
