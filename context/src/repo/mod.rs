@@ -2,6 +2,7 @@ use std::path::PathBuf;
 
 use anyhow::Context;
 use gix::Repository;
+use pyo3::prelude::*;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 
@@ -18,16 +19,26 @@ struct BundleRepoOptions {
     repo_head_commit_epoch: Option<i64>,
 }
 
+#[pyclass]
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct BundleRepo {
+    #[pyo3(get)]
     pub repo: RepoUrlParts,
+    #[pyo3(get)]
     pub repo_root: String,
+    #[pyo3(get)]
     pub repo_url: String,
+    #[pyo3(get)]
     pub repo_head_sha: String,
+    #[pyo3(get)]
     pub repo_head_branch: String,
+    #[pyo3(get)]
     pub repo_head_commit_epoch: i64,
+    #[pyo3(get)]
     pub repo_head_commit_message: String,
+    #[pyo3(get)]
     pub repo_head_author_name: String,
+    #[pyo3(get)]
     pub repo_head_author_email: String,
 }
 
@@ -136,10 +147,42 @@ impl BundleRepo {
     }
 }
 
+#[pymethods]
+impl BundleRepo {
+    #[new]
+    fn py_new(
+        repo: RepoUrlParts,
+        repo_root: String,
+        repo_url: String,
+        repo_head_sha: String,
+        repo_head_branch: String,
+        repo_head_commit_epoch: i64,
+        repo_head_commit_message: String,
+        repo_head_author_name: String,
+        repo_head_author_email: String,
+    ) -> Self {
+        Self {
+            repo,
+            repo_root,
+            repo_url,
+            repo_head_sha,
+            repo_head_branch,
+            repo_head_commit_epoch,
+            repo_head_commit_message,
+            repo_head_author_name,
+            repo_head_author_email,
+        }
+    }
+}
+
+#[pyclass]
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct RepoUrlParts {
+    #[pyo3(get)]
     pub host: String,
+    #[pyo3(get)]
     pub owner: String,
+    #[pyo3(get)]
     pub name: String,
 }
 
@@ -196,5 +239,13 @@ impl RepoUrlParts {
         }
 
         Ok(Self { host, owner, name })
+    }
+}
+
+#[pymethods]
+impl RepoUrlParts {
+    #[new]
+    fn py_new(host: String, owner: String, name: String) -> Self {
+        Self { host, owner, name }
     }
 }

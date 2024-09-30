@@ -1,3 +1,4 @@
+use pyo3::prelude::*;
 use thiserror::Error;
 
 use crate::string_safety::{validate_field_len, FieldLen};
@@ -8,6 +9,7 @@ pub const MAX_BRANCH_NAME_LEN: usize = 36;
 pub const MAX_EMAIL_LEN: usize = 254;
 pub const MAX_FIELD_LEN: usize = 1000;
 
+#[pyclass]
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum EnvValidationLevel {
     Valid = 0,
@@ -25,6 +27,15 @@ impl Default for EnvValidationLevel {
 pub enum EnvValidationIssue {
     SubOptimal(EnvValidationIssueSubOptimal),
     Invalid(EnvValidationIssueInvalid),
+}
+
+impl ToString for EnvValidationIssue {
+    fn to_string(&self) -> String {
+        match self {
+            Self::SubOptimal(i) => i.to_string(),
+            Self::Invalid(i) => i.to_string(),
+        }
+    }
 }
 
 #[derive(Error, Debug, Clone, PartialEq, Eq)]
@@ -244,23 +255,35 @@ pub fn validate(ci_info: &CIInfo) -> EnvValidation {
     env_validation
 }
 
+#[pyclass]
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct EnvValidation {
     level: EnvValidationLevel,
     issues: Vec<EnvValidationIssue>,
 }
 
+#[pymethods]
 impl EnvValidation {
     pub fn level(&self) -> EnvValidationLevel {
         self.level
     }
 
-    pub fn issues(&self) -> &[EnvValidationIssue] {
-        &self.issues
+    /// Only used for python bindings
+    fn issues_flat(&self) -> Vec<(EnvValidationLevel, String)> {
+        self.issues
+            .iter()
+            .map(|i| (EnvValidationLevel::from(i), i.to_string()))
+            .collect()
     }
 
     pub fn max_level(&self) -> EnvValidationLevel {
         self.level
+    }
+}
+
+impl EnvValidation {
+    pub fn issues(&self) -> &[EnvValidationIssue] {
+        &self.issues
     }
 
     fn add_issue(&mut self, issue: EnvValidationIssue) {
