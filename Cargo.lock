@@ -457,6 +457,7 @@ dependencies = [
  "anyhow",
  "chrono",
  "gix",
+ "js-sys",
  "junit-mock",
  "openssl",
  "pretty_assertions",
@@ -470,16 +471,24 @@ dependencies = [
  "tempfile",
  "test_utils",
  "thiserror",
+ "wasm-bindgen",
+]
+
+[[package]]
+name = "context-js"
+version = "0.1.0"
+dependencies = [
+ "context",
+ "js-sys",
+ "wasm-bindgen",
 ]
 
 [[package]]
 name = "context-py"
 version = "0.1.0"
 dependencies = [
- "chrono",
  "context",
  "pyo3",
- "quick-junit",
 ]
 
 [[package]]

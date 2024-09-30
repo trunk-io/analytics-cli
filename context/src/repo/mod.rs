@@ -5,6 +5,8 @@ use anyhow::Context;
 use pyo3::prelude::*;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
+#[cfg(feature = "wasm")]
+use wasm_bindgen::prelude::*;
 
 pub mod validator;
 
@@ -20,6 +22,7 @@ struct BundleRepoOptions {
 }
 
 #[cfg_attr(feature = "pyo3", pyclass(get_all))]
+#[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct BundleRepo {
     pub repo: RepoUrlParts,
@@ -88,8 +91,13 @@ impl BundleRepo {
                         bundle_repo_options.repo_head_commit_epoch = bundle_repo_options
                             .repo_head_commit_epoch
                             .or_else(|| commit.time().ok().map(|time| time.seconds));
-                        head_commit_message = commit.message().map(|msg| msg.title.to_string()).ok();
-                        head_commit_author = commit.author().ok().map(|signature| signature.to_owned()).map(|a| (a.name.to_string(), a.email.to_string()));
+                        head_commit_message =
+                            commit.message().map(|msg| msg.title.to_string()).ok();
+                        head_commit_author = commit
+                            .author()
+                            .ok()
+                            .map(|signature| signature.to_owned())
+                            .map(|a| (a.name.to_string(), a.email.to_string()));
                     }
                 }
             }
@@ -101,8 +109,8 @@ impl BundleRepo {
             .context("failed to get repo URL")?;
         let repo_url_parts =
             RepoUrlParts::from_url(&repo_url).context("failed to parse repo URL")?;
-        let (repo_head_author_name, repo_head_author_email) = head_commit_author
-            .unwrap_or_default();
+        let (repo_head_author_name, repo_head_author_email) =
+            head_commit_author.unwrap_or_default();
         Ok(BundleRepo {
             repo: repo_url_parts,
             repo_root: bundle_repo_options
@@ -170,6 +178,7 @@ impl BundleRepo {
 }
 
 #[cfg_attr(feature = "pyo3", pyclass(get_all))]
+#[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct RepoUrlParts {
     pub host: String,

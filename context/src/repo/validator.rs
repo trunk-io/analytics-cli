@@ -2,6 +2,8 @@ use chrono::{DateTime, Utc};
 #[cfg(feature = "pyo3")]
 use pyo3::prelude::*;
 use thiserror::Error;
+#[cfg(feature = "wasm")]
+use wasm_bindgen::prelude::*;
 
 use crate::string_safety::{validate_field_len, FieldLen};
 
@@ -15,6 +17,7 @@ const TIMESTAMP_OLD_DAYS: u32 = 30;
 const TIMESTAMP_STALE_HOURS: u32 = 1;
 
 #[cfg_attr(feature = "pyo3", pyclass)]
+#[cfg_attr(feature = "wasm", wasm_bindgen)]
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum RepoValidationLevel {
     Valid = 0,
@@ -173,23 +176,35 @@ pub fn validate(bundle_repo: &BundleRepo) -> RepoValidation {
 }
 
 #[cfg_attr(feature = "pyo3", pyclass)]
+#[cfg_attr(feature = "wasm", wasm_bindgen)]
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct RepoValidation {
     level: RepoValidationLevel,
     issues: Vec<RepoValidationIssue>,
 }
 
+#[cfg_attr(feature = "pyo3", pyclass(get_all))]
+#[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct RepoValidationFlatIssue {
+    pub level: RepoValidationLevel,
+    pub error_message: String,
+}
+
 #[cfg_attr(feature = "pyo3", pymethods)]
+#[cfg_attr(feature = "wasm", wasm_bindgen)]
 impl RepoValidation {
     pub fn level(&self) -> RepoValidationLevel {
         self.level
     }
 
-    /// Only used for python bindings
-    fn issues_flat(&self) -> Vec<(RepoValidationLevel, String)> {
+    pub fn issues_flat(&self) -> Vec<RepoValidationFlatIssue> {
         self.issues
             .iter()
-            .map(|i| (RepoValidationLevel::from(i), i.to_string()))
+            .map(|i| RepoValidationFlatIssue {
+                level: RepoValidationLevel::from(i),
+                error_message: i.to_string(),
+            })
             .collect()
     }
 
