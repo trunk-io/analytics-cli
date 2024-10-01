@@ -22,7 +22,7 @@ fn test_xcresult_with_valid_path() {
     let xcresult = XCResultFile::new(path_str.to_string());
     assert!(xcresult.is_ok());
 
-    let junits = xcresult.unwrap().generate_junits();
+    let junits = xcresult.unwrap().generate_junits().unwrap();
     assert_eq!(junits.len(), 1);
     let junit = junits[0].clone();
     let mut junit_writer: Vec<u8> = Vec::new();
@@ -63,7 +63,7 @@ fn test_complex_xcresult_with_valid_path() {
     let xcresult = XCResultFile::new(path_str.to_string());
     assert!(xcresult.is_ok());
 
-    let junits = xcresult.unwrap().generate_junits();
+    let junits = xcresult.unwrap().generate_junits().unwrap();
     assert_eq!(junits.len(), 1);
     let junit = junits[0].clone();
     let mut junit_writer: Vec<u8> = Vec::new();

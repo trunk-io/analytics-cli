@@ -203,7 +203,9 @@ async fn run_upload(
     let junit_temp_dir = tempfile::tempdir()?;
     if xcresult_path.is_some() && cfg!(target_os = "macos") {
         let xcresult = XCResultFile::new(xcresult_path.unwrap());
-        let junits = xcresult?.generate_junits();
+        let junits = xcresult?
+            .generate_junits()
+            .map_err(|e| anyhow::anyhow!("Failed to generate junit files from xcresult: {}", e))?;
         for (i, junit) in junits.iter().enumerate() {
             let mut junit_writer: Vec<u8> = Vec::new();
             junit.serialize(&mut junit_writer).unwrap();
@@ -211,9 +213,18 @@ async fn run_upload(
                 .path()
                 .join(format!("xcresult_junit_{}.xml", i));
             let mut junit_temp = std::fs::File::create(&junit_temp_path)?;
-            junit_temp.write_all(&junit_writer)?;
-            junit_temp.seek(std::io::SeekFrom::Start(0))?;
-            temp_paths.push(junit_temp_path.to_str().unwrap().to_string());
+            junit_temp
+                .write_all(&junit_writer)
+                .map_err(|e| anyhow::anyhow!("Failed to write junit file: {}", e))?;
+            junit_temp
+                .seek(std::io::SeekFrom::Start(0))
+                .map_err(|e| anyhow::anyhow!("Failed to seek junit file: {}", e))?;
+            let junit_temp_path_str = junit_temp_path.to_str();
+            if let Some(junit_temp_path_string) = junit_temp_path_str {
+                temp_paths.push(junit_temp_path_string.to_string());
+            } else {
+                log::error!("Failed to convert junit temp path to string.");
+            }
         }
     } else if xcresult_path.is_some() && !cfg!(target_os = "macos") {
         log::warn!("xcresult was specified but it is only supported on macOS. Ignoring xcresult.");
