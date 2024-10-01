@@ -44,11 +44,11 @@ jobs:
         uses: taiki-e/install-action@nextest
 
       - name: Run tests
-        run: cargo nextest run --profile=ci
+        run: cargo nextest run --workspace ${{ contains(matrix.target, 'musl') && '--exclude context-js --exclude context-py' || '' }} --profile=ci
 
       - name: Build ${{ matrix.target }} target
         if: "!cancelled()"
-        run: cargo build -q --all --release --target ${{ matrix.target }}
+        run: cargo build -q --workspace ${{ contains(matrix.target, 'musl') && '--exclude context-js --exclude context-py' || '' }} --release --target ${{ matrix.target }}
 
       - name: Upload results using action from ${{ matrix.target }}
         env:
@@ -88,7 +88,7 @@ jobs:
         run: curl -LsSf https://get.nexte.st/latest/linux-arm | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin
 
       - name: Run tests
-        run: cargo nextest run --profile=ci
+        run: cargo nextest run --workspace ${{ contains(matrix.target, 'musl') && '--exclude context-js --exclude context-py' || '' }} --profile=ci
 
       - name: Build ${{ matrix.target }} target
         uses: ./.github/actions/build_target
