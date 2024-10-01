@@ -271,9 +271,8 @@ impl XCResultFile {
             let ended_time_parsed = chrono::DateTime::parse_from_str(ended_time, DATE_FORMAT)?;
             let started_time_parsed = chrono::DateTime::parse_from_str(started_time, DATE_FORMAT)?;
             let duration = (ended_time_parsed.timestamp_millis()
-                - started_time_parsed.timestamp_millis()) as f32
-                / 1000.0;
-            testsuites_junit.set_time(std::time::Duration::from_secs_f32(duration));
+                - started_time_parsed.timestamp_millis()) as u64;
+            testsuites_junit.set_time(std::time::Duration::from_millis(duration));
         }
         let found_tests = self.find_tests(id)?;
         let test_summaries = match found_tests.get("summaries").and_then(|r| r.get("_values")) {
