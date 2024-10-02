@@ -2,7 +2,7 @@ use ctor::ctor;
 use flate2::read::GzDecoder;
 use std::fs::File;
 use tar::Archive;
-use trunk_analytics_cli::xcresult::XCResultFile;
+use xcresult::XCResult;
 
 #[cfg(test)]
 #[ctor]
@@ -19,7 +19,7 @@ fn init() {
 #[test]
 fn test_xcresult_with_valid_path() {
     let path_str = "tests/data/test1.xcresult";
-    let xcresult = XCResultFile::new(path_str.to_string());
+    let xcresult = XCResult::new(path_str.to_string());
     assert!(xcresult.is_ok());
 
     let junits = xcresult.unwrap().generate_junits().unwrap();
@@ -36,7 +36,7 @@ fn test_xcresult_with_valid_path() {
 #[test]
 fn test_xcresult_with_invalid_path() {
     let path_str = "tests/data/test2.xcresult";
-    let xcresult = XCResultFile::new(path_str.to_string());
+    let xcresult = XCResult::new(path_str.to_string());
     assert!(xcresult.is_err());
     assert_eq!(
         xcresult.err().unwrap().to_string(),
@@ -48,7 +48,7 @@ fn test_xcresult_with_invalid_path() {
 #[test]
 fn test_xcresult_with_invalid_xcresult() {
     let path_str = "tests/data/test3.xcresult";
-    let xcresult = XCResultFile::new(path_str.to_string());
+    let xcresult = XCResult::new(path_str.to_string());
     assert!(xcresult.is_err());
     assert_eq!(
         xcresult.err().unwrap().to_string(),
@@ -60,7 +60,7 @@ fn test_xcresult_with_invalid_xcresult() {
 #[test]
 fn test_complex_xcresult_with_valid_path() {
     let path_str = "tests/data/test4.xcresult";
-    let xcresult = XCResultFile::new(path_str.to_string());
+    let xcresult = XCResult::new(path_str.to_string());
     assert!(xcresult.is_ok());
 
     let junits = xcresult.unwrap().generate_junits().unwrap();
@@ -77,7 +77,7 @@ fn test_complex_xcresult_with_valid_path() {
 #[test]
 fn test_xcresult_with_valid_path_invalid_os() {
     let path_str = "tests/data/test1.xcresult";
-    let xcresult = XCResultFile::new(path_str.to_string());
+    let xcresult = XCResult::new(path_str.to_string());
     assert_eq!(
         xcresult.err().unwrap().to_string(),
         "xcrun is only available on macOS"

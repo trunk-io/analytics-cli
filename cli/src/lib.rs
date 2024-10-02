@@ -6,4 +6,3 @@ pub mod runner;
 pub mod scanner;
 pub mod types;
 pub mod utils;
-pub mod xcresult;

@@ -5,7 +5,7 @@ use std::str;
 use std::{fs, process::Command};
 
 #[derive(Debug, Clone)]
-pub struct XCResultFile {
+pub struct XCResult {
     pub path: String,
     results_obj: serde_json::Value,
 }
@@ -61,13 +61,13 @@ fn xcresulttool(
         .map_err(|_| anyhow::anyhow!("failed to parse json from xcrun output"))
 }
 
-impl XCResultFile {
-    pub fn new(path: String) -> Result<XCResultFile, anyhow::Error> {
+impl XCResult {
+    pub fn new(path: String) -> Result<XCResult, anyhow::Error> {
         let binding = fs::canonicalize(path.clone())
             .map_err(|_| anyhow::anyhow!("failed to get absolute path"))?;
         let absolute_path = binding.to_str().unwrap_or("");
         let results_obj = xcresulttool(absolute_path, None)?;
-        Ok(XCResultFile {
+        Ok(XCResult {
             path: absolute_path.to_string(),
             results_obj,
         })
@@ -164,7 +164,7 @@ impl XCResultFile {
             .get("identifierURL")
             .and_then(|r| r.get("_value"))
             .and_then(|r| r.as_str())
-            .map(|raw_id| XCResultFile::generate_id(raw_id))
+            .map(|raw_id| XCResult::generate_id(raw_id))
             .unwrap_or_default();
         testcase_junit.extra.insert("id".into(), id.into());
         let file_components = uri.split('#').collect::<Vec<&str>>();
@@ -213,7 +213,7 @@ impl XCResultFile {
             .and_then(|r| r.as_str())
         {
             index_map.append(&mut indexmap! {
-                XmlString::new("id") => XmlString::new(XCResultFile::generate_id(identifier)),
+                XmlString::new("id") => XmlString::new(XCResult::generate_id(identifier)),
             });
         }
         testsuite_junit.extra = index_map;

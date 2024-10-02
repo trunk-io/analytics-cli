@@ -2,7 +2,7 @@ use std::env;
 use std::io::Write;
 use std::time::{SystemTime, UNIX_EPOCH};
 #[cfg(target_os = "macos")]
-use trunk_analytics_cli::xcresult::XCResultFile;
+use xcresult::XCResult;
 
 use clap::{Args, Parser, Subcommand};
 use tokio_retry::strategy::ExponentialBackoff;
@@ -154,7 +154,7 @@ fn handle_xcresult(
 ) -> Result<Vec<String>, anyhow::Error> {
     let mut temp_paths = Vec::new();
     if let Some(xcresult_path) = xcresult_path {
-        let xcresult = XCResultFile::new(xcresult_path);
+        let xcresult = XCResult::new(xcresult_path);
         let junits = xcresult?
             .generate_junits()
             .map_err(|e| anyhow::anyhow!("Failed to generate junit files from xcresult: {}", e))?;

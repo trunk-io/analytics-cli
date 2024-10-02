@@ -1,5 +1,5 @@
 [workspace]
-members = ["cli", "codeowners", "junit-mock"]
+members = ["cli", "codeowners", "junit-mock", "xcresult"]
 resolver = "2"
 
 [profile.release]
