@@ -35,11 +35,19 @@ struct Cli {
     pub command: Commands,
 }
 
+fn junit_require() -> &'static str {
+    if cfg!(target_os = "macos") {
+        "xcresult_path"
+    } else {
+        "junit_paths"
+    }
+}
+
 #[derive(Args, Clone, Debug)]
 struct UploadArgs {
     #[arg(
         long,
-        required_unless_present = "xcresult_path",
+        required_unless_present = junit_require(),
         value_delimiter = ',',
         help = "Comma-separated list of glob paths to junit files."
     )]
@@ -181,7 +189,11 @@ async fn run_upload(
     exec_start: Option<SystemTime>,
 ) -> anyhow::Result<i32> {
     let UploadArgs {
+        #[cfg(target_os = "macos")]
+        mut junit_paths,
+        #[cfg(target_os = "linux")]
         junit_paths,
+        #[cfg(target_os = "macos")]
         xcresult_path,
         org_url_slug,
         token,
@@ -207,10 +219,8 @@ async fn run_upload(
         repo_head_commit_epoch,
     )?;
 
-    if junit_paths.is_empty() && xcresult_path.is_none() {
-        return Err(anyhow::anyhow!(
-            "Neither junit nor xcresult paths were provided."
-        ));
+    if junit_paths.is_empty() {
+        return Err(anyhow::anyhow!("No junit paths provided."));
     }
 
     let api_address = from_non_empty_or_default(
@@ -234,26 +244,16 @@ async fn run_upload(
     }
 
     let tags = parse_custom_tags(&tags)?;
+    #[cfg(target_os = "macos")]
     let junit_temp_dir = tempfile::tempdir()?;
-    let temp_paths = match handle_xcresult(&junit_temp_dir, xcresult_path) {
-        Ok(paths) => paths,
-        Err(e) => {
-            if junit_paths.is_empty() {
-                log::error!("Failed to handle xcresult: {}", e);
-                return Err(e);
-            }
-            log::warn!("Failed to handle xcresult: {}", e);
-            Vec::new()
-        }
-    };
+    #[cfg(target_os = "macos")]
+    {
+        let temp_paths = handle_xcresult(&junit_temp_dir, xcresult_path)?;
+        junit_paths = [junit_paths.as_slice(), temp_paths.as_slice()].concat();
+    }
 
-    let (file_sets, file_counter) = build_filesets(
-        &repo,
-        &[junit_paths.as_slice(), temp_paths.as_slice()].concat(),
-        team.clone(),
-        &codeowners,
-        exec_start,
-    )?;
+    let (file_sets, file_counter) =
+        build_filesets(&repo, &junit_paths, team.clone(), &codeowners, exec_start)?;
 
     if !allow_missing_junit_files && (file_counter.get_count() == 0 || file_sets.is_empty()) {
         return Err(anyhow::anyhow!("No JUnit files found to upload."));

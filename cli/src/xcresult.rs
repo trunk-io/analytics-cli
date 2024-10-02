@@ -12,7 +12,7 @@ pub struct XCResultFile {
 
 const LEGACY_FLAG_MIN_VERSION: i32 = 70;
 
-fn xcrun<T: AsRef<str>>(args: &[T]) -> anyhow::Result<String> { 
+fn xcrun<T: AsRef<str>>(args: &[T]) -> anyhow::Result<String> {
     if !cfg!(target_os = "macos") {
         return Err(anyhow::anyhow!("xcrun is only available on macOS"));
     }
@@ -33,7 +33,8 @@ fn xcrun_version() -> anyhow::Result<i32> {
     lazy_static! {
         static ref RE: regex::Regex = regex::Regex::new(r"xcrun version (\d+)").unwrap();
     }
-    let res = re.captures(&version_raw.to_string())
+    let res = re
+        .captures(&version_raw.to_string())
         .and_then(|capture_group| capture_group.get(1))
         .map(|version| Ok(version.as_str().parse::<i32>().ok().unwrap_or(0)))
         .unwrap_or_else(|| Err(anyhow::anyhow!("failed to parse xcrun version")));
@@ -168,7 +169,9 @@ impl XCResultFile {
         testcase_junit.extra.insert("id".into(), id.into());
         let file_components = uri.split('#').collect::<Vec<&str>>();
         if file_components.len() == 2 {
-            testcase_junit.extra.insert("file".into(), file_components[0].into());
+            testcase_junit
+                .extra
+                .insert("file".into(), file_components[0].into());
         }
         if let Some(classname) = testcase_group
             .get("name")
