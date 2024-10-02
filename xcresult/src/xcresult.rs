@@ -27,7 +27,7 @@ fn xcrun<T: AsRef<str>>(args: &[T]) -> anyhow::Result<String> {
 }
 
 fn xcrun_version() -> anyhow::Result<i32> {
-    let version_raw = xcrun(&vec!["--version"])?;
+    let version_raw = xcrun(&["--version"])?;
     // regex to match version where the output looks like xcrun version 70.
     let re = regex::Regex::new(r"xcrun version (\d+)")?;
     lazy_static! {
@@ -164,7 +164,7 @@ impl XCResult {
             .get("identifierURL")
             .and_then(|r| r.get("_value"))
             .and_then(|r| r.as_str())
-            .map(|raw_id| XCResult::generate_id(raw_id))
+            .map(XCResult::generate_id)
             .unwrap_or_default();
         testcase_junit.extra.insert("id".into(), id.into());
         let file_components = uri.split('#').collect::<Vec<&str>>();
