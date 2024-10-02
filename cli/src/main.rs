@@ -1,6 +1,7 @@
 use std::env;
-use std::io::{Seek, Write};
+use std::io::Write;
 use std::time::{SystemTime, UNIX_EPOCH};
+#[cfg(target_os = "macos")]
 use trunk_analytics_cli::xcresult::XCResultFile;
 
 use clap::{Args, Parser, Subcommand};
@@ -38,11 +39,12 @@ struct Cli {
 struct UploadArgs {
     #[arg(
         long,
-        required = false,
+        required_unless_present = "xcresult_path",
         value_delimiter = ',',
         help = "Comma-separated list of glob paths to junit files."
     )]
     junit_paths: Vec<String>,
+    #[cfg(target_os = "macos")]
     #[arg(long, required = false, help = "Path of xcresult directory")]
     xcresult_path: Option<String>,
     #[arg(long, help = "Organization url slug.")]
@@ -137,6 +139,40 @@ fn main() -> anyhow::Result<()> {
         })
 }
 
+#[cfg(target_os = "macos")]
+fn handle_xcresult(
+    junit_temp_dir: &tempfile::TempDir,
+    xcresult_path: Option<String>,
+) -> Result<Vec<String>, anyhow::Error> {
+    let mut temp_paths = Vec::new();
+    if let Some(xcresult_path) = xcresult_path {
+        let xcresult = XCResultFile::new(xcresult_path);
+        let junits = xcresult?
+            .generate_junits()
+            .map_err(|e| anyhow::anyhow!("Failed to generate junit files from xcresult: {}", e))?;
+        for (i, junit) in junits.iter().enumerate() {
+            let mut junit_writer: Vec<u8> = Vec::new();
+            junit.serialize(&mut junit_writer)?;
+            let junit_temp_path = junit_temp_dir
+                .path()
+                .join(format!("xcresult_junit_{}.xml", i));
+            let mut junit_temp = std::fs::File::create(&junit_temp_path)?;
+            junit_temp
+                .write_all(&junit_writer)
+                .map_err(|e| anyhow::anyhow!("Failed to write junit file: {}", e))?;
+            let junit_temp_path_str = junit_temp_path.to_str();
+            if let Some(junit_temp_path_string) = junit_temp_path_str {
+                temp_paths.push(junit_temp_path_string.to_string());
+            } else {
+                return Err(anyhow::anyhow!(
+                    "Failed to convert junit temp path to string."
+                ));
+            }
+        }
+    }
+    Ok(temp_paths)
+}
+
 async fn run_upload(
     upload_args: UploadArgs,
     test_command: Option<String>,
@@ -198,37 +234,18 @@ async fn run_upload(
     }
 
     let tags = parse_custom_tags(&tags)?;
-    let mut temp_paths = Vec::new();
-    // NOTE: This temp directory must be in a higher scope, otherwise it will be dropped before we can use it.
     let junit_temp_dir = tempfile::tempdir()?;
-    if xcresult_path.is_some() && cfg!(target_os = "macos") {
-        let xcresult = XCResultFile::new(xcresult_path.unwrap());
-        let junits = xcresult?
-            .generate_junits()
-            .map_err(|e| anyhow::anyhow!("Failed to generate junit files from xcresult: {}", e))?;
-        for (i, junit) in junits.iter().enumerate() {
-            let mut junit_writer: Vec<u8> = Vec::new();
-            junit.serialize(&mut junit_writer).unwrap();
-            let junit_temp_path = junit_temp_dir
-                .path()
-                .join(format!("xcresult_junit_{}.xml", i));
-            let mut junit_temp = std::fs::File::create(&junit_temp_path)?;
-            junit_temp
-                .write_all(&junit_writer)
-                .map_err(|e| anyhow::anyhow!("Failed to write junit file: {}", e))?;
-            junit_temp
-                .seek(std::io::SeekFrom::Start(0))
-                .map_err(|e| anyhow::anyhow!("Failed to seek junit file: {}", e))?;
-            let junit_temp_path_str = junit_temp_path.to_str();
-            if let Some(junit_temp_path_string) = junit_temp_path_str {
-                temp_paths.push(junit_temp_path_string.to_string());
-            } else {
-                log::error!("Failed to convert junit temp path to string.");
+    let temp_paths = match handle_xcresult(&junit_temp_dir, xcresult_path) {
+        Ok(paths) => paths,
+        Err(e) => {
+            if junit_paths.is_empty() {
+                log::error!("Failed to handle xcresult: {}", e);
+                return Err(e);
             }
+            log::warn!("Failed to handle xcresult: {}", e);
+            Vec::new()
         }
-    } else if xcresult_path.is_some() && !cfg!(target_os = "macos") {
-        log::warn!("xcresult was specified but it is only supported on macOS. Ignoring xcresult.");
-    }
+    };
 
     let (file_sets, file_counter) = build_filesets(
         &repo,

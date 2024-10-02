@@ -1,4 +1,5 @@
 use indexmap::indexmap;
+use lazy_static::lazy_static;
 use quick_junit::{NonSuccessKind, Report, TestCase, TestCaseStatus, TestSuite, XmlString};
 use std::str;
 use std::{fs, process::Command};
@@ -11,12 +12,12 @@ pub struct XCResultFile {
 
 const LEGACY_FLAG_MIN_VERSION: i32 = 70;
 
-fn xcrun(args: Vec<&str>) -> Result<String, anyhow::Error> {
+fn xcrun<T: AsRef<str>>(args: &[T]) -> anyhow::Result<String> { 
     if !cfg!(target_os = "macos") {
         return Err(anyhow::anyhow!("xcrun is only available on macOS"));
     }
     let mut cmd = Command::new("xcrun");
-    let bin = cmd.args(args);
+    let bin = cmd.args(args.iter().map(|arg| arg.as_ref()));
     let output = bin.output().map_err(|_| {
         anyhow::anyhow!("failed to run xcrun -- please make sure you have xcode installed")
     })?;
@@ -25,21 +26,26 @@ fn xcrun(args: Vec<&str>) -> Result<String, anyhow::Error> {
     Ok(result)
 }
 
-fn xcrun_version() -> Result<i32, anyhow::Error> {
-    let version_raw = xcrun(vec!["--version"])?;
+fn xcrun_version() -> anyhow::Result<i32> {
+    let version_raw = xcrun(&vec!["--version"])?;
     // regex to match version where the output looks like xcrun version 70.
     let re = regex::Regex::new(r"xcrun version (\d+)")?;
-    if let Some(capture_group) = re.captures(&version_raw.to_string()) {
-        if let Some(version) = capture_group.get(1) {
-            return Ok(version.as_str().parse::<i32>().unwrap_or(0));
-        }
+    lazy_static! {
+        static ref RE: regex::Regex = regex::Regex::new(r"xcrun version (\d+)").unwrap();
+    }
+    let res = re.captures(&version_raw.to_string())
+        .and_then(|capture_group| capture_group.get(1))
+        .map(|version| Ok(version.as_str().parse::<i32>().ok().unwrap_or(0)))
+        .unwrap_or_else(|| Err(anyhow::anyhow!("failed to parse xcrun version")));
+    if let Ok(version) = res {
+        return Ok(version);
     }
     Err(anyhow::anyhow!("failed to parse xcrun version"))
 }
 
 fn xcresulttool(
     path: &str,
-    options: Option<Vec<&str>>,
+    options: Option<&Vec<&str>>,
 ) -> Result<serde_json::Value, anyhow::Error> {
     let mut base_args = vec!["xcresulttool", "get", "--path", path, "--format", "json"];
     let version = xcrun_version()?;
@@ -49,7 +55,7 @@ fn xcresulttool(
     if let Some(val) = options {
         base_args.extend(val);
     }
-    let output = xcrun(base_args)?;
+    let output = xcrun(&base_args)?;
     serde_json::from_str(&output)
         .map_err(|_| anyhow::anyhow!("failed to parse json from xcrun output"))
 }
@@ -67,10 +73,10 @@ impl XCResultFile {
     }
 
     fn find_tests(&self, id: &str) -> Result<serde_json::Value, anyhow::Error> {
-        xcresulttool(&self.path, Some(vec!["--id", id]))
+        xcresulttool(&self.path, Some(&vec!["--id", id]))
     }
 
-    fn generate_id(&self, raw_id: &str) -> String {
+    fn generate_id(raw_id: &str) -> String {
         uuid::Uuid::new_v5(&uuid::Uuid::NAMESPACE_URL, raw_id.as_bytes()).to_string()
     }
 
@@ -80,17 +86,17 @@ impl XCResultFile {
         testcase: &serde_json::Value,
         testcase_group: &serde_json::Value,
     ) -> Result<TestCase, anyhow::Error> {
-        let name = match testcase
+        let name = testcase
             .get("name")
             .and_then(|r| r.get("_value"))
             .and_then(|r| r.as_str())
-        {
-            Some(val) => val,
-            None => {
-                log::debug!("failed to get name of testcase: {:?}", testcase);
-                return Err(anyhow::anyhow!("failed to get name of testcase"));
-            }
-        };
+            .map_or_else(
+                || {
+                    log::debug!("failed to get name of testcase: {:?}", testcase);
+                    Err(anyhow::anyhow!("failed to get name of testcase"))
+                },
+                Ok,
+            )?;
         let status = match testcase
             .get("testStatus")
             .and_then(|r| r.get("_value"))
@@ -152,25 +158,18 @@ impl XCResultFile {
                 }
             }
         }
-        let raw_id = testcase
+        let mut testcase_junit = TestCase::new(name, testcase_status);
+        let id = testcase
             .get("identifierURL")
             .and_then(|r| r.get("_value"))
-            .and_then(|r| r.as_str());
-        let mut id = String::new();
-        if let Some(raw_id) = raw_id {
-            id = self.generate_id(raw_id);
-        }
-        let mut testcase_junit = TestCase::new(name, testcase_status);
+            .and_then(|r| r.as_str())
+            .map(|raw_id| XCResultFile::generate_id(raw_id))
+            .unwrap_or_default();
+        testcase_junit.extra.insert("id".into(), id.into());
         let file_components = uri.split('#').collect::<Vec<&str>>();
-        let mut index_map = indexmap! {
-           XmlString::new("id") => XmlString::new(id),
-        };
         if file_components.len() == 2 {
-            index_map.append(&mut indexmap! {
-                XmlString::new("file") => XmlString::new(file_components[0]),
-            });
+            testcase_junit.extra.insert("file".into(), file_components[0].into());
         }
-        testcase_junit.extra = index_map;
         if let Some(classname) = testcase_group
             .get("name")
             .and_then(|r| r.get("_value"))
@@ -211,7 +210,7 @@ impl XCResultFile {
             .and_then(|r| r.as_str())
         {
             index_map.append(&mut indexmap! {
-                XmlString::new("id") => XmlString::new(self.generate_id(identifier)),
+                XmlString::new("id") => XmlString::new(XCResultFile::generate_id(identifier)),
             });
         }
         testsuite_junit.extra = index_map;
@@ -330,8 +329,9 @@ impl XCResultFile {
             .results_obj
             .get("actions")
             .and_then(|a| a.get("_values"))
+            .and_then(|r| r.as_array())
         {
-            for action in actions.as_array().unwrap() {
+            for action in actions {
                 let report_junit = self.junit_report(action)?;
                 // only add the report if it has test suites
                 // xcresult stores build actions
