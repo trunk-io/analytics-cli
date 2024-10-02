@@ -64,7 +64,7 @@ fn xcresulttool(
 impl XCResult {
     pub fn new(path: String) -> Result<XCResult, anyhow::Error> {
         let binding = fs::canonicalize(path.clone())
-            .map_err(|_| anyhow::anyhow!("failed to get absolute path"))?;
+            .map_err(|_| anyhow::anyhow!("failed to get absolute path -- is the path correct?"))?;
         let absolute_path = binding.to_str().unwrap_or("");
         let results_obj = xcresulttool(absolute_path, None)?;
         Ok(XCResult {

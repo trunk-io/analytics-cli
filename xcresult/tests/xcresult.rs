@@ -40,7 +40,7 @@ fn test_xcresult_with_invalid_path() {
     assert!(xcresult.is_err());
     assert_eq!(
         xcresult.err().unwrap().to_string(),
-        "failed to get absolute path"
+        "failed to get absolute path -- is the path correct?"
     );
 }
 

@@ -219,10 +219,6 @@ async fn run_upload(
         repo_head_commit_epoch,
     )?;
 
-    if junit_paths.is_empty() {
-        return Err(anyhow::anyhow!("No junit paths provided."));
-    }
-
     let api_address = from_non_empty_or_default(
         std::env::var(TRUNK_PUBLIC_API_ADDRESS_ENV).ok(),
         DEFAULT_ORIGIN.to_string(),
