@@ -1,4 +1,9 @@
-use context::repo::{BundleRepo, RepoUrlParts};
+use chrono::DateTime;
+use context::repo::{
+    self,
+    validator::{RepoValidationIssue, RepoValidationLevel},
+    BundleRepo, RepoUrlParts,
+};
 use test_utils::mock_git_repo::{setup_repo_with_commit, TEST_BRANCH, TEST_ORIGIN};
 
 #[test]
@@ -34,6 +39,10 @@ fn test_try_read_from_root() {
     assert_eq!(bundle_repo.repo_head_sha.len(), 40);
     assert!(bundle_repo.repo_head_commit_epoch > 0);
     assert_eq!(bundle_repo.repo_head_commit_message, "Initial commit");
+
+    let repo_validation = repo::validator::validate(&bundle_repo);
+    assert_eq!(repo_validation.max_level(), RepoValidationLevel::Valid);
+    assert_eq!(repo_validation.issues(), &[]);
 }
 
 #[test]
@@ -70,6 +79,10 @@ fn test_try_read_from_root_with_url_override() {
     assert_eq!(bundle_repo.repo_head_sha.len(), 40);
     assert!(bundle_repo.repo_head_commit_epoch > 0);
     assert_eq!(bundle_repo.repo_head_commit_message, "Initial commit");
+
+    let repo_validation = repo::validator::validate(&bundle_repo);
+    assert_eq!(repo_validation.max_level(), RepoValidationLevel::Valid);
+    assert_eq!(repo_validation.issues(), &[]);
 }
 
 #[test]
@@ -106,6 +119,10 @@ fn test_try_read_from_root_with_sha_override() {
     assert_eq!(bundle_repo.repo_head_sha, sha);
     assert!(bundle_repo.repo_head_commit_epoch > 0);
     assert_eq!(bundle_repo.repo_head_commit_message, "Initial commit");
+
+    let repo_validation = repo::validator::validate(&bundle_repo);
+    assert_eq!(repo_validation.max_level(), RepoValidationLevel::Valid);
+    assert_eq!(repo_validation.issues(), &[]);
 }
 
 #[test]
@@ -139,6 +156,10 @@ fn test_try_read_from_root_with_branch_override() {
     assert_eq!(bundle_repo.repo_head_sha.len(), 40);
     assert!(bundle_repo.repo_head_commit_epoch > 0);
     assert_eq!(bundle_repo.repo_head_commit_message, "Initial commit");
+
+    let repo_validation = repo::validator::validate(&bundle_repo);
+    assert_eq!(repo_validation.max_level(), RepoValidationLevel::Valid);
+    assert_eq!(repo_validation.issues(), &[]);
 }
 
 #[test]
@@ -147,7 +168,7 @@ fn test_try_read_from_root_with_time_override() {
         .expect("failed to create temp directory")
         .into_path();
     setup_repo_with_commit(&root).expect("failed to setup repo");
-    let epoch = "123";
+    let epoch = 123;
     let bundle_repo = BundleRepo::new(
         Some(root.to_str().unwrap().to_string()),
         None,
@@ -173,8 +194,19 @@ fn test_try_read_from_root_with_time_override() {
         format!("refs/heads/{}", TEST_BRANCH)
     );
     assert_eq!(bundle_repo.repo_head_sha.len(), 40);
-    assert_eq!(bundle_repo.repo_head_commit_epoch, 123);
+    assert_eq!(bundle_repo.repo_head_commit_epoch, epoch);
     assert_eq!(bundle_repo.repo_head_commit_message, "Initial commit");
+
+    let repo_validation = repo::validator::validate(&bundle_repo);
+    assert_eq!(repo_validation.max_level(), RepoValidationLevel::SubOptimal);
+    pretty_assertions::assert_eq!(
+        repo_validation.issues(),
+        &[RepoValidationIssue::SubOptimal(
+            repo::validator::RepoValidationIssueSubOptimal::RepoCommitOldTimestamp(
+                DateTime::from_timestamp(epoch, 0).unwrap()
+            )
+        )]
+    );
 }
 
 #[test]
