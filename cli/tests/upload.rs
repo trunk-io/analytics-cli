@@ -5,7 +5,7 @@ use std::path::Path;
 use api::{CreateBundleUploadRequest, CreateRepoRequest, GetQuarantineBulkTestStatusRequest};
 use assert_cmd::Command;
 use assert_matches::assert_matches;
-use context::repo::RepoUrlParts;
+use context::repo::RepoUrlParts as Repo;
 use junit_mock::JunitMock;
 use tempfile::tempdir;
 use test_utils::{
@@ -70,7 +70,7 @@ async fn upload_bundle() {
     assert_eq!(
         requests_iter.next().unwrap(),
         RequestPayload::GetQuarantineBulkTestStatus(GetQuarantineBulkTestStatusRequest {
-            repo: RepoUrlParts {
+            repo: Repo {
                 host: String::from("github.com"),
                 owner: String::from("trunk-io"),
                 name: String::from("analytics-cli"),
@@ -82,7 +82,7 @@ async fn upload_bundle() {
     assert_eq!(
         requests_iter.next().unwrap(),
         RequestPayload::CreateBundleUpload(CreateBundleUploadRequest {
-            repo: RepoUrlParts {
+            repo: Repo {
                 host: String::from("github.com"),
                 owner: String::from("trunk-io"),
                 name: String::from("analytics-cli"),
@@ -101,7 +101,7 @@ async fn upload_bundle() {
     assert_eq!(bundle_meta.org, "test-org");
     assert_eq!(
         bundle_meta.repo.repo,
-        RepoUrlParts {
+        Repo {
             host: String::from("github.com"),
             owner: String::from("trunk-io"),
             name: String::from("analytics-cli"),
@@ -158,7 +158,7 @@ async fn upload_bundle() {
     assert_eq!(
         requests_iter.next().unwrap(),
         RequestPayload::CreateRepo(CreateRepoRequest {
-            repo: RepoUrlParts {
+            repo: Repo {
                 host: String::from("github.com"),
                 owner: String::from("trunk-io"),
                 name: String::from("analytics-cli"),

@@ -115,7 +115,7 @@ pub struct BundleMeta {
 
 #[cfg(test)]
 mod tests {
-    use context::repo::RepoUrlParts;
+    use context::repo::RepoUrlParts as Repo;
 
     use super::*;
 
@@ -212,7 +212,7 @@ mod tests {
         let file = Some("file".to_string());
         let org_slug = "org_slug";
         let repo = BundleRepo {
-            repo: RepoUrlParts {
+            repo: Repo {
                 host: "host".to_string(),
                 owner: "owner".to_string(),
                 name: "name".to_string(),

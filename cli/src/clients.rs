@@ -5,7 +5,7 @@ use api::{
     CreateBundleUploadRequest, CreateBundleUploadResponse, CreateRepoRequest,
     GetQuarantineBulkTestStatusRequest, QuarantineConfig,
 };
-use context::repo::RepoUrlParts;
+use context::repo::RepoUrlParts as Repo;
 
 use crate::utils::status_code_help;
 
@@ -16,7 +16,7 @@ pub async fn create_trunk_repo(
     origin: &str,
     api_token: &str,
     org_slug: &str,
-    repo: &RepoUrlParts,
+    repo: &Repo,
     remote_urls: &[String],
 ) -> anyhow::Result<()> {
     let client = reqwest::Client::new();
@@ -52,7 +52,7 @@ pub async fn create_bundle_upload_intent(
     origin: &str,
     api_token: &str,
     org_slug: &str,
-    repo: &RepoUrlParts,
+    repo: &Repo,
 ) -> anyhow::Result<CreateBundleUploadResponse> {
     let client = reqwest::Client::new();
     let resp = match client
@@ -87,7 +87,7 @@ pub async fn get_quarantining_config(
     origin: &str,
     api_token: &str,
     org_slug: &str,
-    repo: &RepoUrlParts,
+    repo: &Repo,
 ) -> anyhow::Result<QuarantineConfig> {
     let client = reqwest::Client::new();
     let resp = match client
