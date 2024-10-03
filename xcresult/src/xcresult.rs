@@ -4,7 +4,7 @@ use quick_junit::{NonSuccessKind, Report, TestCase, TestCaseStatus, TestSuite, X
 use std::str;
 use std::{fs, process::Command};
 
-const RESULTS_FIELD_VALUE: &str =  "_value";
+const RESULTS_FIELD_VALUE: &str = "_value";
 const RESULTS_FIELD_VALUES: &str = "_values";
 
 #[derive(Debug, Clone)]
@@ -279,7 +279,10 @@ impl XCResult {
             testsuites_junit.set_time(std::time::Duration::from_millis(duration));
         }
         let found_tests = self.find_tests(id)?;
-        let test_summaries = match found_tests.get("summaries").and_then(|r| r.get(RESULTS_FIELD_VALUES)) {
+        let test_summaries = match found_tests
+            .get("summaries")
+            .and_then(|r| r.get(RESULTS_FIELD_VALUES))
+        {
             Some(val) => val.as_array(),
             None => return Ok(testsuites_junit),
         };
