@@ -1,6 +1,6 @@
 use thiserror::Error;
 
-use crate::safe_truncate_string;
+use crate::string_safety::safe_truncate_string;
 
 use super::EnvVars;
 

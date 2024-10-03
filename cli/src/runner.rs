@@ -1,6 +1,8 @@
 use std::process::{Command, Stdio};
 use std::time::SystemTime;
 
+use api::QuarantineConfig;
+use context::repo::BundleRepo;
 use junit_parser;
 use tokio_retry::strategy::ExponentialBackoff;
 use tokio_retry::Retry;
@@ -8,10 +10,8 @@ use tokio_retry::Retry;
 use crate::clients::get_quarantining_config;
 use crate::codeowners::CodeOwners;
 use crate::constants::{EXIT_FAILURE, EXIT_SUCCESS};
-use crate::scanner::{BundleRepo, FileSet, FileSetCounter};
-use crate::types::{
-    QuarantineBulkTestStatus, QuarantineConfig, QuarantineRunResult, RunResult, Test,
-};
+use crate::scanner::{FileSet, FileSetCounter};
+use crate::types::{QuarantineBulkTestStatus, QuarantineRunResult, RunResult, Test};
 
 pub async fn run_test_command(
     repo: &BundleRepo,

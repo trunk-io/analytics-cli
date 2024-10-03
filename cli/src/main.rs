@@ -5,6 +5,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use xcresult::XCResult;
 
 use clap::{Args, Parser, Subcommand};
+use context::repo::BundleRepo;
 use tokio_retry::strategy::ExponentialBackoff;
 use tokio_retry::Retry;
 use trunk_analytics_cli::bundler::BundlerUtil;
@@ -18,11 +19,11 @@ use trunk_analytics_cli::constants::{
 use trunk_analytics_cli::runner::{
     build_filesets, extract_failed_tests, run_quarantine, run_test_command,
 };
-use trunk_analytics_cli::scanner::{BundleRepo, EnvScanner};
+use trunk_analytics_cli::scanner::EnvScanner;
 use trunk_analytics_cli::types::{
     BundleMeta, QuarantineBulkTestStatus, QuarantineRunResult, RunResult, META_VERSION,
 };
-use trunk_analytics_cli::utils::{from_non_empty_or_default, parse_custom_tags};
+use trunk_analytics_cli::utils::parse_custom_tags;
 
 #[derive(Debug, Parser)]
 #[command(
@@ -211,7 +212,7 @@ async fn run_upload(
         codeowners_path,
     } = upload_args;
 
-    let repo = BundleRepo::try_read_from_root(
+    let repo = BundleRepo::new(
         repo_root,
         repo_url,
         repo_head_sha,
@@ -219,11 +220,7 @@ async fn run_upload(
         repo_head_commit_epoch,
     )?;
 
-    let api_address = from_non_empty_or_default(
-        std::env::var(TRUNK_PUBLIC_API_ADDRESS_ENV).ok(),
-        DEFAULT_ORIGIN.to_string(),
-        |s| s,
-    );
+    let api_address = get_api_address();
 
     let codeowners =
         codeowners.or_else(|| CodeOwners::find_file(&repo.repo_root, &codeowners_path));
@@ -395,7 +392,7 @@ async fn run_test(test_args: TestArgs) -> anyhow::Result<i32> {
         ..
     } = &upload_args;
 
-    let repo = BundleRepo::try_read_from_root(
+    let repo = BundleRepo::new(
         repo_root.clone(),
         repo_url.clone(),
         repo_head_sha.clone(),
@@ -407,11 +404,7 @@ async fn run_test(test_args: TestArgs) -> anyhow::Result<i32> {
         return Err(anyhow::anyhow!("No junit paths provided."));
     }
 
-    let api_address = from_non_empty_or_default(
-        std::env::var(TRUNK_PUBLIC_API_ADDRESS_ENV).ok(),
-        DEFAULT_ORIGIN.to_string(),
-        |s| s,
-    );
+    let api_address = get_api_address();
 
     let codeowners = CodeOwners::find_file(&repo.repo_root, codeowners_path);
 
@@ -510,4 +503,11 @@ fn setup_logger() -> anyhow::Result<()> {
     }
     builder.init();
     Ok(())
+}
+
+fn get_api_address() -> String {
+    std::env::var(TRUNK_PUBLIC_API_ADDRESS_ENV)
+        .ok()
+        .and_then(|s| if s.is_empty() { None } else { Some(s) })
+        .unwrap_or_else(|| DEFAULT_ORIGIN.to_string())
 }

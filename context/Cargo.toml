@@ -6,11 +6,18 @@ edition = "2021"
 [dev-dependencies]
 pretty_assertions = "0.6"
 junit-mock = { path = "../junit-mock" }
+test_utils = { path = "../test_utils" }
+tempfile = "3.2.0"
 
 [dependencies]
 anyhow = "1.0.44"
 chrono = "0.4.33"
+gix = { version = "0.63.0", default-features = false, features = [] }
+openssl = { version = "0.10.66", features = ["vendored"] }
 quick-junit = "0.5.0"
 quick-xml = "0.36.2"
+regex = { version = "1.10.3", default-features = false, features = ["std"] }
+serde = { version = "1.0.130", default-features = false, features = ["derive"] }
+serde_json = "1.0.68"
 speedate = "0.14.4"
 thiserror = "1.0.63"
