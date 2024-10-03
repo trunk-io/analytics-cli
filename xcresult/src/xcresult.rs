@@ -4,6 +4,9 @@ use quick_junit::{NonSuccessKind, Report, TestCase, TestCaseStatus, TestSuite, X
 use std::str;
 use std::{fs, process::Command};
 
+const RESULTS_FIELD_VALUE: &str =  "_value";
+const RESULTS_FIELD_VALUES: &str = "_values";
+
 #[derive(Debug, Clone)]
 pub struct XCResult {
     pub path: String,
@@ -90,7 +93,7 @@ impl XCResult {
     ) -> anyhow::Result<TestCase> {
         let name = testcase
             .get("name")
-            .and_then(|r| r.get("_value"))
+            .and_then(|r| r.get(RESULTS_FIELD_VALUE))
             .and_then(|r| r.as_str())
             .map_or_else(
                 || {
@@ -101,7 +104,7 @@ impl XCResult {
             )?;
         let status = match testcase
             .get("testStatus")
-            .and_then(|r| r.get("_value"))
+            .and_then(|r| r.get(RESULTS_FIELD_VALUE))
             .and_then(|r| r.as_str())
         {
             Some(val) => val,
@@ -123,7 +126,7 @@ impl XCResult {
                 .get("actionResult")
                 .and_then(|r| r.get("issues"))
                 .and_then(|r| r.get("testFailureSummaries"))
-                .and_then(|r| r.get("_values"))
+                .and_then(|r| r.get(RESULTS_FIELD_VALUES))
                 .and_then(|r| r.as_array())
             {
                 Some(val) => val.iter(),
@@ -134,26 +137,26 @@ impl XCResult {
             };
             let testcase_identifier = testcase
                 .get("identifier")
-                .and_then(|r| r.get("_value"))
+                .and_then(|r| r.get(RESULTS_FIELD_VALUE))
                 .and_then(|r| r.as_str());
             if let Some(testcase_identifer) = testcase_identifier {
                 let testcase_identifer_updated = testcase_identifer.replace('/', ".");
                 let testcase_identifer_updated_str = Some(testcase_identifer_updated.as_str());
                 let failure = failures.find(|f| {
                     f.get("testCaseName")
-                        .and_then(|r| r.get("_value"))
+                        .and_then(|r| r.get(RESULTS_FIELD_VALUE))
                         .and_then(|r| r.as_str())
                         == testcase_identifer_updated_str
                 });
                 if let Some(failure) = failure {
                     let failure_message = failure
                         .get("message")
-                        .and_then(|r| r.get("_value"))
+                        .and_then(|r| r.get(RESULTS_FIELD_VALUE))
                         .and_then(|r| r.as_str());
                     let failure_uri = failure
                         .get("documentLocationInCreatingWorkspace")
                         .and_then(|r| r.get("url"))
-                        .and_then(|r| r.get("_value"))
+                        .and_then(|r| r.get(RESULTS_FIELD_VALUE))
                         .and_then(|r| r.as_str());
                     testcase_status.set_message(failure_message.unwrap_or_default());
                     uri = failure_uri.unwrap_or_default().replace("file://", "");
@@ -163,7 +166,7 @@ impl XCResult {
         let mut testcase_junit = TestCase::new(name, testcase_status);
         let id = testcase
             .get("identifierURL")
-            .and_then(|r| r.get("_value"))
+            .and_then(|r| r.get(RESULTS_FIELD_VALUE))
             .and_then(|r| r.as_str())
             .map(XCResult::generate_id)
             .unwrap_or_default();
@@ -176,7 +179,7 @@ impl XCResult {
         }
         if let Some(classname) = testcase_group
             .get("name")
-            .and_then(|r| r.get("_value"))
+            .and_then(|r| r.get(RESULTS_FIELD_VALUE))
             .and_then(|r| r.as_str())
         {
             testcase_junit.set_classname(classname);
@@ -184,7 +187,7 @@ impl XCResult {
 
         if let Some(duration) = testcase
             .get("duration")
-            .and_then(|r| r.get("_value"))
+            .and_then(|r| r.get(RESULTS_FIELD_VALUE))
             .and_then(|r| r.as_str())
             .and_then(|r| r.parse::<f32>().ok())
         {
@@ -200,7 +203,7 @@ impl XCResult {
     ) -> anyhow::Result<TestSuite> {
         let testsuite_name = testsuite
             .get("name")
-            .and_then(|r| r.get("_value"))
+            .and_then(|r| r.get(RESULTS_FIELD_VALUE))
             .and_then(|r| r.as_str());
         if testsuite_name.is_none() {
             log::debug!("failed to get name of testsuite: {:?}", testsuite);
@@ -209,7 +212,7 @@ impl XCResult {
         let mut testsuite_junit = TestSuite::new(testsuite_name.unwrap_or_default());
         if let Some(identifier) = testsuite
             .get("identifierURL")
-            .and_then(|r| r.get("_value"))
+            .and_then(|r| r.get(RESULTS_FIELD_VALUE))
             .and_then(|r| r.as_str())
         {
             testsuite_junit.extra.append(&mut indexmap! {
@@ -218,7 +221,7 @@ impl XCResult {
         }
         if let Some(duration) = testsuite
             .get("duration")
-            .and_then(|r| r.get("_value"))
+            .and_then(|r| r.get(RESULTS_FIELD_VALUE))
             .and_then(|r| r.as_str())
             .and_then(|r| r.parse::<f32>().ok())
         {
@@ -226,13 +229,13 @@ impl XCResult {
         }
         if let Some(testcase_groups) = testsuite
             .get("subtests")
-            .and_then(|t| t.get("_values"))
+            .and_then(|t| t.get(RESULTS_FIELD_VALUES))
             .and_then(|r| r.as_array())
         {
             for testcase_group in testcase_groups {
                 if let Some(testcases) = testcase_group
                     .get("subtests")
-                    .and_then(|t| t.get("_values"))
+                    .and_then(|t| t.get(RESULTS_FIELD_VALUES))
                     .and_then(|r| r.as_array())
                 {
                     for testcase in testcases {
@@ -251,7 +254,7 @@ impl XCResult {
             .get("actionResult")
             .and_then(|r| r.get("testsRef"))
             .and_then(|r| r.get("id"))
-            .and_then(|r| r.get("_value"))
+            .and_then(|r| r.get(RESULTS_FIELD_VALUE))
             .and_then(|r| r.as_str());
         if raw_id.is_none() {
             log::debug!("no test id found for action: {:?}", action);
@@ -262,11 +265,11 @@ impl XCResult {
         if let (Some(ended_time), Some(started_time)) = (
             action
                 .get("endedTime")
-                .and_then(|r| r.get("_value"))
+                .and_then(|r| r.get(RESULTS_FIELD_VALUE))
                 .and_then(|r| r.as_str()),
             action
                 .get("startedTime")
-                .and_then(|r| r.get("_value"))
+                .and_then(|r| r.get(RESULTS_FIELD_VALUE))
                 .and_then(|r| r.as_str()),
         ) {
             let ended_time_parsed = chrono::DateTime::parse_from_str(ended_time, DATE_FORMAT)?;
@@ -276,7 +279,7 @@ impl XCResult {
             testsuites_junit.set_time(std::time::Duration::from_millis(duration));
         }
         let found_tests = self.find_tests(id)?;
-        let test_summaries = match found_tests.get("summaries").and_then(|r| r.get("_values")) {
+        let test_summaries = match found_tests.get("summaries").and_then(|r| r.get(RESULTS_FIELD_VALUES)) {
             Some(val) => val.as_array(),
             None => return Ok(testsuites_junit),
         };
@@ -284,7 +287,7 @@ impl XCResult {
             for test_summary in test_summaries {
                 let testable_summaries = match test_summary
                     .get("testableSummaries")
-                    .and_then(|t| t.get("_values"))
+                    .and_then(|t| t.get(RESULTS_FIELD_VALUES))
                     .and_then(|r| r.as_array())
                 {
                     Some(val) => val,
@@ -295,7 +298,7 @@ impl XCResult {
                 for testable_summary in testable_summaries {
                     let top_level_tests = match testable_summary
                         .get("tests")
-                        .and_then(|t| t.get("_values"))
+                        .and_then(|t| t.get(RESULTS_FIELD_VALUES))
                         .and_then(|r| r.as_array())
                     {
                         Some(val) => val,
@@ -306,7 +309,7 @@ impl XCResult {
                     for top_level_test in top_level_tests {
                         let testsuites = match top_level_test
                             .get("subtests")
-                            .and_then(|t| t.get("_values"))
+                            .and_then(|t| t.get(RESULTS_FIELD_VALUES))
                             .and_then(|r| r.as_array())
                         {
                             Some(val) => val,
@@ -330,7 +333,7 @@ impl XCResult {
         if let Some(actions) = self
             .results_obj
             .get("actions")
-            .and_then(|a| a.get("_values"))
+            .and_then(|a| a.get(RESULTS_FIELD_VALUES))
             .and_then(|r| r.as_array())
         {
             for action in actions {
