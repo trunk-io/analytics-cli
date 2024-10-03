@@ -1,4 +1,4 @@
-use std::io::BufReader;
+use std::{io::BufReader, time::Duration};
 
 use chrono::{NaiveTime, TimeDelta, Utc};
 use junit_mock::JunitMock;
@@ -21,10 +21,20 @@ fn generate_mock_junit_reports(
     test_case_count: Option<usize>,
 ) -> (u64, Vec<Report>) {
     let mut options = junit_mock::Options::default();
+
+    // Tests that run later than 1 hour ago are sub-optimal
     options.global.timestamp = Utc::now()
         .fixed_offset()
         .checked_sub_signed(TimeDelta::hours(1));
+
+    // Make test durations short so we don't have tests mocked into the future
+    options.test_case.test_case_duration_range =
+        vec![Duration::from_secs(1).into(), Duration::from_secs(2).into()];
+    options.test_rerun.test_rerun_duration_range =
+        vec![Duration::from_secs(1).into(), Duration::from_secs(2).into()];
+
     options.report.report_random_count = report_count;
+
     // NOTE: Large JUnit.xml files make `pretty_assertions::assert_eq` choke when showing diffs
     options.test_suite.test_suite_random_count = test_suite_count.map(|c| c.min(5)).unwrap_or(1);
     options.test_case.test_case_random_count = test_case_count.map(|c| c.min(10)).unwrap_or(10);
