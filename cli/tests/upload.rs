@@ -10,8 +10,8 @@ use test_utils::mock_git_repo::setup_repo_with_commit;
 use test_utils::mock_server::{spawn_mock_server, RequestPayload};
 use trunk_analytics_cli::codeowners::CodeOwners;
 use trunk_analytics_cli::types::{
-    BundleMeta, CreateBundleUploadRequest, CreateRepoRequest, FileSetType,
-    GetQuarantineBulkTestStatusRequest, Repo,
+    BundleMeta, BundleUploadStatus, CreateBundleUploadRequest, CreateRepoRequest, FileSetType,
+    GetQuarantineBulkTestStatusRequest, Repo, UpdateBundleUploadRequest,
 };
 
 mod test_utils;
@@ -65,7 +65,7 @@ async fn upload_bundle() {
         .failure();
 
     let requests = state.requests.lock().unwrap().clone();
-    assert_eq!(requests.len(), 4);
+    assert_eq!(requests.len(), 5);
     let mut requests_iter = requests.into_iter();
 
     assert_eq!(
@@ -155,6 +155,14 @@ async fn upload_bundle() {
     assert_eq!(time_since_junit_modified.num_minutes(), 0);
     assert_eq!(bundled_file.owners, ["@user"]);
     assert_eq!(bundled_file.team, None);
+
+    assert_eq!(
+        requests_iter.next().unwrap(),
+        RequestPayload::UpdateBundleUpload(UpdateBundleUploadRequest {
+            id: "test-bundle-upload-id".to_string(),
+            upload_status: BundleUploadStatus::UploadComplete
+        }),
+    );
 
     assert_eq!(
         requests_iter.next().unwrap(),

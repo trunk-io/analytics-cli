@@ -8,20 +8,21 @@ use axum::body::Bytes;
 use axum::extract::State;
 use axum::http::StatusCode;
 use axum::response::Response;
-use axum::routing::{any, post, put};
+use axum::routing::{any, patch, post, put};
 use axum::{Json, Router};
 use tempfile::tempdir;
 use tokio::net::TcpListener;
 use tokio::spawn;
 use trunk_analytics_cli::types::{
     CreateBundleUploadRequest, CreateBundleUploadResponse, CreateRepoRequest,
-    GetQuarantineBulkTestStatusRequest, QuarantineConfig,
+    GetQuarantineBulkTestStatusRequest, QuarantineConfig, UpdateBundleUploadRequest,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RequestPayload {
     CreateRepo(CreateRepoRequest),
     CreateBundleUpload(CreateBundleUploadRequest),
+    UpdateBundleUpload(UpdateBundleUploadRequest),
     GetQuarantineBulkTestStatus(GetQuarantineBulkTestStatusRequest),
     S3Upload(PathBuf),
 }
@@ -53,6 +54,10 @@ pub async fn spawn_mock_server() -> SharedMockServerState {
         .route(
             "/v1/metrics/createBundleUpload",
             post(create_bundle_handler),
+        )
+        .route(
+            "/v1/metrics/updateBundleUpload",
+            patch(update_bundle_handler),
         )
         .route(
             "/v1/metrics/getQuarantineConfig",
@@ -114,6 +119,22 @@ async fn create_bundle_handler(
         url: format!("{host}/s3upload"),
         key: String::from("unused"),
     })
+}
+
+#[allow(dead_code)] // TODO: move this to its own crate to get rid of the need for this
+#[axum::debug_handler]
+async fn update_bundle_handler(
+    State(state): State<SharedMockServerState>,
+    Json(update_bundle_upload_request): Json<UpdateBundleUploadRequest>,
+) -> Response<String> {
+    state
+        .requests
+        .lock()
+        .unwrap()
+        .push(RequestPayload::UpdateBundleUpload(
+            update_bundle_upload_request,
+        ));
+    Response::new(String::from("OK"))
 }
 
 #[allow(dead_code)] // TODO: move this to its own crate to get rid of the need for this
