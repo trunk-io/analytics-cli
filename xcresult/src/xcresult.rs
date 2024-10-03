@@ -28,33 +28,34 @@ fn xcrun<T: AsRef<str>>(args: &[T]) -> anyhow::Result<String> {
 
 fn xcrun_version() -> anyhow::Result<i32> {
     let version_raw = xcrun(&["--version"])?;
-    // regex to match version where the output looks like xcrun version 70.
-    let re = regex::Regex::new(r"xcrun version (\d+)")?;
     lazy_static! {
+        // regex to match version where the output looks like xcrun version 70.
         static ref RE: regex::Regex = regex::Regex::new(r"xcrun version (\d+)").unwrap();
     }
-    let res = re
-        .captures(&version_raw.to_string())
+    RE.captures(&version_raw)
         .and_then(|capture_group| capture_group.get(1))
-        .map(|version| Ok(version.as_str().parse::<i32>().ok().unwrap_or(0)))
-        .unwrap_or_else(|| Err(anyhow::anyhow!("failed to parse xcrun version")));
-    if let Ok(version) = res {
-        return Ok(version);
-    }
-    Err(anyhow::anyhow!("failed to parse xcrun version"))
+        .map(|version| Ok(version.as_str().parse::<i32>().ok().unwrap_or_default()))
+        .unwrap_or_else(|| Err(anyhow::anyhow!("failed to parse xcrun version")))
 }
 
-fn xcresulttool(
-    path: &str,
-    options: Option<&Vec<&str>>,
-) -> Result<serde_json::Value, anyhow::Error> {
-    let mut base_args = vec!["xcresulttool", "get", "--path", path, "--format", "json"];
+fn xcresulttool<T: AsRef<str>>(
+    path: T,
+    options: Option<&[T]>,
+) -> anyhow::Result<serde_json::Value> {
+    let mut base_args = vec![
+        "xcresulttool",
+        "get",
+        "--path",
+        path.as_ref(),
+        "--format",
+        "json",
+    ];
     let version = xcrun_version()?;
     if version >= LEGACY_FLAG_MIN_VERSION {
         base_args.push("--legacy");
     }
     if let Some(val) = options {
-        base_args.extend(val);
+        base_args.extend(val.iter().map(|arg| arg.as_ref()));
     }
     let output = xcrun(&base_args)?;
     serde_json::from_str(&output)
@@ -62,10 +63,10 @@ fn xcresulttool(
 }
 
 impl XCResult {
-    pub fn new(path: String) -> Result<XCResult, anyhow::Error> {
-        let binding = fs::canonicalize(path.clone())
+    pub fn new<T: AsRef<str>>(path: T) -> anyhow::Result<XCResult> {
+        let binding = fs::canonicalize(path.as_ref())
             .map_err(|_| anyhow::anyhow!("failed to get absolute path -- is the path correct?"))?;
-        let absolute_path = binding.to_str().unwrap_or("");
+        let absolute_path = binding.to_str().unwrap_or_default();
         let results_obj = xcresulttool(absolute_path, None)?;
         Ok(XCResult {
             path: absolute_path.to_string(),
@@ -73,8 +74,8 @@ impl XCResult {
         })
     }
 
-    fn find_tests(&self, id: &str) -> Result<serde_json::Value, anyhow::Error> {
-        xcresulttool(&self.path, Some(&vec!["--id", id]))
+    fn find_tests<T: AsRef<str>>(&self, id: T) -> anyhow::Result<serde_json::Value> {
+        xcresulttool(self.path.as_str(), Some(&["--id", id.as_ref()]))
     }
 
     fn generate_id(raw_id: &str) -> String {
@@ -86,7 +87,7 @@ impl XCResult {
         action: &serde_json::Value,
         testcase: &serde_json::Value,
         testcase_group: &serde_json::Value,
-    ) -> Result<TestCase, anyhow::Error> {
+    ) -> anyhow::Result<TestCase> {
         let name = testcase
             .get("name")
             .and_then(|r| r.get("_value"))
@@ -154,8 +155,8 @@ impl XCResult {
                         .and_then(|r| r.get("url"))
                         .and_then(|r| r.get("_value"))
                         .and_then(|r| r.as_str());
-                    testcase_status.set_message(failure_message.unwrap_or(""));
-                    uri = failure_uri.unwrap_or("").replace("file://", "");
+                    testcase_status.set_message(failure_message.unwrap_or_default());
+                    uri = failure_uri.unwrap_or_default().replace("file://", "");
                 }
             }
         }
@@ -196,7 +197,7 @@ impl XCResult {
         &self,
         action: &serde_json::Value,
         testsuite: &serde_json::Value,
-    ) -> Result<TestSuite, anyhow::Error> {
+    ) -> anyhow::Result<TestSuite> {
         let testsuite_name = testsuite
             .get("name")
             .and_then(|r| r.get("_value"))
@@ -205,18 +206,16 @@ impl XCResult {
             log::debug!("failed to get name of testsuite: {:?}", testsuite);
             return Err(anyhow::anyhow!("failed to get name of testsuite"));
         }
-        let mut testsuite_junit = TestSuite::new(testsuite_name.unwrap_or(""));
-        let mut index_map = indexmap! {};
+        let mut testsuite_junit = TestSuite::new(testsuite_name.unwrap_or_default());
         if let Some(identifier) = testsuite
             .get("identifierURL")
             .and_then(|r| r.get("_value"))
             .and_then(|r| r.as_str())
         {
-            index_map.append(&mut indexmap! {
+            testsuite_junit.extra.append(&mut indexmap! {
                 XmlString::new("id") => XmlString::new(XCResult::generate_id(identifier)),
             });
         }
-        testsuite_junit.extra = index_map;
         if let Some(duration) = testsuite
             .get("duration")
             .and_then(|r| r.get("_value"))
@@ -246,7 +245,7 @@ impl XCResult {
         Ok(testsuite_junit)
     }
 
-    fn junit_report(&self, action: &serde_json::Value) -> Result<Report, anyhow::Error> {
+    fn junit_report(&self, action: &serde_json::Value) -> anyhow::Result<Report> {
         let mut testsuites_junit = Report::new("name");
         let raw_id = action
             .get("actionResult")
@@ -258,7 +257,7 @@ impl XCResult {
             log::debug!("no test id found for action: {:?}", action);
             return Ok(testsuites_junit);
         }
-        let id = raw_id.unwrap_or("");
+        let id = raw_id.unwrap_or_default();
         const DATE_FORMAT: &str = "%Y-%m-%dT%H:%M:%S%.f%z";
         if let (Some(ended_time), Some(started_time)) = (
             action
@@ -326,7 +325,7 @@ impl XCResult {
         Ok(testsuites_junit)
     }
 
-    pub fn generate_junits(&self) -> Result<Vec<Report>, anyhow::Error> {
+    pub fn generate_junits(&self) -> anyhow::Result<Vec<Report>> {
         let mut report_junits: Vec<Report> = Vec::new();
         if let Some(actions) = self
             .results_obj

@@ -150,6 +150,7 @@ pub async fn put_bundle_to_s3(url: &str, bundle_path: &PathBuf) -> anyhow::Resul
             resp.text().await?
         ));
     }
+    log::info!("Bundle uploaded to S3");
 
     Ok(())
 }
