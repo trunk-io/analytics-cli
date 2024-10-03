@@ -7,7 +7,7 @@ use tokio_retry::strategy::ExponentialBackoff;
 use tokio_retry::Retry;
 use trunk_analytics_cli::bundler::BundlerUtil;
 use trunk_analytics_cli::clients::{
-    create_bundle_upload_intent, create_trunk_repo, put_bundle_to_s3, update_bundle_upload_status,
+    create_bundle_upload_intent, create_trunk_repo, put_bundle_to_s3,
 };
 use trunk_analytics_cli::codeowners::CodeOwners;
 use trunk_analytics_cli::constants::{
@@ -18,8 +18,7 @@ use trunk_analytics_cli::runner::{
 };
 use trunk_analytics_cli::scanner::{BundleRepo, EnvScanner};
 use trunk_analytics_cli::types::{
-    BundleMeta, BundleUploadStatus, QuarantineBulkTestStatus, QuarantineRunResult, RunResult,
-    META_VERSION,
+    BundleMeta, QuarantineBulkTestStatus, QuarantineRunResult, RunResult, META_VERSION,
 };
 use trunk_analytics_cli::utils::{from_non_empty_or_default, parse_custom_tags};
 
@@ -257,7 +256,7 @@ async fn run_upload(
         ),
         org: org_url_slug.clone(),
         repo: repo.clone(),
-        bundle_upload_id: upload.id.clone(),
+        bundle_upload_id: upload.id,
         tags,
         file_sets,
         envs,
@@ -296,42 +295,14 @@ async fn run_upload(
     log::info!("Flushed temporary tarball to {:?}", bundle_time_file);
 
     if dry_run {
-        if let Err(e) = update_bundle_upload_status(
-            &api_address,
-            &token,
-            &upload.id,
-            &BundleUploadStatus::DryRun,
-        )
-        .await
-        {
-            log::warn!("Failed to update bundle upload status: {}", e);
-        } else {
-            log::debug!("Updated bundle upload status to DRY_RUN");
-        }
         log::info!("Dry run, skipping upload.");
         return Ok(exit_code);
     }
 
-    let upload_status = Retry::spawn(default_delay(), || {
+    Retry::spawn(default_delay(), || {
         put_bundle_to_s3(&upload.url, &bundle_time_file)
     })
-    .await
-    .map(|_| BundleUploadStatus::UploadComplete)
-    .unwrap_or_else(|e| {
-        log::error!("Failed to upload bundle to S3 after retries: {}", e);
-        BundleUploadStatus::UploadFailed
-    });
-    if let Err(e) =
-        update_bundle_upload_status(&api_address, &token, &upload.id, &upload_status).await
-    {
-        log::warn!(
-            "Failed to update bundle upload status to {:#?}: {}",
-            upload_status,
-            e
-        )
-    } else {
-        log::debug!("Updated bundle upload status to {:#?}", upload_status)
-    }
+    .await?;
 
     let remote_urls = vec![repo.repo_url.clone()];
     Retry::spawn(default_delay(), || {
