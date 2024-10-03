@@ -1,5 +1,14 @@
 [workspace]
-members = ["api", "cli", "codeowners", "context", "junit-mock", "test_utils"]
+members = [
+  "api",
+  "cli",
+  "codeowners",
+  "context",
+  "context-js",
+  "context-py",
+  "junit-mock",
+  "test_utils",
+]
 resolver = "2"
 
 [profile.release]

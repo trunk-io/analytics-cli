@@ -1,5 +1,9 @@
 use chrono::{DateTime, Utc};
+#[cfg(feature = "pyo3")]
+use pyo3::prelude::*;
 use thiserror::Error;
+#[cfg(feature = "wasm")]
+use wasm_bindgen::prelude::*;
 
 use crate::string_safety::{validate_field_len, FieldLen};
 
@@ -12,6 +16,8 @@ pub const MAX_FIELD_LEN: usize = 1000;
 const TIMESTAMP_OLD_DAYS: u32 = 30;
 const TIMESTAMP_STALE_HOURS: u32 = 1;
 
+#[cfg_attr(feature = "pyo3", pyclass)]
+#[cfg_attr(feature = "wasm", wasm_bindgen)]
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum RepoValidationLevel {
     Valid = 0,
@@ -29,6 +35,15 @@ impl Default for RepoValidationLevel {
 pub enum RepoValidationIssue {
     SubOptimal(RepoValidationIssueSubOptimal),
     Invalid(RepoValidationIssueInvalid),
+}
+
+impl ToString for RepoValidationIssue {
+    fn to_string(&self) -> String {
+        match self {
+            Self::SubOptimal(i) => i.to_string(),
+            Self::Invalid(i) => i.to_string(),
+        }
+    }
 }
 
 #[derive(Error, Debug, Clone, PartialEq, Eq)]
@@ -160,23 +175,47 @@ pub fn validate(bundle_repo: &BundleRepo) -> RepoValidation {
     repo_validation
 }
 
+#[cfg_attr(feature = "pyo3", pyclass)]
+#[cfg_attr(feature = "wasm", wasm_bindgen)]
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct RepoValidation {
     level: RepoValidationLevel,
     issues: Vec<RepoValidationIssue>,
 }
 
+#[cfg_attr(feature = "pyo3", pyclass(get_all))]
+#[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct RepoValidationFlatIssue {
+    pub level: RepoValidationLevel,
+    pub error_message: String,
+}
+
+#[cfg_attr(feature = "pyo3", pymethods)]
+#[cfg_attr(feature = "wasm", wasm_bindgen)]
 impl RepoValidation {
     pub fn level(&self) -> RepoValidationLevel {
         self.level
     }
 
-    pub fn issues(&self) -> &[RepoValidationIssue] {
-        &self.issues
+    pub fn issues_flat(&self) -> Vec<RepoValidationFlatIssue> {
+        self.issues
+            .iter()
+            .map(|i| RepoValidationFlatIssue {
+                level: RepoValidationLevel::from(i),
+                error_message: i.to_string(),
+            })
+            .collect()
     }
 
     pub fn max_level(&self) -> RepoValidationLevel {
         self.level
+    }
+}
+
+impl RepoValidation {
+    pub fn issues(&self) -> &[RepoValidationIssue] {
+        &self.issues
     }
 
     fn add_issue(&mut self, issue: RepoValidationIssue) {

@@ -1,4 +1,8 @@
+#[cfg(feature = "pyo3")]
+use pyo3::prelude::*;
 use thiserror::Error;
+#[cfg(feature = "wasm")]
+use wasm_bindgen::prelude::*;
 
 use crate::string_safety::safe_truncate_string;
 
@@ -40,6 +44,8 @@ mod ci_platform_env_key {
     pub const DRONE: &str = "DRONE";
 }
 
+#[cfg_attr(feature = "pyo3", pyclass)]
+#[cfg_attr(feature = "wasm", wasm_bindgen)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CIPlatform {
     GitHubActions,
@@ -296,6 +302,8 @@ impl<'a> CIInfoParser<'a> {
     }
 }
 
+#[cfg_attr(feature = "pyo3", pyclass(get_all))]
+#[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CIInfo {
     pub platform: CIPlatform,
@@ -312,6 +320,8 @@ pub struct CIInfo {
     pub title: Option<String>,
 }
 
+#[cfg_attr(feature = "pyo3", pyclass)]
+#[cfg_attr(feature = "wasm", wasm_bindgen)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BranchClass {
     PullRequest,

@@ -1,4 +1,8 @@
+#[cfg(feature = "pyo3")]
+use pyo3::prelude::*;
 use thiserror::Error;
+#[cfg(feature = "wasm")]
+use wasm_bindgen::prelude::*;
 
 use crate::string_safety::{validate_field_len, FieldLen};
 
@@ -8,6 +12,8 @@ pub const MAX_BRANCH_NAME_LEN: usize = 36;
 pub const MAX_EMAIL_LEN: usize = 254;
 pub const MAX_FIELD_LEN: usize = 1000;
 
+#[cfg_attr(feature = "pyo3", pyclass)]
+#[cfg_attr(feature = "wasm", wasm_bindgen)]
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum EnvValidationLevel {
     Valid = 0,
@@ -25,6 +31,15 @@ impl Default for EnvValidationLevel {
 pub enum EnvValidationIssue {
     SubOptimal(EnvValidationIssueSubOptimal),
     Invalid(EnvValidationIssueInvalid),
+}
+
+impl ToString for EnvValidationIssue {
+    fn to_string(&self) -> String {
+        match self {
+            Self::SubOptimal(i) => i.to_string(),
+            Self::Invalid(i) => i.to_string(),
+        }
+    }
 }
 
 #[derive(Error, Debug, Clone, PartialEq, Eq)]
@@ -244,23 +259,47 @@ pub fn validate(ci_info: &CIInfo) -> EnvValidation {
     env_validation
 }
 
+#[cfg_attr(feature = "pyo3", pyclass)]
+#[cfg_attr(feature = "wasm", wasm_bindgen)]
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct EnvValidation {
     level: EnvValidationLevel,
     issues: Vec<EnvValidationIssue>,
 }
 
+#[cfg_attr(feature = "pyo3", pyclass(get_all))]
+#[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct EnvValidationFlatIssue {
+    pub level: EnvValidationLevel,
+    pub error_message: String,
+}
+
+#[cfg_attr(feature = "pyo3", pymethods)]
+#[cfg_attr(feature = "wasm", wasm_bindgen)]
 impl EnvValidation {
     pub fn level(&self) -> EnvValidationLevel {
         self.level
     }
 
-    pub fn issues(&self) -> &[EnvValidationIssue] {
-        &self.issues
+    pub fn issues_flat(&self) -> Vec<EnvValidationFlatIssue> {
+        self.issues
+            .iter()
+            .map(|i| EnvValidationFlatIssue {
+                level: EnvValidationLevel::from(i),
+                error_message: i.to_string(),
+            })
+            .collect()
     }
 
     pub fn max_level(&self) -> EnvValidationLevel {
         self.level
+    }
+}
+
+impl EnvValidation {
+    pub fn issues(&self) -> &[EnvValidationIssue] {
+        &self.issues
     }
 
     fn add_issue(&mut self, issue: EnvValidationIssue) {

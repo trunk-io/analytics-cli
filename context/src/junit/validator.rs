@@ -1,6 +1,10 @@
 use chrono::{DateTime, FixedOffset, Utc};
+#[cfg(feature = "pyo3")]
+use pyo3::prelude::*;
 use quick_junit::Report;
 use thiserror::Error;
+#[cfg(feature = "wasm")]
+use wasm_bindgen::prelude::*;
 
 use crate::string_safety::{validate_field_len, FieldLen};
 
@@ -11,6 +15,8 @@ pub const MAX_FIELD_LEN: usize = 1_000;
 const TIMESTAMP_OLD_DAYS: u32 = 30;
 const TIMESTAMP_STALE_HOURS: u32 = 1;
 
+#[cfg_attr(feature = "pyo3", pyclass)]
+#[cfg_attr(feature = "wasm", wasm_bindgen)]
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum JunitValidationLevel {
     Valid = 0,
@@ -160,14 +166,26 @@ pub fn validate(report: &Report) -> JunitReportValidation {
     report_validation
 }
 
+#[cfg_attr(feature = "pyo3", pyclass)]
+#[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct JunitReportValidation {
     test_suites: Vec<JunitTestSuiteValidation>,
 }
 
+#[cfg_attr(feature = "pyo3", pyclass(get_all))]
+#[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct JunitReportValidationFlatIssue {
+    pub level: JunitValidationLevel,
+    pub error_message: String,
+}
+
+#[cfg_attr(feature = "pyo3", pymethods)]
+#[cfg_attr(feature = "wasm", wasm_bindgen)]
 impl JunitReportValidation {
-    pub fn test_suites(&self) -> &[JunitTestSuiteValidation] {
-        &self.test_suites
+    pub fn test_suites_owned(&self) -> Vec<JunitTestSuiteValidation> {
+        self.test_suites.clone()
     }
 
     pub fn max_level(&self) -> JunitValidationLevel {
@@ -186,11 +204,28 @@ impl JunitReportValidation {
     }
 }
 
+impl JunitReportValidation {
+    pub fn test_suites(&self) -> &[JunitTestSuiteValidation] {
+        &self.test_suites
+    }
+}
+
 pub type JunitTestSuiteValidationIssue = JunitValidationIssue<
     JunitTestSuiteValidationIssueSubOptimal,
     JunitTestSuiteValidationIssueInvalid,
 >;
 
+impl ToString for JunitTestSuiteValidationIssue {
+    fn to_string(&self) -> String {
+        match self {
+            Self::SubOptimal(i) => i.to_string(),
+            Self::Invalid(i) => i.to_string(),
+        }
+    }
+}
+
+#[cfg_attr(feature = "pyo3", pyclass)]
+#[cfg_attr(feature = "wasm", wasm_bindgen)]
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct JunitTestSuiteValidation {
     level: JunitValidationLevel,
@@ -198,17 +233,25 @@ pub struct JunitTestSuiteValidation {
     test_cases: Vec<JunitTestCaseValidation>,
 }
 
+#[cfg_attr(feature = "pyo3", pymethods)]
+#[cfg_attr(feature = "wasm", wasm_bindgen)]
 impl JunitTestSuiteValidation {
-    pub fn level(&self) -> &JunitValidationLevel {
-        &self.level
+    pub fn level(&self) -> JunitValidationLevel {
+        self.level
     }
 
-    pub fn issues(&self) -> &[JunitTestSuiteValidationIssue] {
-        &self.issues
+    pub fn issues_flat(&self) -> Vec<JunitReportValidationFlatIssue> {
+        self.issues
+            .iter()
+            .map(|i| JunitReportValidationFlatIssue {
+                level: JunitValidationLevel::from(i),
+                error_message: i.to_string(),
+            })
+            .collect()
     }
 
-    pub fn test_cases(&self) -> &[JunitTestCaseValidation] {
-        &self.test_cases
+    pub fn test_cases_owned(&self) -> Vec<JunitTestCaseValidation> {
+        self.test_cases.clone()
     }
 
     pub fn max_level(&self) -> JunitValidationLevel {
@@ -224,6 +267,16 @@ impl JunitTestSuiteValidation {
             .iter()
             .map(|test_case| test_case.level)
             .max()
+    }
+}
+
+impl JunitTestSuiteValidation {
+    pub fn issues(&self) -> &[JunitTestSuiteValidationIssue] {
+        &self.issues
+    }
+
+    pub fn test_cases(&self) -> &[JunitTestCaseValidation] {
+        &self.test_cases
     }
 
     fn add_issue(&mut self, issue: JunitTestSuiteValidationIssue) {
@@ -249,17 +302,42 @@ pub type JunitTestCaseValidationIssue = JunitValidationIssue<
     JunitTestCaseValidationIssueInvalid,
 >;
 
+impl ToString for JunitTestCaseValidationIssue {
+    fn to_string(&self) -> String {
+        match self {
+            Self::SubOptimal(i) => i.to_string(),
+            Self::Invalid(i) => i.to_string(),
+        }
+    }
+}
+
+#[cfg_attr(feature = "pyo3", pyclass)]
+#[cfg_attr(feature = "wasm", wasm_bindgen)]
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct JunitTestCaseValidation {
     level: JunitValidationLevel,
     issues: Vec<JunitTestCaseValidationIssue>,
 }
 
+#[cfg_attr(feature = "pyo3", pymethods)]
+#[cfg_attr(feature = "wasm", wasm_bindgen)]
 impl JunitTestCaseValidation {
-    pub fn level(&self) -> &JunitValidationLevel {
-        &self.level
+    pub fn level(&self) -> JunitValidationLevel {
+        self.level
     }
 
+    pub fn issues_flat(&self) -> Vec<JunitReportValidationFlatIssue> {
+        self.issues
+            .iter()
+            .map(|i| JunitReportValidationFlatIssue {
+                level: JunitValidationLevel::from(i),
+                error_message: i.to_string(),
+            })
+            .collect()
+    }
+}
+
+impl JunitTestCaseValidation {
     pub fn issues(&self) -> &[JunitTestCaseValidationIssue] {
         &self.issues
     }
