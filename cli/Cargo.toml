@@ -39,6 +39,7 @@ zstd = { version = "0.13.0", default-features = false }
 tar = { version = "0.4.30", default-features = false }
 junit-parser = "1.1.0"
 codeowners = { path = "../codeowners" }
+xcresult = { path = "../xcresult" }
 sentry = { version = "0.34.0", features = ["debug-images"] }
 openssl = { version = "0.10.66", features = ["vendored"] }
 uuid = { version = "1.10.0", features = ["v5"] }

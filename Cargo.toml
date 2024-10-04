@@ -8,6 +8,7 @@ members = [
   "context-py",
   "junit-mock",
   "test_utils",
+  "xcresult",
 ]
 resolver = "2"
 
