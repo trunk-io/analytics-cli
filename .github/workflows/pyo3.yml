@@ -24,16 +24,15 @@ jobs:
     strategy:
       matrix:
         platform:
-          - runner: public-amd64-2xlarge
+          - runner: ubuntu-latest
             target: x86_64
-          - runner: public-arm64-medium
+          - runner: ubuntu-latest
             target: aarch64
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.10"
-      - uses: dtolnay/rust-toolchain@stable
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
