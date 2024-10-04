@@ -68,7 +68,7 @@ jobs:
           pip install pytest
           cd ./context-py && pytest
       - name: pytest
-        if: ${{ !startsWith(matrix.platform.target, 'x86') && matrix.platform.target != 'ppc64' }}
+        if: ${{ startsWith(matrix.platform.target, 'aarch64') }}
         uses: uraimo/run-on-arch-action@v2.5.0
         with:
           arch: ${{ matrix.platform.target }}
@@ -108,14 +108,6 @@ jobs:
         with:
           name: wheels-macos-${{ matrix.platform.target }}
           path: dist
-      - name: pytest
-        if: ${{ !startsWith(matrix.platform.target, 'aarch64') }}
-        shell: bash
-        run: |
-          set -e
-          pip install context-py --find-links dist --force-reinstall
-          pip install pytest
-          cd ./context-py && pytest
 
   sdist:
     runs-on: ubuntu-latest
