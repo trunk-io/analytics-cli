@@ -62,15 +62,21 @@ fn repo_validate(bundle_repo: repo::BundleRepo) -> repo::validator::RepoValidati
 
 #[pymodule]
 fn context_py(_py: Python, m: &PyModule) -> PyResult<()> {
+    m.add_class::<env::parser::CIPlatform>()?;
+    m.add_class::<env::parser::BranchClass>()?;
+    m.add_class::<env::validator::EnvValidationLevel>()?;
     m.add_function(wrap_pyfunction!(env_parse, m)?)?;
     m.add_function(wrap_pyfunction!(env_validate, m)?)?;
 
-    m.add_class::<junit::bindings::BindingsReport>()?;
+    m.add_class::<junit::bindings::BindingsTestCaseStatusStatus>()?;
+    m.add_class::<junit::bindings::BindingsNonSuccessKind>()?;
+    m.add_class::<junit::validator::JunitValidationLevel>()?;
     m.add_function(wrap_pyfunction!(junit_parse, m)?)?;
     m.add_function(wrap_pyfunction!(junit_validate, m)?)?;
 
     m.add_class::<repo::BundleRepo>()?;
     m.add_class::<repo::RepoUrlParts>()?;
+    m.add_class::<repo::validator::RepoValidationLevel>()?;
     m.add_function(wrap_pyfunction!(repo_validate, m)?)?;
     Ok(())
 }
