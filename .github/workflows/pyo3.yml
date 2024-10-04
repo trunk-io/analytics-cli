@@ -51,6 +51,7 @@ jobs:
               /usr/bin/ln -sf /usr/bin/python3.11 /usr/bin/python3
             elif [ -f /usr/bin/apt ]; then
               # ghcr.io/rust-cross/manylinux_2_28-cross:aarch64
+              /usr/bin/apt update
               /usr/bin/apt install -y pkg-config libssl-dev
             fi
       - name: Upload wheels
