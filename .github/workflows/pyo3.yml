@@ -38,7 +38,6 @@ jobs:
         with:
           target: ${{ matrix.platform.target }}
           args: --release --out dist --find-interpreter --manifest-path ./context-py/Cargo.toml
-          sccache: "true"
           manylinux: auto
           container: "2_28"
           before-script-linux: |
@@ -47,6 +46,7 @@ jobs:
             /usr/bin/dnf upgrade
             /usr/bin/dnf install -y pkgconf perl-IPC-Cmd openssl-devel python3-pip
             /usr/bin/ln -s /usr/bin/pip3 /usr/bin/pip
+            /usr/bin/ln -sf /usr/bin/python3.11 /usr/bin/python3
       - name: Upload wheels
         uses: actions/upload-artifact@v4
         with:
