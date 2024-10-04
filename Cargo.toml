@@ -4,6 +4,8 @@ members = [
   "cli",
   "codeowners",
   "context",
+  "context-js",
+  "context-py",
   "junit-mock",
   "test_utils",
   "xcresult",

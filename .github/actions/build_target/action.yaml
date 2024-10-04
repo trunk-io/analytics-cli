@@ -23,7 +23,7 @@ runs:
 
     - name: Compile binary
       shell: bash
-      run: cargo build -q --all --profile=${{ inputs.profile }} --target ${{ inputs.target }}
+      run: cargo build -q --workspace ${{ contains(inputs.target, 'musl') && '--exclude context-js --exclude context-py' || '' }} --profile=${{ inputs.profile }} --target ${{ inputs.target }}
 
     - name: Create binary with debug info
       shell: bash

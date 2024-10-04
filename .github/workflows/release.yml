@@ -78,7 +78,7 @@ jobs:
 
       - name: Build ${{ matrix.target }} target
         if: "!cancelled()"
-        run: cargo build -q --all --profile=release-with-debug --target ${{ matrix.target }}
+        run: cargo build -q --workspace ${{ contains(matrix.target, 'musl') && '--exclude context-js --exclude context-py' || '' }} --profile=release-with-debug --target ${{ matrix.target }}
 
       - name: Strip debug info
         run: strip target/${{ matrix.target }}/release-with-debug/trunk-analytics-cli

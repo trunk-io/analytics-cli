@@ -1,9 +1,12 @@
 use std::path::PathBuf;
 
 use anyhow::Context;
-use gix::Repository;
+#[cfg(feature = "pyo3")]
+use pyo3::prelude::*;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
+#[cfg(feature = "wasm")]
+use wasm_bindgen::prelude::*;
 
 pub mod validator;
 
@@ -18,6 +21,8 @@ struct BundleRepoOptions {
     repo_head_commit_epoch: Option<i64>,
 }
 
+#[cfg_attr(feature = "pyo3", pyclass(get_all))]
+#[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct BundleRepo {
     pub repo: RepoUrlParts,
@@ -53,39 +58,47 @@ impl BundleRepo {
         let mut head_commit_message = None;
         let mut head_commit_author = None;
 
-        // If repo root found, try to get repo details from git.
-        if let Some(git_repo) = bundle_repo_options
-            .repo_root
-            .as_ref()
-            .and_then(|dir| gix::open(dir).ok())
+        #[cfg(feature = "git-access")]
         {
-            bundle_repo_options.repo_url = bundle_repo_options.repo_url.or_else(|| {
-                git_repo
-                    .config_snapshot()
-                    .string_by_key(GIT_REMOTE_ORIGIN_URL_CONFIG)
-                    .map(|s| s.to_string())
-            });
+            // If repo root found, try to get repo details from git.
+            if let Some(git_repo) = bundle_repo_options
+                .repo_root
+                .as_ref()
+                .and_then(|dir| gix::open(dir).ok())
+            {
+                bundle_repo_options.repo_url = bundle_repo_options.repo_url.or_else(|| {
+                    git_repo
+                        .config_snapshot()
+                        .string_by_key(GIT_REMOTE_ORIGIN_URL_CONFIG)
+                        .map(|s| s.to_string())
+                });
 
-            if let Ok(mut git_head) = git_repo.head() {
-                bundle_repo_options.repo_head_branch = bundle_repo_options
-                    .repo_head_branch
-                    .or_else(|| git_head.referent_name().map(|s| s.as_bstr().to_string()))
-                    .or_else(|| {
-                        Self::git_head_branch_from_remote_branches(&git_repo)
+                if let Ok(mut git_head) = git_repo.head() {
+                    bundle_repo_options.repo_head_branch = bundle_repo_options
+                        .repo_head_branch
+                        .or_else(|| git_head.referent_name().map(|s| s.as_bstr().to_string()))
+                        .or_else(|| {
+                            Self::git_head_branch_from_remote_branches(&git_repo)
+                                .ok()
+                                .flatten()
+                        });
+
+                    bundle_repo_options.repo_head_sha = bundle_repo_options
+                        .repo_head_sha
+                        .or_else(|| git_head.id().map(|id| id.to_string()));
+
+                    if let Ok(commit) = git_head.peel_to_commit_in_place() {
+                        bundle_repo_options.repo_head_commit_epoch = bundle_repo_options
+                            .repo_head_commit_epoch
+                            .or_else(|| commit.time().ok().map(|time| time.seconds));
+                        head_commit_message =
+                            commit.message().map(|msg| msg.title.to_string()).ok();
+                        head_commit_author = commit
+                            .author()
                             .ok()
-                            .flatten()
-                    });
-
-                bundle_repo_options.repo_head_sha = bundle_repo_options
-                    .repo_head_sha
-                    .or_else(|| git_head.id().map(|id| id.to_string()));
-
-                if let Ok(commit) = git_head.peel_to_commit_in_place() {
-                    bundle_repo_options.repo_head_commit_epoch = bundle_repo_options
-                        .repo_head_commit_epoch
-                        .or_else(|| commit.time().ok().map(|time| time.seconds));
-                    head_commit_message = commit.message().map(|msg| msg.title.to_string()).ok();
-                    head_commit_author = commit.author().ok().map(|signature| signature.to_owned());
+                            .map(|signature| signature.to_owned())
+                            .map(|a| (a.name.to_string(), a.email.to_string()));
+                    }
                 }
             }
         }
@@ -96,10 +109,8 @@ impl BundleRepo {
             .context("failed to get repo URL")?;
         let repo_url_parts =
             RepoUrlParts::from_url(&repo_url).context("failed to parse repo URL")?;
-        let (repo_head_author_name, repo_head_author_email) = head_commit_author
-            .as_ref()
-            .map(|a| (a.name.to_string(), a.email.to_string()))
-            .unwrap_or_default();
+        let (repo_head_author_name, repo_head_author_email) =
+            head_commit_author.unwrap_or_default();
         Ok(BundleRepo {
             repo: repo_url_parts,
             repo_root: bundle_repo_options
@@ -118,8 +129,9 @@ impl BundleRepo {
         })
     }
 
+    #[cfg(feature = "git-access")]
     fn git_head_branch_from_remote_branches(
-        git_repo: &Repository,
+        git_repo: &gix::Repository,
     ) -> anyhow::Result<Option<String>> {
         for remote_branch in git_repo
             .references()?
@@ -136,6 +148,39 @@ impl BundleRepo {
     }
 }
 
+#[cfg(feature = "pyo3")]
+#[pymethods]
+impl BundleRepo {
+    #[new]
+    fn py_new(
+        repo: RepoUrlParts,
+        repo_root: String,
+        repo_url: String,
+        repo_head_sha: String,
+        repo_head_branch: String,
+        repo_head_commit_epoch: i64,
+        repo_head_commit_message: String,
+        repo_head_author_name: String,
+        repo_head_author_email: String,
+    ) -> Self {
+        Self {
+            repo,
+            repo_root,
+            repo_url,
+            repo_head_sha,
+            repo_head_branch,
+            repo_head_commit_epoch,
+            repo_head_commit_message,
+            repo_head_author_name,
+            repo_head_author_email,
+        }
+    }
+}
+
+/// The [`Repo` common type](https://github.com/trunk-io/trunk/blob/518397f/trunk/services/common/types/repo.ts#L10)
+// NOTE: This is named `RepoUrlParts` to prevent confusion as to its purpose
+#[cfg_attr(feature = "pyo3", pyclass(get_all))]
+#[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct RepoUrlParts {
     pub host: String,
@@ -196,5 +241,14 @@ impl RepoUrlParts {
         }
 
         Ok(Self { host, owner, name })
+    }
+}
+
+#[cfg(feature = "pyo3")]
+#[pymethods]
+impl RepoUrlParts {
+    #[new]
+    fn py_new(host: String, owner: String, name: String) -> Self {
+        Self { host, owner, name }
     }
 }
