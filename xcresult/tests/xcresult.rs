@@ -1,10 +1,10 @@
 use ctor::ctor;
 use flate2::read::GzDecoder;
+use lazy_static::lazy_static;
 use std::fs::File;
 use tar::Archive;
-use xcresult::XCResult;
-use lazy_static::lazy_static;
 use temp_testdir::TempDir;
+use xcresult::XCResult;
 
 lazy_static! {
     static ref TEMP_DIR: TempDir = TempDir::default();
