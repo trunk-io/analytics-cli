@@ -43,10 +43,16 @@ jobs:
           before-script-linux: |
             # Needed for `openssl-sys`:
             # https://docs.rs/openssl/latest/openssl/
-            /usr/bin/dnf upgrade
-            /usr/bin/dnf install -y pkgconf perl-IPC-Cmd openssl-devel python3-pip
-            /usr/bin/ln -s /usr/bin/pip3 /usr/bin/pip
-            /usr/bin/ln -sf /usr/bin/python3.11 /usr/bin/python3
+            if [ -f /usr/bin/dnf ]; then
+              # quay.io/pypa/manylinux_2_28_x86_64:latest
+              /usr/bin/dnf upgrade
+              /usr/bin/dnf install -y pkgconf perl-IPC-Cmd openssl-devel python3-pip
+              /usr/bin/ln -s /usr/bin/pip3 /usr/bin/pip
+              /usr/bin/ln -sf /usr/bin/python3.11 /usr/bin/python3
+            elif [ -f /usr/bin/apt ]; then
+              # ghcr.io/rust-cross/manylinux_2_28-cross:aarch64
+              /usr/bin/apt install -y pkg-config libssl-dev
+            fi
       - name: Upload wheels
         uses: actions/upload-artifact@v4
         with:
