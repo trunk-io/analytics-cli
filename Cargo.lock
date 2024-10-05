@@ -3059,6 +3059,8 @@ dependencies = [
  "env_logger",
  "exitcode",
  "glob",
+ "http",
+ "lazy_static",
  "log",
  "openssl",
  "quick-junit",
