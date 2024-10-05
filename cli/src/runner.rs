@@ -2,13 +2,10 @@ use quick_junit::TestCaseStatus;
 use std::process::{Command, Stdio};
 use std::time::SystemTime;
 
-use api::QuarantineConfig;
-use context::junit::parser::JunitParser;
-use context::repo::BundleRepo;
-use tokio_retry::strategy::ExponentialBackoff;
-use tokio_retry::Retry;
+use api;
+use context::{junit::parser::JunitParser, repo::BundleRepo};
 
-use crate::clients::get_quarantining_config;
+use crate::api_client::ApiClient;
 use crate::codeowners::CodeOwners;
 use crate::constants::{EXIT_FAILURE, EXIT_SUCCESS};
 use crate::scanner::{FileSet, FileSetCounter};
@@ -28,7 +25,7 @@ pub async fn run_test_command(
     log::info!("Command exit code: {}", exit_code);
     let (file_sets, ..) = build_filesets(repo, output_paths, team, codeowners, Some(start))?;
     let failures = if exit_code != EXIT_SUCCESS {
-        extract_failed_tests(repo, org_slug, &file_sets).await?
+        extract_failed_tests(repo, org_slug, &file_sets).await
     } else {
         Vec::new()
     };
@@ -114,7 +111,7 @@ pub async fn extract_failed_tests(
     repo: &BundleRepo,
     org_slug: &str,
     file_sets: &[FileSet],
-) -> anyhow::Result<Vec<Test>> {
+) -> Vec<Test> {
     let mut failures = Vec::<Test>::new();
     for file_set in file_sets {
         for file in &file_set.files {
@@ -162,32 +159,27 @@ pub async fn extract_failed_tests(
             }
         }
     }
-    Ok(failures)
+    failures
 }
 
 pub async fn run_quarantine(
-    exit_code: i32,
+    api_client: &ApiClient,
+    request: &api::GetQuarantineBulkTestStatusRequest,
     failures: Vec<Test>,
-    api_address: &str,
-    token: &str,
-    org_url_slug: &str,
-    repo: &BundleRepo,
-    delay: std::iter::Take<ExponentialBackoff>,
-) -> anyhow::Result<QuarantineRunResult> {
-    let quarantine_config: QuarantineConfig = if !failures.is_empty() {
+    exit_code: i32,
+) -> QuarantineRunResult {
+    let quarantine_config: api::QuarantineConfig = if !failures.is_empty() {
         log::info!("Quarantining failed tests");
-        let result = Retry::spawn(delay, || {
-            get_quarantining_config(api_address, token, org_url_slug, &repo.repo)
-        })
-        .await;
+        let result = api_client.get_quarantining_config(request).await;
 
         if let Err(ref err) = result {
-            log::error!("Failed to get quarantine results: {:?}", err);
+            log::error!("{}", err);
         }
+
         result.unwrap_or_default()
     } else {
         log::debug!("No failed tests to quarantine");
-        QuarantineConfig::default()
+        api::QuarantineConfig::default()
     };
 
     // quarantine the failed tests
@@ -232,8 +224,8 @@ pub async fn run_quarantine(
         exit_code
     };
 
-    Ok(QuarantineRunResult {
+    QuarantineRunResult {
         exit_code,
         quarantine_status: quarantine_results,
-    })
+    }
 }
