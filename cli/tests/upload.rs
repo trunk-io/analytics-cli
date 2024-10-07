@@ -2,7 +2,10 @@ use std::fs;
 use std::io::BufReader;
 use std::path::Path;
 
-use api::{CreateBundleUploadRequest, CreateRepoRequest, GetQuarantineBulkTestStatusRequest};
+use api::{
+    BundleUploadStatus, CreateBundleUploadRequest, CreateRepoRequest,
+    GetQuarantineBulkTestStatusRequest, UpdateBundleUploadRequest,
+};
 use assert_cmd::Command;
 use assert_matches::assert_matches;
 use context::repo::RepoUrlParts as Repo;
@@ -64,7 +67,7 @@ async fn upload_bundle() {
         .failure();
 
     let requests = state.requests.lock().unwrap().clone();
-    assert_eq!(requests.len(), 4);
+    assert_eq!(requests.len(), 5);
     let mut requests_iter = requests.into_iter();
 
     assert_eq!(
@@ -154,6 +157,14 @@ async fn upload_bundle() {
     assert_eq!(time_since_junit_modified.num_minutes(), 0);
     assert_eq!(bundled_file.owners, ["@user"]);
     assert_eq!(bundled_file.team, None);
+
+    assert_eq!(
+        requests_iter.next().unwrap(),
+        RequestPayload::UpdateBundleUpload(UpdateBundleUploadRequest {
+            id: "test-bundle-upload-id".to_string(),
+            upload_status: BundleUploadStatus::UploadComplete
+        }),
+    );
 
     assert_eq!(
         requests_iter.next().unwrap(),
