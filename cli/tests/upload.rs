@@ -2,27 +2,27 @@ use std::fs;
 use std::io::BufReader;
 use std::path::Path;
 
+use api::{CreateBundleUploadRequest, CreateRepoRequest, GetQuarantineBulkTestStatusRequest};
 use assert_cmd::Command;
 use assert_matches::assert_matches;
-use clap::Parser;
+use context::repo::RepoUrlParts as Repo;
 use junit_mock::JunitMock;
 use tempfile::tempdir;
 use test_utils::mock_git_repo::setup_repo_with_commit;
 use test_utils::mock_server::{spawn_mock_server, RequestPayload};
 use trunk_analytics_cli::codeowners::CodeOwners;
 use trunk_analytics_cli::types::{
-    BundleMeta, CreateRepoRequest, FileSetType, GetQuarantineBulkTestStatusRequest, Repo,
+    BundleMeta, FileSetType,
 };
-
-mod test_utils;
+use trunk_analytics_cli::codeowners::CodeOwners;
+use trunk_analytics_cli::types::{BundleMeta, FileSetType};
 
 fn generate_mock_git_repo<T: AsRef<Path>>(directory: T) {
     setup_repo_with_commit(directory).unwrap();
 }
 
 fn generate_mock_junit_xmls<T: AsRef<Path>>(directory: T) {
-    let options = junit_mock::Options::try_parse_from(&[""]).unwrap();
-    let mut jm = JunitMock::new(options);
+    let mut jm = JunitMock::new(junit_mock::Options::default());
     let reports = jm.generate_reports();
     JunitMock::write_reports_to_file(directory.as_ref(), reports).unwrap();
 }

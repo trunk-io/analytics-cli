@@ -1,8 +1,11 @@
 use std::env;
 use std::io::Write;
 use std::time::{SystemTime, UNIX_EPOCH};
+#[cfg(target_os = "macos")]
+use xcresult::XCResult;
 
 use clap::{Args, Parser, Subcommand};
+use context::repo::BundleRepo;
 use tokio_retry::strategy::ExponentialBackoff;
 use tokio_retry::Retry;
 use trunk_analytics_cli::bundler::BundlerUtil;
@@ -16,11 +19,11 @@ use trunk_analytics_cli::constants::{
 use trunk_analytics_cli::runner::{
     build_filesets, extract_failed_tests, run_quarantine, run_test_command,
 };
-use trunk_analytics_cli::scanner::{BundleRepo, EnvScanner};
+use trunk_analytics_cli::scanner::EnvScanner;
 use trunk_analytics_cli::types::{
     BundleMeta, QuarantineBulkTestStatus, QuarantineRunResult, RunResult, META_VERSION,
 };
-use trunk_analytics_cli::utils::{from_non_empty_or_default, parse_custom_tags};
+use trunk_analytics_cli::utils::parse_custom_tags;
 
 #[derive(Debug, Parser)]
 #[command(
@@ -33,15 +36,26 @@ struct Cli {
     pub command: Commands,
 }
 
+fn junit_require() -> &'static str {
+    if cfg!(target_os = "macos") {
+        "xcresult_path"
+    } else {
+        "junit_paths"
+    }
+}
+
 #[derive(Args, Clone, Debug)]
 struct UploadArgs {
     #[arg(
         long,
-        required = true,
+        required_unless_present = junit_require(),
         value_delimiter = ',',
         help = "Comma-separated list of glob paths to junit files."
     )]
     junit_paths: Vec<String>,
+    #[cfg(target_os = "macos")]
+    #[arg(long, required = false, help = "Path of xcresult directory")]
+    xcresult_path: Option<String>,
     #[arg(long, help = "Organization url slug.")]
     org_url_slug: String,
     #[arg(
@@ -134,6 +148,40 @@ fn main() -> anyhow::Result<()> {
         })
 }
 
+#[cfg(target_os = "macos")]
+fn handle_xcresult(
+    junit_temp_dir: &tempfile::TempDir,
+    xcresult_path: Option<String>,
+) -> Result<Vec<String>, anyhow::Error> {
+    let mut temp_paths = Vec::new();
+    if let Some(xcresult_path) = xcresult_path {
+        let xcresult = XCResult::new(xcresult_path);
+        let junits = xcresult?
+            .generate_junits()
+            .map_err(|e| anyhow::anyhow!("Failed to generate junit files from xcresult: {}", e))?;
+        for (i, junit) in junits.iter().enumerate() {
+            let mut junit_writer: Vec<u8> = Vec::new();
+            junit.serialize(&mut junit_writer)?;
+            let junit_temp_path = junit_temp_dir
+                .path()
+                .join(format!("xcresult_junit_{}.xml", i));
+            let mut junit_temp = std::fs::File::create(&junit_temp_path)?;
+            junit_temp
+                .write_all(&junit_writer)
+                .map_err(|e| anyhow::anyhow!("Failed to write junit file: {}", e))?;
+            let junit_temp_path_str = junit_temp_path.to_str();
+            if let Some(junit_temp_path_string) = junit_temp_path_str {
+                temp_paths.push(junit_temp_path_string.to_string());
+            } else {
+                return Err(anyhow::anyhow!(
+                    "Failed to convert junit temp path to string."
+                ));
+            }
+        }
+    }
+    Ok(temp_paths)
+}
+
 async fn run_upload(
     upload_args: UploadArgs,
     test_command: Option<String>,
@@ -142,7 +190,12 @@ async fn run_upload(
     exec_start: Option<SystemTime>,
 ) -> anyhow::Result<i32> {
     let UploadArgs {
+        #[cfg(target_os = "macos")]
+        mut junit_paths,
+        #[cfg(target_os = "linux")]
         junit_paths,
+        #[cfg(target_os = "macos")]
+        xcresult_path,
         org_url_slug,
         token,
         repo_root,
@@ -159,7 +212,7 @@ async fn run_upload(
         codeowners_path,
     } = upload_args;
 
-    let repo = BundleRepo::try_read_from_root(
+    let repo = BundleRepo::new(
         repo_root,
         repo_url,
         repo_head_sha,
@@ -167,15 +220,7 @@ async fn run_upload(
         repo_head_commit_epoch,
     )?;
 
-    if junit_paths.is_empty() {
-        return Err(anyhow::anyhow!("No junit paths provided."));
-    }
-
-    let api_address = from_non_empty_or_default(
-        std::env::var(TRUNK_PUBLIC_API_ADDRESS_ENV).ok(),
-        DEFAULT_ORIGIN.to_string(),
-        |s| s,
-    );
+    let api_address = get_api_address();
 
     let codeowners =
         codeowners.or_else(|| CodeOwners::find_file(&repo.repo_root, &codeowners_path));
@@ -192,6 +237,13 @@ async fn run_upload(
     }
 
     let tags = parse_custom_tags(&tags)?;
+    #[cfg(target_os = "macos")]
+    let junit_temp_dir = tempfile::tempdir()?;
+    #[cfg(target_os = "macos")]
+    {
+        let temp_paths = handle_xcresult(&junit_temp_dir, xcresult_path)?;
+        junit_paths = [junit_paths.as_slice(), temp_paths.as_slice()].concat();
+    }
 
     let (file_sets, file_counter) =
         build_filesets(&repo, &junit_paths, team.clone(), &codeowners, exec_start)?;
@@ -348,7 +400,7 @@ async fn run_test(test_args: TestArgs) -> anyhow::Result<i32> {
         ..
     } = &upload_args;
 
-    let repo = BundleRepo::try_read_from_root(
+    let repo = BundleRepo::new(
         repo_root.clone(),
         repo_url.clone(),
         repo_head_sha.clone(),
@@ -360,11 +412,7 @@ async fn run_test(test_args: TestArgs) -> anyhow::Result<i32> {
         return Err(anyhow::anyhow!("No junit paths provided."));
     }
 
-    let api_address = from_non_empty_or_default(
-        std::env::var(TRUNK_PUBLIC_API_ADDRESS_ENV).ok(),
-        DEFAULT_ORIGIN.to_string(),
-        |s| s,
-    );
+    let api_address = get_api_address();
 
     let codeowners = CodeOwners::find_file(&repo.repo_root, codeowners_path);
 
@@ -463,4 +511,11 @@ fn setup_logger() -> anyhow::Result<()> {
     }
     builder.init();
     Ok(())
+}
+
+fn get_api_address() -> String {
+    std::env::var(TRUNK_PUBLIC_API_ADDRESS_ENV)
+        .ok()
+        .and_then(|s| if s.is_empty() { None } else { Some(s) })
+        .unwrap_or_else(|| DEFAULT_ORIGIN.to_string())
 }

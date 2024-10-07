@@ -1,12 +1,12 @@
-use std::format;
-use std::path::PathBuf;
+use std::{format, path::PathBuf};
 
 use anyhow::Context;
-
-use crate::types::{
+use api::{
     CreateBundleUploadRequest, CreateBundleUploadResponse, CreateRepoRequest,
-    GetQuarantineBulkTestStatusRequest, QuarantineConfig, Repo,
+    GetQuarantineBulkTestStatusRequest, QuarantineConfig,
 };
+use context::repo::RepoUrlParts as Repo;
+
 use crate::utils::status_code_help;
 
 pub const TRUNK_API_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);

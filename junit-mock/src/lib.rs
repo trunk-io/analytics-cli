@@ -1,8 +1,9 @@
 use std::fs::File;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use anyhow::Result;
+use chrono::{DateTime, FixedOffset};
 use clap::Parser;
 use fake::Fake;
 use quick_junit::{NonSuccessKind, Report, TestCase, TestCaseStatus, TestRerun, TestSuite};
@@ -51,7 +52,7 @@ macro_rules! percentages_parser {
     };
 }
 
-#[derive(Debug, Parser)]
+#[derive(Debug, Parser, Clone)]
 pub struct Options {
     #[command(flatten, next_help_heading = "Global Options")]
     pub global: GlobalOptions,
@@ -69,15 +70,30 @@ pub struct Options {
     pub test_rerun: TestRerunOptions,
 }
 
-#[derive(Debug, Parser)]
+impl Default for Options {
+    fn default() -> Self {
+        Options::try_parse_from([""]).unwrap()
+    }
+}
+
+#[test]
+fn options_can_be_defaulted_without_panicing() {
+    Options::default();
+}
+
+#[derive(Debug, Parser, Clone)]
 #[group()]
 pub struct GlobalOptions {
     /// Seed for all generated data, defaults to randomly generated seed
     #[arg(long)]
     pub seed: Option<u64>,
+
+    /// Timestamp for all data to be based on, defaults to now
+    #[arg(long)]
+    pub timestamp: Option<DateTime<FixedOffset>>,
 }
 
-#[derive(Debug, Parser)]
+#[derive(Debug, Parser, Clone)]
 #[group()]
 pub struct ReportOptions {
     /// A list of report names to generate (conflicts with --report-random-count)
@@ -93,7 +109,7 @@ pub struct ReportOptions {
     pub report_duration_range: Vec<humantime::Duration>,
 }
 
-#[derive(Debug, Parser)]
+#[derive(Debug, Parser, Clone)]
 #[group()]
 pub struct TestSuiteOptions {
     /// A list of test suite names to generate (conflicts with --test-suite-random-count)
@@ -119,7 +135,7 @@ pub struct TestSuiteOptions {
 
 percentages_parser!(four_percentages_parser, 4);
 
-#[derive(Debug, Parser)]
+#[derive(Debug, Parser, Clone)]
 #[group()]
 pub struct TestCaseOptions {
     /// A list of test case names to generate (conflicts with --test-case-random-count, requires --test-case-classnames)
@@ -163,7 +179,7 @@ pub struct TestCaseOptions {
 
 percentages_parser!(two_percentages_parser, 2);
 
-#[derive(Debug, Parser)]
+#[derive(Debug, Parser, Clone)]
 #[group()]
 pub struct TestRerunOptions {
     /// Inclusive range of the number of reruns of a test that was not skipped
@@ -173,26 +189,40 @@ pub struct TestRerunOptions {
     /// The chance of a test rerun failing and erroring (must add up to 100)
     #[arg(long, value_parser = two_percentages_parser, default_value = "50,50")]
     pub test_rerun_fail_to_error_percentage: Vec<Vec<u8>>,
+
+    /// The chance of a system out message being added to the test rerun
+    #[arg(long, value_parser = clap::value_parser!(u8).range(0..=100), default_value = "50")]
+    pub test_rerun_sys_out_percentage: u8,
+
+    /// Inclusive range of time between test case timestamps
+    #[arg(long, num_args = 1..=2, value_names = ["DURATION_RANGE_START", "DURATION_RANGE_END"], default_values = ["30s", "1m"])]
+    pub test_rerun_duration_range: Vec<humantime::Duration>,
+
+    /// The chance of a system error message being added to the test rerun
+    #[arg(long, value_parser = clap::value_parser!(u8).range(0..=100), default_value = "50")]
+    pub test_rerun_sys_err_percentage: u8,
 }
 
+#[derive(Debug, Clone)]
 pub struct JunitMock {
     seed: u64,
-    rng: StdRng,
     options: Options,
 
     // state for generating reports
-    timestamp: chrono::DateTime<chrono::Utc>,
+    rng: StdRng,
+    timestamp: DateTime<FixedOffset>,
     total_duration: Duration,
 }
 
 impl JunitMock {
     pub fn new(options: Options) -> Self {
         let (seed, rng) = JunitMock::rng_from_seed(&options);
+        let timestamp = options.global.timestamp.unwrap_or_default();
         Self {
             seed,
-            rng,
             options,
-            timestamp: chrono::Utc::now(),
+            rng,
+            timestamp,
             total_duration: Duration::new(0, 0),
         }
     }
@@ -219,7 +249,11 @@ impl JunitMock {
     }
 
     pub fn generate_reports(&mut self) -> Vec<Report> {
-        self.timestamp = chrono::Utc::now();
+        self.timestamp = self
+            .options
+            .global
+            .timestamp
+            .unwrap_or_else(|| chrono::Utc::now().fixed_offset());
 
         self.options
             .report
@@ -253,13 +287,17 @@ impl JunitMock {
     pub fn write_reports_to_file<T: AsRef<Path>, U: AsRef<[Report]>>(
         directory: T,
         reports: U,
-    ) -> Result<()> {
-        for (i, report) in reports.as_ref().iter().enumerate() {
-            let path = directory.as_ref().join(format!("junit-{}.xml", i));
-            let file = File::create(path)?;
-            report.serialize(file)?;
-        }
-        Ok(())
+    ) -> Result<Vec<PathBuf>> {
+        reports.as_ref().iter().enumerate().try_fold(
+            Vec::new(),
+            |mut acc, (i, report)| -> Result<Vec<PathBuf>> {
+                let path = directory.as_ref().join(format!("junit-{}.xml", i));
+                let file = File::create(&path)?;
+                report.serialize(file)?;
+                acc.push(path);
+                Ok(acc)
+            },
+        )
     }
 
     fn generate_test_suites(&mut self) -> Vec<TestSuite> {
@@ -329,14 +367,27 @@ impl JunitMock {
             .iter()
             .zip(classnames.iter())
             .map(|(test_case_name, test_case_classname)| -> TestCase {
-                let mut test_case = TestCase::new(test_case_name, self.generate_test_case_status());
+                let last_duration = self.total_duration;
+                let timestamp = self.timestamp;
+
+                let test_case_status = self.generate_test_case_status();
+                let is_skipped = matches!(&test_case_status, TestCaseStatus::Skipped { .. });
+
+                let mut test_case = TestCase::new(test_case_name, test_case_status);
+                let file: String =
+                    fake::faker::filesystem::en::FilePath().fake_with_rng(&mut self.rng);
+                test_case.extra.insert("file".into(), file.into());
                 test_case.set_classname(format!("{test_case_classname}/{test_case_name}"));
                 test_case.set_assertions(self.rng.gen_range(1..10));
-                test_case.set_timestamp(self.timestamp);
-                let duration =
-                    self.fake_duration(self.options.test_case.test_case_duration_range.clone());
-                test_case.set_time(duration);
+                test_case.set_timestamp(timestamp);
+                let duration = if is_skipped {
+                    Default::default()
+                } else {
+                    self.fake_duration(self.options.test_case.test_case_duration_range.clone())
+                };
+                test_case.set_time((self.total_duration + duration) - last_duration);
                 self.increment_duration(duration);
+
                 if self.rand_bool(self.options.test_case.test_case_sys_out_percentage) {
                     test_case.set_system_out(self.fake_paragraphs());
                 }
@@ -412,13 +463,37 @@ impl JunitMock {
             .expect("test rerun failure percentage must be set");
         (0..count)
             .map(|_| {
-                TestRerun::new(if self.rand_percentage() <= failure_to_error_threshold {
-                    NonSuccessKind::Failure
-                } else {
-                    NonSuccessKind::Error
-                })
+                let mut test_rerun =
+                    TestRerun::new(if self.rand_percentage() <= failure_to_error_threshold {
+                        NonSuccessKind::Failure
+                    } else {
+                        NonSuccessKind::Error
+                    });
+
+                test_rerun.set_timestamp(self.timestamp);
+                let duration =
+                    self.fake_duration(self.options.test_rerun.test_rerun_duration_range.clone());
+                test_rerun.set_time(duration);
+                self.increment_duration(duration);
+
+                test_rerun.set_message(self.fake_sentence());
+                if self.rand_bool(self.options.test_rerun.test_rerun_sys_out_percentage) {
+                    test_rerun.set_system_out(self.fake_paragraphs());
+                }
+                if self.rand_bool(self.options.test_rerun.test_rerun_sys_err_percentage) {
+                    test_rerun.set_system_err(self.fake_paragraphs());
+                }
+                test_rerun.set_description(self.fake_sentence());
+
+                test_rerun
             })
             .collect()
+    }
+
+    fn fake_sentence(&mut self) -> String {
+        let paragraphs: Vec<String> =
+            fake::faker::lorem::en::Sentences(1..2).fake_with_rng(&mut self.rng);
+        paragraphs.join(" ")
     }
 
     fn fake_paragraphs(&mut self) -> String {
