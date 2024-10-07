@@ -2,7 +2,7 @@ use std::fs;
 use std::io::BufReader;
 use std::path::Path;
 
-use api::{CreateBundleUploadRequest, CreateRepoRequest, GetQuarantineBulkTestStatusRequest};
+use api::{CreateRepoRequest, GetQuarantineBulkTestStatusRequest};
 use assert_cmd::Command;
 use assert_matches::assert_matches;
 use context::repo::RepoUrlParts as Repo;
@@ -10,10 +10,6 @@ use junit_mock::JunitMock;
 use tempfile::tempdir;
 use test_utils::mock_git_repo::setup_repo_with_commit;
 use test_utils::mock_server::{spawn_mock_server, RequestPayload};
-use trunk_analytics_cli::codeowners::CodeOwners;
-use trunk_analytics_cli::types::{
-    BundleMeta, FileSetType,
-};
 use trunk_analytics_cli::codeowners::CodeOwners;
 use trunk_analytics_cli::types::{BundleMeta, FileSetType};
 
