@@ -32,9 +32,20 @@ impl Test {
         parent_name: String,
         class_name: Option<String>,
         file: Option<String>,
+        id: Option<String>,
         org_slug: &str,
         repo: &BundleRepo,
     ) -> Self {
+        if let Some(id) = id {
+            return Test {
+                parent_name,
+                name,
+                class_name,
+                file,
+                id,
+            };
+        }
+        // generate a unique id if not provided
         let repo_full_name = format!("{}/{}/{}", repo.repo.host, repo.repo.owner, repo.repo.name);
         let info_id_input = [
             org_slug,

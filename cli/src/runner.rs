@@ -143,6 +143,7 @@ pub async fn extract_failed_tests(
                             parent_name.clone(),
                             case.classname.clone(),
                             case.file.clone(),
+                            case.id.clone(),
                             org_slug,
                             repo,
                         );

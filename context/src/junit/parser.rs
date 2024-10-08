@@ -27,6 +27,7 @@ pub mod extra_attrs {
     pub const FILE: &str = "file";
     pub const FILEPATH: &str = "filepath";
     pub const LINE: &str = "line";
+    pub const ID: &str = "id";
 }
 
 #[derive(Error, Debug, Copy, Clone, PartialEq, Eq)]
@@ -274,6 +275,10 @@ impl JunitParser {
                 .insert(extra_attrs::FILEPATH.into(), filepath.into());
         }
 
+        if let Some(id) = parse_attr::id(e) {
+            test_suite.extra.insert(extra_attrs::ID.into(), id.into());
+        }
+
         if let Some(line) = parse_attr::line(e) {
             test_suite
                 .extra
@@ -324,6 +329,10 @@ impl JunitParser {
 
         if let Some(filepath) = parse_attr::filepath(e) {
             test_case.extra.insert("filepath".into(), filepath.into());
+        }
+
+        if let Some(id) = parse_attr::id(e) {
+            test_case.extra.insert("id".into(), id.into());
         }
 
         if let Some(line) = parse_attr::line(e) {
@@ -534,6 +543,10 @@ mod parse_attr {
 
     pub fn filepath<'a>(e: &'a BytesStart<'a>) -> Option<Cow<'a, str>> {
         parse_string_attr(e, extra_attrs::FILEPATH)
+    }
+
+    pub fn id<'a>(e: &'a BytesStart<'a>) -> Option<Cow<'a, str>> {
+        parse_string_attr(e, extra_attrs::ID)
     }
 
     pub fn line<'a>(e: &'a BytesStart<'a>) -> Option<usize> {
