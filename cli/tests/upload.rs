@@ -8,8 +8,10 @@ use assert_matches::assert_matches;
 use context::repo::RepoUrlParts as Repo;
 use junit_mock::JunitMock;
 use tempfile::tempdir;
-use test_utils::mock_git_repo::setup_repo_with_commit;
-use test_utils::mock_server::{spawn_mock_server, RequestPayload};
+use test_utils::{
+    mock_git_repo::setup_repo_with_commit,
+    mock_server::{spawn_mock_server, RequestPayload},
+};
 use trunk_analytics_cli::codeowners::CodeOwners;
 use trunk_analytics_cli::types::{BundleMeta, FileSetType};
 
@@ -86,7 +88,7 @@ async fn upload_bundle() {
             name: String::from("analytics-cli"),
         }
     );
-    assert_eq!(upload_request.org_url_slug, String::from("test-org"));
+    assert_eq!(upload_request.org_url_slug, "test-org");
     assert!(upload_request
         .client_version
         .starts_with("trunk-analytics-cli cargo="));
