@@ -14,7 +14,7 @@ runtimes:
   enabled:
     - node@18.12.1
     - python@3.10.8
-    - rust@1.71.1
+    - rust@1.81.0
 # This is the section where you manage your linters. (https://docs.trunk.io/check/configuration)
 lint:
   enabled:
@@ -22,7 +22,7 @@ lint:
     - bandit@1.7.10
     - black@24.8.0
     - checkov@3.2.256
-    - clippy@1.71.1
+    - clippy@1.81.0
     - git-diff-check
     - isort@5.13.2
     - markdownlint@0.42.0
@@ -30,7 +30,7 @@ lint:
     - osv-scanner@1.9.0
     - prettier@3.3.3
     - ruff@0.6.8
-    - rustfmt@1.71.1
+    - rustfmt@1.81.0
     - taplo@0.9.3
     - trufflehog@3.82.6
     - yamllint@1.35.1
