@@ -53,6 +53,7 @@ pub async fn create_bundle_upload_intent(
     api_token: &str,
     org_slug: &str,
     repo: &Repo,
+    client_version: &str,
 ) -> anyhow::Result<CreateBundleUploadResponse> {
     let client = reqwest::Client::new();
     let resp = match client
@@ -63,6 +64,7 @@ pub async fn create_bundle_upload_intent(
         .json(&CreateBundleUploadRequest {
             org_url_slug: org_slug.to_owned(),
             repo: repo.clone(),
+            client_version: client_version.to_owned(),
         })
         .send()
         .await

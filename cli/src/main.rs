@@ -293,21 +293,29 @@ async fn run_upload(
     let envs = EnvScanner::scan_env();
     let os_info: String = env::consts::OS.to_string();
 
+    let cli_version = format!(
+        "cargo={} git={} rustc={}",
+        env!("CARGO_PKG_VERSION"),
+        env!("VERGEN_GIT_SHA"),
+        env!("VERGEN_RUSTC_SEMVER")
+    );
+    let client_version = format!("trunk-analytics-cli {}", cli_version);
     let upload = Retry::spawn(default_delay(), || {
-        create_bundle_upload_intent(&api_address, &token, &org_url_slug, &repo.repo)
+        create_bundle_upload_intent(
+            &api_address,
+            &token,
+            &org_url_slug,
+            &repo.repo,
+            &client_version,
+        )
     })
     .await?;
 
     let meta = BundleMeta {
         version: META_VERSION.to_string(),
-        cli_version: format!(
-            "cargo={} git={} rustc={}",
-            env!("CARGO_PKG_VERSION"),
-            env!("VERGEN_GIT_SHA"),
-            env!("VERGEN_RUSTC_SEMVER")
-        ),
         org: org_url_slug.clone(),
         repo: repo.clone(),
+        cli_version,
         bundle_upload_id: upload.id,
         tags,
         file_sets,
