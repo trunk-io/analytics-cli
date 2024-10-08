@@ -3,7 +3,7 @@ use std::io::BufReader;
 use std::path::Path;
 
 use api::{
-    BundleUploadStatus, CreateBundleUploadRequest, CreateRepoRequest,
+    BundleUploadStatus, CreateRepoRequest,
     GetQuarantineBulkTestStatusRequest, UpdateBundleUploadRequest,
 };
 use assert_cmd::Command;
@@ -82,17 +82,21 @@ async fn upload_bundle() {
         })
     );
 
+    let upload_request = assert_matches!(requests_iter.next().unwrap(), RequestPayload::CreateBundleUpload(ur) => ur);
     assert_eq!(
-        requests_iter.next().unwrap(),
-        RequestPayload::CreateBundleUpload(CreateBundleUploadRequest {
-            repo: Repo {
-                host: String::from("github.com"),
-                owner: String::from("trunk-io"),
-                name: String::from("analytics-cli"),
-            },
-            org_url_slug: String::from("test-org"),
-        })
+        upload_request.repo,
+        Repo {
+            host: String::from("github.com"),
+            owner: String::from("trunk-io"),
+            name: String::from("analytics-cli"),
+        }
     );
+    assert_eq!(upload_request.org_url_slug, "test-org");
+    assert!(upload_request
+        .client_version
+        .starts_with("trunk-analytics-cli cargo="));
+    assert!(upload_request.client_version.contains(" git="));
+    assert!(upload_request.client_version.contains(" rustc="));
 
     let tar_extract_directory =
         assert_matches!(requests_iter.next().unwrap(), RequestPayload::S3Upload(d) => d);
