@@ -3,8 +3,8 @@ use std::io::BufReader;
 use std::path::Path;
 
 use api::{
-    BundleUploadStatus, CreateRepoRequest,
-    GetQuarantineBulkTestStatusRequest, UpdateBundleUploadRequest,
+    BundleUploadStatus, CreateRepoRequest, GetQuarantineBulkTestStatusRequest,
+    UpdateBundleUploadRequest,
 };
 use assert_cmd::Command;
 use assert_matches::assert_matches;
