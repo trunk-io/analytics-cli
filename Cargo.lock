@@ -471,6 +471,7 @@ dependencies = [
  "tempfile",
  "test_utils",
  "thiserror",
+ "uuid",
  "wasm-bindgen",
 ]
 
