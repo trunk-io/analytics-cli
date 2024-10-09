@@ -3059,7 +3059,6 @@ dependencies = [
  "env_logger",
  "exitcode",
  "glob",
- "junit-mock",
  "log",
  "openssl",
  "quick-junit",
