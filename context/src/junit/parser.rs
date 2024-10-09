@@ -324,21 +324,25 @@ impl JunitParser {
         }
 
         if let Some(file) = parse_attr::file(e) {
-            test_case.extra.insert("file".into(), file.into());
+            test_case
+                .extra
+                .insert(extra_attrs::FILE.into(), file.into());
         }
 
         if let Some(filepath) = parse_attr::filepath(e) {
-            test_case.extra.insert("filepath".into(), filepath.into());
+            test_case
+                .extra
+                .insert(extra_attrs::FILEPATH.into(), filepath.into());
         }
 
         if let Some(id) = parse_attr::id(e) {
-            test_case.extra.insert("id".into(), id.into());
+            test_case.extra.insert(extra_attrs::ID.into(), id.into());
         }
 
         if let Some(line) = parse_attr::line(e) {
             test_case
                 .extra
-                .insert("line".into(), line.to_string().into());
+                .insert(extra_attrs::LINE.into(), line.to_string().into());
         }
 
         self.current_test_case = Some(test_case);
