@@ -1,9 +1,10 @@
+use quick_junit::{NonSuccessKind, TestCaseStatus};
 use std::process::{Command, Stdio};
 use std::time::SystemTime;
 
 use api::QuarantineConfig;
+use context::junit::parser::JunitParser;
 use context::repo::BundleRepo;
-use junit_parser;
 use tokio_retry::strategy::ExponentialBackoff;
 use tokio_retry::Retry;
 
@@ -125,30 +126,58 @@ pub async fn extract_failed_tests(
                 }
             };
             let reader = std::io::BufReader::new(file);
-            let junitxml = match junit_parser::from_reader(reader) {
+            let mut junitxml = JunitParser::new();
+            match junitxml.parse(reader) {
                 Ok(junitxml) => junitxml,
                 Err(e) => {
                     log::warn!("Error parsing junitxml: {}", e);
                     continue;
                 }
             };
-            for suite in junitxml.suites {
-                let parent_name = suite.name;
-                for case in suite.cases {
-                    let failure = case.status.is_failure();
-                    if failure {
-                        let name = case.original_name;
-                        let test = Test::new(
-                            name.clone(),
-                            parent_name.clone(),
-                            case.classname.clone(),
-                            case.file.clone(),
-                            case.id.clone(),
-                            org_slug,
-                            repo,
-                        );
+            for report in junitxml.reports() {
+                let test_suites = report.test_suites.clone();
+                for suite in test_suites {
+                    let parent_name = suite.name.into_string();
+                    for case in suite.test_cases {
+                        let is_failure = match case.status {
+                            TestCaseStatus::NonSuccess {
+                                kind,
+                                message: _message,
+                                ty: _ty,
+                                description: _description,
+                                reruns: _reruns,
+                            } => match kind {
+                                NonSuccessKind::Failure => true,
+                                NonSuccessKind::Error => true,
+                            },
+                            _ => false,
+                        };
+                        if is_failure {
+                            let name = case.name.into_string();
+                            let classname = match case.classname {
+                                Some(classname) => Some(classname.into_string()),
+                                None => None,
+                            };
+                            let file = match case.extra.get("file") {
+                                Some(file) => Some(file.clone().into_string()),
+                                None => None,
+                            };
+                            let id = match case.extra.get("id") {
+                                Some(id) => Some(id.clone().into_string()),
+                                None => None,
+                            };
+                            let test = Test::new(
+                                name,
+                                parent_name.clone(),
+                                classname,
+                                file,
+                                id,
+                                org_slug,
+                                repo,
+                            );
 
-                        failures.push(test);
+                            failures.push(test);
+                        }
                     }
                 }
             }
