@@ -45,6 +45,16 @@ jobs:
       - name: Install latest nextest release
         uses: taiki-e/install-action@nextest
 
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
       - name: Run tests
         run: cargo nextest run --workspace ${{ contains(matrix.target, 'musl') && '--exclude context-js --exclude context-py' || '' }} --profile=ci
 
@@ -90,6 +100,16 @@ jobs:
       - name: Install nextest for ARM
         if: matrix.target == 'aarch64-unknown-linux-musl'
         run: curl -LsSf https://get.nexte.st/latest/linux-arm | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Run tests
         run: cargo nextest run --workspace ${{ contains(matrix.target, 'musl') && '--exclude context-js --exclude context-py' || '' }} --profile=ci
