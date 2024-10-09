@@ -44,13 +44,6 @@ openssl = { version = "0.10.66", features = ["vendored"] }
 uuid = { version = "1.10.0", features = ["v5"] }
 quick-junit = "0.5.0"
 
-[dev-dependencies]
-assert_cmd = "2.0.16"
-assert_matches = "1.5.0"
-axum = { version = "0.7.5", features = ["macros"] }
-junit-mock = { path = "../junit-mock" }
-test_utils = { path = "../test_utils" }
-
 [build-dependencies]
 vergen = { version = "8.3.1", features = [
   "build",
@@ -60,3 +53,6 @@ vergen = { version = "8.3.1", features = [
   "rustc",
   "si",
 ] }
+
+[features]
+force-sentry-env-dev = []

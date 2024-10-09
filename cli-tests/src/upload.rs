@@ -1,19 +1,38 @@
-use std::fs;
-use std::io::BufReader;
-use std::path::Path;
+use std::{
+    env, fs,
+    io::BufReader,
+    path::{Path, PathBuf},
+};
 
 use api::{CreateRepoRequest, GetQuarantineBulkTestStatusRequest};
 use assert_cmd::Command;
 use assert_matches::assert_matches;
 use context::repo::RepoUrlParts as Repo;
+use escargot::{CargoBuild, CargoRun};
 use junit_mock::JunitMock;
+use lazy_static::lazy_static;
 use tempfile::tempdir;
 use test_utils::{
     mock_git_repo::setup_repo_with_commit,
     mock_server::{spawn_mock_server, RequestPayload},
 };
-use trunk_analytics_cli::codeowners::CodeOwners;
-use trunk_analytics_cli::types::{BundleMeta, FileSetType};
+use trunk_analytics_cli::{
+    codeowners::CodeOwners,
+    types::{BundleMeta, FileSetType},
+};
+
+lazy_static! {
+    static ref CARGO_MANIFEST_DIR: PathBuf = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    static ref CARGO_RUN: CargoRun = CargoBuild::new()
+        .bin("trunk-analytics-cli")
+        .target_dir(CARGO_MANIFEST_DIR.join("../target"))
+        .manifest_path(CARGO_MANIFEST_DIR.join("../cli/Cargo.toml"))
+        .features("force-sentry-env-dev")
+        .current_release()
+        .current_target()
+        .run()
+        .unwrap();
+}
 
 fn generate_mock_git_repo<T: AsRef<Path>>(directory: T) {
     setup_repo_with_commit(directory).unwrap();
@@ -43,9 +62,7 @@ async fn upload_bundle() {
 
     let state = spawn_mock_server().await;
 
-    let mut cmd = Command::cargo_bin("trunk-analytics-cli").unwrap();
-
-    let assert = cmd
+    let assert = Command::new(CARGO_RUN.path())
         .current_dir(&temp_dir)
         .env("TRUNK_PUBLIC_API_ADDRESS", &state.host)
         .env("CI", "1")
@@ -185,9 +202,7 @@ async fn upload_bundle_no_files() {
 
     let state = spawn_mock_server().await;
 
-    let mut cmd = Command::cargo_bin("trunk-analytics-cli").unwrap();
-
-    let assert = cmd
+    let assert = Command::new(CARGO_RUN.path())
         .current_dir(&temp_dir)
         .env("TRUNK_PUBLIC_API_ADDRESS", &state.host)
         .env("CI", "1")
@@ -215,9 +230,7 @@ async fn upload_bundle_no_files_allow_missing_junit_files() {
 
     let state = spawn_mock_server().await;
 
-    let mut cmd = Command::cargo_bin("trunk-analytics-cli").unwrap();
-
-    let assert = cmd
+    let assert = Command::new(CARGO_RUN.path())
         .current_dir(&temp_dir)
         .env("TRUNK_PUBLIC_API_ADDRESS", &state.host)
         .env("CI", "1")

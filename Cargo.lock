@@ -402,6 +402,25 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1462739cb27611015575c0c11df5df7601141071f07518d56fcc1be504cbec97"
 
 [[package]]
+name = "cli-tests"
+version = "0.1.0"
+dependencies = [
+ "api",
+ "assert_cmd",
+ "assert_matches",
+ "chrono",
+ "context",
+ "escargot",
+ "junit-mock",
+ "lazy_static",
+ "serde_json",
+ "tempfile",
+ "test_utils",
+ "tokio",
+ "trunk-analytics-cli",
+]
+
+[[package]]
 name = "clru"
 version = "0.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -619,6 +638,18 @@ checksum = "534c5cf6194dfab3db3242765c03bbe257cf92f22b38f6bc0c58d59108a820ba"
 dependencies = [
  "libc",
  "windows-sys 0.52.0",
+]
+
+[[package]]
+name = "escargot"
+version = "0.5.12"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c000f23e9d459aef148b7267e02b03b94a0aaacf4ec64c65612f67e02f525fb6"
+dependencies = [
+ "log",
+ "once_cell",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -3014,9 +3045,6 @@ version = "0.0.0"
 dependencies = [
  "anyhow",
  "api",
- "assert_cmd",
- "assert_matches",
- "axum",
  "chrono",
  "clap",
  "codeowners",
@@ -3035,7 +3063,6 @@ dependencies = [
  "serde_json",
  "tar",
  "tempfile",
- "test_utils",
  "tokio",
  "tokio-retry",
  "uuid",

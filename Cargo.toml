@@ -2,6 +2,7 @@
 members = [
   "api",
   "cli",
+  "cli-tests",
   "codeowners",
   "context",
   "context-js",
