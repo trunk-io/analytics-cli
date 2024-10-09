@@ -144,7 +144,7 @@ async fn upload_bundle() {
     assert_eq!(bundle_meta.envs.get("CI"), Some(&String::from("1")));
     let time_since_upload = chrono::Utc::now()
         - chrono::DateTime::from_timestamp(bundle_meta.upload_time_epoch as i64, 0).unwrap();
-    assert!(time_since_upload.num_minutes() <= 5);
+    more_asserts::assert_lt!(time_since_upload.num_minutes(), 5);
     assert_eq!(bundle_meta.test_command, None);
     assert!(bundle_meta.os_info.is_some());
     assert!(bundle_meta.quarantined_tests.is_empty());
@@ -172,7 +172,7 @@ async fn upload_bundle() {
     );
     let time_since_junit_modified = chrono::Utc::now()
         - chrono::DateTime::from_timestamp_nanos(bundled_file.last_modified_epoch_ns as i64);
-    assert!(time_since_junit_modified.num_minutes() <= 5);
+    more_asserts::assert_lt!(time_since_junit_modified.num_minutes(), 5);
     assert_eq!(bundled_file.owners, ["@user"]);
     assert_eq!(bundled_file.team, None);
 
