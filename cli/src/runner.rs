@@ -1,4 +1,4 @@
-use quick_junit::{NonSuccessKind, TestCaseStatus};
+use quick_junit::TestCaseStatus;
 use std::process::{Command, Stdio};
 use std::time::SystemTime;
 
