@@ -140,16 +140,7 @@ pub async fn extract_failed_tests(
                     let parent_name = suite.name.into_string();
                     for case in suite.test_cases {
                         let is_failure = match case.status {
-                            TestCaseStatus::NonSuccess {
-                                kind,
-                                message: _message,
-                                ty: _ty,
-                                description: _description,
-                                reruns: _reruns,
-                            } => match kind {
-                                NonSuccessKind::Failure => true,
-                                NonSuccessKind::Error => true,
-                            },
+                            TestCaseStatus::NonSuccess { .. } => true,
                             _ => false,
                         };
                         if is_failure {
