@@ -68,7 +68,7 @@ jobs:
           - target: x86_64-unknown-linux-musl
             runs-on: public-amd64-2xlarge
           - target: aarch64-unknown-linux-musl
-            runs-on: public-arm64-medium
+            runs-on: public-arm64-2xlarge
     name: Build CLI for ${{ matrix.target }}
     runs-on: ${{ matrix.runs-on }}
     steps:

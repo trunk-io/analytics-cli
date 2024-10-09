@@ -16,10 +16,10 @@ jobs:
         include:
           - target: x86_64-unknown-linux-musl
             artifact-name: x86_64-unknown-linux
-            runs-on: public-amd64-small
+            runs-on: public-amd64-2xlarge
           - target: aarch64-unknown-linux-musl
             artifact-name: aarch64-unknown-linux
-            runs-on: public-arm64-medium
+            runs-on: public-arm64-2xlarge
     runs-on: ${{ matrix.runs-on }}
     steps:
       - name: Checkout
