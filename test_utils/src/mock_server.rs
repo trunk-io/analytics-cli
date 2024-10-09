@@ -8,14 +8,14 @@ use std::{
 
 use api::{
     CreateBundleUploadRequest, CreateBundleUploadResponse, CreateRepoRequest,
-    GetQuarantineBulkTestStatusRequest, QuarantineConfig,
+    GetQuarantineBulkTestStatusRequest, QuarantineConfig, UpdateBundleUploadRequest,
 };
 use axum::{
     body::Bytes,
     extract::State,
     http::StatusCode,
     response::Response,
-    routing::{any, post, put},
+    routing::{any, patch, post, put},
     {Json, Router},
 };
 use tempfile::tempdir;
@@ -25,6 +25,7 @@ use tokio::{net::TcpListener, spawn};
 pub enum RequestPayload {
     CreateRepo(CreateRepoRequest),
     CreateBundleUpload(CreateBundleUploadRequest),
+    UpdateBundleUpload(UpdateBundleUploadRequest),
     GetQuarantineBulkTestStatus(GetQuarantineBulkTestStatusRequest),
     S3Upload(PathBuf),
 }
@@ -55,6 +56,10 @@ pub async fn spawn_mock_server() -> SharedMockServerState {
         .route(
             "/v1/metrics/createBundleUpload",
             post(create_bundle_handler),
+        )
+        .route(
+            "/v1/metrics/updateBundleUpload",
+            patch(update_bundle_handler),
         )
         .route(
             "/v1/metrics/getQuarantineConfig",
@@ -114,6 +119,21 @@ async fn create_bundle_handler(
         url: format!("{host}/s3upload"),
         key: String::from("unused"),
     })
+}
+
+#[axum::debug_handler]
+async fn update_bundle_handler(
+    State(state): State<SharedMockServerState>,
+    Json(update_bundle_upload_request): Json<UpdateBundleUploadRequest>,
+) -> Response<String> {
+    state
+        .requests
+        .lock()
+        .unwrap()
+        .push(RequestPayload::UpdateBundleUpload(
+            update_bundle_upload_request,
+        ));
+    Response::new(String::from("OK"))
 }
 
 #[axum::debug_handler]
