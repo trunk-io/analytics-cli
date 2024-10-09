@@ -42,9 +42,6 @@ jobs:
         shell: bash
         run: rustup target add ${{ matrix.target }}
 
-      - name: Install latest nextest release
-        uses: taiki-e/install-action@nextest
-
       - uses: actions/cache@v4
         with:
           path: |
@@ -54,6 +51,9 @@ jobs:
             ~/.cargo/git/db/
             target/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Install latest nextest release
+        uses: taiki-e/install-action@nextest
 
       - name: Run tests
         run: cargo nextest run --workspace ${{ contains(matrix.target, 'musl') && '--exclude context-js --exclude context-py' || '' }} --profile=ci
@@ -93,14 +93,6 @@ jobs:
       - name: Install Trunk
         uses: trunk-io/trunk-action/install@54ccfcf9add644a36a5aa1d0046c92f654ff9e45
 
-      - name: Install nextest
-        if: matrix.target != 'aarch64-unknown-linux-musl'
-        run: curl -LsSf https://get.nexte.st/latest/linux | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin
-
-      - name: Install nextest for ARM
-        if: matrix.target == 'aarch64-unknown-linux-musl'
-        run: curl -LsSf https://get.nexte.st/latest/linux-arm | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin
-
       - uses: actions/cache@v4
         with:
           path: |
@@ -110,6 +102,14 @@ jobs:
             ~/.cargo/git/db/
             target/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Install nextest
+        if: matrix.target != 'aarch64-unknown-linux-musl'
+        run: curl -LsSf https://get.nexte.st/latest/linux | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin
+
+      - name: Install nextest for ARM
+        if: matrix.target == 'aarch64-unknown-linux-musl'
+        run: curl -LsSf https://get.nexte.st/latest/linux-arm | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin
 
       - name: Run tests
         run: cargo nextest run --workspace ${{ contains(matrix.target, 'musl') && '--exclude context-js --exclude context-py' || '' }} --profile=ci
