@@ -6,6 +6,7 @@ use quick_junit::Report;
 
 use context::junit::{
     self,
+    parser::extra_attrs,
     parser::JunitParser,
     validator::{
         JunitTestCaseValidationIssue, JunitTestCaseValidationIssueInvalid,
@@ -92,6 +93,116 @@ fn validate_test_suite_name_too_short() {
         vec![JunitValidationIssue::Invalid(
             JunitTestSuiteValidationIssueInvalid::TestSuiteNameTooShort(String::new()),
         )],
+        "failed to validate with seed `{}`",
+        seed,
+    );
+}
+
+#[test]
+fn validate_test_invalid_test_suite_id() {
+    let (seed, mut generated_reports) = generate_mock_junit_reports(1, Some(1), None);
+    let mut generated_report = generated_reports.pop().unwrap();
+
+    let id = "invalid";
+    for test_suite in &mut generated_report.test_suites {
+        test_suite.extra.insert(extra_attrs::ID.into(), id.into());
+    }
+
+    let report_validation = junit::validator::validate(&generated_report);
+
+    assert_eq!(
+        report_validation.max_level(),
+        JunitValidationLevel::Invalid,
+        "failed to validate with seed `{}`",
+        seed,
+    );
+
+    pretty_assertions::assert_eq!(
+        report_validation
+            .test_suites()
+            .iter()
+            .flat_map(|test_suite| Vec::from(test_suite.issues()))
+            .collect::<Vec<JunitTestSuiteValidationIssue>>(),
+        vec![JunitValidationIssue::Invalid(
+            JunitTestSuiteValidationIssueInvalid::TestSuiteInvalidId(id.into()),
+        )],
+        "failed to validate with seed `{}`",
+        seed,
+    );
+
+    // verify valid id is accepted
+    let id = uuid::Uuid::new_v5(&uuid::Uuid::NAMESPACE_URL, "valid".as_bytes());
+    for test_suite in &mut generated_report.test_suites {
+        test_suite
+            .extra
+            .insert(extra_attrs::ID.into(), id.to_string().into());
+    }
+    let report_validation = junit::validator::validate(&generated_report);
+    pretty_assertions::assert_eq!(
+        report_validation
+            .test_suites()
+            .iter()
+            .flat_map(|test_suite| Vec::from(test_suite.issues()))
+            .collect::<Vec<JunitTestSuiteValidationIssue>>(),
+        vec![],
+        "failed to validate with seed `{}`",
+        seed,
+    );
+}
+
+#[test]
+fn validate_test_case_invalid_id() {
+    let (seed, mut generated_reports) = generate_mock_junit_reports(1, Some(1), Some(1));
+    let mut generated_report = generated_reports.pop().unwrap();
+
+    for test_suite in &mut generated_report.test_suites {
+        for test_case in &mut test_suite.test_cases {
+            test_case
+                .extra
+                .insert(extra_attrs::ID.into(), String::new().into());
+        }
+    }
+
+    let report_validation = junit::validator::validate(&generated_report);
+
+    assert_eq!(
+        report_validation.max_level(),
+        JunitValidationLevel::Invalid,
+        "failed to validate with seed `{}`",
+        seed,
+    );
+
+    pretty_assertions::assert_eq!(
+        report_validation
+            .test_suites()
+            .iter()
+            .flat_map(|test_suite| test_suite.test_cases())
+            .flat_map(|test_case| Vec::from(test_case.issues()))
+            .collect::<Vec<JunitTestCaseValidationIssue>>(),
+        vec![JunitValidationIssue::Invalid(
+            JunitTestCaseValidationIssueInvalid::TestCaseInvalidId(String::new()),
+        )],
+        "failed to validate with seed `{}`",
+        seed,
+    );
+
+    // verify valid id is accepted
+    let id = uuid::Uuid::new_v5(&uuid::Uuid::NAMESPACE_URL, "valid".as_bytes());
+    for test_suite in &mut generated_report.test_suites {
+        for test_case in &mut test_suite.test_cases {
+            test_case
+                .extra
+                .insert(extra_attrs::ID.into(), id.to_string().into());
+        }
+    }
+    let report_validation = junit::validator::validate(&generated_report);
+    pretty_assertions::assert_eq!(
+        report_validation
+            .test_suites()
+            .iter()
+            .flat_map(|test_suite| Vec::from(test_suite.issues()))
+            .collect::<Vec<JunitTestSuiteValidationIssue>>(),
+        vec![],
         "failed to validate with seed `{}`",
         seed,
     );

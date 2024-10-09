@@ -471,6 +471,7 @@ dependencies = [
  "tempfile",
  "test_utils",
  "thiserror",
+ "uuid",
  "wasm-bindgen",
 ]
 
@@ -1565,16 +1566,6 @@ dependencies = [
  "humantime",
  "quick-junit",
  "rand",
-]
-
-[[package]]
-name = "junit-parser"
-version = "1.2.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0d6c34dc9172a57860c4a552d691bcf00a276d4b922758960a018eea34381390"
-dependencies = [
- "quick-xml",
- "thiserror",
 ]
 
 [[package]]
@@ -3034,9 +3025,9 @@ dependencies = [
  "exitcode",
  "glob",
  "junit-mock",
- "junit-parser",
  "log",
  "openssl",
+ "quick-junit",
  "regex",
  "reqwest",
  "sentry",

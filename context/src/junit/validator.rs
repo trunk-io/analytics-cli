@@ -65,6 +65,17 @@ pub fn validate(report: &Report) -> JunitReportValidation {
             }
         };
 
+        if let Some(raw_test_suite_id) = test_suite.extra.get("id") {
+            let test_case_id = uuid::Uuid::parse_str(raw_test_suite_id).unwrap_or_default();
+            if test_case_id.get_version() != Some(uuid::Version::Sha1) {
+                test_suite_validation.add_issue(JunitValidationIssue::Invalid(
+                    JunitTestSuiteValidationIssueInvalid::TestSuiteInvalidId(
+                        raw_test_suite_id.to_string().clone(),
+                    ),
+                ));
+            }
+        }
+
         for test_case in test_suite.test_cases.iter() {
             let mut test_case_validation = JunitTestCaseValidation::default();
 
@@ -81,6 +92,17 @@ pub fn validate(report: &Report) -> JunitReportValidation {
                     ));
                 }
             };
+
+            if let Some(raw_test_case_id) = test_case.extra.get("id") {
+                let test_case_id = uuid::Uuid::parse_str(raw_test_case_id).unwrap_or_default();
+                if test_case_id.get_version() != Some(uuid::Version::Sha1) {
+                    test_case_validation.add_issue(JunitValidationIssue::Invalid(
+                        JunitTestCaseValidationIssueInvalid::TestCaseInvalidId(
+                            raw_test_case_id.to_string().clone(),
+                        ),
+                    ));
+                }
+            }
 
             match validate_field_len::<MAX_FIELD_LEN, _>(
                 test_case
@@ -295,6 +317,8 @@ pub enum JunitTestSuiteValidationIssueSubOptimal {
 pub enum JunitTestSuiteValidationIssueInvalid {
     #[error("test suite name too short")]
     TestSuiteNameTooShort(String),
+    #[error("test suite id is not a valid uuidv5")]
+    TestSuiteInvalidId(String),
 }
 
 pub type JunitTestCaseValidationIssue = JunitValidationIssue<
@@ -382,4 +406,6 @@ pub enum JunitTestCaseValidationIssueSubOptimal {
 pub enum JunitTestCaseValidationIssueInvalid {
     #[error("test case name too short")]
     TestCaseNameTooShort(String),
+    #[error("test case id is not a valid uuidv5")]
+    TestCaseInvalidId(String),
 }
