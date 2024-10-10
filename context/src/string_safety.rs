@@ -3,7 +3,7 @@ pub fn safe_truncate_string<'a, const MAX_LEN: usize, T: AsRef<str>>(value: &'a 
 }
 
 pub fn safe_truncate_str<'a, const MAX_LEN: usize>(value: &'a str) -> &'a str {
-    &value.trim()[..value.floor_char_boundary(MAX_LEN)]
+    &value.trim()[..value.trim().floor_char_boundary(MAX_LEN)]
 }
 
 #[derive(Debug, Clone)]
