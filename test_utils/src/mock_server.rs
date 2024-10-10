@@ -13,10 +13,11 @@ use api::{
 use axum::{
     body::Bytes,
     extract::State,
+    handler::Handler,
     http::StatusCode,
     response::Response,
-    routing::{any, patch, post, put},
-    {Json, Router},
+    routing::{any, patch, post, put, MethodRouter},
+    Json, Router,
 };
 use tempfile::tempdir;
 use tokio::{net::TcpListener, spawn};
@@ -36,57 +37,116 @@ pub struct MockServerState {
     pub host: String,
 }
 
-pub type SharedMockServerState = Arc<MockServerState>;
-
-/// Mock server spawned in a new thread.
-///
-/// NOTE: must use a multithreaded executor to have the server run while running tests
-pub async fn spawn_mock_server() -> SharedMockServerState {
-    let listener = TcpListener::bind("localhost:0").await.unwrap();
-    let random_port = listener.local_addr().unwrap().port();
-    let host = format!("http://localhost:{random_port}");
-
-    let state = Arc::new(MockServerState {
-        host,
-        ..Default::default()
-    });
-
-    let mut app = Router::new()
-        .route("/v1/repo/create", post(repo_create_handler))
-        .route(
-            "/v1/metrics/createBundleUpload",
-            post(create_bundle_handler),
-        )
-        .route(
-            "/v1/metrics/updateBundleUpload",
-            patch(update_bundle_handler),
-        )
-        .route(
-            "/v1/metrics/getQuarantineConfig",
-            post(get_quarantining_config_handler),
-        )
-        .route("/s3upload", put(s3_upload_handler));
-
-    app = app.route(
-        "/*rest",
-        any(|| async {
-            let mut res = Response::new(String::from(
-                r#"{ "status_code": 404, "error": "not found" }"#,
-            ));
-            *res.status_mut() = StatusCode::NOT_FOUND;
-            res
-        }),
-    );
-
-    let spawn_state = state.clone();
-    spawn(async move {
-        axum::serve(listener, app.with_state(spawn_state))
-            .await
-            .unwrap();
-    });
-
-    state
+#[derive(Debug, Clone)]
+pub struct MockServerBuilder {
+    repo_create_handler: MethodRouter<SharedMockServerState>,
+    create_bundle_handler: MethodRouter<SharedMockServerState>,
+    get_quarantining_config_handler: MethodRouter<SharedMockServerState>,
+    s3_upload_handler: MethodRouter<SharedMockServerState>,
+    update_bundle_handler: MethodRouter<SharedMockServerState>,
 }
+
+impl MockServerBuilder {
+    pub fn new() -> Self {
+        Self {
+            repo_create_handler: post(repo_create_handler),
+            create_bundle_handler: post(create_bundle_handler),
+            get_quarantining_config_handler: post(get_quarantining_config_handler),
+            s3_upload_handler: put(s3_upload_handler),
+            update_bundle_handler: patch(update_bundle_handler),
+        }
+    }
+
+    pub fn set_repo_create_handler<H, T>(&mut self, handler: H)
+    where
+        H: Handler<T, SharedMockServerState>,
+        T: 'static,
+    {
+        self.repo_create_handler = post(handler);
+    }
+
+    pub fn set_create_bundle_handler<H, T>(&mut self, handler: H)
+    where
+        H: Handler<T, SharedMockServerState>,
+        T: 'static,
+    {
+        self.create_bundle_handler = post(handler);
+    }
+
+    pub fn set_get_quarantining_config_handler<H, T>(&mut self, handler: H)
+    where
+        H: Handler<T, SharedMockServerState>,
+        T: 'static,
+    {
+        self.get_quarantining_config_handler = post(handler);
+    }
+
+    pub fn set_s3_upload_handler<H, T>(&mut self, handler: H)
+    where
+        H: Handler<T, SharedMockServerState>,
+        T: 'static,
+    {
+        self.s3_upload_handler = put(handler);
+    }
+
+    pub fn set_update_bundle_handler<H, T>(&mut self, handler: H)
+    where
+        H: Handler<T, SharedMockServerState>,
+        T: 'static,
+    {
+        self.update_bundle_handler = patch(handler);
+    }
+
+    /// Mock server spawned in a new thread.
+    pub async fn spawn_mock_server(self) -> SharedMockServerState {
+        let listener = TcpListener::bind("localhost:0").await.unwrap();
+        let random_port = listener.local_addr().unwrap().port();
+        let host = format!("http://localhost:{random_port}");
+
+        let state = Arc::new(MockServerState {
+            host,
+            ..Default::default()
+        });
+
+        let mut app = Router::new()
+            .route("/v1/repo/create", self.repo_create_handler)
+            .route("/v1/metrics/createBundleUpload", self.create_bundle_handler)
+            .route(
+                "/v1/metrics/getQuarantineConfig",
+                self.get_quarantining_config_handler,
+            )
+            .route("/s3upload", self.s3_upload_handler)
+            .route("/v1/metrics/updateBundleUpload", self.update_bundle_handler);
+
+        app = app.route(
+            "/*rest",
+            any(|| async {
+                let mut res = Response::new(String::from(
+                    r#"{ "status_code": 404, "error": "not found" }"#,
+                ));
+                *res.status_mut() = StatusCode::NOT_FOUND;
+                res
+            }),
+        );
+
+        let spawn_state = state.clone();
+        spawn(async move {
+            axum::serve(listener, app.with_state(spawn_state))
+                .await
+                .unwrap();
+        });
+
+        state
+    }
+}
+
+impl Default for MockServerBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+pub type SharedMockServerState = Arc<MockServerState>;
 
 #[axum::debug_handler]
 async fn repo_create_handler(
@@ -102,7 +162,7 @@ async fn repo_create_handler(
 }
 
 #[axum::debug_handler]
-async fn create_bundle_handler(
+pub async fn create_bundle_handler(
     State(state): State<SharedMockServerState>,
     Json(create_bundle_upload_request): Json<CreateBundleUploadRequest>,
 ) -> Json<CreateBundleUploadResponse> {
@@ -122,7 +182,7 @@ async fn create_bundle_handler(
 }
 
 #[axum::debug_handler]
-async fn update_bundle_handler(
+pub async fn update_bundle_handler(
     State(state): State<SharedMockServerState>,
     Json(update_bundle_upload_request): Json<UpdateBundleUploadRequest>,
 ) -> Response<String> {
@@ -137,7 +197,7 @@ async fn update_bundle_handler(
 }
 
 #[axum::debug_handler]
-async fn get_quarantining_config_handler(
+pub async fn get_quarantining_config_handler(
     State(state): State<SharedMockServerState>,
     Json(get_quarantine_bulk_test_status_request): Json<GetQuarantineBulkTestStatusRequest>,
 ) -> Json<QuarantineConfig> {
@@ -155,7 +215,7 @@ async fn get_quarantining_config_handler(
 }
 
 #[axum::debug_handler]
-async fn s3_upload_handler(
+pub async fn s3_upload_handler(
     State(state): State<SharedMockServerState>,
     bytes: Bytes,
 ) -> Response<String> {
