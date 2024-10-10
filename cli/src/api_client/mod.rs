@@ -79,8 +79,12 @@ impl ApiClient {
                     |_| format!("Failed to create repo."),
                 )
             },
-            log_progress_message: |_, _| String::new(),
-            report_slow_progress_message: |_| String::new(),
+            log_progress_message: |time_elapsed, _| {
+                format!("Communicating with Trunk services is taking longer than expected. It has taken {} seconds so far.", time_elapsed.as_secs())
+            },
+            report_slow_progress_message: |time_elapsed| {
+                format!("Creating a Trunk repo is taking longer than {} seconds", time_elapsed.as_secs())
+            },
         }
         .call_api()
         .await
@@ -111,8 +115,12 @@ impl ApiClient {
                     .await
                     .context("Failed to get response body as json.")
             },
-            log_progress_message: |_, _| String::new(),
-            report_slow_progress_message: |_| String::new(),
+            log_progress_message: |time_elapsed, _| {
+                format!("Reporting bundle upload initiation to Trunk services is taking longer than expected. It has taken {} seconds so far.", time_elapsed.as_secs())
+            },
+            report_slow_progress_message: |time_elapsed| {
+                format!("Creating a Trunk upload intent is taking longer than {} seconds", time_elapsed.as_secs())
+            },
         }
         .call_api()
         .await
@@ -143,8 +151,12 @@ impl ApiClient {
                     .await
                     .context("Failed to get response body as json.")
             },
-            log_progress_message: |_, _| String::new(),
-            report_slow_progress_message: |_| String::new(),
+            log_progress_message: |time_elapsed, _| {
+                format!("Getting quarantine configuration from Trunk services is taking longer than expected. It has taken {} seconds so far.", time_elapsed.as_secs())
+            },
+            report_slow_progress_message: |time_elapsed| {
+                format!("Getting a Trunk quarantine configuration is taking longer than {} seconds", time_elapsed.as_secs())
+            },
         }
         .call_api()
         .await
@@ -175,8 +187,12 @@ impl ApiClient {
                     |_| String::from("Failed to upload bundle to S3."),
                 )
             },
-            log_progress_message: |_, _| String::new(),
-            report_slow_progress_message: |_| String::new(),
+            log_progress_message: |time_elapsed, _| {
+                format!("Uploading bundle to S3 is taking longer than expected. It has taken {} seconds so far.", time_elapsed.as_secs())
+            },
+            report_slow_progress_message: |time_elapsed| {
+                format!("Uploading bundle to S3 is taking longer than {} seconds", time_elapsed.as_secs())
+            },
         }
         .call_api()
         .await
