@@ -1,0 +1,20 @@
+[package]
+name = "cli-tests"
+version = "0.1.0"
+edition = "2021"
+
+[dev-dependencies]
+api = { path = "../api" }
+assert_cmd = "2.0.16"
+assert_matches = "1.5.0"
+chrono = "0.4.33"
+context = { path = "../context" }
+escargot = "0.5.12"
+junit-mock = { path = "../junit-mock" }
+lazy_static = "1.4"
+more-asserts = "0.3.1"
+serde_json = "1.0.68"
+tempfile = "3.2.0"
+test_utils = { path = "../test_utils" }
+tokio = { version = "*" }
+trunk-analytics-cli = { path = "../cli", features = ["force-sentry-env-dev"] }
