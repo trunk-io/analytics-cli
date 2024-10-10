@@ -3,26 +3,6 @@ use crate::types::CustomTag;
 pub const MAX_KEY_LEN: usize = 32;
 pub const MAX_VAL_LEN: usize = 1024 * 8;
 
-pub fn status_code_help(status: reqwest::StatusCode) -> String {
-    match status {
-        reqwest::StatusCode::UNAUTHORIZED => {
-            "Your Trunk token may be incorrect - \
-             find it on the Trunk app (Settings -> \
-             Manage Organization -> Organization \
-             API Token -> View)."
-        }
-        reqwest::StatusCode::NOT_FOUND => {
-            "Your Trunk organization URL \
-             slug may be incorrect - find \
-             it on the Trunk app (Settings \
-             -> Manage Organization -> \
-             Organization Slug)."
-        }
-        _ => "For more help, contact us at https://slack.trunk.io/",
-    }
-    .to_string()
-}
-
 pub fn parse_custom_tags(tags: &[String]) -> anyhow::Result<Vec<CustomTag>> {
     let parsed = tags.iter()
         .filter(|tag_str| !tag_str.trim().is_empty())
