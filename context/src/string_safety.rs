@@ -3,7 +3,7 @@ pub fn safe_truncate_string<'a, const MAX_LEN: usize, T: AsRef<str>>(value: &'a 
 }
 
 pub fn safe_truncate_str<'a, const MAX_LEN: usize>(value: &'a str) -> &'a str {
-    &value.trim()[..value.floor_char_boundary(MAX_LEN)]
+    &value.trim()[..value.trim().floor_char_boundary(MAX_LEN)]
 }
 
 #[derive(Debug, Clone)]
@@ -25,5 +25,17 @@ pub fn validate_field_len<const MAX_LEN: usize, T: AsRef<str>>(field: T) -> Fiel
         FieldLen::TooLong(String::from(safe_truncate_string::<MAX_LEN, _>(
             &trimmed_field,
         )))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::string_safety::safe_truncate_str;
+
+    #[test]
+    fn test_safe_truncate_str() {
+        pretty_assertions::assert_eq!("trunk", safe_truncate_str::<5>("trunkate me!"));
+        pretty_assertions::assert_eq!("trunkate me!", safe_truncate_str::<100>(" trunkate me! "));
+        pretty_assertions::assert_eq!("trunk", safe_truncate_str::<5>(" trunkate me! "));
     }
 }
