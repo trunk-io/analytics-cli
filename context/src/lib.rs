@@ -5,4 +5,4 @@
 pub mod env;
 pub mod junit;
 pub mod repo;
-pub mod string_safety;
+mod string_safety;
