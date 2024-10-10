@@ -45,7 +45,7 @@ jobs:
             # https://docs.rs/openssl/latest/openssl/
             if [ -f /usr/bin/dnf ]; then
               # quay.io/pypa/manylinux_2_28_x86_64:latest
-              /usr/bin/dnf upgrade
+              /usr/bin/dnf -y upgrade
               /usr/bin/dnf -y install pkgconf perl-IPC-Cmd openssl-devel python3-pip
               /usr/bin/ln -s /usr/bin/pip3 /usr/bin/pip
               /usr/bin/ln -sf /usr/bin/python3.11 /usr/bin/python3
