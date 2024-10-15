@@ -230,6 +230,75 @@ impl JunitReportValidation {
     pub fn test_suites(&self) -> &[JunitTestSuiteValidation] {
         &self.test_suites
     }
+
+    pub fn test_cases_flat(&self) -> Vec<&JunitTestCaseValidation> {
+        self.test_suites
+            .iter()
+            .flat_map(|test_suite| test_suite.test_cases())
+            .collect()
+    }
+
+    pub fn test_suite_validation_issues_flat(&self) -> Vec<&JunitTestSuiteValidationIssue> {
+        self.test_suites
+            .iter()
+            .flat_map(|test_suite| test_suite.issues())
+            .collect()
+    }
+
+    pub fn test_case_validation_issues_flat(&self) -> Vec<&JunitTestCaseValidationIssue> {
+        self.test_suites
+            .iter()
+            .flat_map(|test_suite| test_suite.test_cases())
+            .flat_map(|test_case| test_case.issues())
+            .collect()
+    }
+
+    fn test_suite_variant_validation_issues_flat(
+        &self,
+        level: JunitValidationLevel,
+    ) -> Vec<&JunitTestSuiteValidationIssue> {
+        self.test_suites
+            .iter()
+            .flat_map(|test_suite| test_suite.issues())
+            .filter(|test_suite_validation_issue| {
+                JunitValidationLevel::from(*test_suite_validation_issue) == level
+            })
+            .collect()
+    }
+
+    pub fn test_suite_suboptimal_validation_issues_flat(
+        &self,
+    ) -> Vec<&JunitTestSuiteValidationIssue> {
+        self.test_suite_variant_validation_issues_flat(JunitValidationLevel::SubOptimal)
+    }
+
+    pub fn test_suite_invalid_validation_issues_flat(&self) -> Vec<&JunitTestSuiteValidationIssue> {
+        self.test_suite_variant_validation_issues_flat(JunitValidationLevel::Invalid)
+    }
+
+    fn test_case_variant_validation_issues_flat(
+        &self,
+        level: JunitValidationLevel,
+    ) -> Vec<&JunitTestCaseValidationIssue> {
+        self.test_suites
+            .iter()
+            .flat_map(|test_suite| test_suite.test_cases())
+            .flat_map(|test_case| test_case.issues())
+            .filter(|test_case_validation_issue| {
+                JunitValidationLevel::from(*test_case_validation_issue) == level
+            })
+            .collect()
+    }
+
+    pub fn test_case_suboptimal_validation_issues_flat(
+        &self,
+    ) -> Vec<&JunitTestCaseValidationIssue> {
+        self.test_case_variant_validation_issues_flat(JunitValidationLevel::SubOptimal)
+    }
+
+    pub fn test_case_invalid_validation_issues_flat(&self) -> Vec<&JunitTestCaseValidationIssue> {
+        self.test_case_variant_validation_issues_flat(JunitValidationLevel::Invalid)
+    }
 }
 
 pub type JunitTestSuiteValidationIssue = JunitValidationIssue<

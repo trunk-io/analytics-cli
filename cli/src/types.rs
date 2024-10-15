@@ -90,7 +90,8 @@ pub enum FileSetType {
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct BundledFile {
-    pub original_path: String,
+    pub original_path_abs: String,
+    pub original_path_rel: String,
     pub path: String,
     pub last_modified_epoch_ns: u128,
     pub owners: Vec<String>,
@@ -122,6 +123,12 @@ pub struct BundleMeta {
     pub os_info: Option<String>,
     pub quarantined_tests: Vec<Test>,
     pub codeowners: Option<CodeOwners>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct WithFilePath<T> {
+    pub file_path: String,
+    pub wrapped: T,
 }
 
 #[cfg(test)]

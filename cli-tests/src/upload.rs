@@ -26,7 +26,7 @@ use trunk_analytics_cli::{
 
 lazy_static! {
     static ref CARGO_MANIFEST_DIR: PathBuf = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    static ref CARGO_RUN: CargoRun = CargoBuild::new()
+    pub static ref CARGO_RUN: CargoRun = CargoBuild::new()
         .bin("trunk-analytics-cli")
         .target_dir(CARGO_MANIFEST_DIR.join("../target"))
         .manifest_path(CARGO_MANIFEST_DIR.join("../cli/Cargo.toml"))

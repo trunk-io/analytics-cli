@@ -26,7 +26,8 @@ pub async fn run_test_command(
     let start = SystemTime::now();
     let exit_code = run_test_and_get_exit_code(command, args).await?;
     log::info!("Command exit code: {}", exit_code);
-    let (file_sets, ..) = build_filesets(repo, output_paths, team, codeowners, Some(start))?;
+    let (file_sets, ..) =
+        build_filesets(&repo.repo_root, output_paths, team, codeowners, Some(start))?;
     let failures = if exit_code != EXIT_SUCCESS {
         extract_failed_tests(repo, org_slug, &file_sets).await?
     } else {
@@ -64,7 +65,7 @@ async fn run_test_and_get_exit_code(command: &String, args: Vec<&String>) -> any
 }
 
 pub fn build_filesets(
-    repo: &BundleRepo,
+    repo_root: &str,
     junit_paths: &[String],
     team: Option<String>,
     codeowners: &Option<CodeOwners>,
@@ -75,7 +76,7 @@ pub fn build_filesets(
         .iter()
         .map(|path| {
             FileSet::scan_from_glob(
-                &repo.repo_root,
+                repo_root,
                 path.to_string(),
                 &mut file_counter,
                 team.clone(),
@@ -96,7 +97,7 @@ pub fn build_filesets(
                 }
                 path.push_str("**/*.xml");
                 FileSet::scan_from_glob(
-                    &repo.repo_root,
+                    repo_root,
                     path.to_string(),
                     &mut file_counter,
                     team.clone(),
@@ -118,7 +119,7 @@ pub async fn extract_failed_tests(
     let mut failures = Vec::<Test>::new();
     for file_set in file_sets {
         for file in &file_set.files {
-            let file = match std::fs::File::open(&file.original_path) {
+            let file = match std::fs::File::open(&file.original_path_abs) {
                 Ok(file) => file,
                 Err(e) => {
                     log::warn!("Error opening file: {}", e);
