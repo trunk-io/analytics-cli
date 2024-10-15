@@ -1,9 +1,10 @@
+use quick_junit::TestCaseStatus;
 use std::process::{Command, Stdio};
 use std::time::SystemTime;
 
 use api::QuarantineConfig;
+use context::junit::parser::JunitParser;
 use context::repo::BundleRepo;
-use junit_parser;
 use tokio_retry::strategy::ExponentialBackoff;
 use tokio_retry::Retry;
 
@@ -125,28 +126,36 @@ pub async fn extract_failed_tests(
                 }
             };
             let reader = std::io::BufReader::new(file);
-            let junitxml = match junit_parser::from_reader(reader) {
+            let mut junitxml = JunitParser::new();
+            match junitxml.parse(reader) {
                 Ok(junitxml) => junitxml,
                 Err(e) => {
                     log::warn!("Error parsing junitxml: {}", e);
                     continue;
                 }
             };
-            for suite in junitxml.suites {
-                let parent_name = suite.name;
-                for case in suite.cases {
-                    let failure = case.status.is_failure();
-                    if failure {
-                        let name = case.original_name;
+            for report in junitxml.reports() {
+                for suite in &report.test_suites {
+                    let parent_name = String::from(suite.name.as_str());
+                    for case in &suite.test_cases {
+                        if !matches!(case.status, TestCaseStatus::NonSuccess { .. }) {
+                            continue;
+                        }
+                        let name = String::from(case.name.as_str());
+                        let xml_string_to_string =
+                            |s: &quick_junit::XmlString| String::from(s.as_str());
+                        let classname = case.classname.as_ref().map(xml_string_to_string);
+                        let file = case.extra.get("file").map(xml_string_to_string);
+                        let id = case.extra.get("id").map(xml_string_to_string);
                         let test = Test::new(
-                            name.clone(),
+                            name,
                             parent_name.clone(),
-                            case.classname.clone(),
-                            case.file.clone(),
+                            classname,
+                            file,
+                            id,
                             org_slug,
                             repo,
                         );
-
                         failures.push(test);
                     }
                 }

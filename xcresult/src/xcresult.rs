@@ -249,7 +249,7 @@ impl XCResult {
     }
 
     fn junit_report(&self, action: &serde_json::Value) -> anyhow::Result<Report> {
-        let mut testsuites_junit = Report::new("name");
+        let mut testsuites_junit = Report::new("xcresult");
         let raw_id = action
             .get("actionResult")
             .and_then(|r| r.get("testsRef"))

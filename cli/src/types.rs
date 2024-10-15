@@ -32,9 +32,20 @@ impl Test {
         parent_name: String,
         class_name: Option<String>,
         file: Option<String>,
+        id: Option<String>,
         org_slug: &str,
         repo: &BundleRepo,
     ) -> Self {
+        if let Some(id) = id {
+            return Test {
+                parent_name,
+                name,
+                class_name,
+                file,
+                id,
+            };
+        }
+        // generate a unique id if not provided
         let repo_full_name = format!("{}/{}/{}", repo.repo.host, repo.repo.owner, repo.repo.name);
         let info_id_input = [
             org_slug,
@@ -231,6 +242,7 @@ mod tests {
             parent_name.clone(),
             class_name.clone(),
             file.clone(),
+            None,
             org_slug,
             &repo,
         );
@@ -239,5 +251,19 @@ mod tests {
         assert_eq!(result.class_name, class_name);
         assert_eq!(result.file, file);
         assert_eq!(result.id, "aad1f138-09ab-5ea9-9c21-af48a03d6edd");
+        let result = Test::new(
+            name.clone(),
+            parent_name.clone(),
+            class_name.clone(),
+            file.clone(),
+            Some(String::from("da5b8893-d6ca-5c1c-9a9c-91f40a2a3649")),
+            org_slug,
+            &repo,
+        );
+        assert_eq!(result.name, name);
+        assert_eq!(result.parent_name, parent_name);
+        assert_eq!(result.class_name, class_name);
+        assert_eq!(result.file, file);
+        assert_eq!(result.id, "da5b8893-d6ca-5c1c-9a9c-91f40a2a3649");
     }
 }

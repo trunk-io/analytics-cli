@@ -125,13 +125,15 @@ const RETRY_COUNT: usize = 5;
 // "the Sentry client must be initialized before starting an async runtime or spawning threads"
 // https://docs.sentry.io/platforms/rust/#async-main-function
 fn main() -> anyhow::Result<()> {
-    let _guard = sentry::init((
-        SENTRY_DSN,
-        sentry::ClientOptions {
-            release: sentry::release_name!(),
-            ..Default::default()
-        },
-    ));
+    let mut options = sentry::ClientOptions::default();
+    options.release = sentry::release_name!();
+
+    #[cfg(feature = "force-sentry-env-dev")]
+    {
+        options.environment = Some("development".into())
+    }
+
+    let _guard = sentry::init((SENTRY_DSN, options));
 
     tokio::runtime::Builder::new_multi_thread()
         .enable_all()

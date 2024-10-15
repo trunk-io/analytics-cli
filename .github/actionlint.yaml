@@ -1,7 +1,5 @@
 self-hosted-runner:
   labels:
-    - mint
     - public-amd64-2xlarge
-    - ubuntu-x64
+    - public-arm64-2xlarge
     - public-amd64-small
-    - public-arm64-medium

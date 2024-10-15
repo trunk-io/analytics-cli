@@ -42,6 +42,16 @@ jobs:
         shell: bash
         run: rustup target add ${{ matrix.target }}
 
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.arch }}-${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
       - name: Install latest nextest release
         uses: taiki-e/install-action@nextest
 
@@ -68,7 +78,7 @@ jobs:
           - target: x86_64-unknown-linux-musl
             runs-on: public-amd64-2xlarge
           - target: aarch64-unknown-linux-musl
-            runs-on: public-arm64-medium
+            runs-on: public-arm64-2xlarge
     name: Build CLI for ${{ matrix.target }}
     runs-on: ${{ matrix.runs-on }}
     steps:
@@ -82,6 +92,16 @@ jobs:
 
       - name: Install Trunk
         uses: trunk-io/trunk-action/install@54ccfcf9add644a36a5aa1d0046c92f654ff9e45
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.arch }}-${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Install nextest
         if: matrix.target != 'aarch64-unknown-linux-musl'

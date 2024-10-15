@@ -37,19 +37,12 @@ serde = { version = "1.0.130", default-features = false, features = ["derive"] }
 serde_json = "1.0.68"
 zstd = { version = "0.13.0", default-features = false }
 tar = { version = "0.4.30", default-features = false }
-junit-parser = "1.1.0"
 codeowners = { path = "../codeowners" }
 xcresult = { path = "../xcresult" }
 sentry = { version = "0.34.0", features = ["debug-images"] }
 openssl = { version = "0.10.66", features = ["vendored"] }
 uuid = { version = "1.10.0", features = ["v5"] }
-
-[dev-dependencies]
-assert_cmd = "2.0.16"
-assert_matches = "1.5.0"
-axum = { version = "0.7.5", features = ["macros"] }
-junit-mock = { path = "../junit-mock" }
-test_utils = { path = "../test_utils" }
+quick-junit = "0.5.0"
 
 [build-dependencies]
 vergen = { version = "8.3.1", features = [
@@ -60,3 +53,6 @@ vergen = { version = "8.3.1", features = [
   "rustc",
   "si",
 ] }
+
+[features]
+force-sentry-env-dev = []
