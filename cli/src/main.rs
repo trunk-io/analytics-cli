@@ -584,9 +584,10 @@ async fn run_validate(validate_args: ValidateArgs) -> anyhow::Result<i32> {
             let file = std::fs::File::open(path)?;
             let file_buf_reader = BufReader::new(file);
             let mut junit_parser = JunitParser::new();
-            junit_parser
-                .parse(file_buf_reader)
-                .context("Encountered unrecoverable error while parsing file")?;
+            junit_parser.parse(file_buf_reader).context(format!(
+                "Encountered unrecoverable error while parsing file: {}",
+                bundled_file.original_path_rel
+            ))?;
             parse_errors.extend(junit_parser.errors().iter().map(|e| WithFilePath::<
                 JunitParseError,
             > {
