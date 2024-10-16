@@ -40,7 +40,7 @@ impl BundlerUtil {
         // Add all files to the tarball.
         self.meta.file_sets.iter().try_for_each(|file_set| {
             file_set.files.iter().try_for_each(|bundled_file| {
-                let path = std::path::Path::new(&bundled_file.original_path_abs);
+                let path = std::path::Path::new(&bundled_file.original_path);
                 let mut file = std::fs::File::open(path)?;
                 tar.append_file(&bundled_file.path, &mut file)?;
                 total_bytes_in += std::fs::metadata(path)?.len();

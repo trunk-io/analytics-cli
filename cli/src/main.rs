@@ -372,7 +372,7 @@ async fn run_upload(
                 file_set.file_set_type, file_set.glob
             );
             for file in &file_set.files {
-                println!("    {}", file.original_path_abs);
+                println!("    {}", file.original_path);
             }
         }
     }
@@ -580,7 +580,7 @@ async fn run_validate(validate_args: ValidateArgs) -> anyhow::Result<i32> {
     let mut parse_errors: Vec<WithFilePath<JunitParseError>> = Vec::new();
     file_sets.iter().try_for_each(|file_set| {
         file_set.files.iter().try_for_each(|bundled_file| {
-            let path = std::path::Path::new(&bundled_file.original_path_abs);
+            let path = std::path::Path::new(&bundled_file.original_path);
             let file = std::fs::File::open(path)?;
             let file_buf_reader = BufReader::new(file);
             let mut junit_parser = JunitParser::new();

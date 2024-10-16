@@ -119,7 +119,7 @@ pub async fn extract_failed_tests(
     let mut failures = Vec::<Test>::new();
     for file_set in file_sets {
         for file in &file_set.files {
-            let file = match std::fs::File::open(&file.original_path_abs) {
+            let file = match std::fs::File::open(&file.original_path) {
                 Ok(file) => file,
                 Err(e) => {
                     log::warn!("Error opening file: {}", e);

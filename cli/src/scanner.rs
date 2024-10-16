@@ -119,7 +119,7 @@ impl FileSet {
             // Save file under junit/0, junit/1, etc.
             // This is to avoid having to deal with potential file name collisions.
             files.push(BundledFile {
-                original_path_abs,
+                original_path: original_path_abs,
                 original_path_rel,
                 path: format!("junit/{}", file_counter.count_file()),
                 last_modified_epoch_ns: path
