@@ -49,7 +49,7 @@ impl FileSet {
             std::path::Path::new(repo_root)
                 .join(&glob_path)
                 .to_str()
-                .expect("failed to convert path to string")
+                .ok_or_else(|| anyhow::Error::msg("failed to convert path to string"))?
                 .to_string()
         } else {
             glob_path.clone()
@@ -71,13 +71,13 @@ impl FileSet {
 
             let original_path_abs = path
                 .to_str()
-                .expect("failed to convert path to string")
+                .ok_or_else(|| anyhow::Error::msg("failed to convert path to string"))?
                 .to_string();
             let original_path_rel = path
                 .strip_prefix(repo_root)
                 .unwrap_or(&path)
                 .to_str()
-                .expect("failed to convert path to string")
+                .ok_or_else(|| anyhow::Error::msg("failed to convert path to string"))?
                 .to_string();
             // Check if file is allowed.
             let mut is_allowed = false;

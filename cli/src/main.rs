@@ -1,16 +1,12 @@
-use anyhow::Context;
-use context::junit::validator::{validate, JunitReportValidation, JunitValidationLevel};
 use std::env;
-use std::io::{BufReader, Write};
+use std::io::Write;
 use std::time::{SystemTime, UNIX_EPOCH};
 #[cfg(target_os = "macos")]
 use xcresult::XCResult;
 
 use api::BundleUploadStatus;
 use clap::{Args, Parser, Subcommand};
-use context::junit::parser::{JunitParseError, JunitParser};
 use context::repo::BundleRepo;
-use quick_junit::Report;
 use tokio_retry::strategy::ExponentialBackoff;
 use tokio_retry::Retry;
 use trunk_analytics_cli::bundler::BundlerUtil;
@@ -26,12 +22,10 @@ use trunk_analytics_cli::runner::{
 };
 use trunk_analytics_cli::scanner::EnvScanner;
 use trunk_analytics_cli::types::{
-    BundleMeta, QuarantineBulkTestStatus, QuarantineRunResult, RunResult, WithFilePath,
-    META_VERSION,
+    BundleMeta, QuarantineBulkTestStatus, QuarantineRunResult, RunResult, META_VERSION,
 };
 use trunk_analytics_cli::utils::parse_custom_tags;
-
-use colored::{ColoredString, Colorize};
+use trunk_analytics_cli::validate::validate;
 
 #[derive(Debug, Parser)]
 #[command(
@@ -249,12 +243,7 @@ async fn run_upload(
     let codeowners =
         codeowners.or_else(|| CodeOwners::find_file(&repo.repo_root, &codeowners_path));
 
-    log::info!(
-        "Starting trunk-analytics-cli {} (git={}) rustc={}",
-        env!("CARGO_PKG_VERSION"),
-        env!("VERGEN_GIT_SHA"),
-        env!("VERGEN_RUSTC_SEMVER")
-    );
+    print_cli_start_info();
 
     if token.trim().is_empty() {
         return Err(anyhow::anyhow!("Trunk API token is required."));
@@ -542,210 +531,8 @@ async fn run_validate(validate_args: ValidateArgs) -> anyhow::Result<i32> {
         junit_paths,
         show_warnings,
     } = validate_args;
-
-    log::info!(
-        "Starting trunk-analytics-cli {} (git={}) rustc={}",
-        env!("CARGO_PKG_VERSION"),
-        env!("VERGEN_GIT_SHA"),
-        env!("VERGEN_RUSTC_SEMVER")
-    );
-
-    let current_dir = std::env::current_dir()
-        .ok()
-        .and_then(|p| p.to_str().map(String::from))
-        .unwrap_or_default();
-    let (file_sets, file_counter) = build_filesets(&current_dir, &junit_paths, None, &None, None)?;
-
-    if file_counter.get_count() == 0 || file_sets.is_empty() {
-        return Err(anyhow::anyhow!("No JUnit files found to validate."));
-    }
-
-    log::info!("");
-    log::info!(
-        "Validating the following {} files matching the provided globs:",
-        file_counter.get_count()
-    );
-    for file_set in &file_sets {
-        log::info!(
-            "  File set ({:?}): {}",
-            file_set.file_set_type,
-            file_set.glob
-        );
-        for file in &file_set.files {
-            log::info!("    {}", file.original_path_rel);
-        }
-    }
-
-    let mut reports: Vec<WithFilePath<Report>> = Vec::new();
-    let mut parse_errors: Vec<WithFilePath<JunitParseError>> = Vec::new();
-    file_sets.iter().try_for_each(|file_set| {
-        file_set.files.iter().try_for_each(|bundled_file| {
-            let path = std::path::Path::new(&bundled_file.original_path);
-            let file = std::fs::File::open(path)?;
-            let file_buf_reader = BufReader::new(file);
-            let mut junit_parser = JunitParser::new();
-            junit_parser.parse(file_buf_reader).context(format!(
-                "Encountered unrecoverable error while parsing file: {}",
-                bundled_file.original_path_rel
-            ))?;
-            parse_errors.extend(junit_parser.errors().iter().map(|e| WithFilePath::<
-                JunitParseError,
-            > {
-                file_path: bundled_file.original_path_rel.clone(),
-                wrapped: *e,
-            }));
-            reports.extend(junit_parser.into_reports().iter().map(
-                |report| WithFilePath::<Report> {
-                    file_path: bundled_file.original_path_rel.clone(),
-                    wrapped: report.clone(),
-                },
-            ));
-            Ok::<(), anyhow::Error>(())
-        })?;
-        Ok::<(), anyhow::Error>(())
-    })?;
-
-    if !parse_errors.is_empty() && show_warnings {
-        log::info!("");
-        log::warn!(
-            "Encountered the following {} non-fatal errors while parsing files:",
-            parse_errors.len().to_string().yellow()
-        );
-
-        let mut current_file_original_path = parse_errors[0].file_path.clone();
-        log::warn!("  File: {}", current_file_original_path);
-
-        for error in parse_errors {
-            if error.file_path != current_file_original_path {
-                current_file_original_path = error.file_path;
-                log::warn!("  File: {}", current_file_original_path);
-            }
-
-            log::warn!("    {}", error.wrapped);
-        }
-    }
-
-    log::info!("");
-
-    let report_validations: Vec<WithFilePath<JunitReportValidation>> = reports
-        .into_iter()
-        .map(|report| WithFilePath::<JunitReportValidation> {
-            file_path: report.file_path,
-            wrapped: validate(&report.wrapped),
-        })
-        .collect();
-
-    let mut num_invalid_reports = 0;
-    let mut num_optionally_invalid_reports = 0;
-    for report_validation in &report_validations {
-        let num_test_cases = report_validation.wrapped.test_cases_flat().len();
-        let num_invalid_validation_errors = report_validation
-            .wrapped
-            .test_suite_invalid_validation_issues_flat()
-            .len()
-            + report_validation
-                .wrapped
-                .test_case_invalid_validation_issues_flat()
-                .len();
-        let num_optional_validation_errors = report_validation
-            .wrapped
-            .test_suite_suboptimal_validation_issues_flat()
-            .len()
-            + report_validation
-                .wrapped
-                .test_case_suboptimal_validation_issues_flat()
-                .len();
-
-        let num_validation_errors_str = if num_invalid_validation_errors > 0 {
-            num_invalid_validation_errors.to_string().red()
-        } else {
-            num_invalid_validation_errors.to_string().green()
-        };
-        let num_optional_validation_errors_str = if num_optional_validation_errors > 0 {
-            format!(
-                ", {} optional validation errors",
-                num_optional_validation_errors.to_string().yellow()
-            )
-        } else {
-            String::from("")
-        };
-        log::info!(
-            "{} - {} test suites, {} test cases, {} validation errors{}",
-            report_validation.file_path,
-            report_validation.wrapped.test_suites().len(),
-            num_test_cases,
-            num_validation_errors_str,
-            num_optional_validation_errors_str,
-        );
-
-        for test_suite_validation_error in report_validation
-            .wrapped
-            .test_suite_validation_issues_flat()
-        {
-            log::info!(
-                "  {} - {}",
-                print_validation_level(JunitValidationLevel::from(test_suite_validation_error)),
-                test_suite_validation_error.to_string(),
-            );
-        }
-
-        for test_case_validation_error in
-            report_validation.wrapped.test_case_validation_issues_flat()
-        {
-            log::info!(
-                "  {} - {}",
-                print_validation_level(JunitValidationLevel::from(test_case_validation_error)),
-                test_case_validation_error.to_string(),
-            );
-        }
-
-        if num_invalid_validation_errors > 0 {
-            num_invalid_reports += 1;
-        }
-        if num_optional_validation_errors > 0 {
-            num_optionally_invalid_reports += 1;
-        }
-    }
-
-    log::info!("");
-
-    if num_invalid_reports == 0 {
-        let num_optional_validation_errors_str = if num_optionally_invalid_reports > 0 {
-            format!(
-                " ({} files with optional validation errors)",
-                num_optionally_invalid_reports.to_string().yellow()
-            )
-        } else {
-            String::from("")
-        };
-
-        log::info!(
-            "All {} files are valid!{}",
-            report_validations.len().to_string().green(),
-            num_optional_validation_errors_str
-        );
-        log::info!("Navigate to <URL for next onboarding step> to continue getting started with Flaky Tests");
-        return Ok(EXIT_SUCCESS);
-    }
-
-    let num_optional_validation_errors_str = if num_optionally_invalid_reports > 0 {
-        format!(
-            ", {} files have optional validation errors",
-            num_optionally_invalid_reports.to_string().yellow()
-        )
-    } else {
-        String::from("")
-    };
-    log::info!(
-        "{} files are valid, {} files are not valid{}",
-        (report_validations.len() - num_invalid_reports)
-            .to_string()
-            .green(),
-        num_invalid_reports.to_string().red(),
-        num_optional_validation_errors_str,
-    );
-
-    Ok(EXIT_FAILURE)
+    print_cli_start_info();
+    validate(junit_paths, show_warnings)
 }
 
 async fn run(cli: Cli) -> anyhow::Result<i32> {
@@ -789,10 +576,11 @@ fn get_api_address() -> String {
         .unwrap_or_else(|| DEFAULT_ORIGIN.to_string())
 }
 
-fn print_validation_level(level: JunitValidationLevel) -> ColoredString {
-    match level {
-        JunitValidationLevel::SubOptimal => "OPTIONAL".yellow(),
-        JunitValidationLevel::Invalid => "INVALID".red(),
-        JunitValidationLevel::Valid => "VALID".green(),
-    }
+fn print_cli_start_info() {
+    log::info!(
+        "Starting trunk-analytics-cli {} (git={}) rustc={}",
+        env!("CARGO_PKG_VERSION"),
+        env!("VERGEN_GIT_SHA"),
+        env!("VERGEN_RUSTC_SEMVER")
+    );
 }
