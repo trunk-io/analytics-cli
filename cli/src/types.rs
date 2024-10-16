@@ -125,12 +125,6 @@ pub struct BundleMeta {
     pub codeowners: Option<CodeOwners>,
 }
 
-// #[derive(Debug, Serialize, Deserialize, Clone)]
-// pub struct WithFilePath<T> {
-//     pub file_path: String,
-//     pub wrapped: T,
-// }
-
 #[cfg(test)]
 mod tests {
     use context::repo::RepoUrlParts as Repo;
