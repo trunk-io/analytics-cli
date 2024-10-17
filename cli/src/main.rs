@@ -14,6 +14,7 @@ use trunk_analytics_cli::{
     scanner::EnvScanner,
     types::{BundleMeta, QuarantineBulkTestStatus, QuarantineRunResult, RunResult, META_VERSION},
     utils::parse_custom_tags,
+    validate::validate,
 };
 #[cfg(target_os = "macos")]
 use xcresult::XCResult;
@@ -101,10 +102,24 @@ struct TestArgs {
     command: Vec<String>,
 }
 
+#[derive(Args, Clone, Debug)]
+struct ValidateArgs {
+    #[arg(
+        long,
+        required = true,
+        value_delimiter = ',',
+        help = "Comma-separated list of glob paths to junit files."
+    )]
+    junit_paths: Vec<String>,
+    #[arg(long, help = "Show warning-level log messages in output.")]
+    show_warnings: bool,
+}
+
 #[derive(Debug, Subcommand)]
 enum Commands {
     Upload(UploadArgs),
     Test(TestArgs),
+    Validate(ValidateArgs),
 }
 
 // "the Sentry client must be initialized before starting an async runtime or spawning threads"
@@ -213,12 +228,7 @@ async fn run_upload(
     let codeowners =
         codeowners.or_else(|| CodeOwners::find_file(&repo.repo_root, &codeowners_path));
 
-    log::info!(
-        "Starting trunk-analytics-cli {} (git={}) rustc={}",
-        env!("CARGO_PKG_VERSION"),
-        env!("VERGEN_GIT_SHA"),
-        env!("VERGEN_RUSTC_SEMVER")
-    );
+    print_cli_start_info();
 
     let tags = parse_custom_tags(&tags)?;
     #[cfg(target_os = "macos")]
@@ -229,8 +239,13 @@ async fn run_upload(
         junit_paths = [junit_paths.as_slice(), temp_paths.as_slice()].concat();
     }
 
-    let (file_sets, file_counter) =
-        build_filesets(&repo, &junit_paths, team.clone(), &codeowners, exec_start)?;
+    let (file_sets, file_counter) = build_filesets(
+        &repo.repo_root,
+        &junit_paths,
+        team.clone(),
+        &codeowners,
+        exec_start,
+    )?;
 
     if !allow_missing_junit_files && (file_counter.get_count() == 0 || file_sets.is_empty()) {
         return Err(anyhow::anyhow!("No JUnit files found to upload."));
@@ -486,6 +501,14 @@ async fn run(cli: Cli) -> anyhow::Result<i32> {
     match cli.command {
         Commands::Upload(upload_args) => run_upload(upload_args, None, None, None, None).await,
         Commands::Test(test_args) => run_test(test_args).await,
+        Commands::Validate(validate_args) => {
+            let ValidateArgs {
+                junit_paths,
+                show_warnings,
+            } = validate_args;
+            print_cli_start_info();
+            validate(junit_paths, show_warnings).await
+        }
     }
 }
 
@@ -507,4 +530,13 @@ fn setup_logger() -> anyhow::Result<()> {
     }
     builder.init();
     Ok(())
+}
+
+fn print_cli_start_info() {
+    log::info!(
+        "Starting trunk-analytics-cli {} (git={}) rustc={}",
+        env!("CARGO_PKG_VERSION"),
+        env!("VERGEN_GIT_SHA"),
+        env!("VERGEN_RUSTC_SEMVER")
+    );
 }

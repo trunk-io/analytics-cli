@@ -49,7 +49,7 @@ impl FileSet {
             std::path::Path::new(repo_root)
                 .join(&glob_path)
                 .to_str()
-                .expect("failed to convert path to string")
+                .ok_or_else(|| anyhow::Error::msg("failed to convert path to string"))?
                 .to_string()
         } else {
             glob_path.clone()
@@ -69,16 +69,21 @@ impl FileSet {
                 return Ok::<(), anyhow::Error>(());
             }
 
-            let original_path = path
+            let original_path_abs = path
                 .to_str()
-                .expect("failed to convert path to string")
+                .ok_or_else(|| anyhow::Error::msg("failed to convert path to string"))?
                 .to_string();
-
+            let original_path_rel = path
+                .strip_prefix(repo_root)
+                .unwrap_or(&path)
+                .to_str()
+                .ok_or_else(|| anyhow::Error::msg("failed to convert path to string"))?
+                .to_string();
             // Check if file is allowed.
             let mut is_allowed = false;
             for allow in ALLOW_LIST {
                 let re = Regex::new(allow).unwrap();
-                if re.is_match(&original_path) {
+                if re.is_match(&original_path_abs) {
                     is_allowed = true;
                     break;
                 }
@@ -114,7 +119,8 @@ impl FileSet {
             // Save file under junit/0, junit/1, etc.
             // This is to avoid having to deal with potential file name collisions.
             files.push(BundledFile {
-                original_path,
+                original_path: original_path_abs,
+                original_path_rel,
                 path: format!("junit/{}", file_counter.count_file()),
                 last_modified_epoch_ns: path
                     .metadata()?
