@@ -274,3 +274,61 @@ fn status_code_help<T: FnMut(&Response) -> String>(
 
     Err(anyhow::Error::msg(error_message_with_help))
 }
+
+#[cfg(test)]
+mod tests {
+    use std::{env, time::Duration};
+
+    use axum::response::Response;
+    use tempfile::NamedTempFile;
+    use test_utils::{mock_logger, mock_sentry, mock_server::MockServerBuilder};
+    use tokio::time;
+
+    use super::ApiClient;
+
+    #[tokio::test(start_paused = true)]
+    async fn logs_and_reports_for_slow_api_calls() {
+        let mut mock_server_builder = MockServerBuilder::new();
+        let logs = mock_logger(None);
+        let (events, guard) = mock_sentry();
+
+        async fn slow_s3_upload_handler() -> Response<String> {
+            time::sleep(Duration::from_secs(11)).await;
+            Response::new(String::from("OK"))
+        }
+        mock_server_builder.set_s3_upload_handler(slow_s3_upload_handler);
+
+        let state = mock_server_builder.spawn_mock_server().await;
+
+        env::set_var("TRUNK_PUBLIC_API_ADDRESS", &state.host);
+        let api_client = ApiClient::new(String::from("mock-token")).unwrap();
+
+        let bundle_file = NamedTempFile::new().unwrap();
+        api_client
+            .put_bundle_to_s3(format!("{}/s3upload", state.host), bundle_file)
+            .await
+            .unwrap();
+
+        let first_two_slow_s3_upload_logs = logs
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|(_, message)| message.starts_with("Uploading bundle to S3"))
+            .cloned()
+            .take(2)
+            .collect::<Vec<_>>();
+        assert_eq!(first_two_slow_s3_upload_logs, vec![
+            (log::Level::Info, String::from("Uploading bundle to S3 is taking longer than expected. It has taken 2 seconds so far.")),
+            (log::Level::Info, String::from("Uploading bundle to S3 is taking longer than expected. It has taken 4 seconds so far.")),
+        ]);
+
+        guard.flush(None);
+        assert_eq!(
+            *events.lock().unwrap(),
+            vec![(
+                sentry::Level::Error,
+                String::from("Uploading bundle to S3 is taking longer than 10 seconds"),
+            ),]
+        );
+    }
+}
