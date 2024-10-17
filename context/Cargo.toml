@@ -16,7 +16,7 @@ gix = { version = "0.63.0", default-features = false, features = [
 ], optional = true }
 js-sys = { version = "0.3.70", optional = true }
 openssl = { version = "0.10.66", features = ["vendored"], optional = true }
-pyo3 = { version = "0.20.0", optional = true }
+pyo3 = { version = "0.22.5", optional = true }
 quick-junit = "0.5.0"
 quick-xml = "0.36.2"
 regex = { version = "1.10.3", default-features = false, features = ["std"] }

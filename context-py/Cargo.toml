@@ -10,4 +10,4 @@ crate-type = ["cdylib"]
 
 [dependencies]
 context = { path = "../context", features = ["git-access", "pyo3"] }
-pyo3 = "0.20.0"
+pyo3 = "0.22.5"
