@@ -18,6 +18,7 @@ pub const EXIT_FAILURE: i32 = 1;
 //      .bitbucket
 pub const CODEOWNERS_LOCATIONS: &[&str] = &[".github", ".bitbucket", ".", "docs", ".gitlab"];
 
+pub const DEFAULT_ORIGIN: &str = "https://api.trunk.io";
 pub const TRUNK_PUBLIC_API_ADDRESS_ENV: &str = "TRUNK_PUBLIC_API_ADDRESS";
 pub const ENVS_TO_GET: &[&str] = &[
     "CI",

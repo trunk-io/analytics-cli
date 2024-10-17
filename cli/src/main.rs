@@ -1,31 +1,23 @@
-use std::env;
 use std::io::Write;
-use std::time::{SystemTime, UNIX_EPOCH};
-#[cfg(target_os = "macos")]
-use xcresult::XCResult;
+use std::time::SystemTime;
+use std::{env, time::UNIX_EPOCH};
 
 use api::BundleUploadStatus;
 use clap::{Args, Parser, Subcommand};
 use context::repo::BundleRepo;
-use tokio_retry::strategy::ExponentialBackoff;
-use tokio_retry::Retry;
-use trunk_analytics_cli::bundler::BundlerUtil;
-use trunk_analytics_cli::clients::{
-    create_bundle_upload_intent, create_trunk_repo, put_bundle_to_s3, update_bundle_upload_status,
+use trunk_analytics_cli::{
+    api_client::ApiClient,
+    bundler::BundlerUtil,
+    codeowners::CodeOwners,
+    constants::{EXIT_FAILURE, EXIT_SUCCESS, SENTRY_DSN},
+    runner::{build_filesets, extract_failed_tests, run_quarantine, run_test_command},
+    scanner::EnvScanner,
+    types::{BundleMeta, QuarantineBulkTestStatus, QuarantineRunResult, RunResult, META_VERSION},
+    utils::parse_custom_tags,
+    validate::validate,
 };
-use trunk_analytics_cli::codeowners::CodeOwners;
-use trunk_analytics_cli::constants::{
-    EXIT_FAILURE, EXIT_SUCCESS, SENTRY_DSN, TRUNK_PUBLIC_API_ADDRESS_ENV,
-};
-use trunk_analytics_cli::runner::{
-    build_filesets, extract_failed_tests, run_quarantine, run_test_command,
-};
-use trunk_analytics_cli::scanner::EnvScanner;
-use trunk_analytics_cli::types::{
-    BundleMeta, QuarantineBulkTestStatus, QuarantineRunResult, RunResult, META_VERSION,
-};
-use trunk_analytics_cli::utils::parse_custom_tags;
-use trunk_analytics_cli::validate::validate;
+#[cfg(target_os = "macos")]
+use xcresult::XCResult;
 
 #[derive(Debug, Parser)]
 #[command(
@@ -130,13 +122,6 @@ enum Commands {
     Validate(ValidateArgs),
 }
 
-const DEFAULT_ORIGIN: &str = "https://api.trunk.io";
-// Tokio-retry uses base ^ retry * factor formula.
-// This will give us 8ms, 64ms, 512ms, 4096ms, 32768ms
-const RETRY_BASE_MS: u64 = 8;
-const RETRY_FACTOR: u64 = 1;
-const RETRY_COUNT: usize = 5;
-
 // "the Sentry client must be initialized before starting an async runtime or spawning threads"
 // https://docs.sentry.io/platforms/rust/#async-main-function
 fn main() -> anyhow::Result<()> {
@@ -238,16 +223,12 @@ async fn run_upload(
         repo_head_commit_epoch,
     )?;
 
-    let api_address = get_api_address();
+    let api_client = ApiClient::new(token)?;
 
     let codeowners =
         codeowners.or_else(|| CodeOwners::find_file(&repo.repo_root, &codeowners_path));
 
     print_cli_start_info();
-
-    if token.trim().is_empty() {
-        return Err(anyhow::anyhow!("Trunk API token is required."));
-    }
 
     let tags = parse_custom_tags(&tags)?;
     #[cfg(target_os = "macos")]
@@ -270,7 +251,7 @@ async fn run_upload(
         return Err(anyhow::anyhow!("No JUnit files found to upload."));
     }
 
-    let failures = extract_failed_tests(&repo, &org_url_slug, &file_sets).await?;
+    let failures = extract_failed_tests(&repo, &org_url_slug, &file_sets).await;
 
     // Run the quarantine step and update the exit code.
     let exit_code = if failures.is_empty() {
@@ -281,15 +262,15 @@ async fn run_upload(
     let quarantine_run_results = if use_quarantining && quarantine_results.is_none() {
         Some(
             run_quarantine(
-                exit_code,
+                &api_client,
+                &api::GetQuarantineBulkTestStatusRequest {
+                    repo: repo.repo.clone(),
+                    org_url_slug: org_url_slug.clone(),
+                },
                 failures,
-                &api_address,
-                &token,
-                &org_url_slug,
-                &repo,
-                default_delay(),
+                exit_code,
             )
-            .await?,
+            .await,
         )
     } else {
         quarantine_results
@@ -318,16 +299,13 @@ async fn run_upload(
         env!("VERGEN_RUSTC_SEMVER")
     );
     let client_version = format!("trunk-analytics-cli {}", cli_version);
-    let upload = Retry::spawn(default_delay(), || {
-        create_bundle_upload_intent(
-            &api_address,
-            &token,
-            &org_url_slug,
-            &repo.repo,
-            &client_version,
-        )
-    })
-    .await?;
+    let upload = api_client
+        .create_bundle_upload_intent(&api::CreateBundleUploadRequest {
+            repo: repo.repo.clone(),
+            org_url_slug: org_url_slug.clone(),
+            client_version,
+        })
+        .await?;
 
     let meta = BundleMeta {
         version: META_VERSION.to_string(),
@@ -373,15 +351,14 @@ async fn run_upload(
     log::info!("Flushed temporary tarball to {:?}", bundle_time_file);
 
     if dry_run {
-        if let Err(e) = update_bundle_upload_status(
-            &api_address,
-            &token,
-            &upload.id,
-            &BundleUploadStatus::DryRun,
-        )
-        .await
+        if let Err(e) = api_client
+            .update_bundle_upload_status(&api::UpdateBundleUploadRequest {
+                id: upload.id.clone(),
+                upload_status: BundleUploadStatus::DryRun,
+            })
+            .await
         {
-            log::warn!("Failed to update bundle upload status: {}", e);
+            log::warn!("{}", e);
         } else {
             log::debug!("Updated bundle upload status to DRY_RUN");
         }
@@ -389,38 +366,32 @@ async fn run_upload(
         return Ok(exit_code);
     }
 
-    let upload_status = Retry::spawn(default_delay(), || {
-        put_bundle_to_s3(&upload.url, &bundle_time_file)
-    })
-    .await
-    .map(|_| BundleUploadStatus::UploadComplete)
-    .unwrap_or_else(|e| {
-        log::error!("Failed to upload bundle to S3 after retries: {}", e);
-        BundleUploadStatus::UploadFailed
-    });
-    if let Err(e) =
-        update_bundle_upload_status(&api_address, &token, &upload.id, &upload_status).await
+    api_client
+        .put_bundle_to_s3(&upload.url, &bundle_time_file)
+        .await?;
+
+    if let Err(e) = api_client
+        .update_bundle_upload_status(&api::UpdateBundleUploadRequest {
+            id: upload.id.clone(),
+            upload_status: BundleUploadStatus::UploadComplete,
+        })
+        .await
     {
-        log::warn!(
-            "Failed to update bundle upload status to {:#?}: {}",
-            upload_status,
-            e
-        )
+        log::warn!("{}", e)
     } else {
-        log::debug!("Updated bundle upload status to {:#?}", upload_status)
+        log::debug!(
+            "Updated bundle upload status to {:#?}",
+            BundleUploadStatus::UploadComplete
+        )
     }
 
-    let remote_urls = vec![repo.repo_url.clone()];
-    Retry::spawn(default_delay(), || {
-        create_trunk_repo(
-            &api_address,
-            &token,
-            &org_url_slug,
-            &repo.repo,
-            &remote_urls,
-        )
-    })
-    .await?;
+    api_client
+        .create_trunk_repo(&api::CreateRepoRequest {
+            repo: repo.repo,
+            org_url_slug,
+            remote_urls: vec![repo.repo_url.clone()],
+        })
+        .await?;
 
     log::info!("Done");
     Ok(exit_code)
@@ -458,14 +429,14 @@ async fn run_test(test_args: TestArgs) -> anyhow::Result<i32> {
         return Err(anyhow::anyhow!("No junit paths provided."));
     }
 
-    let api_address = get_api_address();
+    let api_client = ApiClient::new(String::from(token))?;
 
     let codeowners = CodeOwners::find_file(&repo.repo_root, codeowners_path);
 
     log::info!("running command: {:?}", command);
     let run_result = run_test_command(
         &repo,
-        org_url_slug,
+        &org_url_slug,
         command.first().unwrap(),
         command.iter().skip(1).collect(),
         junit_paths,
@@ -488,15 +459,15 @@ async fn run_test(test_args: TestArgs) -> anyhow::Result<i32> {
     let quarantine_run_result = if *use_quarantining {
         Some(
             run_quarantine(
-                run_exit_code,
+                &api_client,
+                &api::GetQuarantineBulkTestStatusRequest {
+                    repo: repo.repo,
+                    org_url_slug: org_url_slug.clone(),
+                },
                 failures,
-                &api_address,
-                token,
-                org_url_slug,
-                &repo,
-                default_delay(),
+                run_exit_code,
             )
-            .await?,
+            .await,
         )
     } else {
         None
@@ -543,12 +514,6 @@ async fn run(cli: Cli) -> anyhow::Result<i32> {
     }
 }
 
-fn default_delay() -> std::iter::Take<ExponentialBackoff> {
-    ExponentialBackoff::from_millis(RETRY_BASE_MS)
-        .factor(RETRY_FACTOR)
-        .take(RETRY_COUNT)
-}
-
 fn setup_logger() -> anyhow::Result<()> {
     let mut builder = env_logger::Builder::new();
     builder
@@ -567,13 +532,6 @@ fn setup_logger() -> anyhow::Result<()> {
     }
     builder.init();
     Ok(())
-}
-
-fn get_api_address() -> String {
-    std::env::var(TRUNK_PUBLIC_API_ADDRESS_ENV)
-        .ok()
-        .and_then(|s| if s.is_empty() { None } else { Some(s) })
-        .unwrap_or_else(|| DEFAULT_ORIGIN.to_string())
 }
 
 fn print_cli_start_info() {

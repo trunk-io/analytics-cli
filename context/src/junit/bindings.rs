@@ -438,7 +438,7 @@ impl TryInto<TestCaseStatus> for BindingsTestCaseStatus {
     }
 }
 
-#[cfg_attr(feature = "pyo3", pyclass)]
+#[cfg_attr(feature = "pyo3", pyclass(eq, eq_int))]
 #[cfg_attr(feature = "wasm", wasm_bindgen)]
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum BindingsTestCaseStatusStatus {
@@ -592,7 +592,7 @@ impl Into<TestRerun> for BindingsTestRerun {
     }
 }
 
-#[cfg_attr(feature = "pyo3", pyclass)]
+#[cfg_attr(feature = "pyo3", pyclass(eq, eq_int))]
 #[cfg_attr(feature = "wasm", wasm_bindgen)]
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum BindingsNonSuccessKind {

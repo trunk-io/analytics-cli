@@ -12,7 +12,7 @@ pub const MAX_BRANCH_NAME_LEN: usize = 36;
 pub const MAX_EMAIL_LEN: usize = 254;
 pub const MAX_FIELD_LEN: usize = 1000;
 
-#[cfg_attr(feature = "pyo3", pyclass)]
+#[cfg_attr(feature = "pyo3", pyclass(eq, eq_int))]
 #[cfg_attr(feature = "wasm", wasm_bindgen)]
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum EnvValidationLevel {

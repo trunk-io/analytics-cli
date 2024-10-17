@@ -61,7 +61,7 @@ fn repo_validate(bundle_repo: repo::BundleRepo) -> repo::validator::RepoValidati
 }
 
 #[pymodule]
-fn context_py(_py: Python, m: &PyModule) -> PyResult<()> {
+fn context_py(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<env::parser::CIPlatform>()?;
     m.add_class::<env::parser::BranchClass>()?;
     m.add_class::<env::validator::EnvValidationLevel>()?;

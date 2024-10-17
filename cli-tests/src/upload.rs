@@ -11,7 +11,10 @@ use assert_cmd::Command;
 use assert_matches::assert_matches;
 use context::repo::RepoUrlParts as Repo;
 use tempfile::tempdir;
-use test_utils::mock_server::{spawn_mock_server, RequestPayload};
+use test_utils::{
+    mock_git_repo::setup_repo_with_commit,
+    mock_server::{MockServerBuilder, RequestPayload},
+};
 use trunk_analytics_cli::{
     codeowners::CodeOwners,
     types::{BundleMeta, FileSetType},
@@ -25,7 +28,7 @@ async fn upload_bundle() {
     generate_mock_valid_junit_xmls(&temp_dir);
     generate_mock_codeowners(&temp_dir);
 
-    let state = spawn_mock_server().await;
+    let state = MockServerBuilder::new().spawn_mock_server().await;
 
     let assert = Command::new(CARGO_RUN.path())
         .current_dir(&temp_dir)
@@ -173,7 +176,7 @@ async fn upload_bundle_no_files() {
     let temp_dir = tempdir().unwrap();
     generate_mock_git_repo(&temp_dir);
 
-    let state = spawn_mock_server().await;
+    let state = MockServerBuilder::new().spawn_mock_server().await;
 
     let assert = Command::new(CARGO_RUN.path())
         .current_dir(&temp_dir)
@@ -201,7 +204,7 @@ async fn upload_bundle_no_files_allow_missing_junit_files() {
     let temp_dir = tempdir().unwrap();
     generate_mock_git_repo(&temp_dir);
 
-    let state = spawn_mock_server().await;
+    let state = MockServerBuilder::new().spawn_mock_server().await;
 
     let assert = Command::new(CARGO_RUN.path())
         .current_dir(&temp_dir)
