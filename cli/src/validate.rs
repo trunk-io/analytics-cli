@@ -9,9 +9,13 @@ use context::junit::validator::{
     validate as validate_report, JunitReportValidation, JunitValidationLevel,
 };
 use quick_junit::Report;
+use std::collections::BTreeMap;
 use std::io::BufReader;
 
-pub fn validate(junit_paths: Vec<String>, show_warnings: bool) -> anyhow::Result<i32> {
+type JunitFileToReportAndErrors = BTreeMap<String, (Vec<Report>, Vec<JunitParseError>)>;
+type JunitReportValidationsAndFilePaths = Vec<(JunitReportValidation, String)>;
+
+pub async fn validate(junit_paths: Vec<String>, show_warnings: bool) -> anyhow::Result<i32> {
     // scan files
     let current_dir = std::env::current_dir()
         .ok()
@@ -24,14 +28,23 @@ pub fn validate(junit_paths: Vec<String>, show_warnings: bool) -> anyhow::Result
     print_matched_files(&file_sets, file_counter);
 
     // parse and validate
-    let (reports, parse_errors) = parse_file_sets(file_sets)?;
-    if !parse_errors.is_empty() && show_warnings {
-        print_parse_errors(parse_errors);
+    let parse_results = parse_file_sets(file_sets)?;
+    if show_warnings {
+        print_parse_errors(&parse_results);
     }
-    let report_validations: Vec<(JunitReportValidation, String)> = reports
-        .into_iter()
-        .map(|report| (validate_report(&report.0), report.1))
-        .collect();
+    let report_validations: JunitReportValidationsAndFilePaths = parse_results.into_iter().fold(
+        JunitReportValidationsAndFilePaths::new(),
+        |mut report_validations, parse_result| {
+            report_validations.extend(
+                parse_result
+                    .1
+                     .0
+                    .iter()
+                    .map(|report| (validate_report(report), parse_result.0.clone())),
+            );
+            report_validations
+        },
+    );
 
     // print results
     let (num_invalid_reports, num_suboptimal_reports) =
@@ -49,21 +62,15 @@ pub fn validate(junit_paths: Vec<String>, show_warnings: bool) -> anyhow::Result
     }
 }
 
-fn parse_file_sets(
-    file_sets: Vec<FileSet>,
-) -> anyhow::Result<(Vec<(Report, String)>, Vec<(JunitParseError, String)>)> {
+fn parse_file_sets(file_sets: Vec<FileSet>) -> anyhow::Result<JunitFileToReportAndErrors> {
     file_sets.iter().try_fold(
-        (
-            Vec::<(Report, String)>::new(),          // Vec<(Report, file path)>
-            Vec::<(JunitParseError, String)>::new(), // Vec<(JunitParseError, file path)>
-        ),
-        |mut file_sets_parse_results, file_set| {
+        JunitFileToReportAndErrors::new(),
+        |mut file_sets_parse_results, file_set| -> anyhow::Result<JunitFileToReportAndErrors> {
             let file_set_parse_results = file_set.files.iter().try_fold(
-                (
-                    Vec::<(Report, String)>::new(),
-                    Vec::<(JunitParseError, String)>::new(),
-                ),
-                |mut file_set_parse_results, bundled_file| {
+                JunitFileToReportAndErrors::new(),
+                |mut file_set_parse_results,
+                 bundled_file|
+                 -> anyhow::Result<JunitFileToReportAndErrors> {
                     let path = std::path::Path::new(&bundled_file.original_path);
                     let file = std::fs::File::open(path)?;
                     let file_buf_reader = BufReader::new(file);
@@ -72,28 +79,27 @@ fn parse_file_sets(
                         "Encountered unrecoverable error while parsing file: {}",
                         bundled_file.original_path_rel
                     ))?;
-                    file_set_parse_results.1.extend(
-                        junit_parser
-                            .errors()
-                            .iter()
-                            .map(|e| (*e, bundled_file.original_path_rel.clone())),
+
+                    let mut cur_file_parse_results = file_set_parse_results
+                        .get(&bundled_file.original_path_rel)
+                        .cloned()
+                        .unwrap_or((Vec::new(), Vec::new()));
+
+                    cur_file_parse_results.1.extend(junit_parser.errors());
+                    cur_file_parse_results.0.extend(junit_parser.into_reports());
+
+                    file_set_parse_results.insert(
+                        bundled_file.original_path_rel.clone(),
+                        cur_file_parse_results,
                     );
-                    file_set_parse_results.0.extend(
-                        junit_parser
-                            .into_reports()
-                            .iter()
-                            .map(|report| (report.clone(), bundled_file.original_path_rel.clone())),
-                    );
-                    Ok::<(Vec<(Report, String)>, Vec<(JunitParseError, String)>), anyhow::Error>(
-                        file_set_parse_results,
-                    )
+
+                    Ok(file_set_parse_results)
                 },
             )?;
-            file_sets_parse_results.0.extend(file_set_parse_results.0);
-            file_sets_parse_results.1.extend(file_set_parse_results.1);
-            Ok::<(Vec<(Report, String)>, Vec<(JunitParseError, String)>), anyhow::Error>(
-                file_sets_parse_results,
-            )
+
+            file_sets_parse_results.extend(file_set_parse_results);
+
+            Ok(file_sets_parse_results)
         },
     )
 }
@@ -112,23 +118,34 @@ fn print_matched_files(file_sets: &[FileSet], file_counter: FileSetCounter) {
     }
 }
 
-fn print_parse_errors(parse_errors: Vec<(JunitParseError, String)>) {
+fn print_parse_errors(parse_results: &JunitFileToReportAndErrors) {
+    let num_parse_errors = parse_results
+        .iter()
+        .fold(0, |mut num_parse_errors, parse_result| {
+            num_parse_errors += parse_result.1 .1.len();
+            num_parse_errors
+        });
+
+    if num_parse_errors == 0 {
+        return;
+    }
+
     log::info!("");
     log::warn!(
         "Encountered the following {} non-fatal errors while parsing files:",
-        parse_errors.len().to_string().yellow()
+        num_parse_errors.to_string().yellow()
     );
 
-    let mut current_file_original_path = parse_errors[0].1.clone();
-    log::warn!("  File: {}", current_file_original_path);
-
-    for error in parse_errors {
-        if error.1 != current_file_original_path {
-            current_file_original_path = error.1;
-            log::warn!("  File: {}", current_file_original_path);
+    for parse_result in parse_results {
+        if parse_result.1 .1.is_empty() {
+            continue;
         }
 
-        log::warn!("\t{}", error.0);
+        log::warn!("  File: {}", parse_result.0);
+
+        for parse_error in &parse_result.1 .1 {
+            log::warn!("\t{}", parse_error);
+        }
     }
 }
 
@@ -179,7 +196,7 @@ fn print_summary_success(num_reports: usize, num_suboptimal_reports: usize) {
 }
 
 fn print_validation_errors(
-    report_validations: &[(JunitReportValidation, String)],
+    report_validations: &JunitReportValidationsAndFilePaths,
 ) -> (usize, usize) {
     log::info!("");
     let mut num_invalid_reports: usize = 0;

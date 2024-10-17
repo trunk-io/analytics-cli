@@ -497,20 +497,18 @@ async fn run_test(test_args: TestArgs) -> anyhow::Result<i32> {
     Ok(exit_code)
 }
 
-async fn run_validate(validate_args: ValidateArgs) -> anyhow::Result<i32> {
-    let ValidateArgs {
-        junit_paths,
-        show_warnings,
-    } = validate_args;
-    print_cli_start_info();
-    validate(junit_paths, show_warnings)
-}
-
 async fn run(cli: Cli) -> anyhow::Result<i32> {
     match cli.command {
         Commands::Upload(upload_args) => run_upload(upload_args, None, None, None, None).await,
         Commands::Test(test_args) => run_test(test_args).await,
-        Commands::Validate(validate_args) => run_validate(validate_args).await,
+        Commands::Validate(validate_args) => {
+            let ValidateArgs {
+                junit_paths,
+                show_warnings,
+            } = validate_args;
+            print_cli_start_info();
+            validate(junit_paths, show_warnings).await
+        }
     }
 }
 
