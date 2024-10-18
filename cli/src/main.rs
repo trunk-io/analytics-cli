@@ -12,8 +12,6 @@ use trunk_analytics_cli::{
     upload::{run_upload, UploadArgs},
     validate::validate,
 };
-#[cfg(target_os = "macos")]
-use xcresult::XCResult;
 
 #[derive(Debug, Parser)]
 #[command(

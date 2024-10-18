@@ -16,6 +16,8 @@ use api::BundleUploadStatus;
 use clap::Args;
 use context::junit::parser::JunitParser;
 use context::repo::BundleRepo;
+#[cfg(target_os = "macos")]
+use xcresult::XCResult;
 
 #[derive(Args, Clone, Debug)]
 pub struct UploadArgs {
