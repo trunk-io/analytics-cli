@@ -29,6 +29,7 @@ pub struct BundleRepo {
     pub repo_root: String,
     pub repo_url: String,
     pub repo_head_sha: String,
+    pub repo_head_sha_short: String,
     pub repo_head_branch: String,
     pub repo_head_commit_epoch: i64,
     pub repo_head_commit_message: String,
@@ -57,6 +58,7 @@ impl BundleRepo {
 
         let mut head_commit_message = None;
         let mut head_commit_author = None;
+        let mut repo_head_sha_short = None;
 
         #[cfg(feature = "git-access")]
         {
@@ -86,6 +88,7 @@ impl BundleRepo {
                     bundle_repo_options.repo_head_sha = bundle_repo_options
                         .repo_head_sha
                         .or_else(|| git_head.id().map(|id| id.to_string()));
+                    repo_head_sha_short = git_head.id().map(|id| id.shorten_or_id().to_string());
 
                     if let Ok(commit) = git_head.peel_to_commit_in_place() {
                         bundle_repo_options.repo_head_commit_epoch = bundle_repo_options
@@ -120,6 +123,7 @@ impl BundleRepo {
             repo_url,
             repo_head_branch: bundle_repo_options.repo_head_branch.unwrap_or_default(),
             repo_head_sha: bundle_repo_options.repo_head_sha.unwrap_or_default(),
+            repo_head_sha_short: repo_head_sha_short.unwrap_or_default(),
             repo_head_commit_epoch: bundle_repo_options
                 .repo_head_commit_epoch
                 .unwrap_or_default(),
@@ -157,6 +161,7 @@ impl BundleRepo {
         repo_root: String,
         repo_url: String,
         repo_head_sha: String,
+        repo_head_sha_short: String,
         repo_head_branch: String,
         repo_head_commit_epoch: i64,
         repo_head_commit_message: String,
@@ -168,6 +173,7 @@ impl BundleRepo {
             repo_root,
             repo_url,
             repo_head_sha,
+            repo_head_sha_short,
             repo_head_branch,
             repo_head_commit_epoch,
             repo_head_commit_message,
