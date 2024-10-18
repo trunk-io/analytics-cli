@@ -11,10 +11,7 @@ use assert_cmd::Command;
 use assert_matches::assert_matches;
 use context::repo::RepoUrlParts as Repo;
 use tempfile::tempdir;
-use test_utils::{
-    mock_git_repo::setup_repo_with_commit,
-    mock_server::{MockServerBuilder, RequestPayload},
-};
+use test_utils::mock_server::{MockServerBuilder, RequestPayload};
 use trunk_analytics_cli::{
     codeowners::CodeOwners,
     types::{BundleMeta, FileSetType},
@@ -100,6 +97,13 @@ async fn upload_bundle() {
         bundle_meta.repo.repo_url,
         "https://github.com/trunk-io/analytics-cli.git"
     );
+    assert!(!bundle_meta.repo.repo_head_sha.is_empty());
+    assert!(!bundle_meta.repo.repo_head_sha_short.is_empty());
+    assert!(bundle_meta.repo.repo_head_sha_short.len() < bundle_meta.repo.repo_head_sha.len());
+    assert!(bundle_meta
+        .repo
+        .repo_head_sha
+        .starts_with(&bundle_meta.repo.repo_head_sha_short));
     assert_eq!(bundle_meta.repo.repo_head_branch, "refs/heads/trunk/test");
     assert_eq!(bundle_meta.repo.repo_head_author_name, "Your Name");
     assert_eq!(
@@ -109,6 +113,8 @@ async fn upload_bundle() {
     assert_eq!(bundle_meta.bundle_upload_id, "test-bundle-upload-id");
     assert_eq!(bundle_meta.tags, &[]);
     assert_eq!(bundle_meta.file_sets.len(), 1);
+    assert_eq!(bundle_meta.num_files, 1);
+    assert_eq!(bundle_meta.num_tests, 500);
     assert_eq!(bundle_meta.envs.get("CI"), Some(&String::from("1")));
     let time_since_upload = chrono::Utc::now()
         - chrono::DateTime::from_timestamp(bundle_meta.upload_time_epoch as i64, 0).unwrap();
