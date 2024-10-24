@@ -210,6 +210,7 @@ pub async fn get_quarantining_config_handler(
         ));
     Json(QuarantineConfig {
         is_preview_mode: true,
+        is_disabled: false,
         quarantined_tests: HashSet::new(),
     })
 }
