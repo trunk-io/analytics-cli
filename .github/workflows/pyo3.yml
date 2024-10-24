@@ -69,7 +69,7 @@ jobs:
           cd ./context-py && pytest
       - name: pytest
         if: ${{ startsWith(matrix.platform.target, 'aarch64') }}
-        uses: uraimo/run-on-arch-action@v2.5.0
+        uses: uraimo/run-on-arch-action@v2
         with:
           arch: ${{ matrix.platform.target }}
           distro: ubuntu22.04
