@@ -29,6 +29,7 @@ pub struct BundleRepo {
     pub repo_root: String,
     pub repo_url: String,
     pub repo_head_sha: String,
+    pub repo_head_sha_short: String,
     pub repo_head_branch: String,
     pub repo_head_commit_epoch: i64,
     pub repo_head_commit_message: String,
@@ -37,6 +38,8 @@ pub struct BundleRepo {
 }
 
 impl BundleRepo {
+    const SHORT_SHA_LEN: usize = 7;
+
     pub fn new(
         repo_root: Option<String>,
         repo_url: Option<String>,
@@ -111,6 +114,9 @@ impl BundleRepo {
             RepoUrlParts::from_url(&repo_url).context("failed to parse repo URL")?;
         let (repo_head_author_name, repo_head_author_email) =
             head_commit_author.unwrap_or_default();
+        let repo_head_sha = bundle_repo_options.repo_head_sha.unwrap_or_default();
+        let repo_head_sha_short =
+            &repo_head_sha[..std::cmp::min(Self::SHORT_SHA_LEN, repo_head_sha.len())];
         Ok(BundleRepo {
             repo: repo_url_parts,
             repo_root: bundle_repo_options
@@ -119,7 +125,8 @@ impl BundleRepo {
                 .unwrap_or_default(),
             repo_url,
             repo_head_branch: bundle_repo_options.repo_head_branch.unwrap_or_default(),
-            repo_head_sha: bundle_repo_options.repo_head_sha.unwrap_or_default(),
+            repo_head_sha: repo_head_sha.clone(),
+            repo_head_sha_short: repo_head_sha_short.to_string(),
             repo_head_commit_epoch: bundle_repo_options
                 .repo_head_commit_epoch
                 .unwrap_or_default(),
@@ -157,6 +164,7 @@ impl BundleRepo {
         repo_root: String,
         repo_url: String,
         repo_head_sha: String,
+        repo_head_sha_short: String,
         repo_head_branch: String,
         repo_head_commit_epoch: i64,
         repo_head_commit_message: String,
@@ -168,6 +176,7 @@ impl BundleRepo {
             repo_root,
             repo_url,
             repo_head_sha,
+            repo_head_sha_short,
             repo_head_branch,
             repo_head_commit_epoch,
             repo_head_commit_message,

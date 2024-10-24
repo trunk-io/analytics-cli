@@ -67,6 +67,7 @@ def test_repo_validate():
         ".",
         "https://github.com/trunk-io/analytics-cli",
         "abc",
+        "abc",
         "main",
         math.floor(time.time()),
         "commit",
