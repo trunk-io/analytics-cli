@@ -1,6 +1,10 @@
-use std::env;
-use std::io::BufReader;
-use std::time::{SystemTime, UNIX_EPOCH};
+#[cfg(target_os = "macos")]
+use std::io::Write;
+use std::{
+    env,
+    io::BufReader,
+    time::{SystemTime, UNIX_EPOCH},
+};
 
 use crate::{
     api_client::ApiClient,
@@ -14,8 +18,7 @@ use crate::{
 };
 use api::BundleUploadStatus;
 use clap::Args;
-use context::junit::parser::JunitParser;
-use context::repo::BundleRepo;
+use context::{junit::parser::JunitParser, repo::BundleRepo};
 #[cfg(target_os = "macos")]
 use xcresult::XCResult;
 
@@ -176,7 +179,7 @@ pub async fn run_upload(
         num_files += file_set.files.len();
         num_files
     });
-    let num_tests = parse_num_tests(&file_sets)?;
+    let num_tests = parse_num_tests(&file_sets);
 
     let envs = EnvScanner::scan_env();
     let os_info: String = env::consts::OS.to_string();
@@ -330,42 +333,35 @@ fn junit_require() -> &'static str {
     }
 }
 
-fn parse_num_tests(file_sets: &[FileSet]) -> anyhow::Result<usize> {
+fn parse_num_tests(file_sets: &[FileSet]) -> usize {
     file_sets
         .iter()
-        .try_fold(0, |mut num_tests, file_set| -> anyhow::Result<usize> {
-            let num_tests_in_file_set = file_set.files.iter().try_fold(
-                0,
-                |mut num_tests_in_file_set, bundled_file| -> anyhow::Result<usize> {
-                    let path = std::path::Path::new(&bundled_file.original_path);
-                    let file = std::fs::File::open(path)?;
-                    let file_buf_reader = BufReader::new(file);
-                    let mut junit_parser = JunitParser::new();
-                    if let Err(e) = junit_parser.parse(file_buf_reader) {
-                        log::warn!(
-                            "Encountered error while parsing file {}: {}",
-                            bundled_file.original_path_rel,
-                            e
-                        );
-
-                        return Ok(num_tests_in_file_set);
-                    }
-
-                    let num_tests_in_file = junit_parser.into_reports().iter().fold(
-                        0,
-                        |mut num_tests_in_file, report| {
-                            num_tests_in_file += report.tests;
-                            num_tests_in_file
-                        },
-                    );
-                    num_tests_in_file_set += num_tests_in_file;
-
-                    Ok(num_tests_in_file_set)
-                },
-            )?;
-
-            num_tests += num_tests_in_file_set;
-
-            Ok(num_tests)
+        .flat_map(|file_set| &file_set.files)
+        .filter_map(|bundled_file| {
+            let path = std::path::Path::new(&bundled_file.original_path);
+            let file = std::fs::File::open(path);
+            if let Err(ref e) = file {
+                log::warn!(
+                    "Could not open file {}: {}",
+                    bundled_file.original_path_rel,
+                    e
+                );
+            }
+            file.ok().map(|f| (f, bundled_file))
         })
+        .filter_map(|(file, bundled_file)| {
+            let file_buf_reader = BufReader::new(file);
+            let mut junit_parser = JunitParser::new();
+            if let Err(e) = junit_parser.parse(file_buf_reader) {
+                log::warn!(
+                    "Encountered error while parsing file {}: {}",
+                    bundled_file.original_path_rel,
+                    e
+                );
+                return None;
+            }
+            Some(junit_parser)
+        })
+        .flat_map(|junit_parser| junit_parser.into_reports())
+        .fold(0, |num_tests, report| num_tests + report.tests)
 }

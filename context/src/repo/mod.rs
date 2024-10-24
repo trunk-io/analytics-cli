@@ -38,6 +38,8 @@ pub struct BundleRepo {
 }
 
 impl BundleRepo {
+    const SHORT_SHA_LEN: usize = 7;
+
     pub fn new(
         repo_root: Option<String>,
         repo_url: Option<String>,
@@ -58,7 +60,6 @@ impl BundleRepo {
 
         let mut head_commit_message = None;
         let mut head_commit_author = None;
-        let mut repo_head_sha_short = None;
 
         #[cfg(feature = "git-access")]
         {
@@ -88,7 +89,6 @@ impl BundleRepo {
                     bundle_repo_options.repo_head_sha = bundle_repo_options
                         .repo_head_sha
                         .or_else(|| git_head.id().map(|id| id.to_string()));
-                    repo_head_sha_short = git_head.id().map(|id| id.shorten_or_id().to_string());
 
                     if let Ok(commit) = git_head.peel_to_commit_in_place() {
                         bundle_repo_options.repo_head_commit_epoch = bundle_repo_options
@@ -114,6 +114,9 @@ impl BundleRepo {
             RepoUrlParts::from_url(&repo_url).context("failed to parse repo URL")?;
         let (repo_head_author_name, repo_head_author_email) =
             head_commit_author.unwrap_or_default();
+        let repo_head_sha = bundle_repo_options.repo_head_sha.unwrap_or_default();
+        let repo_head_sha_short =
+            &repo_head_sha[..std::cmp::min(Self::SHORT_SHA_LEN, repo_head_sha.len())];
         Ok(BundleRepo {
             repo: repo_url_parts,
             repo_root: bundle_repo_options
@@ -122,8 +125,8 @@ impl BundleRepo {
                 .unwrap_or_default(),
             repo_url,
             repo_head_branch: bundle_repo_options.repo_head_branch.unwrap_or_default(),
-            repo_head_sha: bundle_repo_options.repo_head_sha.unwrap_or_default(),
-            repo_head_sha_short: repo_head_sha_short.unwrap_or_default(),
+            repo_head_sha: repo_head_sha.clone(),
+            repo_head_sha_short: repo_head_sha_short.to_string(),
             repo_head_commit_epoch: bundle_repo_options
                 .repo_head_commit_epoch
                 .unwrap_or_default(),
