@@ -23,7 +23,8 @@ runs:
 
     - name: Compile binary
       shell: bash
-      run: cargo build -q --workspace ${{ contains(inputs.target, 'musl') && '--exclude context-js --exclude context-py' || '' }} --profile=${{ inputs.profile }} --target ${{ inputs.target }}
+      # NOTE: DO NOT BUILD WORKSPACE OTHERWISE THE CLI MAY BE LINKED TO UNNECESSARY LIBRARIES
+      run: cargo build -q -p trunk-analytics-cli --profile=${{ inputs.profile }} --target ${{ inputs.target }}
 
     - name: Create binary with debug info
       shell: bash
