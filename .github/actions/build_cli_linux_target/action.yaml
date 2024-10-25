@@ -1,0 +1,50 @@
+name: Build CLI Linux Target
+description: Build release binary for target.
+
+inputs:
+  target:
+    description: Rust target triple, e.g. x86_64-unknown-linux-musl
+  profile:
+    description: Rust profile to build, e.g. release-with-debug
+
+runs:
+  using: composite
+  steps:
+    - name: Install musl deps
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y musl-tools
+
+    - name: Build CLI ${{ inputs.target }} target
+      uses: ./.github/actions/build_cli_target
+      with:
+        target: ${{ inputs.target }}
+        profile: ${{ inputs.profile }}
+
+    - name: Strip debug info
+      shell: bash
+      run: strip -s target/${{ inputs.target }}/${{ inputs.profile }}/trunk-analytics-cli
+
+    - name: Install upx
+      shell: bash
+      run: |
+        sudo apt-get install -y upx
+
+    - name: Optimize CLI binary
+      uses: ./.github/actions/optimize_cli_binary
+      with:
+        target: ${{ inputs.target }}
+        profile: ${{ inputs.profile }}
+
+    - name: Check dynamic deps
+      shell: bash
+      run: |
+        # Confirm that the binary is statically linked
+        set +e
+        ldd target/${{ inputs.target }}/${{ inputs.profile }}/trunk-analytics-cli
+        if [ $? -ne 1 ]; then
+          echo "trunk-analytics-cli has dynamic deps - we expect it to be statically linked"
+          exit 1
+        fi
+        exit 0

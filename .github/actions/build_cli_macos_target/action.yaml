@@ -1,0 +1,35 @@
+name: Build CLI macOS Target
+description: Build release binary for target.
+
+inputs:
+  target:
+    description: Rust target triple, e.g. x86_64-apple-darwin
+  profile:
+    description: Rust profile to build, e.g. release-with-debug
+
+runs:
+  using: composite
+  steps:
+    - name: Build CLI ${{ inputs.target }} target
+      uses: ./.github/actions/build_cli_target
+      with:
+        target: ${{ inputs.target }}
+        profile: ${{ inputs.profile }}
+
+    - name: Strip debug info
+      shell: bash
+      run: strip target/${{ inputs.target }}/${{ inputs.profile }}/trunk-analytics-cli
+
+    - name: Check dynamic deps
+      shell: bash
+      run: |
+        set +e
+        shared_libs="$(otool -L target/${{ inputs.target }}/${{ inputs.profile }}/trunk-analytics-cli)"
+        echo "$shared_libs"
+
+        if echo "$shared_libs" | grep -qi python; then
+          echo "trunk-analytics-cli has dynamic Python deps - we expect it not to be linked to Python"
+          exit 1
+        fi
+
+        exit 0

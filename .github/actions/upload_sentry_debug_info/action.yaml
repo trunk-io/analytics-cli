@@ -1,0 +1,23 @@
+name: Upload test results
+description: Upload test results
+
+inputs:
+  target:
+    description: Rust target triple, e.g. x86_64-apple-darwin
+  sentry-org:
+    description: Sentry organization
+  sentry-project:
+    description: Sentry project
+  sentry-auth-token:
+    description: Sentry auth token
+
+runs:
+  using: composite
+  steps:
+    - name: Install sentry-cli
+      shell: bash
+      run: curl -sL https://sentry.io/get-cli/ | sh
+
+    - name: Upload debug info to Sentry
+      shell: bash
+      run: sentry-cli debug-files upload --include-sources target/${{ inputs.target }}/release-with-debug/trunk-analytics-cli.debug --org=${{ inputs.sentry-org }} --project=${{ inputs.sentry-project }} --auth-token=${{ inputs.sentry-auth-token }}

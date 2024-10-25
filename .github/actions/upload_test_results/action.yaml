@@ -1,0 +1,23 @@
+name: Upload test results
+description: Upload test results
+
+inputs:
+  workspace:
+    description: Absolute path to workspace
+  target:
+    description: Rust target triple, e.g. x86_64-apple-darwin
+  trunk-staging-token:
+    description: Trunk staging token
+
+runs:
+  using: composite
+  steps:
+    - name: Upload results using action from ${{ inputs.target }}
+      env:
+        TRUNK_PUBLIC_API_ADDRESS: https://api.trunk-staging.io
+      shell: bash
+      run: |
+        target/${{ inputs.target }}/release/trunk-analytics-cli upload \
+          --junit-paths ${{ inputs.workspace }}/target/**/*junit.xml \
+          --org-url-slug trunk-staging-org \
+          --token ${{ inputs.trunk-staging-token }}
