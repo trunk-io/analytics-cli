@@ -60,7 +60,8 @@ jobs:
 
       - name: Build ${{ matrix.target }} target
         if: "!cancelled()"
-        run: cargo build -q --workspace ${{ contains(matrix.target, 'musl') && '--exclude context-js --exclude context-py' || '' }} --release --target ${{ matrix.target }}
+        # NOTE: DO NOT BUILD WORKSPACE OTHERWISE THE CLI MAY BE LINKED TO UNNECESSARY LIBRARIES
+        run: cargo build -q -p trunk-analytics-cli --release --target ${{ matrix.target }}
 
       - name: Upload results using action from ${{ matrix.target }}
         env:
