@@ -103,17 +103,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20.x
-
-      - name: Install pnpm
-        uses: trunk-io/trunk-action/install@v1
-        with:
-          tools: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --dir ./context-js
+      - name: Setup and build wasm
+        uses: ./.github/actions/setup_build_wasm
 
       - name: Trunk Check
         uses: trunk-io/trunk-action@v1
