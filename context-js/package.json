@@ -8,9 +8,20 @@
     "build_and_test": "pnpm run build && pnpm run test"
   },
   "devDependencies": {
+    "@eslint/js": "^9.13.0",
+    "@types/eslint__js": "^8.42.3",
     "@types/node": "^22.7.9",
     "dayjs": "^1.11.13",
+    "eslint": "^9.13.0",
+    "typescript": "^5.6.3",
+    "typescript-eslint": "^8.11.0",
     "vitest": "^2.1.3",
     "wasm-pack": "^0.13.0"
+  },
+  "pnpm": {
+    "// NOTE: `wasm-pack` uses an insecure transitive `axios` dependency": "",
+    "overrides": {
+      "binary-install>axios": "0.28.1"
+    }
   }
 }
