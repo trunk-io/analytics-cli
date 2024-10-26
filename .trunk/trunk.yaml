@@ -49,3 +49,4 @@ actions:
 tools:
   enabled:
     - gh@2.52.0
+    - pnpm@9.12.2
