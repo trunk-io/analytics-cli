@@ -103,6 +103,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install pnpm
+        uses: trunk-io/trunk-action/install@v1
+        with:
+          tools: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --dir ./context-js
+
       - name: Trunk Check
         uses: trunk-io/trunk-action@v1
         with:

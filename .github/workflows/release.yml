@@ -124,7 +124,7 @@ jobs:
               -C build/${target} trunk-analytics-cli
           done
 
-      - name: Install Trunk
+      - name: Install gh
         uses: trunk-io/trunk-action/install@v1
         with:
           tools: gh
