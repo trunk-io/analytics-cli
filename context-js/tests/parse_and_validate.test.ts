@@ -16,10 +16,13 @@ import {
   repo_validate,
 } from "../pkg/context_js";
 
+// eslint-disable-next-line vitest/require-hook
 dayjs.extend(utc);
 
 describe("context-js", () => {
   it("parses and validates env variables", () => {
+    expect.hasAssertions();
+
     const env_vars = {
       GITHUB_ACTIONS: "true",
       GITHUB_REF: "abc",
@@ -29,13 +32,16 @@ describe("context-js", () => {
     };
 
     const ciInfo = env_parse(env_vars);
+    // NOTE: Need to narrow type here
+    // eslint-disable-next-line vitest/no-conditional-in-test
     if (!ciInfo) throw Error("ciInfo is undefined");
     const envValidation = env_validate(ciInfo);
+
     expect(ciInfo.platform).toBe(CIPlatform.GitHubActions);
     expect(envValidation.max_level()).toBe(EnvValidationLevel.SubOptimal);
     expect(
       envValidation.issues_flat().map(({ error_message }) => error_message),
-    ).toEqual([
+    ).toStrictEqual([
       "CI info author email too short",
       "CI info author name too short",
       "CI info commit message too short",
@@ -46,6 +52,8 @@ describe("context-js", () => {
   });
 
   it("parses and validates junit files", () => {
+    expect.hasAssertions();
+
     const timestamp = dayjs.utc().toISOString();
     const junitXml = `
       <testsuites name="my-test-run" tests="1" failures="1" errors="0">
@@ -60,25 +68,12 @@ describe("context-js", () => {
     const report = junit_parse(Buffer.from(junitXml, "utf-8"));
     const junitReportValidation = junit_validate(report[0]);
 
-    junitReportValidation
-      .test_suites_owned()
-      .forEach((test_suite_validation) => {
-        test_suite_validation.issues_flat().forEach((issue) => {
-          console.log(issue.error_message);
-        });
-        test_suite_validation
-          .test_cases_owned()
-          .forEach((test_case_validation) => {
-            test_case_validation.issues_flat().forEach((issue) => {
-              console.log(issue.error_message);
-            });
-          });
-      });
-
     expect(junitReportValidation.max_level()).toBe(JunitValidationLevel.Valid);
   });
 
   it("validates repos", () => {
+    expect.hasAssertions();
+
     const repo = new RepoUrlParts("github", "trunk-io", "analytics-cli");
 
     const bundleRepo = new BundleRepo(
@@ -96,9 +91,6 @@ describe("context-js", () => {
 
     const repoValidation = repo_validate(bundleRepo);
 
-    repoValidation.issues_flat().forEach((issue) => {
-      console.log(issue.error_message);
-    });
     expect(repoValidation.max_level()).toBe(RepoValidationLevel.Valid);
   });
 });

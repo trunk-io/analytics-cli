@@ -1,5 +1,5 @@
 // NOTE: `trunk check` requires a root `eslint.config.mjs`
 
-import config from "./context-js/eslint.config.mjs";
+import { createConfig } from "./context-js/eslint.config.mjs";
 
-export default config;
+export default createConfig("./context-js");
