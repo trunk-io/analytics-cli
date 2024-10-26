@@ -18,7 +18,9 @@ runs:
         tools: pnpm
 
     - name: Install dependencies
+      shell: bash
       run: pnpm install --dir ./context-js
 
     - name: Build wasm package
+      shell: bash
       run: pnpm run --dir ./context-js build
