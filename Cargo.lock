@@ -3096,6 +3096,7 @@ dependencies = [
  "exitcode",
  "glob",
  "http",
+ "indexmap",
  "lazy_static",
  "log",
  "openssl",
