@@ -268,6 +268,7 @@ pub async fn run_upload(
         return Ok(exit_code);
     }
 
+    log::info!("Uploading to {}", upload.url);
     api_client
         .put_bundle_to_s3(&upload.url, &bundle_time_file)
         .await?;
