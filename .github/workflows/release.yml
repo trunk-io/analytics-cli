@@ -25,34 +25,40 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@nightly
+      - name: Setup Rust & Cargo
+        uses: ./.github/actions/setup_rust_cargo
+        if: "!cancelled()"
 
       - name: Update version
-        run: |
-          export VERSION=${{ github.event.inputs.release_tag }}
-          sed -i "s/0.0.0/$VERSION/g" ./cli/Cargo.toml
+        uses: ./.github/actions/update_version
+        if: "!cancelled()"
+        with:
+          version: ${{ github.event.inputs.release_tag }}
 
       - name: Build ${{ matrix.target }} target
-        uses: ./.github/actions/build_target
+        uses: ./.github/actions/build_cli_linux_target
         if: "!cancelled()"
         with:
           target: ${{ matrix.target }}
           profile: release-with-debug
 
-      - name: Install sentry-cli
-        run: curl -sL https://sentry.io/get-cli/ | sh
-
       - name: Upload debug info to Sentry
-        run: sentry-cli debug-files upload --include-sources target/${{ matrix.target }}/release-with-debug/trunk-analytics-cli.debug --org=${{ secrets.SENTRY_ORG }} --project=${{ secrets.SENTRY_PROJECT }} --auth-token=${{ secrets.SENTRY_AUTH_TOKEN }}
+        uses: ./.github/actions/upload_sentry_debug_info
+        if: "!cancelled()"
+        with:
+          target: ${{ matrix.target }}
+          sentry-org: ${{ secrets.SENTRY_ORG }}
+          sentry-project: ${{ secrets.SENTRY_PROJECT }}
+          sentry-auth-token: ${{ secrets.SENTRY_AUTH_TOKEN }}
 
       - uses: actions/upload-artifact@v4
+        if: "!cancelled()"
         with:
           name: ${{ matrix.artifact-name }}
           path: target/${{ matrix.target }}/release-with-debug/trunk-analytics-cli
           if-no-files-found: error
 
-  build_osx:
+  build_macos:
     name: Build ${{ matrix.target }}
     strategy:
       matrix:
@@ -62,56 +68,43 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@nightly
-        with:
-          targets: ${{ matrix.target }}
+      - name: Setup Rust & Cargo
+        uses: ./.github/actions/setup_rust_cargo
+        if: "!cancelled()"
 
       - name: Update version
-        run: |
-          export VERSION=${{ github.event.inputs.release_tag }}
-          sed -i '' "s/0.0.0/$VERSION/g" ./cli/Cargo.toml
-
-      - name: Add target
-        shell: bash
-        run: rustup target add ${{ matrix.target }}
+        uses: ./.github/actions/update_version
+        if: "!cancelled()"
+        with:
+          version: ${{ github.event.inputs.release_tag }}
 
       - name: Build ${{ matrix.target }} target
+        uses: ./.github/actions/build_cli_macos_target
         if: "!cancelled()"
-        # NOTE: DO NOT BUILD WORKSPACE OTHERWISE THE CLI MAY BE LINKED TO UNNECESSARY LIBRARIES
-        run: cargo build -q -p trunk-analytics-cli --profile=release-with-debug --target ${{ matrix.target }}
+        with:
+          target: ${{ matrix.target }}
+          profile: release-with-debug
 
-      - name: Check dynamic deps
-        shell: bash
-        run: |
-          set +e
-          shared_libs="$(otool -L target/${{ matrix.target }}/release-with-debug/trunk-analytics-cli)"
-          echo "$shared_libs"
-          if echo "$shared_libs" | grep -qi python; then
-            echo "trunk-analytics-cli has dynamic Python deps - we expect it not to be linked to Python"
-            exit 1
-          fi
-          exit 0
-
-      - name: Strip debug info
-        run: strip target/${{ matrix.target }}/release-with-debug/trunk-analytics-cli
+      - name: Upload debug info to Sentry
+        uses: ./.github/actions/upload_sentry_debug_info
+        if: "!cancelled()"
+        with:
+          target: ${{ matrix.target }}
+          sentry-org: ${{ secrets.SENTRY_ORG }}
+          sentry-project: ${{ secrets.SENTRY_PROJECT }}
+          sentry-auth-token: ${{ secrets.SENTRY_AUTH_TOKEN }}
 
       - uses: actions/upload-artifact@v4
+        if: "!cancelled()"
         with:
           name: ${{ matrix.target }}
           path: target/${{ matrix.target }}/release-with-debug/trunk-analytics-cli
           if-no-files-found: error
 
-      - name: Install sentry-cli
-        run: curl -sL https://sentry.io/get-cli/ | sh
-
-      - name: Upload debug info to Sentry
-        run: sentry-cli debug-files upload --include-sources target/${{ matrix.target }}/release-with-debug/trunk-analytics-cli.dSYM --org=${{ secrets.SENTRY_ORG }} --project=${{ secrets.SENTRY_PROJECT }} --auth-token=${{ secrets.SENTRY_AUTH_TOKEN }}
-
   tag_and_release:
     name: Tag and Release [ ${{ github.event.inputs.release_tag }} ]
     runs-on: public-amd64-small
-    needs: [build_linux, build_osx]
+    needs: [build_linux, build_macos]
 
     steps:
       - uses: actions/checkout@v4
@@ -132,7 +125,9 @@ jobs:
           done
 
       - name: Install Trunk
-        uses: trunk-io/trunk-action/install@54ccfcf9add644a36a5aa1d0046c92f654ff9e45
+        uses: trunk-io/trunk-action/install@v1
+        with:
+          tools: gh
 
       - name: Create GH release and upload binary
         env:
