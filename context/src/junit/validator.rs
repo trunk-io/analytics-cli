@@ -175,7 +175,7 @@ pub fn validate(report: &Report) -> JunitReportValidation {
                     report_validation
                         .issues
                         .insert(JunitValidationIssue::SubOptimal(
-                            JunitReportValidationIssueSubOptimal::StaleTimestamps(timestamp),
+                            JunitReportValidationIssueSubOptimal::StaleTimestamps,
                         ));
                 }
             } else {
@@ -356,7 +356,7 @@ pub enum JunitReportValidationIssueSubOptimal {
     #[error("report has test cases with missing file or filepath")]
     TestCasesFileOrFilepathMissing,
     #[error("report has stale (> {} hour(s)) timestamps", TIMESTAMP_STALE_HOURS)]
-    StaleTimestamps(DateTime<FixedOffset>),
+    StaleTimestamps,
 }
 
 #[derive(Error, Debug, Clone, PartialEq, Eq, Hash)]
