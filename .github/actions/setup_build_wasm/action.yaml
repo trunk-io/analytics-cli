@@ -1,0 +1,26 @@
+name: Setup and build wasm
+description: Setup and build wasm
+
+runs:
+  using: composite
+  steps:
+    - uses: dtolnay/rust-toolchain@nightly
+      with:
+        targets: wasm32-unknown-unknown
+
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 20.x
+
+    - name: Install pnpm
+      uses: trunk-io/trunk-action/install@v1
+      with:
+        tools: pnpm
+
+    - name: Install dependencies
+      shell: bash
+      run: pnpm install --dir ./context-js
+
+    - name: Build wasm package
+      shell: bash
+      run: pnpm run --dir ./context-js build

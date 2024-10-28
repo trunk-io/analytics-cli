@@ -103,6 +103,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Setup and build wasm
+        uses: ./.github/actions/setup_build_wasm
+
       - name: Trunk Check
         uses: trunk-io/trunk-action@v1
         with:

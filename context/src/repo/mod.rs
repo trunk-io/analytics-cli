@@ -186,6 +186,37 @@ impl BundleRepo {
     }
 }
 
+#[cfg(feature = "wasm")]
+#[wasm_bindgen]
+impl BundleRepo {
+    #[wasm_bindgen(constructor)]
+    pub fn js_new(
+        repo: RepoUrlParts,
+        repo_root: String,
+        repo_url: String,
+        repo_head_sha: String,
+        repo_head_sha_short: String,
+        repo_head_branch: String,
+        repo_head_commit_epoch: i64,
+        repo_head_commit_message: String,
+        repo_head_author_name: String,
+        repo_head_author_email: String,
+    ) -> Self {
+        Self {
+            repo,
+            repo_root,
+            repo_url,
+            repo_head_sha,
+            repo_head_sha_short,
+            repo_head_branch,
+            repo_head_commit_epoch,
+            repo_head_commit_message,
+            repo_head_author_name,
+            repo_head_author_email,
+        }
+    }
+}
+
 /// The [`Repo` common type](https://github.com/trunk-io/trunk/blob/518397f/trunk/services/common/types/repo.ts#L10)
 // NOTE: This is named `RepoUrlParts` to prevent confusion as to its purpose
 #[cfg_attr(feature = "pyo3", pyclass(get_all))]
@@ -258,6 +289,15 @@ impl RepoUrlParts {
 impl RepoUrlParts {
     #[new]
     fn py_new(host: String, owner: String, name: String) -> Self {
+        Self { host, owner, name }
+    }
+}
+
+#[cfg(feature = "wasm")]
+#[wasm_bindgen]
+impl RepoUrlParts {
+    #[wasm_bindgen(constructor)]
+    pub fn js_new(host: String, owner: String, name: String) -> Self {
         Self { host, owner, name }
     }
 }
