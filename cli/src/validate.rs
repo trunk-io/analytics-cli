@@ -1,20 +1,19 @@
 use crate::constants::{EXIT_FAILURE, EXIT_SUCCESS};
 use crate::runner::build_filesets;
 use crate::scanner::{FileSet, FileSetCounter};
+use anyhow::Context;
 use colored::{ColoredString, Colorize};
 use console::Emoji;
 use context::junit::parser::{JunitParseError, JunitParser};
 use context::junit::validator::{
-    validate as validate_report, JunitReportValidation, JunitReportValidationIssue,
-    JunitTestCaseValidationIssue, JunitTestSuiteValidationIssue, JunitValidationLevel,
+    validate as validate_report, JunitReportValidation, JunitValidationLevel,
 };
-use indexmap::set::Slice;
 use quick_junit::Report;
 use std::collections::BTreeMap;
 use std::io::BufReader;
 
-type JunitFileToReportAndErrors = BTreeMap<String, (anyhow::Result<Report>, Vec<JunitParseError>)>;
-type JunitFileToValidation = BTreeMap<String, anyhow::Result<JunitReportValidation>>;
+type JunitFileToReportAndErrors = BTreeMap<String, (Vec<Report>, Vec<JunitParseError>)>;
+type JunitReportValidationsAndFilePaths = Vec<(JunitReportValidation, String)>;
 
 pub async fn validate(junit_paths: Vec<String>, show_warnings: bool) -> anyhow::Result<i32> {
     // scan files
@@ -29,22 +28,23 @@ pub async fn validate(junit_paths: Vec<String>, show_warnings: bool) -> anyhow::
     print_matched_files(&file_sets, file_counter);
 
     // parse and validate
-    let parse_results = parse_file_sets(file_sets);
+    let parse_results = parse_file_sets(file_sets)?;
     if show_warnings {
         print_parse_errors(&parse_results);
     }
-    let report_validations: JunitFileToValidation = parse_results
-        .into_iter()
-        .map(|parse_result| {
-            return (
-                parse_result.0,
-                match parse_result.1 .0 {
-                    Ok(report) => Ok(validate_report(&report)),
-                    Err(e) => Err(e),
-                },
+    let report_validations: JunitReportValidationsAndFilePaths = parse_results.into_iter().fold(
+        JunitReportValidationsAndFilePaths::new(),
+        |mut report_validations, parse_result| {
+            report_validations.extend(
+                parse_result
+                    .1
+                     .0
+                    .iter()
+                    .map(|report| (validate_report(report), parse_result.0.clone())),
             );
-        })
-        .collect();
+            report_validations
+        },
+    );
 
     // print results
     let (num_invalid_reports, num_suboptimal_reports) =
@@ -62,44 +62,44 @@ pub async fn validate(junit_paths: Vec<String>, show_warnings: bool) -> anyhow::
     }
 }
 
-fn parse_file_sets(file_sets: Vec<FileSet>) -> JunitFileToReportAndErrors {
-    file_sets.iter().flat_map(|file_set| &file_set.files).fold(
+fn parse_file_sets(file_sets: Vec<FileSet>) -> anyhow::Result<JunitFileToReportAndErrors> {
+    file_sets.iter().try_fold(
         JunitFileToReportAndErrors::new(),
-        |mut parse_results, bundled_file| -> JunitFileToReportAndErrors {
-            let path = std::path::Path::new(&bundled_file.original_path);
-            let file = match std::fs::File::open(path) {
-                Ok(file) => file,
-                Err(e) => {
-                    parse_results.insert(
+        |mut file_sets_parse_results, file_set| -> anyhow::Result<JunitFileToReportAndErrors> {
+            let file_set_parse_results = file_set.files.iter().try_fold(
+                JunitFileToReportAndErrors::new(),
+                |mut file_set_parse_results,
+                 bundled_file|
+                 -> anyhow::Result<JunitFileToReportAndErrors> {
+                    let path = std::path::Path::new(&bundled_file.original_path);
+                    let file = std::fs::File::open(path)?;
+                    let file_buf_reader = BufReader::new(file);
+                    let mut junit_parser = JunitParser::new();
+                    junit_parser.parse(file_buf_reader).context(format!(
+                        "Encountered unrecoverable error while parsing file: {}",
+                        bundled_file.original_path_rel
+                    ))?;
+
+                    let mut cur_file_parse_results = file_set_parse_results
+                        .get(&bundled_file.original_path_rel)
+                        .cloned()
+                        .unwrap_or((Vec::new(), Vec::new()));
+
+                    cur_file_parse_results.1.extend(junit_parser.errors());
+                    cur_file_parse_results.0.extend(junit_parser.into_reports());
+
+                    file_set_parse_results.insert(
                         bundled_file.original_path_rel.clone(),
-                        (Err(anyhow::anyhow!(e)), Vec::new()),
+                        cur_file_parse_results,
                     );
-                    return parse_results;
-                }
-            };
 
-            let file_buf_reader = BufReader::new(file);
-            let mut junit_parser = JunitParser::new();
-            match junit_parser.parse(file_buf_reader) {
-                Err(e) => {
-                    parse_results.insert(
-                        bundled_file.original_path_rel.clone(),
-                        (Err(anyhow::anyhow!(e)), Vec::new()),
-                    );
-                    return parse_results;
-                }
-                _ => (),
-            };
+                    Ok(file_set_parse_results)
+                },
+            )?;
 
-            let parse_errors = junit_parser.errors().to_vec();
-            for report in junit_parser.into_reports() {
-                parse_results.insert(
-                    bundled_file.original_path_rel.clone(),
-                    (Ok(report), parse_errors.clone()),
-                );
-            }
+            file_sets_parse_results.extend(file_set_parse_results);
 
-            parse_results
+            Ok(file_sets_parse_results)
         },
     )
 }
@@ -195,56 +195,44 @@ fn print_summary_success(num_reports: usize, num_suboptimal_reports: usize) {
     );
 }
 
-fn print_validation_errors(report_validations: &JunitFileToValidation) -> (usize, usize) {
+fn print_validation_errors(
+    report_validations: &JunitReportValidationsAndFilePaths,
+) -> (usize, usize) {
     log::info!("");
     let mut num_invalid_reports: usize = 0;
     let mut num_suboptimal_reports: usize = 0;
     for report_validation in report_validations {
-        let mut num_test_suites = 0;
-        let mut num_test_cases = 0;
-        let num_validation_errors: usize;
-        let mut num_validation_warnings = 0;
-        let mut report_parse_error: Option<&anyhow::Error> = None;
-        let mut report_validation_issues: &Slice<JunitReportValidationIssue> = Slice::new();
-        let mut test_suite_validation_issues: Vec<&JunitTestSuiteValidationIssue> = Vec::new();
-        let mut test_case_validation_issues: Vec<&JunitTestCaseValidationIssue> = Vec::new();
+        let num_test_cases = report_validation.0.test_cases_flat().len();
 
-        match report_validation.1 {
-            Ok(validation) => {
-                num_test_suites = validation.test_suites().len();
-                num_test_cases = validation.test_cases_flat().len();
+        let num_report_validation_errors =
+            report_validation.0.report_invalid_validation_issues().len();
+        let num_test_suite_validation_errors = report_validation
+            .0
+            .test_suite_invalid_validation_issues_flat()
+            .len();
+        let num_test_case_validation_errors = report_validation
+            .0
+            .test_case_invalid_validation_issues_flat()
+            .len();
+        let num_validation_errors = num_report_validation_errors
+            + num_test_suite_validation_errors
+            + num_test_case_validation_errors;
 
-                let num_report_validation_errors =
-                    validation.report_invalid_validation_issues().len();
-                let num_test_suite_validation_errors =
-                    validation.test_suite_invalid_validation_issues_flat().len();
-                let num_test_case_validation_errors =
-                    validation.test_case_invalid_validation_issues_flat().len();
-                num_validation_errors = num_report_validation_errors
-                    + num_test_suite_validation_errors
-                    + num_test_case_validation_errors;
-
-                let num_report_validation_warnings =
-                    validation.report_suboptimal_validation_issues().len();
-                let num_test_suite_validation_warnings = validation
-                    .test_suite_suboptimal_validation_issues_flat()
-                    .len();
-                let num_test_case_validation_warnings = validation
-                    .test_case_suboptimal_validation_issues_flat()
-                    .len();
-                num_validation_warnings = num_report_validation_warnings
-                    + num_test_suite_validation_warnings
-                    + num_test_case_validation_warnings;
-
-                report_validation_issues = validation.report_validation_issues();
-                test_suite_validation_issues = validation.test_suite_validation_issues_flat();
-                test_case_validation_issues = validation.test_case_validation_issues_flat();
-            }
-            Err(e) => {
-                report_parse_error = Some(e);
-                num_validation_errors = 1;
-            }
-        }
+        let num_report_validation_warnings = report_validation
+            .0
+            .report_suboptimal_validation_issues()
+            .len();
+        let num_test_suite_validation_warnings = report_validation
+            .0
+            .test_suite_suboptimal_validation_issues_flat()
+            .len();
+        let num_test_case_validation_warnings = report_validation
+            .0
+            .test_case_suboptimal_validation_issues_flat()
+            .len();
+        let num_validation_warnings = num_report_validation_warnings
+            + num_test_suite_validation_warnings
+            + num_test_case_validation_warnings;
 
         let num_validation_errors_str = if num_validation_errors > 0 {
             num_validation_errors.to_string().red()
@@ -261,25 +249,14 @@ fn print_validation_errors(report_validations: &JunitFileToValidation) -> (usize
         };
         log::info!(
             "{} - {} test suites, {} test cases, {} validation errors{}",
-            report_validation.0,
-            num_test_suites,
+            report_validation.1,
+            report_validation.0.test_suites().len(),
             num_test_cases,
             num_validation_errors_str,
             num_validation_warnings_str,
         );
 
-        match report_parse_error {
-            Some(parse_error) => {
-                log::info!(
-                    "  {} - {}",
-                    print_validation_level(JunitValidationLevel::Invalid),
-                    parse_error,
-                );
-            }
-            _ => (),
-        }
-
-        for report_validation_error in report_validation_issues {
+        for report_validation_error in report_validation.0.report_validation_issues() {
             log::info!(
                 "  {} - {}",
                 print_validation_level(JunitValidationLevel::from(report_validation_error)),
@@ -287,7 +264,7 @@ fn print_validation_errors(report_validations: &JunitFileToValidation) -> (usize
             );
         }
 
-        for test_suite_validation_error in test_suite_validation_issues {
+        for test_suite_validation_error in report_validation.0.test_suite_validation_issues_flat() {
             log::info!(
                 "  {} - {}",
                 print_validation_level(JunitValidationLevel::from(test_suite_validation_error)),
@@ -295,7 +272,7 @@ fn print_validation_errors(report_validations: &JunitFileToValidation) -> (usize
             );
         }
 
-        for test_case_validation_error in test_case_validation_issues {
+        for test_case_validation_error in report_validation.0.test_case_validation_issues_flat() {
             log::info!(
                 "  {} - {}",
                 print_validation_level(JunitValidationLevel::from(test_case_validation_error)),
