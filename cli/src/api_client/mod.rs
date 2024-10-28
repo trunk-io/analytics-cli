@@ -33,6 +33,7 @@ impl ApiClient {
             .ok()
             .and_then(|s| if s.is_empty() { None } else { Some(s) })
             .unwrap_or_else(|| DEFAULT_ORIGIN.to_string());
+        log::info!("Using Trunk API host: {}", host);
 
         let mut trunk_client_default_headers = HeaderMap::new();
         trunk_client_default_headers.append(
@@ -67,7 +68,7 @@ impl ApiClient {
             action: || async {
                 let response = self
                     .trunk_client
-                    .post(format!("{}/v1/repo/create", self.host))
+                    .post(format!("{}/repo/create", self.host))
                     .json(&request)
                     .send()
                     .await?;
@@ -98,7 +99,7 @@ impl ApiClient {
             action: || async {
                 let response = self
                     .trunk_client
-                    .post(format!("{}/v1/metrics/createBundleUpload", self.host))
+                    .post(format!("{}/metrics/createBundleUpload", self.host))
                     .json(&request)
                     .send()
                     .await?;
@@ -134,7 +135,7 @@ impl ApiClient {
             action: || async {
                 let response = self
                     .trunk_client
-                    .post(format!("{}/v1/metrics/getQuarantineConfig", self.host))
+                    .post(format!("{}/metrics/getQuarantineConfig", self.host))
                     .json(&request)
                     .send()
                     .await?;
@@ -206,7 +207,7 @@ impl ApiClient {
             action: || async {
                 let response = self
                     .trunk_client
-                    .patch(format!("{}/v1/metrics/updateBundleUpload", self.host))
+                    .patch(format!("{}/metrics/updateBundleUpload", self.host))
                     .json(request)
                     .send()
                     .await?;
