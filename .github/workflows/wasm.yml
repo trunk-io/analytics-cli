@@ -36,7 +36,7 @@ jobs:
 
       - name: Upload wasm package to S3
         uses: ./.github/actions/upload_to_s3
-        if: "!cancelled()"
+        if: "!cancelled() && github.event_name != 'pull_request'"
         with:
           bucket: ${{ secrets.S3_ASSET_BUCKET }}
           name: js

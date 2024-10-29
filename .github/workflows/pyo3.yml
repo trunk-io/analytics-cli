@@ -84,7 +84,7 @@ jobs:
             cd ./context-py && pytest
       - name: Upload wasm package to S3
         uses: ./.github/actions/upload_to_s3
-        if: "!cancelled()"
+        if: "!cancelled() && github.event_name != 'pull_request'"
         with:
           bucket: ${{ secrets.S3_ASSET_BUCKET }}
           name: wheels-linux-${{ matrix.platform.target }}
@@ -118,7 +118,7 @@ jobs:
           path: dist
       - name: Upload wasm package to S3
         uses: ./.github/actions/upload_to_s3
-        if: "!cancelled()"
+        if: "!cancelled() && github.event_name != 'pull_request'"
         with:
           bucket: ${{ secrets.S3_ASSET_BUCKET }}
           name: wheels-macos-${{ matrix.platform.target }}
@@ -142,7 +142,7 @@ jobs:
           path: dist
       - name: Upload wasm package to S3
         uses: ./.github/actions/upload_to_s3
-        if: "!cancelled()"
+        if: "!cancelled() && github.event_name != 'pull_request'"
         with:
           bucket: ${{ secrets.S3_ASSET_BUCKET }}
           name: wheels-sdist
