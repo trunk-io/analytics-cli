@@ -1,9 +1,11 @@
+use anyhow::Result;
 use chrono::{TimeDelta, Utc};
 use escargot::{CargoBuild, CargoRun};
 use junit_mock::JunitMock;
 use lazy_static::lazy_static;
 use std::{
     env, fs,
+    io::Write,
     path::{Path, PathBuf},
 };
 use test_utils::mock_git_repo::setup_repo_with_commit;
@@ -62,4 +64,11 @@ pub fn generate_mock_codeowners<T: AsRef<Path>>(directory: T) {
         * @user
     "#;
     fs::write(directory.as_ref().join("CODEOWNERS"), CODEOWNERS).unwrap();
+}
+
+pub fn write_junit_xml_to_dir<T: AsRef<Path>>(xml: &str, directory: T) -> Result<()> {
+    let path = directory.as_ref().join("junit-0.xml");
+    let mut file = fs::File::create(&path)?;
+    file.write_all(xml.as_bytes())?;
+    Ok(())
 }

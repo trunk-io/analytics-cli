@@ -8,9 +8,8 @@ use context::junit::validator::{
     validate as validate_report, JunitReportValidation, JunitReportValidationIssue,
     JunitTestCaseValidationIssue, JunitTestSuiteValidationIssue, JunitValidationLevel,
 };
-use indexmap::set::Slice;
 use quick_junit::Report;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::io::BufReader;
 
 type JunitFileToReportAndErrors = BTreeMap<String, (anyhow::Result<Report>, Vec<JunitParseError>)>;
@@ -205,7 +204,7 @@ fn print_validation_errors(report_validations: &JunitFileToValidation) -> (usize
         let num_validation_errors: usize;
         let mut num_validation_warnings = 0;
         let mut report_parse_error: Option<&anyhow::Error> = None;
-        let mut report_validation_issues: &Slice<JunitReportValidationIssue> = Slice::new();
+        let mut report_validation_issues: &BTreeSet<JunitReportValidationIssue> = &BTreeSet::new();
         let mut test_suite_validation_issues: Vec<&JunitTestSuiteValidationIssue> = Vec::new();
         let mut test_case_validation_issues: Vec<&JunitTestCaseValidationIssue> = Vec::new();
 
