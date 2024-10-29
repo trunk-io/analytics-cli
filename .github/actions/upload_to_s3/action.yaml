@@ -38,4 +38,4 @@ runs:
         GIT_SHA=$(git rev-parse --short HEAD)
         DATE=$(date "+%Y-%m-%d")
 
-        aws s3 cp ${TAR_FILE} s3://${{ inputs.bucket }}/${DATE}/${GIT_SHA}/${{ inputs.name }}
+        aws s3 cp ${TAR_FILE} s3://${{ inputs.bucket }}/${DATE}/${GIT_SHA}/${TAR_FILE}
