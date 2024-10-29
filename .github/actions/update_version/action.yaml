@@ -1,0 +1,16 @@
+name: Update version
+description: Update version
+
+inputs:
+  version:
+    description: Release version
+
+runs:
+  using: composite
+  steps:
+    - name: Update version
+      env:
+        VERSION: ${{ inputs.version }}
+      shell: bash
+      run: |
+        sed -i.bak "s/0.0.0/$VERSION/g" ./cli/Cargo.toml

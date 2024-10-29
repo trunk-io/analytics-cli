@@ -170,7 +170,7 @@ pub async fn run_quarantine(
     exit_code: i32,
 ) -> QuarantineRunResult {
     let quarantine_config: api::QuarantineConfig = if !failures.is_empty() {
-        log::info!("Quarantining failed tests");
+        log::info!("Checking if failed tests can be quarantined");
         let result = api_client.get_quarantining_config(request).await;
 
         if let Err(ref err) = result {
@@ -182,6 +182,15 @@ pub async fn run_quarantine(
         log::debug!("No failed tests to quarantine");
         api::QuarantineConfig::default()
     };
+
+    // if quarantining is not enabled, return exit code and empty quarantine status
+    if quarantine_config.is_disabled {
+        log::info!("Quarantining is not enabled, not quarantining any tests");
+        return QuarantineRunResult {
+            exit_code,
+            quarantine_status: QuarantineBulkTestStatus::default(),
+        };
+    }
 
     // quarantine the failed tests
     let mut quarantine_results = QuarantineBulkTestStatus::default();

@@ -7,7 +7,7 @@ cli:
 plugins:
   sources:
     - id: trunk
-      ref: v1.6.3
+      ref: v1.6.4
       uri: https://github.com/trunk-io/plugins
 # Many linters and tools depend on runtimes - configure them here. (https://docs.trunk.io/runtimes)
 runtimes:
@@ -20,22 +20,28 @@ lint:
   enabled:
     - actionlint@1.7.3
     - bandit@1.7.10
-    - black@24.8.0
-    - checkov@3.2.256
+    - black@24.10.0
+    - checkov@3.2.269
     - clippy@1.81.0
+    - eslint@9.13.0
     - git-diff-check
     - isort@5.13.2
     - markdownlint@0.42.0
-    - nixpkgs-fmt@1.3.0
     - osv-scanner@1.9.0
     - prettier@3.3.3
-    - ruff@0.6.8
+    - ruff@0.7.0
     - rustfmt@1.81.0
     - taplo@0.9.3
-    - trufflehog@3.82.6
+    - trufflehog@3.82.12
     - yamllint@1.35.1
+  definitions:
+    - name: eslint
+      commands:
+        - name: lint
+          run_when: [cli, monitor, ci]
 actions:
   enabled:
+    - git-lfs
     - trunk-announce
     - trunk-check-pre-push
     - trunk-fmt-pre-commit
@@ -43,3 +49,4 @@ actions:
 tools:
   enabled:
     - gh@2.52.0
+    - pnpm@9.12.2
