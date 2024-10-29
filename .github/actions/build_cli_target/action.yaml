@@ -1,0 +1,24 @@
+name: Build CLI Target
+description: Build release binary for target. An uncompressed binary with debug info is created as trunk-analytics-cli.debug, and a stripped, compressed binary is created as trunk-analytics-cli.
+
+inputs:
+  target:
+    description: Rust target triple, e.g. x86_64-apple-darwin
+  profile:
+    description: Rust profile to build, e.g. release-with-debug
+
+runs:
+  using: composite
+  steps:
+    - name: Add target
+      shell: bash
+      run: rustup target add ${{ inputs.target }}
+
+    - name: Build CLI ${{ inputs.target }} target
+      shell: bash
+      # NOTE: DO NOT BUILD WORKSPACE OTHERWISE THE CLI MAY BE LINKED TO UNNECESSARY LIBRARIES
+      run: cargo build -q -p trunk-analytics-cli --profile=${{ inputs.profile }} --target=${{ inputs.target }}
+
+    - name: Create binary with debug info
+      shell: bash
+      run: cp target/${{ inputs.target }}/${{ inputs.profile }}/trunk-analytics-cli target/${{ inputs.target }}/${{ inputs.profile }}/trunk-analytics-cli.debug

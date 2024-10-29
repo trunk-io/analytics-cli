@@ -1,0 +1,19 @@
+name: Optimize CLI Binary
+
+inputs:
+  target:
+    description: Rust target triple, e.g. x86_64-apple-darwin
+  profile:
+    description: Rust profile to build, e.g. release-with-debug
+
+runs:
+  using: composite
+  steps:
+    - name: Compress binary
+      shell: bash
+      run: |
+        upx --best --lzma target/${{ inputs.target }}/${{ inputs.profile }}/trunk-analytics-cli
+
+    - name: Report binary size
+      shell: bash
+      run: ls -lh target/${{ inputs.target }}/${{ inputs.profile }}/trunk-analytics-cli

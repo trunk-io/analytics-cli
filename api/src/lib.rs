@@ -58,6 +58,8 @@ pub struct GetQuarantineBulkTestStatusRequest {
 pub struct QuarantineConfig {
     #[serde(rename = "isPreview")]
     pub is_preview_mode: bool,
+    #[serde(rename = "isDisabled")]
+    pub is_disabled: bool,
     #[serde(rename = "testIds")]
     pub quarantined_tests: HashSet<String>,
 }

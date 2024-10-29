@@ -1,0 +1,34 @@
+name: Build and test context-js
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - "*"
+  pull_request: {}
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup and build wasm
+        uses: ./.github/actions/setup_build_wasm
+        if: "!cancelled()"
+
+      - name: Upload wasm package
+        uses: actions/upload-artifact@v4
+        if: "!cancelled()"
+        with:
+          name: context-js-pkg
+          path: ./context-js/pkg
+
+      - name: Test wasm package
+        if: "!cancelled()"
+        run: pnpm run --dir ./context-js test

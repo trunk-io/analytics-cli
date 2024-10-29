@@ -37,8 +37,8 @@ pub fn env_parse(env_vars: js_sys::Object) -> Result<Option<env::parser::CIInfo>
 }
 
 #[wasm_bindgen]
-pub fn env_validate(ci_info: env::parser::CIInfo) -> env::validator::EnvValidation {
-    env::validator::validate(&ci_info)
+pub fn env_validate(ci_info: &env::parser::CIInfo) -> env::validator::EnvValidation {
+    env::validator::validate(ci_info)
 }
 
 #[wasm_bindgen]
@@ -63,9 +63,9 @@ pub fn junit_parse(xml: Vec<u8>) -> Result<Vec<junit::bindings::BindingsReport>,
 
 #[wasm_bindgen]
 pub fn junit_validate(
-    report: junit::bindings::BindingsReport,
+    report: &junit::bindings::BindingsReport,
 ) -> junit::validator::JunitReportValidation {
-    junit::validator::validate(&report.into())
+    junit::validator::validate(&report.clone().into())
 }
 
 #[wasm_bindgen]

@@ -1,8 +1,8 @@
 use chrono::{DateTime, FixedOffset, Utc};
-use indexmap::set::{IndexSet, Slice};
 #[cfg(feature = "pyo3")]
 use pyo3::prelude::*;
 use quick_junit::Report;
+use std::{cmp::Ordering, collections::BTreeSet};
 use thiserror::Error;
 #[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::*;
@@ -116,11 +116,9 @@ pub fn validate(report: &Report) -> JunitReportValidation {
             ) {
                 FieldLen::Valid => (),
                 FieldLen::TooShort(_s) => {
-                    report_validation
-                        .issues
-                        .insert(JunitValidationIssue::SubOptimal(
-                            JunitReportValidationIssueSubOptimal::TestCasesFileOrFilepathMissing,
-                        ));
+                    report_validation.add_issue(JunitValidationIssue::SubOptimal(
+                        JunitReportValidationIssueSubOptimal::TestCasesFileOrFilepathMissing,
+                    ));
                 }
                 FieldLen::TooLong(s) => {
                     test_case_validation.add_issue(JunitValidationIssue::SubOptimal(
@@ -172,11 +170,9 @@ pub fn validate(report: &Report) -> JunitReportValidation {
                         JunitTestCaseValidationIssueSubOptimal::TestCaseOldTimestamp(timestamp),
                     ));
                 } else if time_since_timestamp.num_hours() > i64::from(TIMESTAMP_STALE_HOURS) {
-                    report_validation
-                        .issues
-                        .insert(JunitValidationIssue::SubOptimal(
-                            JunitReportValidationIssueSubOptimal::StaleTimestamps(timestamp),
-                        ));
+                    report_validation.add_issue(JunitValidationIssue::SubOptimal(
+                        JunitReportValidationIssueSubOptimal::StaleTimestamps,
+                    ));
                 }
             } else {
                 test_case_validation.add_issue(JunitValidationIssue::SubOptimal(
@@ -197,7 +193,8 @@ pub fn validate(report: &Report) -> JunitReportValidation {
 #[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct JunitReportValidation {
-    issues: IndexSet<JunitReportValidationIssue>,
+    issues: BTreeSet<JunitReportValidationIssue>,
+    level: JunitValidationLevel,
     test_suites: Vec<JunitTestSuiteValidation>,
 }
 
@@ -231,7 +228,7 @@ impl JunitReportValidation {
             .iter()
             .map(|test_suite| test_suite.max_level())
             .max()
-            .unwrap_or(JunitValidationLevel::Valid)
+            .map_or(self.level, |l| l.max(self.level))
     }
 
     pub fn test_suites_max_level(&self) -> Option<JunitValidationLevel> {
@@ -254,8 +251,8 @@ impl JunitReportValidation {
             .collect()
     }
 
-    pub fn report_validation_issues(&self) -> &Slice<JunitReportValidationIssue> {
-        self.issues.as_slice()
+    pub fn report_validation_issues(&self) -> &BTreeSet<JunitReportValidationIssue> {
+        &self.issues
     }
 
     fn report_variant_validation_issues(
@@ -337,6 +334,11 @@ impl JunitReportValidation {
     pub fn test_case_invalid_validation_issues_flat(&self) -> Vec<&JunitTestCaseValidationIssue> {
         self.test_case_variant_validation_issues_flat(JunitValidationLevel::Invalid)
     }
+
+    fn add_issue(&mut self, issue: JunitReportValidationIssue) {
+        self.level = self.level.max(JunitValidationLevel::from(&issue));
+        self.issues.insert(issue);
+    }
 }
 
 pub type JunitReportValidationIssue =
@@ -351,12 +353,28 @@ impl ToString for JunitReportValidationIssue {
     }
 }
 
+impl Ord for JunitReportValidationIssue {
+    fn cmp(&self, other: &Self) -> Ordering {
+        match (self, other) {
+            (Self::Invalid(_), Self::SubOptimal(_)) => Ordering::Less,
+            (Self::SubOptimal(_), Self::Invalid(_)) => Ordering::Greater,
+            _ => self.to_string().cmp(&other.to_string()),
+        }
+    }
+}
+
+impl PartialOrd for JunitReportValidationIssue {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
 #[derive(Error, Debug, Clone, PartialEq, Eq, Hash)]
 pub enum JunitReportValidationIssueSubOptimal {
     #[error("report has test cases with missing file or filepath")]
     TestCasesFileOrFilepathMissing,
     #[error("report has stale (> {} hour(s)) timestamps", TIMESTAMP_STALE_HOURS)]
-    StaleTimestamps(DateTime<FixedOffset>),
+    StaleTimestamps,
 }
 
 #[derive(Error, Debug, Clone, PartialEq, Eq, Hash)]
@@ -409,7 +427,7 @@ impl JunitTestSuiteValidation {
     pub fn max_level(&self) -> JunitValidationLevel {
         self.test_cases
             .iter()
-            .map(|test_suite| test_suite.level)
+            .map(|test_case| test_case.level)
             .max()
             .map_or(self.level, |l| l.max(self.level))
     }
