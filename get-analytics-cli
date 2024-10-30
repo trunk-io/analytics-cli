@@ -1,0 +1,61 @@
+#!/bin/bash
+
+set -euo pipefail
+
+trap "cleanup" EXIT
+
+cleanup() {
+    rm -rf ./trunk-analytics-cli ./trunk-analytics-cli.tar.gz
+}
+
+kernel=$(uname -s)
+machine=$(uname -m)
+
+if [[ ${kernel} == "Darwin" ]]; then
+    if [[ ${machine} == "arm64" ]]; then
+        bin="aarch64-apple-darwin"
+    elif [[ ${machine} == "x86_64" ]]; then
+        bin="x86_64-apple-darwin"
+    fi
+elif [[ ${kernel} == "Linux" ]]; then
+    if [[ ${machine} == "arm64" ]]; then
+        bin="aarch64-unknown-linux"
+    elif [[ ${machine} == "x86_64" ]]; then
+        bin="x86_64-unknown-linux"
+    fi
+fi
+
+if [[ -z ${bin} ]]; then
+    echo "Unsupported OS (${kernel}, ${machine})"
+    exit 1
+fi
+
+check_mark="\033[1;32m✔\033[0m"
+header() { echo -e "\n\033[1m$1\033[0m"; }
+
+header "Welcome to Trunk!\n"
+echo " This will download and install the latest Trunk Analytics CLI."
+
+bin_path="/usr/local/bin"
+install_path="${bin_path}/trunk-analytics-cli"
+if ! [[ -d ${bin_path} ]]; then
+  bin_path="${HOME}/.local/bin"
+  install_path="${bin_path}/trunk-analytics-cli"
+fi
+
+header "\nThis script will install\n"
+echo -e " \033[4m${install_path}\033[0m\n"
+
+header "Downloading and Installing\n"
+echo "  Downloading Trunk Analytics CLI..."
+curl -fsSL --retry 3 "https://github.com/trunk-io/analytics-cli/releases/latest/download/trunk-analytics-cli-${bin}.tar.gz" -o ./trunk-analytics-cli.tar.gz
+echo -e "\033[1A ${check_mark} Downloading Trunk Analytics CLI... done"
+echo "   Installing Trunk Analytics CLI (requires sudo access)..."
+tar -xzf trunk-analytics-cli.tar.gz
+chmod +x ./trunk-analytics-cli
+$(command -v sudo || true) bash -c "mkdir -p '${bin_path}' && mv ./trunk-analytics-cli '${install_path}'"
+echo -e " ${check_mark} Installing Trunk Analytics CLI... done\n"
+
+header "Next Steps\n"
+echo -e " You can now use the CLI with the command: \033[1mtrunk-analytics-cli\033[0m"
+echo -e " For help, you can run: \033[1mtrunk-analytics-cli --help\033[0m"
