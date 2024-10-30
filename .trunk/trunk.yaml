@@ -43,11 +43,14 @@ actions:
   definitions:
     - id: generate-pyi
       description: Generate Python stubs
-      runtime: rust
       run: |
         cargo run --bin stub_gen
         mv context-py/context{-,_}py.pyi
         trunk fmt context-py/context_py.pyi
+        echo "Please commit changes to context-py/context_py.pyi"
+      triggers:
+        - git_hooks:
+            - post-commit
   enabled:
     - generate-pyi
     - git-lfs
