@@ -5,11 +5,10 @@ use colored::{ColoredString, Colorize};
 use console::Emoji;
 use context::junit::parser::{JunitParseError, JunitParser};
 use context::junit::validator::{
-    validate as validate_report, JunitReportValidation, JunitReportValidationIssue,
-    JunitTestCaseValidationIssue, JunitTestSuiteValidationIssue, JunitValidationLevel,
+    validate as validate_report, JunitReportValidation, JunitReportValidationFlatIssue, JunitValidationLevel
 };
 use quick_junit::Report;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 use std::io::BufReader;
 
 type JunitFileToReportAndErrors = BTreeMap<String, (anyhow::Result<Report>, Vec<JunitParseError>)>;
@@ -204,40 +203,17 @@ fn print_validation_errors(report_validations: &JunitFileToValidation) -> (usize
         let num_validation_errors: usize;
         let mut num_validation_warnings = 0;
         let mut report_parse_error: Option<&anyhow::Error> = None;
-        let mut report_validation_issues: &BTreeSet<JunitReportValidationIssue> = &BTreeSet::new();
-        let mut test_suite_validation_issues: Vec<&JunitTestSuiteValidationIssue> = Vec::new();
-        let mut test_case_validation_issues: Vec<&JunitTestCaseValidationIssue> = Vec::new();
+        let mut all_issues: Vec<JunitReportValidationFlatIssue> = Vec::new();
 
         match report_validation.1 {
             Ok(validation) => {
                 num_test_suites = validation.test_suites().len();
                 num_test_cases = validation.test_cases_flat().len();
 
-                let num_report_validation_errors =
-                    validation.report_invalid_validation_issues().len();
-                let num_test_suite_validation_errors =
-                    validation.test_suite_invalid_validation_issues_flat().len();
-                let num_test_case_validation_errors =
-                    validation.test_case_invalid_validation_issues_flat().len();
-                num_validation_errors = num_report_validation_errors
-                    + num_test_suite_validation_errors
-                    + num_test_case_validation_errors;
+                num_validation_errors = validation.num_invalid_issues();
+                num_validation_warnings = validation.num_suboptimal_issues();
 
-                let num_report_validation_warnings =
-                    validation.report_suboptimal_validation_issues().len();
-                let num_test_suite_validation_warnings = validation
-                    .test_suite_suboptimal_validation_issues_flat()
-                    .len();
-                let num_test_case_validation_warnings = validation
-                    .test_case_suboptimal_validation_issues_flat()
-                    .len();
-                num_validation_warnings = num_report_validation_warnings
-                    + num_test_suite_validation_warnings
-                    + num_test_case_validation_warnings;
-
-                report_validation_issues = validation.report_validation_issues();
-                test_suite_validation_issues = validation.test_suite_validation_issues_flat();
-                test_case_validation_issues = validation.test_case_validation_issues_flat();
+                all_issues = validation.all_issues_owned();
             }
             Err(e) => {
                 report_parse_error = Some(e);
@@ -278,27 +254,11 @@ fn print_validation_errors(report_validations: &JunitFileToValidation) -> (usize
             _ => (),
         }
 
-        for report_validation_error in report_validation_issues {
+        for issue in all_issues {
             log::info!(
                 "  {} - {}",
-                print_validation_level(JunitValidationLevel::from(report_validation_error)),
-                report_validation_error.to_string(),
-            );
-        }
-
-        for test_suite_validation_error in test_suite_validation_issues {
-            log::info!(
-                "  {} - {}",
-                print_validation_level(JunitValidationLevel::from(test_suite_validation_error)),
-                test_suite_validation_error.to_string(),
-            );
-        }
-
-        for test_case_validation_error in test_case_validation_issues {
-            log::info!(
-                "  {} - {}",
-                print_validation_level(JunitValidationLevel::from(test_case_validation_error)),
-                test_case_validation_error.to_string(),
+                print_validation_level(issue.level),
+                issue.error_message,
             );
         }
 
