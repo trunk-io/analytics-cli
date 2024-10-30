@@ -13,6 +13,10 @@ inputs:
   role-to-assume:
     description: ARN of the role to assume
     required: false
+  compress:
+    description: Whether to compress the artifact before uploading
+    required: false
+    default: "false"
 
 runs:
   using: composite
@@ -26,6 +30,7 @@ runs:
 
     - name: Compress input
       shell: bash
+      if: ${{ inputs.compress == 'true' }}
       run: |
         TAR_FILE="${{ inputs.name }}.tar.gz"
         tar -czvf "${TAR_FILE}" -C ${{ inputs.path }} .
@@ -38,4 +43,4 @@ runs:
         GIT_SHA=$(git rev-parse --short HEAD)
         DATE=$(date "+%Y-%m-%d")
 
-        aws s3 cp ${TAR_FILE} s3://${{ inputs.bucket }}/${DATE}/${GIT_SHA}/${TAR_FILE}
+        aws s3 cp ${TAR_FILE:-${{ inputs.path }}} s3://${{ inputs.bucket }}/${DATE}/${GIT_SHA}/${TAR_FILE}
