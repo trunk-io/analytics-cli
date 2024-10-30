@@ -17,6 +17,9 @@ inputs:
     description: Whether to compress the artifact before uploading
     required: false
     default: "true"
+  s3-flags:
+    description: Additional flags to pass to the `aws s3 cp` command
+    required: false
 
 runs:
   using: composite
@@ -43,5 +46,6 @@ runs:
         GIT_SHA=$(git rev-parse --short HEAD)
         DATE=$(date "+%Y-%m-%d")
         LOCAL_FILE=${TAR_FILE:-${{ inputs.path }}}
+        TARGET_PATH="${{ inputs.bucket }}/${DATE}/${GIT_SHA}/${{ inputs.name }}"
 
-        aws s3 cp ${LOCAL_FILE} s3://${{ inputs.bucket }}/${DATE}/${GIT_SHA}/${{ inputs.name }}
+        aws s3 cp ${{ inputs.s3-flags }} ${LOCAL_FILE} s3://${TARGET_PATH}

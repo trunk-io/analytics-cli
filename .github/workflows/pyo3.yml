@@ -87,9 +87,11 @@ jobs:
         if: "!cancelled() && github.event_name != 'pull_request'"
         with:
           bucket: ${{ secrets.S3_ASSET_BUCKET }}
-          name: wheels-linux-${{ matrix.platform.target }}.tar.gz
+          name: linux-${{ matrix.platform.target }}
           path: dist
+          s3-flags: --recursive
           role-to-assume: ${{ secrets.S3_UPLOAD_ROLE_ARN }}
+          compress: "false"
 
   macos:
     runs-on: ${{ matrix.platform.runner }}
@@ -121,9 +123,11 @@ jobs:
         if: "!cancelled() && github.event_name != 'pull_request'"
         with:
           bucket: ${{ secrets.S3_ASSET_BUCKET }}
-          name: wheels-macos-${{ matrix.platform.target }}.tar.gz
+          name: darwin-${{ matrix.platform.target }}
           path: dist
+          s3-flags: --recursive
           role-to-assume: ${{ secrets.S3_UPLOAD_ROLE_ARN }}
+          compress: "false"
   sdist:
     # TODO(TRUNK-13050): update to `ubuntu-latest` when `maturin-action` gets updated to support it
     # https://github.com/PyO3/maturin-action/issues/291

@@ -2,7 +2,7 @@ use chrono::{DateTime, Utc};
 #[cfg(feature = "pyo3")]
 use pyo3::prelude::*;
 #[cfg(feature = "pyo3")]
-use pyo3_stub_gen::{derive::gen_stub_pyclass, generate::*, TypeInfo};
+use pyo3_stub_gen::derive::gen_stub_pyclass;
 use thiserror::Error;
 #[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::*;
