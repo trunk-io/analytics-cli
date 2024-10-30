@@ -87,7 +87,7 @@ jobs:
         if: "!cancelled() && github.event_name != 'pull_request'"
         with:
           bucket: ${{ secrets.S3_ASSET_BUCKET }}
-          name: wheels-linux-${{ matrix.platform.target }}
+          name: wheels-linux-${{ matrix.platform.target }}.tar.gz
           path: dist
           role-to-assume: ${{ secrets.S3_UPLOAD_ROLE_ARN }}
 
@@ -121,7 +121,7 @@ jobs:
         if: "!cancelled() && github.event_name != 'pull_request'"
         with:
           bucket: ${{ secrets.S3_ASSET_BUCKET }}
-          name: wheels-macos-${{ matrix.platform.target }}
+          name: wheels-macos-${{ matrix.platform.target }}.tar.gz
           path: dist
           role-to-assume: ${{ secrets.S3_UPLOAD_ROLE_ARN }}
   sdist:
@@ -145,6 +145,7 @@ jobs:
         if: "!cancelled() && github.event_name != 'pull_request'"
         with:
           bucket: ${{ secrets.S3_ASSET_BUCKET }}
-          name: wheels-sdist
-          path: dist
+          name: wheels-sdist.tar.gz
+          path: dist/context_py-0.1.0.tar.gz
           role-to-assume: ${{ secrets.S3_UPLOAD_ROLE_ARN }}
+          compress: "false"
