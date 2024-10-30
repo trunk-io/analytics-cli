@@ -146,5 +146,5 @@ jobs:
         with:
           bucket: ${{ secrets.S3_ASSET_BUCKET }}
           name: wheels-sdist
-          path: dist
+          path: dist/context_py-0.1.0.tar.gz
           role-to-assume: ${{ secrets.S3_UPLOAD_ROLE_ARN }}
