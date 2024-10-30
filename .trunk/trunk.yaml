@@ -47,7 +47,6 @@ actions:
       run: |
         cargo run --bin stub_gen
         mv context-py/context{-,_}py.pyi
-        trunk fmt context-py/context_py.pyi
   enabled:
     - generate-pyi
     - git-lfs
