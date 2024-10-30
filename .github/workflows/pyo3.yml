@@ -9,7 +9,6 @@ on:
   push:
     branches:
       - main
-      - master
     tags:
       - "*"
   pull_request: {}
@@ -17,6 +16,7 @@ on:
 
 permissions:
   contents: read
+  id-token: write
 
 jobs:
   linux:
@@ -82,6 +82,14 @@ jobs:
             set -e
             pip3 install context-py --find-links dist --force-reinstall
             cd ./context-py && pytest
+      - name: Upload wheel package to S3
+        uses: ./.github/actions/upload_to_s3
+        if: "!cancelled() && github.event_name != 'pull_request'"
+        with:
+          bucket: ${{ secrets.S3_ASSET_BUCKET }}
+          name: wheels-linux-${{ matrix.platform.target }}
+          path: dist
+          role-to-assume: ${{ secrets.S3_UPLOAD_ROLE_ARN }}
 
   macos:
     runs-on: ${{ matrix.platform.runner }}
@@ -108,7 +116,14 @@ jobs:
         with:
           name: wheels-macos-${{ matrix.platform.target }}
           path: dist
-
+      - name: Upload wheel package to S3
+        uses: ./.github/actions/upload_to_s3
+        if: "!cancelled() && github.event_name != 'pull_request'"
+        with:
+          bucket: ${{ secrets.S3_ASSET_BUCKET }}
+          name: wheels-macos-${{ matrix.platform.target }}
+          path: dist
+          role-to-assume: ${{ secrets.S3_UPLOAD_ROLE_ARN }}
   sdist:
     # TODO(TRUNK-13050): update to `ubuntu-latest` when `maturin-action` gets updated to support it
     # https://github.com/PyO3/maturin-action/issues/291
@@ -125,3 +140,11 @@ jobs:
         with:
           name: wheels-sdist
           path: dist
+      - name: Upload wheel package to S3
+        uses: ./.github/actions/upload_to_s3
+        if: "!cancelled() && github.event_name != 'pull_request'"
+        with:
+          bucket: ${{ secrets.S3_ASSET_BUCKET }}
+          name: wheels-sdist
+          path: dist
+          role-to-assume: ${{ secrets.S3_UPLOAD_ROLE_ARN }}
