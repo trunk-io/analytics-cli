@@ -3,13 +3,15 @@ use std::{collections::HashMap, time::Duration};
 use chrono::DateTime;
 #[cfg(feature = "pyo3")]
 use pyo3::prelude::*;
+#[cfg(feature = "pyo3")]
+use pyo3_stub_gen::derive::gen_stub_pyclass;
 use quick_junit::{
     NonSuccessKind, Property, Report, TestCase, TestCaseStatus, TestRerun, TestSuite,
 };
 #[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::*;
 
-#[cfg_attr(feature = "pyo3", pyclass(get_all))]
+#[cfg_attr(feature = "pyo3", pyclass(get_all), gen_stub_pyclass)]
 #[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
 #[derive(Clone, Debug)]
 pub struct BindingsReport {

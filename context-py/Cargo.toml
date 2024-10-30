@@ -6,8 +6,13 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [lib]
 name = "context_py"
-crate-type = ["cdylib"]
+crate-type = ["cdylib", "rlib"]
+
+[[bin]]
+name = "stub_gen"
+path = "bin/stub_gen.rs"
 
 [dependencies]
 context = { path = "../context", features = ["git-access", "pyo3"] }
 pyo3 = "0.22.5"
+pyo3-stub-gen = "0.6.0"

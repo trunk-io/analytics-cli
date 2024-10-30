@@ -3,6 +3,8 @@ use std::path::PathBuf;
 use anyhow::Context;
 #[cfg(feature = "pyo3")]
 use pyo3::prelude::*;
+#[cfg(feature = "pyo3")]
+use pyo3_stub_gen::derive::gen_stub_pyclass;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "wasm")]
@@ -21,7 +23,7 @@ struct BundleRepoOptions {
     repo_head_commit_epoch: Option<i64>,
 }
 
-#[cfg_attr(feature = "pyo3", pyclass(get_all))]
+#[cfg_attr(feature = "pyo3", pyclass(get_all), gen_stub_pyclass)]
 #[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct BundleRepo {
