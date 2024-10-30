@@ -5,7 +5,8 @@ use colored::{ColoredString, Colorize};
 use console::Emoji;
 use context::junit::parser::{JunitParseError, JunitParser};
 use context::junit::validator::{
-    validate as validate_report, JunitReportValidation, JunitReportValidationFlatIssue, JunitValidationLevel
+    validate as validate_report, JunitReportValidation, JunitReportValidationFlatIssue,
+    JunitValidationLevel,
 };
 use quick_junit::Report;
 use std::collections::BTreeMap;
@@ -78,16 +79,13 @@ fn parse_file_sets(file_sets: Vec<FileSet>) -> JunitFileToReportAndErrors {
 
             let file_buf_reader = BufReader::new(file);
             let mut junit_parser = JunitParser::new();
-            match junit_parser.parse(file_buf_reader) {
-                Err(e) => {
-                    parse_results.insert(
-                        bundled_file.original_path_rel.clone(),
-                        (Err(anyhow::anyhow!(e)), Vec::new()),
-                    );
-                    return parse_results;
-                }
-                _ => (),
-            };
+            if let Err(e) = junit_parser.parse(file_buf_reader) {
+                parse_results.insert(
+                    bundled_file.original_path_rel.clone(),
+                    (Err(anyhow::anyhow!(e)), Vec::new()),
+                );
+                return parse_results;
+            }
 
             let parse_errors = junit_parser.errors().to_vec();
             for report in junit_parser.into_reports() {
@@ -243,15 +241,12 @@ fn print_validation_errors(report_validations: &JunitFileToValidation) -> (usize
             num_validation_warnings_str,
         );
 
-        match report_parse_error {
-            Some(parse_error) => {
-                log::info!(
-                    "  {} - {}",
-                    print_validation_level(JunitValidationLevel::Invalid),
-                    parse_error,
-                );
-            }
-            _ => (),
+        if let Some(parse_error) = report_parse_error {
+            log::info!(
+                "  {} - {}",
+                print_validation_level(JunitValidationLevel::Invalid),
+                parse_error,
+            );
         }
 
         for issue in all_issues {

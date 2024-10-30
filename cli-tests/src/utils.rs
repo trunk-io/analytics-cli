@@ -1,4 +1,3 @@
-use anyhow::Result;
 use chrono::{TimeDelta, Utc};
 use escargot::{CargoBuild, CargoRun};
 use junit_mock::JunitMock;
@@ -66,9 +65,8 @@ pub fn generate_mock_codeowners<T: AsRef<Path>>(directory: T) {
     fs::write(directory.as_ref().join("CODEOWNERS"), CODEOWNERS).unwrap();
 }
 
-pub fn write_junit_xml_to_dir<T: AsRef<Path>>(xml: &str, directory: T) -> Result<()> {
+pub fn write_junit_xml_to_dir<T: AsRef<Path>>(xml: &str, directory: T) {
     let path = directory.as_ref().join("junit-0.xml");
-    let mut file = fs::File::create(&path)?;
-    file.write_all(xml.as_bytes())?;
-    Ok(())
+    let mut file = fs::File::create(&path).unwrap();
+    file.write_all(xml.as_bytes()).unwrap();
 }

@@ -58,7 +58,7 @@ fn validate_invalid_junits() {
 fn validate_invalid_xml() {
     let temp_dir = tempdir().unwrap();
     let invalid_xml = "<bad<attrs<><><";
-    let _ = write_junit_xml_to_dir(&invalid_xml, &temp_dir);
+    write_junit_xml_to_dir(&invalid_xml, &temp_dir);
 
     let assert = Command::new(CARGO_RUN.path())
         .current_dir(&temp_dir)
