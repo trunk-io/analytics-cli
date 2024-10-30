@@ -204,35 +204,8 @@ fn print_validation_errors(
     for report_validation in report_validations {
         let num_test_cases = report_validation.0.test_cases_flat().len();
 
-        let num_report_validation_errors =
-            report_validation.0.report_invalid_validation_issues().len();
-        let num_test_suite_validation_errors = report_validation
-            .0
-            .test_suite_invalid_validation_issues_flat()
-            .len();
-        let num_test_case_validation_errors = report_validation
-            .0
-            .test_case_invalid_validation_issues_flat()
-            .len();
-        let num_validation_errors = num_report_validation_errors
-            + num_test_suite_validation_errors
-            + num_test_case_validation_errors;
-
-        let num_report_validation_warnings = report_validation
-            .0
-            .report_suboptimal_validation_issues()
-            .len();
-        let num_test_suite_validation_warnings = report_validation
-            .0
-            .test_suite_suboptimal_validation_issues_flat()
-            .len();
-        let num_test_case_validation_warnings = report_validation
-            .0
-            .test_case_suboptimal_validation_issues_flat()
-            .len();
-        let num_validation_warnings = num_report_validation_warnings
-            + num_test_suite_validation_warnings
-            + num_test_case_validation_warnings;
+        let num_validation_errors = report_validation.0.num_invalid_issues();
+        let num_validation_warnings = report_validation.0.num_suboptimal_issues();
 
         let num_validation_errors_str = if num_validation_errors > 0 {
             num_validation_errors.to_string().red()
@@ -256,27 +229,11 @@ fn print_validation_errors(
             num_validation_warnings_str,
         );
 
-        for report_validation_error in report_validation.0.report_validation_issues() {
+        for issue in report_validation.0.all_issues() {
             log::info!(
                 "  {} - {}",
-                print_validation_level(JunitValidationLevel::from(report_validation_error)),
-                report_validation_error.to_string(),
-            );
-        }
-
-        for test_suite_validation_error in report_validation.0.test_suite_validation_issues_flat() {
-            log::info!(
-                "  {} - {}",
-                print_validation_level(JunitValidationLevel::from(test_suite_validation_error)),
-                test_suite_validation_error.to_string(),
-            );
-        }
-
-        for test_case_validation_error in report_validation.0.test_case_validation_issues_flat() {
-            log::info!(
-                "  {} - {}",
-                print_validation_level(JunitValidationLevel::from(test_case_validation_error)),
-                test_case_validation_error.to_string(),
+                print_validation_level(issue.level),
+                issue.error_message,
             );
         }
 

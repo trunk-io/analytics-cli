@@ -2,7 +2,7 @@ use chrono::{DateTime, FixedOffset, Utc};
 #[cfg(feature = "pyo3")]
 use pyo3::prelude::*;
 use quick_junit::Report;
-use std::{cmp::Ordering, collections::BTreeSet};
+use std::{cmp::Ordering, collections::HashSet};
 use thiserror::Error;
 #[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::*;
@@ -43,6 +43,21 @@ impl<SO, I> From<&JunitValidationIssue<SO, I>> for JunitValidationLevel {
             JunitValidationIssue::SubOptimal(..) => JunitValidationLevel::SubOptimal,
             JunitValidationIssue::Invalid(..) => JunitValidationLevel::Invalid,
         }
+    }
+}
+
+#[cfg_attr(feature = "pyo3", pyclass(eq, eq_int))]
+#[cfg_attr(feature = "wasm", wasm_bindgen)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub enum JunitValidationType {
+    Report = 0,
+    TestSuite = 1,
+    TestCase = 2,
+}
+
+impl Default for JunitValidationType {
+    fn default() -> Self {
+        Self::Report
     }
 }
 
@@ -115,9 +130,9 @@ pub fn validate(report: &Report) -> JunitReportValidation {
                     .unwrap_or_default(),
             ) {
                 FieldLen::Valid => (),
-                FieldLen::TooShort(_s) => {
-                    report_validation.add_issue(JunitValidationIssue::SubOptimal(
-                        JunitReportValidationIssueSubOptimal::TestCasesFileOrFilepathMissing,
+                FieldLen::TooShort(s) => {
+                    test_case_validation.add_issue(JunitValidationIssue::SubOptimal(
+                        JunitTestCaseValidationIssueSubOptimal::TestCaseFileOrFilepathTooShort(s),
                     ));
                 }
                 FieldLen::TooLong(s) => {
@@ -170,8 +185,8 @@ pub fn validate(report: &Report) -> JunitReportValidation {
                         JunitTestCaseValidationIssueSubOptimal::TestCaseOldTimestamp(timestamp),
                     ));
                 } else if time_since_timestamp.num_hours() > i64::from(TIMESTAMP_STALE_HOURS) {
-                    report_validation.add_issue(JunitValidationIssue::SubOptimal(
-                        JunitReportValidationIssueSubOptimal::StaleTimestamps,
+                    test_case_validation.add_issue(JunitValidationIssue::SubOptimal(
+                        JunitTestCaseValidationIssueSubOptimal::TestCaseStaleTimestamp(timestamp),
                     ));
                 }
             } else {
@@ -186,6 +201,8 @@ pub fn validate(report: &Report) -> JunitReportValidation {
         report_validation.test_suites.push(test_suite_validation);
     }
 
+    report_validation.derive_all_issues();
+
     report_validation
 }
 
@@ -193,7 +210,7 @@ pub fn validate(report: &Report) -> JunitReportValidation {
 #[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct JunitReportValidation {
-    issues: BTreeSet<JunitReportValidationIssue>,
+    all_issues: Vec<JunitReportValidationFlatIssue>,
     level: JunitValidationLevel,
     test_suites: Vec<JunitTestSuiteValidation>,
 }
@@ -203,20 +220,15 @@ pub struct JunitReportValidation {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct JunitReportValidationFlatIssue {
     pub level: JunitValidationLevel,
+    pub error_type: JunitValidationType,
     pub error_message: String,
 }
 
 #[cfg_attr(feature = "pyo3", pymethods)]
 #[cfg_attr(feature = "wasm", wasm_bindgen)]
 impl JunitReportValidation {
-    pub fn issues_flat(&self) -> Vec<JunitReportValidationFlatIssue> {
-        self.issues
-            .iter()
-            .map(|i| JunitReportValidationFlatIssue {
-                level: JunitValidationLevel::from(i),
-                error_message: i.to_string(),
-            })
-            .collect()
+    pub fn all_issues_owned(&self) -> Vec<JunitReportValidationFlatIssue> {
+        self.all_issues.clone()
     }
 
     pub fn test_suites_owned(&self) -> Vec<JunitTestSuiteValidation> {
@@ -237,9 +249,27 @@ impl JunitReportValidation {
             .map(|test_suite| test_suite.level)
             .max()
     }
+
+    pub fn num_invalid_issues(&self) -> usize {
+        self.all_issues
+            .iter()
+            .filter(|issue| issue.level == JunitValidationLevel::Invalid)
+            .count()
+    }
+
+    pub fn num_suboptimal_issues(&self) -> usize {
+        self.all_issues
+            .iter()
+            .filter(|issue| issue.level == JunitValidationLevel::SubOptimal)
+            .count()
+    }
 }
 
 impl JunitReportValidation {
+    pub fn all_issues(&self) -> &[JunitReportValidationFlatIssue] {
+        &self.all_issues
+    }
+
     pub fn test_suites(&self) -> &[JunitTestSuiteValidation] {
         &self.test_suites
     }
@@ -251,93 +281,72 @@ impl JunitReportValidation {
             .collect()
     }
 
-    pub fn report_validation_issues(&self) -> &BTreeSet<JunitReportValidationIssue> {
-        &self.issues
-    }
+    fn derive_all_issues(&mut self) {
+        let mut report_level_issues: HashSet<JunitReportValidationIssue> = HashSet::new();
+        let mut other_issues: Vec<JunitReportValidationFlatIssue> = Vec::new();
 
-    fn report_variant_validation_issues(
-        &self,
-        level: JunitValidationLevel,
-    ) -> Vec<&JunitReportValidationIssue> {
-        self.issues
+        for test_suite in &self.test_suites {
+            for issue in &test_suite.issues {
+                other_issues.push(JunitReportValidationFlatIssue {
+                    level: JunitValidationLevel::from(issue),
+                    error_type: JunitValidationType::TestSuite,
+                    error_message: issue.to_string(),
+                });
+            }
+
+            for test_case in &test_suite.test_cases {
+                for issue in &test_case.issues {
+                    if let Some(report_level_issue) = match issue {
+                        JunitValidationIssue::SubOptimal(
+                            JunitTestCaseValidationIssueSubOptimal::TestCaseFileOrFilepathTooShort(
+                                ..,
+                            ),
+                        ) => Some(JunitValidationIssue::SubOptimal(
+                            JunitReportValidationIssueSubOptimal::TestCasesFileOrFilepathMissing,
+                        )),
+                        JunitValidationIssue::SubOptimal(
+                            JunitTestCaseValidationIssueSubOptimal::TestCaseStaleTimestamp(..),
+                        ) => Some(JunitValidationIssue::SubOptimal(
+                            JunitReportValidationIssueSubOptimal::StaleTimestamps,
+                        )),
+                        _ => None,
+                    } {
+                        report_level_issues.insert(report_level_issue);
+                    } else {
+                        other_issues.push(JunitReportValidationFlatIssue {
+                            level: JunitValidationLevel::from(issue),
+                            error_type: JunitValidationType::TestCase,
+                            error_message: issue.to_string(),
+                        });
+                    }
+                }
+            }
+        }
+
+        self.level = report_level_issues
             .iter()
-            .filter(|validation_issue| JunitValidationLevel::from(*validation_issue) == level)
-            .collect()
-    }
+            .map(|report_level_issue| JunitValidationLevel::from(report_level_issue))
+            .max()
+            .map_or(self.level, |l| l.max(self.level));
 
-    pub fn report_suboptimal_validation_issues(&self) -> Vec<&JunitReportValidationIssue> {
-        self.report_variant_validation_issues(JunitValidationLevel::SubOptimal)
-    }
+        other_issues.extend(
+            report_level_issues
+                .iter()
+                .map(|report_level_issue| JunitReportValidationFlatIssue {
+                    level: JunitValidationLevel::from(report_level_issue),
+                    error_type: JunitValidationType::Report,
+                    error_message: report_level_issue.to_string(),
+                })
+                .collect::<Vec<JunitReportValidationFlatIssue>>(),
+        );
 
-    pub fn report_invalid_validation_issues(&self) -> Vec<&JunitReportValidationIssue> {
-        self.report_variant_validation_issues(JunitValidationLevel::Invalid)
-    }
+        other_issues.sort_by(|a, b| match (a.level, b.level) {
+            (JunitValidationLevel::Invalid, JunitValidationLevel::SubOptimal) => Ordering::Less,
+            (JunitValidationLevel::SubOptimal, JunitValidationLevel::Invalid) => Ordering::Greater,
+            _ => a.error_message.cmp(&b.error_message),
+        });
 
-    pub fn test_suite_validation_issues_flat(&self) -> Vec<&JunitTestSuiteValidationIssue> {
-        self.test_suites
-            .iter()
-            .flat_map(|test_suite| test_suite.issues())
-            .collect()
-    }
-
-    pub fn test_case_validation_issues_flat(&self) -> Vec<&JunitTestCaseValidationIssue> {
-        self.test_suites
-            .iter()
-            .flat_map(|test_suite| test_suite.test_cases())
-            .flat_map(|test_case| test_case.issues())
-            .collect()
-    }
-
-    fn test_suite_variant_validation_issues_flat(
-        &self,
-        level: JunitValidationLevel,
-    ) -> Vec<&JunitTestSuiteValidationIssue> {
-        self.test_suites
-            .iter()
-            .flat_map(|test_suite| test_suite.issues())
-            .filter(|test_suite_validation_issue| {
-                JunitValidationLevel::from(*test_suite_validation_issue) == level
-            })
-            .collect()
-    }
-
-    pub fn test_suite_suboptimal_validation_issues_flat(
-        &self,
-    ) -> Vec<&JunitTestSuiteValidationIssue> {
-        self.test_suite_variant_validation_issues_flat(JunitValidationLevel::SubOptimal)
-    }
-
-    pub fn test_suite_invalid_validation_issues_flat(&self) -> Vec<&JunitTestSuiteValidationIssue> {
-        self.test_suite_variant_validation_issues_flat(JunitValidationLevel::Invalid)
-    }
-
-    fn test_case_variant_validation_issues_flat(
-        &self,
-        level: JunitValidationLevel,
-    ) -> Vec<&JunitTestCaseValidationIssue> {
-        self.test_suites
-            .iter()
-            .flat_map(|test_suite| test_suite.test_cases())
-            .flat_map(|test_case| test_case.issues())
-            .filter(|test_case_validation_issue| {
-                JunitValidationLevel::from(*test_case_validation_issue) == level
-            })
-            .collect()
-    }
-
-    pub fn test_case_suboptimal_validation_issues_flat(
-        &self,
-    ) -> Vec<&JunitTestCaseValidationIssue> {
-        self.test_case_variant_validation_issues_flat(JunitValidationLevel::SubOptimal)
-    }
-
-    pub fn test_case_invalid_validation_issues_flat(&self) -> Vec<&JunitTestCaseValidationIssue> {
-        self.test_case_variant_validation_issues_flat(JunitValidationLevel::Invalid)
-    }
-
-    fn add_issue(&mut self, issue: JunitReportValidationIssue) {
-        self.level = self.level.max(JunitValidationLevel::from(&issue));
-        self.issues.insert(issue);
+        self.all_issues = other_issues;
     }
 }
 
@@ -350,22 +359,6 @@ impl ToString for JunitReportValidationIssue {
             Self::SubOptimal(i) => i.to_string(),
             Self::Invalid(i) => i.to_string(),
         }
-    }
-}
-
-impl Ord for JunitReportValidationIssue {
-    fn cmp(&self, other: &Self) -> Ordering {
-        match (self, other) {
-            (Self::Invalid(_), Self::SubOptimal(_)) => Ordering::Less,
-            (Self::SubOptimal(_), Self::Invalid(_)) => Ordering::Greater,
-            _ => self.to_string().cmp(&other.to_string()),
-        }
-    }
-}
-
-impl PartialOrd for JunitReportValidationIssue {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.cmp(other))
     }
 }
 
@@ -415,6 +408,7 @@ impl JunitTestSuiteValidation {
             .iter()
             .map(|i| JunitReportValidationFlatIssue {
                 level: JunitValidationLevel::from(i),
+                error_type: JunitValidationType::TestSuite,
                 error_message: i.to_string(),
             })
             .collect()
@@ -503,6 +497,7 @@ impl JunitTestCaseValidation {
             .iter()
             .map(|i| JunitReportValidationFlatIssue {
                 level: JunitValidationLevel::from(i),
+                error_type: JunitValidationType::TestCase,
                 error_message: i.to_string(),
             })
             .collect()
@@ -524,6 +519,8 @@ impl JunitTestCaseValidation {
 pub enum JunitTestCaseValidationIssueSubOptimal {
     #[error("test case name too long, truncated to {}", MAX_FIELD_LEN)]
     TestCaseNameTooLong(String),
+    #[error("test case file or filepath too short")]
+    TestCaseFileOrFilepathTooShort(String),
     #[error("test case file or filepath too long")]
     TestCaseFileOrFilepathTooLong(String),
     #[error("test case classname too short")]
@@ -541,6 +538,11 @@ pub enum JunitTestCaseValidationIssueSubOptimal {
         TIMESTAMP_OLD_DAYS
     )]
     TestCaseOldTimestamp(DateTime<FixedOffset>),
+    #[error(
+        "test case or parent has stale (> {} hour(s)) timestamp",
+        TIMESTAMP_STALE_HOURS
+    )]
+    TestCaseStaleTimestamp(DateTime<FixedOffset>),
 }
 
 #[derive(Error, Debug, Clone, PartialEq, Eq)]
