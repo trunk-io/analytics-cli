@@ -42,3 +42,4 @@ jobs:
           name: js
           path: context-js/pkg
           role-to-assume: ${{ secrets.S3_UPLOAD_ROLE_ARN }}
+          compress: "true"
