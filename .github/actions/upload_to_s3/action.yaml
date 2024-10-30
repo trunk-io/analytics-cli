@@ -32,7 +32,7 @@ runs:
       shell: bash
       if: ${{ inputs.compress == 'true' }}
       run: |
-        TAR_FILE="${{ inputs.name }}.tar.gz"
+        TAR_FILE="${{ inputs.name }}"
         tar -czvf "${TAR_FILE}" -C ${{ inputs.path }} .
         echo "Compressed folder ${{ inputs.path }} to ${TAR_FILE}"
         echo TAR_FILE=${TAR_FILE}>> $GITHUB_ENV
@@ -43,6 +43,5 @@ runs:
         GIT_SHA=$(git rev-parse --short HEAD)
         DATE=$(date "+%Y-%m-%d")
         LOCAL_FILE=${TAR_FILE:-${{ inputs.path }}}
-        UPLOAD_NAME=${TAR_FILE:-${{ inputs.name }}}
 
-        aws s3 cp ${LOCAL_FILE} s3://${{ inputs.bucket }}/${DATE}/${GIT_SHA}/${UPLOAD_NAME}
+        aws s3 cp ${LOCAL_FILE} s3://${{ inputs.bucket }}/${DATE}/${GIT_SHA}/${{ inputs.name }}
