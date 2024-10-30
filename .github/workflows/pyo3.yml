@@ -82,7 +82,7 @@ jobs:
             set -e
             pip3 install context-py --find-links dist --force-reinstall
             cd ./context-py && pytest
-      - name: Upload wasm package to S3
+      - name: Upload wheel package to S3
         uses: ./.github/actions/upload_to_s3
         if: "!cancelled() && github.event_name != 'pull_request'"
         with:
@@ -116,7 +116,7 @@ jobs:
         with:
           name: wheels-macos-${{ matrix.platform.target }}
           path: dist
-      - name: Upload wasm package to S3
+      - name: Upload wheel package to S3
         uses: ./.github/actions/upload_to_s3
         if: "!cancelled() && github.event_name != 'pull_request'"
         with:
@@ -140,7 +140,7 @@ jobs:
         with:
           name: wheels-sdist
           path: dist
-      - name: Upload wasm package to S3
+      - name: Upload wheel package to S3
         uses: ./.github/actions/upload_to_s3
         if: "!cancelled() && github.event_name != 'pull_request'"
         with:
