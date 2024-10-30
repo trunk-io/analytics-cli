@@ -45,4 +45,4 @@ runs:
         LOCAL_FILE=${TAR_FILE:-${{ inputs.path }}}
         UPLOAD_NAME=${TAR_FILE:-${{ inputs.name }}}
 
-        aws s3 cp ${LOCAL_FILE} s3://${{ inputs.bucket }}/${DATE}/${GIT_SHA}/${TARGET_NAME}
+        aws s3 cp ${LOCAL_FILE} s3://${{ inputs.bucket }}/${DATE}/${GIT_SHA}/${UPLOAD_NAME}
