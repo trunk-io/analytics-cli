@@ -40,7 +40,16 @@ lint:
         - name: lint
           run_when: [cli, monitor, ci]
 actions:
+  definitions:
+    - id: generate-pyi
+      description: Generate Python stubs
+      runtime: rust
+      run: |
+        cargo run --bin stub_gen
+        mv context-py/context{-,_}py.pyi
+        trunk fmt context-py/context_py.pyi
   enabled:
+    - generate-pyi
     - git-lfs
     - trunk-announce
     - trunk-check-pre-push
