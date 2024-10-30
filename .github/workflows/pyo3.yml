@@ -148,3 +148,4 @@ jobs:
           name: wheels-sdist
           path: dist/context_py-0.1.0.tar.gz
           role-to-assume: ${{ secrets.S3_UPLOAD_ROLE_ARN }}
+          compress: "false"

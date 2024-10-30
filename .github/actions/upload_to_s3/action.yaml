@@ -16,7 +16,7 @@ inputs:
   compress:
     description: Whether to compress the artifact before uploading
     required: false
-    default: "false"
+    default: "true"
 
 runs:
   using: composite
@@ -42,5 +42,7 @@ runs:
       run: |
         GIT_SHA=$(git rev-parse --short HEAD)
         DATE=$(date "+%Y-%m-%d")
+        LOCAL_FILE=${TAR_FILE:-${{ inputs.path }}}
+        UPLOAD_NAME=${TAR_FILE:-${{ inputs.name }}}
 
-        aws s3 cp ${TAR_FILE:-${{ inputs.path }}} s3://${{ inputs.bucket }}/${DATE}/${GIT_SHA}/${TAR_FILE}
+        aws s3 cp ${LOCAL_FILE} s3://${{ inputs.bucket }}/${DATE}/${GIT_SHA}/${TARGET_NAME}
