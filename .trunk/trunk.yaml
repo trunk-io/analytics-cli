@@ -43,7 +43,7 @@ actions:
   definitions:
     - id: generate-pyi
       description: Generate Python stubs
-      runtime: rust
+      # Don't use hermetic runtime so we can use nightly cargo
       run: |
         cargo run --bin stub_gen
         mv context-py/context{-,_}py.pyi
