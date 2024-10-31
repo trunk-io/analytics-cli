@@ -43,7 +43,7 @@ jobs:
         if: "!cancelled() && github.event_name != 'pull_request'"
         with:
           bucket: ${{ secrets.S3_ASSET_BUCKET }}
-          name: context-js-1.0.0.tgz
-          path: context-js/pkg/context-js-1.0.0.tgz
+          name: context-js-0.1.0.tgz
+          path: context-js/pkg/context-js-0.1.0.tgz
           role-to-assume: ${{ secrets.S3_UPLOAD_ROLE_ARN }}
           compress: "false"
