@@ -13,10 +13,6 @@ inputs:
   role-to-assume:
     description: ARN of the role to assume
     required: false
-  compress:
-    description: Whether to compress the artifact before uploading
-    required: false
-    default: "true"
   s3-flags:
     description: Additional flags to pass to the `aws s3 cp` command
     required: false
@@ -31,21 +27,12 @@ runs:
         role-skip-session-tagging: true
         aws-region: us-west-2
 
-    - name: Compress input
-      shell: bash
-      if: ${{ inputs.compress == 'true' }}
-      run: |
-        TAR_FILE="${{ inputs.name }}"
-        tar -czvf "${TAR_FILE}" -C ${{ inputs.path }} .
-        echo "Compressed folder ${{ inputs.path }} to ${TAR_FILE}"
-        echo TAR_FILE=${TAR_FILE}>> $GITHUB_ENV
-
     - name: Upload artifact to S3
       shell: bash
       run: |
         GIT_SHA=$(git rev-parse --short HEAD)
         DATE=$(date "+%Y-%m-%d")
-        LOCAL_FILE=${TAR_FILE:-${{ inputs.path }}}
+        LOCAL_FILE=${{ inputs.path }}
         TARGET_PATH="${{ inputs.bucket }}/${DATE}/${GIT_SHA}/${{ inputs.name }}"
 
         aws s3 cp ${{ inputs.s3-flags }} ${LOCAL_FILE} s3://${TARGET_PATH}

@@ -46,4 +46,3 @@ jobs:
           name: context-js-0.1.0.tgz
           path: context-js/pkg/context-js-0.1.0.tgz
           role-to-assume: ${{ secrets.S3_UPLOAD_ROLE_ARN }}
-          compress: "false"
