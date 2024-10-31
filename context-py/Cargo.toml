@@ -14,5 +14,5 @@ path = "bin/stub_gen.rs"
 
 [dependencies]
 context = { path = "../context", features = ["git-access", "pyo3"] }
-pyo3 = "0.22.5"
+pyo3 = { version = "0.22.5", features = ["abi3-py39", "extension-module"] }
 pyo3-stub-gen = "0.6.0"
