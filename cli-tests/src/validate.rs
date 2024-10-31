@@ -1,6 +1,6 @@
 use crate::utils::{
     generate_mock_invalid_junit_xmls, generate_mock_suboptimal_junit_xmls,
-    generate_mock_valid_junit_xmls, CARGO_RUN,
+    generate_mock_valid_junit_xmls, write_junit_xml_to_dir, CARGO_RUN,
 };
 use assert_cmd::Command;
 use predicates::prelude::*;
@@ -49,6 +49,25 @@ fn validate_invalid_junits() {
         .stderr(predicate::str::contains("1 validation error"))
         .stderr(predicate::str::contains(
             "INVALID - test suite name too short",
+        ));
+
+    println!("{assert}");
+}
+
+#[test]
+fn validate_invalid_xml() {
+    let temp_dir = tempdir().unwrap();
+    let invalid_xml = "<bad<attrs<><><";
+    write_junit_xml_to_dir(&invalid_xml, &temp_dir);
+
+    let assert = Command::new(CARGO_RUN.path())
+        .current_dir(&temp_dir)
+        .args(&["validate", "--junit-paths", "./*"])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("1 validation error"))
+        .stderr(predicate::str::contains(
+            "INVALID - syntax error: tag not closed",
         ));
 
     println!("{assert}");
