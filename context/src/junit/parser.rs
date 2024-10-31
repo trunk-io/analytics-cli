@@ -1,4 +1,4 @@
-use std::io::BufRead;
+use std::{io::BufRead, mem};
 
 use quick_junit::{NonSuccessKind, Report, TestCase, TestCaseStatus, TestRerun, TestSuite};
 use quick_xml::{
@@ -42,8 +42,6 @@ pub enum JunitParseError {
     ReportStartTagNotFound,
     #[error("could not parse test suite name")]
     TestSuiteName,
-    #[error("test suite found without a report found")]
-    TestSuiteReportNotFound,
     #[error("test suite end tag found without start tag")]
     TestSuiteStartTagNotFound,
     #[error("could not parse test case name")]
@@ -73,12 +71,20 @@ enum Text {
     StackTrace(Option<String>),
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum CurrentReportState {
+    Default,
+    DefaultWithTestSuites,
+    Opened,
+}
+
+#[derive(Debug, Clone)]
 pub struct JunitParser {
     date_parser: JunitDateParser,
     errors: Vec<JunitParseError>,
     reports: Vec<Report>,
-    current_report: Option<Report>,
+    current_report: Report,
+    current_report_state: CurrentReportState,
     current_test_suite: Option<TestSuite>,
     current_test_case: Option<TestCase>,
     current_test_rerun: Option<TestRerun>,
@@ -87,7 +93,17 @@ pub struct JunitParser {
 
 impl JunitParser {
     pub fn new() -> Self {
-        Default::default()
+        Self {
+            date_parser: Default::default(),
+            errors: Default::default(),
+            reports: Default::default(),
+            current_report: Report::new(""),
+            current_report_state: CurrentReportState::Default,
+            current_test_suite: Default::default(),
+            current_test_case: Default::default(),
+            current_test_rerun: Default::default(),
+            current_text: Default::default(),
+        }
     }
 
     pub fn errors(&self) -> &Vec<JunitParseError> {
@@ -130,7 +146,10 @@ impl JunitParser {
 
     fn match_event(&mut self, event: Event) -> Option<()> {
         match event {
-            Event::Eof => return None,
+            Event::Eof => {
+                self.close_default_report();
+                return None;
+            }
             Event::Start(e) => match e.name().as_ref() {
                 TAG_REPORT => self.open_report(&e),
                 TAG_TEST_SUITE => self.open_test_suite(&e),
@@ -222,6 +241,19 @@ impl JunitParser {
         }
     }
 
+    fn take_report(&mut self) -> Report {
+        let mut default_report = Report::new("");
+        mem::swap(&mut self.current_report, &mut default_report);
+        self.current_report_state = CurrentReportState::Default;
+        default_report
+    }
+
+    fn set_report(&mut self, report: Report) {
+        self.close_default_report();
+        self.current_report_state = CurrentReportState::Opened;
+        self.current_report = report;
+    }
+
     fn open_report(&mut self, e: &BytesStart) {
         let report_name = parse_attr::name(e).unwrap_or_default();
         if report_name.is_empty() {
@@ -237,15 +269,26 @@ impl JunitParser {
             report.set_time(time);
         }
 
-        self.current_report = Some(report);
+        self.set_report(report);
     }
 
     fn close_report(&mut self) {
-        if let Some(report) = self.current_report.take() {
-            self.reports.push(report);
-        } else {
+        if self.current_report_state != CurrentReportState::Opened {
             self.errors.push(JunitParseError::ReportStartTagNotFound);
+            return;
         }
+
+        let report = self.take_report();
+        self.reports.push(report);
+    }
+
+    fn close_default_report(&mut self) {
+        if self.current_report_state != CurrentReportState::DefaultWithTestSuites {
+            return;
+        }
+
+        let report = self.take_report();
+        self.reports.push(report);
     }
 
     fn open_test_suite(&mut self, e: &BytesStart) {
@@ -289,14 +332,13 @@ impl JunitParser {
     }
 
     fn close_test_suite(&mut self) {
-        if let Some(report) = self.current_report.as_mut() {
-            if let Some(test_suite) = self.current_test_suite.take() {
-                report.add_test_suite(test_suite);
-            } else {
-                self.errors.push(JunitParseError::TestSuiteStartTagNotFound);
+        if let Some(test_suite) = self.current_test_suite.take() {
+            if self.current_report_state == CurrentReportState::Default {
+                self.current_report_state = CurrentReportState::DefaultWithTestSuites
             }
+            self.current_report.add_test_suite(test_suite);
         } else {
-            self.errors.push(JunitParseError::TestSuiteReportNotFound);
+            self.errors.push(JunitParseError::TestSuiteStartTagNotFound);
         }
     }
 
