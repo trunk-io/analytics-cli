@@ -36,7 +36,7 @@ jobs:
 
       - name: Package wasm package
         if: "!cancelled()"
-        run: pnpm pack --dir ./context-js
+        run: pnpm pack --dir ./context-js/pkg
 
       - name: Upload wasm package to S3
         uses: ./.github/actions/upload_to_s3
@@ -44,6 +44,6 @@ jobs:
         with:
           bucket: ${{ secrets.S3_ASSET_BUCKET }}
           name: context-js-1.0.0.tgz
-          path: context-js/context-js-1.0.0.tgz
+          path: context-js/pkg/context-js-1.0.0.tgz
           role-to-assume: ${{ secrets.S3_UPLOAD_ROLE_ARN }}
           compress: "false"
