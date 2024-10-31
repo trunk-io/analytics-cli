@@ -3,6 +3,7 @@ use crate::utils::{
     generate_mock_valid_junit_xmls, CARGO_RUN,
 };
 use assert_cmd::Command;
+use predicates::prelude::*;
 use tempfile::tempdir;
 
 #[test]
@@ -14,7 +15,9 @@ fn validate_success() {
         .current_dir(&temp_dir)
         .args(&["validate", "--junit-paths", "./*"])
         .assert()
-        .success();
+        .success()
+        .stderr(predicate::str::contains("0 validation errors"))
+        .stderr(predicate::str::contains("All 1 files are valid"));
 
     println!("{assert}");
 }
@@ -27,7 +30,8 @@ fn validate_no_junits() {
         .current_dir(&temp_dir)
         .args(&["validate", "--junit-paths", "./*"])
         .assert()
-        .failure();
+        .failure()
+        .stderr(predicate::str::contains("No JUnit files found to validate"));
 
     println!("{assert}");
 }
@@ -41,7 +45,11 @@ fn validate_invalid_junits() {
         .current_dir(&temp_dir)
         .args(&["validate", "--junit-paths", "./*"])
         .assert()
-        .failure();
+        .failure()
+        .stderr(predicate::str::contains("1 validation error"))
+        .stderr(predicate::str::contains(
+            "INVALID - test suite name too short",
+        ));
 
     println!("{assert}");
 }
@@ -55,7 +63,13 @@ fn validate_suboptimal_junits() {
         .current_dir(&temp_dir)
         .args(&["validate", "--junit-paths", "./*"])
         .assert()
-        .success();
+        .success()
+        .stderr(predicate::str::contains(
+            "0 validation errors, 1 validation warning",
+        ))
+        .stderr(predicate::str::contains(
+            "OPTIONAL - report has stale (> 1 hour(s)) timestamps",
+        ));
 
     println!("{assert}");
 }

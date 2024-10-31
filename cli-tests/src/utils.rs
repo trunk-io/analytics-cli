@@ -26,6 +26,10 @@ pub fn generate_mock_git_repo<T: AsRef<Path>>(directory: T) {
 }
 
 pub fn generate_mock_valid_junit_xmls<T: AsRef<Path>>(directory: T) {
+    let mut jm_options = junit_mock::Options::default();
+    jm_options.global.timestamp = Utc::now()
+        .fixed_offset()
+        .checked_sub_signed(TimeDelta::minutes(1));
     let mut jm = JunitMock::new(junit_mock::Options::default());
     let reports = jm.generate_reports();
     JunitMock::write_reports_to_file(directory.as_ref(), reports).unwrap();
@@ -34,6 +38,9 @@ pub fn generate_mock_valid_junit_xmls<T: AsRef<Path>>(directory: T) {
 pub fn generate_mock_invalid_junit_xmls<T: AsRef<Path>>(directory: T) {
     let mut jm_options = junit_mock::Options::default();
     jm_options.test_suite.test_suite_names = Some(vec!["".to_string()]);
+    jm_options.global.timestamp = Utc::now()
+        .fixed_offset()
+        .checked_sub_signed(TimeDelta::minutes(1));
     let mut jm = JunitMock::new(jm_options);
     let reports = jm.generate_reports();
     JunitMock::write_reports_to_file(directory.as_ref(), reports).unwrap();
