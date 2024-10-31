@@ -7,6 +7,8 @@ use chrono::{DateTime, FixedOffset};
 use clap::Parser;
 use fake::Fake;
 use quick_junit::{NonSuccessKind, Report, TestCase, TestCaseStatus, TestRerun, TestSuite};
+use quick_xml::events::Event;
+use quick_xml::{Reader, Writer};
 use rand::prelude::*;
 use rand::rngs::StdRng;
 
@@ -101,12 +103,16 @@ pub struct ReportOptions {
     pub report_names: Option<Vec<String>>,
 
     /// The number of reports with random names to generate (conflicts with --report-names)
-    #[arg(long, conflicts_with = "report_names", default_value = "1")]
+    #[arg(long, default_value = "1", conflicts_with = "report_names")]
     pub report_random_count: usize,
 
     /// Inclusive range of time between report timestamps
     #[arg(long, num_args = 1..=2, value_names = ["DURATION_RANGE_START", "DURATION_RANGE_END"], default_values = ["5m", "1h"])]
     pub report_duration_range: Vec<humantime::Duration>,
+
+    /// Serialize the reports without the top-level `testsuites` element
+    #[arg(long)]
+    pub do_not_render_testsuites_element: bool,
 }
 
 #[derive(Debug, Parser, Clone)]
@@ -285,6 +291,7 @@ impl JunitMock {
     }
 
     pub fn write_reports_to_file<T: AsRef<Path>, U: AsRef<[Report]>>(
+        &self,
         directory: T,
         reports: U,
     ) -> Result<Vec<PathBuf>> {
@@ -292,12 +299,42 @@ impl JunitMock {
             Vec::new(),
             |mut acc, (i, report)| -> Result<Vec<PathBuf>> {
                 let path = directory.as_ref().join(format!("junit-{}.xml", i));
-                let file = File::create(&path)?;
-                report.serialize(file)?;
+                let mut file = File::create(&path)?;
+                if self.options.report.do_not_render_testsuites_element {
+                    Self::serialize_without_testsuites(&mut file, report)?
+                } else {
+                    report.serialize(file)?;
+                }
                 acc.push(path);
                 Ok(acc)
             },
         )
+    }
+
+    fn serialize_without_testsuites(file: &mut File, report: &Report) -> Result<()> {
+        let serialized_report = report.to_string()?;
+        let mut reader = Reader::from_str(&serialized_report);
+        reader.config_mut().trim_text(true);
+        let mut writer = Writer::new_with_indent(file, b' ', 4);
+        loop {
+            match reader.read_event()? {
+                Event::Start(e) => {
+                    if e.name().as_ref() == b"testsuites" {
+                        continue;
+                    }
+                    writer.write_event(Event::Start(e))?;
+                }
+                Event::End(e) => {
+                    if e.name().as_ref() == b"testsuites" {
+                        continue;
+                    }
+                    writer.write_event(Event::End(e))?;
+                }
+                Event::Eof => break,
+                e => writer.write_event(e)?,
+            }
+        }
+        Ok(())
     }
 
     fn generate_test_suites(&mut self) -> Vec<TestSuite> {

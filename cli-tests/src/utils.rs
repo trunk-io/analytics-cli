@@ -33,7 +33,8 @@ pub fn generate_mock_valid_junit_xmls<T: AsRef<Path>>(directory: T) {
         .checked_sub_signed(TimeDelta::minutes(1));
     let mut jm = JunitMock::new(junit_mock::Options::default());
     let reports = jm.generate_reports();
-    JunitMock::write_reports_to_file(directory.as_ref(), reports).unwrap();
+    jm.write_reports_to_file(directory.as_ref(), reports)
+        .unwrap();
 }
 
 pub fn generate_mock_invalid_junit_xmls<T: AsRef<Path>>(directory: T) {
@@ -44,7 +45,8 @@ pub fn generate_mock_invalid_junit_xmls<T: AsRef<Path>>(directory: T) {
         .checked_sub_signed(TimeDelta::minutes(1));
     let mut jm = JunitMock::new(jm_options);
     let reports = jm.generate_reports();
-    JunitMock::write_reports_to_file(directory.as_ref(), reports).unwrap();
+    jm.write_reports_to_file(directory.as_ref(), reports)
+        .unwrap();
 }
 
 pub fn generate_mock_suboptimal_junit_xmls<T: AsRef<Path>>(directory: T) {
@@ -54,7 +56,8 @@ pub fn generate_mock_suboptimal_junit_xmls<T: AsRef<Path>>(directory: T) {
         .checked_sub_signed(TimeDelta::hours(24));
     let mut jm = JunitMock::new(jm_options);
     let reports = jm.generate_reports();
-    JunitMock::write_reports_to_file(directory.as_ref(), reports).unwrap();
+    jm.write_reports_to_file(directory.as_ref(), reports)
+        .unwrap();
 }
 
 pub fn generate_mock_codeowners<T: AsRef<Path>>(directory: T) {

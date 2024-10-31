@@ -22,7 +22,7 @@ fn main() -> Result<()> {
 
     let reports = jm.generate_reports();
 
-    JunitMock::write_reports_to_file(directory, &reports)?;
+    jm.write_reports_to_file(directory, &reports)?;
 
     Ok(())
 }
