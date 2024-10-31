@@ -33,6 +33,11 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.10"
+      - uses: trunk-io/trunk-action/setup@v1
+      - name: Setup Rust & Cargo
+        uses: ./.github/actions/setup_rust_cargo
+      - name: Generate Python stubs
+        run: ${TRUNK_PATH} run generate-pyi
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
@@ -87,9 +92,11 @@ jobs:
         if: "!cancelled() && github.event_name != 'pull_request'"
         with:
           bucket: ${{ secrets.S3_ASSET_BUCKET }}
-          name: wheels-linux-${{ matrix.platform.target }}.tar.gz
+          name: linux-${{ matrix.platform.target }}
           path: dist
+          s3-flags: --recursive
           role-to-assume: ${{ secrets.S3_UPLOAD_ROLE_ARN }}
+          compress: "false"
 
   macos:
     runs-on: ${{ matrix.platform.runner }}
@@ -105,6 +112,11 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.10"
+      - uses: trunk-io/trunk-action/setup@v1
+      - name: Setup Rust & Cargo
+        uses: ./.github/actions/setup_rust_cargo
+      - name: Generate Python stubs
+        run: ${TRUNK_PATH} run generate-pyi
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
@@ -121,15 +133,22 @@ jobs:
         if: "!cancelled() && github.event_name != 'pull_request'"
         with:
           bucket: ${{ secrets.S3_ASSET_BUCKET }}
-          name: wheels-macos-${{ matrix.platform.target }}.tar.gz
+          name: darwin-${{ matrix.platform.target }}
           path: dist
+          s3-flags: --recursive
           role-to-assume: ${{ secrets.S3_UPLOAD_ROLE_ARN }}
+          compress: "false"
   sdist:
     # TODO(TRUNK-13050): update to `ubuntu-latest` when `maturin-action` gets updated to support it
     # https://github.com/PyO3/maturin-action/issues/291
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
+      - uses: trunk-io/trunk-action/setup@v1
+      - name: Setup Rust & Cargo
+        uses: ./.github/actions/setup_rust_cargo
+      - name: Generate Python stubs
+        run: ${TRUNK_PATH} run generate-pyi
       - name: Build sdist
         uses: PyO3/maturin-action@v1
         with:

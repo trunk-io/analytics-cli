@@ -40,7 +40,15 @@ lint:
         - name: lint
           run_when: [cli, monitor, ci]
 actions:
+  definitions:
+    - id: generate-pyi
+      description: Generate Python stubs
+      # Don't use hermetic runtime so we can use nightly cargo
+      run: |
+        cargo run --bin stub_gen
+        mv context-py/context{-,_}py.pyi
   enabled:
+    - generate-pyi
     - git-lfs
     - trunk-announce
     - trunk-check-pre-push

@@ -1,6 +1,8 @@
 use chrono::{DateTime, FixedOffset, Utc};
 #[cfg(feature = "pyo3")]
 use pyo3::prelude::*;
+#[cfg(feature = "pyo3")]
+use pyo3_stub_gen::derive::gen_stub_pyclass;
 use quick_junit::Report;
 use thiserror::Error;
 #[cfg(feature = "wasm")]
@@ -188,7 +190,7 @@ pub fn validate(report: &Report) -> JunitReportValidation {
     report_validation
 }
 
-#[cfg_attr(feature = "pyo3", pyclass(eq))]
+#[cfg_attr(feature = "pyo3", pyclass(eq), gen_stub_pyclass)]
 #[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct JunitReportValidation {

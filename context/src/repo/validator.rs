@@ -1,6 +1,8 @@
 use chrono::{DateTime, Utc};
 #[cfg(feature = "pyo3")]
 use pyo3::prelude::*;
+#[cfg(feature = "pyo3")]
+use pyo3_stub_gen::derive::gen_stub_pyclass;
 use thiserror::Error;
 #[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::*;
@@ -175,7 +177,7 @@ pub fn validate(bundle_repo: &BundleRepo) -> RepoValidation {
     repo_validation
 }
 
-#[cfg_attr(feature = "pyo3", pyclass(eq))]
+#[cfg_attr(feature = "pyo3", pyclass(eq), gen_stub_pyclass)]
 #[cfg_attr(feature = "wasm", wasm_bindgen)]
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct RepoValidation {
