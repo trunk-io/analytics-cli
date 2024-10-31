@@ -23,7 +23,7 @@ struct BundleRepoOptions {
     repo_head_commit_epoch: Option<i64>,
 }
 
-#[cfg_attr(feature = "pyo3", pyclass(get_all), gen_stub_pyclass)]
+#[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass(get_all))]
 #[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct BundleRepo {
@@ -221,7 +221,7 @@ impl BundleRepo {
 
 /// The [`Repo` common type](https://github.com/trunk-io/trunk/blob/518397f/trunk/services/common/types/repo.ts#L10)
 // NOTE: This is named `RepoUrlParts` to prevent confusion as to its purpose
-#[cfg_attr(feature = "pyo3", pyclass(get_all))]
+#[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass(get_all))]
 #[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct RepoUrlParts {
