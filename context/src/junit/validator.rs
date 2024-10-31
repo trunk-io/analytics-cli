@@ -190,7 +190,7 @@ pub fn validate(report: &Report) -> JunitReportValidation {
     report_validation
 }
 
-#[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass(eq))]
+#[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass(eq, get_all))]
 #[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct JunitReportValidation {
