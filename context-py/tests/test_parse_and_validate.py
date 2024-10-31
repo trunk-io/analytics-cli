@@ -25,22 +25,27 @@ def test_env_parse_and_validate():
 
 
 def test_junit_parse_and_validate():
-    import datetime
+    from datetime import datetime, timedelta, timezone
 
-    from context_py import JunitValidationLevel, junit_parse, junit_validate
+    from context_py import (
+        JunitValidationLevel,
+        JunitValidationType,
+        junit_parse,
+        junit_validate,
+    )
 
-    timestamp = datetime.datetime.now().astimezone(datetime.timezone.utc).isoformat()
-    junit_xml = f"""
+    valid_timestamp = datetime.now().astimezone(timezone.utc).isoformat()
+    valid_junit_xml = f"""
     <testsuites name="my-test-run" tests="1" failures="1" errors="0">
-      <testsuite name="my-test-suite" tests="1" disabled="0" errors="0" failures="1" timestamp="{timestamp}">
-        <testcase name="failure-case" file="test.py" classname="MyClass" timestamp="{timestamp}" time="1">
+      <testsuite name="my-test-suite" tests="1" disabled="0" errors="0" failures="1" timestamp="{valid_timestamp}">
+        <testcase name="failure-case" file="test.py" classname="MyClass" timestamp="{valid_timestamp}" time="1">
           <failure/>
         </testcase>
       </testsuite>
     </testsuites>
    """
 
-    report = junit_parse(str.encode(junit_xml))
+    report = junit_parse(str.encode(valid_junit_xml))
     junit_report_validation = junit_validate(report[0])
 
     assert (
@@ -52,6 +57,44 @@ def test_junit_parse_and_validate():
             for test_case in test_suite.test_cases_owned()
             for issue in test_case.issues_flat()
         ]
+    )
+
+    stale_timestamp = (
+        (datetime.now() - timedelta(hours=30)).astimezone(timezone.utc).isoformat()
+    )
+    suboptimal_junit_xml = f"""
+    <testsuites name="my-test-run" tests="1" failures="1" errors="0">
+      <testsuite name="my-test-suite" tests="1" disabled="0" errors="0" failures="1" timestamp="{stale_timestamp}">
+        <testcase name="failure-case" file="test.py" classname="MyClass" timestamp="{stale_timestamp}" time="1">
+          <failure/>
+        </testcase>
+      </testsuite>
+    </testsuites>
+   """
+
+    report = junit_parse(str.encode(suboptimal_junit_xml))
+    junit_report_validation = junit_validate(report[0])
+
+    assert (
+        junit_report_validation.max_level() == JunitValidationLevel.SubOptimal
+    ), "\n" + "\n".join(
+        [
+            issue.error_message
+            for test_suite in junit_report_validation.test_suites_owned()
+            for test_case in test_suite.test_cases_owned()
+            for issue in test_case.issues_flat()
+        ]
+    )
+    assert junit_report_validation.num_suboptimal_issues() == 1
+    assert (
+        len(
+            [
+                x
+                for x in junit_report_validation.all_issues_owned()
+                if x.error_type == JunitValidationType.Report
+            ]
+        )
+        == 1
     )
 
 

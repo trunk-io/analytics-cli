@@ -1,8 +1,9 @@
 use crate::utils::{
     generate_mock_invalid_junit_xmls, generate_mock_suboptimal_junit_xmls,
-    generate_mock_valid_junit_xmls, CARGO_RUN,
+    generate_mock_valid_junit_xmls, write_junit_xml_to_dir, CARGO_RUN,
 };
 use assert_cmd::Command;
+use predicates::prelude::*;
 use tempfile::tempdir;
 
 #[test]
@@ -14,7 +15,9 @@ fn validate_success() {
         .current_dir(&temp_dir)
         .args(&["validate", "--junit-paths", "./*"])
         .assert()
-        .success();
+        .success()
+        .stderr(predicate::str::contains("0 validation errors"))
+        .stderr(predicate::str::contains("All 1 files are valid"));
 
     println!("{assert}");
 }
@@ -27,7 +30,8 @@ fn validate_no_junits() {
         .current_dir(&temp_dir)
         .args(&["validate", "--junit-paths", "./*"])
         .assert()
-        .failure();
+        .failure()
+        .stderr(predicate::str::contains("No JUnit files found to validate"));
 
     println!("{assert}");
 }
@@ -41,7 +45,30 @@ fn validate_invalid_junits() {
         .current_dir(&temp_dir)
         .args(&["validate", "--junit-paths", "./*"])
         .assert()
-        .failure();
+        .failure()
+        .stderr(predicate::str::contains("1 validation error"))
+        .stderr(predicate::str::contains(
+            "INVALID - test suite name too short",
+        ));
+
+    println!("{assert}");
+}
+
+#[test]
+fn validate_invalid_xml() {
+    let temp_dir = tempdir().unwrap();
+    let invalid_xml = "<bad<attrs<><><";
+    write_junit_xml_to_dir(&invalid_xml, &temp_dir);
+
+    let assert = Command::new(CARGO_RUN.path())
+        .current_dir(&temp_dir)
+        .args(&["validate", "--junit-paths", "./*"])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("1 validation error"))
+        .stderr(predicate::str::contains(
+            "INVALID - syntax error: tag not closed",
+        ));
 
     println!("{assert}");
 }
@@ -55,7 +82,13 @@ fn validate_suboptimal_junits() {
         .current_dir(&temp_dir)
         .args(&["validate", "--junit-paths", "./*"])
         .assert()
-        .success();
+        .success()
+        .stderr(predicate::str::contains(
+            "0 validation errors, 1 validation warning",
+        ))
+        .stderr(predicate::str::contains(
+            "OPTIONAL - report has stale (> 1 hour(s)) timestamps",
+        ));
 
     println!("{assert}");
 }

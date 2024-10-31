@@ -1,7 +1,7 @@
 #[cfg(feature = "pyo3")]
 use pyo3::prelude::*;
 #[cfg(feature = "pyo3")]
-use pyo3_stub_gen::derive::gen_stub_pyclass;
+use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pyclass_enum};
 use thiserror::Error;
 #[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::*;
@@ -14,7 +14,7 @@ pub const MAX_BRANCH_NAME_LEN: usize = 36;
 pub const MAX_EMAIL_LEN: usize = 254;
 pub const MAX_FIELD_LEN: usize = 1000;
 
-#[cfg_attr(feature = "pyo3", pyclass(eq, eq_int))]
+#[cfg_attr(feature = "pyo3", gen_stub_pyclass_enum, pyclass(eq, eq_int))]
 #[cfg_attr(feature = "wasm", wasm_bindgen)]
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum EnvValidationLevel {
@@ -261,7 +261,7 @@ pub fn validate(ci_info: &CIInfo) -> EnvValidation {
     env_validation
 }
 
-#[cfg_attr(feature = "pyo3", pyclass, gen_stub_pyclass)]
+#[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass)]
 #[cfg_attr(feature = "wasm", wasm_bindgen)]
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct EnvValidation {
@@ -269,7 +269,7 @@ pub struct EnvValidation {
     issues: Vec<EnvValidationIssue>,
 }
 
-#[cfg_attr(feature = "pyo3", pyclass(get_all))]
+#[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass(get_all))]
 #[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct EnvValidationFlatIssue {

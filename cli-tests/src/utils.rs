@@ -4,6 +4,7 @@ use junit_mock::JunitMock;
 use lazy_static::lazy_static;
 use std::{
     env, fs,
+    io::Write,
     path::{Path, PathBuf},
 };
 use test_utils::mock_git_repo::setup_repo_with_commit;
@@ -26,6 +27,10 @@ pub fn generate_mock_git_repo<T: AsRef<Path>>(directory: T) {
 }
 
 pub fn generate_mock_valid_junit_xmls<T: AsRef<Path>>(directory: T) {
+    let mut jm_options = junit_mock::Options::default();
+    jm_options.global.timestamp = Utc::now()
+        .fixed_offset()
+        .checked_sub_signed(TimeDelta::minutes(1));
     let mut jm = JunitMock::new(junit_mock::Options::default());
     let reports = jm.generate_reports();
     jm.write_reports_to_file(directory.as_ref(), reports)
@@ -35,6 +40,9 @@ pub fn generate_mock_valid_junit_xmls<T: AsRef<Path>>(directory: T) {
 pub fn generate_mock_invalid_junit_xmls<T: AsRef<Path>>(directory: T) {
     let mut jm_options = junit_mock::Options::default();
     jm_options.test_suite.test_suite_names = Some(vec!["".to_string()]);
+    jm_options.global.timestamp = Utc::now()
+        .fixed_offset()
+        .checked_sub_signed(TimeDelta::minutes(1));
     let mut jm = JunitMock::new(jm_options);
     let reports = jm.generate_reports();
     jm.write_reports_to_file(directory.as_ref(), reports)
@@ -58,4 +66,10 @@ pub fn generate_mock_codeowners<T: AsRef<Path>>(directory: T) {
         * @user
     "#;
     fs::write(directory.as_ref().join("CODEOWNERS"), CODEOWNERS).unwrap();
+}
+
+pub fn write_junit_xml_to_dir<T: AsRef<Path>>(xml: &str, directory: T) {
+    let path = directory.as_ref().join("junit-0.xml");
+    let mut file = fs::File::create(&path).unwrap();
+    file.write_all(xml.as_bytes()).unwrap();
 }

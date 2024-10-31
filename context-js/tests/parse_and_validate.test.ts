@@ -7,6 +7,7 @@ import {
   CIPlatform,
   EnvValidationLevel,
   JunitValidationLevel,
+  JunitValidationType,
   RepoUrlParts,
   RepoValidationLevel,
   env_parse,
@@ -54,21 +55,45 @@ describe("context-js", () => {
   it("parses and validates junit files", () => {
     expect.hasAssertions();
 
-    const timestamp = dayjs.utc().toISOString();
-    const junitXml = `
+    const validTimestamp = dayjs.utc().toISOString();
+    const validJunitXml = `
       <testsuites name="my-test-run" tests="1" failures="1" errors="0">
-        <testsuite name="my-test-suite" tests="1" disabled="0" errors="0" failures="1" timestamp="${timestamp}">
-          <testcase name="failure-case" file="test.py" classname="MyClass" timestamp="${timestamp}" time="1">
+        <testsuite name="my-test-suite" tests="1" disabled="0" errors="0" failures="1" timestamp="${validTimestamp}">
+          <testcase name="failure-case" file="test.py" classname="MyClass" timestamp="${validTimestamp}" time="1">
             <failure/>
           </testcase>
         </testsuite>
       </testsuites>
     `;
 
-    const report = junit_parse(Buffer.from(junitXml, "utf-8"));
-    const junitReportValidation = junit_validate(report[0]);
+    let report = junit_parse(Buffer.from(validJunitXml, "utf-8"));
+    let junitReportValidation = junit_validate(report[0]);
 
     expect(junitReportValidation.max_level()).toBe(JunitValidationLevel.Valid);
+
+    const staleTimestamp = dayjs.utc().subtract(30, "hour").toISOString();
+    const suboptimalJunitXml = `
+      <testsuites name="my-test-run" tests="1" failures="1" errors="0">
+        <testsuite name="my-test-suite" tests="1" disabled="0" errors="0" failures="1" timestamp="${staleTimestamp}">
+          <testcase name="failure-case" file="test.py" classname="MyClass" timestamp="${staleTimestamp}" time="1">
+            <failure/>
+          </testcase>
+        </testsuite>
+      </testsuites>
+    `;
+
+    report = junit_parse(Buffer.from(suboptimalJunitXml, "utf-8"));
+    junitReportValidation = junit_validate(report[0]);
+
+    expect(junitReportValidation.max_level()).toBe(
+      JunitValidationLevel.SubOptimal,
+    );
+    expect(junitReportValidation.num_suboptimal_issues()).toBe(1);
+    expect(
+      junitReportValidation
+        .all_issues_owned()
+        .filter((issue) => issue.error_type === JunitValidationType.Report),
+    ).toHaveLength(1);
   });
 
   it("validates repos", () => {
