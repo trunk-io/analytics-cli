@@ -1,4 +1,4 @@
-use std::{io::BufReader, time::Duration};
+use std::{fs, io::BufReader, time::Duration};
 
 use chrono::{NaiveTime, TimeDelta, Utc};
 use junit_mock::JunitMock;
@@ -15,13 +15,17 @@ use context::junit::{
         JunitValidationIssue, JunitValidationLevel,
     },
 };
+use tempfile::TempDir;
 
-fn generate_mock_junit_reports(
+fn new_mock_junit_options(
     report_count: usize,
     test_suite_count: Option<usize>,
     test_case_count: Option<usize>,
-) -> (u64, Vec<Report>) {
+    do_not_render_testsuites_element: bool,
+) -> junit_mock::Options {
     let mut options = junit_mock::Options::default();
+
+    options.report.do_not_render_testsuites_element = do_not_render_testsuites_element;
 
     // Tests that run later than 1 hour ago are sub-optimal
     options.global.timestamp = Utc::now()
@@ -39,6 +43,16 @@ fn generate_mock_junit_reports(
     // NOTE: Large JUnit.xml files make `pretty_assertions::assert_eq` choke when showing diffs
     options.test_suite.test_suite_random_count = test_suite_count.map(|c| c.min(5)).unwrap_or(1);
     options.test_case.test_case_random_count = test_case_count.map(|c| c.min(10)).unwrap_or(10);
+
+    options
+}
+
+fn generate_mock_junit_reports(
+    report_count: usize,
+    test_suite_count: Option<usize>,
+    test_case_count: Option<usize>,
+) -> (u64, Vec<Report>) {
+    let options = new_mock_junit_options(report_count, test_suite_count, test_case_count, false);
 
     let mut jm = JunitMock::new(options);
     let seed = jm.get_seed();
@@ -426,4 +440,38 @@ fn parse_round_trip_and_validate_fuzzed() {
             seed,
         );
     }
+}
+
+#[test]
+fn parse_without_testsuites_element() {
+    let options = new_mock_junit_options(1, Some(1), Some(1), true);
+    let mut jm = JunitMock::new(options);
+    let reports = jm.generate_reports();
+
+    let tempdir = TempDir::new().unwrap();
+    let xml_path = jm
+        .write_reports_to_file(&tempdir, reports.clone())
+        .unwrap()
+        .pop()
+        .unwrap();
+    let xml = BufReader::new(fs::File::open(xml_path).unwrap());
+    let mut junit_parser = JunitParser::new();
+    junit_parser.parse(xml).unwrap();
+
+    let reports_with_default_testsuites: Vec<String> = reports
+        .into_iter()
+        .map(|r| {
+            let mut default_testsuites = Report::new("");
+            default_testsuites.add_test_suites(r.test_suites);
+            default_testsuites.to_string().unwrap()
+        })
+        .collect();
+
+    let parsed_reports: Vec<String> = junit_parser
+        .into_reports()
+        .into_iter()
+        .map(|r| r.to_string().unwrap())
+        .collect();
+
+    pretty_assertions::assert_eq!(reports_with_default_testsuites, parsed_reports)
 }
