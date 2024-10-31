@@ -3,13 +3,15 @@ use std::{collections::HashMap, time::Duration};
 use chrono::DateTime;
 #[cfg(feature = "pyo3")]
 use pyo3::prelude::*;
+#[cfg(feature = "pyo3")]
+use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pyclass_enum};
 use quick_junit::{
     NonSuccessKind, Property, Report, TestCase, TestCaseStatus, TestRerun, TestSuite,
 };
 #[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::*;
 
-#[cfg_attr(feature = "pyo3", pyclass(get_all))]
+#[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass(get_all))]
 #[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
 #[derive(Clone, Debug)]
 pub struct BindingsReport {
@@ -84,7 +86,7 @@ impl Into<Report> for BindingsReport {
     }
 }
 
-#[cfg_attr(feature = "pyo3", pyclass(get_all))]
+#[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass(get_all))]
 #[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
 #[derive(Clone, Debug)]
 pub struct BindingsTestSuite {
@@ -213,7 +215,7 @@ impl Into<TestSuite> for BindingsTestSuite {
     }
 }
 
-#[cfg_attr(feature = "pyo3", pyclass(get_all))]
+#[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass(get_all))]
 #[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
 #[derive(Clone, Debug)]
 pub struct BindingsProperty {
@@ -240,7 +242,7 @@ impl Into<Property> for BindingsProperty {
     }
 }
 
-#[cfg_attr(feature = "pyo3", pyclass(get_all))]
+#[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass(get_all))]
 #[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
 #[derive(Clone, Debug)]
 pub struct BindingsTestCase {
@@ -353,7 +355,7 @@ impl TryInto<TestCase> for BindingsTestCase {
     }
 }
 
-#[cfg_attr(feature = "pyo3", pyclass(get_all))]
+#[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass(get_all))]
 #[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
 #[derive(Clone, Debug)]
 pub struct BindingsTestCaseStatus {
@@ -438,7 +440,7 @@ impl TryInto<TestCaseStatus> for BindingsTestCaseStatus {
     }
 }
 
-#[cfg_attr(feature = "pyo3", pyclass(eq, eq_int))]
+#[cfg_attr(feature = "pyo3", gen_stub_pyclass_enum, pyclass(eq, eq_int))]
 #[cfg_attr(feature = "wasm", wasm_bindgen)]
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum BindingsTestCaseStatusStatus {
@@ -447,7 +449,7 @@ pub enum BindingsTestCaseStatusStatus {
     Skipped,
 }
 
-#[cfg_attr(feature = "pyo3", pyclass(get_all))]
+#[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass(get_all))]
 #[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
 #[derive(Clone, Debug)]
 pub struct BindingsTestCaseStatusSuccess {
@@ -466,7 +468,7 @@ impl Into<TestCaseStatus> for BindingsTestCaseStatusSuccess {
     }
 }
 
-#[cfg_attr(feature = "pyo3", pyclass(get_all))]
+#[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass(get_all))]
 #[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
 #[derive(Clone, Debug)]
 pub struct BindingsTestCaseStatusNonSuccess {
@@ -496,7 +498,7 @@ impl Into<TestCaseStatus> for BindingsTestCaseStatusNonSuccess {
     }
 }
 
-#[cfg_attr(feature = "pyo3", pyclass(get_all))]
+#[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass(get_all))]
 #[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
 #[derive(Clone, Debug)]
 pub struct BindingsTestCaseStatusSkipped {
@@ -520,7 +522,7 @@ impl Into<TestCaseStatus> for BindingsTestCaseStatusSkipped {
     }
 }
 
-#[cfg_attr(feature = "pyo3", pyclass(get_all))]
+#[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass(get_all))]
 #[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
 #[derive(Clone, Debug)]
 pub struct BindingsTestRerun {
@@ -592,7 +594,7 @@ impl Into<TestRerun> for BindingsTestRerun {
     }
 }
 
-#[cfg_attr(feature = "pyo3", pyclass(eq, eq_int))]
+#[cfg_attr(feature = "pyo3", gen_stub_pyclass_enum, pyclass(eq, eq_int))]
 #[cfg_attr(feature = "wasm", wasm_bindgen)]
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum BindingsNonSuccessKind {

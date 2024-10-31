@@ -9,7 +9,6 @@ on:
   push:
     branches:
       - main
-      - master
     tags:
       - "*"
   pull_request: {}
@@ -17,6 +16,7 @@ on:
 
 permissions:
   contents: read
+  id-token: write
 
 jobs:
   linux:
@@ -33,6 +33,11 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.10"
+      - uses: trunk-io/trunk-action/setup@v1
+      - name: Setup Rust & Cargo
+        uses: ./.github/actions/setup_rust_cargo
+      - name: Generate Python stubs
+        run: ${TRUNK_PATH} run generate-pyi
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
@@ -82,6 +87,15 @@ jobs:
             set -e
             pip3 install context-py --find-links dist --force-reinstall
             cd ./context-py && pytest
+      - name: Upload wheel package to S3
+        uses: ./.github/actions/upload_to_s3
+        if: "!cancelled() && github.event_name != 'pull_request'"
+        with:
+          bucket: ${{ secrets.S3_ASSET_BUCKET }}
+          name: linux-${{ matrix.platform.target }}
+          path: dist
+          s3-flags: --recursive
+          role-to-assume: ${{ secrets.S3_UPLOAD_ROLE_ARN }}
 
   macos:
     runs-on: ${{ matrix.platform.runner }}
@@ -97,6 +111,11 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.10"
+      - uses: trunk-io/trunk-action/setup@v1
+      - name: Setup Rust & Cargo
+        uses: ./.github/actions/setup_rust_cargo
+      - name: Generate Python stubs
+        run: ${TRUNK_PATH} run generate-pyi
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
@@ -108,13 +127,26 @@ jobs:
         with:
           name: wheels-macos-${{ matrix.platform.target }}
           path: dist
-
+      - name: Upload wheel package to S3
+        uses: ./.github/actions/upload_to_s3
+        if: "!cancelled() && github.event_name != 'pull_request'"
+        with:
+          bucket: ${{ secrets.S3_ASSET_BUCKET }}
+          name: darwin-${{ matrix.platform.target }}
+          path: dist
+          s3-flags: --recursive
+          role-to-assume: ${{ secrets.S3_UPLOAD_ROLE_ARN }}
   sdist:
     # TODO(TRUNK-13050): update to `ubuntu-latest` when `maturin-action` gets updated to support it
     # https://github.com/PyO3/maturin-action/issues/291
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
+      - uses: trunk-io/trunk-action/setup@v1
+      - name: Setup Rust & Cargo
+        uses: ./.github/actions/setup_rust_cargo
+      - name: Generate Python stubs
+        run: ${TRUNK_PATH} run generate-pyi
       - name: Build sdist
         uses: PyO3/maturin-action@v1
         with:
@@ -125,3 +157,11 @@ jobs:
         with:
           name: wheels-sdist
           path: dist
+      - name: Upload wheel package to S3
+        uses: ./.github/actions/upload_to_s3
+        if: "!cancelled() && github.event_name != 'pull_request'"
+        with:
+          bucket: ${{ secrets.S3_ASSET_BUCKET }}
+          name: wheels-sdist.tar.gz
+          path: dist/context_py-0.1.0.tar.gz
+          role-to-assume: ${{ secrets.S3_UPLOAD_ROLE_ARN }}

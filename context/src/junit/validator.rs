@@ -1,6 +1,8 @@
 use chrono::{DateTime, FixedOffset, Utc};
 #[cfg(feature = "pyo3")]
 use pyo3::prelude::*;
+#[cfg(feature = "pyo3")]
+use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pyclass_enum};
 use quick_junit::Report;
 use std::{cmp::Ordering, collections::HashSet};
 use thiserror::Error;
@@ -16,7 +18,7 @@ pub const MAX_FIELD_LEN: usize = 1_000;
 const TIMESTAMP_OLD_DAYS: u32 = 30;
 const TIMESTAMP_STALE_HOURS: u32 = 1;
 
-#[cfg_attr(feature = "pyo3", pyclass(eq, eq_int))]
+#[cfg_attr(feature = "pyo3", gen_stub_pyclass_enum, pyclass(eq, eq_int))]
 #[cfg_attr(feature = "wasm", wasm_bindgen)]
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum JunitValidationLevel {
@@ -206,7 +208,7 @@ pub fn validate(report: &Report) -> JunitReportValidation {
     report_validation
 }
 
-#[cfg_attr(feature = "pyo3", pyclass(eq))]
+#[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass(eq, get_all))]
 #[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct JunitReportValidation {
@@ -215,7 +217,7 @@ pub struct JunitReportValidation {
     test_suites: Vec<JunitTestSuiteValidation>,
 }
 
-#[cfg_attr(feature = "pyo3", pyclass(get_all))]
+#[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass(get_all))]
 #[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct JunitReportValidationFlatIssue {
@@ -387,7 +389,7 @@ impl ToString for JunitTestSuiteValidationIssue {
     }
 }
 
-#[cfg_attr(feature = "pyo3", pyclass(eq))]
+#[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass(eq))]
 #[cfg_attr(feature = "wasm", wasm_bindgen)]
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct JunitTestSuiteValidation {
@@ -477,7 +479,7 @@ impl ToString for JunitTestCaseValidationIssue {
     }
 }
 
-#[cfg_attr(feature = "pyo3", pyclass(eq))]
+#[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass(eq))]
 #[cfg_attr(feature = "wasm", wasm_bindgen)]
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct JunitTestCaseValidation {

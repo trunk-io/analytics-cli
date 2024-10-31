@@ -10,6 +10,7 @@ on:
   workflow_dispatch: {}
 
 permissions:
+  id-token: write
   contents: read
 
 jobs:
@@ -32,3 +33,16 @@ jobs:
       - name: Test wasm package
         if: "!cancelled()"
         run: pnpm run --dir ./context-js test
+
+      - name: Package wasm package
+        if: "!cancelled()"
+        run: pnpm pack --dir ./context-js/pkg
+
+      - name: Upload wasm package to S3
+        uses: ./.github/actions/upload_to_s3
+        if: "!cancelled() && github.event_name != 'pull_request'"
+        with:
+          bucket: ${{ secrets.S3_ASSET_BUCKET }}
+          name: context-js-0.1.0.tgz
+          path: context-js/pkg/context-js-0.1.0.tgz
+          role-to-assume: ${{ secrets.S3_UPLOAD_ROLE_ARN }}

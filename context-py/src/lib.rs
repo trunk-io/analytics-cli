@@ -2,7 +2,11 @@ use std::{collections::HashMap, io::BufReader};
 
 use context::{env, junit, repo};
 use pyo3::{exceptions::PyTypeError, prelude::*};
+use pyo3_stub_gen::{define_stub_info_gatherer, derive::gen_stub_pyfunction};
 
+define_stub_info_gatherer!(stub_info);
+
+#[gen_stub_pyfunction]
 #[pyfunction]
 fn env_parse(env_vars: HashMap<String, String>) -> PyResult<Option<env::parser::CIInfo>> {
     let mut env_parser = env::parser::EnvParser::new();
@@ -23,11 +27,13 @@ fn env_parse(env_vars: HashMap<String, String>) -> PyResult<Option<env::parser::
     Ok(ci_info_class)
 }
 
+#[gen_stub_pyfunction]
 #[pyfunction]
 fn env_validate(ci_info: env::parser::CIInfo) -> env::validator::EnvValidation {
     env::validator::validate(&ci_info)
 }
 
+#[gen_stub_pyfunction]
 #[pyfunction]
 fn junit_parse(xml: Vec<u8>) -> PyResult<Vec<junit::bindings::BindingsReport>> {
     let mut junit_parser = junit::parser::JunitParser::new();
@@ -48,6 +54,7 @@ fn junit_parse(xml: Vec<u8>) -> PyResult<Vec<junit::bindings::BindingsReport>> {
         .collect())
 }
 
+#[gen_stub_pyfunction]
 #[pyfunction]
 fn junit_validate(
     report: junit::bindings::BindingsReport,
@@ -55,6 +62,7 @@ fn junit_validate(
     junit::validator::validate(&report.into())
 }
 
+#[gen_stub_pyfunction]
 #[pyfunction]
 fn repo_validate(bundle_repo: repo::BundleRepo) -> repo::validator::RepoValidation {
     repo::validator::validate(&bundle_repo)
