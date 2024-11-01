@@ -32,7 +32,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.10"
+          python-version: "3.9"
       - uses: trunk-io/trunk-action/setup@v1
       - name: Setup Rust & Cargo
         uses: ./.github/actions/setup_rust_cargo
@@ -44,18 +44,18 @@ jobs:
           target: ${{ matrix.platform.target }}
           args: --release --out dist --find-interpreter --manifest-path ./context-py/Cargo.toml
           manylinux: auto
-          container: "2_28"
+          # Required version in order to support Glue
+          container: "2_17"
           before-script-linux: |
             # Needed for `openssl-sys`:
             # https://docs.rs/openssl/latest/openssl/
-            if [ -f /usr/bin/dnf ]; then
-              # quay.io/pypa/manylinux_2_28_x86_64:latest
-              /usr/bin/dnf -y upgrade
-              /usr/bin/dnf -y install pkgconf perl-IPC-Cmd openssl-devel python3-pip
+            if [ -f /usr/bin/yum ]; then
+              # quay.io/pypa/manylinux2014_x86_64:latest
+              /usr/bin/yum -y upgrade
+              /usr/bin/yum -y install perl-IPC-Cmd perl-List-MoreUtils openssl-devel python3-pip
               /usr/bin/ln -s /usr/bin/pip3 /usr/bin/pip
-              /usr/bin/ln -sf /usr/bin/python3.11 /usr/bin/python3
             elif [ -f /usr/bin/apt ]; then
-              # ghcr.io/rust-cross/manylinux_2_28-cross:aarch64
+              # ghcr.io/rust-cross/manylinux2014-cross:aarch64
               /usr/bin/apt update
               /usr/bin/apt install -y pkg-config libssl-dev
             fi
