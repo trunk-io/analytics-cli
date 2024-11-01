@@ -54,11 +54,6 @@ jobs:
               /usr/bin/yum -y upgrade
               /usr/bin/yum -y install perl-IPC-Cmd perl-List-MoreUtils openssl-devel python3-pip
               /usr/bin/ln -s /usr/bin/pip3 /usr/bin/pip
-
-              # /usr/bin/yum -y upgrade
-              # /usr/bin/yum -y install pkgconf perl-IPC-Cmd openssl-devel python3-pip
-              # /usr/bin/ln -s /usr/bin/pip3 /usr/bin/pip
-              # /usr/bin/ln -sf /usr/bin/python3.11 /usr/bin/python3
             elif [ -f /usr/bin/apt ]; then
               # ghcr.io/rust-cross/manylinux2014-cross:aarch64
               /usr/bin/apt update
