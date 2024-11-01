@@ -44,18 +44,19 @@ jobs:
           target: ${{ matrix.platform.target }}
           args: --release --out dist --find-interpreter --manifest-path ./context-py/Cargo.toml
           manylinux: auto
-          container: "2_28"
+          # DONOTLAND: TODO: TYLER MAKE SURE THIS WORKS LOCALLY FOR 3.12
+          container: 2014/2_17
           before-script-linux: |
             # Needed for `openssl-sys`:
             # https://docs.rs/openssl/latest/openssl/
             if [ -f /usr/bin/dnf ]; then
-              # quay.io/pypa/manylinux_2_28_x86_64:latest
+              # 	quay.io/pypa/manylinux2014_x86_64:latest
               /usr/bin/dnf -y upgrade
               /usr/bin/dnf -y install pkgconf perl-IPC-Cmd openssl-devel python3-pip
               /usr/bin/ln -s /usr/bin/pip3 /usr/bin/pip
               /usr/bin/ln -sf /usr/bin/python3.11 /usr/bin/python3
             elif [ -f /usr/bin/apt ]; then
-              # ghcr.io/rust-cross/manylinux_2_28-cross:aarch64
+              # ghcr.io/rust-cross/manylinux2014-cross:aarch64
               /usr/bin/apt update
               /usr/bin/apt install -y pkg-config libssl-dev
             fi
