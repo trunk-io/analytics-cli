@@ -43,7 +43,7 @@ jobs:
         with:
           target: ${{ matrix.platform.target }}
           args: --release --out dist --find-interpreter --manifest-path ./context-py/Cargo.toml
-          manylinux: 2014/2_17
+          manylinux: auto
           # DONOTLAND: TODO: TYLER MAKE SURE THIS WORKS LOCALLY FOR 3.12
           container: quay.io/pypa/manylinux2014_x86_64:latest
           before-script-linux: |
