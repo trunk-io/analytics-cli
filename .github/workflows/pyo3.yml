@@ -43,9 +43,9 @@ jobs:
         with:
           target: ${{ matrix.platform.target }}
           args: --release --out dist --find-interpreter --manifest-path ./context-py/Cargo.toml
-          manylinux: auto
+          manylinux: 2014/2_17
           # DONOTLAND: TODO: TYLER MAKE SURE THIS WORKS LOCALLY FOR 3.12
-          container: 2014/2_17
+          container: quay.io/pypa/manylinux2014_x86_64:latest
           before-script-linux: |
             # Needed for `openssl-sys`:
             # https://docs.rs/openssl/latest/openssl/
