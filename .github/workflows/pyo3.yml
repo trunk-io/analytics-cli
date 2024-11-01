@@ -44,8 +44,8 @@ jobs:
           target: ${{ matrix.platform.target }}
           args: --release --out dist --find-interpreter --manifest-path ./context-py/Cargo.toml
           manylinux: auto
+          # Required version in order to support Glue
           container: "2_17"
-          # DONOTLAND: CLEAN UP
           before-script-linux: |
             # Needed for `openssl-sys`:
             # https://docs.rs/openssl/latest/openssl/
