@@ -52,7 +52,7 @@ jobs:
             if [ -f /usr/bin/yum ]; then
               # quay.io/pypa/manylinux2014_x86_64:latest
               /usr/bin/yum -y upgrade
-              /usr/bin/yum -y install perl-IPC-Cmd openssl-devel python3-pip
+              /usr/bin/yum -y install perl-IPC-Cmd perl-List-MoreUtils openssl-devel python3-pip
               /usr/bin/ln -s /usr/bin/pip3 /usr/bin/pip
 
               # /usr/bin/yum -y upgrade
