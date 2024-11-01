@@ -16,8 +16,8 @@ fn validate_success() {
         .args(&["validate", "--junit-paths", "./*"])
         .assert()
         .success()
-        .stderr(predicate::str::contains("0 validation errors"))
-        .stderr(predicate::str::contains("All 1 files are valid"));
+        .stdout(predicate::str::contains("0 validation errors"))
+        .stdout(predicate::str::contains("All 1 files are valid"));
 
     println!("{assert}");
 }
@@ -46,8 +46,8 @@ fn validate_invalid_junits() {
         .args(&["validate", "--junit-paths", "./*"])
         .assert()
         .failure()
-        .stderr(predicate::str::contains("1 validation error"))
-        .stderr(predicate::str::contains(
+        .stdout(predicate::str::contains("1 validation error"))
+        .stdout(predicate::str::contains(
             "INVALID - test suite name too short",
         ));
 
@@ -65,8 +65,8 @@ fn validate_invalid_xml() {
         .args(&["validate", "--junit-paths", "./*"])
         .assert()
         .failure()
-        .stderr(predicate::str::contains("1 validation error"))
-        .stderr(predicate::str::contains(
+        .stdout(predicate::str::contains("1 validation error"))
+        .stdout(predicate::str::contains(
             "INVALID - syntax error: tag not closed",
         ));
 
@@ -83,10 +83,10 @@ fn validate_suboptimal_junits() {
         .args(&["validate", "--junit-paths", "./*"])
         .assert()
         .success()
-        .stderr(predicate::str::contains(
+        .stdout(predicate::str::contains(
             "0 validation errors, 1 validation warning",
         ))
-        .stderr(predicate::str::contains(
+        .stdout(predicate::str::contains(
             "OPTIONAL - report has stale (> 1 hour(s)) timestamps",
         ));
 
