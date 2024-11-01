@@ -101,15 +101,14 @@ fn parse_file_sets(file_sets: Vec<FileSet>) -> JunitFileToReportAndErrors {
 }
 
 fn print_matched_files(file_sets: &[FileSet], file_counter: FileSetCounter) {
-    log::info!("");
-    log::info!(
-        "Validating the following {} files:",
+    println!(
+        "\nValidating the following {} files:",
         file_counter.get_count()
     );
     for file_set in file_sets {
-        log::info!("  File set matching {}:", file_set.glob);
+        println!("  File set matching {}:", file_set.glob);
         for file in &file_set.files {
-            log::info!("\t{}", file.original_path_rel);
+            println!("    {}", file.original_path_rel);
         }
     }
 }
@@ -126,9 +125,8 @@ fn print_parse_errors(parse_results: &JunitFileToReportAndErrors) {
         return;
     }
 
-    log::info!("");
-    log::warn!(
-        "Encountered the following {} non-fatal errors while parsing files:",
+    println!(
+        "\nEncountered the following {} non-fatal errors while parsing files:",
         num_parse_errors.to_string().yellow()
     );
 
@@ -137,10 +135,10 @@ fn print_parse_errors(parse_results: &JunitFileToReportAndErrors) {
             continue;
         }
 
-        log::warn!("  File: {}", parse_result.0);
+        println!("  File: {}", parse_result.0);
 
         for parse_error in &parse_result.1 .1 {
-            log::warn!("\t{}", parse_error);
+            println!("    {}", parse_error);
         }
     }
 }
@@ -150,7 +148,6 @@ fn print_summary_failure(
     num_invalid_reports: usize,
     num_suboptimal_reports: usize,
 ) {
-    log::info!("");
     let num_validation_warnings_str = if num_suboptimal_reports > 0 {
         format!(
             ", {} files have validation warnings",
@@ -159,8 +156,8 @@ fn print_summary_failure(
     } else {
         String::from("")
     };
-    log::info!(
-        "{} files are valid, {} files are not valid{}{}",
+    println!(
+        "\n{} files are valid, {} files are not valid{}{}",
         (num_reports - num_invalid_reports).to_string().green(),
         num_invalid_reports.to_string().red(),
         num_validation_warnings_str,
@@ -169,7 +166,6 @@ fn print_summary_failure(
 }
 
 fn print_summary_success(num_reports: usize, num_suboptimal_reports: usize) {
-    log::info!("");
     let num_validation_warnings_str = if num_suboptimal_reports > 0 {
         format!(
             " ({} files with validation warnings)",
@@ -179,20 +175,20 @@ fn print_summary_success(num_reports: usize, num_suboptimal_reports: usize) {
         String::from("")
     };
 
-    log::info!(
-        "All {} files are valid!{}{}",
+    println!(
+        "\nAll {} files are valid!{}{}",
         num_reports.to_string().green(),
         num_validation_warnings_str,
         Emoji(" ✅", ""),
     );
-    log::info!(
-        "First time setting up Flaky Tests for this repo? Follow this link <link> to continue getting started.{}",
+    println!(
+        "Navigate to https://app.trunk.io/onboarding?intent=flaky+tests to continue using Trunk Flaky Tests!{}",
         Emoji(" 🚀🧪", ""),
     );
 }
 
 fn print_validation_errors(report_validations: &JunitFileToValidation) -> (usize, usize) {
-    log::info!("");
+    println!();
     let mut num_invalid_reports: usize = 0;
     let mut num_suboptimal_reports: usize = 0;
     for report_validation in report_validations {
@@ -232,7 +228,7 @@ fn print_validation_errors(report_validations: &JunitFileToValidation) -> (usize
         } else {
             String::from("")
         };
-        log::info!(
+        println!(
             "{} - {} test suites, {} test cases, {} validation errors{}",
             report_validation.0,
             num_test_suites,
@@ -242,7 +238,7 @@ fn print_validation_errors(report_validations: &JunitFileToValidation) -> (usize
         );
 
         if let Some(parse_error) = report_parse_error {
-            log::info!(
+            println!(
                 "  {} - {}",
                 print_validation_level(JunitValidationLevel::Invalid),
                 parse_error,
@@ -250,7 +246,7 @@ fn print_validation_errors(report_validations: &JunitFileToValidation) -> (usize
         }
 
         for issue in all_issues {
-            log::info!(
+            println!(
                 "  {} - {}",
                 print_validation_level(issue.level),
                 issue.error_message,
