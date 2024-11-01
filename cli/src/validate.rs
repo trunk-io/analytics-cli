@@ -182,7 +182,7 @@ fn print_summary_success(num_reports: usize, num_suboptimal_reports: usize) {
         Emoji(" ✅", ""),
     );
     println!(
-        "First time setting up Flaky Tests for this repo? Follow this link https://app.trunk.io/onboarding?intent=flaky+tests to continue getting started.{}",
+        "Navigate to https://app.trunk.io/onboarding?intent=flaky+tests to continue using Trunk Flaky Tests!{}",
         Emoji(" 🚀🧪", ""),
     );
 }
