@@ -287,7 +287,14 @@ pub async fn run_upload(
         })
         .await?;
 
-    log::info!("Done");
+    if exit_code == EXIT_SUCCESS {
+        log::info!("Done");
+    } else {
+        log::info!(
+            "Upload successful; returning unsuccessful exit code of test run: {}",
+            exit_code
+        )
+    }
     Ok(exit_code)
 }
 
