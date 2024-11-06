@@ -18,7 +18,7 @@ use crate::{
 };
 use api::BundleUploadStatus;
 use clap::Args;
-use context::{junit::parser::JunitParser, repo::BundleRepo};
+use context::{junit::parser::JunitParser, repo::BundleRepo, repo::RepoUrlParts};
 #[cfg(target_os = "macos")]
 use xcresult::XCResult;
 
@@ -121,12 +121,8 @@ pub async fn run_upload(
     let junit_temp_dir = tempfile::tempdir()?;
     #[cfg(target_os = "macos")]
     {
-        let temp_paths = handle_xcresult(
-            &junit_temp_dir,
-            xcresult_path,
-            &repo.repo_full_name,
-            &org_url_slug,
-        )?;
+        let temp_paths =
+            handle_xcresult(&junit_temp_dir, xcresult_path, &repo.repo, &org_url_slug)?;
         junit_paths = [junit_paths.as_slice(), temp_paths.as_slice()].concat();
     }
 
@@ -300,16 +296,12 @@ pub async fn run_upload(
 fn handle_xcresult(
     junit_temp_dir: &tempfile::TempDir,
     xcresult_path: Option<String>,
-    repo_full_name: &str,
+    repo: &RepoUrlParts,
     org_url_slug: &str,
 ) -> Result<Vec<String>, anyhow::Error> {
     let mut temp_paths = Vec::new();
     if let Some(xcresult_path) = xcresult_path {
-        let xcresult = XCResult::new(
-            xcresult_path,
-            repo_full_name.to_string(),
-            org_url_slug.to_string(),
-        );
+        let xcresult = XCResult::new(xcresult_path, repo, org_url_slug.to_string());
         let junits = xcresult?
             .generate_junits()
             .map_err(|e| anyhow::anyhow!("Failed to generate junit files from xcresult: {}", e))?;

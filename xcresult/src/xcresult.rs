@@ -1,3 +1,4 @@
+use context::repo::RepoUrlParts;
 use indexmap::indexmap;
 use lazy_static::lazy_static;
 use quick_junit::{NonSuccessKind, Report, TestCase, TestCaseStatus, TestSuite, XmlString};
@@ -11,8 +12,8 @@ const RESULTS_FIELD_VALUES: &str = "_values";
 pub struct XCResult {
     pub path: String,
     results_obj: serde_json::Value,
-    repo_full_name: String,
-    org_url_slug: String,
+    pub repo_url_parts: RepoUrlParts,
+    pub org_url_slug: String,
 }
 
 const LEGACY_FLAG_MIN_VERSION: i32 = 70;
@@ -70,7 +71,7 @@ fn xcresulttool<T: AsRef<str>>(
 impl XCResult {
     pub fn new<T: AsRef<str>>(
         path: T,
-        repo_full_name: T,
+        repo_url_parts: &RepoUrlParts,
         org_url_slug: T,
     ) -> anyhow::Result<XCResult> {
         let binding = fs::canonicalize(path.as_ref())
@@ -79,7 +80,7 @@ impl XCResult {
         let results_obj = xcresulttool(absolute_path, None)?;
         Ok(XCResult {
             path: absolute_path.to_string(),
-            repo_full_name: repo_full_name.as_ref().to_string(),
+            repo_url_parts: repo_url_parts.clone(),
             org_url_slug: org_url_slug.as_ref().to_string(),
             results_obj,
         })
@@ -93,7 +94,13 @@ impl XCResult {
         // join the repo name and the raw id and generate uuid v5 from it
         return uuid::Uuid::new_v5(
             &uuid::Uuid::NAMESPACE_OID,
-            format!("{}#{}#{}", &self.org_url_slug, &self.repo_full_name, raw_id).as_bytes(),
+            format!(
+                "{}#{}#{}",
+                self.org_url_slug,
+                &self.repo_url_parts.repo_full_name(),
+                raw_id
+            )
+            .as_bytes(),
         )
         .to_string();
     }
@@ -357,6 +364,9 @@ impl XCResult {
                 // only add the report if it has test suites
                 // xcresult stores build actions
                 if !report_junit.test_suites.is_empty() {
+                    let mut junit_writer: Vec<u8> = Vec::new();
+                    report_junit.serialize(&mut junit_writer)?;
+                    log::info!("{}", String::from_utf8(junit_writer)?);
                     report_junits.push(report_junit);
                 }
             }

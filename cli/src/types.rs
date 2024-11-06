@@ -46,7 +46,7 @@ impl Test {
             };
         }
         // generate a unique id if not provided
-        let repo_full_name = format!("{}/{}/{}", repo.repo.host, repo.repo.owner, repo.repo.name);
+        let repo_full_name = repo.repo.repo_full_name();
         let info_id_input = [
             org_slug,
             &repo_full_name,
@@ -240,7 +240,6 @@ mod tests {
             repo_head_commit_message: "repo_head_commit_message".to_string(),
             repo_head_author_name: "repo_head_author_name".to_string(),
             repo_head_author_email: "repo_head_author_email".to_string(),
-            repo_full_name: "repo_full_name".to_string(),
         };
         let result = Test::new(
             name.clone(),
