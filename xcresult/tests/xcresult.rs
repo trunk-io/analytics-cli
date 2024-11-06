@@ -98,7 +98,7 @@ fn test_complex_xcresult_with_valid_path() {
 fn test_xcresult_with_valid_path_invalid_os() {
     let path = TEMP_DIR.as_ref().join("data/test1.xcresult");
     let path_str = path.to_str().unwrap();
-    let xcresult = XCResult::new(path_str, REPO, ORG_URL_SLUG);
+    let xcresult = XCResult::new(path_str, &REPO, ORG_URL_SLUG);
     assert_eq!(
         xcresult.err().unwrap().to_string(),
         "xcrun is only available on macOS"
