@@ -69,10 +69,10 @@ fn xcresulttool<T: AsRef<str>>(
 }
 
 impl XCResult {
-    pub fn new<T: AsRef<str>>(
+    pub fn new<T: AsRef<str>, S: AsRef<str>>(
         path: T,
         repo_url_parts: &RepoUrlParts,
-        org_url_slug: T,
+        org_url_slug: S,
     ) -> anyhow::Result<XCResult> {
         let binding = fs::canonicalize(path.as_ref())
             .map_err(|_| anyhow::anyhow!("failed to get absolute path -- is the path correct?"))?;
@@ -91,7 +91,7 @@ impl XCResult {
     }
 
     fn generate_id(&self, raw_id: &str) -> String {
-        // join the repo name and the raw id and generate uuid v5 from it
+        // join the org and repo name to the raw id and generate uuid v5 from it
         return uuid::Uuid::new_v5(
             &uuid::Uuid::NAMESPACE_OID,
             format!(
