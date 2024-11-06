@@ -240,6 +240,7 @@ mod tests {
             repo_head_commit_message: "repo_head_commit_message".to_string(),
             repo_head_author_name: "repo_head_author_name".to_string(),
             repo_head_author_email: "repo_head_author_email".to_string(),
+            repo_full_name: "repo_full_name".to_string(),
         };
         let result = Test::new(
             name.clone(),

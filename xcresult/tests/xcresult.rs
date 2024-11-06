@@ -23,12 +23,15 @@ fn init() {
     }
 }
 
+const ORG_URL_SLUG: &str = "trunk-io";
+const REPO_FULL_NAME: &str = "github.com/trunk-io/analytics-cli";
+
 #[cfg(target_os = "macos")]
 #[test]
 fn test_xcresult_with_valid_path() {
     let path = TEMP_DIR.as_ref().join("data/test1.xcresult");
     let path_str = path.to_str().unwrap();
-    let xcresult = XCResult::new(path_str);
+    let xcresult = XCResult::new(path_str, REPO_FULL_NAME, ORG_URL_SLUG);
     assert!(xcresult.is_ok());
 
     let junits = xcresult.unwrap().generate_junits().unwrap();
@@ -46,7 +49,7 @@ fn test_xcresult_with_valid_path() {
 fn test_xcresult_with_invalid_path() {
     let path = TEMP_DIR.as_ref().join("data/test2.xcresult");
     let path_str = path.to_str().unwrap();
-    let xcresult = XCResult::new(path_str);
+    let xcresult = XCResult::new(path_str, REPO_FULL_NAME, ORG_URL_SLUG);
     assert!(xcresult.is_err());
     assert_eq!(
         xcresult.err().unwrap().to_string(),
@@ -59,7 +62,7 @@ fn test_xcresult_with_invalid_path() {
 fn test_xcresult_with_invalid_xcresult() {
     let path = TEMP_DIR.as_ref().join("data/test3.xcresult");
     let path_str = path.to_str().unwrap();
-    let xcresult = XCResult::new(path_str);
+    let xcresult = XCResult::new(path_str, REPO_FULL_NAME, ORG_URL_SLUG);
     assert!(xcresult.is_err());
     assert_eq!(
         xcresult.err().unwrap().to_string(),
@@ -72,7 +75,7 @@ fn test_xcresult_with_invalid_xcresult() {
 fn test_complex_xcresult_with_valid_path() {
     let path = TEMP_DIR.as_ref().join("data/test4.xcresult");
     let path_str = path.to_str().unwrap();
-    let xcresult = XCResult::new(path_str);
+    let xcresult = XCResult::new(path_str, REPO_FULL_NAME, ORG_URL_SLUG);
     assert!(xcresult.is_ok());
 
     let junits = xcresult.unwrap().generate_junits().unwrap();
@@ -90,7 +93,7 @@ fn test_complex_xcresult_with_valid_path() {
 fn test_xcresult_with_valid_path_invalid_os() {
     let path = TEMP_DIR.as_ref().join("data/test1.xcresult");
     let path_str = path.to_str().unwrap();
-    let xcresult = XCResult::new(path_str);
+    let xcresult = XCResult::new(path_str, REPO_FULL_NAME, ORG_URL_SLUG);
     assert_eq!(
         xcresult.err().unwrap().to_string(),
         "xcrun is only available on macOS"

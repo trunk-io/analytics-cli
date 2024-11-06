@@ -37,6 +37,7 @@ pub struct BundleRepo {
     pub repo_head_commit_message: String,
     pub repo_head_author_name: String,
     pub repo_head_author_email: String,
+    pub repo_full_name: String,
 }
 
 impl BundleRepo {
@@ -119,6 +120,10 @@ impl BundleRepo {
         let repo_head_sha = bundle_repo_options.repo_head_sha.unwrap_or_default();
         let repo_head_sha_short =
             &repo_head_sha[..std::cmp::min(Self::SHORT_SHA_LEN, repo_head_sha.len())];
+        let repo_full_name = format!(
+            "{}/{}/{}",
+            repo_url_parts.host, repo_url_parts.owner, repo_url_parts.name
+        );
         Ok(BundleRepo {
             repo: repo_url_parts,
             repo_root: bundle_repo_options
@@ -135,6 +140,7 @@ impl BundleRepo {
             repo_head_commit_message: head_commit_message.unwrap_or_default(),
             repo_head_author_name,
             repo_head_author_email,
+            repo_full_name,
         })
     }
 
@@ -172,6 +178,7 @@ impl BundleRepo {
         repo_head_commit_message: String,
         repo_head_author_name: String,
         repo_head_author_email: String,
+        repo_full_name: String,
     ) -> Self {
         Self {
             repo,
@@ -184,6 +191,7 @@ impl BundleRepo {
             repo_head_commit_message,
             repo_head_author_name,
             repo_head_author_email,
+            repo_full_name,
         }
     }
 }
@@ -203,6 +211,7 @@ impl BundleRepo {
         repo_head_commit_message: String,
         repo_head_author_name: String,
         repo_head_author_email: String,
+        repo_full_name: String,
     ) -> Self {
         Self {
             repo,
@@ -215,6 +224,7 @@ impl BundleRepo {
             repo_head_commit_message,
             repo_head_author_name,
             repo_head_author_email,
+            repo_full_name,
         }
     }
 }
