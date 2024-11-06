@@ -123,6 +123,13 @@ pub async fn run_upload(
     {
         let temp_paths = handle_xcresult(&junit_temp_dir, xcresult_path)?;
         junit_paths = [junit_paths.as_slice(), temp_paths.as_slice()].concat();
+        if junit_paths.is_empty() && !allow_missing_junit_files {
+            return Err(anyhow::anyhow!(
+                "No tests found in the provided XCResult path."
+            ));
+        } else if junit_paths.is_empty() && allow_missing_junit_files {
+            log::warn!("No tests found in the provided XCResult path.");
+        }
     }
 
     let (file_sets, file_counter) = build_filesets(
