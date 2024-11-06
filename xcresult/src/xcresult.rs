@@ -364,9 +364,6 @@ impl XCResult {
                 // only add the report if it has test suites
                 // xcresult stores build actions
                 if !report_junit.test_suites.is_empty() {
-                    let mut junit_writer: Vec<u8> = Vec::new();
-                    report_junit.serialize(&mut junit_writer)?;
-                    log::info!("{}", String::from_utf8(junit_writer)?);
                     report_junits.push(report_junit);
                 }
             }
