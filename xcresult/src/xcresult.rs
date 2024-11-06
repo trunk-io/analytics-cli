@@ -93,7 +93,7 @@ impl XCResult {
     fn generate_id(&self, raw_id: &str) -> String {
         // join the org and repo name to the raw id and generate uuid v5 from it
         return uuid::Uuid::new_v5(
-            &uuid::Uuid::NAMESPACE_OID,
+            &uuid::Uuid::NAMESPACE_URL,
             format!(
                 "{}#{}#{}",
                 self.org_url_slug,
