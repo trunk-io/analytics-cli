@@ -6,7 +6,6 @@ use pyo3::prelude::*;
 use pyo3_stub_gen::derive::gen_stub_pyclass;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
-#[allow(unused_imports)]
 use std::path::PathBuf;
 #[cfg(feature = "git-access")]
 use std::process::Command;
@@ -18,7 +17,7 @@ pub mod validator;
 pub const GIT_REMOTE_ORIGIN_URL_CONFIG: &str = "remote.origin.url";
 
 lazy_static! {
-    static ref GH_MERGE_COMMIT_REGEX: Regex =
+    static ref GH_MERGE_BRANCH_REGEX: Regex =
         Regex::new(r"refs\/remotes\/pull\/[0-9]+\/merge").unwrap();
 }
 
@@ -181,7 +180,7 @@ impl BundleRepo {
         repo_head_branch: String,
     ) -> gix::Commit<'a> {
         // for GH actions, grab PR branch HEAD commit, not the PR merge commit
-        if GH_MERGE_COMMIT_REGEX.is_match(&repo_head_branch)
+        if GH_MERGE_BRANCH_REGEX.is_match(&repo_head_branch)
             && current_commit.parent_ids().count() == 2
         {
             log::info!("Detected merge commit");
