@@ -5,6 +5,7 @@ use pyo3::prelude::*;
 use pyo3_stub_gen::derive::gen_stub_pyclass;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
+#[allow(unused_imports)]
 use std::{path::PathBuf, process::Command};
 #[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::*;
