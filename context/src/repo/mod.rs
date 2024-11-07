@@ -49,6 +49,7 @@ impl BundleRepo {
         repo_head_branch: Option<String>,
         repo_head_commit_epoch: Option<String>,
     ) -> anyhow::Result<BundleRepo> {
+        #[allow(unused_mut)]
         let mut bundle_repo_options = BundleRepoOptions {
             repo_root: repo_root
                 .as_ref()
@@ -59,8 +60,9 @@ impl BundleRepo {
             repo_head_branch,
             repo_head_commit_epoch: repo_head_commit_epoch.and_then(|s| s.parse().ok()),
         };
-
+        #[allow(unused_mut)]
         let mut head_commit_message = None;
+        #[allow(unused_mut)]
         let mut head_commit_author = None;
 
         #[cfg(feature = "git-access")]
@@ -361,6 +363,10 @@ impl RepoUrlParts {
         }
 
         Ok(Self { host, owner, name })
+    }
+
+    pub fn repo_full_name(&self) -> String {
+        format!("{}/{}/{}", self.host, self.owner, self.name)
     }
 }
 

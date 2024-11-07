@@ -31,6 +31,10 @@ fn test_try_read_from_root() {
             name: "analytics-cli".to_string(),
         }
     );
+    assert_eq!(
+        bundle_repo.repo.repo_full_name(),
+        "github.com/trunk-io/analytics-cli"
+    );
     assert_eq!(bundle_repo.repo_url, TEST_ORIGIN);
     assert_eq!(
         bundle_repo.repo_head_branch,
@@ -71,6 +75,7 @@ fn test_try_read_from_root_with_url_override() {
             name: "repo".to_string(),
         }
     );
+    assert_eq!(bundle_repo.repo.repo_full_name(), "host.com/owner/repo");
     assert_eq!(bundle_repo.repo_url, origin_url);
     assert_eq!(
         bundle_repo.repo_head_branch,
@@ -110,6 +115,10 @@ fn test_try_read_from_root_with_sha_override() {
             owner: "trunk-io".to_string(),
             name: "analytics-cli".to_string(),
         }
+    );
+    assert_eq!(
+        bundle_repo.repo.repo_full_name(),
+        "github.com/trunk-io/analytics-cli"
     );
     assert_eq!(bundle_repo.repo_url, TEST_ORIGIN);
     assert_eq!(
@@ -151,6 +160,10 @@ fn test_try_read_from_root_with_branch_override() {
             name: "analytics-cli".to_string(),
         }
     );
+    assert_eq!(
+        bundle_repo.repo.repo_full_name(),
+        "github.com/trunk-io/analytics-cli"
+    );
     assert_eq!(bundle_repo.repo_url, TEST_ORIGIN);
     assert_eq!(bundle_repo.repo_head_branch, branch);
     assert_eq!(bundle_repo.repo_head_sha.len(), 40);
@@ -187,6 +200,10 @@ fn test_try_read_from_root_with_time_override() {
             owner: "trunk-io".to_string(),
             name: "analytics-cli".to_string(),
         }
+    );
+    assert_eq!(
+        bundle_repo.repo.repo_full_name(),
+        "github.com/trunk-io/analytics-cli"
     );
     assert_eq!(bundle_repo.repo_url, TEST_ORIGIN);
     assert_eq!(
@@ -315,7 +332,10 @@ fn test_parse_https_urls() {
 fn test_parse_git_urls() {
     let good_urls = &[
         (
-            "ssh://github.com/github/testrepo",
+            [
+                "ssh://github.com/github/testrepo",
+                "github.com/github/testrepo",
+            ],
             RepoUrlParts {
                 host: "github.com".to_string(),
                 owner: "github".to_string(),
@@ -323,7 +343,10 @@ fn test_parse_git_urls() {
             },
         ),
         (
-            "git://github.com/github/testrepo",
+            [
+                "git://github.com/github/testrepo",
+                "github.com/github/testrepo",
+            ],
             RepoUrlParts {
                 host: "github.com".to_string(),
                 owner: "github".to_string(),
@@ -331,7 +354,10 @@ fn test_parse_git_urls() {
             },
         ),
         (
-            "http://github.com/github/testrepo",
+            [
+                "http://github.com/github/testrepo",
+                "github.com/github/testrepo",
+            ],
             RepoUrlParts {
                 host: "github.com".to_string(),
                 owner: "github".to_string(),
@@ -339,7 +365,10 @@ fn test_parse_git_urls() {
             },
         ),
         (
-            "https://github.com/github/testrepo",
+            [
+                "https://github.com/github/testrepo",
+                "github.com/github/testrepo",
+            ],
             RepoUrlParts {
                 host: "github.com".to_string(),
                 owner: "github".to_string(),
@@ -347,7 +376,10 @@ fn test_parse_git_urls() {
             },
         ),
         (
-            "ftp://github.com/github/testrepo",
+            [
+                "ftp://github.com/github/testrepo",
+                "github.com/github/testrepo",
+            ],
             RepoUrlParts {
                 host: "github.com".to_string(),
                 owner: "github".to_string(),
@@ -355,7 +387,10 @@ fn test_parse_git_urls() {
             },
         ),
         (
-            "ftps://github.com/github/testrepo",
+            [
+                "ftps://github.com/github/testrepo",
+                "github.com/github/testrepo",
+            ],
             RepoUrlParts {
                 host: "github.com".to_string(),
                 owner: "github".to_string(),
@@ -363,7 +398,10 @@ fn test_parse_git_urls() {
             },
         ),
         (
-            "user@github.com:github/testrepo",
+            [
+                "user@github.com:github/testrepo",
+                "github.com/github/testrepo",
+            ],
             RepoUrlParts {
                 host: "github.com".to_string(),
                 owner: "github".to_string(),
@@ -380,13 +418,16 @@ fn test_parse_git_urls() {
         "ssh://github.com/github/",
     ];
 
-    for (url, expected) in good_urls {
+    for ([url, repo_full_name], expected) in good_urls {
         let actual1 = RepoUrlParts::from_url(url).unwrap();
         assert_eq!(actual1, *expected);
+        assert_eq!(actual1.repo_full_name(), *repo_full_name);
         let actual2 = RepoUrlParts::from_url(&(url.to_string() + ".git")).unwrap();
         assert_eq!(actual2, *expected);
+        assert_eq!(actual2.repo_full_name(), *repo_full_name);
         let actual3 = RepoUrlParts::from_url(&(url.to_string() + ".git/")).unwrap();
         assert_eq!(actual3, *expected);
+        assert_eq!(actual3.repo_full_name(), *repo_full_name);
     }
 
     for url in bad_urls {
