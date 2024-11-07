@@ -16,7 +16,7 @@ use trunk_analytics_cli::{
 #[derive(Debug, Parser)]
 #[command(
     version = std::env!("CARGO_PKG_VERSION"),
-    name = "trunk-analytics-cli",
+    name = "trunk flakytests",
     about = "Trunk Flaky Tests CLI",
     bin_name = "trunk flakytests",
 )]
