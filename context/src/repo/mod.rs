@@ -1,18 +1,25 @@
-use std::path::PathBuf;
-
 use anyhow::Context;
+use lazy_static::lazy_static;
 #[cfg(feature = "pyo3")]
 use pyo3::prelude::*;
 #[cfg(feature = "pyo3")]
 use pyo3_stub_gen::derive::gen_stub_pyclass;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
+#[cfg(feature = "git-access")]
+use std::process::Command;
 #[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::*;
 
 pub mod validator;
 
 pub const GIT_REMOTE_ORIGIN_URL_CONFIG: &str = "remote.origin.url";
+
+lazy_static! {
+    static ref GH_MERGE_BRANCH_REGEX: Regex =
+        Regex::new(r"refs\/remotes\/pull\/[0-9]+\/merge").unwrap();
+}
 
 #[derive(Debug, Clone, Default)]
 struct BundleRepoOptions {
@@ -76,7 +83,7 @@ impl BundleRepo {
                 bundle_repo_options.repo_url = bundle_repo_options.repo_url.or_else(|| {
                     git_repo
                         .config_snapshot()
-                        .string_by_key(GIT_REMOTE_ORIGIN_URL_CONFIG)
+                        .string(GIT_REMOTE_ORIGIN_URL_CONFIG)
                         .map(|s| s.to_string())
                 });
 
@@ -90,11 +97,19 @@ impl BundleRepo {
                                 .flatten()
                         });
 
-                    bundle_repo_options.repo_head_sha = bundle_repo_options
-                        .repo_head_sha
-                        .or_else(|| git_head.id().map(|id| id.to_string()));
+                    if let Ok(mut commit) = git_head.peel_to_commit_in_place() {
+                        commit = Self::resolve_repo_head_commit(
+                            &git_repo,
+                            commit,
+                            bundle_repo_options
+                                .repo_head_branch
+                                .clone()
+                                .unwrap_or_default(),
+                        );
 
-                    if let Ok(commit) = git_head.peel_to_commit_in_place() {
+                        bundle_repo_options.repo_head_sha = bundle_repo_options
+                            .repo_head_sha
+                            .or_else(|| Some(commit.id().to_string()));
                         bundle_repo_options.repo_head_commit_epoch = bundle_repo_options
                             .repo_head_commit_epoch
                             .or_else(|| commit.time().ok().map(|time| time.seconds));
@@ -156,6 +171,77 @@ impl BundleRepo {
             }
         }
         Ok(None)
+    }
+
+    #[cfg(feature = "git-access")]
+    fn resolve_repo_head_commit<'a>(
+        git_repo: &'a gix::Repository,
+        current_commit: gix::Commit<'a>,
+        repo_head_branch: String,
+    ) -> gix::Commit<'a> {
+        // for GH actions, grab PR branch HEAD commit, not the PR merge commit
+        if GH_MERGE_BRANCH_REGEX.is_match(&repo_head_branch)
+            && current_commit.parent_ids().count() == 2
+        {
+            log::info!("Detected merge commit");
+
+            // attempt to grab PR commit if fetch --depth=2 was done upstream
+            if let Some(pr_head_id) = current_commit.parent_ids().last() {
+                if let Ok(pr_head_commit) = git_repo.find_commit(pr_head_id) {
+                    log::info!(
+                        "Found PR branch HEAD commit with SHA {}, using this as commit",
+                        pr_head_commit.id().to_string()
+                    );
+                    return pr_head_commit;
+                }
+            }
+
+            log::info!("PR branch HEAD commit not found, fetching remote with --depth=2...");
+            let branch_to_fetch = repo_head_branch.replace("remotes/", "");
+            match Command::new("git")
+                .arg("fetch")
+                .arg("--depth=2")
+                .arg("origin")
+                .arg(branch_to_fetch)
+                .output()
+            {
+                Ok(fetch_output) => {
+                    if !fetch_output.status.success() {
+                        log::info!(
+                            "Received unsuccessful status after fetch: {}. Defaulting to merge commit with SHA {}",
+                            fetch_output.status,
+                            current_commit.id().to_string(),
+                        );
+                        return current_commit;
+                    }
+                }
+                Err(e) => {
+                    log::info!(
+                        "Encountered error during fetch: {}. Defaulting to merge commit with SHA {}",
+                        e,
+                        current_commit.id().to_string(),
+                    );
+                    return current_commit;
+                }
+            }
+
+            if let Some(pr_head_id) = current_commit.parent_ids().last() {
+                if let Ok(pr_head_commit) = git_repo.find_commit(pr_head_id) {
+                    log::info!(
+                        "Found PR branch HEAD commit with SHA {}, using this as commit",
+                        pr_head_commit.id().to_string()
+                    );
+                    return pr_head_commit;
+                }
+            }
+
+            log::info!(
+                "PR branch HEAD commit not found. Defaulting to merge commit with SHA {}",
+                current_commit.id().to_string()
+            );
+        }
+
+        return current_commit;
     }
 }
 

@@ -154,7 +154,7 @@ impl<'a> CIInfoParser<'a> {
             }
         };
         self.clean_branch();
-        self.parse_brach_class();
+        self.parse_branch_class();
         Ok(())
     }
 
@@ -169,7 +169,7 @@ impl<'a> CIInfoParser<'a> {
         }
     }
 
-    fn parse_brach_class(&mut self) {
+    fn parse_branch_class(&mut self) {
         if let Some(branch) = &self.ci_info.branch {
             match BranchClass::try_from(branch.as_str()) {
                 Ok(branch_class) => {
