@@ -1,5 +1,3 @@
-use std::{path::PathBuf, process::Command};
-
 use anyhow::Context;
 #[cfg(feature = "pyo3")]
 use pyo3::prelude::*;
@@ -7,6 +5,7 @@ use pyo3::prelude::*;
 use pyo3_stub_gen::derive::gen_stub_pyclass;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
+use std::{path::PathBuf, process::Command};
 #[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::*;
 
