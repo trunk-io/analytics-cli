@@ -12,7 +12,7 @@ tempfile = "3.2.0"
 [dependencies]
 anyhow = "1.0.44"
 chrono = "0.4.33"
-gix = { version = "0.63.0", default-features = false, features = [
+gix = { version = "0.67.0", default-features = false, features = [
 ], optional = true }
 js-sys = { version = "0.3.70", optional = true }
 openssl = { version = "0.10.66", features = ["vendored"], optional = true }

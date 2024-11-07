@@ -6,7 +6,7 @@ use context::repo::BundleRepo;
 use trunk_analytics_cli::{
     api_client::ApiClient,
     codeowners::CodeOwners,
-    constants::{EXIT_FAILURE, EXIT_SUCCESS, SENTRY_DSN},
+    constants::{EXIT_FAILURE, SENTRY_DSN},
     runner::{run_quarantine, run_test_command},
     types::RunResult,
     upload::{run_upload, UploadArgs},

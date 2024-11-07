@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::{path::PathBuf, process::Command};
 
 use anyhow::Context;
 #[cfg(feature = "pyo3")]
@@ -74,7 +74,7 @@ impl BundleRepo {
                 bundle_repo_options.repo_url = bundle_repo_options.repo_url.or_else(|| {
                     git_repo
                         .config_snapshot()
-                        .string_by_key(GIT_REMOTE_ORIGIN_URL_CONFIG)
+                        .string(GIT_REMOTE_ORIGIN_URL_CONFIG)
                         .map(|s| s.to_string())
                 });
 
@@ -88,11 +88,19 @@ impl BundleRepo {
                                 .flatten()
                         });
 
-                    bundle_repo_options.repo_head_sha = bundle_repo_options
-                        .repo_head_sha
-                        .or_else(|| git_head.id().map(|id| id.to_string()));
+                    if let Ok(mut commit) = git_head.peel_to_commit_in_place() {
+                        commit = Self::resolve_repo_head_commit(
+                            &git_repo,
+                            commit,
+                            bundle_repo_options
+                                .repo_head_branch
+                                .clone()
+                                .unwrap_or_default(),
+                        );
 
-                    if let Ok(commit) = git_head.peel_to_commit_in_place() {
+                        bundle_repo_options.repo_head_sha = bundle_repo_options
+                            .repo_head_sha
+                            .or_else(|| Some(commit.id().to_string()));
                         bundle_repo_options.repo_head_commit_epoch = bundle_repo_options
                             .repo_head_commit_epoch
                             .or_else(|| commit.time().ok().map(|time| time.seconds));
@@ -154,6 +162,33 @@ impl BundleRepo {
             }
         }
         Ok(None)
+    }
+
+    #[cfg(feature = "git-access")]
+    fn resolve_repo_head_commit<'a>(
+        git_repo: &'a gix::Repository,
+        current_commit: gix::Commit<'a>,
+        repo_head_branch: String,
+    ) -> gix::Commit<'a> {
+        // for GH actions, grab sha of PR head, not the PR merge commit
+        let re = Regex::new(r"refs\/remotes\/pull\/[0-9]+\/merge").unwrap();
+        if re.is_match(&repo_head_branch) && current_commit.parent_ids().count() == 2 {
+            let branch_to_fetch = repo_head_branch.replace("remotes/", "");
+            let _ = Command::new("git")
+                .arg("fetch")
+                .arg("--depth=2")
+                .arg("origin")
+                .arg(branch_to_fetch)
+                .output();
+
+            if let Some(pr_head_id) = current_commit.parent_ids().last() {
+                if let Ok(pr_head_commit) = git_repo.find_commit(pr_head_id) {
+                    return pr_head_commit;
+                }
+            }
+        }
+
+        return current_commit;
     }
 }
 
