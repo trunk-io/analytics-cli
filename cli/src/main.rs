@@ -17,7 +17,8 @@ use trunk_analytics_cli::{
 #[command(
     version = std::env!("CARGO_PKG_VERSION"),
     name = "trunk-analytics-cli",
-    about = "Trunk Analytics CLI"
+    about = "Trunk Flaky Tests CLI",
+    bin_name = "trunk flakytests",
 )]
 struct Cli {
     #[command(subcommand)]
@@ -52,8 +53,11 @@ struct ValidateArgs {
 
 #[derive(Debug, Subcommand)]
 enum Commands {
+    /// Upload data to Trunk Flaky Tests
     Upload(UploadArgs),
+    /// Run a test command and upload data to Trunk Flaky Tests
     Test(TestArgs),
+    /// Validate that your test runner output is suitable for Trunk Flaky Tests
     Validate(ValidateArgs),
 }
 
@@ -223,7 +227,7 @@ fn setup_logger() -> anyhow::Result<()> {
 
 fn print_cli_start_info() {
     log::info!(
-        "Starting trunk-analytics-cli {} (git={}) rustc={}",
+        "Starting trunk flakytests {} (git={}) rustc={}",
         env!("CARGO_PKG_VERSION"),
         env!("VERGEN_GIT_SHA"),
         env!("VERGEN_RUSTC_SEMVER")
