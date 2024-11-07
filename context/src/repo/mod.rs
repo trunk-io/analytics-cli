@@ -173,13 +173,33 @@ impl BundleRepo {
         // for GH actions, grab sha of PR head, not the PR merge commit
         let re = Regex::new(r"refs\/remotes\/pull\/[0-9]+\/merge").unwrap();
         if re.is_match(&repo_head_branch) && current_commit.parent_ids().count() == 2 {
+            log::debug!("attempting to resolve PR head commit");
+
             let branch_to_fetch = repo_head_branch.replace("remotes/", "");
-            let _ = Command::new("git")
+            match Command::new("git")
                 .arg("fetch")
                 .arg("--depth=2")
                 .arg("origin")
                 .arg(branch_to_fetch)
-                .output();
+                .output()
+            {
+                Ok(fetch_output) => {
+                    if !fetch_output.status.success() {
+                        log::debug!(
+                            "received error during fetch: {}. defaulting to current commit",
+                            fetch_output.status
+                        );
+                        return current_commit;
+                    }
+                }
+                Err(e) => {
+                    log::debug!(
+                        "received error during fetch: {}. defaulting to current commit",
+                        e
+                    );
+                    return current_commit;
+                }
+            }
 
             if let Some(pr_head_id) = current_commit.parent_ids().last() {
                 if let Ok(pr_head_commit) = git_repo.find_commit(pr_head_id) {

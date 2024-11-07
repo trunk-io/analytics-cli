@@ -503,6 +503,7 @@ dependencies = [
  "gix",
  "js-sys",
  "junit-mock",
+ "log",
  "openssl",
  "openssl-src",
  "pretty_assertions",
