@@ -1,4 +1,5 @@
 use anyhow::Context;
+use lazy_static::lazy_static;
 #[cfg(feature = "pyo3")]
 use pyo3::prelude::*;
 #[cfg(feature = "pyo3")]
@@ -6,13 +7,20 @@ use pyo3_stub_gen::derive::gen_stub_pyclass;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 #[allow(unused_imports)]
-use std::{path::PathBuf, process::Command};
+use std::path::PathBuf;
+#[cfg(feature = "git-access")]
+use std::process::Command;
 #[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::*;
 
 pub mod validator;
 
 pub const GIT_REMOTE_ORIGIN_URL_CONFIG: &str = "remote.origin.url";
+
+lazy_static! {
+    static ref GH_MERGE_COMMIT_REGEX: Regex =
+        Regex::new(r"refs\/remotes\/pull\/[0-9]+\/merge").unwrap();
+}
 
 #[derive(Debug, Clone, Default)]
 struct BundleRepoOptions {
@@ -173,8 +181,9 @@ impl BundleRepo {
         repo_head_branch: String,
     ) -> gix::Commit<'a> {
         // for GH actions, grab PR branch HEAD commit, not the PR merge commit
-        let re = Regex::new(r"refs\/remotes\/pull\/[0-9]+\/merge").unwrap();
-        if re.is_match(&repo_head_branch) && current_commit.parent_ids().count() == 2 {
+        if GH_MERGE_COMMIT_REGEX.is_match(&repo_head_branch)
+            && current_commit.parent_ids().count() == 2
+        {
             log::info!("Detected merge commit");
 
             // attempt to grab PR commit if fetch --depth=2 was done upstream
