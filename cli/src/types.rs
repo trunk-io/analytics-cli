@@ -46,7 +46,7 @@ impl Test {
             };
         }
         // generate a unique id if not provided
-        let repo_full_name = format!("{}/{}/{}", repo.repo.host, repo.repo.owner, repo.repo.name);
+        let repo_full_name = repo.repo.repo_full_name();
         let info_id_input = [
             org_slug,
             &repo_full_name,

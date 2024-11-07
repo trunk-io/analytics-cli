@@ -1,3 +1,4 @@
+use context::repo::RepoUrlParts;
 use indexmap::indexmap;
 use lazy_static::lazy_static;
 use quick_junit::{NonSuccessKind, Report, TestCase, TestCaseStatus, TestSuite, XmlString};
@@ -11,6 +12,8 @@ const RESULTS_FIELD_VALUES: &str = "_values";
 pub struct XCResult {
     pub path: String,
     results_obj: serde_json::Value,
+    pub repo_url_parts: RepoUrlParts,
+    pub org_url_slug: String,
 }
 
 const LEGACY_FLAG_MIN_VERSION: i32 = 70;
@@ -66,13 +69,19 @@ fn xcresulttool<T: AsRef<str>>(
 }
 
 impl XCResult {
-    pub fn new<T: AsRef<str>>(path: T) -> anyhow::Result<XCResult> {
+    pub fn new<T: AsRef<str>, S: AsRef<str>>(
+        path: T,
+        repo_url_parts: &RepoUrlParts,
+        org_url_slug: S,
+    ) -> anyhow::Result<XCResult> {
         let binding = fs::canonicalize(path.as_ref())
             .map_err(|_| anyhow::anyhow!("failed to get absolute path -- is the path correct?"))?;
         let absolute_path = binding.to_str().unwrap_or_default();
         let results_obj = xcresulttool(absolute_path, None)?;
         Ok(XCResult {
             path: absolute_path.to_string(),
+            repo_url_parts: repo_url_parts.clone(),
+            org_url_slug: org_url_slug.as_ref().to_string(),
             results_obj,
         })
     }
@@ -81,8 +90,19 @@ impl XCResult {
         xcresulttool(self.path.as_str(), Some(&["--id", id.as_ref()]))
     }
 
-    fn generate_id(raw_id: &str) -> String {
-        uuid::Uuid::new_v5(&uuid::Uuid::NAMESPACE_URL, raw_id.as_bytes()).to_string()
+    fn generate_id(&self, raw_id: &str) -> String {
+        // join the org and repo name to the raw id and generate uuid v5 from it
+        return uuid::Uuid::new_v5(
+            &uuid::Uuid::NAMESPACE_URL,
+            format!(
+                "{}#{}#{}",
+                self.org_url_slug,
+                &self.repo_url_parts.repo_full_name(),
+                raw_id
+            )
+            .as_bytes(),
+        )
+        .to_string();
     }
 
     fn junit_testcase(
@@ -168,7 +188,7 @@ impl XCResult {
             .get("identifierURL")
             .and_then(|r| r.get(RESULTS_FIELD_VALUE))
             .and_then(|r| r.as_str())
-            .map(XCResult::generate_id)
+            .map(|r| self.generate_id(r))
             .unwrap_or_default();
         testcase_junit.extra.insert("id".into(), id.into());
         let file_components = uri.split('#').collect::<Vec<&str>>();
@@ -216,7 +236,7 @@ impl XCResult {
             .and_then(|r| r.as_str())
         {
             testsuite_junit.extra.append(&mut indexmap! {
-                XmlString::new("id") => XmlString::new(XCResult::generate_id(identifier)),
+                XmlString::new("id") => XmlString::new(self.generate_id(identifier)),
             });
         }
         if let Some(duration) = testsuite

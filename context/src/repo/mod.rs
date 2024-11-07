@@ -286,6 +286,10 @@ impl RepoUrlParts {
 
         Ok(Self { host, owner, name })
     }
+
+    pub fn repo_full_name(&self) -> String {
+        format!("{}/{}/{}", self.host, self.owner, self.name)
+    }
 }
 
 #[cfg(feature = "pyo3")]
