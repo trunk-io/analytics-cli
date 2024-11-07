@@ -124,6 +124,13 @@ pub async fn run_upload(
         let temp_paths =
             handle_xcresult(&junit_temp_dir, xcresult_path, &repo.repo, &org_url_slug)?;
         junit_paths = [junit_paths.as_slice(), temp_paths.as_slice()].concat();
+        if junit_paths.is_empty() && !allow_missing_junit_files {
+            return Err(anyhow::anyhow!(
+                "No tests found in the provided XCResult path."
+            ));
+        } else if junit_paths.is_empty() && allow_missing_junit_files {
+            log::warn!("No tests found in the provided XCResult path.");
+        }
     }
 
     let (file_sets, file_counter) = build_filesets(
@@ -288,7 +295,14 @@ pub async fn run_upload(
         })
         .await?;
 
-    log::info!("Done");
+    if exit_code == EXIT_SUCCESS {
+        log::info!("Done");
+    } else {
+        log::info!(
+            "Upload successful; returning unsuccessful exit code of test run: {}",
+            exit_code
+        )
+    }
     Ok(exit_code)
 }
 

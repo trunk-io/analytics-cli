@@ -16,8 +16,9 @@ use trunk_analytics_cli::{
 #[derive(Debug, Parser)]
 #[command(
     version = std::env!("CARGO_PKG_VERSION"),
-    name = "trunk-analytics-cli",
-    about = "Trunk Analytics CLI"
+    name = "trunk flakytests",
+    about = "Trunk Flaky Tests CLI",
+    bin_name = "trunk flakytests",
 )]
 struct Cli {
     #[command(subcommand)]
@@ -52,8 +53,11 @@ struct ValidateArgs {
 
 #[derive(Debug, Subcommand)]
 enum Commands {
+    /// Upload data to Trunk Flaky Tests
     Upload(UploadArgs),
+    /// Run a test command and upload data to Trunk Flaky Tests
     Test(TestArgs),
+    /// Validate that your test runner output is suitable for Trunk Flaky Tests
     Validate(ValidateArgs),
 }
 
@@ -168,7 +172,7 @@ async fn run_test(test_args: TestArgs) -> anyhow::Result<i32> {
         .unwrap_or(run_exit_code);
 
     let exec_start = run_result.exec_start;
-    match run_upload(
+    if let Err(e) = run_upload(
         upload_args,
         Some(command.join(" ")),
         None, // don't re-run quarantine checks
@@ -177,10 +181,7 @@ async fn run_test(test_args: TestArgs) -> anyhow::Result<i32> {
     )
     .await
     {
-        Ok(EXIT_SUCCESS) => (),
-        Ok(code) => log::error!("Error uploading test results: {}", code),
-        // TODO(TRUNK-12558): We should fail on configuration error _prior_ to running a test
-        Err(e) => log::error!("Error uploading test results: {:?}", e),
+        log::error!("Error uploading test results: {:?}", e)
     };
 
     Ok(exit_code)
@@ -226,7 +227,7 @@ fn setup_logger() -> anyhow::Result<()> {
 
 fn print_cli_start_info() {
     log::info!(
-        "Starting trunk-analytics-cli {} (git={}) rustc={}",
+        "Starting trunk flakytests {} (git={}) rustc={}",
         env!("CARGO_PKG_VERSION"),
         env!("VERGEN_GIT_SHA"),
         env!("VERGEN_RUSTC_SEMVER")
