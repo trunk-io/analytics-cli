@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites name="jest tests" tests="4" failures="0" errors="0" time="42.359">
+  <testsuite name="Testing linter actionlint" errors="0" failures="0" skipped="0" timestamp="2024-10-16T20:54:20" time="9.621" tests="1">
+    <testcase classname="Testing linter actionlint test CUSTOM" name="Testing linter actionlint test CUSTOM" time="2.022">
+    </testcase>
+  </testsuite>
+  <testsuite name="Testing formatter autopep8" errors="0" failures="0" skipped="0" timestamp="2024-10-16T20:54:20" time="15.769" tests="1">
+    <testcase classname="Testing formatter autopep8 test basic" name="Testing formatter autopep8 test basic" time="6.382">
+    </testcase>
+  </testsuite>
+  <testsuite name="Testing linter ansible-lint" errors="0" failures="0" skipped="0" timestamp="2024-10-16T20:54:20" time="42.206" tests="2">
+    <testcase classname="Testing linter ansible-lint test FQCN" name="Testing linter ansible-lint test FQCN" time="23.467">
+    </testcase>
+    <testcase classname="Testing linter ansible-lint test non_FQCN" name="Testing linter ansible-lint test non_FQCN" time="4.027">
+    </testcase>
+  </testsuite>
+</testsuites>
