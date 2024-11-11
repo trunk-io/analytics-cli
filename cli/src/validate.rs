@@ -181,10 +181,6 @@ fn print_summary_success(num_reports: usize, num_suboptimal_reports: usize) {
         num_validation_warnings_str,
         Emoji(" ✅", ""),
     );
-    println!(
-        "Navigate to https://app.trunk.io/onboarding?intent=flaky+tests to continue using Trunk Flaky Tests!{}",
-        Emoji(" 🚀🧪", ""),
-    );
 }
 
 fn print_validation_errors(report_validations: &JunitFileToValidation) -> (usize, usize) {
