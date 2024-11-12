@@ -1,4 +1,4 @@
-use std::io::{Seek, Write};
+use std::io::{Read, Seek, Write};
 use std::path::PathBuf;
 
 use crate::codeowners::CodeOwners;
@@ -16,6 +16,33 @@ impl BundlerUtil {
 
     pub fn new(meta: BundleMeta) -> Self {
         Self { meta }
+    }
+
+    // Static function to parse from a tarball.
+    pub fn from_tarball(bundle_path: &PathBuf) -> anyhow::Result<Self> {
+        let tar_file = std::fs::File::open(bundle_path)?;
+        let zstd_decoder = zstd::Decoder::new(tar_file)?;
+        let mut tar = tar::Archive::new(zstd_decoder);
+
+        let mut meta_bytes = Vec::new();
+
+        for entry in tar.entries()? {
+            let mut entry: tar::Entry<'_, zstd::Decoder<'_, std::io::BufReader<std::fs::File>>> =
+                entry?;
+            let path = entry.path()?.to_owned();
+            let path_str = path.to_str().unwrap_or_default();
+
+            if path_str == Self::META_FILENAME {
+                println!("Found meta file: {}", path_str);
+                entry.read_to_end(&mut meta_bytes)?;
+            } else {
+                println!("Found other file: {}", path_str);
+                break;
+            }
+        }
+
+        let meta: BundleMeta = serde_json::from_slice(&meta_bytes)?;
+        Ok(Self { meta })
     }
 
     /// Writes compressed tarball to disk.
