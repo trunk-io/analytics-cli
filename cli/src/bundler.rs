@@ -18,25 +18,22 @@ impl BundlerUtil {
         Self { meta }
     }
 
-    // Static function to parse from a tarball.
-    pub fn from_tarball(bundle_path: &PathBuf) -> anyhow::Result<Self> {
-        let tar_file = std::fs::File::open(bundle_path)?;
-        let zstd_decoder = zstd::Decoder::new(tar_file)?;
+    /// Reads and decompresses a .tar.zstd file from an input stream into just a `meta.json` file
+    ///
+    pub fn parse_meta_from_tarball<R: Read>(input: R) -> anyhow::Result<Self> {
+        let zstd_decoder = zstd::Decoder::new(input)?;
         let mut tar = tar::Archive::new(zstd_decoder);
 
         let mut meta_bytes = Vec::new();
 
         for entry in tar.entries()? {
-            let mut entry: tar::Entry<'_, zstd::Decoder<'_, std::io::BufReader<std::fs::File>>> =
-                entry?;
-            let path = entry.path()?.to_owned();
-            let path_str = path.to_str().unwrap_or_default();
+            let mut file_entry = entry?;
+            let path_str = file_entry.path()?.to_str().unwrap_or_default().to_owned();
 
             if path_str == Self::META_FILENAME {
-                println!("Found meta file: {}", path_str);
-                entry.read_to_end(&mut meta_bytes)?;
+                file_entry.read_to_end(&mut meta_bytes)?;
+                break;
             } else {
-                println!("Found other file: {}", path_str);
                 break;
             }
         }
