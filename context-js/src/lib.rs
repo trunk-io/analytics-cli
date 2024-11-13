@@ -1,7 +1,15 @@
-use std::{collections::HashMap, io::BufReader};
+use std::{
+    collections::HashMap,
+    io::{BufReader, Read},
+};
 
 use context::{env, junit, repo};
 use wasm_bindgen::prelude::*;
+// use create::bundle::BundlerUtil;
+// use wasm_streams::readable::ReadableStream;
+// use wasm_streams::writable::WritableStream;
+// use wasm_streams::writable::sys::WritableStreamDefaultWriter;
+// use futures::stream::StreamExt;
 
 #[wasm_bindgen]
 pub fn env_parse(env_vars: js_sys::Object) -> Result<Option<env::parser::CIInfo>, JsError> {
@@ -72,3 +80,26 @@ pub fn junit_validate(
 pub fn repo_validate(bundle_repo: repo::BundleRepo) -> repo::validator::RepoValidation {
     repo::validator::validate(&bundle_repo)
 }
+
+// // TODO: TYLER TRY OUT https://docs.rs/wasm-streams/0.4.2/wasm_streams/index.html
+// #[wasm_bindgen]
+// pub fn parse_meta_from_tarball<R: Read>(input: R) -> anyhow::Result<BundlerMeta> {
+//     BundlerUtil::parse_meta_from_tarball(input)
+// }
+
+// #[wasm_bindgen]
+// pub async fn parse_meta_from_tarball(input: ReadableStream) -> Result<Option<BundlerUtil>, JsError> {
+//     let mut reader = input.into_stream().map(|chunk| {
+//         chunk.map_err(|err| anyhow::anyhow!(err.as_string().unwrap_or_default()))
+//     });
+
+//     let mut buffer = Vec::new();
+//     while let Some(chunk) = reader.next().await {
+//         let chunk = chunk?;
+//         buffer.extend_from_slice(&chunk);
+//     }
+
+//     let result = BundlerUtil::parse_meta_from_tarball(&buffer[..])
+//         .map_err(|err| JsValue::from_str(&err.to_string()))?;
+//     Ok(result)
+// }

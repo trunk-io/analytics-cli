@@ -1,30 +1,9 @@
+mod codeowners;
 mod github;
 mod gitlab;
+mod traits;
 
-use std::{io::Read, path::Path};
-
+pub use codeowners::{CodeOwners, Owners};
 pub use github::{GitHubOwner, GitHubOwners};
 pub use gitlab::{GitLabOwner, GitLabOwners};
-
-pub trait OwnersOfPath {
-    type Owner;
-
-    /// Resolve a list of owners matching a given path
-    fn of<P>(&self, path: P) -> Option<Vec<Self::Owner>>
-    where
-        P: AsRef<Path>;
-}
-
-pub trait FromPath: Sized {
-    /// Parse a CODEOWNERS file existing at a given path
-    fn from_path<P>(path: P) -> anyhow::Result<Self>
-    where
-        P: AsRef<Path>;
-}
-
-pub trait FromReader: Sized {
-    /// Parse a CODEOWNERS file from some readable source
-    fn from_reader<R>(read: R) -> anyhow::Result<Self>
-    where
-        R: Read;
-}
+pub use traits::{FromPath, FromReader, OwnersOfPath};

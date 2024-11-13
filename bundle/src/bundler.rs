@@ -1,11 +1,15 @@
 use std::io::{Read, Seek, Write};
 use std::path::PathBuf;
 
-use crate::codeowners::CodeOwners;
 use crate::types::BundleMeta;
+use codeowners::CodeOwners;
+
+#[cfg(feature = "wasm")]
+use wasm_bindgen::prelude::*;
 
 /// Utility type for packing files into tarball.
 ///
+#[cfg_attr(feature = "wasm", wasm_bindgen)]
 pub struct BundlerUtil {
     pub(crate) meta: BundleMeta,
 }

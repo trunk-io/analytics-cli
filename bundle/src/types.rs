@@ -1,8 +1,11 @@
 use context::repo::BundleRepo;
 use serde::{Deserialize, Serialize};
 
-use crate::codeowners::CodeOwners;
-use crate::scanner::FileSet;
+use crate::files::FileSet;
+use codeowners::CodeOwners;
+
+#[cfg(feature = "wasm")]
+use wasm_bindgen::prelude::*;
 
 pub struct RunResult {
     pub exit_code: i32,
@@ -109,6 +112,7 @@ pub struct CustomTag {
 pub const META_VERSION: &str = "1";
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+// #[cfg_attr(feature = "wasm", wasm_bindgen)]
 pub struct BundleMeta {
     pub version: String,
     pub cli_version: String,
@@ -199,7 +203,7 @@ mod tests {
         ];
 
         for (tags_str, expected) in good_tags {
-            let actual = crate::utils::parse_custom_tags(&tags_str).unwrap();
+            let actual: Vec<CustomTag> = crate::custom_tag::parse_custom_tags(&tags_str).unwrap();
             assert_eq!(actual, *expected);
         }
     }
@@ -213,7 +217,7 @@ mod tests {
         ];
 
         for tags_str in bad_tags {
-            let actual = crate::utils::parse_custom_tags(&tags_str);
+            let actual = crate::custom_tag::parse_custom_tags(&tags_str);
             assert!(actual.is_err());
         }
     }

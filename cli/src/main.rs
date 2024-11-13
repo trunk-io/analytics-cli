@@ -1,14 +1,14 @@
 use std::env;
 use std::io::Write;
 
+use bundle::RunResult;
 use clap::{Args, Parser, Subcommand};
+use codeowners::CodeOwners;
+use constants::{EXIT_FAILURE, SENTRY_DSN};
 use context::repo::BundleRepo;
 use trunk_analytics_cli::{
     api_client::ApiClient,
-    codeowners::CodeOwners,
-    constants::{EXIT_FAILURE, SENTRY_DSN},
     runner::{run_quarantine, run_test_command},
-    types::RunResult,
     upload::{run_upload, UploadArgs},
     validate::validate,
 };

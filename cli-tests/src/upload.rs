@@ -9,13 +9,11 @@ use api::{
 };
 use assert_cmd::Command;
 use assert_matches::assert_matches;
+use codeowners::CodeOwners;
 use context::repo::RepoUrlParts as Repo;
 use tempfile::tempdir;
 use test_utils::mock_server::{MockServerBuilder, RequestPayload};
-use trunk_analytics_cli::{
-    codeowners::CodeOwners,
-    types::{BundleMeta, FileSetType},
-};
+use trunk_analytics_cli::types::{BundleMeta, FileSetType};
 
 // NOTE: must be multi threaded to start a mock server
 #[tokio::test(flavor = "multi_thread")]

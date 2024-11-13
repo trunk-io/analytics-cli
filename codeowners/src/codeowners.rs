@@ -3,10 +3,12 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use codeowners::{FromReader, GitHubOwners, GitLabOwners};
+use crate::github::GitHubOwners;
+use crate::gitlab::GitLabOwners;
+use crate::traits::FromReader;
 use serde::{Deserialize, Serialize};
 
-use crate::constants::CODEOWNERS_LOCATIONS;
+use constants::CODEOWNERS_LOCATIONS;
 
 #[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct CodeOwners {
