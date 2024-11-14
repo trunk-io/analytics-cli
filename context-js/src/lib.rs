@@ -1,15 +1,11 @@
-use std::{
-    collections::HashMap,
-    io::{BufReader, Read},
-};
+use std::{collections::HashMap, io::BufReader};
 
+use bundle::BundlerUtil;
 use context::{env, junit, repo};
+use futures::io::BufReader as BufReaderAsync;
 use wasm_bindgen::prelude::*;
-// use create::bundle::BundlerUtil;
-// use wasm_streams::readable::ReadableStream;
-// use wasm_streams::writable::WritableStream;
-// use wasm_streams::writable::sys::WritableStreamDefaultWriter;
-// use futures::stream::StreamExt;
+use wasm_streams::readable::ReadableStream;
+use wasm_streams::readable::{sys, ReadableStreamBYOBReader};
 
 #[wasm_bindgen]
 pub fn env_parse(env_vars: js_sys::Object) -> Result<Option<env::parser::CIInfo>, JsError> {
@@ -81,25 +77,15 @@ pub fn repo_validate(bundle_repo: repo::BundleRepo) -> repo::validator::RepoVali
     repo::validator::validate(&bundle_repo)
 }
 
-// // TODO: TYLER TRY OUT https://docs.rs/wasm-streams/0.4.2/wasm_streams/index.html
-// #[wasm_bindgen]
-// pub fn parse_meta_from_tarball<R: Read>(input: R) -> anyhow::Result<BundlerMeta> {
-//     BundlerUtil::parse_meta_from_tarball(input)
-// }
+#[wasm_bindgen()]
+pub async fn parse_meta_from_tarball(input: sys::ReadableStream) -> Result<BundlerUtil, JsError> {
+    let mut readable_stream = ReadableStream::from_raw(input);
+    let byob_reader = readable_stream.get_byob_reader();
 
-// #[wasm_bindgen]
-// pub async fn parse_meta_from_tarball(input: ReadableStream) -> Result<Option<BundlerUtil>, JsError> {
-//     let mut reader = input.into_stream().map(|chunk| {
-//         chunk.map_err(|err| anyhow::anyhow!(err.as_string().unwrap_or_default()))
-//     });
+    let async_read = byob_reader.into_async_read();
+    let buf_reader = BufReaderAsync::new(async_read);
 
-//     let mut buffer = Vec::new();
-//     while let Some(chunk) = reader.next().await {
-//         let chunk = chunk?;
-//         buffer.extend_from_slice(&chunk);
-//     }
-
-//     let result = BundlerUtil::parse_meta_from_tarball(&buffer[..])
-//         .map_err(|err| JsValue::from_str(&err.to_string()))?;
-//     Ok(result)
-// }
+    BundlerUtil::parse_meta_from_tarball(buf_reader)
+        .await
+        .map_err(|err| JsError::new(&err.to_string()))
+}

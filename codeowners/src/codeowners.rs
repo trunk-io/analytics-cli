@@ -36,6 +36,7 @@ impl WasmDescribe for CodeOwners {
 impl IntoWasmAbi for CodeOwners {
     type Abi = u32;
     fn into_abi(self) -> Self::Abi {
+        // DONOTLAND: TODO: TYLER CONSIDER SETTING THE PATH
         let map = js_sys::Object::new();
         map.into_abi()
     }

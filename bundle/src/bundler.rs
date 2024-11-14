@@ -2,8 +2,15 @@ use std::io::{Read, Seek, Write};
 use std::path::PathBuf;
 
 use crate::types::BundleMeta;
+use async_std::io::ReadExt;
+use async_std::stream::StreamExt;
 use codeowners::CodeOwners;
 use serde_wasm_bindgen::{from_value, to_value, Serializer};
+
+use async_compression::futures::bufread::ZstdDecoder;
+// use async_compression::futures::AsyncBufRead;
+use async_tar::Archive;
+use futures_io::AsyncBufRead;
 
 #[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::*;
@@ -25,30 +32,27 @@ impl BundlerUtil {
 
     /// Reads and decompresses a .tar.zstd file from an input stream into just a `meta.json` file
     ///
-    pub fn parse_meta_from_tarball<R: Read>(input: R) -> anyhow::Result<Self> {
-        let zstd_decoder = zstd::Decoder::new(input)?;
-        let mut tar = tar::Archive::new(zstd_decoder);
+    pub async fn parse_meta_from_tarball<R: AsyncBufRead>(input: R) -> anyhow::Result<Self> {
+        let zstd_decoder = ZstdDecoder::new(Box::pin(input));
+        let archive = Archive::new(zstd_decoder);
 
-        let mut meta_bytes = Vec::new();
-
-        for entry in tar.entries()? {
-            let mut file_entry = entry?;
-            let path_str = file_entry.path()?.to_str().unwrap_or_default().to_owned();
+        if let Some(first_entry) = archive.entries()?.next().await {
+            let mut owned_first_entry = first_entry?;
+            let path_str = owned_first_entry
+                .path()?
+                .to_str()
+                .unwrap_or_default()
+                .to_owned();
 
             if path_str == Self::META_FILENAME {
-                file_entry.read_to_end(&mut meta_bytes)?;
-                break;
-            } else {
-                break;
+                let mut meta_bytes = Vec::new();
+                owned_first_entry.read_to_end(&mut meta_bytes).await?;
+
+                let meta: BundleMeta = serde_json::from_slice(&meta_bytes)?;
+                return Ok(Self { meta });
             }
         }
-
-        // let meta: BundleMeta = serde_wasm_bindgen::from(&meta_bytes)?;
-        // let serde_wasm_bindgen::Serializer::new().serialize_maps_as_objects(true);
-        // let meta: BundleMeta = serde_wasm_bindgen::from_value(&meta_bytes).unwrap();
-        let meta: BundleMeta = serde_json::from_slice(&meta_bytes)?;
-
-        Ok(Self { meta })
+        Err(anyhow::anyhow!("No meta.json file found in the tarball"))
     }
 
     /// Writes compressed tarball to disk.
