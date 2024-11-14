@@ -12,6 +12,7 @@ use bundle::{
 };
 use codeowners::CodeOwners;
 use constants::{EXIT_FAILURE, EXIT_SUCCESS};
+use context::repo::RepoUrlParts;
 
 use crate::{
     api_client::ApiClient,

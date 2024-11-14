@@ -5,10 +5,8 @@ use crate::types::BundleMeta;
 use async_std::io::ReadExt;
 use async_std::stream::StreamExt;
 use codeowners::CodeOwners;
-use serde_wasm_bindgen::{from_value, to_value, Serializer};
 
 use async_compression::futures::bufread::ZstdDecoder;
-// use async_compression::futures::AsyncBufRead;
 use async_tar::Archive;
 use futures_io::AsyncBufRead;
 

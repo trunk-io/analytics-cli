@@ -14,11 +14,8 @@ use constants::CODEOWNERS_LOCATIONS;
 use wasm_bindgen::convert::{IntoWasmAbi, OptionIntoWasmAbi};
 #[cfg(feature = "wasm")]
 use wasm_bindgen::describe::WasmDescribe;
-#[cfg(feature = "wasm")]
-use wasm_bindgen::prelude::*;
 
 #[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq)]
-// #[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
 pub struct CodeOwners {
     pub path: PathBuf,
     // DONOTLAND: TODO: TYLER SHOULD WE GATE THIS DIFFERENTLY
@@ -90,7 +87,6 @@ impl CodeOwners {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-// #[cfg_attr(feature = "wasm", wasm_bindgen)]
 pub enum Owners {
     GitHubOwners(GitHubOwners),
     GitLabOwners(GitLabOwners),

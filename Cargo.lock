@@ -495,44 +495,23 @@ name = "bundle"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "api",
  "async-compression",
  "async-std",
  "async-tar",
- "axum",
- "chrono",
- "clap",
  "codeowners",
- "colored",
- "console",
  "constants",
  "context",
- "env_logger",
- "exitcode",
  "futures-io",
  "glob",
- "http",
  "js-sys",
- "lazy_static",
  "log",
- "openssl",
- "openssl-src",
- "quick-junit",
  "regex",
- "reqwest",
- "sentry",
  "serde",
- "serde-wasm-bindgen",
  "serde_json",
  "tar",
  "tempfile",
- "test_utils",
- "tokio",
- "tokio-retry",
  "uuid",
- "vergen",
  "wasm-bindgen",
- "xcresult",
  "zstd",
 ]
 
@@ -3236,17 +3215,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "serde-wasm-bindgen"
-version = "0.6.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8302e169f0eddcc139c70f139d19d6467353af16f9fce27e8c30158036a1e16b"
-dependencies = [
- "js-sys",
- "serde",
- "wasm-bindgen",
-]
-
-[[package]]
 name = "serde_derive"
 version = "1.0.210"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3767,27 +3735,19 @@ dependencies = [
  "exitcode",
  "glob",
  "http",
- "js-sys",
  "lazy_static",
  "log",
  "openssl",
  "openssl-src",
  "quick-junit",
- "regex",
  "reqwest",
  "sentry",
- "serde",
- "serde_json",
- "tar",
  "tempfile",
  "test_utils",
  "tokio",
  "tokio-retry",
- "uuid",
  "vergen",
- "wasm-bindgen",
  "xcresult",
- "zstd",
 ]
 
 [[package]]
