@@ -16,9 +16,9 @@ use wasm_bindgen::prelude::*;
 
 /// Utility type for packing files into tarball.
 ///
-#[cfg_attr(feature = "wasm", wasm_bindgen)]
+#[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
 pub struct BundlerUtil {
-    pub(crate) meta: BundleMeta,
+    pub meta: BundleMeta,
 }
 
 impl BundlerUtil {
