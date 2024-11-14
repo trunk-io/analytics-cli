@@ -7,7 +7,7 @@ use std::{
 };
 
 use bundle::{
-    parse_custom_tags, BundleMeta, BundlerUtil, FileSet, QuarantineBulkTestStatus,
+    parse_custom_tags, BundleMeta, BundlerUtil, FileSet, MapType, QuarantineBulkTestStatus,
     QuarantineRunResult, META_VERSION,
 };
 use codeowners::CodeOwners;
@@ -219,7 +219,7 @@ pub async fn run_upload(
         file_sets,
         num_files,
         num_tests,
-        envs,
+        envs: MapType(envs),
         upload_time_epoch: SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs(),
         test_command,
         quarantined_tests: resolved_quarantine_results.quarantine_results.to_vec(),

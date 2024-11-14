@@ -101,7 +101,7 @@ pub enum FileSetType {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
-pub struct MapType(HashMap<String, String>);
+pub struct MapType(pub HashMap<String, String>);
 
 #[cfg(feature = "wasm")]
 impl WasmDescribe for MapType {
