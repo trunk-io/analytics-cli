@@ -32,6 +32,7 @@ async fn upload_bundle() {
         .current_dir(&temp_dir)
         .env("TRUNK_PUBLIC_API_ADDRESS", &state.host)
         .env("CI", "1")
+        .env("GITHUB_JOB", "test-job")
         .args(&[
             "upload",
             "--use-quarantining",
@@ -117,6 +118,10 @@ async fn upload_bundle() {
     assert_eq!(bundle_meta.num_files, 1);
     assert_eq!(bundle_meta.num_tests, 500);
     assert_eq!(bundle_meta.envs.get("CI"), Some(&String::from("1")));
+    assert_eq!(
+        bundle_meta.envs.get("GITHUB_JOB"),
+        Some(&String::from("test-job"))
+    );
     let time_since_upload = chrono::Utc::now()
         - chrono::DateTime::from_timestamp(bundle_meta.upload_time_epoch as i64, 0).unwrap();
     more_asserts::assert_lt!(time_since_upload.num_minutes(), 5);

@@ -30,6 +30,8 @@ describe("context-js", () => {
       GITHUB_ACTOR: "Spikey",
       GITHUB_REPOSITORY: "analytics-cli",
       GITHUB_RUN_ID: "12345",
+      GITHUB_WORKFLOW: "test-workflow",
+      GITHUB_JOB: "test-job",
     };
 
     const ciInfo = env_parse(env_vars);
@@ -39,6 +41,8 @@ describe("context-js", () => {
     const envValidation = env_validate(ciInfo);
 
     expect(ciInfo.platform).toBe(CIPlatform.GitHubActions);
+    expect(ciInfo.workflow).toBe("test-workflow");
+    expect(ciInfo.job).toBe("test-job");
     expect(envValidation.max_level()).toBe(EnvValidationLevel.SubOptimal);
     expect(
       envValidation.issues_flat().map(({ error_message }) => error_message),
