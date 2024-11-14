@@ -14,6 +14,9 @@ use std::{
 
 use crate::{FromPath, FromReader, OwnersOfPath};
 
+#[cfg(feature = "wasm")]
+use wasm_bindgen::prelude::*;
+
 pub use entry::*;
 pub use error::*;
 pub use file::*;
@@ -39,6 +42,7 @@ impl fmt::Display for GitLabOwner {
 }
 
 #[derive(Debug, Clone, Default, PartialEq)]
+#[cfg_attr(feature = "wasm", wasm_bindgen)]
 pub struct GitLabOwners {
     file: File,
 }

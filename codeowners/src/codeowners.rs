@@ -10,11 +10,41 @@ use serde::{Deserialize, Serialize};
 
 use constants::CODEOWNERS_LOCATIONS;
 
+#[cfg(feature = "wasm")]
+use wasm_bindgen::convert::{IntoWasmAbi, OptionIntoWasmAbi};
+#[cfg(feature = "wasm")]
+use wasm_bindgen::describe::WasmDescribe;
+#[cfg(feature = "wasm")]
+use wasm_bindgen::prelude::*;
+
 #[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq)]
+// #[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
 pub struct CodeOwners {
     pub path: PathBuf,
+    // DONOTLAND: TODO: TYLER SHOULD WE GATE THIS DIFFERENTLY
     #[serde(skip_serializing, skip_deserializing)]
     pub owners: Option<Owners>,
+}
+
+#[cfg(feature = "wasm")]
+impl WasmDescribe for CodeOwners {
+    fn describe() {
+        js_sys::Object::describe()
+    }
+}
+#[cfg(feature = "wasm")]
+impl IntoWasmAbi for CodeOwners {
+    type Abi = u32;
+    fn into_abi(self) -> Self::Abi {
+        let map = js_sys::Object::new();
+        map.into_abi()
+    }
+}
+#[cfg(feature = "wasm")]
+impl OptionIntoWasmAbi for CodeOwners {
+    fn none() -> Self::Abi {
+        wasm_bindgen::JsValue::UNDEFINED.into_abi()
+    }
 }
 
 impl CodeOwners {
@@ -59,6 +89,7 @@ impl CodeOwners {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+// #[cfg_attr(feature = "wasm", wasm_bindgen)]
 pub enum Owners {
     GitHubOwners(GitHubOwners),
     GitLabOwners(GitLabOwners),

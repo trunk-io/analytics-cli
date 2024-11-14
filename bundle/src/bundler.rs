@@ -3,6 +3,7 @@ use std::path::PathBuf;
 
 use crate::types::BundleMeta;
 use codeowners::CodeOwners;
+use serde_wasm_bindgen::{from_value, to_value, Serializer};
 
 #[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::*;
@@ -42,7 +43,11 @@ impl BundlerUtil {
             }
         }
 
+        // let meta: BundleMeta = serde_wasm_bindgen::from(&meta_bytes)?;
+        // let serde_wasm_bindgen::Serializer::new().serialize_maps_as_objects(true);
+        // let meta: BundleMeta = serde_wasm_bindgen::from_value(&meta_bytes).unwrap();
         let meta: BundleMeta = serde_json::from_slice(&meta_bytes)?;
+
         Ok(Self { meta })
     }
 

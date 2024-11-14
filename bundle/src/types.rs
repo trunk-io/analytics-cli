@@ -1,9 +1,16 @@
+use std::collections::HashMap;
+use std::ops::Deref;
+
 use context::repo::BundleRepo;
 use serde::{Deserialize, Serialize};
 
 use crate::files::FileSet;
 use codeowners::CodeOwners;
 
+#[cfg(feature = "wasm")]
+use wasm_bindgen::convert::IntoWasmAbi;
+#[cfg(feature = "wasm")]
+use wasm_bindgen::describe::WasmDescribe;
 #[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::*;
 
@@ -19,6 +26,7 @@ pub struct QuarantineRunResult {
 }
 
 #[derive(Debug, Serialize, Clone, Deserialize)]
+#[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
 pub struct Test {
     pub name: String,
     #[serde(rename = "parentName")]
@@ -86,17 +94,47 @@ pub struct BundleUploader {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq)]
+#[cfg_attr(feature = "wasm", wasm_bindgen)]
 pub enum FileSetType {
     #[default]
     Junit,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
+pub struct MapType(HashMap<String, String>);
+
+#[cfg(feature = "wasm")]
+impl WasmDescribe for MapType {
+    fn describe() {
+        js_sys::Map::describe();
+    }
+}
+#[cfg(feature = "wasm")]
+impl IntoWasmAbi for MapType {
+    type Abi = u32;
+    fn into_abi(self) -> Self::Abi {
+        let map = js_sys::Map::new();
+        for (key, value) in self.0 {
+            map.set(&key.into(), &value.into());
+        }
+        map.into_abi()
+    }
+}
+impl Deref for MapType {
+    type Target = HashMap<String, String>;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+#[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
 pub struct BundledFile {
     pub original_path: String,
     pub original_path_rel: String,
     pub path: String,
-    pub last_modified_epoch_ns: u128,
+    // DONOTLAND: TODO: TYLER THIS WAS u128
+    pub last_modified_epoch_ns: u64,
     pub owners: Vec<String>,
     pub team: Option<String>,
 }
@@ -104,6 +142,7 @@ pub struct BundledFile {
 /// Custom tags defined by the user.
 ///
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
 pub struct CustomTag {
     pub key: String,
     pub value: String,
@@ -112,7 +151,7 @@ pub struct CustomTag {
 pub const META_VERSION: &str = "1";
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-// #[cfg_attr(feature = "wasm", wasm_bindgen)]
+#[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
 pub struct BundleMeta {
     pub version: String,
     pub cli_version: String,
@@ -123,13 +162,22 @@ pub struct BundleMeta {
     pub file_sets: Vec<FileSet>,
     pub num_files: usize,
     pub num_tests: usize,
-    pub envs: std::collections::HashMap<String, String>,
+    // .serialize_maps_as_objects(true)
+    // pub envs: js_sys::Map,
+    // #[cfg_attr(feature = "wasm", wasm_bindgen(skip))]
+    pub envs: MapType,
     pub upload_time_epoch: u64,
     pub test_command: Option<String>,
     pub os_info: Option<String>,
     pub quarantined_tests: Vec<Test>,
+    // #[cfg_attr(feature = "wasm", wasm_bindgen(skip))]
     pub codeowners: Option<CodeOwners>,
 }
+/**
+ * new type
+ * deref
+ * new file for impls
+ */
 
 #[cfg(test)]
 mod tests {
