@@ -1,4 +1,4 @@
-use std::io::{Read, Seek, Write};
+use std::io::{Seek, Write};
 use std::path::PathBuf;
 
 use crate::types::BundleMeta;
@@ -7,7 +7,8 @@ use async_std::stream::StreamExt;
 use codeowners::CodeOwners;
 
 use async_compression::futures::bufread::ZstdDecoder;
-use async_tar::Archive;
+// use async_tar::Archive;
+use async_tar_wasm::Archive;
 use futures_io::AsyncBufRead;
 
 #[cfg(feature = "wasm")]

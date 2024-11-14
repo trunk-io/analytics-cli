@@ -4,8 +4,8 @@ use bundle::BundlerUtil;
 use context::{env, junit, repo};
 use futures::io::BufReader as BufReaderAsync;
 use wasm_bindgen::prelude::*;
+use wasm_streams::readable::sys;
 use wasm_streams::readable::ReadableStream;
-use wasm_streams::readable::{sys, ReadableStreamBYOBReader};
 
 #[wasm_bindgen]
 pub fn env_parse(env_vars: js_sys::Object) -> Result<Option<env::parser::CIInfo>, JsError> {
