@@ -8,7 +8,7 @@ use crate::files::FileSet;
 use codeowners::CodeOwners;
 
 #[cfg(feature = "wasm")]
-use wasm_bindgen::convert::IntoWasmAbi;
+use wasm_bindgen::convert::{FromWasmAbi, IntoWasmAbi};
 #[cfg(feature = "wasm")]
 use wasm_bindgen::describe::WasmDescribe;
 #[cfg(feature = "wasm")]
@@ -118,6 +118,18 @@ impl IntoWasmAbi for MapType {
             map.set(&key.into(), &value.into());
         }
         map.into_abi()
+    }
+}
+#[cfg(feature = "wasm")]
+impl FromWasmAbi for MapType {
+    type Abi = u32;
+    unsafe fn from_abi(js: Self::Abi) -> Self {
+        let map = HashMap::new();
+        // for (key, value) in js.0 {
+        //     map.set(&key.into(), &value.into());
+        // }
+        // map.into_abi()
+        Self(map)
     }
 }
 impl Deref for MapType {

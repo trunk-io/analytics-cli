@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use constants::CODEOWNERS_LOCATIONS;
 
 #[cfg(feature = "wasm")]
-use wasm_bindgen::convert::{IntoWasmAbi, OptionIntoWasmAbi};
+use wasm_bindgen::convert::{FromWasmAbi, IntoWasmAbi, OptionFromWasmAbi, OptionIntoWasmAbi};
 #[cfg(feature = "wasm")]
 use wasm_bindgen::describe::WasmDescribe;
 
@@ -39,9 +39,23 @@ impl IntoWasmAbi for CodeOwners {
     }
 }
 #[cfg(feature = "wasm")]
+impl FromWasmAbi for CodeOwners {
+    type Abi = u32;
+    unsafe fn from_abi(js: Self::Abi) -> Self {
+        // DONOTLAND: TODO: TYLER CONSIDER SETTING THE PATH
+        CodeOwners::default()
+    }
+}
+#[cfg(feature = "wasm")]
 impl OptionIntoWasmAbi for CodeOwners {
     fn none() -> Self::Abi {
         wasm_bindgen::JsValue::UNDEFINED.into_abi()
+    }
+}
+#[cfg(feature = "wasm")]
+impl OptionFromWasmAbi for CodeOwners {
+    fn is_none(abi: &Self::Abi) -> bool {
+        true
     }
 }
 
