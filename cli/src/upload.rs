@@ -28,6 +28,7 @@ pub struct UploadArgs {
         long,
         required_unless_present = junit_require(),
         value_delimiter = ',',
+        value_parser = clap::builder::NonEmptyStringValueParser::new(),
         help = "Comma-separated list of glob paths to junit files."
     )]
     pub junit_paths: Vec<String>,

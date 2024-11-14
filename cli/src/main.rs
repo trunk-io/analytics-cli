@@ -44,6 +44,7 @@ struct ValidateArgs {
         long,
         required = true,
         value_delimiter = ',',
+        value_parser = clap::builder::NonEmptyStringValueParser::new(),
         help = "Comma-separated list of glob paths to junit files."
     )]
     junit_paths: Vec<String>,
