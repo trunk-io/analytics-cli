@@ -37,6 +37,22 @@ fn validate_no_junits() {
 }
 
 #[test]
+fn validate_empty_junit_paths() {
+    let temp_dir = tempdir().unwrap();
+
+    let assert = Command::new(CARGO_RUN.path())
+        .current_dir(&temp_dir)
+        .args(&["validate", "--junit-paths", ""])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains(
+            "error: a value is required for '--junit-paths <JUNIT_PATHS>' but none was supplied",
+        ));
+
+    println!("{assert}");
+}
+
+#[test]
 fn validate_invalid_junits() {
     let temp_dir = tempdir().unwrap();
     generate_mock_invalid_junit_xmls(&temp_dir);

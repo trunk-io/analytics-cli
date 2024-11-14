@@ -10,6 +10,7 @@ use api::{
 use assert_cmd::Command;
 use assert_matches::assert_matches;
 use context::repo::RepoUrlParts as Repo;
+use predicates::prelude::*;
 use tempfile::tempdir;
 use test_utils::mock_server::{MockServerBuilder, RequestPayload};
 use trunk_analytics_cli::{
@@ -200,6 +201,37 @@ async fn upload_bundle_no_files() {
         ])
         .assert()
         .failure();
+
+    // HINT: View CLI output with `cargo test -- --nocapture`
+    println!("{assert}");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn upload_bundle_empty_junit_paths() {
+    let temp_dir = tempdir().unwrap();
+    generate_mock_git_repo(&temp_dir);
+
+    let state = MockServerBuilder::new().spawn_mock_server().await;
+
+    let assert = Command::new(CARGO_RUN.path())
+        .current_dir(&temp_dir)
+        .env("TRUNK_PUBLIC_API_ADDRESS", &state.host)
+        .env("CI", "1")
+        .args(&[
+            "upload",
+            "--use-quarantining",
+            "--junit-paths",
+            "",
+            "--org-url-slug",
+            "test-org",
+            "--token",
+            "test-token",
+        ])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains(
+            "error: a value is required for '--junit-paths <JUNIT_PATHS>' but none was supplied",
+        ));
 
     // HINT: View CLI output with `cargo test -- --nocapture`
     println!("{assert}");
