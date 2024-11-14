@@ -1,6 +1,9 @@
 use std::{collections::HashMap, io::BufReader};
 
-use context::{env, junit, repo};
+use context::{
+    env::{self, parser::BranchClass},
+    junit, repo,
+};
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
@@ -34,6 +37,11 @@ pub fn env_parse(env_vars: js_sys::Object) -> Result<Option<env::parser::CIInfo>
         .map(|ci_info_parser| ci_info_parser.info_ci_info());
 
     Ok(ci_info_class)
+}
+
+#[wasm_bindgen]
+pub fn parse_branch_class(value: &str) -> Result<BranchClass, JsError> {
+    BranchClass::try_from(value).map_err(|e| JsError::new(&e.to_string()))
 }
 
 #[wasm_bindgen]
