@@ -200,6 +200,8 @@ impl<'a> CIInfoParser<'a> {
             }
             self.ci_info.job_url = Some(job_url);
         }
+        self.ci_info.workflow = self.get_env_var("GITHUB_WORKFLOW");
+        self.ci_info.job = self.get_env_var("GITHUB_JOB");
     }
 
     fn parse_jenkins_pipeline(&mut self) {
@@ -320,6 +322,8 @@ pub struct CIInfo {
     pub author_email: Option<String>,
     pub commit_message: Option<String>,
     pub title: Option<String>,
+    pub workflow: Option<String>,
+    pub job: Option<String>,
 }
 
 #[cfg_attr(feature = "pyo3", gen_stub_pyclass_enum, pyclass(eq, eq_int))]
@@ -362,6 +366,8 @@ impl CIInfo {
             author_email: None,
             commit_message: None,
             title: None,
+            workflow: None,
+            job: None,
         }
     }
 }
