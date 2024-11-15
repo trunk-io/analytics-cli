@@ -8,6 +8,7 @@
     "build_and_test": "pnpm run build && pnpm run test"
   },
   "devDependencies": {
+    "@aws-sdk/client-s3": "3.692.0",
     "@eslint/js": "^9.13.0",
     "@types/eslint__js": "^8.42.3",
     "@types/node": "^22.7.9",

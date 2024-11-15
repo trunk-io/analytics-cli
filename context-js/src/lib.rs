@@ -2,7 +2,10 @@ use std::{collections::HashMap, io::BufReader};
 
 use bundle::BundlerUtil;
 use context::{env, junit, repo};
+use futures::future::Either;
 use futures::io::BufReader as BufReaderAsync;
+use futures::stream::TryStreamExt;
+use js_sys::Uint8Array;
 use wasm_bindgen::prelude::*;
 use wasm_streams::readable::sys;
 use wasm_streams::readable::ReadableStream;
@@ -79,10 +82,20 @@ pub fn repo_validate(bundle_repo: repo::BundleRepo) -> repo::validator::RepoVali
 
 #[wasm_bindgen()]
 pub async fn parse_meta_from_tarball(input: sys::ReadableStream) -> Result<BundlerUtil, JsError> {
-    let mut readable_stream = ReadableStream::from_raw(input);
-    let byob_reader = readable_stream.get_byob_reader();
+    let readable_stream = ReadableStream::from_raw(input);
 
-    let async_read = byob_reader.into_async_read();
+    let async_read = match readable_stream.try_into_async_read() {
+        Ok(async_read) => Either::Left(async_read),
+        Err((_err, body)) => Either::Right(
+            body.into_stream()
+                .map_ok(|js_value| js_value.dyn_into::<Uint8Array>().unwrap_throw().to_vec())
+                .map_err(|_js_error| {
+                    std::io::Error::new(std::io::ErrorKind::Other, "failed to read")
+                })
+                .into_async_read(),
+        ),
+    };
+
     let buf_reader = BufReaderAsync::new(async_read);
 
     BundlerUtil::parse_meta_from_tarball(buf_reader)

@@ -788,6 +788,7 @@ dependencies = [
  "context",
  "futures",
  "js-sys",
+ "log",
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "wasm-streams",
