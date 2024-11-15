@@ -1,9 +1,6 @@
 use std::{collections::HashMap, io::BufReader};
 
-use context::{
-    env::{self, parser::BranchClass},
-    junit, repo,
-};
+use context::{env::parser::BranchClass, junit, repo};
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
