@@ -40,8 +40,8 @@ pub fn env_parse(env_vars: js_sys::Object) -> Result<Option<env::parser::CIInfo>
 }
 
 #[wasm_bindgen]
-pub fn parse_branch_class(value: &str) -> Result<BranchClass, JsError> {
-    BranchClass::try_from(value).map_err(|e| JsError::new(&e.to_string()))
+pub fn parse_branch_class(value: &str, pr_number: Option<usize>) -> Result<BranchClass, JsError> {
+    BranchClass::try_from((value, pr_number)).map_err(|e| JsError::new(&e.to_string()))
 }
 
 #[wasm_bindgen]
