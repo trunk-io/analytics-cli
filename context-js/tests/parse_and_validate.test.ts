@@ -15,6 +15,8 @@ import {
   junit_parse,
   junit_validate,
   repo_validate,
+  parse_branch_class,
+  BranchClass,
 } from "../pkg/context_js";
 
 // eslint-disable-next-line vitest/require-hook
@@ -121,5 +123,19 @@ describe("context-js", () => {
     const repoValidation = repo_validate(bundleRepo);
 
     expect(repoValidation.max_level()).toBe(RepoValidationLevel.Valid);
+  });
+
+  it("validates branch class", () => {
+    expect.hasAssertions();
+
+    expect(parse_branch_class("main")).toBe(BranchClass.ProtectedBranch);
+
+    expect(parse_branch_class("testOwner/testFeature", 123)).toBe(
+      BranchClass.PullRequest,
+    );
+
+    expect(() => parse_branch_class("")).toThrow(
+      "could not parse branch class",
+    );
   });
 });

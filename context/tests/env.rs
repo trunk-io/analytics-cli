@@ -1,6 +1,6 @@
 use context::env::{
     self,
-    parser::{CIInfo, CIPlatform, EnvParser},
+    parser::{BranchClass, CIInfo, CIPlatform, EnvParser},
     validator::{EnvValidationIssue, EnvValidationIssueSubOptimal, EnvValidationLevel},
     EnvVars,
 };
@@ -124,7 +124,7 @@ fn test_simple_drone() {
             platform: CIPlatform::Drone,
             job_url: Some(job_url),
             branch: Some(branch),
-            branch_class: None,
+            branch_class: Some(BranchClass::PullRequest),
             pr_number: Some(pr_number),
             actor: Some(actor),
             committer_name: Some(name.clone()),

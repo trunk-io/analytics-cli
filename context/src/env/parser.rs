@@ -171,7 +171,7 @@ impl<'a> CIInfoParser<'a> {
 
     fn parse_branch_class(&mut self) {
         if let Some(branch) = &self.ci_info.branch {
-            match BranchClass::try_from(branch.as_str()) {
+            match BranchClass::try_from((branch.as_str(), self.ci_info.pr_number)) {
                 Ok(branch_class) => {
                     self.ci_info.branch_class = Some(branch_class);
                 }
@@ -335,15 +335,19 @@ pub enum BranchClass {
     Merge,
 }
 
-impl TryFrom<&str> for BranchClass {
+impl TryFrom<(&str, Option<usize>)> for BranchClass {
     type Error = CIInfoParseError;
 
-    fn try_from(value: &str) -> Result<Self, Self::Error> {
-        if value.starts_with("remotes/pull/") || value.starts_with("pull/") {
+    fn try_from(value: (&str, Option<usize>)) -> Result<Self, Self::Error> {
+        let (branch_name, pr_number) = value;
+        if pr_number.is_some() {
+            return Ok(BranchClass::PullRequest);
+        }
+        if branch_name.starts_with("remotes/pull/") || branch_name.starts_with("pull/") {
             Ok(BranchClass::PullRequest)
-        } else if matches!(value, "master" | "main") {
+        } else if matches!(branch_name, "master" | "main") {
             Ok(BranchClass::ProtectedBranch)
-        } else if value.contains("/trunk-merge/") {
+        } else if branch_name.contains("/trunk-merge/") {
             Ok(BranchClass::Merge)
         } else {
             Err(CIInfoParseError::BranchClass)

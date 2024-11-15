@@ -37,6 +37,14 @@ pub fn env_parse(env_vars: js_sys::Object) -> Result<Option<env::parser::CIInfo>
 }
 
 #[wasm_bindgen]
+pub fn parse_branch_class(
+    value: &str,
+    pr_number: Option<usize>,
+) -> Result<env::parser::BranchClass, JsError> {
+    env::parser::BranchClass::try_from((value, pr_number)).map_err(|e| JsError::new(&e.to_string()))
+}
+
+#[wasm_bindgen]
 pub fn env_validate(ci_info: &env::parser::CIInfo) -> env::validator::EnvValidation {
     env::validator::validate(ci_info)
 }
