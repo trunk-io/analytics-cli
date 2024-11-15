@@ -1,8 +1,8 @@
-use crate::constants::{EXIT_FAILURE, EXIT_SUCCESS};
 use crate::runner::build_filesets;
-use crate::scanner::{FileSet, FileSetCounter};
+use bundle::{FileSet, FileSetCounter};
 use colored::{ColoredString, Colorize};
 use console::Emoji;
+use constants::{EXIT_FAILURE, EXIT_SUCCESS};
 use context::junit::parser::{JunitParseError, JunitParser};
 use context::junit::validator::{
     validate as validate_report, JunitReportValidation, JunitReportValidationFlatIssue,

@@ -7,7 +7,7 @@ use http::{header::HeaderMap, HeaderValue};
 use reqwest::{header, Client, Response, StatusCode};
 use tokio::fs;
 
-use crate::constants::{DEFAULT_ORIGIN, TRUNK_PUBLIC_API_ADDRESS_ENV};
+use constants::{DEFAULT_ORIGIN, TRUNK_PUBLIC_API_ADDRESS_ENV};
 
 mod call_api;
 

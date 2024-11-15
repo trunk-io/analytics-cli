@@ -1,8 +1,10 @@
+use std::collections::HashMap;
+
 use context::repo::BundleRepo;
 use serde::{Deserialize, Serialize};
 
-use crate::codeowners::CodeOwners;
-use crate::scanner::FileSet;
+use crate::files::FileSet;
+use codeowners::CodeOwners;
 
 pub struct RunResult {
     pub exit_code: i32,
@@ -119,13 +121,18 @@ pub struct BundleMeta {
     pub file_sets: Vec<FileSet>,
     pub num_files: usize,
     pub num_tests: usize,
-    pub envs: std::collections::HashMap<String, String>,
+    pub envs: HashMap<String, String>,
     pub upload_time_epoch: u64,
     pub test_command: Option<String>,
     pub os_info: Option<String>,
     pub quarantined_tests: Vec<Test>,
     pub codeowners: Option<CodeOwners>,
 }
+/**
+ * new type
+ * deref
+ * new file for impls
+ */
 
 #[cfg(test)]
 mod tests {
@@ -199,7 +206,7 @@ mod tests {
         ];
 
         for (tags_str, expected) in good_tags {
-            let actual = crate::utils::parse_custom_tags(&tags_str).unwrap();
+            let actual: Vec<CustomTag> = crate::custom_tag::parse_custom_tags(&tags_str).unwrap();
             assert_eq!(actual, *expected);
         }
     }
@@ -213,7 +220,7 @@ mod tests {
         ];
 
         for tags_str in bad_tags {
-            let actual = crate::utils::parse_custom_tags(&tags_str);
+            let actual = crate::custom_tag::parse_custom_tags(&tags_str);
             assert!(actual.is_err());
         }
     }

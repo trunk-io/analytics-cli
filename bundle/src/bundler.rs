@@ -1,13 +1,13 @@
 use std::io::{Seek, Write};
 use std::path::PathBuf;
 
-use crate::codeowners::CodeOwners;
 use crate::types::BundleMeta;
+use codeowners::CodeOwners;
 
 /// Utility type for packing files into tarball.
 ///
 pub struct BundlerUtil {
-    pub(crate) meta: BundleMeta,
+    pub meta: BundleMeta,
 }
 
 impl BundlerUtil {

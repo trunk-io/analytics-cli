@@ -1,0 +1,20 @@
+[package]
+name = "bundle"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = "1.0.44"
+constants = { path = "../constants" }
+context = { path = "../context" }
+log = "0.4.14"
+tempfile = "3.2.0"
+glob = "0.3.0"
+regex = { version = "1.10.3", default-features = false, features = ["std"] }
+serde = { version = "1.0.130", default-features = false, features = ["derive"] }
+serde_json = "1.0.68"
+# For encoding
+zstd = { version = "0.13.0", default-features = false }
+tar = { version = "0.4.30", default-features = false }
+codeowners = { path = "../codeowners" }
+uuid = { version = "1.10.0", features = ["v5"] }

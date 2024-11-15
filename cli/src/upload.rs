@@ -6,19 +6,22 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
+use bundle::{
+    parse_custom_tags, BundleMeta, BundlerUtil, FileSet, QuarantineBulkTestStatus,
+    QuarantineRunResult, META_VERSION,
+};
+use codeowners::CodeOwners;
+use constants::{EXIT_FAILURE, EXIT_SUCCESS};
+use context::repo::RepoUrlParts;
+
 use crate::{
     api_client::ApiClient,
-    bundler::BundlerUtil,
-    codeowners::CodeOwners,
-    constants::{EXIT_FAILURE, EXIT_SUCCESS},
     runner::{build_filesets, extract_failed_tests, run_quarantine},
-    scanner::{EnvScanner, FileSet},
-    types::{BundleMeta, QuarantineBulkTestStatus, QuarantineRunResult, META_VERSION},
-    utils::parse_custom_tags,
+    scanner::EnvScanner,
 };
 use api::BundleUploadStatus;
 use clap::Args;
-use context::{junit::parser::JunitParser, repo::BundleRepo, repo::RepoUrlParts};
+use context::{junit::parser::JunitParser, repo::BundleRepo};
 #[cfg(target_os = "macos")]
 use xcresult::XCResult;
 
@@ -249,8 +252,8 @@ pub async fn run_upload(
 
     let bundle_temp_dir = tempfile::tempdir()?;
     let bundle_time_file = bundle_temp_dir.path().join("bundle.tar.zstd");
-    let bundler = BundlerUtil::new(meta);
-    bundler.make_tarball(&bundle_time_file)?;
+    let bundle = BundlerUtil::new(meta);
+    bundle.make_tarball(&bundle_time_file)?;
     log::info!("Flushed temporary tarball to {:?}", bundle_time_file);
 
     if dry_run {
