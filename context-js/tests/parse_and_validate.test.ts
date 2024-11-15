@@ -15,15 +15,7 @@ import {
   junit_parse,
   junit_validate,
   repo_validate,
-  parse_meta_from_tarball,
 } from "../pkg/context_js";
-
-import {
-  GetObjectCommand,
-  type GetObjectCommandOutput,
-  S3Client,
-} from "@aws-sdk/client-s3";
-import { assert } from "console";
 
 // eslint-disable-next-line vitest/require-hook
 dayjs.extend(utc);
@@ -125,29 +117,5 @@ describe("context-js", () => {
     const repoValidation = repo_validate(bundleRepo);
 
     expect(repoValidation.max_level()).toBe(RepoValidationLevel.Valid);
-  });
-
-  it.only("retrieves from s3 and validates meta", async () => {
-    expect.hasAssertions();
-
-    // create an s3 client
-    const s3Client = new S3Client({ region: "us-east-1" });
-
-    const s3Object = await s3Client.send(
-      new GetObjectCommand({
-        Bucket:
-          "github-oidc-publicbuildassetstrunkanalyticscliasse-tuewhuhwwdob",
-        Key: "2024-11-14/debug/debug.tar.zst",
-      }),
-    );
-
-    const readableStream = s3Object.Body?.transformToWebStream();
-    if (readableStream === undefined)
-      throw Error("readableStream is undefined");
-    // console.log(await readableStream.getReader().read());
-
-    const res = await parse_meta_from_tarball(readableStream);
-    console.log(`result is`, res.meta.bundle_upload_id);
-    expect(1).toBe(2);
   });
 });

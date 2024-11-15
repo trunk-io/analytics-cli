@@ -84,6 +84,8 @@ pub fn repo_validate(bundle_repo: repo::BundleRepo) -> repo::validator::RepoVali
 pub async fn parse_meta_from_tarball(input: sys::ReadableStream) -> Result<BundlerUtil, JsError> {
     let readable_stream = ReadableStream::from_raw(input);
 
+    // Many platforms do not support readable byte streams
+    // https://github.com/MattiasBuelens/wasm-streams/issues/19#issuecomment-1447294077
     let async_read = match readable_stream.try_into_async_read() {
         Ok(async_read) => Either::Left(async_read),
         Err((_err, body)) => Either::Right(

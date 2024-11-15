@@ -21,7 +21,7 @@ indexmap = "2.5.0"
 log = "0.4.14"
 serde = { version = "1.0.130", default-features = false, features = ["derive"] }
 serde_json = "1.0.68"
-wasm-bindgen = { version = "0.2.84", optional = true }
+wasm-bindgen = { git = "https://github.com/rustwasm/wasm-bindgen.git", rev = "9eda4ae169ad488d3d6f9af52981b5c5ceb46c11", optional = true }
 js-sys = { version = "0.3.70", optional = true }
 
 [features]

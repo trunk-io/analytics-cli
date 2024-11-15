@@ -174,15 +174,11 @@ pub struct BundleMeta {
     pub file_sets: Vec<FileSet>,
     pub num_files: usize,
     pub num_tests: usize,
-    // .serialize_maps_as_objects(true)
-    // pub envs: js_sys::Map,
-    // #[cfg_attr(feature = "wasm", wasm_bindgen(skip))]
     pub envs: MapType,
     pub upload_time_epoch: u64,
     pub test_command: Option<String>,
     pub os_info: Option<String>,
     pub quarantined_tests: Vec<Test>,
-    // #[cfg_attr(feature = "wasm", wasm_bindgen(skip))]
     pub codeowners: Option<CodeOwners>,
 }
 /**
