@@ -46,8 +46,6 @@ fn test_simple_buildkite() {
             author_email: None,
             commit_message: None,
             title: None,
-            workflow: None,
-            job: None,
         }
     );
 
@@ -133,8 +131,6 @@ fn test_simple_drone() {
             author_email: Some(email.clone()),
             commit_message: None,
             title: Some(title),
-            workflow: None,
-            job: None,
         }
     );
 
@@ -154,8 +150,6 @@ fn test_simple_github() {
     let actor = String::from("username");
     let repository = String::from("test/tester");
     let branch = String::from("some-branch-name");
-    let workflow = String::from("test-workflow");
-    let job = String::from("test-job");
 
     let env_vars = EnvVars::from_iter(
         vec![
@@ -167,8 +161,6 @@ fn test_simple_github() {
                 String::from("GITHUB_REF"),
                 format!("refs/heads/origin/{branch}"),
             ),
-            (String::from("GITHUB_WORKFLOW"), String::from(&workflow)),
-            (String::from("GITHUB_JOB"), String::from(&job)),
         ]
         .into_iter(),
     );
@@ -195,8 +187,6 @@ fn test_simple_github() {
             author_email: None,
             commit_message: None,
             title: None,
-            workflow: Some(workflow),
-            job: Some(job),
         }
     );
 

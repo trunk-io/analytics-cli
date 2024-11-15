@@ -7,6 +7,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::types::{BundledFile, FileSetType};
 
+#[cfg(feature = "wasm")]
+use wasm_bindgen::prelude::*;
+
 #[derive(Default, Debug)]
 pub struct FileSetCounter {
     inner: usize,
@@ -25,6 +28,7 @@ impl FileSetCounter {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+#[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
 pub struct FileSet {
     pub file_set_type: FileSetType,
     pub files: Vec<BundledFile>,
@@ -120,11 +124,13 @@ impl FileSet {
                 original_path: original_path_abs,
                 original_path_rel,
                 path: format!("junit/{}", file_counter.count_file()),
-                last_modified_epoch_ns: path
-                    .metadata()?
-                    .modified()?
-                    .duration_since(std::time::UNIX_EPOCH)?
-                    .as_nanos(),
+                last_modified_epoch_ns: 0,
+                // DONOTLAND: TODO: TYLER READD
+                // path
+                //     .metadata()?
+                //     .modified()?
+                //     .duration_since(std::time::UNIX_EPOCH)?
+                //     .as_nanos(),
                 owners,
                 team: team.clone(),
             });

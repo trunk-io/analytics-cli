@@ -14,12 +14,21 @@ importers:
       '@eslint/js':
         specifier: ^9.13.0
         version: 9.13.0
+      '@faker-js/faker':
+        specifier: ^8.4.1
+        version: 8.4.1
+      '@mongodb-js/zstd':
+        specifier: ^1.2.2
+        version: 1.2.2
       '@types/eslint__js':
         specifier: ^8.42.3
         version: 8.42.3
       '@types/node':
         specifier: ^22.7.9
         version: 22.7.9
+      '@types/tar':
+        specifier: ^6.1.13
+        version: 6.1.13
       '@vitest/eslint-plugin':
         specifier: ^1.1.7
         version: 1.1.7(@typescript-eslint/utils@8.11.0(eslint@9.13.0)(typescript@5.6.3))(eslint@9.13.0)(typescript@5.6.3)(vitest@2.1.3(@types/node@22.7.9))
@@ -29,6 +38,9 @@ importers:
       eslint:
         specifier: ^9.13.0
         version: 9.13.0
+      tar:
+        specifier: ^6.2.0
+        version: 6.2.1
       typescript:
         specifier: ^5.6.3
         version: 5.6.3
@@ -216,6 +228,10 @@ packages:
     resolution: {integrity: sha512-HFZ4Mp26nbWk9d/BpvP0YNL6W4UoZF0VFcTw/aPPA8RpOxeFQgK+ClABGgAUXs9Y/RGX/l1vOmrqz1MQt9MNuw==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
 
+  '@faker-js/faker@8.4.1':
+    resolution: {integrity: sha512-XQ3cU+Q8Uqmrbf2e0cIC/QN43sTBSC8KF12u29Mb47tWrt2hAgBXSgpZMj4Ao8Uk0iJcU99QsOCaIL8934obCg==}
+    engines: {node: ^14.17.0 || ^16.13.0 || >=18.0.0, npm: '>=6.14.13'}
+
   '@humanfs/core@0.19.0':
     resolution: {integrity: sha512-2cbWIHbZVEweE853g8jymffCA+NCMiuqeECeBBLm8dg2oFdjuGJhgN4UAbI+6v0CKbbhvtXA4qV8YR5Ji86nmw==}
     engines: {node: '>=18.18.0'}
@@ -234,6 +250,52 @@ packages:
 
   '@jridgewell/sourcemap-codec@1.5.0':
     resolution: {integrity: sha512-gv3ZRaISU3fjPAgNsriBRqGWQL6quFx04YMPW/zD8XMLsU32mhCCbfbO6KZFLjvYpCZ8zyDEgqsgf+PwPaM7GQ==}
+
+  '@mongodb-js/zstd-darwin-arm64@1.2.2':
+    resolution: {integrity: sha512-hjQgub8fhn3itewwRSCSe3sl8rmnbZOFwuBHOZj4j4xu1Hde7xs+ACkfeEvvmNjUuxAzvc1MnDjHX2UwUlA7qA==}
+    engines: {node: '>= 10'}
+    cpu: [arm64]
+    os: [darwin]
+
+  '@mongodb-js/zstd-darwin-x64@1.2.2':
+    resolution: {integrity: sha512-gHSxcWgAdED/bDKyOqLhiwC0VYlhkhSyQuR0Fqcrl1CMpWSJAfu0jxhaEvM4Ncs6yH0+BPVwTp8xtHW2iJ5DuQ==}
+    engines: {node: '>= 10'}
+    cpu: [x64]
+    os: [darwin]
+
+  '@mongodb-js/zstd-linux-arm64-gnu@1.2.2':
+    resolution: {integrity: sha512-DJVSC5IU/GlY9lY4qpKML/655OstZvueN/WZeuO8hyYJ5115x/usUM1pHpp7dbZWyUUhTlRIU4peR62Tk1H3lQ==}
+    engines: {node: '>= 10'}
+    cpu: [arm64]
+    os: [linux]
+
+  '@mongodb-js/zstd-linux-arm64-musl@1.2.2':
+    resolution: {integrity: sha512-rxTmMF2NGLLijnw+MZCs0ixiE+NylpDYvUUkJemqjyHstlmYG0Ku6i3+SzViB6L0kkktwYSRpaI4y7OG+SFt3w==}
+    engines: {node: '>= 10'}
+    cpu: [arm64]
+    os: [linux]
+
+  '@mongodb-js/zstd-linux-x64-gnu@1.2.2':
+    resolution: {integrity: sha512-ctz/XY6aX2THxkTjAygOYbyFp2/UYbqZIF3sB1F5Cjcbus9wfD3vPbaDegqRjQhlHBvKia3IjqJDUiC+aZxmww==}
+    engines: {node: '>= 10'}
+    cpu: [x64]
+    os: [linux]
+
+  '@mongodb-js/zstd-linux-x64-musl@1.2.2':
+    resolution: {integrity: sha512-EqD271yPIRBGbkMtBJSVTLlUrukTsmi7qt1G3dh+Z9RWVXn5MXnlnEn4znfBXoaVqlniUNZhmzDEaATNIktJpw==}
+    engines: {node: '>= 10'}
+    cpu: [x64]
+    os: [linux]
+
+  '@mongodb-js/zstd-win32-x64-msvc@1.2.2':
+    resolution: {integrity: sha512-h3O9NGOrGtfQ7g+rFqs5Hn+GSmgF2ik+xg0/1crNUXWthcBsxcCK5woawHfDcJxWkaiijJe5PVo6/fo8Jm7qCg==}
+    engines: {node: '>= 10'}
+    cpu: [x64]
+    os: [win32]
+
+  '@mongodb-js/zstd@1.2.2':
+    resolution: {integrity: sha512-NRXiFhk2Nl8UMuIZ4pviKkGVZY/e5P37Opam1u0OtgXjEE0kO1HLapA9heTcZ1PUomArnKS426XbiRFr5iaWvw==}
+    engines: {node: '>= 10'}
 
   '@nodelib/fs.scandir@2.1.5':
     resolution: {integrity: sha512-vq24Bq3ym5HEQm2NKCr3yXDwjc7vTsEThRDnkp2DK9p1uqLR+DHurm/NOTo0KG7HYHU7eppKZj3MyqYuMBf62g==}
@@ -341,6 +403,9 @@ packages:
 
   '@types/node@22.7.9':
     resolution: {integrity: sha512-jrTfRC7FM6nChvU7X2KqcrgquofrWLFDeYC1hKfwNWomVvrn7JIksqf344WN2X/y8xrgqBd2dJATZV4GbatBfg==}
+
+  '@types/tar@6.1.13':
+    resolution: {integrity: sha512-IznnlmU5f4WcGTh2ltRu/Ijpmk8wiWXfF0VA4s+HPjHZgvFggk1YaIkbo5krX/zUCzWF8N/l4+W/LNxnvAJ8nw==}
 
   '@typescript-eslint/eslint-plugin@8.11.0':
     resolution: {integrity: sha512-KhGn2LjW1PJT2A/GfDpiyOfS4a8xHQv2myUagTM5+zsormOmBlYsnQ6pobJ8XxJmh6hnHwa2Mbe3fPrDJoDhbA==}
@@ -785,6 +850,10 @@ packages:
     resolution: {integrity: sha512-DxiNidxSEK+tHG6zOIklvNOwm3hvCrbUrdtzY74U6HKTJxvIDfOUL5W5P2Ghd3DTkhhKPYGqeNUIh5qcM4YBfw==}
     engines: {node: '>=8'}
 
+  minipass@4.2.8:
+    resolution: {integrity: sha512-fNzuVyifolSLFL4NzpF+wEF4qrgqaaKX0haXPQEdQ7NKAN+WecoKMHV09YcuL/DHxrUsYQOK3MiuDf7Ip2OXfQ==}
+    engines: {node: '>=8'}
+
   minipass@5.0.0:
     resolution: {integrity: sha512-3FnjYuehv9k6ovOEbyOswadCDPX1piCfhV8ncmYtHOjuPwylVWsghTLo7rabjC3Rx5xD4HDx8Wm1xnMF7S5qFQ==}
     engines: {node: '>=8'}
@@ -1185,6 +1254,8 @@ snapshots:
     dependencies:
       levn: 0.4.1
 
+  '@faker-js/faker@8.4.1': {}
+
   '@humanfs/core@0.19.0': {}
 
   '@humanfs/node@0.16.5':
@@ -1197,6 +1268,37 @@ snapshots:
   '@humanwhocodes/retry@0.3.1': {}
 
   '@jridgewell/sourcemap-codec@1.5.0': {}
+
+  '@mongodb-js/zstd-darwin-arm64@1.2.2':
+    optional: true
+
+  '@mongodb-js/zstd-darwin-x64@1.2.2':
+    optional: true
+
+  '@mongodb-js/zstd-linux-arm64-gnu@1.2.2':
+    optional: true
+
+  '@mongodb-js/zstd-linux-arm64-musl@1.2.2':
+    optional: true
+
+  '@mongodb-js/zstd-linux-x64-gnu@1.2.2':
+    optional: true
+
+  '@mongodb-js/zstd-linux-x64-musl@1.2.2':
+    optional: true
+
+  '@mongodb-js/zstd-win32-x64-msvc@1.2.2':
+    optional: true
+
+  '@mongodb-js/zstd@1.2.2':
+    optionalDependencies:
+      '@mongodb-js/zstd-darwin-arm64': 1.2.2
+      '@mongodb-js/zstd-darwin-x64': 1.2.2
+      '@mongodb-js/zstd-linux-arm64-gnu': 1.2.2
+      '@mongodb-js/zstd-linux-arm64-musl': 1.2.2
+      '@mongodb-js/zstd-linux-x64-gnu': 1.2.2
+      '@mongodb-js/zstd-linux-x64-musl': 1.2.2
+      '@mongodb-js/zstd-win32-x64-msvc': 1.2.2
 
   '@nodelib/fs.scandir@2.1.5':
     dependencies:
@@ -1274,6 +1376,11 @@ snapshots:
   '@types/node@22.7.9':
     dependencies:
       undici-types: 6.19.8
+
+  '@types/tar@6.1.13':
+    dependencies:
+      '@types/node': 22.7.9
+      minipass: 4.2.8
 
   '@typescript-eslint/eslint-plugin@8.11.0(@typescript-eslint/parser@8.11.0(eslint@9.13.0)(typescript@5.6.3))(eslint@9.13.0)(typescript@5.6.3)':
     dependencies:
@@ -1767,6 +1874,8 @@ snapshots:
   minipass@3.3.6:
     dependencies:
       yallist: 4.0.0
+
+  minipass@4.2.8: {}
 
   minipass@5.0.0: {}
 

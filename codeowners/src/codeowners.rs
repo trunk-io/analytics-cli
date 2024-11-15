@@ -3,6 +3,11 @@ use std::{
     fs::File,
     path::{Path, PathBuf},
 };
+#[cfg(feature = "wasm")]
+use wasm_bindgen::{
+    convert::{FromWasmAbi, IntoWasmAbi, OptionFromWasmAbi, OptionIntoWasmAbi},
+    describe::WasmDescribe,
+};
 
 use constants::CODEOWNERS_LOCATIONS;
 
@@ -11,8 +16,45 @@ use crate::{github::GitHubOwners, gitlab::GitLabOwners, traits::FromReader};
 #[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct CodeOwners {
     pub path: PathBuf,
+    // DONOTLAND: TODO: TYLER SHOULD WE GATE THIS DIFFERENTLY
     #[serde(skip_serializing, skip_deserializing)]
     pub owners: Option<Owners>,
+}
+
+#[cfg(feature = "wasm")]
+impl WasmDescribe for CodeOwners {
+    fn describe() {
+        js_sys::Object::describe()
+    }
+}
+#[cfg(feature = "wasm")]
+impl IntoWasmAbi for CodeOwners {
+    type Abi = u32;
+    fn into_abi(self) -> Self::Abi {
+        // DONOTLAND: TODO: TYLER CONSIDER SETTING THE PATH
+        let map = js_sys::Object::new();
+        map.into_abi()
+    }
+}
+#[cfg(feature = "wasm")]
+impl FromWasmAbi for CodeOwners {
+    type Abi = u32;
+    unsafe fn from_abi(js: Self::Abi) -> Self {
+        // DONOTLAND: TODO: TYLER CONSIDER SETTING THE PATH
+        CodeOwners::default()
+    }
+}
+#[cfg(feature = "wasm")]
+impl OptionIntoWasmAbi for CodeOwners {
+    fn none() -> Self::Abi {
+        wasm_bindgen::JsValue::UNDEFINED.into_abi()
+    }
+}
+#[cfg(feature = "wasm")]
+impl OptionFromWasmAbi for CodeOwners {
+    fn is_none(abi: &Self::Abi) -> bool {
+        true
+    }
 }
 
 impl CodeOwners {

@@ -1,5 +1,11 @@
 use std::io::{Seek, Write};
 use std::path::PathBuf;
+use async_std::{io::ReadExt, stream::StreamExt};
+use async_compression::futures::bufread::ZstdDecoder;
+use async_tar_wasm::Archive;
+use futures_io::AsyncBufRead;
+#[cfg(feature = "wasm")]
+use wasm_bindgen::prelude::*;
 
 use codeowners::CodeOwners;
 
@@ -7,6 +13,7 @@ use crate::types::BundleMeta;
 
 /// Utility type for packing files into tarball.
 ///
+#[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
 pub struct BundlerUtil {
     pub meta: BundleMeta,
 }
@@ -17,6 +24,31 @@ impl BundlerUtil {
 
     pub fn new(meta: BundleMeta) -> Self {
         Self { meta }
+    }
+
+    /// Reads and decompresses a .tar.zstd file from an input stream into just a `meta.json` file
+    ///
+    pub async fn parse_meta_from_tarball<R: AsyncBufRead>(input: R) -> anyhow::Result<Self> {
+        let zstd_decoder = ZstdDecoder::new(Box::pin(input));
+        let archive = Archive::new(zstd_decoder);
+
+        if let Some(first_entry) = archive.entries()?.next().await {
+            let mut owned_first_entry = first_entry?;
+            let path_str = owned_first_entry
+                .path()?
+                .to_str()
+                .unwrap_or_default()
+                .to_owned();
+
+            if path_str == Self::META_FILENAME {
+                let mut meta_bytes = Vec::new();
+                owned_first_entry.read_to_end(&mut meta_bytes).await?;
+
+                let meta: BundleMeta = serde_json::from_slice(&meta_bytes)?;
+                return Ok(Self { meta });
+            }
+        }
+        Err(anyhow::anyhow!("No meta.json file found in the tarball"))
     }
 
     /// Writes compressed tarball to disk.

@@ -37,7 +37,6 @@ pub const ENVS_TO_GET: &[&str] = &[
     "GITHUB_BASE_REF",
     "GITHUB_EVENT_NAME",
     "GITHUB_HEAD_REF",
-    "GITHUB_JOB",
     "GITHUB_REF",
     "GITHUB_REPOSITORY",
     "GITHUB_RUN_ATTEMPT",
