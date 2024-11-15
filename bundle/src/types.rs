@@ -145,7 +145,8 @@ pub struct BundledFile {
     pub original_path: String,
     pub original_path_rel: String,
     pub path: String,
-    pub last_modified_epoch_ns: u128,
+    // DONOTLAND: TODO: TYLER THIS WAS U128
+    pub last_modified_epoch_ns: u64,
     pub owners: Vec<String>,
     pub team: Option<String>,
 }

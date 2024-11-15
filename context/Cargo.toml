@@ -29,10 +29,7 @@ speedate = "0.14.4"
 thiserror = "1.0.63"
 uuid = { version = "1.10.0", features = ["v5"] }
 wasm-bindgen = { version = "0.2.95", optional = true }
-
-[patch.crates-io]
-wasm-bindgen = { git = "https://github.com/rustwasm/wasm-bindgen.git", rev = "9eda4ae169ad488d3d6f9af52981b5c5ceb46c11" }
-
+# wasm-bindgen = { git = "https://github.com/TylerJang27/wasm-bindgen.git", optional = true }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 pyo3 = { version = "0.22.5", optional = true, features = [

@@ -19,15 +19,14 @@ tar = { version = "0.4.30", default-features = false }
 codeowners = { path = "../codeowners" }
 uuid = { version = "1.10.0", features = ["v5"] }
 wasm-bindgen = { version = "0.2.95", optional = true }
+# wasm-bindgen = { git = "https://github.com/TylerJang27/wasm-bindgen.git", optional = true }
+
 js-sys = { version = "0.3.70", optional = true }
 
 async-compression = { version = "0.4.17", features = ["futures-io", "zstd"] }
 futures-io = "0.3.31"
 async-tar-wasm = { version = "0.4.2-wasm.1", default-features = false }
 async-std = { version = "1.13.0", features = ["attributes", "std"] }
-
-[patch.crates-io]
-wasm-bindgen = { git = "https://github.com/rustwasm/wasm-bindgen.git", rev = "9eda4ae169ad488d3d6f9af52981b5c5ceb46c11" }
 
 
 [features]
