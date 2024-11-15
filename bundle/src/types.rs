@@ -8,9 +8,11 @@ use serde::{Deserialize, Serialize};
 use crate::files::FileSet;
 
 #[cfg(feature = "wasm")]
-use wasm_bindgen::{convert::{FromWasmAbi, IntoWasmAbi}
-describe::WasmDescribe,
-prelude::*};
+use wasm_bindgen::{
+    convert::{FromWasmAbi, IntoWasmAbi},
+    describe::WasmDescribe,
+    prelude::*,
+};
 
 pub struct RunResult {
     pub exit_code: i32,
@@ -143,8 +145,7 @@ pub struct BundledFile {
     pub original_path: String,
     pub original_path_rel: String,
     pub path: String,
-    // DONOTLAND: TODO: TYLER THIS WAS u128
-    pub last_modified_epoch_ns: u64,
+    pub last_modified_epoch_ns: u128,
     pub owners: Vec<String>,
     pub team: Option<String>,
 }

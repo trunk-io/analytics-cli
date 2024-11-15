@@ -646,7 +646,9 @@ dependencies = [
  "api",
  "assert_cmd",
  "assert_matches",
+ "bundle",
  "chrono",
+ "codeowners",
  "context",
  "escargot",
  "junit-mock",
@@ -3728,7 +3730,7 @@ dependencies = [
 
 [[package]]
 name = "trunk-analytics-cli"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "anyhow",
  "api",
@@ -4295,7 +4297,7 @@ dependencies = [
 
 [[package]]
 name = "xcresult"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "anyhow",
  "chrono",
