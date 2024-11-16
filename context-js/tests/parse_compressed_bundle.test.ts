@@ -44,7 +44,6 @@ const generateBundleMeta = (
     repo_head_author_email: faker.internet.email(),
     repo_head_author_name: faker.person.fullName(),
     repo_head_commit_message: faker.lorem.sentence(),
-    repo_head_sha_short: faker.git.commitSha().slice(0, 7),
     repo_root: faker.system.directoryPath(),
     repo_url: faker.internet.url(),
     repo: {

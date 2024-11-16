@@ -140,12 +140,20 @@ impl Deref for MapType {
 #[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
 pub struct BundledFile {
     pub original_path: String,
-    pub original_path_rel: String,
+    /// Added in v0.5.33
+    pub original_path_rel: Option<String>,
     pub path: String,
-    // DONOTLAND: TODO: TYLER THIS WAS U128
     pub last_modified_epoch_ns: u64,
     pub owners: Vec<String>,
     pub team: Option<String>,
+}
+
+impl BundledFile {
+    pub fn get_print_path(&self) -> &str {
+        self.original_path_rel
+            .as_ref()
+            .unwrap_or(&self.original_path)
+    }
 }
 
 /// Custom tags defined by the user.
@@ -264,7 +272,7 @@ mod tests {
             repo_root: "repo_root".to_string(),
             repo_url: "repo_url".to_string(),
             repo_head_sha: "repo_head_sha".to_string(),
-            repo_head_sha_short: "repo_head_sha_short".to_string(),
+            repo_head_sha_short: Some("repo_head_sha_short".to_string()),
             repo_head_branch: "repo_head_branch".to_string(),
             repo_head_commit_epoch: 1724102768,
             repo_head_commit_message: "repo_head_commit_message".to_string(),

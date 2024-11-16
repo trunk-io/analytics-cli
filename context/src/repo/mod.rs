@@ -38,7 +38,8 @@ pub struct BundleRepo {
     pub repo_root: String,
     pub repo_url: String,
     pub repo_head_sha: String,
-    pub repo_head_sha_short: String,
+    /// Added in v0.5.34
+    pub repo_head_sha_short: Option<String>,
     pub repo_head_branch: String,
     pub repo_head_commit_epoch: i64,
     pub repo_head_commit_message: String,
@@ -145,7 +146,7 @@ impl BundleRepo {
             repo_url,
             repo_head_branch: bundle_repo_options.repo_head_branch.unwrap_or_default(),
             repo_head_sha: repo_head_sha.clone(),
-            repo_head_sha_short: repo_head_sha_short.to_string(),
+            repo_head_sha_short: Some(repo_head_sha_short.to_string()),
             repo_head_commit_epoch: bundle_repo_options
                 .repo_head_commit_epoch
                 .unwrap_or_default(),
@@ -266,7 +267,7 @@ impl BundleRepo {
             repo_root,
             repo_url,
             repo_head_sha,
-            repo_head_sha_short,
+            repo_head_sha_short: Some(repo_head_sha_short),
             repo_head_branch,
             repo_head_commit_epoch,
             repo_head_commit_message,
@@ -297,7 +298,7 @@ impl BundleRepo {
             repo_root,
             repo_url,
             repo_head_sha,
-            repo_head_sha_short,
+            repo_head_sha_short: Some(repo_head_sha_short),
             repo_head_branch,
             repo_head_commit_epoch,
             repo_head_commit_message,

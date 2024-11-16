@@ -365,7 +365,7 @@ fn parse_num_tests(file_sets: &[FileSet]) -> usize {
             if let Err(ref e) = file {
                 log::warn!(
                     "Could not open file {}: {}",
-                    bundled_file.original_path_rel,
+                    bundled_file.get_print_path(),
                     e
                 );
             }
@@ -377,7 +377,7 @@ fn parse_num_tests(file_sets: &[FileSet]) -> usize {
             if let Err(e) = junit_parser.parse(file_buf_reader) {
                 log::warn!(
                     "Encountered error while parsing file {}: {}",
-                    bundled_file.original_path_rel,
+                    bundled_file.get_print_path(),
                     e
                 );
                 return None;

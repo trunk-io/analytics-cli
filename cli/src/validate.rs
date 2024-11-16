@@ -73,7 +73,7 @@ fn parse_file_sets(file_sets: Vec<FileSet>) -> JunitFileToReportAndErrors {
                 Ok(file) => file,
                 Err(e) => {
                     parse_results.insert(
-                        bundled_file.original_path_rel.clone(),
+                        bundled_file.get_print_path().to_string().clone(),
                         (Err(anyhow::anyhow!(e)), Vec::new()),
                     );
                     return parse_results;
@@ -84,7 +84,7 @@ fn parse_file_sets(file_sets: Vec<FileSet>) -> JunitFileToReportAndErrors {
             let mut junit_parser = JunitParser::new();
             if let Err(e) = junit_parser.parse(file_buf_reader) {
                 parse_results.insert(
-                    bundled_file.original_path_rel.clone(),
+                    bundled_file.get_print_path().to_string().clone(),
                     (Err(anyhow::anyhow!(e)), Vec::new()),
                 );
                 return parse_results;
@@ -93,7 +93,7 @@ fn parse_file_sets(file_sets: Vec<FileSet>) -> JunitFileToReportAndErrors {
             let parse_errors = junit_parser.errors().to_vec();
             for report in junit_parser.into_reports() {
                 parse_results.insert(
-                    bundled_file.original_path_rel.clone(),
+                    bundled_file.get_print_path().to_string().clone(),
                     (Ok(report), parse_errors.clone()),
                 );
             }
@@ -111,7 +111,7 @@ fn print_matched_files(file_sets: &[FileSet], file_counter: FileSetCounter) {
     for file_set in file_sets {
         println!("  File set matching {}:", file_set.glob);
         for file in &file_set.files {
-            println!("    {}", file.original_path_rel);
+            println!("    {}", file.get_print_path());
         }
     }
 }

@@ -122,7 +122,7 @@ impl FileSet {
             // This is to avoid having to deal with potential file name collisions.
             files.push(BundledFile {
                 original_path: original_path_abs,
-                original_path_rel,
+                original_path_rel: Some(original_path_rel),
                 path: format!("junit/{}", file_counter.count_file()),
                 last_modified_epoch_ns: 1,
                 // DONOTLAND: TODO: TYLER READD THIS
