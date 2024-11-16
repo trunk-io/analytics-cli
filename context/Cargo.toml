@@ -41,9 +41,8 @@ pyo3 = { version = "0.22.5", optional = true, features = [
 pyo3 = { version = "0.22.5", optional = true, features = ["abi3-py39"] }
 
 [features]
-# DONOTLAND: TODO: TYLER FIGURE OUT THIS FEATURE
+# must be disabled to use wasm-bindings
 default = ["git-access"]
-# default = []
 git-access = ["dep:gix", "dep:openssl"]
 bindings = []
 pyo3 = ["bindings", "dep:pyo3", "dep:pyo3-stub-gen"]
