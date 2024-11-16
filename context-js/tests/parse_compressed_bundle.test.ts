@@ -30,7 +30,7 @@ const generateBundleMeta = (
   version: faker.system.semver(),
   bundle_upload_id: faker.string.uuid(),
   cli_version: faker.system.semver(),
-  // codeowners: {}},
+  // codeowners: null,
   envs: new Map(),
   file_sets: [],
   num_files: faker.number.int(100),

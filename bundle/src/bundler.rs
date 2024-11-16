@@ -1,15 +1,15 @@
-use std::io::{Seek, Write};
-use std::path::PathBuf;
-use async_std::{io::ReadExt, stream::StreamExt};
 use async_compression::futures::bufread::ZstdDecoder;
+use async_std::{io::ReadExt, stream::StreamExt};
 use async_tar_wasm::Archive;
 use futures_io::AsyncBufRead;
+use std::io::{Seek, Write};
+use std::path::PathBuf;
 #[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::*;
 
 use codeowners::CodeOwners;
 
-use crate::types::BundleMeta;
+use crate::bundle_meta::BundleMeta;
 
 /// Utility type for packing files into tarball.
 ///

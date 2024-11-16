@@ -53,6 +53,7 @@ impl OptionIntoWasmAbi for CodeOwners {
 #[cfg(feature = "wasm")]
 impl OptionFromWasmAbi for CodeOwners {
     fn is_none(abi: &Self::Abi) -> bool {
+        // DONOTLAND: TODO: TYLER AUDIT THIS
         true
     }
 }
