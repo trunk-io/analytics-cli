@@ -3,13 +3,14 @@ use std::process::{Command, Stdio};
 use std::time::SystemTime;
 
 use api;
+use bundle::{
+    FileSet, FileSetCounter, QuarantineBulkTestStatus, QuarantineRunResult, RunResult, Test,
+};
+use codeowners::CodeOwners;
+use constants::{EXIT_FAILURE, EXIT_SUCCESS};
 use context::{junit::parser::JunitParser, repo::BundleRepo};
 
 use crate::api_client::ApiClient;
-use bundle::{FileSet, FileSetCounter};
-use bundle::{QuarantineBulkTestStatus, QuarantineRunResult, RunResult, Test};
-use codeowners::CodeOwners;
-use constants::{EXIT_FAILURE, EXIT_SUCCESS};
 
 pub async fn run_test_command(
     repo: &BundleRepo,

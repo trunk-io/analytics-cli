@@ -1,6 +1,6 @@
-pub struct EnvScanner;
-
 use constants::ENVS_TO_GET;
+
+pub struct EnvScanner;
 
 impl EnvScanner {
     pub fn scan_env() -> std::collections::HashMap<String, String> {

@@ -1,3 +1,4 @@
+use clap::Args;
 #[cfg(target_os = "macos")]
 use std::io::Write;
 use std::{
@@ -5,25 +6,25 @@ use std::{
     io::BufReader,
     time::{SystemTime, UNIX_EPOCH},
 };
+#[cfg(target_os = "macos")]
+use xcresult::XCResult;
 
+use api::BundleUploadStatus;
 use bundle::{
     parse_custom_tags, BundleMeta, BundlerUtil, FileSet, QuarantineBulkTestStatus,
     QuarantineRunResult, META_VERSION,
 };
 use codeowners::CodeOwners;
 use constants::{EXIT_FAILURE, EXIT_SUCCESS};
+#[cfg(target_os = "macos")]
 use context::repo::RepoUrlParts;
+use context::{junit::parser::JunitParser, repo::BundleRepo};
 
 use crate::{
     api_client::ApiClient,
     runner::{build_filesets, extract_failed_tests, run_quarantine},
     scanner::EnvScanner,
 };
-use api::BundleUploadStatus;
-use clap::Args;
-use context::{junit::parser::JunitParser, repo::BundleRepo};
-#[cfg(target_os = "macos")]
-use xcresult::XCResult;
 
 #[derive(Args, Clone, Debug)]
 pub struct UploadArgs {

@@ -1,10 +1,10 @@
 use std::collections::HashMap;
 
+use codeowners::CodeOwners;
 use context::repo::BundleRepo;
 use serde::{Deserialize, Serialize};
 
 use crate::files::FileSet;
-use codeowners::CodeOwners;
 
 pub struct RunResult {
     pub exit_code: i32,
@@ -128,11 +128,6 @@ pub struct BundleMeta {
     pub quarantined_tests: Vec<Test>,
     pub codeowners: Option<CodeOwners>,
 }
-/**
- * new type
- * deref
- * new file for impls
- */
 
 #[cfg(test)]
 mod tests {

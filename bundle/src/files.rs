@@ -1,13 +1,11 @@
-use std::format;
-use std::time::SystemTime;
+use std::{format, time::SystemTime};
 
-use codeowners::OwnersOfPath;
+use codeowners::{CodeOwners, Owners, OwnersOfPath};
+use constants::ALLOW_LIST;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 
 use crate::types::{BundledFile, FileSetType};
-use codeowners::{CodeOwners, Owners};
-use constants::ALLOW_LIST;
 
 #[derive(Default, Debug)]
 pub struct FileSetCounter {
