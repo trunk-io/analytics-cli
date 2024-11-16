@@ -1,12 +1,12 @@
+use serde::{Deserialize, Serialize};
 use std::{
     fs::File,
     path::{Path, PathBuf},
 };
 
-use codeowners::{FromReader, GitHubOwners, GitLabOwners};
-use serde::{Deserialize, Serialize};
+use constants::CODEOWNERS_LOCATIONS;
 
-use crate::constants::CODEOWNERS_LOCATIONS;
+use crate::{github::GitHubOwners, gitlab::GitLabOwners, traits::FromReader};
 
 #[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct CodeOwners {

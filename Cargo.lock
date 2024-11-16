@@ -287,6 +287,25 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "79296716171880943b8470b5f8d03aa55eb2e645a4874bdbb28adb49162e012c"
 
 [[package]]
+name = "bundle"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "codeowners",
+ "constants",
+ "context",
+ "glob",
+ "log",
+ "regex",
+ "serde",
+ "serde_json",
+ "tar",
+ "tempfile",
+ "uuid",
+ "zstd",
+]
+
+[[package]]
 name = "byteorder"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -408,7 +427,9 @@ dependencies = [
  "api",
  "assert_cmd",
  "assert_matches",
+ "bundle",
  "chrono",
+ "codeowners",
  "context",
  "escargot",
  "junit-mock",
@@ -435,13 +456,17 @@ dependencies = [
  "anyhow",
  "assert_matches",
  "const_format",
+ "constants",
  "fancy-regex",
  "glob",
  "indexmap",
  "lazy_static",
+ "log",
  "pretty_assertions",
  "rand",
  "regex",
+ "serde",
+ "serde_json",
  "thiserror",
 ]
 
@@ -493,6 +518,10 @@ dependencies = [
  "quote",
  "unicode-xid",
 ]
+
+[[package]]
+name = "constants"
+version = "0.1.0"
 
 [[package]]
 name = "context"
@@ -3313,16 +3342,18 @@ dependencies = [
 
 [[package]]
 name = "trunk-analytics-cli"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "anyhow",
  "api",
  "axum",
+ "bundle",
  "chrono",
  "clap",
  "codeowners",
  "colored",
  "console",
+ "constants",
  "context",
  "env_logger",
  "exitcode",
@@ -3333,20 +3364,14 @@ dependencies = [
  "openssl",
  "openssl-src",
  "quick-junit",
- "regex",
  "reqwest",
  "sentry",
- "serde",
- "serde_json",
- "tar",
  "tempfile",
  "test_utils",
  "tokio",
  "tokio-retry",
- "uuid",
  "vergen",
  "xcresult",
- "zstd",
 ]
 
 [[package]]
@@ -3878,7 +3903,7 @@ dependencies = [
 
 [[package]]
 name = "xcresult"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "anyhow",
  "chrono",
