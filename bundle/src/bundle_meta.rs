@@ -2,7 +2,6 @@
 //! - We create a BundleMeta (current CLI version) on upload
 //! - We read BundleMetaV_* (old versions), incrementally, during parsing on services side
 //!
-use std::ops::Deref;
 
 use codeowners::CodeOwners;
 use context::repo::BundleRepo;
@@ -33,8 +32,33 @@ pub struct BundleMetaBaseProps {
     pub quarantined_tests: Vec<Test>,
     pub codeowners: Option<CodeOwners>,
 }
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
+pub struct BundleMetaV0_5_29 {
+    #[serde(flatten)]
+    pub base_props: BundleMetaBaseProps,
+}
 
-impl BundleMetaBaseProps {
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
+pub struct BundleMetaJunitProps {
+    pub num_files: usize,
+    pub num_tests: usize,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
+pub struct BundleMeta {
+    #[serde(flatten)]
+    pub base_props: BundleMetaBaseProps,
+    pub junit_props: Option<BundleMetaJunitProps>,
+}
+
+//// Add new versions here and rename the above struct ////
+
+pub type BundleMetaV0_5_34 = BundleMeta;
+
+impl BundleMeta {
     pub fn new(
         version: String,
         cli_version: String,
@@ -43,6 +67,8 @@ impl BundleMetaBaseProps {
         bundle_upload_id: String,
         tags: Vec<CustomTag>,
         file_sets: Vec<FileSet>,
+        num_files: usize,
+        num_tests: usize,
         envs: MapType,
         upload_time_epoch: u64,
         test_command: Option<String>,
@@ -50,52 +76,26 @@ impl BundleMetaBaseProps {
         quarantined_tests: Vec<Test>,
         codeowners: Option<CodeOwners>,
     ) -> Self {
-        BundleMetaBaseProps {
-            version,
-            cli_version,
-            org,
-            repo,
-            bundle_upload_id,
-            tags,
-            file_sets,
-            envs,
-            upload_time_epoch,
-            test_command,
-            os_info,
-            quarantined_tests,
-            codeowners,
+        BundleMeta {
+            base_props: BundleMetaBaseProps {
+                version,
+                cli_version,
+                org,
+                repo,
+                bundle_upload_id,
+                tags,
+                file_sets,
+                envs,
+                upload_time_epoch,
+                test_command,
+                os_info,
+                quarantined_tests,
+                codeowners,
+            },
+            junit_props: Some(BundleMetaJunitProps {
+                num_files,
+                num_tests,
+            }),
         }
     }
 }
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-#[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
-pub struct BundleMetaV0_5_29(pub BundleMetaBaseProps);
-
-impl BundleMetaV0_5_29 {
-    pub fn new(props: BundleMetaBaseProps) -> Self {
-        Self(props)
-    }
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-#[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
-pub struct BundleMetaV0_6(pub BundleMetaV0_5_29);
-
-impl Deref for BundleMetaV0_6 {
-    type Target = BundleMetaBaseProps;
-
-    fn deref(&self) -> &BundleMetaBaseProps {
-        &self.0 .0
-    }
-}
-
-impl BundleMetaV0_6 {
-    pub fn new(v0_5_29: BundleMetaV0_5_29) -> Self {
-        Self(v0_5_29)
-    }
-}
-
-//// Add new versions here ////
-
-pub type BundleMeta = BundleMetaV0_6;

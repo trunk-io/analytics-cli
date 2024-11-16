@@ -11,8 +11,8 @@ use xcresult::XCResult;
 
 use api::BundleUploadStatus;
 use bundle::{
-    parse_custom_tags, BundleMeta, BundlerUtil, FileSet, MapType, QuarantineBulkTestStatus,
-    QuarantineRunResult, META_VERSION,
+    parse_custom_tags, BundleMeta, BundleMetaBaseProps, BundleMetaJunitProps, BundlerUtil, FileSet,
+    MapType, QuarantineBulkTestStatus, QuarantineRunResult, META_VERSION,
 };
 use codeowners::CodeOwners;
 use constants::{EXIT_FAILURE, EXIT_SUCCESS};
@@ -213,21 +213,25 @@ pub async fn run_upload(
         .await?;
 
     let meta = BundleMeta {
-        version: META_VERSION.to_string(),
-        org: org_url_slug.clone(),
-        repo: repo.clone(),
-        cli_version,
-        bundle_upload_id: upload.id.clone(),
-        tags,
-        file_sets,
-        num_files,
-        num_tests,
-        envs: MapType(envs),
-        upload_time_epoch: SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs(),
-        test_command,
-        quarantined_tests: resolved_quarantine_results.quarantine_results.to_vec(),
-        os_info: Some(os_info),
-        codeowners,
+        base_props: BundleMetaBaseProps {
+            version: META_VERSION.to_string(),
+            org: org_url_slug.clone(),
+            repo: repo.clone(),
+            cli_version,
+            bundle_upload_id: upload.id.clone(),
+            tags,
+            file_sets,
+            envs: MapType(envs),
+            upload_time_epoch: SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs(),
+            test_command,
+            quarantined_tests: resolved_quarantine_results.quarantine_results.to_vec(),
+            os_info: Some(os_info),
+            codeowners,
+        },
+        junit_props: Some(BundleMetaJunitProps {
+            num_files,
+            num_tests,
+        }),
     };
 
     log::info!("Total files pack and upload: {}", file_counter.get_count());
@@ -240,7 +244,7 @@ pub async fn run_upload(
 
     if print_files {
         println!("Files to upload:");
-        for file_set in &meta.file_sets {
+        for file_set in &meta.base_props.file_sets {
             println!(
                 "  File set ({:?}): {}",
                 file_set.file_set_type, file_set.glob

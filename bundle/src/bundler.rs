@@ -71,18 +71,22 @@ impl BundlerUtil {
         }
 
         // Add all files to the tarball.
-        self.meta.file_sets.iter().try_for_each(|file_set| {
-            file_set.files.iter().try_for_each(|bundled_file| {
-                let path = std::path::Path::new(&bundled_file.original_path);
-                let mut file = std::fs::File::open(path)?;
-                tar.append_file(&bundled_file.path, &mut file)?;
-                total_bytes_in += std::fs::metadata(path)?.len();
+        self.meta
+            .base_props
+            .file_sets
+            .iter()
+            .try_for_each(|file_set| {
+                file_set.files.iter().try_for_each(|bundled_file| {
+                    let path = std::path::Path::new(&bundled_file.original_path);
+                    let mut file = std::fs::File::open(path)?;
+                    tar.append_file(&bundled_file.path, &mut file)?;
+                    total_bytes_in += std::fs::metadata(path)?.len();
+                    Ok::<(), anyhow::Error>(())
+                })?;
                 Ok::<(), anyhow::Error>(())
             })?;
-            Ok::<(), anyhow::Error>(())
-        })?;
 
-        if let Some(CodeOwners { ref path, .. }) = self.meta.codeowners {
+        if let Some(CodeOwners { ref path, .. }) = self.meta.base_props.codeowners {
             let mut file = std::fs::File::open(path)?;
             tar.append_file("CODEOWNERS", &mut file)?;
             total_bytes_in += std::fs::metadata(path)?.len();
