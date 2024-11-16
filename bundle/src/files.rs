@@ -124,7 +124,7 @@ impl FileSet {
                 original_path: original_path_abs,
                 original_path_rel,
                 path: format!("junit/{}", file_counter.count_file()),
-                last_modified_epoch_ns: 0,
+                last_modified_epoch_ns: 1,
                 // DONOTLAND: TODO: TYLER READD THIS
                 // path
                 //     .metadata()?

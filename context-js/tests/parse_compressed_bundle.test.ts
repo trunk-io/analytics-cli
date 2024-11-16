@@ -74,7 +74,7 @@ const compressAndUploadMeta = async (
     [path.basename(metaInfoFilePath)],
   );
 
-  console.log("tar path is ", tarPath);
+  console.log("tar path is ", tarPath); // TODO: REMOVE DONOTLAND
   const tarBuffer = await fs.readFile(tarPath);
   return await compress(tarBuffer);
 };

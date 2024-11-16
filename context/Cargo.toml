@@ -42,8 +42,8 @@ pyo3 = { version = "0.22.5", optional = true, features = ["abi3-py39"] }
 
 [features]
 # DONOTLAND: TODO: TYLER FIGURE OUT THIS FEATURE
-# default = ["git-access"]
-default = []
+default = ["git-access"]
+# default = []
 git-access = ["dep:gix", "dep:openssl"]
 bindings = []
 pyo3 = ["bindings", "dep:pyo3", "dep:pyo3-stub-gen"]
