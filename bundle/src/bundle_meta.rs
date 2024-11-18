@@ -51,6 +51,7 @@ pub struct BundleMetaJunitProps {
 pub struct BundleMeta {
     #[serde(flatten)]
     pub base_props: BundleMetaBaseProps,
+    #[serde(flatten)]
     pub junit_props: Option<BundleMetaJunitProps>,
 }
 

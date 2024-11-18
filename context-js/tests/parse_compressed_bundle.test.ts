@@ -6,28 +6,21 @@ import * as path from "node:path";
 import { compress } from "@mongodb-js/zstd";
 import * as tar from "tar";
 
-import {
-  BundleMeta,
-  parse_meta_from_tarball,
-  type BundleMetaBaseProps,
-  type BundleMetaJunitProps,
-  type BundleRepo,
-  type RepoUrlParts,
-} from "../pkg/context_js";
+import { BundleMeta, parse_meta_from_tarball } from "../pkg/context_js";
 
-type TestRepoUrlParts = Omit<RepoUrlParts, "free">;
-type TestBundleRepo = Omit<BundleRepo, "free" | "repo"> & {
-  repo: TestRepoUrlParts;
-};
-type TestBundleBase = Omit<BundleMetaBaseProps, "free" | "repo" | "envs"> & {
-  repo: TestBundleRepo;
-  envs: Record<string, string>;
-};
-type TestBundleJunit = Omit<BundleMetaJunitProps, "free">;
-type TestBundleMeta = Omit<
-  BundleMeta,
-  "free" | "base_props" | "junit_props"
-> & { base_props: TestBundleBase; junit_props: TestBundleJunit };
+// Based on https://stackoverflow.com/questions/54487137/how-to-recursively-omit-key-from-type
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type OmitDistributive<T, K extends PropertyKey> = T extends any
+  ? T extends object
+    ? Id<OmitRecursively<T, K>>
+    : T
+  : never;
+type Id<T> = {} & { [P in keyof T]: T[P] };
+type OmitRecursively<T, K extends PropertyKey> = Omit<
+  { [P in keyof T]: OmitDistributive<T[P], K> },
+  K
+>;
+type TestBundleMeta = OmitRecursively<BundleMeta, "free">;
 
 /* eslint-disable @typescript-eslint/no-empty-function */
 const generateBundleMeta = (): TestBundleMeta => ({
@@ -35,10 +28,10 @@ const generateBundleMeta = (): TestBundleMeta => ({
     version: "1",
     bundle_upload_id: faker.string.uuid(),
     cli_version: faker.system.semver(),
-    envs: {
-      RUNNER_OS: "Linux",
-      GITHUB_REF: "refs/heads/main",
-    },
+    envs: new Map<string, string>([
+      ["RUNNER_OS", "Linux"],
+      ["GITHUB_REF", "refs/heads/main"],
+    ]),
     file_sets: [],
     org: faker.company.name(),
     os_info: process.platform,
@@ -72,8 +65,32 @@ const generateBundleMeta = (): TestBundleMeta => ({
 });
 
 /* eslint-disable */
-const bigIntSerializer = (key: any, value: any) =>
-  typeof value === "bigint" ? Number(value) : value;
+const customSerializer = (key: any, value: any) => {
+  if (typeof value === "bigint") {
+    return Number(value);
+  }
+  if (typeof value === "object" && value instanceof Map) {
+    return Object.fromEntries(value);
+  }
+  return value;
+};
+
+const assertEquality = (obj1: any, obj2: any) => {
+  const truthinessChecks = ["codeowners"];
+  for (const [key, value] of Object.entries(obj1)) {
+    if (
+      typeof value === "object" &&
+      value !== null &&
+      !truthinessChecks.includes(key)
+    ) {
+      assertEquality(value, obj2[key]);
+    } else if (truthinessChecks.includes("codeowners")) {
+      expect(obj2[key]).toBeTruthy();
+    } else {
+      expect(obj2[key]).toStrictEqual(value);
+    }
+  }
+};
 /* eslint-enable */
 
 const compressAndUploadMeta = async (
@@ -82,7 +99,7 @@ const compressAndUploadMeta = async (
 ) => {
   const metaInfoJson = JSON.stringify(
     { ...metaInfo.base_props, ...metaInfo.junit_props },
-    bigIntSerializer,
+    customSerializer,
     2,
   );
   const metaInfoFilePath = path.resolve(tmpDir, "meta.json");
@@ -124,7 +141,7 @@ describe("context-js", () => {
 
     const res = await parse_meta_from_tarball(readableStream);
 
-    // DONOTLAND: TODO: TYLER FIX THIS ASSERTION
-    expect(res.meta as BundleMeta).toContain(uploadMeta);
+    // We can't use strict equal because res.meta just stores a wasm ptr
+    assertEquality(uploadMeta, res.meta);
   });
 });
