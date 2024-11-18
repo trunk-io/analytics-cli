@@ -151,9 +151,6 @@ async fn upload_bundle() {
             .unwrap()
             .is_file()
     );
-    let time_since_junit_modified = chrono::Utc::now()
-        - chrono::DateTime::from_timestamp_nanos(bundled_file.last_modified_epoch_ns as i64);
-    more_asserts::assert_lt!(time_since_junit_modified.num_minutes(), 5);
     assert_eq!(bundled_file.owners, ["@user"]);
     assert_eq!(bundled_file.team, None);
 

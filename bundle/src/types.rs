@@ -132,6 +132,8 @@ impl Deref for MapType {
     }
 }
 
+#[cfg(feature = "wasm")]
+// u128 will be supported in the next release after 0.2.95
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
 #[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
 pub struct BundledFile {
@@ -139,9 +141,20 @@ pub struct BundledFile {
     /// Added in v0.5.33
     pub original_path_rel: Option<String>,
     pub path: String,
-    // u128 will be supported in the next release after 0.2.95
-    #[cfg(feature = "wasm")]
-    #[wasm_bindgen(skip)]
+    pub owners: Vec<String>,
+    pub team: Option<String>,
+}
+
+#[cfg(not(feature = "wasm"))]
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+pub struct BundledFile {
+    pub original_path: String,
+    /// Added in v0.5.33
+    pub original_path_rel: Option<String>,
+    pub path: String,
+    // deserialize u128 from flatten not supported
+    // https://github.com/serde-rs/json/issues/625
+    #[serde(skip_deserializing)]
     pub last_modified_epoch_ns: u128,
     pub owners: Vec<String>,
     pub team: Option<String>,

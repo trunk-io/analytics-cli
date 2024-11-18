@@ -124,6 +124,7 @@ impl FileSet {
                 original_path: original_path_abs,
                 original_path_rel: Some(original_path_rel),
                 path: format!("junit/{}", file_counter.count_file()),
+                #[cfg(not(feature = "wasm"))]
                 last_modified_epoch_ns: path
                     .metadata()?
                     .modified()?
