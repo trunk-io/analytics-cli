@@ -26,6 +26,7 @@ runs:
       uses: KyleMayes/install-llvm-action@v2
       with:
         version: "14.0"
+        directory: ${{ runner.temp }}/llvm
 
     - name: Build wasm package
       shell: bash

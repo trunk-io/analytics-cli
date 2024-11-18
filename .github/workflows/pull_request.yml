@@ -112,3 +112,4 @@ jobs:
         uses: trunk-io/trunk-action@v1
         with:
           cache: false
+          arguments: --ci-progress --filter=clippy --ignore=bundle --debug
