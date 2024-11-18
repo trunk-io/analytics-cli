@@ -7,21 +7,19 @@ edition = "2021"
 anyhow = "1.0.44"
 constants = { path = "../constants" }
 context = { path = "../context", default-features = false }
+js-sys = { version = "0.3.70", optional = true }
 log = "0.4.14"
 tempfile = "3.2.0"
 glob = "0.3.0"
 regex = { version = "1.10.3", default-features = false, features = ["std"] }
 serde = { version = "1.0.130", default-features = false, features = ["derive"] }
 serde_json = "1.0.68"
+wasm-bindgen = { version = "0.2.95", optional = true }
 # For encoding
 zstd = { version = "0.13.0", default-features = false }
 tar = { version = "0.4.30", default-features = false }
 codeowners = { path = "../codeowners" }
 uuid = { version = "1.10.0", features = ["v5"] }
-wasm-bindgen = { version = "0.2.95", optional = true }
-# wasm-bindgen = { git = "https://github.com/TylerJang27/wasm-bindgen.git", optional = true }
-
-js-sys = { version = "0.3.70", optional = true }
 
 async-compression = { version = "0.4.17", features = ["futures-io", "zstd"] }
 futures-io = "0.3.31"

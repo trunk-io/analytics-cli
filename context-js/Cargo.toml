@@ -11,8 +11,7 @@ bundle = { path = "../bundle", default-features = false, features = ["wasm"] }
 context = { path = "../context", default-features = false, features = ["wasm"] }
 futures = "0.3.31"
 log = "0.4.14"
-wasm-bindgen-futures = "0.4.45"
-js-sys = "0.3.70"
 wasm-bindgen = { version = "0.2.95" }
-# wasm-bindgen = { git = "https://github.com/TylerJang27/wasm-bindgen.git"}
+js-sys = "0.3.70"
+wasm-bindgen-futures = "0.4.45"
 wasm-streams = "0.4.2"
