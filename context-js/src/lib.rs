@@ -1,6 +1,6 @@
-use std::{collections::HashMap, io::BufReader};
 use futures::{future::Either, io::BufReader as BufReaderAsync, stream::TryStreamExt};
 use js_sys::Uint8Array;
+use std::{collections::HashMap, io::BufReader};
 use wasm_bindgen::prelude::*;
 use wasm_streams::{readable::sys, readable::ReadableStream};
 

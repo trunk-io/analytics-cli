@@ -39,7 +39,7 @@ impl IntoWasmAbi for CodeOwners {
 #[cfg(feature = "wasm")]
 impl FromWasmAbi for CodeOwners {
     type Abi = u32;
-    unsafe fn from_abi(js: Self::Abi) -> Self {
+    unsafe fn from_abi(_js: Self::Abi) -> Self {
         CodeOwners::default()
     }
 }

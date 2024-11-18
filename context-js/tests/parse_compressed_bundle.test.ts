@@ -22,7 +22,6 @@ type OmitRecursively<T, K extends PropertyKey> = Omit<
 >;
 type TestBundleMeta = OmitRecursively<BundleMeta, "free">;
 
-/* eslint-disable @typescript-eslint/no-empty-function */
 const generateBundleMeta = (): TestBundleMeta => ({
   base_props: {
     version: "1",
