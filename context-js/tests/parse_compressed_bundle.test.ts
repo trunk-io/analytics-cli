@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, beforeEach, afterEach } from "vitest";
 import { faker } from "@faker-js/faker";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
@@ -94,19 +94,12 @@ const assertEquality = (obj1: any, obj2: any) => {
 
 const compressAndUploadMeta = async (
   tmpDir: string,
-  metaInfo: TestBundleMeta,
+  metaInfoJson: string,
+  fileName: string,
 ) => {
-  const metaInfoJson = JSON.stringify(
-    { ...metaInfo.base_props, ...metaInfo.junit_props },
-    customSerializer,
-    2,
-  );
   const metaInfoFilePath = path.resolve(tmpDir, "meta.json");
   await fs.writeFile(metaInfoFilePath, metaInfoJson);
-  const tarPath = path.resolve(
-    tmpDir,
-    `${metaInfo.base_props.repo.repo_head_sha}.tar`,
-  );
+  const tarPath = path.resolve(tmpDir, `${fileName}.tar`);
   await tar.create(
     {
       cwd: tmpDir,
@@ -120,17 +113,35 @@ const compressAndUploadMeta = async (
 };
 
 describe("context-js", () => {
+  let tmpDir: string;
+
+  // eslint-disable-next-line vitest/no-hooks
+  beforeEach(async () => {
+    tmpDir = await fs.mkdtemp(
+      path.resolve(os.tmpdir(), "bundle-upload-extract-"),
+    );
+  });
+
+  // eslint-disable-next-line vitest/no-hooks
+  afterEach(async () => {
+    await fs.rm(tmpDir, { recursive: true, force: true });
+  });
+
   it("decompresses and parses meta.json", async () => {
     expect.hasAssertions();
 
-    const tmpDir = await fs.mkdtemp(
-      path.resolve(os.tmpdir(), "bundle-upload-extract-"),
+    const uploadMeta = generateBundleMeta();
+    const metaInfoJson = JSON.stringify(
+      { ...uploadMeta.base_props, ...uploadMeta.junit_props },
+      customSerializer,
+      2,
+    );
+    const compressedBuffer = await compressAndUploadMeta(
+      tmpDir,
+      metaInfoJson,
+      uploadMeta.base_props.bundle_upload_id,
     );
 
-    const uploadMeta = generateBundleMeta();
-    const compressedBuffer = await compressAndUploadMeta(tmpDir, uploadMeta);
-
-    // Convert compressedBuffer into a stream
     const readableStream = new ReadableStream({
       start(controller) {
         controller.enqueue(compressedBuffer);
@@ -142,5 +153,27 @@ describe("context-js", () => {
 
     // We can't use strict equal because res.meta just stores a wasm ptr
     assertEquality(uploadMeta, res.meta);
+  });
+
+  it("empty meta.json", async () => {
+    expect.hasAssertions();
+
+    const emptyJson = "{}";
+    const compressedBuffer = await compressAndUploadMeta(
+      tmpDir,
+      emptyJson,
+      "empty",
+    );
+
+    const readableStream = new ReadableStream({
+      start(controller) {
+        controller.enqueue(compressedBuffer);
+        controller.close();
+      },
+    });
+
+    await expect(
+      async () => await parse_meta_from_tarball(readableStream),
+    ).rejects.toThrow("missing field `version`");
   });
 });
