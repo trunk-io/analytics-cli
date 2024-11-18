@@ -120,12 +120,8 @@ impl IntoWasmAbi for MapType {
 #[cfg(feature = "wasm")]
 impl FromWasmAbi for MapType {
     type Abi = u32;
-    unsafe fn from_abi(js: Self::Abi) -> Self {
+    unsafe fn from_abi(_js: Self::Abi) -> Self {
         let map = HashMap::new();
-        // for (key, value) in js.0 {
-        //     map.set(&key.into(), &value.into());
-        // }
-        // map.into_abi()
         Self(map)
     }
 }
@@ -143,7 +139,10 @@ pub struct BundledFile {
     /// Added in v0.5.33
     pub original_path_rel: Option<String>,
     pub path: String,
-    pub last_modified_epoch_ns: u64,
+    // u128 will be supported in the next release after 0.2.95
+    #[cfg(feature = "wasm")]
+    #[wasm_bindgen(skip)]
+    pub last_modified_epoch_ns: u128,
     pub owners: Vec<String>,
     pub team: Option<String>,
 }

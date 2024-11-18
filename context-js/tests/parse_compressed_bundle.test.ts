@@ -19,8 +19,9 @@ type TestRepoUrlParts = Omit<RepoUrlParts, "free">;
 type TestBundleRepo = Omit<BundleRepo, "free" | "repo"> & {
   repo: TestRepoUrlParts;
 };
-type TestBundleBase = Omit<BundleMetaBaseProps, "free" | "repo"> & {
+type TestBundleBase = Omit<BundleMetaBaseProps, "free" | "repo" | "envs"> & {
   repo: TestBundleRepo;
+  envs: Record<string, string>;
 };
 type TestBundleJunit = Omit<BundleMetaJunitProps, "free">;
 type TestBundleMeta = Omit<
@@ -34,11 +35,17 @@ const generateBundleMeta = (): TestBundleMeta => ({
     version: "1",
     bundle_upload_id: faker.string.uuid(),
     cli_version: faker.system.semver(),
-    envs: new Map(),
+    envs: {
+      RUNNER_OS: "Linux",
+      GITHUB_REF: "refs/heads/main",
+    },
     file_sets: [],
     org: faker.company.name(),
     os_info: process.platform,
     quarantined_tests: [],
+    codeowners: {
+      path: faker.system.filePath(),
+    },
     repo: {
       repo_head_branch: faker.git.branch(),
       repo_head_sha: faker.git.commitSha(),
@@ -92,7 +99,6 @@ const compressAndUploadMeta = async (
     [path.basename(metaInfoFilePath)],
   );
 
-  console.log("tar path is ", tarPath); // TODO: REMOVE DONOTLAND
   const tarBuffer = await fs.readFile(tarPath);
   return await compress(tarBuffer);
 };

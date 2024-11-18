@@ -16,11 +16,12 @@ use crate::{github::GitHubOwners, gitlab::GitLabOwners, traits::FromReader};
 #[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct CodeOwners {
     pub path: PathBuf,
-    // DONOTLAND: TODO: TYLER SHOULD WE GATE THIS DIFFERENTLY
     #[serde(skip_serializing, skip_deserializing)]
     pub owners: Option<Owners>,
 }
 
+// NOTE(Tyler): Presently, with wasm we only check for presence of codeowners object. Custom conversion
+// is needed to fully support parsing it.
 #[cfg(feature = "wasm")]
 impl WasmDescribe for CodeOwners {
     fn describe() {
@@ -31,7 +32,6 @@ impl WasmDescribe for CodeOwners {
 impl IntoWasmAbi for CodeOwners {
     type Abi = u32;
     fn into_abi(self) -> Self::Abi {
-        // DONOTLAND: TODO: TYLER CONSIDER SETTING THE PATH
         let map = js_sys::Object::new();
         map.into_abi()
     }
@@ -40,7 +40,6 @@ impl IntoWasmAbi for CodeOwners {
 impl FromWasmAbi for CodeOwners {
     type Abi = u32;
     unsafe fn from_abi(js: Self::Abi) -> Self {
-        // DONOTLAND: TODO: TYLER CONSIDER SETTING THE PATH
         CodeOwners::default()
     }
 }
@@ -52,8 +51,7 @@ impl OptionIntoWasmAbi for CodeOwners {
 }
 #[cfg(feature = "wasm")]
 impl OptionFromWasmAbi for CodeOwners {
-    fn is_none(abi: &Self::Abi) -> bool {
-        // DONOTLAND: TODO: TYLER AUDIT THIS
+    fn is_none(_abi: &Self::Abi) -> bool {
         true
     }
 }

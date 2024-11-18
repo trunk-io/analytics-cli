@@ -124,13 +124,11 @@ impl FileSet {
                 original_path: original_path_abs,
                 original_path_rel: Some(original_path_rel),
                 path: format!("junit/{}", file_counter.count_file()),
-                last_modified_epoch_ns: 1,
-                // DONOTLAND: TODO: TYLER READD THIS
-                // path
-                //     .metadata()?
-                //     .modified()?
-                //     .duration_since(std::time::UNIX_EPOCH)?
-                //     .as_nanos(),
+                last_modified_epoch_ns: path
+                    .metadata()?
+                    .modified()?
+                    .duration_since(std::time::UNIX_EPOCH)?
+                    .as_nanos(),
                 owners,
                 team: team.clone(),
             });
