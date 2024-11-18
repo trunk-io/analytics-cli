@@ -243,6 +243,9 @@ impl<'a> CIInfoParser<'a> {
         self.ci_info.actor = self.get_env_var("SEMAPHORE_GIT_COMMIT_AUTHOR");
         self.ci_info.committer_name = self.get_env_var("SEMAPHORE_GIT_COMMITTER");
         self.ci_info.author_name = self.get_env_var("SEMAPHORE_GIT_COMMIT_AUTHOR");
+
+        self.ci_info.workflow = self.get_env_var("SEMAPHORE_PROJECT_NAME");
+        self.ci_info.job = self.get_env_var("SEMAPHORE_JOB_NAME");
     }
 
     fn parse_gitlab_ci(&mut self) {
