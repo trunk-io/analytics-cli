@@ -65,6 +65,8 @@ pub const ENVS_TO_GET: &[&str] = &[
     "CI_MERGE_REQUEST_REF_PATH",
     "CI_MERGE_REQUEST_TITLE",
     "CI_JOB_URL",
+    "CI_JOB_NAME",
+    "CI_JOB_STAGE",
     // Jenkins
     "BUILD_ID",
     "JENKINS_URL",
