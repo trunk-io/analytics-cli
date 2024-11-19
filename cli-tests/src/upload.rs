@@ -33,7 +33,6 @@ async fn upload_bundle() {
         .env("GITHUB_JOB", "test-job")
         .args(&[
             "upload",
-            "--use-quarantining",
             "--junit-paths",
             "./*",
             "--org-url-slug",
@@ -194,7 +193,6 @@ async fn upload_bundle_no_files() {
         .env("CI", "1")
         .args(&[
             "upload",
-            "--use-quarantining",
             "--junit-paths",
             "./*",
             "--org-url-slug",
@@ -222,7 +220,6 @@ async fn upload_bundle_empty_junit_paths() {
         .env("CI", "1")
         .args(&[
             "upload",
-            "--use-quarantining",
             "--junit-paths",
             "",
             "--org-url-slug",
@@ -242,29 +239,52 @@ async fn upload_bundle_empty_junit_paths() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn upload_bundle_no_files_allow_missing_junit_files() {
-    let temp_dir = tempdir().unwrap();
-    generate_mock_git_repo(&temp_dir);
+    enum Flag {
+        Long,
+        Alias,
+        Default,
+        Off,
+    }
 
-    let state = MockServerBuilder::new().spawn_mock_server().await;
+    for flag in [Flag::Long, Flag::Alias, Flag::Default, Flag::Off] {
+        let temp_dir = tempdir().unwrap();
+        generate_mock_git_repo(&temp_dir);
 
-    let assert = Command::new(CARGO_RUN.path())
-        .current_dir(&temp_dir)
-        .env("TRUNK_PUBLIC_API_ADDRESS", &state.host)
-        .env("CI", "1")
-        .args(&[
+        let state = MockServerBuilder::new().spawn_mock_server().await;
+
+        let mut args = vec![
             "upload",
-            "--use-quarantining",
             "--junit-paths",
             "./*",
             "--org-url-slug",
             "test-org",
             "--token",
             "test-token",
-            "--allow-missing-junit-files",
-        ])
-        .assert()
-        .success();
+        ];
 
-    // HINT: View CLI output with `cargo test -- --nocapture`
-    println!("{assert}");
+        match flag {
+            Flag::Long => args.push("--allow-empty-test-results"),
+            Flag::Alias => args.push("--allow-missing-junit-files"),
+            Flag::Default => {}
+            Flag::Off => {
+                args.push("--allow-empty-test-results false");
+            }
+        };
+
+        let mut assert = Command::new(CARGO_RUN.path())
+            .current_dir(&temp_dir)
+            .env("TRUNK_PUBLIC_API_ADDRESS", &state.host)
+            .env("CI", "1")
+            .args(&args)
+            .assert();
+
+        assert = if matches!(flag, Flag::Off) {
+            assert.failure()
+        } else {
+            assert.success()
+        };
+
+        // HINT: View CLI output with `cargo test -- --nocapture`
+        println!("{assert}");
+    }
 }
