@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 anyhow = "1.0.44"
+codeowners = { path = "../codeowners" }
 constants = { path = "../constants" }
 context = { path = "../context", default-features = false }
 js-sys = { version = "0.3.70", optional = true }
@@ -15,16 +16,15 @@ regex = { version = "1.10.3", default-features = false, features = ["std"] }
 serde = { version = "1.0.215", default-features = false, features = ["derive"] }
 serde_json = "1.0.133"
 wasm-bindgen = { version = "0.2.95", optional = true }
-# For encoding
-zstd = { version = "0.13.0", default-features = false }
-tar = { version = "0.4.30", default-features = false }
-codeowners = { path = "../codeowners" }
-uuid = { version = "1.10.0", features = ["v5"] }
 
+# For encoding
 async-compression = { version = "0.4.17", features = ["futures-io", "zstd"] }
-futures-io = "0.3.31"
-async-tar-wasm = { version = "0.4.2-wasm.1", default-features = false }
 async-std = { version = "1.13.0", features = ["attributes", "std"] }
+async-tar-wasm = { version = "0.4.2-wasm.1", default-features = false }
+futures-io = "0.3.31"
+tar = { version = "0.4.30", default-features = false }
+uuid = { version = "1.10.0", features = ["v5"] }
+zstd = { version = "0.13.0", default-features = false }
 
 
 [features]

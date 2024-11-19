@@ -6,11 +6,10 @@
 use codeowners::CodeOwners;
 use context::repo::BundleRepo;
 use serde::{Deserialize, Serialize};
-
-use crate::{files::FileSet, CustomTag, MapType, Test};
-
 #[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::*;
+
+use crate::{files::FileSet, CustomTag, MapType, Test};
 
 pub const META_VERSION: &str = "1";
 

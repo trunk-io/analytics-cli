@@ -1,3 +1,4 @@
+use constants::CODEOWNERS_LOCATIONS;
 use serde::{Deserialize, Serialize};
 use std::{
     fs::File,
@@ -9,8 +10,6 @@ use wasm_bindgen::{
     describe::WasmDescribe,
 };
 
-use constants::CODEOWNERS_LOCATIONS;
-
 use crate::{github::GitHubOwners, gitlab::GitLabOwners, traits::FromReader};
 
 #[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq)]
@@ -20,8 +19,8 @@ pub struct CodeOwners {
     pub owners: Option<Owners>,
 }
 
-// NOTE(Tyler): Presently, with wasm we only check for presence of codeowners object. Custom conversion
-// is needed to fully support parsing it.
+// TODO(TRUNK-13628): Presently, with wasm we only check for presence of codeowners object.
+// Custom conversion is needed to fully support parsing it.
 #[cfg(feature = "wasm")]
 impl WasmDescribe for CodeOwners {
     fn describe() {

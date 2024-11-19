@@ -63,17 +63,18 @@ const generateBundleMeta = (): TestBundleMeta => ({
   },
 });
 
-/* eslint-disable */
-const customSerializer = (key: any, value: any) => {
+const bundleMetaJsonSerializer = (_key: unknown, value: unknown) => {
   if (typeof value === "bigint") {
     return Number(value);
   }
-  if (typeof value === "object" && value instanceof Map) {
-    return Object.fromEntries(value);
+  if (value instanceof Map) {
+    const obj: unknown = Object.fromEntries(value.entries());
+    return obj;
   }
   return value;
 };
 
+/* eslint-disable */
 const assertEquality = (obj1: any, obj2: any) => {
   const truthinessChecks = ["codeowners"];
   for (const [key, value] of Object.entries(obj1)) {
@@ -92,14 +93,13 @@ const assertEquality = (obj1: any, obj2: any) => {
 };
 /* eslint-enable */
 
-const compressAndUploadMeta = async (
-  tmpDir: string,
-  metaInfoJson: string,
-  fileName: string,
-) => {
+const compressAndUploadMeta = async (metaInfoJson: string) => {
+  const tmpDir = await fs.mkdtemp(
+    path.resolve(os.tmpdir(), "bundle-upload-extract-"),
+  );
   const metaInfoFilePath = path.resolve(tmpDir, "meta.json");
   await fs.writeFile(metaInfoFilePath, metaInfoJson);
-  const tarPath = path.resolve(tmpDir, `${fileName}.tar`);
+  const tarPath = path.resolve(tmpDir, `bundle.tar`);
   await tar.create(
     {
       cwd: tmpDir,
@@ -109,38 +109,21 @@ const compressAndUploadMeta = async (
   );
 
   const tarBuffer = await fs.readFile(tarPath);
+  await fs.rm(tmpDir, { recursive: true, force: true });
   return await compress(tarBuffer);
 };
 
 describe("context-js", () => {
-  let tmpDir: string;
-
-  // eslint-disable-next-line vitest/no-hooks
-  beforeEach(async () => {
-    tmpDir = await fs.mkdtemp(
-      path.resolve(os.tmpdir(), "bundle-upload-extract-"),
-    );
-  });
-
-  // eslint-disable-next-line vitest/no-hooks
-  afterEach(async () => {
-    await fs.rm(tmpDir, { recursive: true, force: true });
-  });
-
   it("decompresses and parses meta.json", async () => {
     expect.hasAssertions();
 
     const uploadMeta = generateBundleMeta();
     const metaInfoJson = JSON.stringify(
       { ...uploadMeta.base_props, ...uploadMeta.junit_props },
-      customSerializer,
+      bundleMetaJsonSerializer,
       2,
     );
-    const compressedBuffer = await compressAndUploadMeta(
-      tmpDir,
-      metaInfoJson,
-      uploadMeta.base_props.bundle_upload_id,
-    );
+    const compressedBuffer = await compressAndUploadMeta(metaInfoJson);
 
     const readableStream = new ReadableStream({
       start(controller) {
@@ -159,11 +142,7 @@ describe("context-js", () => {
     expect.hasAssertions();
 
     const emptyJson = "{}";
-    const compressedBuffer = await compressAndUploadMeta(
-      tmpDir,
-      emptyJson,
-      "empty",
-    );
+    const compressedBuffer = await compressAndUploadMeta(emptyJson);
 
     const readableStream = new ReadableStream({
       start(controller) {

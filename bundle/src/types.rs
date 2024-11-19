@@ -1,15 +1,14 @@
 use std::collections::HashMap;
 use std::ops::Deref;
-
-use context::repo::BundleRepo;
-use serde::{Deserialize, Serialize};
-
 #[cfg(feature = "wasm")]
 use wasm_bindgen::{
     convert::{FromWasmAbi, IntoWasmAbi},
     describe::WasmDescribe,
     prelude::*,
 };
+
+use context::repo::BundleRepo;
+use serde::{Deserialize, Serialize};
 
 pub struct RunResult {
     pub exit_code: i32,

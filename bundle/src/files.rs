@@ -1,4 +1,6 @@
 use std::{format, time::SystemTime};
+#[cfg(feature = "wasm")]
+use wasm_bindgen::prelude::*;
 
 use codeowners::{CodeOwners, Owners, OwnersOfPath};
 use constants::ALLOW_LIST;
@@ -6,9 +8,6 @@ use regex::Regex;
 use serde::{Deserialize, Serialize};
 
 use crate::types::{BundledFile, FileSetType};
-
-#[cfg(feature = "wasm")]
-use wasm_bindgen::prelude::*;
 
 #[derive(Default, Debug)]
 pub struct FileSetCounter {
