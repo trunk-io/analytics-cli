@@ -283,6 +283,8 @@ impl<'a> CIInfoParser<'a> {
         }
         self.ci_info.commit_message = self.get_env_var("CI_COMMIT_MESSAGE");
         self.ci_info.title = self.get_env_var("CI_MERGE_REQUEST_TITLE");
+        self.ci_info.workflow = self.get_env_var("CI_JOB_NAME");
+        self.ci_info.job = self.get_env_var("CI_JOB_STAGE");
     }
 
     fn parse_drone(&mut self) {
