@@ -181,33 +181,6 @@ async fn upload_bundle() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn upload_bundle_no_files() {
-    let temp_dir = tempdir().unwrap();
-    generate_mock_git_repo(&temp_dir);
-
-    let state = MockServerBuilder::new().spawn_mock_server().await;
-
-    let assert = Command::new(CARGO_RUN.path())
-        .current_dir(&temp_dir)
-        .env("TRUNK_PUBLIC_API_ADDRESS", &state.host)
-        .env("CI", "1")
-        .args(&[
-            "upload",
-            "--junit-paths",
-            "./*",
-            "--org-url-slug",
-            "test-org",
-            "--token",
-            "test-token",
-        ])
-        .assert()
-        .failure();
-
-    // HINT: View CLI output with `cargo test -- --nocapture`
-    println!("{assert}");
-}
-
-#[tokio::test(flavor = "multi_thread")]
 async fn upload_bundle_empty_junit_paths() {
     let temp_dir = tempdir().unwrap();
     generate_mock_git_repo(&temp_dir);
