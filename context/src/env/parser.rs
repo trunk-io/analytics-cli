@@ -248,6 +248,7 @@ impl<'a> CIInfoParser<'a> {
         }
         self.ci_info.branch = self
             .get_env_var("SEMAPHORE_GIT_PR_BRANCH")
+            .or_else(|| self.get_env_var("SEMAPHORE_GIT_WORKING_BRANCH"))
             .or_else(|| self.get_env_var("SEMAPHORE_GIT_BRANCH"));
         self.ci_info.pr_number = Self::parse_pr_number(self.get_env_var("SEMAPHORE_GIT_PR_NUMBER"));
         self.ci_info.actor = self.get_env_var("SEMAPHORE_GIT_COMMIT_AUTHOR");
