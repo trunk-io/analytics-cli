@@ -72,10 +72,19 @@ pub struct UploadArgs {
     pub team: Option<String>,
     #[arg(long, help = "Value to override CODEOWNERS file or directory path.")]
     pub codeowners_path: Option<String>,
-    #[arg(long, help = "Run commands with the quarantining step.")]
+    #[arg(
+        long,
+        help = "Run commands with the quarantining step.",
+        default_value = "true"
+    )]
     pub use_quarantining: bool,
-    #[arg(long, help = "Do not fail if no junit files are found.")]
-    pub allow_missing_junit_files: bool,
+    #[arg(
+        long,
+        alias = "allow-missing-junit-files",
+        help = "Do not fail if test results are not found.",
+        default_value = "true"
+    )]
+    pub allow_empty_test_results: bool,
 }
 
 pub async fn run_upload(
@@ -103,7 +112,7 @@ pub async fn run_upload(
         print_files,
         dry_run,
         use_quarantining,
-        allow_missing_junit_files,
+        allow_empty_test_results,
         team,
         codeowners_path,
     } = upload_args;
@@ -129,11 +138,11 @@ pub async fn run_upload(
         let temp_paths =
             handle_xcresult(&junit_temp_dir, xcresult_path, &repo.repo, &org_url_slug)?;
         junit_paths = [junit_paths.as_slice(), temp_paths.as_slice()].concat();
-        if junit_paths.is_empty() && !allow_missing_junit_files {
+        if junit_paths.is_empty() && !allow_empty_test_results {
             return Err(anyhow::anyhow!(
                 "No tests found in the provided XCResult path."
             ));
-        } else if junit_paths.is_empty() && allow_missing_junit_files {
+        } else if junit_paths.is_empty() && allow_empty_test_results {
             log::warn!("No tests found in the provided XCResult path.");
         }
     }
@@ -146,7 +155,7 @@ pub async fn run_upload(
         exec_start,
     )?;
 
-    if !allow_missing_junit_files && (file_counter.get_count() == 0 || file_sets.is_empty()) {
+    if !allow_empty_test_results && (file_counter.get_count() == 0 || file_sets.is_empty()) {
         return Err(anyhow::anyhow!("No JUnit files found to upload."));
     }
 
