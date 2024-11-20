@@ -14,6 +14,7 @@ pub struct ApiClient {
     host: String,
     s3_client: Client,
     trunk_client: Client,
+    version_path_prefix: String,
 }
 
 impl ApiClient {
@@ -54,10 +55,17 @@ impl ApiClient {
             .default_headers(s3_client_default_headers)
             .build()?;
 
+        let version_path_prefix = if std::env::var("DEBUG_STRIP_VERSION_PREFIX").is_ok() {
+            String::from("")
+        } else {
+            String::from("/v1")
+        };
+
         Ok(Self {
             host,
             s3_client,
             trunk_client,
+            version_path_prefix,
         })
     }
 
@@ -66,7 +74,7 @@ impl ApiClient {
             action: || async {
                 let response = self
                     .trunk_client
-                    .post(format!("{}/v1/repo/create", self.host))
+                    .post(format!("{}{}/repo/create", self.host, self.version_path_prefix))
                     .json(&request)
                     .send()
                     .await?;
@@ -97,7 +105,7 @@ impl ApiClient {
             action: || async {
                 let response = self
                     .trunk_client
-                    .post(format!("{}/v1/metrics/createBundleUpload", self.host))
+                    .post(format!("{}{}/metrics/createBundleUpload", self.host, self.version_path_prefix))
                     .json(&request)
                     .send()
                     .await?;
@@ -133,7 +141,7 @@ impl ApiClient {
             action: || async {
                 let response = self
                     .trunk_client
-                    .post(format!("{}/v1/metrics/getQuarantineConfig", self.host))
+                    .post(format!("{}{}/metrics/getQuarantineConfig", self.host, self.version_path_prefix))
                     .json(&request)
                     .send()
                     .await?;
@@ -205,7 +213,7 @@ impl ApiClient {
             action: || async {
                 let response = self
                     .trunk_client
-                    .patch(format!("{}/v1/metrics/updateBundleUpload", self.host))
+                    .patch(format!("{}{}/metrics/updateBundleUpload", self.host, self.version_path_prefix))
                     .json(request)
                     .send()
                     .await?;
