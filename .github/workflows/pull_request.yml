@@ -112,17 +112,3 @@ jobs:
         uses: trunk-io/trunk-action@v1
         with:
           cache: false
-  # DONOTLAND
-  clippy_check:
-    name: Clippy runner [linux]
-    runs-on: public-amd64-small
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions-rust-lang/setup-rust-toolchain@v1
-
-      - name: Setup and build wasm
-        uses: ./.github/actions/setup_build_wasm
-
-      - run: cargo clippy --all-targets
