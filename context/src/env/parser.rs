@@ -183,12 +183,22 @@ impl<'a> CIInfoParser<'a> {
     }
 
     fn parse_github_actions(&mut self) {
-        if let Some(branch) = self.get_env_var("GITHUB_REF") {
-            if branch.starts_with("refs/pull/") {
-                self.ci_info.pr_number = Self::parse_pr_number(branch.splitn(3, "/").last());
+        if let Some(gh_ref) = self.get_env_var("GITHUB_REF") {
+            if gh_ref.starts_with("refs/pull/") {
+                let stripped_ref = gh_ref
+                    .strip_suffix("/merge")
+                    .unwrap_or(gh_ref.as_str())
+                    .splitn(3, "/")
+                    .last();
+                self.ci_info.pr_number = Self::parse_pr_number(stripped_ref);
             }
-            self.ci_info.branch = Some(branch);
+            if let Some(gh_head_ref) = self.get_env_var("GITHUB_HEAD_REF") {
+                self.ci_info.branch = Some(gh_head_ref);
+            } else {
+                self.ci_info.branch = Some(gh_ref);
+            }
         }
+
         self.ci_info.actor = self.get_env_var("GITHUB_ACTOR");
         if let (Some(repo_name), Some(run_id)) = (
             self.get_env_var("GITHUB_REPOSITORY"),
@@ -238,6 +248,7 @@ impl<'a> CIInfoParser<'a> {
         }
         self.ci_info.branch = self
             .get_env_var("SEMAPHORE_GIT_PR_BRANCH")
+            .or_else(|| self.get_env_var("SEMAPHORE_GIT_WORKING_BRANCH"))
             .or_else(|| self.get_env_var("SEMAPHORE_GIT_BRANCH"));
         self.ci_info.pr_number = Self::parse_pr_number(self.get_env_var("SEMAPHORE_GIT_PR_NUMBER"));
         self.ci_info.actor = self.get_env_var("SEMAPHORE_GIT_COMMIT_AUTHOR");
