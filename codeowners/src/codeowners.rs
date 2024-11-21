@@ -1,14 +1,19 @@
+use constants::CODEOWNERS_LOCATIONS;
 use serde::{Deserialize, Serialize};
 use std::{
     fs::File,
     path::{Path, PathBuf},
 };
-
-use constants::CODEOWNERS_LOCATIONS;
+#[cfg(feature = "wasm")]
+use tsify_next::Tsify;
+#[cfg(feature = "wasm")]
+use wasm_bindgen::prelude::*;
 
 use crate::{github::GitHubOwners, gitlab::GitLabOwners, traits::FromReader};
 
+// TODO(TRUNK-13628): Implement serializing and deserializing for CodeOwners
 #[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[cfg_attr(feature = "wasm", derive(Tsify))]
 pub struct CodeOwners {
     pub path: PathBuf,
     #[serde(skip_serializing, skip_deserializing)]

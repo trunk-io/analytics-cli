@@ -82,10 +82,12 @@ async fn upload_bundle() {
     let file = fs::File::open(tar_extract_directory.join("meta.json")).unwrap();
     let reader = BufReader::new(file);
     let bundle_meta: BundleMeta = serde_json::from_reader(reader).unwrap();
+    let base_props = bundle_meta.base_props;
+    let junit_props = bundle_meta.junit_props;
 
-    assert_eq!(bundle_meta.org, "test-org");
+    assert_eq!(base_props.org, "test-org");
     assert_eq!(
-        bundle_meta.repo.repo,
+        base_props.repo.repo,
         Repo {
             host: String::from("github.com"),
             owner: String::from("trunk-io"),
@@ -93,47 +95,48 @@ async fn upload_bundle() {
         }
     );
     assert_eq!(
-        bundle_meta.repo.repo_url,
+        base_props.repo.repo_url,
         "https://github.com/trunk-io/analytics-cli.git"
     );
-    assert!(!bundle_meta.repo.repo_head_sha.is_empty());
-    assert!(!bundle_meta.repo.repo_head_sha_short.is_empty());
-    assert!(bundle_meta.repo.repo_head_sha_short.len() < bundle_meta.repo.repo_head_sha.len());
-    assert!(bundle_meta
+    assert!(!base_props.repo.repo_head_sha.is_empty());
+    let repo_head_sha_short = base_props.repo.repo_head_sha_short.unwrap();
+    assert!(!repo_head_sha_short.is_empty());
+    assert!(&repo_head_sha_short.len() < &base_props.repo.repo_head_sha.len());
+    assert!(base_props
         .repo
         .repo_head_sha
-        .starts_with(&bundle_meta.repo.repo_head_sha_short));
-    assert_eq!(bundle_meta.repo.repo_head_branch, "refs/heads/trunk/test");
-    assert_eq!(bundle_meta.repo.repo_head_author_name, "Your Name");
+        .starts_with(&repo_head_sha_short));
+    assert_eq!(base_props.repo.repo_head_branch, "refs/heads/trunk/test");
+    assert_eq!(base_props.repo.repo_head_author_name, "Your Name");
     assert_eq!(
-        bundle_meta.repo.repo_head_author_email,
+        base_props.repo.repo_head_author_email,
         "your.email@example.com"
     );
-    assert_eq!(bundle_meta.bundle_upload_id, "test-bundle-upload-id");
-    assert_eq!(bundle_meta.tags, &[]);
-    assert_eq!(bundle_meta.file_sets.len(), 1);
-    assert_eq!(bundle_meta.num_files, 1);
-    assert_eq!(bundle_meta.num_tests, 500);
-    assert_eq!(bundle_meta.envs.get("CI"), Some(&String::from("1")));
+    assert_eq!(base_props.bundle_upload_id, "test-bundle-upload-id");
+    assert_eq!(base_props.tags, &[]);
+    assert_eq!(base_props.file_sets.len(), 1);
+    assert_eq!(junit_props.num_files, 1);
+    assert_eq!(junit_props.num_tests, 500);
+    assert_eq!(base_props.envs.get("CI"), Some(&String::from("1")));
     assert_eq!(
-        bundle_meta.envs.get("GITHUB_JOB"),
+        base_props.envs.get("GITHUB_JOB"),
         Some(&String::from("test-job"))
     );
     let time_since_upload = chrono::Utc::now()
-        - chrono::DateTime::from_timestamp(bundle_meta.upload_time_epoch as i64, 0).unwrap();
+        - chrono::DateTime::from_timestamp(base_props.upload_time_epoch as i64, 0).unwrap();
     more_asserts::assert_lt!(time_since_upload.num_minutes(), 5);
-    assert_eq!(bundle_meta.test_command, None);
-    assert!(bundle_meta.os_info.is_some());
-    assert!(bundle_meta.quarantined_tests.is_empty());
+    assert_eq!(base_props.test_command, None);
+    assert!(base_props.os_info.is_some());
+    assert!(base_props.quarantined_tests.is_empty());
     assert_eq!(
-        bundle_meta.codeowners,
+        base_props.codeowners,
         Some(CodeOwners {
             path: temp_dir.as_ref().join("CODEOWNERS").canonicalize().unwrap(),
             owners: None,
         })
     );
 
-    let file_set = bundle_meta.file_sets.get(0).unwrap();
+    let file_set = base_props.file_sets.get(0).unwrap();
     assert_eq!(file_set.file_set_type, FileSetType::Junit);
     assert_eq!(file_set.glob, "./*");
     assert_eq!(file_set.files.len(), 1);
@@ -147,9 +150,6 @@ async fn upload_bundle() {
             .unwrap()
             .is_file()
     );
-    let time_since_junit_modified = chrono::Utc::now()
-        - chrono::DateTime::from_timestamp_nanos(bundled_file.last_modified_epoch_ns as i64);
-    more_asserts::assert_lt!(time_since_junit_modified.num_minutes(), 5);
     assert_eq!(bundled_file.owners, ["@user"]);
     assert_eq!(bundled_file.team, None);
 

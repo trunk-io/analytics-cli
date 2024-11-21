@@ -11,8 +11,8 @@ use xcresult::XCResult;
 
 use api::BundleUploadStatus;
 use bundle::{
-    parse_custom_tags, BundleMeta, BundlerUtil, FileSet, QuarantineBulkTestStatus,
-    QuarantineRunResult, META_VERSION,
+    parse_custom_tags, BundleMeta, BundleMetaBaseProps, BundleMetaJunitProps, BundlerUtil, FileSet,
+    QuarantineBulkTestStatus, QuarantineRunResult, META_VERSION,
 };
 use codeowners::CodeOwners;
 use constants::{EXIT_FAILURE, EXIT_SUCCESS};
@@ -222,21 +222,25 @@ pub async fn run_upload(
         .await?;
 
     let meta = BundleMeta {
-        version: META_VERSION.to_string(),
-        org: org_url_slug.clone(),
-        repo: repo.clone(),
-        cli_version,
-        bundle_upload_id: upload.id.clone(),
-        tags,
-        file_sets,
-        num_files,
-        num_tests,
-        envs,
-        upload_time_epoch: SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs(),
-        test_command,
-        quarantined_tests: resolved_quarantine_results.quarantine_results.to_vec(),
-        os_info: Some(os_info),
-        codeowners,
+        base_props: BundleMetaBaseProps {
+            version: META_VERSION.to_string(),
+            org: org_url_slug.clone(),
+            repo: repo.clone(),
+            cli_version,
+            bundle_upload_id: upload.id.clone(),
+            tags,
+            file_sets,
+            envs,
+            upload_time_epoch: SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs(),
+            test_command,
+            quarantined_tests: resolved_quarantine_results.quarantine_results.to_vec(),
+            os_info: Some(os_info),
+            codeowners,
+        },
+        junit_props: BundleMetaJunitProps {
+            num_files,
+            num_tests,
+        },
     };
 
     log::info!("Total files pack and upload: {}", file_counter.get_count());
@@ -249,7 +253,7 @@ pub async fn run_upload(
 
     if print_files {
         println!("Files to upload:");
-        for file_set in &meta.file_sets {
+        for file_set in &meta.base_props.file_sets {
             println!(
                 "  File set ({:?}): {}",
                 file_set.file_set_type, file_set.glob
@@ -374,7 +378,7 @@ fn parse_num_tests(file_sets: &[FileSet]) -> usize {
             if let Err(ref e) = file {
                 log::warn!(
                     "Could not open file {}: {}",
-                    bundled_file.original_path_rel,
+                    bundled_file.get_print_path(),
                     e
                 );
             }
@@ -386,7 +390,7 @@ fn parse_num_tests(file_sets: &[FileSet]) -> usize {
             if let Err(e) = junit_parser.parse(file_buf_reader) {
                 log::warn!(
                     "Encountered error while parsing file {}: {}",
-                    bundled_file.original_path_rel,
+                    bundled_file.get_print_path(),
                     e
                 );
                 return None;

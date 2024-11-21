@@ -21,6 +21,13 @@ runs:
       shell: bash
       run: pnpm install --dir ./context-js
 
+    # Required to build zstd-sys
+    - name: Install LLVM and Clang
+      uses: KyleMayes/install-llvm-action@v2
+      with:
+        version: "14.0"
+        directory: ${{ runner.temp }}/llvm
+
     - name: Build wasm package
       shell: bash
       run: pnpm run --dir ./context-js build

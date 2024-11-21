@@ -1,10 +1,10 @@
-use std::collections::HashMap;
+#[cfg(feature = "wasm")]
+use tsify_next::Tsify;
+#[cfg(feature = "wasm")]
+use wasm_bindgen::prelude::*;
 
-use codeowners::CodeOwners;
 use context::repo::BundleRepo;
 use serde::{Deserialize, Serialize};
-
-use crate::files::FileSet;
 
 pub struct RunResult {
     pub exit_code: i32,
@@ -18,6 +18,7 @@ pub struct QuarantineRunResult {
 }
 
 #[derive(Debug, Serialize, Clone, Deserialize)]
+#[cfg_attr(feature = "wasm", derive(Tsify))]
 pub struct Test {
     pub name: String,
     #[serde(rename = "parentName")]
@@ -85,48 +86,55 @@ pub struct BundleUploader {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq)]
+#[cfg_attr(feature = "wasm", derive(Tsify))]
 pub enum FileSetType {
     #[default]
     Junit,
 }
 
+#[cfg(feature = "wasm")]
+// u128 will be supported in the next release after 0.2.95
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+#[cfg_attr(feature = "wasm", derive(Tsify))]
+pub struct BundledFile {
+    pub original_path: String,
+    /// Added in v0.5.33
+    pub original_path_rel: Option<String>,
+    pub path: String,
+    pub owners: Vec<String>,
+    pub team: Option<String>,
+}
+
+#[cfg(not(feature = "wasm"))]
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct BundledFile {
     pub original_path: String,
-    pub original_path_rel: String,
+    /// Added in v0.5.33
+    pub original_path_rel: Option<String>,
     pub path: String,
+    // deserialize u128 from flatten not supported
+    // https://github.com/serde-rs/json/issues/625
+    #[serde(skip_deserializing)]
     pub last_modified_epoch_ns: u128,
     pub owners: Vec<String>,
     pub team: Option<String>,
 }
 
+impl BundledFile {
+    pub fn get_print_path(&self) -> &str {
+        self.original_path_rel
+            .as_ref()
+            .unwrap_or(&self.original_path)
+    }
+}
+
 /// Custom tags defined by the user.
 ///
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "wasm", derive(Tsify))]
 pub struct CustomTag {
     pub key: String,
     pub value: String,
-}
-
-pub const META_VERSION: &str = "1";
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct BundleMeta {
-    pub version: String,
-    pub cli_version: String,
-    pub org: String,
-    pub repo: BundleRepo,
-    pub bundle_upload_id: String,
-    pub tags: Vec<CustomTag>,
-    pub file_sets: Vec<FileSet>,
-    pub num_files: usize,
-    pub num_tests: usize,
-    pub envs: HashMap<String, String>,
-    pub upload_time_epoch: u64,
-    pub test_command: Option<String>,
-    pub os_info: Option<String>,
-    pub quarantined_tests: Vec<Test>,
-    pub codeowners: Option<CodeOwners>,
 }
 
 #[cfg(test)]
@@ -236,7 +244,7 @@ mod tests {
             repo_root: "repo_root".to_string(),
             repo_url: "repo_url".to_string(),
             repo_head_sha: "repo_head_sha".to_string(),
-            repo_head_sha_short: "repo_head_sha_short".to_string(),
+            repo_head_sha_short: Some("repo_head_sha_short".to_string()),
             repo_head_branch: "repo_head_branch".to_string(),
             repo_head_commit_epoch: 1724102768,
             repo_head_commit_message: "repo_head_commit_message".to_string(),

@@ -98,7 +98,7 @@ jobs:
 
   trunk_check_runner:
     name: Trunk Check runner [linux]
-    runs-on: public-amd64-small
+    runs-on: public-amd64-large
 
     steps:
       - uses: actions/checkout@v4
