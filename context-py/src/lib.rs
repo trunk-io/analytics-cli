@@ -76,6 +76,9 @@ fn context_py(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(env_parse, m)?)?;
     m.add_function(wrap_pyfunction!(env_validate, m)?)?;
 
+    m.add_class::<junit::bindings::BindingsReport>()?;
+    m.add_class::<junit::bindings::BindingsTestSuite>()?;
+    m.add_class::<junit::bindings::BindingsTestCase>()?;
     m.add_class::<junit::bindings::BindingsTestCaseStatusStatus>()?;
     m.add_class::<junit::bindings::BindingsNonSuccessKind>()?;
     m.add_class::<junit::validator::JunitValidationLevel>()?;

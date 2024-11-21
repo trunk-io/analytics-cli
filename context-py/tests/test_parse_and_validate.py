@@ -29,9 +29,11 @@ def test_env_parse_and_validate():
 
 
 def test_junit_parse_and_validate():
+    import typing as PT
     from datetime import datetime, timedelta, timezone
 
     from context_py import (
+        BindingsReport,
         JunitValidationLevel,
         JunitValidationType,
         junit_parse,
@@ -49,8 +51,8 @@ def test_junit_parse_and_validate():
     </testsuites>
    """
 
-    report = junit_parse(str.encode(valid_junit_xml))
-    junit_report_validation = junit_validate(report[0])
+    reports: PT.List[BindingsReport] = junit_parse(str.encode(valid_junit_xml))
+    junit_report_validation = junit_validate(reports[0])
 
     assert (
         junit_report_validation.max_level() == JunitValidationLevel.Valid
@@ -76,8 +78,8 @@ def test_junit_parse_and_validate():
     </testsuites>
    """
 
-    report = junit_parse(str.encode(suboptimal_junit_xml))
-    junit_report_validation = junit_validate(report[0])
+    reports = junit_parse(str.encode(suboptimal_junit_xml))
+    junit_report_validation = junit_validate(reports[0])
 
     assert (
         junit_report_validation.max_level() == JunitValidationLevel.SubOptimal
