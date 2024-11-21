@@ -1,7 +1,8 @@
 [package]
 name = "trunk-analytics-cli"
 edition = "2021"
-version = "0.1.0"
+# Must be 0.0.0 in order for release workflow to update
+version = "0.0.0"
 
 [[bin]]
 name = "trunk-analytics-cli"
