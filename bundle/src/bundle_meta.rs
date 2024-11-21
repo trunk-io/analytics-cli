@@ -56,6 +56,23 @@ pub struct BundleMetaV0_5_34 {
     pub junit_props: BundleMetaJunitProps,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[cfg_attr(feature = "wasm", derive(Tsify))]
+pub struct BundleMetaDebugProps {
+    pub command_line: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[cfg_attr(feature = "wasm", derive(Tsify))]
+pub struct BundleMetaV0_6_2 {
+    #[serde(flatten)]
+    pub base_props: BundleMetaBaseProps,
+    #[serde(flatten)]
+    pub junit_props: BundleMetaJunitProps,
+    #[serde(flatten)]
+    pub debug_props: BundleMetaDebugProps,
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 #[cfg_attr(feature = "wasm", derive(Tsify))]
 #[cfg_attr(feature = "wasm", tsify(into_wasm_abi, from_wasm_abi))]
@@ -63,7 +80,8 @@ pub struct BundleMetaV0_5_34 {
 pub enum VersionedBundle {
     V0_5_29(BundleMetaV0_5_29),
     V0_5_34(BundleMetaV0_5_34),
+    V0_6_2(BundleMetaV0_6_2),
 }
 
 /// Signifies the latest BundleMeta version
-pub type BundleMeta = BundleMetaV0_5_34;
+pub type BundleMeta = BundleMetaV0_6_2;

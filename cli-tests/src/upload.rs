@@ -26,20 +26,22 @@ async fn upload_bundle() {
 
     let state = MockServerBuilder::new().spawn_mock_server().await;
 
+    let args = &[
+        "upload",
+        "--junit-paths",
+        "./*",
+        "--org-url-slug",
+        "test-org",
+        "--token",
+        "test-token",
+    ];
+
     let assert = Command::new(CARGO_RUN.path())
         .current_dir(&temp_dir)
         .env("TRUNK_PUBLIC_API_ADDRESS", &state.host)
         .env("CI", "1")
         .env("GITHUB_JOB", "test-job")
-        .args(&[
-            "upload",
-            "--junit-paths",
-            "./*",
-            "--org-url-slug",
-            "test-org",
-            "--token",
-            "test-token",
-        ])
+        .args(args)
         .assert()
         // should fail due to quarantine and succeed without quarantining
         .failure();
@@ -99,6 +101,7 @@ async fn upload_bundle() {
     let bundle_meta: BundleMeta = serde_json::from_reader(reader).unwrap();
     let base_props = bundle_meta.base_props;
     let junit_props = bundle_meta.junit_props;
+    let debug_props = bundle_meta.debug_props;
 
     assert_eq!(base_props.org, "test-org");
     assert_eq!(
@@ -175,6 +178,10 @@ async fn upload_bundle() {
             upload_status: BundleUploadStatus::UploadComplete
         }),
     );
+
+    assert!(debug_props
+        .command_line
+        .ends_with(&args.join(" ").replace("test-token", "***")));
 
     // HINT: View CLI output with `cargo test -- --nocapture`
     println!("{assert}");

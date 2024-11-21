@@ -11,7 +11,7 @@ use wasm_bindgen::prelude::*;
 
 use codeowners::CodeOwners;
 
-use crate::bundle_meta::{BundleMeta, BundleMetaV0_5_29, VersionedBundle};
+use crate::bundle_meta::{BundleMeta, BundleMetaV0_5_29, BundleMetaV0_5_34, VersionedBundle};
 
 /// Utility type for packing files into tarball.
 ///
@@ -104,6 +104,10 @@ pub async fn parse_meta_from_tarball<R: AsyncBufRead>(input: R) -> anyhow::Resul
         if path_str == META_FILENAME {
             let mut meta_bytes = Vec::new();
             owned_first_entry.read_to_end(&mut meta_bytes).await?;
+
+            if let Ok(message) = serde_json::from_slice(&meta_bytes) {
+                return Ok(VersionedBundle::V0_6_2(message));
+            }
 
             if let Ok(message) = serde_json::from_slice(&meta_bytes) {
                 return Ok(VersionedBundle::V0_5_34(message));

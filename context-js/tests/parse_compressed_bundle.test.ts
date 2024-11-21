@@ -95,6 +95,14 @@ describe("context-js", () => {
       "V0_5_34",
       { num_tests: faker.number.int(100), num_files: faker.number.int(100) },
     ],
+    [
+      "V0_6_2",
+      {
+        num_tests: faker.number.int(100),
+        num_files: faker.number.int(100),
+        command_line: "trunk-analytics-cli upload --token=***",
+      },
+    ],
   ];
 
   it.each(versionTests)(
