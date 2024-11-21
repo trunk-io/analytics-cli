@@ -115,17 +115,3 @@ pub async fn parse_meta_from_tarball<R: AsyncBufRead>(input: R) -> anyhow::Resul
     }
     Err(anyhow::anyhow!("No meta.json file found in the tarball"))
 }
-
-// fn parse_my_bundle(meta: &str) -> Result<BundleMetaV0_5_29 | BundleMetaV0_5_34, serde_json::Error> {
-//     let message: Message = serde_json::from_str(meta)?;
-//     match message {
-//         Message::V1(v1) => Ok(BundleMeta {
-//             base_props: v1.base_props,
-//             junit_props: None,
-//         }),
-//         Message::V2(v2) => Ok(BundleMeta {
-//             base_props: v2.base_props,
-//             junit_props: v2.junit_props,
-//         }),
-//     }
-// }
