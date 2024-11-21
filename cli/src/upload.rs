@@ -12,7 +12,7 @@ use xcresult::XCResult;
 use api::BundleUploadStatus;
 use bundle::{
     parse_custom_tags, BundleMeta, BundleMetaBaseProps, BundleMetaJunitProps, BundlerUtil, FileSet,
-    MapType, QuarantineBulkTestStatus, QuarantineRunResult, META_VERSION,
+    QuarantineBulkTestStatus, QuarantineRunResult, META_VERSION,
 };
 use codeowners::CodeOwners;
 use constants::{EXIT_FAILURE, EXIT_SUCCESS};
@@ -221,7 +221,7 @@ pub async fn run_upload(
             bundle_upload_id: upload.id.clone(),
             tags,
             file_sets,
-            envs: MapType(envs),
+            envs,
             upload_time_epoch: SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs(),
             test_command,
             quarantined_tests: resolved_quarantine_results.quarantine_results.to_vec(),

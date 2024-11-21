@@ -6,12 +6,13 @@
 use codeowners::CodeOwners;
 use context::repo::BundleRepo;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 #[cfg(feature = "wasm")]
 use tsify_next::Tsify;
 #[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::*;
 
-use crate::{files::FileSet, CustomTag, MapType, Test};
+use crate::{files::FileSet, CustomTag, Test};
 
 pub const META_VERSION: &str = "1";
 // 0.5.29 was first version to include bundle_upload_id and serves as the base
@@ -25,7 +26,7 @@ pub struct BundleMetaBaseProps {
     pub bundle_upload_id: String,
     pub tags: Vec<CustomTag>,
     pub file_sets: Vec<FileSet>,
-    pub envs: MapType,
+    pub envs: HashMap<String, String>,
     pub upload_time_epoch: u64,
     pub test_command: Option<String>,
     pub os_info: Option<String>,

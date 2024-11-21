@@ -3,11 +3,7 @@ use std::ops::Deref;
 #[cfg(feature = "wasm")]
 use tsify_next::Tsify;
 #[cfg(feature = "wasm")]
-use wasm_bindgen::{
-    convert::{FromWasmAbi, IntoWasmAbi},
-    describe::WasmDescribe,
-    prelude::*,
-};
+use wasm_bindgen::prelude::*;
 
 use context::repo::BundleRepo;
 use serde::{Deserialize, Serialize};
@@ -96,41 +92,6 @@ pub struct BundleUploader {
 pub enum FileSetType {
     #[default]
     Junit,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone, Default)]
-pub struct MapType(pub HashMap<String, String>);
-
-#[cfg(feature = "wasm")]
-impl WasmDescribe for MapType {
-    fn describe() {
-        js_sys::Map::describe();
-    }
-}
-#[cfg(feature = "wasm")]
-impl IntoWasmAbi for MapType {
-    type Abi = u32;
-    fn into_abi(self) -> Self::Abi {
-        let map = js_sys::Map::new();
-        for (key, value) in self.0 {
-            map.set(&key.into(), &value.into());
-        }
-        map.into_abi()
-    }
-}
-#[cfg(feature = "wasm")]
-impl FromWasmAbi for MapType {
-    type Abi = u32;
-    unsafe fn from_abi(_js: Self::Abi) -> Self {
-        let map = HashMap::new();
-        Self(map)
-    }
-}
-impl Deref for MapType {
-    type Target = HashMap<String, String>;
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
 }
 
 #[cfg(feature = "wasm")]

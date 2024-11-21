@@ -5,54 +5,18 @@ use std::{
     path::{Path, PathBuf},
 };
 #[cfg(feature = "wasm")]
-use wasm_bindgen::{
-    convert::{FromWasmAbi, IntoWasmAbi, OptionFromWasmAbi, OptionIntoWasmAbi},
-    describe::WasmDescribe,
-};
+use tsify_next::Tsify;
+#[cfg(feature = "wasm")]
+use wasm_bindgen::prelude::*;
 
 use crate::{github::GitHubOwners, gitlab::GitLabOwners, traits::FromReader};
 
 #[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[cfg_attr(feature = "wasm", derive(Tsify))]
 pub struct CodeOwners {
     pub path: PathBuf,
     #[serde(skip_serializing, skip_deserializing)]
     pub owners: Option<Owners>,
-}
-
-// TODO(TRUNK-13628): Presently, with wasm we only check for presence of codeowners object.
-// Custom conversion is needed to fully support parsing it.
-#[cfg(feature = "wasm")]
-impl WasmDescribe for CodeOwners {
-    fn describe() {
-        js_sys::Object::describe()
-    }
-}
-#[cfg(feature = "wasm")]
-impl IntoWasmAbi for CodeOwners {
-    type Abi = u32;
-    fn into_abi(self) -> Self::Abi {
-        let map = js_sys::Object::new();
-        map.into_abi()
-    }
-}
-#[cfg(feature = "wasm")]
-impl FromWasmAbi for CodeOwners {
-    type Abi = u32;
-    unsafe fn from_abi(_js: Self::Abi) -> Self {
-        CodeOwners::default()
-    }
-}
-#[cfg(feature = "wasm")]
-impl OptionIntoWasmAbi for CodeOwners {
-    fn none() -> Self::Abi {
-        wasm_bindgen::JsValue::UNDEFINED.into_abi()
-    }
-}
-#[cfg(feature = "wasm")]
-impl OptionFromWasmAbi for CodeOwners {
-    fn is_none(_abi: &Self::Abi) -> bool {
-        true
-    }
 }
 
 impl CodeOwners {
