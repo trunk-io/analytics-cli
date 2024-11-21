@@ -6,13 +6,13 @@ import * as path from "node:path";
 import { compress } from "@mongodb-js/zstd";
 import * as tar from "tar";
 
-import { BundleMetaV0_5_34, parse_meta_from_tarball } from "../pkg/context_js";
+import { parse_meta_from_tarball, VersionedBundle } from "../pkg/context_js";
 
 type RecursiveOmit<T, K extends PropertyKey> = {
   [P in keyof Omit<T, K>]: T[P] extends object ? RecursiveOmit<T[P], K> : T[P];
 };
 
-type TestBundleMeta = RecursiveOmit<BundleMetaV0_5_34, "free">;
+type TestBundleMeta = Omit<RecursiveOmit<VersionedBundle, "free">, "schema">;
 
 const generateBundleMeta = (): TestBundleMeta => ({
   version: "1",
@@ -62,8 +62,6 @@ const generateBundleMeta = (): TestBundleMeta => ({
   upload_time_epoch: faker.number.int(),
   tags: [],
   test_command: faker.hacker.verb(),
-  num_files: faker.number.int(100),
-  num_tests: faker.number.int(100),
 });
 
 const bundleMetaJsonSerializer = (_key: unknown, value: unknown) => {
@@ -98,37 +96,49 @@ const compressAndUploadMeta = async (metaInfoJson: string) => {
 };
 
 describe("context-js", () => {
-  it("decompresses and parses meta.json", async () => {
-    expect.hasAssertions();
+  type versions = Pick<VersionedBundle, "schema">["schema"];
+  const versionTests: [versions, Partial<VersionedBundle>][] = [
+    ["V0_5_29", {}],
+    [
+      "V0_5_34",
+      { num_tests: faker.number.int(100), num_files: faker.number.int(100) },
+    ],
+  ];
 
-    const uploadMeta = generateBundleMeta();
-    const metaInfoJson = JSON.stringify(
-      uploadMeta,
-      bundleMetaJsonSerializer,
-      2,
-    );
-    const compressedBuffer = await compressAndUploadMeta(metaInfoJson);
+  it.each(versionTests)(
+    "decompresses and parses meta.json %s",
+    async (schema, extras) => {
+      expect.hasAssertions();
 
-    const readableStream = new ReadableStream({
-      start(controller) {
-        controller.enqueue(compressedBuffer);
-        controller.close();
-      },
-    });
+      const uploadMeta = { ...generateBundleMeta(), ...extras };
+      const metaInfoJson = JSON.stringify(
+        uploadMeta,
+        bundleMetaJsonSerializer,
+        2,
+      );
+      const compressedBuffer = await compressAndUploadMeta(metaInfoJson);
 
-    const res = await parse_meta_from_tarball(readableStream);
-    /* eslint-disable */
-    const expectedMeta = {
-      schema: "V0_5_34",
-      ...uploadMeta,
-      upload_time_epoch: expect.any(Number),
-      envs: Object.fromEntries(uploadMeta.envs.entries()),
-    };
-    expectedMeta.repo.repo_head_commit_epoch = expect.any(Number);
-    /* eslint-enable */
+      const readableStream = new ReadableStream({
+        start(controller) {
+          controller.enqueue(compressedBuffer);
+          controller.close();
+        },
+      });
 
-    expect(res).toStrictEqual(expectedMeta);
-  });
+      const res = await parse_meta_from_tarball(readableStream);
+      /* eslint-disable */
+      const expectedMeta = {
+        schema,
+        ...uploadMeta,
+        upload_time_epoch: expect.any(Number),
+        envs: Object.fromEntries(uploadMeta.envs.entries()),
+      };
+      expectedMeta.repo.repo_head_commit_epoch = expect.any(Number);
+      /* eslint-enable */
+
+      expect(res).toStrictEqual(expectedMeta);
+    },
+  );
 
   it("empty meta.json", async () => {
     expect.hasAssertions();
