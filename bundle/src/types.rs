@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-use std::ops::Deref;
 #[cfg(feature = "wasm")]
 use tsify_next::Tsify;
 #[cfg(feature = "wasm")]
