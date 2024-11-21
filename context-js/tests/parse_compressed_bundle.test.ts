@@ -18,10 +18,10 @@ const generateBundleMeta = (): TestBundleMeta => ({
   version: "1",
   bundle_upload_id: faker.string.uuid(),
   cli_version: faker.system.semver(),
-  envs: new Map<string, string>([
-    ["RUNNER_OS", "Linux"],
-    ["GITHUB_REF", "refs/heads/main"],
-  ]),
+  envs: {
+    RUNNER_OS: "Linux",
+    GITHUB_REF: "refs/heads/main",
+  },
   file_sets: [
     {
       file_set_type: "Junit",
@@ -64,16 +64,8 @@ const generateBundleMeta = (): TestBundleMeta => ({
   test_command: faker.hacker.verb(),
 });
 
-const bundleMetaJsonSerializer = (_key: unknown, value: unknown) => {
-  if (typeof value === "bigint") {
-    return Number(value);
-  }
-  if (value instanceof Map) {
-    const obj: unknown = Object.fromEntries(value.entries());
-    return obj;
-  }
-  return value;
-};
+const bundleMetaJsonSerializer = (_key: unknown, value: unknown) =>
+  typeof value === "bigint" ? Number(value) : value;
 
 const compressAndUploadMeta = async (metaInfoJson: string) => {
   const tmpDir = await fs.mkdtemp(
@@ -126,15 +118,14 @@ describe("context-js", () => {
       });
 
       const res = await parse_meta_from_tarball(readableStream);
-      /* eslint-disable */
       const expectedMeta = {
         schema,
         ...uploadMeta,
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
         upload_time_epoch: expect.any(Number),
-        envs: Object.fromEntries(uploadMeta.envs.entries()),
       };
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       expectedMeta.repo.repo_head_commit_epoch = expect.any(Number);
-      /* eslint-enable */
 
       expect(res).toStrictEqual(expectedMeta);
     },

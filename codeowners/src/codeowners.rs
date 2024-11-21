@@ -11,6 +11,7 @@ use wasm_bindgen::prelude::*;
 
 use crate::{github::GitHubOwners, gitlab::GitLabOwners, traits::FromReader};
 
+// TODO(TRUNK-13628): Implement serializing and deserializing for CodeOwners
 #[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq)]
 #[cfg_attr(feature = "wasm", derive(Tsify))]
 pub struct CodeOwners {
