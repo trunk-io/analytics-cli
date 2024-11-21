@@ -117,6 +117,7 @@ describe("context-js", () => {
     });
 
     const res = await parse_meta_from_tarball(readableStream);
+    /* eslint-disable */
     const expectedMeta = {
       schema: "V0_5_34",
       ...uploadMeta,
@@ -124,6 +125,7 @@ describe("context-js", () => {
       envs: Object.fromEntries(uploadMeta.envs.entries()),
     };
     expectedMeta.repo.repo_head_commit_epoch = expect.any(Number);
+    /* eslint-enable */
 
     expect(res).toStrictEqual(expectedMeta);
   });
