@@ -14,11 +14,10 @@ use wasm_bindgen::prelude::*;
 use crate::{files::FileSet, CustomTag, MapType, Test};
 
 pub const META_VERSION: &str = "1";
-
 // 0.5.29 was first version to include bundle_upload_id and serves as the base
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[cfg_attr(feature = "wasm", derive(Tsify))]
-#[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
+// #[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
 pub struct BundleMetaBaseProps {
     pub version: String,
     pub cli_version: String,
@@ -36,7 +35,7 @@ pub struct BundleMetaBaseProps {
 }
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[cfg_attr(feature = "wasm", derive(Tsify))]
-#[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
+// #[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
 pub struct BundleMetaV0_5_29 {
     #[serde(flatten)]
     pub base_props: BundleMetaBaseProps,
@@ -44,7 +43,7 @@ pub struct BundleMetaV0_5_29 {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[cfg_attr(feature = "wasm", derive(Tsify))]
-#[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
+// #[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
 pub struct BundleMetaJunitProps {
     pub num_files: usize,
     pub num_tests: usize,
@@ -52,7 +51,7 @@ pub struct BundleMetaJunitProps {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[cfg_attr(feature = "wasm", derive(Tsify))]
-#[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
+// #[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
 pub struct BundleMetaV0_5_34 {
     #[serde(flatten)]
     pub base_props: BundleMetaBaseProps,
@@ -66,17 +65,9 @@ pub struct BundleMetaV0_5_34 {
 #[cfg_attr(feature = "wasm", tsify(into_wasm_abi, from_wasm_abi))]
 #[serde(tag = "schema")]
 pub enum VersionedBundle {
-    V0_5_29 { bundle: BundleMetaV0_5_29, foo: u8 },
-    V0_5_34 { bundle: BundleMetaV0_5_34, foo: i32 },
+    V0_5_29(BundleMetaV0_5_29),
+    V0_5_34(BundleMetaV0_5_34),
 }
-
-// #[wasm_bindgen]
-// pub fn into_js() -> VersionedBundle {
-//     VersionedBundle { x: 0, y: 0 }
-// }
-
-// #[wasm_bindgen]
-// pub fn from_js(bundle: VersionedBundle) {}
 
 /// Signifies the latest BundleMeta version
 pub type BundleMeta = BundleMetaV0_5_34;

@@ -6,24 +6,15 @@ import * as path from "node:path";
 import { compress } from "@mongodb-js/zstd";
 import * as tar from "tar";
 
-import { VersionedBundle, parse_meta_from_tarball } from "../pkg/context_js";
+import { BundleMetaV0_5_34, parse_meta_from_tarball } from "../pkg/context_js";
 
-// Based on https://stackoverflow.com/questions/54487137/how-to-recursively-omit-key-from-type
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type OmitDistributive<T, K extends PropertyKey> = T extends any
-  ? T extends object
-    ? Id<OmitRecursively<T, K>>
-    : T
-  : never;
-type Id<T> = {} & { [P in keyof T]: T[P] };
-type OmitRecursively<T, K extends PropertyKey> = Omit<
-  { [P in keyof T]: OmitDistributive<T[P], K> },
-  K
->;
-type TestBundleMeta = OmitRecursively<VersionedBundle, "free">;
+type RecursiveOmit<T, K extends PropertyKey> = {
+  [P in keyof Omit<T, K>]: T[P] extends object ? RecursiveOmit<T[P], K> : T[P];
+};
+
+type TestBundleMeta = RecursiveOmit<BundleMetaV0_5_34, "free">;
 
 const generateBundleMeta = (): TestBundleMeta => ({
-  schema: "V0_5_34",
   base_props: {
     version: "1",
     bundle_upload_id: faker.string.uuid(),
@@ -42,6 +33,7 @@ const generateBundleMeta = (): TestBundleMeta => ({
     repo: {
       repo_head_branch: faker.git.branch(),
       repo_head_sha: faker.git.commitSha(),
+      repo_head_sha_short: faker.git.commitSha().slice(0, 7),
       repo_head_author_email: faker.internet.email(),
       repo_head_author_name: faker.person.fullName(),
       repo_head_commit_message: faker.lorem.sentence(),
@@ -54,14 +46,14 @@ const generateBundleMeta = (): TestBundleMeta => ({
         name: faker.company.catchPhraseNoun(),
       },
     },
-    upload_time_epoch: faker.number.bigInt(),
+    upload_time_epoch: faker.number.int(),
     tags: [],
     test_command: faker.hacker.verb(),
   },
-  // junit_props: {
-  //   num_files: faker.number.int(100),
-  //   num_tests: faker.number.int(100),
-  // },
+  junit_props: {
+    num_files: faker.number.int(100),
+    num_tests: faker.number.int(100),
+  },
 });
 
 const bundleMetaJsonSerializer = (_key: unknown, value: unknown) => {
@@ -74,25 +66,6 @@ const bundleMetaJsonSerializer = (_key: unknown, value: unknown) => {
   }
   return value;
 };
-
-/* eslint-disable */
-const assertEquality = (obj1: any, obj2: any) => {
-  const truthinessChecks = ["codeowners"];
-  for (const [key, value] of Object.entries(obj1)) {
-    if (
-      typeof value === "object" &&
-      value !== null &&
-      !truthinessChecks.includes(key)
-    ) {
-      assertEquality(value, obj2[key]);
-    } else if (truthinessChecks.includes("codeowners")) {
-      expect(obj2[key]).toBeTruthy();
-    } else {
-      expect(obj2[key]).toStrictEqual(value);
-    }
-  }
-};
-/* eslint-enable */
 
 const compressAndUploadMeta = async (metaInfoJson: string) => {
   const tmpDir = await fs.mkdtemp(
@@ -115,13 +88,12 @@ const compressAndUploadMeta = async (metaInfoJson: string) => {
 };
 
 describe("context-js", () => {
-  it.only("decompresses and parses meta.json", async () => {
+  it("decompresses and parses meta.json", async () => {
     expect.hasAssertions();
 
     const uploadMeta = generateBundleMeta();
     const metaInfoJson = JSON.stringify(
-      // { ...uploadMeta.base_props, ...uploadMeta.junit_props },
-      { ...uploadMeta.base_props },
+      { ...uploadMeta.base_props, ...uploadMeta.junit_props },
       bundleMetaJsonSerializer,
       2,
     );
@@ -135,11 +107,16 @@ describe("context-js", () => {
     });
 
     const res = await parse_meta_from_tarball(readableStream);
+    // const expectedMeta = {
+    //   schema: "V0_5_34",
+    //   ...uploadMeta.base_props,
+    //   ...uploadMeta.junit_props,
+    //   upload_time_epoch: expect.any(Number),
+    //   envs: Object.fromEntries(uploadMeta.base_props.envs.entries()),
+    //  };
+    //  expectedMeta.repo.repo_head_commit_epoch = expect.any(Number);
 
-    console.log("MY RESULTS", res.schema, res.bundle, res, res.foo);
-
-    // We can't use strict equal because res just stores a wasm ptr
-    assertEquality(uploadMeta, res.bundle);
+    expect(res).toStrictEqual(uploadMeta);
   });
 
   it("empty meta.json", async () => {

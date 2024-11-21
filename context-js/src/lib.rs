@@ -1,7 +1,6 @@
 use futures::{future::Either, io::BufReader as BufReaderAsync, stream::TryStreamExt};
 use js_sys::Uint8Array;
 use std::{collections::HashMap, io::BufReader};
-use tsify_next::Tsify;
 use wasm_bindgen::{prelude::*, JsCast};
 use wasm_streams::{readable::sys, readable::ReadableStream};
 
@@ -108,14 +107,7 @@ pub async fn parse_meta_from_tarball(
 
     let buf_reader = BufReaderAsync::new(async_read);
 
-    println!("pre My results rust");
-
-    let res = parse_tarball(buf_reader)
+    parse_tarball(buf_reader)
         .await
-        .map_err(|err| JsError::new(&err.to_string()));
-
-    println!("My results rust {:?}", &res);
-
-    return res;
-    // res.and_then(|b| b.into_js())
+        .map_err(|err| JsError::new(&err.to_string()))
 }

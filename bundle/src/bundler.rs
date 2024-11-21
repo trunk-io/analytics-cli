@@ -5,15 +5,18 @@ use futures_io::AsyncBufRead;
 use std::io::{Seek, Write};
 use std::path::PathBuf;
 #[cfg(feature = "wasm")]
+use tsify_next::Tsify;
+#[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::*;
 
 use codeowners::CodeOwners;
 
-use crate::bundle_meta::{BundleMeta, BundleMetaV0_5_29, VersionedBundle};
+use crate::bundle_meta::{BundleMeta, BundleMetaV0_5_29, BundleMetaV0_5_34, VersionedBundle};
 
 /// Utility type for packing files into tarball.
 ///
-#[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
+// #[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
+#[cfg_attr(feature = "wasm", derive(Tsify))]
 pub struct BundlerUtil {
     pub meta: BundleMeta,
 }
@@ -104,20 +107,11 @@ pub async fn parse_meta_from_tarball<R: AsyncBufRead>(input: R) -> anyhow::Resul
             owned_first_entry.read_to_end(&mut meta_bytes).await?;
 
             if let Ok(message) = serde_json::from_slice(&meta_bytes) {
-                return Ok(VersionedBundle::V0_5_34 {
-                    bundle: message,
-                    foo: 1,
-                });
+                return Ok(VersionedBundle::V0_5_34(message));
             }
 
-            // let meta: BundleMetaV0_5_29 = serde_json::from_slice(&meta_bytes)?;
-            // return Ok(Self { meta });
-
             let base_bundle: BundleMetaV0_5_29 = serde_json::from_slice(&meta_bytes)?;
-            return Ok(VersionedBundle::V0_5_29 {
-                bundle: base_bundle,
-                foo: 0,
-            });
+            return Ok(VersionedBundle::V0_5_29(base_bundle));
         }
     }
     Err(anyhow::anyhow!("No meta.json file found in the tarball"))
