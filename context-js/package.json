@@ -5,7 +5,6 @@
   "scripts": {
     "build": "wasm-pack build --target nodejs",
     "test": "vitest --watch false",
-    "tsc": "tsc tests/parse_compressed_bundle.test.ts",
     "build_and_test": "pnpm run build && pnpm run test"
   },
   "devDependencies": {

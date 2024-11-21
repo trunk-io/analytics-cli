@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 use std::ops::Deref;
 #[cfg(feature = "wasm")]
+use tsify_next::Tsify;
+#[cfg(feature = "wasm")]
 use wasm_bindgen::{
     convert::{FromWasmAbi, IntoWasmAbi},
     describe::WasmDescribe,
@@ -22,7 +24,7 @@ pub struct QuarantineRunResult {
 }
 
 #[derive(Debug, Serialize, Clone, Deserialize)]
-#[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
+#[cfg_attr(feature = "wasm", derive(Tsify))]
 pub struct Test {
     pub name: String,
     #[serde(rename = "parentName")]
@@ -90,7 +92,7 @@ pub struct BundleUploader {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq)]
-#[cfg_attr(feature = "wasm", wasm_bindgen)]
+#[cfg_attr(feature = "wasm", derive(Tsify))]
 pub enum FileSetType {
     #[default]
     Junit,
@@ -134,7 +136,7 @@ impl Deref for MapType {
 #[cfg(feature = "wasm")]
 // u128 will be supported in the next release after 0.2.95
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
-#[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
+#[cfg_attr(feature = "wasm", derive(Tsify))]
 pub struct BundledFile {
     pub original_path: String,
     /// Added in v0.5.33
@@ -170,7 +172,7 @@ impl BundledFile {
 /// Custom tags defined by the user.
 ///
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
-#[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
+#[cfg_attr(feature = "wasm", derive(Tsify))]
 pub struct CustomTag {
     pub key: String,
     pub value: String,

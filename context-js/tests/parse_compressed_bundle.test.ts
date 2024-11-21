@@ -15,45 +15,55 @@ type RecursiveOmit<T, K extends PropertyKey> = {
 type TestBundleMeta = RecursiveOmit<BundleMetaV0_5_34, "free">;
 
 const generateBundleMeta = (): TestBundleMeta => ({
-  base_props: {
-    version: "1",
-    bundle_upload_id: faker.string.uuid(),
-    cli_version: faker.system.semver(),
-    envs: new Map<string, string>([
-      ["RUNNER_OS", "Linux"],
-      ["GITHUB_REF", "refs/heads/main"],
-    ]),
-    file_sets: [],
-    org: faker.company.name(),
-    os_info: process.platform,
-    quarantined_tests: [],
-    codeowners: {
-      path: faker.system.filePath(),
+  version: "1",
+  bundle_upload_id: faker.string.uuid(),
+  cli_version: faker.system.semver(),
+  envs: new Map<string, string>([
+    ["RUNNER_OS", "Linux"],
+    ["GITHUB_REF", "refs/heads/main"],
+  ]),
+  file_sets: [
+    {
+      file_set_type: "Junit",
+      files: [
+        {
+          original_path: "/abs/path/junit.xml",
+          original_path_rel: "junit.xml",
+          path: "0.xml",
+          owners: ["owner"],
+          team: "team",
+        },
+      ],
+      glob: "**/*.xml",
     },
+  ],
+  org: faker.company.name(),
+  os_info: process.platform,
+  quarantined_tests: [],
+  codeowners: {
+    path: faker.system.filePath(),
+  },
+  repo: {
+    repo_head_branch: faker.git.branch(),
+    repo_head_sha: faker.git.commitSha(),
+    repo_head_sha_short: faker.git.commitSha().slice(0, 7),
+    repo_head_author_email: faker.internet.email(),
+    repo_head_author_name: faker.person.fullName(),
+    repo_head_commit_message: faker.lorem.sentence(),
+    repo_head_commit_epoch: faker.number.bigInt(),
+    repo_root: faker.system.directoryPath(),
+    repo_url: faker.internet.url(),
     repo: {
-      repo_head_branch: faker.git.branch(),
-      repo_head_sha: faker.git.commitSha(),
-      repo_head_sha_short: faker.git.commitSha().slice(0, 7),
-      repo_head_author_email: faker.internet.email(),
-      repo_head_author_name: faker.person.fullName(),
-      repo_head_commit_message: faker.lorem.sentence(),
-      repo_head_commit_epoch: faker.number.bigInt(),
-      repo_root: faker.system.directoryPath(),
-      repo_url: faker.internet.url(),
-      repo: {
-        host: "github.com",
-        owner: faker.company.name(),
-        name: faker.company.catchPhraseNoun(),
-      },
+      host: "github.com",
+      owner: faker.company.name(),
+      name: faker.company.catchPhraseNoun(),
     },
-    upload_time_epoch: faker.number.int(),
-    tags: [],
-    test_command: faker.hacker.verb(),
   },
-  junit_props: {
-    num_files: faker.number.int(100),
-    num_tests: faker.number.int(100),
-  },
+  upload_time_epoch: faker.number.int(),
+  tags: [],
+  test_command: faker.hacker.verb(),
+  num_files: faker.number.int(100),
+  num_tests: faker.number.int(100),
 });
 
 const bundleMetaJsonSerializer = (_key: unknown, value: unknown) => {
@@ -93,7 +103,7 @@ describe("context-js", () => {
 
     const uploadMeta = generateBundleMeta();
     const metaInfoJson = JSON.stringify(
-      { ...uploadMeta.base_props, ...uploadMeta.junit_props },
+      uploadMeta,
       bundleMetaJsonSerializer,
       2,
     );
@@ -107,16 +117,15 @@ describe("context-js", () => {
     });
 
     const res = await parse_meta_from_tarball(readableStream);
-    // const expectedMeta = {
-    //   schema: "V0_5_34",
-    //   ...uploadMeta.base_props,
-    //   ...uploadMeta.junit_props,
-    //   upload_time_epoch: expect.any(Number),
-    //   envs: Object.fromEntries(uploadMeta.base_props.envs.entries()),
-    //  };
-    //  expectedMeta.repo.repo_head_commit_epoch = expect.any(Number);
+    const expectedMeta = {
+      schema: "V0_5_34",
+      ...uploadMeta,
+      upload_time_epoch: expect.any(Number),
+      envs: Object.fromEntries(uploadMeta.envs.entries()),
+    };
+    expectedMeta.repo.repo_head_commit_epoch = expect.any(Number);
 
-    expect(res).toStrictEqual(uploadMeta);
+    expect(res).toStrictEqual(expectedMeta);
   });
 
   it("empty meta.json", async () => {

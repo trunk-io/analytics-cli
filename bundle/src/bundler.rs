@@ -11,11 +11,10 @@ use wasm_bindgen::prelude::*;
 
 use codeowners::CodeOwners;
 
-use crate::bundle_meta::{BundleMeta, BundleMetaV0_5_29, BundleMetaV0_5_34, VersionedBundle};
+use crate::bundle_meta::{BundleMeta, BundleMetaV0_5_29, VersionedBundle};
 
 /// Utility type for packing files into tarball.
 ///
-// #[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
 #[cfg_attr(feature = "wasm", derive(Tsify))]
 pub struct BundlerUtil {
     pub meta: BundleMeta,

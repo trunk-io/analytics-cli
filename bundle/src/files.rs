@@ -1,5 +1,7 @@
 use std::{format, time::SystemTime};
 #[cfg(feature = "wasm")]
+use tsify_next::Tsify;
+#[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::*;
 
 use codeowners::{CodeOwners, Owners, OwnersOfPath};
@@ -27,7 +29,7 @@ impl FileSetCounter {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-#[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
+#[cfg_attr(feature = "wasm", derive(Tsify))]
 pub struct FileSet {
     pub file_set_type: FileSetType,
     pub files: Vec<BundledFile>,
