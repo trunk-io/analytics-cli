@@ -7,6 +7,8 @@ use codeowners::CodeOwners;
 use context::repo::BundleRepo;
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "wasm")]
+use tsify_next::Tsify;
+#[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::*;
 
 use crate::{files::FileSet, CustomTag, MapType, Test};
@@ -15,6 +17,7 @@ pub const META_VERSION: &str = "1";
 
 // 0.5.29 was first version to include bundle_upload_id and serves as the base
 #[derive(Debug, Serialize, Deserialize, Clone)]
+#[cfg_attr(feature = "wasm", derive(Tsify))]
 #[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
 pub struct BundleMetaBaseProps {
     pub version: String,
@@ -32,6 +35,7 @@ pub struct BundleMetaBaseProps {
     pub codeowners: Option<CodeOwners>,
 }
 #[derive(Debug, Serialize, Deserialize, Clone)]
+#[cfg_attr(feature = "wasm", derive(Tsify))]
 #[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
 pub struct BundleMetaV0_5_29 {
     #[serde(flatten)]
@@ -39,6 +43,7 @@ pub struct BundleMetaV0_5_29 {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+#[cfg_attr(feature = "wasm", derive(Tsify))]
 #[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
 pub struct BundleMetaJunitProps {
     pub num_files: usize,
@@ -46,56 +51,32 @@ pub struct BundleMetaJunitProps {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+#[cfg_attr(feature = "wasm", derive(Tsify))]
 #[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
-pub struct BundleMeta {
+pub struct BundleMetaV0_5_34 {
     #[serde(flatten)]
     pub base_props: BundleMetaBaseProps,
     #[serde(flatten)]
-    pub junit_props: Option<BundleMetaJunitProps>,
+    pub junit_props: BundleMetaJunitProps,
 }
 
-//// Add new versions here and rename the above struct ////
-
-pub type BundleMetaV0_5_34 = BundleMeta;
-
-impl BundleMeta {
-    pub fn new(
-        version: String,
-        cli_version: String,
-        org: String,
-        repo: BundleRepo,
-        bundle_upload_id: String,
-        tags: Vec<CustomTag>,
-        file_sets: Vec<FileSet>,
-        num_files: usize,
-        num_tests: usize,
-        envs: MapType,
-        upload_time_epoch: u64,
-        test_command: Option<String>,
-        os_info: Option<String>,
-        quarantined_tests: Vec<Test>,
-        codeowners: Option<CodeOwners>,
-    ) -> Self {
-        BundleMeta {
-            base_props: BundleMetaBaseProps {
-                version,
-                cli_version,
-                org,
-                repo,
-                bundle_upload_id,
-                tags,
-                file_sets,
-                envs,
-                upload_time_epoch,
-                test_command,
-                os_info,
-                quarantined_tests,
-                codeowners,
-            },
-            junit_props: Some(BundleMetaJunitProps {
-                num_files,
-                num_tests,
-            }),
-        }
-    }
+#[derive(Serialize, Deserialize, Debug)]
+#[cfg_attr(feature = "wasm", derive(Tsify))]
+// #[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
+#[cfg_attr(feature = "wasm", tsify(into_wasm_abi, from_wasm_abi))]
+#[serde(tag = "schema")]
+pub enum VersionedBundle {
+    V0_5_29 { bundle: BundleMetaV0_5_29, foo: u8 },
+    V0_5_34 { bundle: BundleMetaV0_5_34, foo: i32 },
 }
+
+// #[wasm_bindgen]
+// pub fn into_js() -> VersionedBundle {
+//     VersionedBundle { x: 0, y: 0 }
+// }
+
+// #[wasm_bindgen]
+// pub fn from_js(bundle: VersionedBundle) {}
+
+/// Signifies the latest BundleMeta version
+pub type BundleMeta = BundleMetaV0_5_34;

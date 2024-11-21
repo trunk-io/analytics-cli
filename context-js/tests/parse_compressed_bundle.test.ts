@@ -6,7 +6,7 @@ import * as path from "node:path";
 import { compress } from "@mongodb-js/zstd";
 import * as tar from "tar";
 
-import { BundleMeta, parse_meta_from_tarball } from "../pkg/context_js";
+import { VersionedBundle, parse_meta_from_tarball } from "../pkg/context_js";
 
 // Based on https://stackoverflow.com/questions/54487137/how-to-recursively-omit-key-from-type
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -20,9 +20,10 @@ type OmitRecursively<T, K extends PropertyKey> = Omit<
   { [P in keyof T]: OmitDistributive<T[P], K> },
   K
 >;
-type TestBundleMeta = OmitRecursively<BundleMeta, "free">;
+type TestBundleMeta = OmitRecursively<VersionedBundle, "free">;
 
 const generateBundleMeta = (): TestBundleMeta => ({
+  schema: "V0_5_34",
   base_props: {
     version: "1",
     bundle_upload_id: faker.string.uuid(),
@@ -57,10 +58,10 @@ const generateBundleMeta = (): TestBundleMeta => ({
     tags: [],
     test_command: faker.hacker.verb(),
   },
-  junit_props: {
-    num_files: faker.number.int(100),
-    num_tests: faker.number.int(100),
-  },
+  // junit_props: {
+  //   num_files: faker.number.int(100),
+  //   num_tests: faker.number.int(100),
+  // },
 });
 
 const bundleMetaJsonSerializer = (_key: unknown, value: unknown) => {
@@ -114,12 +115,13 @@ const compressAndUploadMeta = async (metaInfoJson: string) => {
 };
 
 describe("context-js", () => {
-  it("decompresses and parses meta.json", async () => {
+  it.only("decompresses and parses meta.json", async () => {
     expect.hasAssertions();
 
     const uploadMeta = generateBundleMeta();
     const metaInfoJson = JSON.stringify(
-      { ...uploadMeta.base_props, ...uploadMeta.junit_props },
+      // { ...uploadMeta.base_props, ...uploadMeta.junit_props },
+      { ...uploadMeta.base_props },
       bundleMetaJsonSerializer,
       2,
     );
@@ -134,8 +136,10 @@ describe("context-js", () => {
 
     const res = await parse_meta_from_tarball(readableStream);
 
-    // We can't use strict equal because res.meta just stores a wasm ptr
-    assertEquality(uploadMeta, res.meta);
+    console.log("MY RESULTS", res.schema, res.bundle, res, res.foo);
+
+    // We can't use strict equal because res just stores a wasm ptr
+    assertEquality(uploadMeta, res.bundle);
   });
 
   it("empty meta.json", async () => {

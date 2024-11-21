@@ -228,10 +228,10 @@ pub async fn run_upload(
             os_info: Some(os_info),
             codeowners,
         },
-        junit_props: Some(BundleMetaJunitProps {
+        junit_props: BundleMetaJunitProps {
             num_files,
             num_tests,
-        }),
+        },
     };
 
     log::info!("Total files pack and upload: {}", file_counter.get_count());

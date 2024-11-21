@@ -9,7 +9,7 @@ use wasm_bindgen::prelude::*;
 
 use codeowners::CodeOwners;
 
-use crate::bundle_meta::BundleMeta;
+use crate::bundle_meta::{BundleMeta, BundleMetaV0_5_29, VersionedBundle};
 
 /// Utility type for packing files into tarball.
 ///
@@ -18,37 +18,13 @@ pub struct BundlerUtil {
     pub meta: BundleMeta,
 }
 
+const META_FILENAME: &'static str = "meta.json";
+
 impl BundlerUtil {
-    const META_FILENAME: &'static str = "meta.json";
     const ZSTD_COMPRESSION_LEVEL: i32 = 15; // This gives roughly 10x compression for text, 22 gives 11x.
 
     pub fn new(meta: BundleMeta) -> Self {
         Self { meta }
-    }
-
-    /// Reads and decompresses a .tar.zstd file from an input stream into just a `meta.json` file
-    ///
-    pub async fn parse_meta_from_tarball<R: AsyncBufRead>(input: R) -> anyhow::Result<Self> {
-        let zstd_decoder = ZstdDecoder::new(Box::pin(input));
-        let archive = Archive::new(zstd_decoder);
-
-        if let Some(first_entry) = archive.entries()?.next().await {
-            let mut owned_first_entry = first_entry?;
-            let path_str = owned_first_entry
-                .path()?
-                .to_str()
-                .unwrap_or_default()
-                .to_owned();
-
-            if path_str == Self::META_FILENAME {
-                let mut meta_bytes = Vec::new();
-                owned_first_entry.read_to_end(&mut meta_bytes).await?;
-
-                let meta: BundleMeta = serde_json::from_slice(&meta_bytes)?;
-                return Ok(Self { meta });
-            }
-        }
-        Err(anyhow::anyhow!("No meta.json file found in the tarball"))
     }
 
     /// Writes compressed tarball to disk.
@@ -67,7 +43,7 @@ impl BundlerUtil {
             let mut meta_temp = tempfile::tempfile()?;
             meta_temp.write_all(&meta_json_bytes)?;
             meta_temp.seek(std::io::SeekFrom::Start(0))?;
-            tar.append_file(Self::META_FILENAME, &mut meta_temp)?;
+            tar.append_file(META_FILENAME, &mut meta_temp)?;
         }
 
         // Add all files to the tarball.
@@ -108,3 +84,55 @@ impl BundlerUtil {
         Ok(())
     }
 }
+
+/// Reads and decompresses a .tar.zstd file from an input stream into just a `meta.json` file
+///
+pub async fn parse_meta_from_tarball<R: AsyncBufRead>(input: R) -> anyhow::Result<VersionedBundle> {
+    let zstd_decoder = ZstdDecoder::new(Box::pin(input));
+    let archive = Archive::new(zstd_decoder);
+
+    if let Some(first_entry) = archive.entries()?.next().await {
+        let mut owned_first_entry = first_entry?;
+        let path_str = owned_first_entry
+            .path()?
+            .to_str()
+            .unwrap_or_default()
+            .to_owned();
+
+        if path_str == META_FILENAME {
+            let mut meta_bytes = Vec::new();
+            owned_first_entry.read_to_end(&mut meta_bytes).await?;
+
+            if let Ok(message) = serde_json::from_slice(&meta_bytes) {
+                return Ok(VersionedBundle::V0_5_34 {
+                    bundle: message,
+                    foo: 1,
+                });
+            }
+
+            // let meta: BundleMetaV0_5_29 = serde_json::from_slice(&meta_bytes)?;
+            // return Ok(Self { meta });
+
+            let base_bundle: BundleMetaV0_5_29 = serde_json::from_slice(&meta_bytes)?;
+            return Ok(VersionedBundle::V0_5_29 {
+                bundle: base_bundle,
+                foo: 0,
+            });
+        }
+    }
+    Err(anyhow::anyhow!("No meta.json file found in the tarball"))
+}
+
+// fn parse_my_bundle(meta: &str) -> Result<BundleMetaV0_5_29 | BundleMetaV0_5_34, serde_json::Error> {
+//     let message: Message = serde_json::from_str(meta)?;
+//     match message {
+//         Message::V1(v1) => Ok(BundleMeta {
+//             base_props: v1.base_props,
+//             junit_props: None,
+//         }),
+//         Message::V2(v2) => Ok(BundleMeta {
+//             base_props: v2.base_props,
+//             junit_props: v2.junit_props,
+//         }),
+//     }
+// }

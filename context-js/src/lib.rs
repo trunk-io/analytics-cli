@@ -1,10 +1,11 @@
 use futures::{future::Either, io::BufReader as BufReaderAsync, stream::TryStreamExt};
 use js_sys::Uint8Array;
 use std::{collections::HashMap, io::BufReader};
-use wasm_bindgen::prelude::*;
+use tsify_next::Tsify;
+use wasm_bindgen::{prelude::*, JsCast};
 use wasm_streams::{readable::sys, readable::ReadableStream};
 
-use bundle::BundlerUtil;
+use bundle::{parse_meta_from_tarball as parse_tarball, VersionedBundle};
 use context::{env, junit, repo};
 
 #[wasm_bindgen]
@@ -86,7 +87,9 @@ pub fn repo_validate(bundle_repo: repo::BundleRepo) -> repo::validator::RepoVali
 }
 
 #[wasm_bindgen()]
-pub async fn parse_meta_from_tarball(input: sys::ReadableStream) -> Result<BundlerUtil, JsError> {
+pub async fn parse_meta_from_tarball(
+    input: sys::ReadableStream,
+) -> Result<VersionedBundle, JsError> {
     let readable_stream = ReadableStream::from_raw(input);
 
     // Many platforms do not support readable byte streams
@@ -105,7 +108,14 @@ pub async fn parse_meta_from_tarball(input: sys::ReadableStream) -> Result<Bundl
 
     let buf_reader = BufReaderAsync::new(async_read);
 
-    BundlerUtil::parse_meta_from_tarball(buf_reader)
+    println!("pre My results rust");
+
+    let res = parse_tarball(buf_reader)
         .await
-        .map_err(|err| JsError::new(&err.to_string()))
+        .map_err(|err| JsError::new(&err.to_string()));
+
+    println!("My results rust {:?}", &res);
+
+    return res;
+    // res.and_then(|b| b.into_js())
 }

@@ -84,7 +84,7 @@ async fn upload_bundle() {
     let reader = BufReader::new(file);
     let bundle_meta: BundleMeta = serde_json::from_reader(reader).unwrap();
     let base_props = bundle_meta.base_props;
-    let junit_props = bundle_meta.junit_props.unwrap();
+    let junit_props = bundle_meta.junit_props;
 
     assert_eq!(base_props.org, "test-org");
     assert_eq!(
