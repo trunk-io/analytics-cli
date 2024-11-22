@@ -75,53 +75,57 @@ impl BundleRepo {
 
         #[cfg(feature = "git-access")]
         {
-            // If repo root found, try to get repo details from git.
-            if let Some(git_repo) = bundle_repo_options
+            let git_repo = bundle_repo_options
                 .repo_root
                 .as_ref()
                 .and_then(|dir| gix::open(dir).ok())
-            {
-                bundle_repo_options.repo_url = bundle_repo_options.repo_url.or_else(|| {
-                    git_repo
-                        .config_snapshot()
-                        .string(GIT_REMOTE_ORIGIN_URL_CONFIG)
-                        .map(|s| s.to_string())
-                });
+                .context(format!(
+                    "Failed to open git repository at {:?}",
+                    bundle_repo_options
+                        .repo_root
+                        .clone()
+                        .unwrap_or(PathBuf::from(""))
+                ))?;
 
-                if let Ok(mut git_head) = git_repo.head() {
-                    bundle_repo_options.repo_head_branch = bundle_repo_options
-                        .repo_head_branch
-                        .or_else(|| git_head.referent_name().map(|s| s.as_bstr().to_string()))
-                        .or_else(|| {
-                            Self::git_head_branch_from_remote_branches(&git_repo)
-                                .ok()
-                                .flatten()
-                        });
+            bundle_repo_options.repo_url = bundle_repo_options.repo_url.or_else(|| {
+                git_repo
+                    .config_snapshot()
+                    .string(GIT_REMOTE_ORIGIN_URL_CONFIG)
+                    .map(|s| s.to_string())
+            });
 
-                    if let Ok(mut commit) = git_head.peel_to_commit_in_place() {
-                        commit = Self::resolve_repo_head_commit(
-                            &git_repo,
-                            commit,
-                            bundle_repo_options
-                                .repo_head_branch
-                                .clone()
-                                .unwrap_or_default(),
-                        );
-
-                        bundle_repo_options.repo_head_sha = bundle_repo_options
-                            .repo_head_sha
-                            .or_else(|| Some(commit.id().to_string()));
-                        bundle_repo_options.repo_head_commit_epoch = bundle_repo_options
-                            .repo_head_commit_epoch
-                            .or_else(|| commit.time().ok().map(|time| time.seconds));
-                        head_commit_message =
-                            commit.message().map(|msg| msg.title.to_string()).ok();
-                        head_commit_author = commit
-                            .author()
+            if let Ok(mut git_head) = git_repo.head() {
+                bundle_repo_options.repo_head_branch = bundle_repo_options
+                    .repo_head_branch
+                    .or_else(|| git_head.referent_name().map(|s| s.as_bstr().to_string()))
+                    .or_else(|| {
+                        Self::git_head_branch_from_remote_branches(&git_repo)
                             .ok()
-                            .map(|signature| signature.to_owned())
-                            .map(|a| (a.name.to_string(), a.email.to_string()));
-                    }
+                            .flatten()
+                    });
+
+                if let Ok(mut commit) = git_head.peel_to_commit_in_place() {
+                    commit = Self::resolve_repo_head_commit(
+                        &git_repo,
+                        commit,
+                        bundle_repo_options
+                            .repo_head_branch
+                            .clone()
+                            .unwrap_or_default(),
+                    );
+
+                    bundle_repo_options.repo_head_sha = bundle_repo_options
+                        .repo_head_sha
+                        .or_else(|| Some(commit.id().to_string()));
+                    bundle_repo_options.repo_head_commit_epoch = bundle_repo_options
+                        .repo_head_commit_epoch
+                        .or_else(|| commit.time().ok().map(|time| time.seconds));
+                    head_commit_message = commit.message().map(|msg| msg.title.to_string()).ok();
+                    head_commit_author = commit
+                        .author()
+                        .ok()
+                        .map(|signature| signature.to_owned())
+                        .map(|a| (a.name.to_string(), a.email.to_string()));
                 }
             }
         }
