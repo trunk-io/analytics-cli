@@ -11,7 +11,7 @@ use wasm_bindgen::prelude::*;
 
 use codeowners::CodeOwners;
 
-use crate::bundle_meta::{BundleMeta, BundleMetaV0_5_29, BundleMetaV0_5_34, VersionedBundle};
+use crate::bundle_meta::{BundleMeta, VersionedBundle};
 
 /// Utility type for packing files into tarball.
 ///
@@ -113,7 +113,7 @@ pub async fn parse_meta_from_tarball<R: AsyncBufRead>(input: R) -> anyhow::Resul
                 return Ok(VersionedBundle::V0_5_34(message));
             }
 
-            let base_bundle: BundleMetaV0_5_29 = serde_json::from_slice(&meta_bytes)?;
+            let base_bundle = serde_json::from_slice(&meta_bytes)?;
             return Ok(VersionedBundle::V0_5_29(base_bundle));
         }
     }
