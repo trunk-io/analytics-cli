@@ -223,8 +223,8 @@ pub async fn run_upload(
     let client_version = format!("trunk-analytics-cli {}", cli_version);
     let upload = api_client
         .create_bundle_upload_intent(&api::CreateBundleUploadRequest {
-            repo: repo.repo,
-            org_url_slug,
+            repo: repo.repo.clone(),
+            org_url_slug: org_url_slug.clone(),
             client_version,
         })
         .await?;
@@ -232,8 +232,8 @@ pub async fn run_upload(
     let meta = BundleMeta {
         base_props: BundleMetaBaseProps {
             version: META_VERSION.to_string(),
-            org: org_url_slug.clone(),
-            repo: repo.clone(),
+            org: org_url_slug,
+            repo,
             cli_version,
             bundle_upload_id: upload.id.clone(),
             tags,
