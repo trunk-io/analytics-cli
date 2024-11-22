@@ -208,8 +208,8 @@ pub async fn run_upload(
 
     api_client
         .create_trunk_repo(&api::CreateRepoRequest {
-            repo: repo.repo,
-            org_url_slug,
+            repo: repo.repo.clone(),
+            org_url_slug: org_url_slug.clone(),
             remote_urls: vec![repo.repo_url.clone()],
         })
         .await?;
@@ -223,8 +223,8 @@ pub async fn run_upload(
     let client_version = format!("trunk-analytics-cli {}", cli_version);
     let upload = api_client
         .create_bundle_upload_intent(&api::CreateBundleUploadRequest {
-            repo: repo.repo.clone(),
-            org_url_slug: org_url_slug.clone(),
+            repo: repo.repo,
+            org_url_slug,
             client_version,
         })
         .await?;
