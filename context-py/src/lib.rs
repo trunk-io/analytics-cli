@@ -37,14 +37,21 @@ fn env_validate(ci_info: env::parser::CIInfo) -> env::validator::EnvValidation {
 #[pyfunction]
 fn junit_parse(xml: Vec<u8>) -> PyResult<Vec<junit::bindings::BindingsReport>> {
     let mut junit_parser = junit::parser::JunitParser::new();
-    if junit_parser.parse(BufReader::new(&xml[..])).is_err() {
-        let error_message = junit_parser
-            .errors()
-            .into_iter()
-            .map(|e| e.to_string())
-            .collect::<Vec<String>>()
-            .join("\n");
-        return Err(PyTypeError::new_err(error_message));
+    if let Err(e) = junit_parser.parse(BufReader::new(&xml[..])) {
+        let collected_errors = collect_parse_errors(&junit_parser);
+        if !collected_errors.is_empty() {
+            return Err(PyTypeError::new_err(format!(
+                "{}\n{}",
+                e.to_string(),
+                collected_errors
+            )));
+        }
+        return Err(PyTypeError::new_err(e.to_string()));
+    }
+
+    let collected_errors = collect_parse_errors(&junit_parser);
+    if !collected_errors.is_empty() {
+        return Err(PyTypeError::new_err(collected_errors));
     }
 
     Ok(junit_parser
@@ -91,4 +98,13 @@ fn context_py(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<repo::validator::RepoValidationLevel>()?;
     m.add_function(wrap_pyfunction!(repo_validate, m)?)?;
     Ok(())
+}
+
+fn collect_parse_errors(parser: &junit::parser::JunitParser) -> String {
+    parser
+        .errors()
+        .into_iter()
+        .map(|e| e.to_string())
+        .collect::<Vec<String>>()
+        .join("\n")
 }

@@ -28,34 +28,40 @@ impl JunitDateParser {
         let date_str = date_str.as_ref();
 
         let timestamp_and_offset = match self.date_type {
-            Some(DateType::DateTime) => Self::parse_date_time(date_str),
-            Some(DateType::NaiveDate) => Self::parse_naive_date(date_str),
-            None => Self::parse_date_time(date_str).or_else(|| Self::parse_naive_date(date_str)),
+            Some(DateType::DateTime) => self
+                .parse_date_time(date_str)
+                .or_else(|| self.parse_naive_date(date_str)),
+            _ => self
+                .parse_naive_date(date_str)
+                .or_else(|| self.parse_date_time(date_str)),
         };
 
-        self.convert_to_chrono_date_time(timestamp_and_offset.unwrap_or_default())
+        Self::convert_to_chrono_date_time(timestamp_and_offset.unwrap_or_default())
     }
 
-    fn parse_date_time<T: AsRef<str>>(date_str: T) -> Option<TimestampAndOffset> {
+    fn parse_date_time<T: AsRef<str>>(&mut self, date_str: T) -> Option<TimestampAndOffset> {
         SpeedateDateTime::parse_str(date_str.as_ref())
             .ok()
-            .map(|dt| TimestampAndOffset {
-                timestamp_secs_micros: Some((dt.timestamp(), dt.time.microsecond)),
-                offset_secs: dt.time.tz_offset,
+            .map(|dt| {
+                self.date_type = Some(DateType::DateTime);
+                return TimestampAndOffset {
+                    timestamp_secs_micros: Some((dt.timestamp(), dt.time.microsecond)),
+                    offset_secs: dt.time.tz_offset,
+                };
             })
     }
 
-    fn parse_naive_date<T: AsRef<str>>(date_str: T) -> Option<TimestampAndOffset> {
-        SpeedateDate::parse_str(date_str.as_ref())
-            .ok()
-            .map(|d| TimestampAndOffset {
+    fn parse_naive_date<T: AsRef<str>>(&mut self, date_str: T) -> Option<TimestampAndOffset> {
+        SpeedateDate::parse_str(date_str.as_ref()).ok().map(|d| {
+            self.date_type = Some(DateType::NaiveDate);
+            TimestampAndOffset {
                 timestamp_secs_micros: Some((d.timestamp(), 0)),
                 offset_secs: None,
-            })
+            }
+        })
     }
 
     fn convert_to_chrono_date_time(
-        &mut self,
         TimestampAndOffset {
             timestamp_secs_micros,
             offset_secs,
@@ -72,14 +78,49 @@ impl JunitDateParser {
             offset_secs.and_then(|secs| FixedOffset::east_opt(secs)),
         ) {
             (Some(chrono_date_time), Some(fixed_offset)) => {
-                self.date_type = Some(DateType::DateTime);
                 Some(chrono_date_time.with_timezone(&fixed_offset))
             }
-            (Some(chrono_date_time), None) => {
-                self.date_type = Some(DateType::NaiveDate);
-                Some(chrono_date_time.fixed_offset())
-            }
+            (Some(chrono_date_time), None) => Some(chrono_date_time.fixed_offset()),
             (None, None) | (None, Some(..)) => None,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::junit::date_parser::JunitDateParser;
+
+    #[test]
+    fn test_parse_date() {
+        let mut date_parser = JunitDateParser::default();
+        pretty_assertions::assert_eq!(None, date_parser.parse_date("not a date"));
+        pretty_assertions::assert_eq!(
+            1704819148443565,
+            date_parser
+                .parse_date("2024-01-09T16:52:28.443565")
+                .unwrap()
+                .timestamp_micros()
+        );
+        pretty_assertions::assert_eq!(
+            1704758400000000,
+            date_parser
+                .parse_date("2024-01-09")
+                .unwrap()
+                .timestamp_micros()
+        );
+        pretty_assertions::assert_eq!(
+            1721743937587000,
+            date_parser
+                .parse_date("2024-07-23T14:12:17.587Z")
+                .unwrap()
+                .timestamp_micros()
+        );
+        pretty_assertions::assert_eq!(
+            1721745659000000,
+            date_parser
+                .parse_date("2024-07-23T14:40:59+00:00")
+                .unwrap()
+                .timestamp_micros()
+        );
     }
 }
