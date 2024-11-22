@@ -209,7 +209,7 @@ pub async fn run_upload(
     api_client
         .create_trunk_repo(&api::CreateRepoRequest {
             repo: repo.repo,
-            org_url_slug.clone(),
+            org_url_slug,
             remote_urls: vec![repo.repo_url.clone()],
         })
         .await?;
