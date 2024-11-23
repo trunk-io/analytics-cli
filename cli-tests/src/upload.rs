@@ -60,6 +60,21 @@ async fn upload_bundle() {
         })
     );
 
+    assert_eq!(
+        requests_iter.next().unwrap(),
+        RequestPayload::CreateRepo(CreateRepoRequest {
+            repo: Repo {
+                host: String::from("github.com"),
+                owner: String::from("trunk-io"),
+                name: String::from("analytics-cli"),
+            },
+            org_url_slug: String::from("test-org"),
+            remote_urls: Vec::from(&[String::from(
+                "https://github.com/trunk-io/analytics-cli.git"
+            )]),
+        })
+    );
+
     let upload_request = assert_matches!(requests_iter.next().unwrap(), RequestPayload::CreateBundleUpload(ur) => ur);
     assert_eq!(
         upload_request.repo,
@@ -159,21 +174,6 @@ async fn upload_bundle() {
             id: "test-bundle-upload-id".to_string(),
             upload_status: BundleUploadStatus::UploadComplete
         }),
-    );
-
-    assert_eq!(
-        requests_iter.next().unwrap(),
-        RequestPayload::CreateRepo(CreateRepoRequest {
-            repo: Repo {
-                host: String::from("github.com"),
-                owner: String::from("trunk-io"),
-                name: String::from("analytics-cli"),
-            },
-            org_url_slug: String::from("test-org"),
-            remote_urls: Vec::from(&[String::from(
-                "https://github.com/trunk-io/analytics-cli.git"
-            )]),
-        })
     );
 
     // HINT: View CLI output with `cargo test -- --nocapture`
