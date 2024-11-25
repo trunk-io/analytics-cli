@@ -1,6 +1,7 @@
 use crate::utils::{
-    generate_mock_invalid_junit_xmls, generate_mock_suboptimal_junit_xmls,
-    generate_mock_valid_junit_xmls, write_junit_xml_to_dir, CARGO_RUN,
+    generate_mock_codeowners, generate_mock_invalid_junit_xmls,
+    generate_mock_suboptimal_junit_xmls, generate_mock_valid_junit_xmls, write_junit_xml_to_dir,
+    CARGO_RUN,
 };
 use assert_cmd::Command;
 use predicates::prelude::*;
@@ -10,6 +11,7 @@ use tempfile::tempdir;
 fn validate_success() {
     let temp_dir = tempdir().unwrap();
     generate_mock_valid_junit_xmls(&temp_dir);
+    generate_mock_codeowners(&temp_dir);
 
     let assert = Command::new(CARGO_RUN.path())
         .current_dir(&temp_dir)
@@ -17,7 +19,9 @@ fn validate_success() {
         .assert()
         .success()
         .stdout(predicate::str::contains("0 validation errors"))
-        .stdout(predicate::str::contains("All 1 files are valid"));
+        .stdout(predicate::str::contains("All 1 files are valid"))
+        .stdout(predicate::str::contains("Checking for codeowners file..."))
+        .stdout(predicate::str::contains("VALID - Found codeowners:"));
 
     println!("{assert}");
 }
@@ -53,7 +57,7 @@ fn validate_empty_junit_paths() {
 }
 
 #[test]
-fn validate_invalid_junits() {
+fn validate_invalid_junits_no_codeowners() {
     let temp_dir = tempdir().unwrap();
     generate_mock_invalid_junit_xmls(&temp_dir);
 
@@ -65,6 +69,10 @@ fn validate_invalid_junits() {
         .stdout(predicate::str::contains("1 validation error"))
         .stdout(predicate::str::contains(
             "INVALID - test suite name too short",
+        ))
+        .stdout(predicate::str::contains("Checking for codeowners file..."))
+        .stdout(predicate::str::contains(
+            "OPTIONAL - No codeowners file found",
         ));
 
     println!("{assert}");
