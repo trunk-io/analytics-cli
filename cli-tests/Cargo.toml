@@ -16,7 +16,6 @@ junit-mock = { path = "../junit-mock" }
 lazy_static = "1.4"
 more-asserts = "0.3.1"
 predicates = "3.0.3"
-regex = { version = "1.10.3", default-features = false, features = ["std"] }
 serde_json = "1.0.133"
 tempfile = "3.2.0"
 test_utils = { path = "../test_utils" }

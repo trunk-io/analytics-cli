@@ -661,7 +661,6 @@ dependencies = [
  "lazy_static",
  "more-asserts",
  "predicates",
- "regex",
  "serde_json",
  "tempfile",
  "test_utils",
