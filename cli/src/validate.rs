@@ -2,6 +2,7 @@ use quick_junit::Report;
 use std::{collections::BTreeMap, io::BufReader};
 
 use bundle::{FileSet, FileSetCounter};
+use codeowners::CodeOwners;
 use colored::{ColoredString, Colorize};
 use console::Emoji;
 use constants::{EXIT_FAILURE, EXIT_SUCCESS};
@@ -18,7 +19,11 @@ use crate::runner::build_filesets;
 type JunitFileToReportAndErrors = BTreeMap<String, (anyhow::Result<Report>, Vec<JunitParseError>)>;
 type JunitFileToValidation = BTreeMap<String, anyhow::Result<JunitReportValidation>>;
 
-pub async fn validate(junit_paths: Vec<String>, show_warnings: bool) -> anyhow::Result<i32> {
+pub async fn validate(
+    junit_paths: Vec<String>,
+    show_warnings: bool,
+    codeowners_path: Option<String>,
+) -> anyhow::Result<i32> {
     // scan files
     let current_dir = std::env::current_dir()
         .ok()
@@ -51,17 +56,23 @@ pub async fn validate(junit_paths: Vec<String>, show_warnings: bool) -> anyhow::
     // print results
     let (num_invalid_reports, num_suboptimal_reports) =
         print_validation_errors(&report_validations);
-    if num_invalid_reports == 0 {
+    let exit = if num_invalid_reports == 0 {
         print_summary_success(report_validations.len(), num_suboptimal_reports);
-        Ok(EXIT_SUCCESS)
+        EXIT_SUCCESS
     } else {
         print_summary_failure(
             report_validations.len(),
             num_invalid_reports,
             num_suboptimal_reports,
         );
-        Ok(EXIT_FAILURE)
-    }
+        EXIT_FAILURE
+    };
+
+    let codeowners = CodeOwners::find_file(&current_dir, &codeowners_path);
+
+    print_codeowners(codeowners);
+
+    Ok(exit)
 }
 
 fn parse_file_sets(file_sets: Vec<FileSet>) -> JunitFileToReportAndErrors {
@@ -268,5 +279,22 @@ fn print_validation_level(level: JunitValidationLevel) -> ColoredString {
         JunitValidationLevel::SubOptimal => "OPTIONAL".yellow(),
         JunitValidationLevel::Invalid => "INVALID".red(),
         JunitValidationLevel::Valid => "VALID".green(),
+    }
+}
+
+fn print_codeowners(codeowners: Option<CodeOwners>) {
+    println!("\nChecking for codeowners file...");
+    match codeowners {
+        Some(owners) => {
+            println!(
+                "  {} - Found codeowners:",
+                print_validation_level(JunitValidationLevel::Valid)
+            );
+            println!("    Path: {:?}", owners.path);
+        }
+        None => println!(
+            "  {} - No codeowners file found.",
+            print_validation_level(JunitValidationLevel::SubOptimal)
+        ),
     }
 }

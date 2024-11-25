@@ -56,7 +56,10 @@ impl CodeOwners {
             }
 
             let owners = Result::ok(owners_result);
-            Self { path, owners }
+            Self {
+                path: path.canonicalize().unwrap(),
+                owners,
+            }
         })
     }
 }
