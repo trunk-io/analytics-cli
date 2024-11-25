@@ -11,6 +11,8 @@ use quick_junit::{
 #[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::*;
 
+const MICROSECONDS_PER_SECOND: i64 = 1_000_000;
+
 #[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass(get_all))]
 #[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
 #[derive(Clone, Debug)]
@@ -18,6 +20,7 @@ pub struct BindingsReport {
     pub name: String,
     pub uuid: Option<String>,
     pub timestamp: Option<i64>,
+    pub timestamp_micros: Option<i64>,
     pub time: Option<f64>,
     pub tests: usize,
     pub failures: usize,
@@ -42,6 +45,7 @@ impl From<Report> for BindingsReport {
             name: name.into_string(),
             uuid: uuid.map(|u| u.to_string()),
             timestamp: timestamp.map(|t| t.timestamp()),
+            timestamp_micros: timestamp.map(|t| t.timestamp_micros()),
             time: time.map(|t| t.as_secs_f64()),
             tests,
             failures,
@@ -59,7 +63,8 @@ impl Into<Report> for BindingsReport {
         let Self {
             name,
             uuid,
-            timestamp,
+            timestamp: _,
+            timestamp_micros,
             time,
             tests,
             failures,
@@ -71,8 +76,13 @@ impl Into<Report> for BindingsReport {
         Report {
             name: name.into(),
             uuid: None,
-            timestamp: timestamp
-                .and_then(|secs| DateTime::from_timestamp(secs, 0))
+            timestamp: timestamp_micros
+                .and_then(|micro_secs| {
+                    DateTime::from_timestamp(
+                        micro_secs / MICROSECONDS_PER_SECOND,
+                        (micro_secs % MICROSECONDS_PER_SECOND) as u32,
+                    )
+                })
                 .map(|dt| dt.fixed_offset()),
             time: time.map(|secs| Duration::from_secs_f64(secs)),
             tests,
@@ -96,6 +106,7 @@ pub struct BindingsTestSuite {
     pub errors: usize,
     pub failures: usize,
     pub timestamp: Option<i64>,
+    pub timestamp_micros: Option<i64>,
     pub time: Option<f64>,
     pub test_cases: Vec<BindingsTestCase>,
     pub properties: Vec<BindingsProperty>,
@@ -157,6 +168,7 @@ impl From<TestSuite> for BindingsTestSuite {
             errors,
             failures,
             timestamp: timestamp.map(|t| t.timestamp()),
+            timestamp_micros: timestamp.map(|t| t.timestamp_micros()),
             time: time.map(|t| t.as_secs_f64()),
             test_cases: test_cases.into_iter().map(BindingsTestCase::from).collect(),
             properties: properties.into_iter().map(BindingsProperty::from).collect(),
@@ -179,7 +191,8 @@ impl Into<TestSuite> for BindingsTestSuite {
             disabled,
             errors,
             failures,
-            timestamp,
+            timestamp: _,
+            timestamp_micros,
             time,
             test_cases,
             properties,
@@ -192,8 +205,13 @@ impl Into<TestSuite> for BindingsTestSuite {
         test_suite.disabled = disabled;
         test_suite.errors = errors;
         test_suite.failures = failures;
-        test_suite.timestamp = timestamp
-            .and_then(|secs| DateTime::from_timestamp(secs, 0))
+        test_suite.timestamp = timestamp_micros
+            .and_then(|micro_secs| {
+                DateTime::from_timestamp(
+                    micro_secs / MICROSECONDS_PER_SECOND,
+                    (micro_secs % MICROSECONDS_PER_SECOND) as u32,
+                )
+            })
             .map(|dt| dt.fixed_offset());
         test_suite.time = time.map(|secs| Duration::from_secs_f64(secs));
         test_suite.test_cases = test_cases
@@ -250,6 +268,7 @@ pub struct BindingsTestCase {
     pub classname: Option<String>,
     pub assertions: Option<usize>,
     pub timestamp: Option<i64>,
+    pub timestamp_micros: Option<i64>,
     pub time: Option<f64>,
     pub status: BindingsTestCaseStatus,
     pub system_out: Option<String>,
@@ -307,6 +326,7 @@ impl From<TestCase> for BindingsTestCase {
             classname: classname.map(|c| c.to_string()),
             assertions,
             timestamp: timestamp.map(|t| t.timestamp()),
+            timestamp_micros: timestamp.map(|t| t.timestamp_micros()),
             time: time.map(|t| t.as_secs_f64()),
             status: BindingsTestCaseStatus::from(status),
             system_out: system_out.map(|s| s.to_string()),
@@ -329,7 +349,8 @@ impl TryInto<TestCase> for BindingsTestCase {
             name,
             classname,
             assertions,
-            timestamp,
+            timestamp: _,
+            timestamp_micros,
             time,
             status,
             system_out,
@@ -340,8 +361,13 @@ impl TryInto<TestCase> for BindingsTestCase {
         let mut test_case = TestCase::new(name, status.try_into()?);
         test_case.classname = classname.map(|c| c.into());
         test_case.assertions = assertions;
-        test_case.timestamp = timestamp
-            .and_then(|secs| DateTime::from_timestamp(secs, 0))
+        test_case.timestamp = timestamp_micros
+            .and_then(|micro_secs| {
+                DateTime::from_timestamp(
+                    micro_secs / MICROSECONDS_PER_SECOND,
+                    (micro_secs % MICROSECONDS_PER_SECOND) as u32,
+                )
+            })
             .map(|dt| dt.fixed_offset());
         test_case.time = time.map(|secs| Duration::from_secs_f64(secs));
         test_case.system_out = system_out.map(|s| s.into());
@@ -528,6 +554,7 @@ impl Into<TestCaseStatus> for BindingsTestCaseStatusSkipped {
 pub struct BindingsTestRerun {
     pub kind: BindingsNonSuccessKind,
     pub timestamp: Option<i64>,
+    pub timestamp_micros: Option<i64>,
     pub time: Option<f64>,
     pub message: Option<String>,
     pub ty: Option<String>,
@@ -554,6 +581,7 @@ impl From<TestRerun> for BindingsTestRerun {
         Self {
             kind: BindingsNonSuccessKind::from(kind),
             timestamp: timestamp.map(|t| t.timestamp()),
+            timestamp_micros: timestamp.map(|t| t.timestamp_micros()),
             time: time.map(|t| t.as_secs_f64()),
             message: message.map(|m| m.to_string()),
             ty: ty.map(|t| t.to_string()),
@@ -569,7 +597,8 @@ impl Into<TestRerun> for BindingsTestRerun {
     fn into(self) -> TestRerun {
         let Self {
             kind,
-            timestamp,
+            timestamp: _,
+            timestamp_micros,
             time,
             message,
             ty,
@@ -580,8 +609,13 @@ impl Into<TestRerun> for BindingsTestRerun {
         } = self;
         TestRerun {
             kind: kind.into(),
-            timestamp: timestamp
-                .and_then(|secs| DateTime::from_timestamp(secs, 0))
+            timestamp: timestamp_micros
+                .and_then(|micro_secs| {
+                    DateTime::from_timestamp(
+                        micro_secs / MICROSECONDS_PER_SECOND,
+                        (micro_secs % MICROSECONDS_PER_SECOND) as u32,
+                    )
+                })
                 .map(|dt| dt.fixed_offset()),
             time: time.map(|secs| Duration::from_secs_f64(secs)),
             message: message.map(|m| m.into()),
