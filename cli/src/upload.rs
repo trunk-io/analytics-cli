@@ -11,8 +11,8 @@ use xcresult::XCResult;
 
 use api::BundleUploadStatus;
 use bundle::{
-    parse_custom_tags, BundleMeta, BundleMetaBaseProps, BundleMetaJunitProps, BundlerUtil, FileSet,
-    QuarantineBulkTestStatus, QuarantineRunResult, META_VERSION,
+    parse_custom_tags, BundleMeta, BundleMetaBaseProps, BundleMetaDebugProps, BundleMetaJunitProps,
+    BundlerUtil, FileSet, QuarantineBulkTestStatus, QuarantineRunResult, META_VERSION,
 };
 use codeowners::CodeOwners;
 use constants::{EXIT_FAILURE, EXIT_SUCCESS};
@@ -125,6 +125,10 @@ pub async fn run_upload(
         repo_head_commit_epoch,
     )?;
 
+    let command_line = env::args()
+        .collect::<Vec<String>>()
+        .join(" ")
+        .replace(&token, "***");
     let api_client = ApiClient::new(token)?;
 
     let codeowners =
@@ -249,6 +253,7 @@ pub async fn run_upload(
             num_files,
             num_tests,
         },
+        debug_props: BundleMetaDebugProps { command_line },
     };
 
     log::info!("Total files pack and upload: {}", file_counter.get_count());
