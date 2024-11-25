@@ -307,6 +307,21 @@ impl JunitReportValidation {
                             JunitReportValidationIssueSubOptimal::TestCasesFileOrFilepathMissing,
                         )),
                         JunitValidationIssue::SubOptimal(
+                            JunitTestCaseValidationIssueSubOptimal::TestCaseNoTimestamp,
+                        ) => Some(JunitValidationIssue::SubOptimal(
+                            JunitReportValidationIssueSubOptimal::MissingTimestamps,
+                        )),
+                        JunitValidationIssue::SubOptimal(
+                            JunitTestCaseValidationIssueSubOptimal::TestCaseFutureTimestamp(..),
+                        ) => Some(JunitValidationIssue::SubOptimal(
+                            JunitReportValidationIssueSubOptimal::FutureTimestamps,
+                        )),
+                        JunitValidationIssue::SubOptimal(
+                            JunitTestCaseValidationIssueSubOptimal::TestCaseOldTimestamp(..),
+                        ) => Some(JunitValidationIssue::SubOptimal(
+                            JunitReportValidationIssueSubOptimal::OldTimestamps,
+                        )),
+                        JunitValidationIssue::SubOptimal(
                             JunitTestCaseValidationIssueSubOptimal::TestCaseStaleTimestamp(..),
                         ) => Some(JunitValidationIssue::SubOptimal(
                             JunitReportValidationIssueSubOptimal::StaleTimestamps,
@@ -368,6 +383,12 @@ impl ToString for JunitReportValidationIssue {
 pub enum JunitReportValidationIssueSubOptimal {
     #[error("report has test cases with missing file or filepath")]
     TestCasesFileOrFilepathMissing,
+    #[error("report has test cases with missing timestamp")]
+    MissingTimestamps,
+    #[error("report has test cases with future timestamp")]
+    FutureTimestamps,
+    #[error("report has old (> {} day(s)) timestamps", TIMESTAMP_OLD_DAYS)]
+    OldTimestamps,
     #[error("report has stale (> {} hour(s)) timestamps", TIMESTAMP_STALE_HOURS)]
     StaleTimestamps,
 }
