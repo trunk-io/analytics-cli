@@ -54,19 +54,19 @@ pub async fn validate(
         .collect();
 
     // print results
-    let mut exit = EXIT_SUCCESS;
     let (num_invalid_reports, num_suboptimal_reports) =
         print_validation_errors(&report_validations);
-    if num_invalid_reports == 0 {
+    let exit = if num_invalid_reports == 0 {
         print_summary_success(report_validations.len(), num_suboptimal_reports);
+        EXIT_SUCCESS
     } else {
         print_summary_failure(
             report_validations.len(),
             num_invalid_reports,
             num_suboptimal_reports,
         );
-        exit = EXIT_FAILURE
-    }
+        EXIT_FAILURE
+    };
 
     let codeowners = CodeOwners::find_file(&current_dir, &codeowners_path);
 
