@@ -13,8 +13,11 @@ name = "stub_gen"
 path = "bin/stub_gen.rs"
 
 [dependencies]
+bundle = { path = "../bundle", default-features = false, features = ["pyo3"] }
 context = { path = "../context", features = ["git-access", "pyo3"] }
 pyo3-stub-gen = "0.6.0"
+futures-io = "0.3.31"
+tokio = { version = "*", default-features = false, features = ["rt"] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 pyo3 = { version = "0.22.5", features = ["abi3-py39", "extension-module"] }

@@ -1,8 +1,13 @@
 use std::{collections::HashMap, io::BufReader};
 
+use bundle::{parse_meta_from_tarball as parse_tarball, BindingsVersionedBundle};
 use context::{env, junit, repo};
 use pyo3::{exceptions::PyTypeError, prelude::*};
 use pyo3_stub_gen::{define_stub_info_gatherer, derive::gen_stub_pyfunction};
+
+mod py_bytes_read;
+
+use py_bytes_read::PyBytesReader;
 
 define_stub_info_gatherer!(stub_info);
 
@@ -75,6 +80,22 @@ fn repo_validate(bundle_repo: repo::BundleRepo) -> repo::validator::RepoValidati
     repo::validator::validate(&bundle_repo)
 }
 
+#[gen_stub_pyfunction]
+#[pyfunction]
+pub fn parse_meta_from_tarball(
+    py: Python<'_>,
+    reader: PyObject,
+) -> PyResult<BindingsVersionedBundle> {
+    let py_bytes_reader = PyBytesReader::new(reader.into_bound(py))?;
+    let rt = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()?;
+    let versioned_bundle = rt
+        .block_on(parse_tarball(py_bytes_reader))
+        .map_err(|err| PyTypeError::new_err(err.to_string()))?;
+    Ok(BindingsVersionedBundle(versioned_bundle))
+}
+
 #[pymodule]
 fn context_py(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<env::parser::CIPlatform>()?;
@@ -97,6 +118,8 @@ fn context_py(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<repo::RepoUrlParts>()?;
     m.add_class::<repo::validator::RepoValidationLevel>()?;
     m.add_function(wrap_pyfunction!(repo_validate, m)?)?;
+
+    m.add_function(wrap_pyfunction!(parse_meta_from_tarball, m)?)?;
     Ok(())
 }
 
