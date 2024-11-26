@@ -12,6 +12,7 @@ def test_env_parse_and_validate():
     }
 
     ci_info = env_parse(env_vars)
+    assert ci_info is not None
     env_validation = env_validate(ci_info)
 
     assert ci_info.platform == CIPlatform.GitHubActions
@@ -256,7 +257,7 @@ def test_repo_validate():
 
     from context_py import BundleRepo, RepoUrlParts, RepoValidationLevel, repo_validate
 
-    repo = RepoUrlParts("github", "trunk-io", "analytics-cli")
+    repo = RepoUrlParts(host="github", owner="trunk-io", name="analytics-cli")
     bundle_repo = BundleRepo(
         repo,
         ".",

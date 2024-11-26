@@ -3,7 +3,7 @@ use lazy_static::lazy_static;
 #[cfg(feature = "pyo3")]
 use pyo3::prelude::*;
 #[cfg(feature = "pyo3")]
-use pyo3_stub_gen::derive::gen_stub_pyclass;
+use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
@@ -247,6 +247,7 @@ impl BundleRepo {
 }
 
 #[cfg(feature = "pyo3")]
+#[gen_stub_pymethods]
 #[pymethods]
 impl BundleRepo {
     #[new]
@@ -380,6 +381,7 @@ impl RepoUrlParts {
 }
 
 #[cfg(feature = "pyo3")]
+#[gen_stub_pymethods]
 #[pymethods]
 impl RepoUrlParts {
     #[new]

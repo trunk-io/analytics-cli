@@ -3,7 +3,7 @@ requires = ["maturin>=1.5,<2.0"]
 build-backend = "maturin"
 
 [project]
-name = "context-py"
+name = "context_py"
 requires-python = ">=3.8"
 classifiers = [
   "Programming Language :: Rust",
@@ -11,5 +11,13 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dynamic = ["version"]
+
 [tool.maturin]
 features = ["pyo3/extension-module"]
+
+[tool.pyright]
+exclude = [".venv"]
+venvPath = "."
+venv = ".venv"
+typeCheckingMode = "strict"
+ignore = ["context_py.pyi"]

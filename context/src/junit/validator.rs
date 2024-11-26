@@ -2,7 +2,7 @@ use chrono::{DateTime, FixedOffset, Utc};
 #[cfg(feature = "pyo3")]
 use pyo3::prelude::*;
 #[cfg(feature = "pyo3")]
-use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pyclass_enum};
+use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pyclass_enum, gen_stub_pymethods};
 use quick_junit::Report;
 use std::{cmp::Ordering, collections::HashSet};
 use thiserror::Error;
@@ -226,7 +226,7 @@ pub struct JunitReportValidationFlatIssue {
     pub error_message: String,
 }
 
-#[cfg_attr(feature = "pyo3", pymethods)]
+#[cfg_attr(feature = "pyo3", gen_stub_pymethods, pymethods)]
 #[cfg_attr(feature = "wasm", wasm_bindgen)]
 impl JunitReportValidation {
     pub fn all_issues_owned(&self) -> Vec<JunitReportValidationFlatIssue> {
@@ -419,7 +419,7 @@ pub struct JunitTestSuiteValidation {
     test_cases: Vec<JunitTestCaseValidation>,
 }
 
-#[cfg_attr(feature = "pyo3", pymethods)]
+#[cfg_attr(feature = "pyo3", gen_stub_pymethods, pymethods)]
 #[cfg_attr(feature = "wasm", wasm_bindgen)]
 impl JunitTestSuiteValidation {
     pub fn level(&self) -> JunitValidationLevel {
@@ -508,7 +508,7 @@ pub struct JunitTestCaseValidation {
     issues: Vec<JunitTestCaseValidationIssue>,
 }
 
-#[cfg_attr(feature = "pyo3", pymethods)]
+#[cfg_attr(feature = "pyo3", gen_stub_pymethods, pymethods)]
 #[cfg_attr(feature = "wasm", wasm_bindgen)]
 impl JunitTestCaseValidation {
     pub fn level(&self) -> JunitValidationLevel {

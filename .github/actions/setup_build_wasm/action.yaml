@@ -4,9 +4,8 @@ description: Setup and build wasm
 runs:
   using: composite
   steps:
-    - uses: dtolnay/rust-toolchain@nightly
-      with:
-        targets: wasm32-unknown-unknown
+    - name: Setup Rust & Cargo
+      uses: ./.github/actions/setup_rust_cargo
 
     - uses: actions/setup-node@v4
       with:
