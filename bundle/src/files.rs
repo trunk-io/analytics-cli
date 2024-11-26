@@ -1,13 +1,17 @@
 use std::{format, time::SystemTime};
+
+use codeowners::{CodeOwners, Owners, OwnersOfPath};
+use constants::ALLOW_LIST;
+#[cfg(feature = "pyo3")]
+use pyo3::prelude::*;
+#[cfg(feature = "pyo3")]
+use pyo3_stub_gen::derive::gen_stub_pyclass;
+use regex::Regex;
+use serde::{Deserialize, Serialize};
 #[cfg(feature = "wasm")]
 use tsify_next::Tsify;
 #[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::*;
-
-use codeowners::{CodeOwners, Owners, OwnersOfPath};
-use constants::ALLOW_LIST;
-use regex::Regex;
-use serde::{Deserialize, Serialize};
 
 use crate::types::{BundledFile, FileSetType};
 
@@ -28,7 +32,8 @@ impl FileSetCounter {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass(get_all))]
 #[cfg_attr(feature = "wasm", derive(Tsify))]
 pub struct FileSet {
     pub file_set_type: FileSetType,

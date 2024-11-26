@@ -24,7 +24,7 @@ use crate::{FromPath, FromReader, OwnersOfPath};
 ///   raw
 /// );
 /// ```
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Eq)]
 pub enum GitHubOwner {
     /// Owner in the form @username
     Username(String),
@@ -67,7 +67,7 @@ impl FromStr for GitHubOwner {
 }
 
 /// Mappings of GitHub owners to path patterns
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Eq)]
 pub struct GitHubOwners {
     paths: Vec<(Pattern, Vec<GitHubOwner>)>,
 }

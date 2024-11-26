@@ -12,3 +12,11 @@ pip
 # -------
 
 pytest==8.3.3
+
+# -------
+# TEST DEPENDENCIES
+# -------
+
+botocore==1.35.69
+botocore-stubs==1.35.69
+zstandard==0.23.0
