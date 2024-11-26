@@ -10,7 +10,7 @@ use context::junit::{
     parser::{JunitParseError, JunitParser},
     validator::{
         validate as validate_report, JunitReportValidation, JunitReportValidationFlatIssue,
-        JunitValidationLevel,
+        JunitReportValidationIssueSubOptimal, JunitValidationLevel,
     },
 };
 
@@ -70,7 +70,7 @@ pub async fn validate(
 
     let codeowners = CodeOwners::find_file(&current_dir, &codeowners_path);
 
-    print_codeowners(codeowners);
+    print_codeowners_validation(codeowners, &report_validations);
 
     Ok(exit)
 }
@@ -282,7 +282,10 @@ fn print_validation_level(level: JunitValidationLevel) -> ColoredString {
     }
 }
 
-fn print_codeowners(codeowners: Option<CodeOwners>) {
+fn print_codeowners_validation(
+    codeowners: Option<CodeOwners>,
+    report_validations: &JunitFileToValidation,
+) {
     println!("\nChecking for codeowners file...");
     match codeowners {
         Some(owners) => {
@@ -291,6 +294,23 @@ fn print_codeowners(codeowners: Option<CodeOwners>) {
                 print_validation_level(JunitValidationLevel::Valid)
             );
             println!("    Path: {:?}", owners.path);
+            for report_validation in report_validations {
+                match report_validation.1 {
+                    Ok(validation) => {
+                        let issues = validation.all_issues_owned();
+                        if issues.iter().any(
+                            |i|
+                            i.error_message == JunitReportValidationIssueSubOptimal::TestCasesFileOrFilepathMissing.to_string()
+                        ) {
+                            println!(
+                                "    {} - CODEOWNERS found but test cases are missing filepaths. We will not be able to correlate flaky tests with owners.",
+                                print_validation_level(JunitValidationLevel::SubOptimal)
+                            );
+                        }
+                    }
+                    Err(_) => {}
+                }
+            }
         }
         None => println!(
             "  {} - No codeowners file found.",
