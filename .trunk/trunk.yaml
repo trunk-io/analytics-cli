@@ -34,11 +34,18 @@ lint:
     - taplo@0.9.3
     - trufflehog@3.83.7
     - yamllint@1.35.1
+    - pyright@1.1.389
   definitions:
     - name: eslint
       commands:
         - name: lint
           run_when: [cli, monitor, ci]
+    - name: pyright
+      commands:
+        - name: lint
+          run: pyright -p context-py --outputjson
+          target: .
+          batch: false
 actions:
   definitions:
     - id: generate-pyi
@@ -46,7 +53,6 @@ actions:
       # Don't use hermetic runtime so we can use nightly cargo
       run: |
         cargo run --bin stub_gen
-        mv context-py/context{-,_}py.pyi
   enabled:
     - generate-pyi
     - git-lfs

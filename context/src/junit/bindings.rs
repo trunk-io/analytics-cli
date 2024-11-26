@@ -4,7 +4,7 @@ use chrono::DateTime;
 #[cfg(feature = "pyo3")]
 use pyo3::prelude::*;
 #[cfg(feature = "pyo3")]
-use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pyclass_enum};
+use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pyclass_enum, gen_stub_pymethods};
 use quick_junit::{
     NonSuccessKind, Property, Report, TestCase, TestCaseStatus, TestRerun, TestSuite,
 };
@@ -116,6 +116,7 @@ pub struct BindingsTestSuite {
 }
 
 #[cfg(feature = "pyo3")]
+#[gen_stub_pymethods]
 #[pymethods]
 impl BindingsTestSuite {
     fn py_extra(&self) -> HashMap<String, String> {
@@ -278,6 +279,7 @@ pub struct BindingsTestCase {
 }
 
 #[cfg(feature = "pyo3")]
+#[gen_stub_pymethods]
 #[pymethods]
 impl BindingsTestCase {
     fn py_extra(&self) -> HashMap<String, String> {

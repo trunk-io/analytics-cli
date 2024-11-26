@@ -1,0 +1,14 @@
+# -----
+# BUILD
+# -----
+
+maturin
+# extra dependency for maturin (linux-only)
+patchelf; platform_system == 'Linux'
+pip
+
+# -------
+# TOOLING
+# -------
+
+pytest==8.3.3

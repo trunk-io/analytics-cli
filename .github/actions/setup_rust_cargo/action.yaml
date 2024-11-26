@@ -6,6 +6,8 @@ runs:
   steps:
     - name: Install Rust toolchain
       uses: dtolnay/rust-toolchain@nightly
+      with:
+        targets: wasm32-unknown-unknown
 
     - uses: actions/cache@v4
       with:

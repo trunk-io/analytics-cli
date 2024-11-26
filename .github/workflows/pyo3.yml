@@ -69,9 +69,13 @@ jobs:
         shell: bash
         run: |
           set -e
-          pip install context-py --find-links dist --force-reinstall
-          pip install pytest
-          cd ./context-py && pytest
+          pip install uv
+          cd ./context-py
+          uv venv
+          source .venv/bin/activate
+          uv pip install -r requirements-dev.txt
+          uv pip install context-py --find-links ../dist --force-reinstall
+          pytest
       - name: pytest
         if: ${{ startsWith(matrix.platform.target, 'aarch64') }}
         uses: uraimo/run-on-arch-action@v2
@@ -82,11 +86,15 @@ jobs:
           install: |
             apt-get update
             apt-get install -y --no-install-recommends python3 python3-pip
-            pip3 install -U pip pytest
+            pip3 install -U uv
           run: |
             set -e
-            pip3 install context-py --find-links dist --force-reinstall
-            cd ./context-py && pytest
+            cd ./context-py
+            uv venv
+            source .venv/bin/activate
+            uv pip install -r requirements-dev.txt
+            uv pip install context-py --find-links ../dist --force-reinstall
+            pytest
       - name: Upload wheel package to S3
         uses: ./.github/actions/upload_to_s3
         if: "!cancelled() && github.event_name != 'pull_request'"
