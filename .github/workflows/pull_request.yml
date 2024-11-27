@@ -103,6 +103,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Setup Rust & Cargo
+        uses: ./.github/actions/setup_rust_cargo
+
+      - name: Build workspace
+        run: cargo build --all
+
       - name: Setup and build pyo3
         uses: ./.github/actions/setup_build_pyo3
 
