@@ -243,7 +243,7 @@ def test_junit_validate_suboptimal():
         len(
             [
                 x
-                for x in junit_report_validation.all_issues_owned()
+                for x in junit_report_validation.all_issues_flat()
                 if x.error_type == JunitValidationType.Report
             ]
         )

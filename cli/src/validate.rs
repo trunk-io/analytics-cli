@@ -10,7 +10,8 @@ use context::junit::{
     parser::{JunitParseError, JunitParser},
     validator::{
         validate as validate_report, JunitReportValidation, JunitReportValidationFlatIssue,
-        JunitReportValidationIssueSubOptimal, JunitValidationLevel,
+        JunitReportValidationIssueSubOptimal, JunitValidationIssue, JunitValidationIssueType,
+        JunitValidationLevel,
     },
 };
 
@@ -212,12 +213,12 @@ fn print_validation_errors(report_validations: &JunitFileToValidation) -> (usize
         match report_validation.1 {
             Ok(validation) => {
                 num_test_suites = validation.test_suites().len();
-                num_test_cases = validation.test_cases_flat().len();
+                num_test_cases = validation.test_cases().len();
 
                 num_validation_errors = validation.num_invalid_issues();
                 num_validation_warnings = validation.num_suboptimal_issues();
 
-                all_issues = validation.all_issues_owned();
+                all_issues = validation.all_issues_flat();
             }
             Err(e) => {
                 report_parse_error = Some(e);
@@ -294,22 +295,25 @@ fn print_codeowners_validation(
                 print_validation_level(JunitValidationLevel::Valid)
             );
             println!("    Path: {:?}", owners.path);
-            for report_validation in report_validations {
-                match report_validation.1 {
-                    Ok(validation) => {
-                        let issues = validation.all_issues_owned();
-                        if issues.iter().any(
-                            |i|
-                            i.error_message == JunitReportValidationIssueSubOptimal::TestCasesFileOrFilepathMissing.to_string()
-                        ) {
-                            println!(
-                                "    {} - CODEOWNERS found but test cases are missing filepaths. We will not be able to correlate flaky tests with owners.",
-                                print_validation_level(JunitValidationLevel::SubOptimal)
-                            );
-                        }
-                    }
-                    Err(_) => {}
-                }
+
+            let has_test_cases_without_matching_codeowners_paths = report_validations
+                .iter()
+                .filter_map(|(_, report_validation)| report_validation.as_ref().ok())
+                .flat_map(|report_validation| report_validation.all_issues())
+                .any(|issue| {
+                    matches!(
+                        issue,
+                        JunitValidationIssueType::Report(JunitValidationIssue::SubOptimal(
+                            JunitReportValidationIssueSubOptimal::TestCasesFileOrFilepathMissing
+                        ))
+                    )
+                });
+
+            if has_test_cases_without_matching_codeowners_paths {
+                println!(
+                    "    {} - CODEOWNERS found but test cases are missing filepaths. We will not be able to correlate flaky tests with owners.",
+                    print_validation_level(JunitValidationLevel::SubOptimal)
+                );
             }
         }
         None => println!(
