@@ -120,15 +120,13 @@ pub struct BindingsVersionedBundle(pub VersionedBundle);
 #[gen_stub_pymethods]
 #[pymethods]
 impl BindingsVersionedBundle {
-    pub fn get_v0_5_29(&self) -> Option<BundleMetaV0_5_29> {
+    pub fn get_v0_5_29(&self) -> BundleMetaV0_5_29 {
         match &self.0 {
-            VersionedBundle::V0_6_2(bundle_meta) => Some(BundleMetaV0_5_29::from(
-                BundleMetaV0_5_34::from(bundle_meta.clone()),
-            )),
-            VersionedBundle::V0_5_34(bundle_meta) => {
-                Some(BundleMetaV0_5_29::from(bundle_meta.clone()))
+            VersionedBundle::V0_6_2(bundle_meta) => {
+                BundleMetaV0_5_29::from(BundleMetaV0_5_34::from(bundle_meta.clone()))
             }
-            VersionedBundle::V0_5_29(bundle_meta) => Some(bundle_meta.clone()),
+            VersionedBundle::V0_5_34(bundle_meta) => BundleMetaV0_5_29::from(bundle_meta.clone()),
+            VersionedBundle::V0_5_29(bundle_meta) => bundle_meta.clone(),
         }
     }
     pub fn get_v0_5_34(&self) -> Option<BundleMetaV0_5_34> {

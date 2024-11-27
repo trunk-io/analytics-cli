@@ -104,5 +104,4 @@ def test_parse_meta_from_tarball():
     assert versioned_bundle.get_v0_6_2() is None
 
     bundle_meta = versioned_bundle.get_v0_5_29()
-    assert bundle_meta is not None
     assert bundle_meta.base_props.bundle_upload_id == expected_meta["bundle_upload_id"]
