@@ -97,7 +97,7 @@ describe("context-js", () => {
     expect(junitReportValidation.num_suboptimal_issues()).toBe(1);
     expect(
       junitReportValidation
-        .all_issues_owned()
+        .all_issues_flat()
         .filter((issue) => issue.error_type === JunitValidationType.Report),
     ).toHaveLength(1);
   });
