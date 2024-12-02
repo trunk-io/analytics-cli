@@ -1,5 +1,7 @@
 use std::{
+    ffi::OsStr,
     fs::File,
+    io::BufRead,
     path::{Path, PathBuf},
 };
 
@@ -67,6 +69,28 @@ impl CodeOwners {
                 owners,
             }
         })
+    }
+
+    pub fn parse<R: BufRead>(&mut self, codeowners: R) -> Self
+    where
+        R: Read,
+    {
+        let owners_result = GitHubOwners::from_reader(&codeowners)
+            .map(Owners::GitHubOwners)
+            .or_else(|_| GitLabOwners::from_reader(&codeowners).map(Owners::GitLabOwners));
+
+        if let Err(ref err) = owners_result {
+            log::error!(
+                "Found CODEOWNERS file `{}` in bundle, but couldn't parse it",
+                err
+            );
+        }
+
+        let owners = Result::ok(owners_result);
+        Self {
+            path: PathBuf::from(OsStr::new("")),
+            owners,
+        }
     }
 }
 
