@@ -12,6 +12,17 @@ use std::{
     path::Path,
 };
 
+#[cfg(feature = "pyo3")]
+use pyo3::prelude::*;
+#[cfg(feature = "pyo3")]
+use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+#[cfg(feature = "wasm")]
+use tsify_next::Tsify;
+#[cfg(feature = "wasm")]
+use wasm_bindgen::prelude::*;
+
 use crate::{FromPath, FromReader, OwnersOfPath};
 
 pub use entry::*;
@@ -38,7 +49,9 @@ impl fmt::Display for GitLabOwner {
     }
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq, Eq)]
+#[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass(get_all))]
+#[cfg_attr(feature = "wasm", derive(Tsify))]
 pub struct GitLabOwners {
     file: File,
 }

@@ -1,4 +1,5 @@
 use std::{
+    ffi::OsStr,
     fs::File,
     path::{Path, PathBuf},
 };
@@ -8,6 +9,7 @@ use constants::CODEOWNERS_LOCATIONS;
 use pyo3::prelude::*;
 #[cfg(feature = "pyo3")]
 use pyo3_stub_gen::derive::gen_stub_pyclass;
+use pyo3_stub_gen::derive::gen_stub_pymethods;
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "wasm")]
 use tsify_next::Tsify;
@@ -83,10 +85,32 @@ impl CodeOwners {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub enum Owners {
     GitHubOwners(GitHubOwners),
     GitLabOwners(GitLabOwners),
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass)]
+pub struct BindingsOwners(pub Owners);
+
+#[cfg(feature = "pyo3")]
+#[gen_stub_pymethods]
+#[pymethods]
+impl BindingsOwners {
+    pub fn get_github_owners(&self) -> Option<GitHubOwners> {
+        match &self.0 {
+            Owners::GitHubOwners(owners) => Some(GitHubOwners::from(owners.clone())),
+            _ => None,
+        }
+    }
+    pub fn get_gitlab_owners(&self) -> Option<GitLabOwners> {
+        match &self.0 {
+            Owners::GitLabOwners(owners) => Some(GitLabOwners::from(owners.clone())),
+            _ => None,
+        }
+    }
 }
 
 const CODEOWNERS: &str = "CODEOWNERS";

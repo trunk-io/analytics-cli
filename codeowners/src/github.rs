@@ -9,6 +9,17 @@ use std::{
     str::FromStr,
 };
 
+#[cfg(feature = "pyo3")]
+use pyo3::prelude::*;
+#[cfg(feature = "pyo3")]
+use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+#[cfg(feature = "wasm")]
+use tsify_next::Tsify;
+#[cfg(feature = "wasm")]
+use wasm_bindgen::prelude::*;
+
 use crate::{FromPath, FromReader, OwnersOfPath};
 
 /// Various types of owners
@@ -24,7 +35,7 @@ use crate::{FromPath, FromReader, OwnersOfPath};
 ///   raw
 /// );
 /// ```
-#[derive(Debug, PartialEq, Clone, Eq)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone, Eq)]
 pub enum GitHubOwner {
     /// Owner in the form @username
     Username(String),
@@ -68,6 +79,8 @@ impl FromStr for GitHubOwner {
 
 /// Mappings of GitHub owners to path patterns
 #[derive(Debug, PartialEq, Clone, Eq)]
+#[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass(get_all))]
+#[cfg_attr(feature = "wasm", derive(Tsify))]
 pub struct GitHubOwners {
     paths: Vec<(Pattern, Vec<GitHubOwner>)>,
 }

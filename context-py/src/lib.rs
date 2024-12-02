@@ -1,7 +1,7 @@
 use std::{collections::HashMap, io::BufReader};
 
 use bundle::{parse_meta_from_tarball as parse_tarball, BindingsVersionedBundle};
-use codeowners::CodeOwners;
+use codeowners::{BindingsOwners, CodeOwners};
 use context::{env, junit, repo};
 use pyo3::{exceptions::PyTypeError, prelude::*};
 use pyo3_stub_gen::{define_stub_info_gatherer, derive::gen_stub_pyfunction};
