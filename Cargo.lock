@@ -854,12 +854,13 @@ dependencies = [
 ]
 
 [[package]]
-name = "context-ruby"
+name = "context_ruby"
 version = "0.1.0"
 dependencies = [
  "anyhow",
  "context",
  "magnus",
+ "rb-sys",
 ]
 
 [[package]]
