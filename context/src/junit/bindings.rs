@@ -702,7 +702,7 @@ impl From<JunitReportValidation> for BindingsJunitReportValidation {
 #[cfg_attr(feature = "pyo3", gen_stub_pymethods, pymethods)]
 #[cfg_attr(feature = "wasm", wasm_bindgen)]
 impl BindingsJunitReportValidation {
-    pub fn all_issues(&self) -> Vec<JunitReportValidationFlatIssue> {
+    pub fn all_issues_owned(&self) -> Vec<JunitReportValidationFlatIssue> {
         self.all_issues.clone()
     }
 

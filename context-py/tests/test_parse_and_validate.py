@@ -244,7 +244,7 @@ def test_junit_validate_suboptimal():
     assert junit_report_validation.num_suboptimal_issues() == 1
     report_level_issues = [
         x
-        for x in junit_report_validation.all_issues()
+        for x in junit_report_validation.all_issues
         if x.error_type == JunitValidationType.Report
     ]
     assert len(report_level_issues) == 1
