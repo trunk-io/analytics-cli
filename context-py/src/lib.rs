@@ -96,6 +96,22 @@ pub fn parse_meta_from_tarball(
     Ok(BindingsVersionedBundle(versioned_bundle))
 }
 
+#[gen_stub_pyfunction]
+#[pyfunction]
+fn codeowners_parse(codeowners: Vec<u8>) -> PyResult<Vec<junit::bindings::BindingsReport>> {
+    let mut codeowners_parser = codeowners::CodeOwners::new();
+    if let Err(e) = codeowners_parser.parse(BufReader::new(&codeowners[..])) {
+        return Err(PyTypeError::new_err(e.to_string()));
+    }
+
+    // turn this copy pasta into codeowners things
+    Ok(junit_parser
+        .into_reports()
+        .into_iter()
+        .map(junit::bindings::BindingsReport::from)
+        .collect())
+}
+
 #[pymodule]
 fn context_py(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<env::parser::CIPlatform>()?;
