@@ -98,6 +98,8 @@ fn validate_test_suite_name_too_short() {
         seed,
     );
 
+    assert_eq!(report_validation.valid_test_suites.len(), 0);
+
     pretty_assertions::assert_eq!(
         report_validation
             .test_suites()
@@ -152,6 +154,7 @@ fn validate_test_invalid_test_suite_id() {
             .insert(extra_attrs::ID.into(), id.to_string().into());
     }
     let report_validation = junit::validator::validate(&generated_report);
+    assert_eq!(report_validation.valid_test_suites.len(), 1);
     pretty_assertions::assert_eq!(
         report_validation
             .test_suites()

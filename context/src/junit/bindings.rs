@@ -702,6 +702,10 @@ impl From<JunitReportValidation> for BindingsJunitReportValidation {
 #[cfg_attr(feature = "pyo3", gen_stub_pymethods, pymethods)]
 #[cfg_attr(feature = "wasm", wasm_bindgen)]
 impl BindingsJunitReportValidation {
+    pub fn all_issues(&self) -> Vec<JunitReportValidationFlatIssue> {
+        self.all_issues.clone()
+    }
+
     pub fn max_level(&self) -> JunitValidationLevel {
         self.test_suites
             .iter()
