@@ -3,7 +3,7 @@ use chrono::{DateTime, FixedOffset, Utc};
 use pyo3::prelude::*;
 #[cfg(feature = "pyo3")]
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pyclass_enum, gen_stub_pymethods};
-use quick_junit::Report;
+use quick_junit::{Report, TestCase, TestSuite};
 use std::{cmp::Ordering, collections::HashSet};
 use thiserror::Error;
 #[cfg(feature = "wasm")]
@@ -94,6 +94,7 @@ pub fn validate(report: &Report) -> JunitReportValidation {
             }
         }
 
+        let mut valid_test_cases: Vec<TestCase> = Vec::new();
         for test_case in test_suite.test_cases.iter() {
             let mut test_case_validation = JunitTestCaseValidation::default();
 
@@ -197,7 +198,17 @@ pub fn validate(report: &Report) -> JunitReportValidation {
                 ));
             }
 
+            if test_case_validation.level != JunitValidationLevel::Invalid {
+                valid_test_cases.push(test_case.clone());
+            }
+
             test_suite_validation.test_cases.push(test_case_validation);
+        }
+
+        if test_suite_validation.level != JunitValidationLevel::Invalid {
+            let mut valid_test_suite = test_suite.clone();
+            valid_test_suite.test_cases = valid_test_cases;
+            report_validation.valid_test_suites.push(valid_test_suite);
         }
 
         report_validation.test_suites.push(test_suite_validation);
@@ -208,13 +219,12 @@ pub fn validate(report: &Report) -> JunitReportValidation {
     report_validation
 }
 
-#[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass(eq))]
-#[cfg_attr(feature = "wasm", wasm_bindgen)]
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default)]
 pub struct JunitReportValidation {
-    all_issues: Vec<JunitValidationIssueType>,
-    level: JunitValidationLevel,
-    test_suites: Vec<JunitTestSuiteValidation>,
+    pub all_issues: Vec<JunitValidationIssueType>,
+    pub level: JunitValidationLevel,
+    pub test_suites: Vec<JunitTestSuiteValidation>,
+    pub valid_test_suites: Vec<TestSuite>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -263,9 +273,11 @@ pub struct JunitReportValidationFlatIssue {
     pub error_message: String,
 }
 
-#[cfg_attr(feature = "pyo3", gen_stub_pymethods, pymethods)]
-#[cfg_attr(feature = "wasm", wasm_bindgen)]
 impl JunitReportValidation {
+    pub fn all_issues(&self) -> &[JunitValidationIssueType] {
+        &self.all_issues
+    }
+
     pub fn all_issues_flat(&self) -> Vec<JunitReportValidationFlatIssue> {
         self.all_issues
             .iter()
@@ -277,8 +289,15 @@ impl JunitReportValidation {
             .collect()
     }
 
-    pub fn test_suites_owned(&self) -> Vec<JunitTestSuiteValidation> {
-        self.test_suites.clone()
+    pub fn test_suites(&self) -> &[JunitTestSuiteValidation] {
+        &self.test_suites
+    }
+
+    pub fn test_cases(&self) -> Vec<&JunitTestCaseValidation> {
+        self.test_suites
+            .iter()
+            .flat_map(|test_suite| test_suite.test_cases())
+            .collect()
     }
 
     pub fn max_level(&self) -> JunitValidationLevel {
@@ -308,23 +327,6 @@ impl JunitReportValidation {
             .iter()
             .filter(|issue| JunitValidationLevel::from(*issue) == JunitValidationLevel::SubOptimal)
             .count()
-    }
-}
-
-impl JunitReportValidation {
-    pub fn all_issues(&self) -> &[JunitValidationIssueType] {
-        &self.all_issues
-    }
-
-    pub fn test_suites(&self) -> &[JunitTestSuiteValidation] {
-        &self.test_suites
-    }
-
-    pub fn test_cases(&self) -> Vec<&JunitTestCaseValidation> {
-        self.test_suites
-            .iter()
-            .flat_map(|test_suite| test_suite.test_cases())
-            .collect()
     }
 
     fn derive_all_issues(&mut self) {
@@ -381,6 +383,10 @@ impl JunitReportValidation {
             .map(|report_level_issue| JunitValidationLevel::from(report_level_issue))
             .max()
             .map_or(self.level, |l| l.max(self.level));
+
+        if self.level == JunitValidationLevel::Invalid {
+            self.valid_test_suites.clear();
+        }
 
         other_issues.extend(
             report_level_issues

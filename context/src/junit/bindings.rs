@@ -11,6 +11,11 @@ use quick_junit::{
 #[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::*;
 
+use super::validator::{
+    JunitReportValidation, JunitReportValidationFlatIssue, JunitTestSuiteValidation,
+    JunitValidationLevel, JunitValidationType,
+};
+
 const MICROSECONDS_PER_SECOND: i64 = 1_000_000;
 
 #[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass(get_all))]
@@ -653,5 +658,69 @@ impl Into<NonSuccessKind> for BindingsNonSuccessKind {
             BindingsNonSuccessKind::Failure => NonSuccessKind::Failure,
             BindingsNonSuccessKind::Error => NonSuccessKind::Error,
         }
+    }
+}
+
+#[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass(get_all))]
+#[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
+#[derive(Clone, Debug)]
+pub struct BindingsJunitReportValidation {
+    all_issues: Vec<JunitReportValidationFlatIssue>,
+    level: JunitValidationLevel,
+    test_suites: Vec<JunitTestSuiteValidation>,
+    valid_test_suites: Vec<BindingsTestSuite>,
+}
+
+impl From<JunitReportValidation> for BindingsJunitReportValidation {
+    fn from(
+        JunitReportValidation {
+            all_issues,
+            level,
+            test_suites,
+            valid_test_suites,
+        }: JunitReportValidation,
+    ) -> Self {
+        Self {
+            all_issues: all_issues
+                .into_iter()
+                .map(|i| JunitReportValidationFlatIssue {
+                    level: JunitValidationLevel::from(&i),
+                    error_type: JunitValidationType::from(&i),
+                    error_message: i.to_string(),
+                })
+                .collect(),
+            level,
+            test_suites,
+            valid_test_suites: valid_test_suites
+                .into_iter()
+                .map(BindingsTestSuite::from)
+                .collect(),
+        }
+    }
+}
+
+#[cfg_attr(feature = "pyo3", gen_stub_pymethods, pymethods)]
+#[cfg_attr(feature = "wasm", wasm_bindgen)]
+impl BindingsJunitReportValidation {
+    pub fn max_level(&self) -> JunitValidationLevel {
+        self.test_suites
+            .iter()
+            .map(|test_suite| test_suite.max_level())
+            .max()
+            .map_or(self.level, |l| l.max(self.level))
+    }
+
+    pub fn num_invalid_issues(&self) -> usize {
+        self.all_issues
+            .iter()
+            .filter(|issue| issue.level == JunitValidationLevel::Invalid)
+            .count()
+    }
+
+    pub fn num_suboptimal_issues(&self) -> usize {
+        self.all_issues
+            .iter()
+            .filter(|issue| issue.level == JunitValidationLevel::SubOptimal)
+            .count()
     }
 }
