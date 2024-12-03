@@ -176,7 +176,7 @@ pub async fn create_bundle_handler(
     let host = &state.host;
     Json(CreateBundleUploadResponse {
         id: String::from("test-bundle-upload-id"),
-        idV2: Some("test-bundle-upload-id-v2"),
+        idV2: Some("test-bundle-upload-id-v2").to_string(),
         url: format!("{host}/s3upload"),
         key: String::from("unused"),
     })
