@@ -1,6 +1,6 @@
 use std::{collections::HashMap, time::Duration};
 
-use chrono::DateTime;
+use chrono::{DateTime, TimeDelta};
 #[cfg(feature = "pyo3")]
 use pyo3::prelude::*;
 #[cfg(feature = "pyo3")]
@@ -15,9 +15,6 @@ use super::validator::{
     JunitReportValidation, JunitReportValidationFlatIssue, JunitTestSuiteValidation,
     JunitValidationLevel, JunitValidationType,
 };
-
-const MICROSECONDS_PER_SECOND: i64 = 1_000_000;
-const NANOSECONDS_PER_MICROSECOND: i64 = 1_000;
 
 #[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass(get_all))]
 #[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
@@ -84,10 +81,10 @@ impl Into<Report> for BindingsReport {
             uuid: None,
             timestamp: timestamp_micros
                 .and_then(|micro_secs| {
+                    let micros_delta = TimeDelta::microseconds(micro_secs);
                     DateTime::from_timestamp(
-                        micro_secs / MICROSECONDS_PER_SECOND,
-                        ((micro_secs % MICROSECONDS_PER_SECOND) * NANOSECONDS_PER_MICROSECOND)
-                            as u32,
+                        micros_delta.num_seconds(),
+                        micros_delta.num_nanoseconds().unwrap_or_default() as u32,
                     )
                 })
                 .map(|dt| dt.fixed_offset()),
@@ -215,9 +212,10 @@ impl Into<TestSuite> for BindingsTestSuite {
         test_suite.failures = failures;
         test_suite.timestamp = timestamp_micros
             .and_then(|micro_secs| {
+                let micros_delta = TimeDelta::microseconds(micro_secs);
                 DateTime::from_timestamp(
-                    micro_secs / MICROSECONDS_PER_SECOND,
-                    ((micro_secs % MICROSECONDS_PER_SECOND) * NANOSECONDS_PER_MICROSECOND) as u32,
+                    micros_delta.num_seconds(),
+                    micros_delta.num_nanoseconds().unwrap_or_default() as u32,
                 )
             })
             .map(|dt| dt.fixed_offset());
@@ -372,9 +370,10 @@ impl TryInto<TestCase> for BindingsTestCase {
         test_case.assertions = assertions;
         test_case.timestamp = timestamp_micros
             .and_then(|micro_secs| {
+                let micros_delta = TimeDelta::microseconds(micro_secs);
                 DateTime::from_timestamp(
-                    micro_secs / MICROSECONDS_PER_SECOND,
-                    ((micro_secs % MICROSECONDS_PER_SECOND) * NANOSECONDS_PER_MICROSECOND) as u32,
+                    micros_delta.num_seconds(),
+                    micros_delta.num_nanoseconds().unwrap_or_default() as u32,
                 )
             })
             .map(|dt| dt.fixed_offset());
@@ -620,10 +619,10 @@ impl Into<TestRerun> for BindingsTestRerun {
             kind: kind.into(),
             timestamp: timestamp_micros
                 .and_then(|micro_secs| {
+                    let micros_delta = TimeDelta::microseconds(micro_secs);
                     DateTime::from_timestamp(
-                        micro_secs / MICROSECONDS_PER_SECOND,
-                        ((micro_secs % MICROSECONDS_PER_SECOND) * NANOSECONDS_PER_MICROSECOND)
-                            as u32,
+                        micros_delta.num_seconds(),
+                        micros_delta.num_nanoseconds().unwrap_or_default() as u32,
                     )
                 })
                 .map(|dt| dt.fixed_offset()),
