@@ -326,7 +326,7 @@ impl<'a> CIInfoParser<'a> {
 #[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
 #[cfg_attr(
     feature = "ruby",
-    magnus::wrap(class = "Env::CIInfo", free_immediately, size)
+    magnus::wrap(class = "CIInfo", free_immediately, size)
 )]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CIInfo {

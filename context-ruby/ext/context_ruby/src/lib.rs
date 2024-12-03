@@ -65,21 +65,20 @@ pub fn repo_validate(bundle_repo: repo::BundleRepo) -> repo::validator::RepoVali
     repo::validator::validate(&bundle_repo)
 }
 
-pub fn help() {
-    println!("Hello, world!");
-}
-
 #[magnus::init]
 fn init(ruby: &magnus::Ruby) -> Result<(), magnus::Error> {
+    ruby.define_class("CIInfo", ruby.class_object())?;
     let bundle_repo = ruby.define_class("BundleRepo", ruby.class_object())?;
-    bundle_repo.define_singleton_method("new", magnus::function!(repo::BundleRepo::ruby_new, 5))?;
+    bundle_repo.define_singleton_method(
+        "initialize",
+        magnus::function!(repo::BundleRepo::ruby_new, 5),
+    )?;
     ruby.define_class("RepoUrlParts", ruby.class_object())?;
     ruby.define_global_function("env_parse", magnus::function!(env_parse, 1));
     let repo_validation_flat_issue =
         ruby.define_class("RepoValidationFlatIssue", ruby.class_object())?;
     repo_validation_flat_issue.define_attr("level", Attr::ReadWrite)?;
     repo_validation_flat_issue.define_attr("error_message", Attr::ReadWrite)?;
-    ruby.define_global_function("help", magnus::function!(help, 0));
     let repo_validation = ruby.define_class("RepoValidation", ruby.class_object())?;
     repo_validation.define_method(
         "level",

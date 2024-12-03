@@ -24,7 +24,7 @@ const TIMESTAMP_STALE_HOURS: u32 = 1;
 #[cfg_attr(feature = "wasm", wasm_bindgen)]
 #[cfg_attr(
     feature = "ruby",
-    magnus::wrap(class = "Context::RepoValidationLevel", free_immediately, size)
+    magnus::wrap(class = "RepoValidationLevel", free_immediately, size)
 )]
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum RepoValidationLevel {
@@ -200,7 +200,7 @@ pub fn validate(bundle_repo: &BundleRepo) -> RepoValidation {
 #[cfg_attr(feature = "wasm", wasm_bindgen)]
 #[cfg_attr(
     feature = "ruby",
-    magnus::wrap(class = "Context::RepoValidation", free_immediately, size)
+    magnus::wrap(class = "RepoValidation", free_immediately, size)
 )]
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct RepoValidation {
@@ -212,7 +212,7 @@ pub struct RepoValidation {
 #[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
 #[cfg_attr(
     feature = "ruby",
-    magnus::wrap(class = "Context::RepoValidationFlatIssue", free_immediately, size)
+    magnus::wrap(class = "RepoValidationFlatIssue", free_immediately, size)
 )]
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct RepoValidationFlatIssue {

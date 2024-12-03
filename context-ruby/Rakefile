@@ -6,7 +6,7 @@ require "rake/extensiontask"
 task default: :test
 
 Rake::ExtensionTask.new("context_ruby") do |c|
-  c.lib_dir = "lib"
+  c.lib_dir = "lib/context_ruby"
 end
 
 task :dev do

@@ -34,7 +34,7 @@ struct BundleRepoOptions {
 #[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
 #[cfg_attr(
     feature = "ruby",
-    magnus::wrap(class = "Context::BundleRepo", free_immediately, size)
+    magnus::wrap(class = "BundleRepo", free_immediately, size)
 )]
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct BundleRepo {
@@ -338,7 +338,7 @@ impl BundleRepo {
 // NOTE: This is named `RepoUrlParts` to prevent confusion as to its purpose
 #[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass(get_all))]
 #[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
-#[magnus::wrap(class = "Context::RepoUrlParts", free_immediately, size)]
+#[magnus::wrap(class = "RepoUrlParts", free_immediately, size)]
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct RepoUrlParts {
     pub host: String,
