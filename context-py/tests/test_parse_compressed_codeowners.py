@@ -4,4 +4,4 @@ def test_parse_meta_from_tarball():
     codeowners_text = """* @trunk/test"""
     codeowners = codeowners_parse(str.encode(codeowners_text))
 
-    assert codeowners != None
+    assert codeowners is not None
