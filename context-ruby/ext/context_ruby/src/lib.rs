@@ -1,6 +1,6 @@
-use context::{env, junit, repo};
+use context::{env, repo};
 use magnus::{Attr, Module, Object};
-use std::{collections::HashMap, io::BufReader};
+use std::collections::HashMap;
 
 pub fn env_parse(env_vars: magnus::RHash) -> Result<Option<env::parser::CIInfo>, magnus::Error> {
     let env_vars: HashMap<String, String> = env_vars.to_hash_map().unwrap_or_default();
@@ -23,43 +23,11 @@ pub fn env_parse(env_vars: magnus::RHash) -> Result<Option<env::parser::CIInfo>,
         .into_ci_info_parser()
         .map(|ci_info_parser| ci_info_parser.info_ci_info());
 
-    println!("{:?}", ci_info_class);
     Ok(ci_info_class)
 }
 
 pub fn env_validate(ci_info: &env::parser::CIInfo) -> env::validator::EnvValidation {
     env::validator::validate(ci_info)
-}
-
-pub fn junit_parse(
-    ruby: magnus::Ruby,
-    xml: Vec<u8>,
-) -> Result<Vec<junit::bindings::BindingsReport>, magnus::Error> {
-    let mut junit_parser = junit::parser::JunitParser::new();
-    if junit_parser.parse(BufReader::new(&xml[..])).is_err() {
-        let error_message = junit_parser
-            .errors()
-            .into_iter()
-            .map(|e| e.to_string())
-            .collect::<Vec<String>>()
-            .join("\n");
-        return Err(magnus::Error::new(
-            ruby.exception_type_error(),
-            error_message,
-        ));
-    }
-
-    Ok(junit_parser
-        .into_reports()
-        .into_iter()
-        .map(junit::bindings::BindingsReport::from)
-        .collect())
-}
-
-pub fn junit_validate(
-    report: &junit::bindings::BindingsReport,
-) -> junit::validator::JunitReportValidation {
-    junit::validator::validate(&report.clone().into())
 }
 
 pub fn repo_validate(bundle_repo: repo::BundleRepo) -> repo::validator::RepoValidation {
@@ -68,14 +36,58 @@ pub fn repo_validate(bundle_repo: repo::BundleRepo) -> repo::validator::RepoVali
 
 #[magnus::init]
 fn init(ruby: &magnus::Ruby) -> Result<(), magnus::Error> {
-    let ci_info = ruby.define_class("CIInfo", ruby.class_object())?;
-    ci_info.define_attr("job_url", Attr::ReadWrite)?;
-    ci_info.define_attr("actor", Attr::ReadWrite)?;
-    let bundle_repo = ruby.define_class("BundleRepo", ruby.class_object())?;
-    bundle_repo.define_singleton_method(
-        "initialize",
-        magnus::function!(repo::BundleRepo::ruby_new, 5),
+    let ci_platform = ruby.define_class("CIPlatform", ruby.class_object())?;
+    ci_platform
+        .define_singleton_method("new", magnus::function!(env::parser::CIPlatform::new, 1))?;
+    ci_platform.define_method(
+        "to_s",
+        magnus::method!(env::parser::CIPlatform::to_string, 0),
     )?;
+    let ci_info = ruby.define_class("CIInfo", ruby.class_object())?;
+    ci_info.define_singleton_method("new", magnus::function!(env::parser::CIInfo::new, 1))?;
+    ci_info.define_method(
+        "platform",
+        magnus::method!(env::parser::CIInfo::platform, 0),
+    )?;
+    ci_info.define_method("job_url", magnus::method!(env::parser::CIInfo::job_url, 0))?;
+    ci_info.define_method("branch", magnus::method!(env::parser::CIInfo::branch, 0))?;
+    ci_info.define_method(
+        "branch_class",
+        magnus::method!(env::parser::CIInfo::branch_class, 0),
+    )?;
+    ci_info.define_method(
+        "pr_number",
+        magnus::method!(env::parser::CIInfo::pr_number, 0),
+    )?;
+    ci_info.define_method("actor", magnus::method!(env::parser::CIInfo::actor, 0))?;
+    ci_info.define_method(
+        "committer_name",
+        magnus::method!(env::parser::CIInfo::committer_name, 0),
+    )?;
+    ci_info.define_method(
+        "committer_email",
+        magnus::method!(env::parser::CIInfo::committer_email, 0),
+    )?;
+    ci_info.define_method(
+        "author_name",
+        magnus::method!(env::parser::CIInfo::author_name, 0),
+    )?;
+    ci_info.define_method(
+        "author_email",
+        magnus::method!(env::parser::CIInfo::author_email, 0),
+    )?;
+    ci_info.define_method(
+        "commit_message",
+        magnus::method!(env::parser::CIInfo::commit_message, 0),
+    )?;
+    ci_info.define_method("title", magnus::method!(env::parser::CIInfo::title, 0))?;
+    ci_info.define_method(
+        "workflow",
+        magnus::method!(env::parser::CIInfo::workflow, 0),
+    )?;
+    ci_info.define_method("job", magnus::method!(env::parser::CIInfo::job, 0))?;
+    let bundle_repo = ruby.define_class("BundleRepo", ruby.class_object())?;
+    bundle_repo.define_singleton_method("new", magnus::function!(repo::BundleRepo::ruby_new, 5))?;
     ruby.define_class("RepoUrlParts", ruby.class_object())?;
     ruby.define_global_function("env_parse", magnus::function!(env_parse, 1));
     let repo_validation_flat_issue =

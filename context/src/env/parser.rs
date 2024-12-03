@@ -1,3 +1,5 @@
+#[cfg(feature = "ruby")]
+use magnus::value::ReprValue;
 #[cfg(feature = "pyo3")]
 use pyo3::prelude::*;
 #[cfg(feature = "pyo3")]
@@ -48,6 +50,7 @@ mod ci_platform_env_key {
 
 #[cfg_attr(feature = "pyo3", gen_stub_pyclass_enum, pyclass(eq, eq_int))]
 #[cfg_attr(feature = "wasm", wasm_bindgen)]
+#[cfg_attr(feature = "ruby", magnus::wrap(class = "CIPlatform"))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CIPlatform {
     GitHubActions,
@@ -62,6 +65,66 @@ pub enum CIPlatform {
     AzurePipelines,
     GitLabCI,
     Drone,
+}
+
+impl CIPlatform {
+    pub fn new(platform: i32) -> Self {
+        match platform {
+            0 => CIPlatform::GitHubActions,
+            1 => CIPlatform::JenkinsPipeline,
+            2 => CIPlatform::CircleCI,
+            3 => CIPlatform::Buildkite,
+            4 => CIPlatform::Semaphore,
+            5 => CIPlatform::TravisCI,
+            6 => CIPlatform::Webappio,
+            7 => CIPlatform::AWSCodeBuild,
+            8 => CIPlatform::BitbucketPipelines,
+            9 => CIPlatform::AzurePipelines,
+            10 => CIPlatform::GitLabCI,
+            11 => CIPlatform::Drone,
+            // TODO
+            _ => CIPlatform::GitHubActions,
+        }
+    }
+    pub fn to_string(&self) -> &str {
+        match self {
+            CIPlatform::GitHubActions => ci_platform_env_key::GITHUB_ACTIONS,
+            CIPlatform::JenkinsPipeline => ci_platform_env_key::JENKINS_PIPELINE,
+            CIPlatform::CircleCI => ci_platform_env_key::CIRCLECI,
+            CIPlatform::Buildkite => ci_platform_env_key::BUILDKITE,
+            CIPlatform::Semaphore => ci_platform_env_key::SEMAPHORE,
+            CIPlatform::TravisCI => ci_platform_env_key::TRAVIS_CI,
+            CIPlatform::Webappio => ci_platform_env_key::WEBAPPIO,
+            CIPlatform::AWSCodeBuild => ci_platform_env_key::AWS_CODEBUILD,
+            CIPlatform::BitbucketPipelines => ci_platform_env_key::BITBUCKET,
+            CIPlatform::AzurePipelines => ci_platform_env_key::AZURE_PIPELINES,
+            CIPlatform::GitLabCI => ci_platform_env_key::GITLAB_CI,
+            CIPlatform::Drone => ci_platform_env_key::DRONE,
+        }
+    }
+}
+
+#[cfg(feature = "ruby")]
+impl magnus::TryConvert for CIPlatform {
+    fn try_convert(val: magnus::Value) -> Result<Self, magnus::Error> {
+        let val: i32 = val.funcall("to_i", ())?;
+        match val {
+            0 => Ok(CIPlatform::GitHubActions),
+            1 => Ok(CIPlatform::JenkinsPipeline),
+            2 => Ok(CIPlatform::CircleCI),
+            3 => Ok(CIPlatform::Buildkite),
+            4 => Ok(CIPlatform::Semaphore),
+            5 => Ok(CIPlatform::TravisCI),
+            6 => Ok(CIPlatform::Webappio),
+            7 => Ok(CIPlatform::AWSCodeBuild),
+            8 => Ok(CIPlatform::BitbucketPipelines),
+            9 => Ok(CIPlatform::AzurePipelines),
+            10 => Ok(CIPlatform::GitLabCI),
+            11 => Ok(CIPlatform::Drone),
+            // TODO
+            _ => Ok(CIPlatform::GitHubActions),
+        }
+    }
 }
 
 impl TryFrom<&str> for CIPlatform {
@@ -348,6 +411,7 @@ pub struct CIInfo {
 
 #[cfg_attr(feature = "pyo3", gen_stub_pyclass_enum, pyclass(eq, eq_int))]
 #[cfg_attr(feature = "wasm", wasm_bindgen)]
+#[cfg_attr(feature = "ruby", magnus::wrap(class = "BranchClass"))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BranchClass {
     PullRequest,
@@ -393,6 +457,48 @@ impl CIInfo {
             workflow: None,
             job: None,
         }
+    }
+    pub fn platform(&self) -> CIPlatform {
+        self.platform
+    }
+    pub fn job_url(&self) -> Option<&str> {
+        self.job_url.as_deref()
+    }
+    pub fn branch(&self) -> Option<&str> {
+        self.branch.as_deref()
+    }
+    pub fn branch_class(&self) -> Option<BranchClass> {
+        self.branch_class
+    }
+    pub fn pr_number(&self) -> Option<usize> {
+        self.pr_number
+    }
+    pub fn actor(&self) -> Option<&str> {
+        self.actor.as_deref()
+    }
+    pub fn committer_name(&self) -> Option<&str> {
+        self.committer_name.as_deref()
+    }
+    pub fn committer_email(&self) -> Option<&str> {
+        self.committer_email.as_deref()
+    }
+    pub fn author_name(&self) -> Option<&str> {
+        self.author_name.as_deref()
+    }
+    pub fn author_email(&self) -> Option<&str> {
+        self.author_email.as_deref()
+    }
+    pub fn commit_message(&self) -> Option<&str> {
+        self.commit_message.as_deref()
+    }
+    pub fn title(&self) -> Option<&str> {
+        self.title.as_deref()
+    }
+    pub fn workflow(&self) -> Option<&str> {
+        self.workflow.as_deref()
+    }
+    pub fn job(&self) -> Option<&str> {
+        self.job.as_deref()
     }
 }
 
