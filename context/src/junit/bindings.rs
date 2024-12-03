@@ -17,6 +17,7 @@ use super::validator::{
 };
 
 const MICROSECONDS_PER_SECOND: i64 = 1_000_000;
+const NANOSECONDS_PER_MICROSECOND: i64 = 1_000;
 
 #[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass(get_all))]
 #[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
@@ -85,7 +86,8 @@ impl Into<Report> for BindingsReport {
                 .and_then(|micro_secs| {
                     DateTime::from_timestamp(
                         micro_secs / MICROSECONDS_PER_SECOND,
-                        (micro_secs % MICROSECONDS_PER_SECOND) as u32,
+                        ((micro_secs % MICROSECONDS_PER_SECOND) * NANOSECONDS_PER_MICROSECOND)
+                            as u32,
                     )
                 })
                 .map(|dt| dt.fixed_offset()),
@@ -215,7 +217,7 @@ impl Into<TestSuite> for BindingsTestSuite {
             .and_then(|micro_secs| {
                 DateTime::from_timestamp(
                     micro_secs / MICROSECONDS_PER_SECOND,
-                    (micro_secs % MICROSECONDS_PER_SECOND) as u32,
+                    ((micro_secs % MICROSECONDS_PER_SECOND) * NANOSECONDS_PER_MICROSECOND) as u32,
                 )
             })
             .map(|dt| dt.fixed_offset());
@@ -372,7 +374,7 @@ impl TryInto<TestCase> for BindingsTestCase {
             .and_then(|micro_secs| {
                 DateTime::from_timestamp(
                     micro_secs / MICROSECONDS_PER_SECOND,
-                    (micro_secs % MICROSECONDS_PER_SECOND) as u32,
+                    ((micro_secs % MICROSECONDS_PER_SECOND) * NANOSECONDS_PER_MICROSECOND) as u32,
                 )
             })
             .map(|dt| dt.fixed_offset());
@@ -620,7 +622,8 @@ impl Into<TestRerun> for BindingsTestRerun {
                 .and_then(|micro_secs| {
                     DateTime::from_timestamp(
                         micro_secs / MICROSECONDS_PER_SECOND,
-                        (micro_secs % MICROSECONDS_PER_SECOND) as u32,
+                        ((micro_secs % MICROSECONDS_PER_SECOND) * NANOSECONDS_PER_MICROSECOND)
+                            as u32,
                     )
                 })
                 .map(|dt| dt.fixed_offset()),
