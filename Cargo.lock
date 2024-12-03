@@ -812,6 +812,7 @@ name = "context-py"
 version = "0.1.0"
 dependencies = [
  "bundle",
+ "codeowners",
  "context",
  "futures-io",
  "pyo3",

@@ -1,6 +1,7 @@
 use std::{collections::HashMap, io::BufReader};
 
 use bundle::{parse_meta_from_tarball as parse_tarball, BindingsVersionedBundle};
+use codeowners::CodeOwners;
 use context::{env, junit, repo};
 use pyo3::{exceptions::PyTypeError, prelude::*};
 use pyo3_stub_gen::{define_stub_info_gatherer, derive::gen_stub_pyfunction};
@@ -98,18 +99,10 @@ pub fn parse_meta_from_tarball(
 
 #[gen_stub_pyfunction]
 #[pyfunction]
-fn codeowners_parse(codeowners: Vec<u8>) -> PyResult<Vec<junit::bindings::BindingsReport>> {
-    let mut codeowners_parser = codeowners::CodeOwners::new();
-    if let Err(e) = codeowners_parser.parse(BufReader::new(&codeowners[..])) {
-        return Err(PyTypeError::new_err(e.to_string()));
-    }
+fn codeowners_parse(codeowners_bytes: Vec<u8>) -> PyResult<CodeOwners> {
+    let codeowners = CodeOwners::parse(codeowners_bytes);
 
-    // turn this copy pasta into codeowners things
-    Ok(junit_parser
-        .into_reports()
-        .into_iter()
-        .map(junit::bindings::BindingsReport::from)
-        .collect())
+    Ok(codeowners)
 }
 
 #[pymodule]
@@ -134,6 +127,9 @@ fn context_py(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<repo::RepoUrlParts>()?;
     m.add_class::<repo::validator::RepoValidationLevel>()?;
     m.add_function(wrap_pyfunction!(repo_validate, m)?)?;
+
+    m.add_class::<codeowners::CodeOwners>()?;
+    m.add_function(wrap_pyfunction!(codeowners_parse, m)?)?;
 
     m.add_function(wrap_pyfunction!(parse_meta_from_tarball, m)?)?;
     Ok(())

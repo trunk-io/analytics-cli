@@ -1,7 +1,6 @@
 use std::{
     ffi::OsStr,
     fs::File,
-    io::BufRead,
     path::{Path, PathBuf},
 };
 
@@ -71,13 +70,12 @@ impl CodeOwners {
         })
     }
 
-    pub fn parse<R: BufRead>(&mut self, codeowners: R) -> Self
-    where
-        R: Read,
-    {
-        let owners_result = GitHubOwners::from_reader(&codeowners)
+    pub fn parse(codeowners: Vec<u8>) -> Self {
+        let owners_result = GitHubOwners::from_reader(codeowners.as_slice())
             .map(Owners::GitHubOwners)
-            .or_else(|_| GitLabOwners::from_reader(&codeowners).map(Owners::GitLabOwners));
+            .or_else(|_| {
+                GitLabOwners::from_reader(codeowners.as_slice()).map(Owners::GitLabOwners)
+            });
 
         if let Err(ref err) = owners_result {
             log::error!(
