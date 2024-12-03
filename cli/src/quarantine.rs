@@ -1,16 +1,10 @@
 use clap::Args;
-#[cfg(target_os = "macos")]
-use std::io::Write;
 use std::time::SystemTime;
-#[cfg(target_os = "macos")]
-use xcresult::XCResult;
 
 use bundle::{QuarantineBulkTestStatus, QuarantineRunResult};
 use codeowners::CodeOwners;
 use constants::{EXIT_FAILURE, EXIT_SUCCESS};
 use context::repo::BundleRepo;
-#[cfg(target_os = "macos")]
-use context::repo::RepoUrlParts;
 
 use crate::{
     api_client::ApiClient,
@@ -68,7 +62,7 @@ pub async fn run_quarantine(
 ) -> anyhow::Result<i32> {
     let QuarantineArgs {
         #[cfg(target_os = "macos")]
-        mut junit_paths,
+        junit_paths,
         #[cfg(target_os = "linux")]
         junit_paths,
         org_url_slug,
