@@ -84,7 +84,7 @@ impl Into<Report> for BindingsReport {
                     let micros_delta = TimeDelta::microseconds(micro_secs);
                     DateTime::from_timestamp(
                         micros_delta.num_seconds(),
-                        micros_delta.num_nanoseconds().unwrap_or_default() as u32,
+                        micros_delta.subsec_nanos() as u32,
                     )
                 })
                 .map(|dt| dt.fixed_offset()),
@@ -215,7 +215,7 @@ impl Into<TestSuite> for BindingsTestSuite {
                 let micros_delta = TimeDelta::microseconds(micro_secs);
                 DateTime::from_timestamp(
                     micros_delta.num_seconds(),
-                    micros_delta.num_nanoseconds().unwrap_or_default() as u32,
+                    micros_delta.subsec_nanos() as u32,
                 )
             })
             .map(|dt| dt.fixed_offset());
@@ -373,7 +373,7 @@ impl TryInto<TestCase> for BindingsTestCase {
                 let micros_delta = TimeDelta::microseconds(micro_secs);
                 DateTime::from_timestamp(
                     micros_delta.num_seconds(),
-                    micros_delta.num_nanoseconds().unwrap_or_default() as u32,
+                    micros_delta.subsec_nanos() as u32,
                 )
             })
             .map(|dt| dt.fixed_offset());
@@ -622,7 +622,7 @@ impl Into<TestRerun> for BindingsTestRerun {
                     let micros_delta = TimeDelta::microseconds(micro_secs);
                     DateTime::from_timestamp(
                         micros_delta.num_seconds(),
-                        micros_delta.num_nanoseconds().unwrap_or_default() as u32,
+                        micros_delta.subsec_nanos() as u32,
                     )
                 })
                 .map(|dt| dt.fixed_offset()),
