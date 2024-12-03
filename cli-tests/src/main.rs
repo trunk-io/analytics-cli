@@ -1,4 +1,6 @@
 #[cfg(test)]
+mod quarantine;
+#[cfg(test)]
 mod upload;
 #[cfg(test)]
 mod utils;

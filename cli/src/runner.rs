@@ -164,7 +164,7 @@ pub async fn extract_failed_tests(
     failures
 }
 
-pub async fn run_quarantine(
+pub async fn run_quarantine_upload(
     api_client: &ApiClient,
     request: &api::GetQuarantineBulkTestStatusRequest,
     failures: Vec<Test>,

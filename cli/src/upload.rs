@@ -12,7 +12,7 @@ use xcresult::XCResult;
 use api::BundleUploadStatus;
 use bundle::{
     parse_custom_tags, BundleMeta, BundleMetaBaseProps, BundleMetaDebugProps, BundleMetaJunitProps,
-    BundlerUtil, FileSet, QuarantineBulkTestStatus, QuarantineRunResult, META_VERSION,
+    BundlerUtil, FileSet, META_VERSION,
 };
 use codeowners::CodeOwners;
 use constants::{EXIT_FAILURE, EXIT_SUCCESS};
@@ -22,7 +22,7 @@ use context::{junit::parser::JunitParser, repo::BundleRepo};
 
 use crate::{
     api_client::ApiClient,
-    runner::{build_filesets, extract_failed_tests, run_quarantine},
+    runner::{build_filesets, extract_failed_tests},
     scanner::EnvScanner,
 };
 
@@ -74,12 +74,6 @@ pub struct UploadArgs {
     pub codeowners_path: Option<String>,
     #[arg(
         long,
-        help = "Run commands with the quarantining step.",
-        default_value = "true"
-    )]
-    pub use_quarantining: bool,
-    #[arg(
-        long,
         alias = "allow-missing-junit-files",
         help = "Do not fail if test results are not found.",
         default_value = "true"
@@ -90,7 +84,6 @@ pub struct UploadArgs {
 pub async fn run_upload(
     upload_args: UploadArgs,
     test_command: Option<String>,
-    quarantine_results: Option<QuarantineRunResult>,
     codeowners: Option<CodeOwners>,
     exec_start: Option<SystemTime>,
 ) -> anyhow::Result<i32> {
@@ -111,7 +104,6 @@ pub async fn run_upload(
         tags,
         print_files,
         dry_run,
-        use_quarantining,
         allow_empty_test_results,
         team,
         codeowners_path,
@@ -171,35 +163,6 @@ pub async fn run_upload(
     } else {
         EXIT_FAILURE
     };
-    let quarantine_run_results = if use_quarantining && quarantine_results.is_none() {
-        Some(
-            run_quarantine(
-                &api_client,
-                &api::GetQuarantineBulkTestStatusRequest {
-                    repo: repo.repo.clone(),
-                    org_url_slug: org_url_slug.clone(),
-                },
-                failures,
-                exit_code,
-            )
-            .await,
-        )
-    } else {
-        quarantine_results
-    };
-
-    let (exit_code, resolved_quarantine_results) = if let Some(r) = quarantine_run_results.as_ref()
-    {
-        (r.exit_code, r.quarantine_status.clone())
-    } else {
-        (
-            EXIT_SUCCESS,
-            QuarantineBulkTestStatus {
-                group_is_quarantined: false,
-                quarantine_results: Vec::new(),
-            },
-        )
-    };
 
     let num_files = file_sets.iter().fold(0, |mut num_files, file_set| {
         num_files += file_set.files.len();
@@ -245,7 +208,6 @@ pub async fn run_upload(
             envs,
             upload_time_epoch: SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs(),
             test_command,
-            quarantined_tests: resolved_quarantine_results.quarantine_results.to_vec(),
             os_info: Some(os_info),
             codeowners,
         },

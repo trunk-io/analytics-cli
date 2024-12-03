@@ -16,7 +16,7 @@ use tsify_next::Tsify;
 #[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::*;
 
-use crate::{files::FileSet, CustomTag, Test};
+use crate::{files::FileSet, CustomTag};
 
 pub const META_VERSION: &str = "1";
 // 0.5.29 was first version to include bundle_upload_id and serves as the base
@@ -35,7 +35,6 @@ pub struct BundleMetaBaseProps {
     pub upload_time_epoch: u64,
     pub test_command: Option<String>,
     pub os_info: Option<String>,
-    pub quarantined_tests: Vec<Test>,
     pub codeowners: Option<CodeOwners>,
 }
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
