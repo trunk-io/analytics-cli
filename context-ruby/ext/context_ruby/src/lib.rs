@@ -23,6 +23,7 @@ pub fn env_parse(env_vars: magnus::RHash) -> Result<Option<env::parser::CIInfo>,
         .into_ci_info_parser()
         .map(|ci_info_parser| ci_info_parser.info_ci_info());
 
+    println!("{:?}", ci_info_class);
     Ok(ci_info_class)
 }
 
@@ -67,7 +68,9 @@ pub fn repo_validate(bundle_repo: repo::BundleRepo) -> repo::validator::RepoVali
 
 #[magnus::init]
 fn init(ruby: &magnus::Ruby) -> Result<(), magnus::Error> {
-    ruby.define_class("CIInfo", ruby.class_object())?;
+    let ci_info = ruby.define_class("CIInfo", ruby.class_object())?;
+    ci_info.define_attr("job_url", Attr::ReadWrite)?;
+    ci_info.define_attr("actor", Attr::ReadWrite)?;
     let bundle_repo = ruby.define_class("BundleRepo", ruby.class_object())?;
     bundle_repo.define_singleton_method(
         "initialize",

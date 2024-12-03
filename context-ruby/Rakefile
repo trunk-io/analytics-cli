@@ -2,8 +2,7 @@
 
 require "rake/testtask"
 require "rake/extensiontask"
-
-task default: :test
+require 'rspec/core/rake_task'
 
 Rake::ExtensionTask.new("context_ruby") do |c|
   c.lib_dir = "lib/context_ruby"
@@ -13,7 +12,7 @@ task :dev do
   ENV['RB_SYS_CARGO_PROFILE'] = 'dev'
 end
 
-Rake::TestTask.new do |t|
-  t.deps << :dev << :compile
-  t.test_files = FileList[File.expand_path("test/*_test.rb", __dir__)]
+RSpec::Core::RakeTask.new(:test) do |t|
+  Rake::Task['compile'].invoke
+  t.pattern = 'test/*_spec.rb'
 end
