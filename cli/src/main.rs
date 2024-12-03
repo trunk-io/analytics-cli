@@ -5,10 +5,10 @@ use bundle::RunResult;
 use clap::{Args, Parser, Subcommand};
 use codeowners::CodeOwners;
 use constants::{EXIT_FAILURE, SENTRY_DSN};
-use context::repo::BundleRepo;
+use context::{bazel_bep::parser::BazelBepParser, repo::BundleRepo};
 use trunk_analytics_cli::{
     api_client::ApiClient,
-    runner::{run_quarantine, run_test_command},
+    runner::{run_quarantine, run_test_command, JunitSpec},
     upload::{run_upload, UploadArgs},
     validate::validate,
 };
@@ -42,12 +42,19 @@ struct TestArgs {
 struct ValidateArgs {
     #[arg(
         long,
-        required = true,
+        required_unless_present = "bazel_bep_path",
+        conflicts_with = "bazel_bep_path",
         value_delimiter = ',',
         value_parser = clap::builder::NonEmptyStringValueParser::new(),
         help = "Comma-separated list of glob paths to junit files."
     )]
     junit_paths: Vec<String>,
+    #[arg(
+        long,
+        required_unless_present = "junit_paths",
+        help = "Path to bazel build event protocol JSON file."
+    )]
+    bazel_bep_path: Option<String>,
     #[arg(long, help = "Show warning-level log messages in output.")]
     show_warnings: bool,
     #[arg(long, help = "Value to override CODEOWNERS file or directory path.")]
@@ -106,6 +113,7 @@ async fn run_test(test_args: TestArgs) -> anyhow::Result<i32> {
     } = test_args;
     let UploadArgs {
         junit_paths,
+        bazel_bep_path,
         org_url_slug,
         token,
         repo_root,
@@ -127,13 +135,18 @@ async fn run_test(test_args: TestArgs) -> anyhow::Result<i32> {
         repo_head_commit_epoch.clone(),
     )?;
 
-    if junit_paths.is_empty() {
-        return Err(anyhow::anyhow!("No junit paths provided."));
+    if junit_paths.is_empty() && bazel_bep_path.is_none() {
+        return Err(anyhow::anyhow!("No junit or bazel BEP paths provided."));
     }
 
     let api_client = ApiClient::new(String::from(token))?;
 
     let codeowners = CodeOwners::find_file(&repo.repo_root, codeowners_path);
+    let junit_spec = if !junit_paths.is_empty() {
+        JunitSpec::Paths(junit_paths.clone())
+    } else {
+        JunitSpec::BazelBep(bazel_bep_path.clone().unwrap())
+    };
 
     log::info!("running command: {:?}", command);
     let run_result = run_test_command(
@@ -141,7 +154,7 @@ async fn run_test(test_args: TestArgs) -> anyhow::Result<i32> {
         &org_url_slug,
         command.first().unwrap(),
         command.iter().skip(1).collect(),
-        junit_paths,
+        &junit_spec,
         team.clone(),
         &codeowners,
     )
@@ -206,11 +219,22 @@ async fn run(cli: Cli) -> anyhow::Result<i32> {
         Commands::Validate(validate_args) => {
             let ValidateArgs {
                 junit_paths,
+                bazel_bep_path,
                 show_warnings,
                 codeowners_path,
             } = validate_args;
+
+            let junit_file_paths = match bazel_bep_path {
+                Some(bazel_bep_path) => {
+                    let mut parser = BazelBepParser::new(bazel_bep_path.clone());
+                    parser.parse()?;
+                    parser.xml_files()
+                }
+                None => junit_paths,
+            };
+
             print_cli_start_info();
-            validate(junit_paths, show_warnings, codeowners_path).await
+            validate(junit_file_paths, show_warnings, codeowners_path).await
         }
     }
 }

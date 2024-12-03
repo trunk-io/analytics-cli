@@ -8,22 +8,37 @@ use bundle::{
 };
 use codeowners::CodeOwners;
 use constants::{EXIT_FAILURE, EXIT_SUCCESS};
-use context::{junit::parser::JunitParser, repo::BundleRepo};
+use context::{bazel_bep::parser::BazelBepParser, junit::parser::JunitParser, repo::BundleRepo};
 
 use crate::api_client::ApiClient;
+
+pub enum JunitSpec {
+    Paths(Vec<String>),
+    BazelBep(String),
+}
 
 pub async fn run_test_command(
     repo: &BundleRepo,
     org_slug: &str,
     command: &String,
     args: Vec<&String>,
-    output_paths: &[String],
+    junit_spec: &JunitSpec,
     team: Option<String>,
     codeowners: &Option<CodeOwners>,
 ) -> anyhow::Result<RunResult> {
     let start = SystemTime::now();
     let exit_code = run_test_and_get_exit_code(command, args).await?;
     log::info!("Command exit code: {}", exit_code);
+
+    let output_paths = match junit_spec {
+        JunitSpec::Paths(paths) => paths,
+        JunitSpec::BazelBep(bep_path) => {
+            let mut parser = BazelBepParser::new(bep_path.clone());
+            parser.parse()?;
+            &parser.xml_files()
+        }
+    };
+
     let (file_sets, ..) =
         build_filesets(&repo.repo_root, output_paths, team, codeowners, Some(start))?;
     let failures = if exit_code != EXIT_SUCCESS {
