@@ -240,6 +240,7 @@ pub async fn run_upload(
             repo,
             cli_version,
             bundle_upload_id: upload.id.clone(),
+            bundle_upload_id_v2: upload.idV2,
             tags,
             file_sets,
             envs,

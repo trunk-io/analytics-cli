@@ -29,6 +29,7 @@ pub struct BundleMetaBaseProps {
     pub org: String,
     pub repo: BundleRepo,
     pub bundle_upload_id: String,
+    pub bundle_upload_id_v2: Option<String>, // TODO(pat): make this required
     pub tags: Vec<CustomTag>,
     pub file_sets: Vec<FileSet>,
     pub envs: HashMap<String, String>,

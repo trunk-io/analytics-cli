@@ -15,6 +15,7 @@ pub struct CreateBundleUploadRequest {
 #[derive(Debug, Serialize, Clone, Deserialize)]
 pub struct CreateBundleUploadResponse {
     pub id: String,
+    pub idV2: Option<String>,
     pub url: String,
     pub key: String,
 }
