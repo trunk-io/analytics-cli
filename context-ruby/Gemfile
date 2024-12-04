@@ -4,7 +4,6 @@ source 'https://rubygems.org'
 
 gem 'rake'
 gem 'rake-compiler', '1.2.0'
-gem 'rb_sys', '~> 0.9.56'
 gem 'rspec'
 gem 'rspec-core'
 gem 'test-unit'
