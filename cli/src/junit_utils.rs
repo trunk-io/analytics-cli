@@ -17,11 +17,11 @@ pub fn junit_require() -> &'static str {
 
 #[cfg(target_os = "macos")]
 pub fn junitify_xcresult(
-    xcresult_path: Option<String>,
-    base_junit_paths: Vec<String>,
-    repo: BundleRepo,
-    org_url_slug: String,
-    allow_empty_test_results: bool,
+    xcresult_path: &Option<String>,
+    base_junit_paths: &Vec<String>,
+    repo: &BundleRepo,
+    org_url_slug: &String,
+    allow_empty_test_results: &bool,
 ) -> anyhow::Result<Vec<String>> {
     let junit_temp_dir = tempfile::tempdir()?;
     let temp_paths = handle_xcresult(&junit_temp_dir, xcresult_path, &repo.repo, &org_url_slug)?;
