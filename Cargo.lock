@@ -2385,8 +2385,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3d87ae53030f3a22e83879e666cb94e58a7bdf31706878a0ba48752994146dab"
 dependencies = [
  "magnus-macros",
- "rb-sys",
- "rb-sys-env",
  "seq-macro",
 ]
 
@@ -3110,36 +3108,6 @@ name = "rawpointer"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "60a357793950651c4ed0f3f52338f53b2f809f32d83a07f72909fa13e4c6c1e3"
-
-[[package]]
-name = "rb-sys"
-version = "0.9.102"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "df4dec4b1d304c3b308a2cd86b1216ea45dd4361f4e9fa056f108332d0a450c1"
-dependencies = [
- "rb-sys-build",
-]
-
-[[package]]
-name = "rb-sys-build"
-version = "0.9.102"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1d71de3e29d174b8fb17b5d4470f27d7aa2605f8a9d05fda0d3aeff30e05a570"
-dependencies = [
- "bindgen",
- "lazy_static",
- "proc-macro2",
- "quote",
- "regex",
- "shell-words",
- "syn 2.0.87",
-]
-
-[[package]]
-name = "rb-sys-env"
-version = "0.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a35802679f07360454b418a5d1735c89716bde01d35b1560fc953c1415a0b3bb"
 
 [[package]]
 name = "redox_syscall"
