@@ -24,15 +24,14 @@ GEM
       power_assert
 
 PLATFORMS
-  arm64-darwin-24
-  arm64-linux
+  darwin
+  linux
   ruby
-  x86_64-linux
 
 DEPENDENCIES
   rake
   rake-compiler (= 1.2.0)
-  rb_sys (~> 0.9.56)
+  rb_sys (~> 0.9.103)
   rspec
   rspec-core
   test-unit
