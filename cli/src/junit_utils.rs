@@ -30,7 +30,7 @@ pub fn junitify_xcresult(
         return Err(anyhow::anyhow!(
             "No tests found in the provided XCResult path."
         ));
-    } else if junit_paths.is_empty() && allow_empty_test_results {
+    } else if junit_paths.is_empty() && *allow_empty_test_results {
         log::warn!("No tests found in the provided XCResult path.");
     }
     Ok(junit_paths)
