@@ -3,6 +3,8 @@ use context::repo::BundleRepo;
 #[cfg(target_os = "macos")]
 use context::repo::RepoUrlParts;
 #[cfg(target_os = "macos")]
+use std::io::Write;
+#[cfg(target_os = "macos")]
 use xcresult::XCResult;
 
 pub fn junit_require() -> &'static str {

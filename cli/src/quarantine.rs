@@ -50,6 +50,14 @@ pub struct QuarantineArgs {
     pub team: Option<String>,
     #[arg(long, help = "Value to override CODEOWNERS file or directory path.")]
     pub codeowners_path: Option<String>,
+    #[cfg(target_os = "macos")]
+    #[arg(
+        long,
+        alias = "allow-missing-junit-files",
+        help = "Do not fail if test results are not found.",
+        default_value = "true"
+    )]
+    pub allow_empty_test_results: bool,
 }
 
 pub async fn run_quarantine(
@@ -74,6 +82,8 @@ pub async fn run_quarantine(
         repo_head_commit_epoch,
         team,
         codeowners_path,
+        #[cfg(target_os = "macos")]
+        allow_empty_test_results,
     } = quarantine_args;
 
     let repo = BundleRepo::new(
@@ -93,13 +103,13 @@ pub async fn run_quarantine(
     {
         let junitified = junitify_xcresult(
             xcresult_path,
-            base_junit_paths,
+            junit_paths,
             repo,
             org_url_slug,
             allow_empty_test_results,
         );
         if junitified.is_err() {
-            return junitified;
+            return junitified.map(|_| EXIT_FAILURE);
         }
         junit_paths = junitified.unwrap_or(junit_paths);
     }

@@ -1,6 +1,4 @@
 use clap::Args;
-#[cfg(target_os = "macos")]
-use std::io::Write;
 use std::{
     env,
     io::BufReader,
@@ -131,7 +129,7 @@ pub async fn run_upload(
     {
         let junitified = junitify_xcresult(
             xcresult_path,
-            base_junit_paths,
+            junit_paths,
             repo,
             org_url_slug,
             allow_empty_test_results,
