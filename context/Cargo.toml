@@ -29,6 +29,7 @@ speedate = "0.14.4"
 thiserror = "1.0.63"
 uuid = { version = "1.10.0", features = ["v5"] }
 wasm-bindgen = { version = "0.2.95", optional = true }
+magnus = { version = "0.7.1", optional = true }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 pyo3 = { version = "0.22.5", optional = true, features = [
@@ -38,9 +39,6 @@ pyo3 = { version = "0.22.5", optional = true, features = [
 
 [target.'cfg(target_os = "macos")'.dependencies]
 pyo3 = { version = "0.22.5", optional = true, features = ["abi3-py39"] }
-
-[target.'cfg(feature = "ruby")'.dependencies]
-magnus = "0.7.1"
 
 [features]
 # must be disabled to use wasm-bindings
