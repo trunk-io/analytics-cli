@@ -6,9 +6,10 @@ use std::{
     io::BufReader,
     time::{SystemTime, UNIX_EPOCH},
 };
-#[cfg(target_os = "macos")]
-use xcresult::XCResult;
 
+use crate::junit_utils::junit_require;
+#[cfg(target_os = "macos")]
+use crate::junit_utils::junitify_xcresult;
 use api::BundleUploadStatus;
 use bundle::{
     parse_custom_tags, BundleMeta, BundleMetaBaseProps, BundleMetaDebugProps, BundleMetaJunitProps,
@@ -16,8 +17,6 @@ use bundle::{
 };
 use codeowners::CodeOwners;
 use constants::{EXIT_FAILURE, EXIT_SUCCESS};
-#[cfg(target_os = "macos")]
-use context::repo::RepoUrlParts;
 use context::{junit::parser::JunitParser, repo::BundleRepo};
 
 use crate::{
@@ -127,20 +126,20 @@ pub async fn run_upload(
         codeowners.or_else(|| CodeOwners::find_file(&repo.repo_root, &codeowners_path));
 
     let tags = parse_custom_tags(&tags)?;
-    #[cfg(target_os = "macos")]
-    let junit_temp_dir = tempfile::tempdir()?;
+
     #[cfg(target_os = "macos")]
     {
-        let temp_paths =
-            handle_xcresult(&junit_temp_dir, xcresult_path, &repo.repo, &org_url_slug)?;
-        junit_paths = [junit_paths.as_slice(), temp_paths.as_slice()].concat();
-        if junit_paths.is_empty() && !allow_empty_test_results {
-            return Err(anyhow::anyhow!(
-                "No tests found in the provided XCResult path."
-            ));
-        } else if junit_paths.is_empty() && allow_empty_test_results {
-            log::warn!("No tests found in the provided XCResult path.");
+        let junitified = junitify_xcresult(
+            xcresult_path,
+            base_junit_paths,
+            repo,
+            org_url_slug,
+            allow_empty_test_results,
+        );
+        if junitified.is_err() {
+            return junitified;
         }
+        junit_paths = junitified.unwrap_or(junit_paths);
     }
 
     let (file_sets, file_counter) = build_filesets(
@@ -289,50 +288,6 @@ pub async fn run_upload(
         )
     }
     Ok(exit_code)
-}
-
-#[cfg(target_os = "macos")]
-fn handle_xcresult(
-    junit_temp_dir: &tempfile::TempDir,
-    xcresult_path: Option<String>,
-    repo: &RepoUrlParts,
-    org_url_slug: &str,
-) -> Result<Vec<String>, anyhow::Error> {
-    let mut temp_paths = Vec::new();
-    if let Some(xcresult_path) = xcresult_path {
-        let xcresult = XCResult::new(xcresult_path, repo, org_url_slug.to_string());
-        let junits = xcresult?
-            .generate_junits()
-            .map_err(|e| anyhow::anyhow!("Failed to generate junit files from xcresult: {}", e))?;
-        for (i, junit) in junits.iter().enumerate() {
-            let mut junit_writer: Vec<u8> = Vec::new();
-            junit.serialize(&mut junit_writer)?;
-            let junit_temp_path = junit_temp_dir
-                .path()
-                .join(format!("xcresult_junit_{}.xml", i));
-            let mut junit_temp = std::fs::File::create(&junit_temp_path)?;
-            junit_temp
-                .write_all(&junit_writer)
-                .map_err(|e| anyhow::anyhow!("Failed to write junit file: {}", e))?;
-            let junit_temp_path_str = junit_temp_path.to_str();
-            if let Some(junit_temp_path_string) = junit_temp_path_str {
-                temp_paths.push(junit_temp_path_string.to_string());
-            } else {
-                return Err(anyhow::anyhow!(
-                    "Failed to convert junit temp path to string."
-                ));
-            }
-        }
-    }
-    Ok(temp_paths)
-}
-
-fn junit_require() -> &'static str {
-    if cfg!(target_os = "macos") {
-        "xcresult_path"
-    } else {
-        "junit_paths"
-    }
 }
 
 fn parse_num_tests(file_sets: &[FileSet]) -> usize {

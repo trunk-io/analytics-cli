@@ -1,6 +1,9 @@
 use clap::Args;
 use std::time::SystemTime;
 
+use crate::junit_utils::junit_require;
+#[cfg(target_os = "macos")]
+use crate::junit_utils::junitify_xcresult;
 use bundle::{QuarantineBulkTestStatus, QuarantineRunResult};
 use codeowners::CodeOwners;
 use constants::{EXIT_FAILURE, EXIT_SUCCESS};
@@ -21,6 +24,9 @@ pub struct QuarantineArgs {
         help = "Comma-separated list of glob paths to junit files."
     )]
     pub junit_paths: Vec<String>,
+    #[cfg(target_os = "macos")]
+    #[arg(long, required = false, help = "Path of xcresult directory")]
+    pub xcresult_path: Option<String>,
     #[arg(long, help = "Organization url slug.")]
     pub org_url_slug: String,
     #[arg(
@@ -46,14 +52,6 @@ pub struct QuarantineArgs {
     pub codeowners_path: Option<String>,
 }
 
-fn junit_require() -> &'static str {
-    if cfg!(target_os = "macos") {
-        "xcresult_path"
-    } else {
-        "junit_paths"
-    }
-}
-
 pub async fn run_quarantine(
     quarantine_args: QuarantineArgs,
     quarantine_results: Option<QuarantineRunResult>,
@@ -62,9 +60,11 @@ pub async fn run_quarantine(
 ) -> anyhow::Result<i32> {
     let QuarantineArgs {
         #[cfg(target_os = "macos")]
-        junit_paths,
+        mut junit_paths,
         #[cfg(target_os = "linux")]
         junit_paths,
+        #[cfg(target_os = "macos")]
+        xcresult_path,
         org_url_slug,
         token,
         repo_root,
@@ -88,6 +88,21 @@ pub async fn run_quarantine(
 
     let codeowners =
         codeowners.or_else(|| CodeOwners::find_file(&repo.repo_root, &codeowners_path));
+
+    #[cfg(target_os = "macos")]
+    {
+        let junitified = junitify_xcresult(
+            xcresult_path,
+            base_junit_paths,
+            repo,
+            org_url_slug,
+            allow_empty_test_results,
+        );
+        if junitified.is_err() {
+            return junitified;
+        }
+        junit_paths = junitified.unwrap_or(junit_paths);
+    }
 
     let (file_sets, _file_counter) = build_filesets(
         &repo.repo_root,
