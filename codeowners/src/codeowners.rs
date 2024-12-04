@@ -68,6 +68,19 @@ impl CodeOwners {
             }
         })
     }
+
+    pub fn parse(codeowners: Vec<u8>) -> Self {
+        let owners_result = GitHubOwners::from_reader(codeowners.as_slice())
+            .map(Owners::GitHubOwners)
+            .or_else(|_| {
+                GitLabOwners::from_reader(codeowners.as_slice()).map(Owners::GitLabOwners)
+            });
+
+        Self {
+            path: PathBuf::new(),
+            owners: owners_result.ok(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

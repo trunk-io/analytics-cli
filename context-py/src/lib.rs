@@ -1,6 +1,7 @@
 use std::{collections::HashMap, io::BufReader};
 
 use bundle::{parse_meta_from_tarball as parse_tarball, BindingsVersionedBundle};
+use codeowners::CodeOwners;
 use context::{env, junit, repo};
 use pyo3::{exceptions::PyTypeError, prelude::*};
 use pyo3_stub_gen::{define_stub_info_gatherer, derive::gen_stub_pyfunction};
@@ -120,6 +121,12 @@ pub fn parse_meta_from_tarball(
     Ok(BindingsVersionedBundle(versioned_bundle))
 }
 
+#[gen_stub_pyfunction]
+#[pyfunction]
+fn codeowners_parse(codeowners_bytes: Vec<u8>) -> CodeOwners {
+    CodeOwners::parse(codeowners_bytes)
+}
+
 #[pymodule]
 fn context_py(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<env::parser::CIPlatform>()?;
@@ -146,6 +153,9 @@ fn context_py(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<repo::RepoUrlParts>()?;
     m.add_class::<repo::validator::RepoValidationLevel>()?;
     m.add_function(wrap_pyfunction!(repo_validate, m)?)?;
+
+    m.add_class::<codeowners::CodeOwners>()?;
+    m.add_function(wrap_pyfunction!(codeowners_parse, m)?)?;
 
     m.add_function(wrap_pyfunction!(parse_meta_from_tarball, m)?)?;
     Ok(())
