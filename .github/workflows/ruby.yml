@@ -21,7 +21,7 @@ jobs:
 
       - uses: ruby/setup-ruby@v1
         with:
-          ruby-version: "2.5" # Not needed with a `.ruby-version` or `.tool-versions`
+          ruby-version: "3.1"
 
       - name: Test ruby package
         if: "!cancelled()"
