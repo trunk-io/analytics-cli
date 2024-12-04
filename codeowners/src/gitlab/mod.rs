@@ -15,13 +15,7 @@ use std::{
 #[cfg(feature = "pyo3")]
 use pyo3::prelude::*;
 #[cfg(feature = "pyo3")]
-use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
-use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-#[cfg(feature = "wasm")]
-use tsify_next::Tsify;
-#[cfg(feature = "wasm")]
-use wasm_bindgen::prelude::*;
+use pyo3_stub_gen::derive::gen_stub_pyclass;
 
 use crate::{FromPath, FromReader, OwnersOfPath};
 
@@ -49,9 +43,7 @@ impl fmt::Display for GitLabOwner {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq, Eq)]
-#[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass(get_all))]
-#[cfg_attr(feature = "wasm", derive(Tsify))]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct GitLabOwners {
     file: File,
 }
@@ -114,6 +106,26 @@ impl FromReader for GitLabOwners {
         }
 
         Ok(GitLabOwners { file })
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass)]
+pub struct BindingsGitLabOwners(pub GitLabOwners);
+
+#[cfg(feature = "pyo3")]
+impl OwnersOfPath for BindingsGitLabOwners {
+    type Owner = String;
+
+    fn of<P>(&self, path: P) -> Option<Vec<String>>
+    where
+        P: AsRef<Path>,
+    {
+        let owners = self.0.of(path);
+        match owners {
+            Some(owners) => Some(owners.iter().map(|owner| owner.to_string()).collect()),
+            None => None,
+        }
     }
 }
 

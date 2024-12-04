@@ -12,13 +12,7 @@ use std::{
 #[cfg(feature = "pyo3")]
 use pyo3::prelude::*;
 #[cfg(feature = "pyo3")]
-use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
-use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-#[cfg(feature = "wasm")]
-use tsify_next::Tsify;
-#[cfg(feature = "wasm")]
-use wasm_bindgen::prelude::*;
+use pyo3_stub_gen::derive::gen_stub_pyclass;
 
 use crate::{FromPath, FromReader, OwnersOfPath};
 
@@ -35,7 +29,7 @@ use crate::{FromPath, FromReader, OwnersOfPath};
 ///   raw
 /// );
 /// ```
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone, Eq)]
+#[derive(Debug, PartialEq, Clone, Eq)]
 pub enum GitHubOwner {
     /// Owner in the form @username
     Username(String),
@@ -79,8 +73,6 @@ impl FromStr for GitHubOwner {
 
 /// Mappings of GitHub owners to path patterns
 #[derive(Debug, PartialEq, Clone, Eq)]
-#[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass(get_all))]
-#[cfg_attr(feature = "wasm", derive(Tsify))]
 pub struct GitHubOwners {
     paths: Vec<(Pattern, Vec<GitHubOwner>)>,
 }
@@ -170,6 +162,26 @@ impl FromReader for GitHubOwners {
         // last match takes precedence
         paths.reverse();
         Ok(GitHubOwners { paths })
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass)]
+pub struct BindingsGitHubOwners(pub GitHubOwners);
+
+#[cfg(feature = "pyo3")]
+impl OwnersOfPath for BindingsGitHubOwners {
+    type Owner = String;
+
+    fn of<P>(&self, path: P) -> Option<Vec<String>>
+    where
+        P: AsRef<Path>,
+    {
+        let owners = self.0.of(path);
+        match owners {
+            Some(owners) => Some(owners.iter().map(|owner| owner.to_string()).collect()),
+            None => None,
+        }
     }
 }
 

@@ -1,5 +1,4 @@
 use std::{
-    ffi::OsStr,
     fs::File,
     path::{Path, PathBuf},
 };
@@ -8,15 +7,18 @@ use constants::CODEOWNERS_LOCATIONS;
 #[cfg(feature = "pyo3")]
 use pyo3::prelude::*;
 #[cfg(feature = "pyo3")]
-use pyo3_stub_gen::derive::gen_stub_pyclass;
-use pyo3_stub_gen::derive::gen_stub_pymethods;
+use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "wasm")]
 use tsify_next::Tsify;
 #[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::*;
 
-use crate::{github::GitHubOwners, gitlab::GitLabOwners, traits::FromReader};
+use crate::{
+    github::{BindingsGitHubOwners, GitHubOwners},
+    gitlab::{BindingsGitLabOwners, GitLabOwners},
+    traits::FromReader,
+};
 
 // TODO(TRUNK-13628): Implement serializing and deserializing for CodeOwners
 #[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -85,13 +87,13 @@ impl CodeOwners {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Owners {
     GitHubOwners(GitHubOwners),
     GitLabOwners(GitLabOwners),
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass)]
 pub struct BindingsOwners(pub Owners);
 
@@ -99,15 +101,19 @@ pub struct BindingsOwners(pub Owners);
 #[gen_stub_pymethods]
 #[pymethods]
 impl BindingsOwners {
-    pub fn get_github_owners(&self) -> Option<GitHubOwners> {
+    pub fn get_github_owners(&self) -> Option<BindingsGitHubOwners> {
         match &self.0 {
-            Owners::GitHubOwners(owners) => Some(GitHubOwners::from(owners.clone())),
+            Owners::GitHubOwners(owners) => {
+                Some(BindingsGitHubOwners(GitHubOwners::from(owners.clone())))
+            }
             _ => None,
         }
     }
-    pub fn get_gitlab_owners(&self) -> Option<GitLabOwners> {
+    pub fn get_gitlab_owners(&self) -> Option<BindingsGitLabOwners> {
         match &self.0 {
-            Owners::GitLabOwners(owners) => Some(GitLabOwners::from(owners.clone())),
+            Owners::GitLabOwners(owners) => {
+                Some(BindingsGitLabOwners(GitLabOwners::from(owners.clone())))
+            }
             _ => None,
         }
     }
