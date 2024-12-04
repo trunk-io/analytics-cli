@@ -89,9 +89,8 @@ def test_junit_parse_valid():
 
 
 def test_junit_parse_non_xml():
-    from pytest import raises
-
     from context_py import junit_parse
+    from pytest import raises
 
     simple_string = "no reports here!"
 
@@ -102,9 +101,8 @@ def test_junit_parse_non_xml():
 
 
 def test_junit_parse_broken_xml():
-    from pytest import raises
-
     from context_py import junit_parse
+    from pytest import raises
 
     broken_xml = b"<testsuites"
 
