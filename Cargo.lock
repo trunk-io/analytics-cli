@@ -860,7 +860,6 @@ dependencies = [
  "anyhow",
  "context",
  "magnus",
- "rb-sys",
 ]
 
 [[package]]

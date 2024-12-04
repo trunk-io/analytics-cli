@@ -10,6 +10,3 @@ crate-type = ["cdylib"]
 anyhow = "1.0.93"
 context = { path = "../../../context", features = ["git-access", "ruby"] }
 magnus = { version = "0.7", features = ["embed"] }
-rb-sys = { version = "*", default-features = false, features = [
-  "stable-api-compiled-fallback",
-] }
