@@ -14,6 +14,7 @@ use super::BundleRepo;
 pub const MAX_BRANCH_NAME_LEN: usize = 36;
 pub const MAX_EMAIL_LEN: usize = 254;
 pub const MAX_FIELD_LEN: usize = 1000;
+pub const MAX_SHA_FIELD_LEN: usize = 40;
 
 const TIMESTAMP_OLD_DAYS: u32 = 30;
 const TIMESTAMP_STALE_HOURS: u32 = 1;
@@ -85,6 +86,10 @@ pub enum RepoValidationIssueSubOptimal {
 pub enum RepoValidationIssueInvalid {
     #[error("repo branch name too short")]
     RepoBranchNameTooShort(String),
+    #[error("repo sha too short")]
+    RepoShaTooShort(String),
+    #[error("repo sha too long, truncated to {}", MAX_SHA_FIELD_LEN)]
+    RepoShaTooLong(String),
 }
 
 impl From<&RepoValidationIssue> for RepoValidationLevel {
@@ -151,6 +156,20 @@ pub fn validate(bundle_repo: &BundleRepo) -> RepoValidation {
         FieldLen::TooLong(s) => {
             repo_validation.add_issue(RepoValidationIssue::SubOptimal(
                 RepoValidationIssueSubOptimal::RepoCommitMessageTooLong(s),
+            ));
+        }
+    };
+
+    match validate_field_len::<MAX_SHA_FIELD_LEN, _>(&bundle_repo.repo_head_sha) {
+        FieldLen::Valid => (),
+        FieldLen::TooShort(s) => {
+            repo_validation.add_issue(RepoValidationIssue::Invalid(
+                RepoValidationIssueInvalid::RepoShaTooShort(s),
+            ));
+        }
+        FieldLen::TooLong(s) => {
+            repo_validation.add_issue(RepoValidationIssue::Invalid(
+                RepoValidationIssueInvalid::RepoShaTooLong(s),
             ));
         }
     };
