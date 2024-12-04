@@ -98,6 +98,8 @@ fn validate_test_suite_name_too_short() {
         seed,
     );
 
+    assert_eq!(report_validation.valid_test_suites.len(), 0);
+
     pretty_assertions::assert_eq!(
         report_validation
             .test_suites()
@@ -123,10 +125,10 @@ fn validate_test_invalid_test_suite_id() {
     }
 
     let report_validation = junit::validator::validate(&generated_report);
-
+    assert_eq!(report_validation.valid_test_suites.len(), 1);
     assert_eq!(
         report_validation.max_level(),
-        JunitValidationLevel::Invalid,
+        JunitValidationLevel::SubOptimal,
         "failed to validate with seed `{}`",
         seed,
     );
@@ -137,8 +139,8 @@ fn validate_test_invalid_test_suite_id() {
             .iter()
             .flat_map(|test_suite| Vec::from(test_suite.issues()))
             .collect::<Vec<JunitTestSuiteValidationIssue>>(),
-        vec![JunitValidationIssue::Invalid(
-            JunitTestSuiteValidationIssueInvalid::TestSuiteInvalidId(id.into()),
+        vec![JunitValidationIssue::SubOptimal(
+            JunitTestSuiteValidationIssueSubOptimal::TestSuiteInvalidId(id.into()),
         )],
         "failed to validate with seed `{}`",
         seed,
@@ -152,6 +154,7 @@ fn validate_test_invalid_test_suite_id() {
             .insert(extra_attrs::ID.into(), id.to_string().into());
     }
     let report_validation = junit::validator::validate(&generated_report);
+    assert_eq!(report_validation.valid_test_suites.len(), 1);
     pretty_assertions::assert_eq!(
         report_validation
             .test_suites()

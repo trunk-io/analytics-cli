@@ -19,7 +19,7 @@ pub struct ApiClient {
 
 impl ApiClient {
     const TRUNK_API_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
-    const TRUNK_API_TOKEN_HEADER: &str = "x-api-token";
+    const TRUNK_API_TOKEN_HEADER: &'static str = "x-api-token";
 
     pub fn new(api_token: String) -> anyhow::Result<Self> {
         let trimmed_token = api_token.trim();
@@ -149,8 +149,14 @@ impl ApiClient {
                 status_code_help(
                     &response,
                     CheckUnauthorized::Check,
-                    CheckNotFound::Check,
-                    |_| String::from("Failed to get quarantine bulk test."),
+                    CheckNotFound::DoNotCheck,
+                    |response| -> String {
+                        if response.status() == StatusCode::NOT_FOUND {
+                            String::from("Quarantining config not found.")
+                        } else  {
+                            String::from("Failed to get quarantine bulk test.")
+                        }
+                    },
                 )?;
 
                 response
@@ -286,10 +292,12 @@ fn status_code_help<T: FnMut(&Response) -> String>(
 mod tests {
     use std::{env, time::Duration};
 
-    use axum::response::Response;
+    use axum::{http::StatusCode, response::Response};
     use tempfile::NamedTempFile;
     use test_utils::{mock_logger, mock_sentry, mock_server::MockServerBuilder};
     use tokio::time;
+
+    use context;
 
     use super::ApiClient;
 
@@ -337,5 +345,40 @@ mod tests {
                 String::from("Uploading bundle to S3 is taking longer than 10 seconds"),
             ),]
         );
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn get_quarantining_config_not_found() {
+        let mut mock_server_builder = MockServerBuilder::new();
+
+        async fn quarantining_config_not_found_handler() -> Response<String> {
+            Response::builder()
+                .status(StatusCode::NOT_FOUND)
+                .body(String::from(
+                    r#"{ "status_code": 404, "error": "not found" }"#,
+                ))
+                .unwrap()
+        }
+        mock_server_builder
+            .set_get_quarantining_config_handler(quarantining_config_not_found_handler);
+
+        let state = mock_server_builder.spawn_mock_server().await;
+
+        env::set_var("TRUNK_PUBLIC_API_ADDRESS", &state.host);
+        let api_client = ApiClient::new(String::from("mock-token")).unwrap();
+
+        assert!(api_client
+            .get_quarantining_config(&api::GetQuarantineBulkTestStatusRequest {
+                repo: context::repo::RepoUrlParts {
+                    host: String::from("host"),
+                    owner: String::from("owner"),
+                    name: String::from("name"),
+                },
+                org_url_slug: String::from("org_url_slug"),
+            })
+            .await
+            .unwrap_err()
+            .to_string()
+            .contains("Quarantining config not found"));
     }
 }

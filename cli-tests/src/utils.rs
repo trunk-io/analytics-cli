@@ -60,6 +60,21 @@ pub fn generate_mock_suboptimal_junit_xmls<T: AsRef<Path>>(directory: T) {
         .unwrap();
 }
 
+pub fn generate_mock_missing_filepath_suboptimal_junit_xmls<T: AsRef<Path>>(directory: T) {
+    let jm_options = junit_mock::Options::default();
+    let mut jm = JunitMock::new(jm_options);
+    let mut reports = jm.generate_reports();
+    for report in reports.iter_mut() {
+        for testsuite in report.test_suites.iter_mut() {
+            for test_case in testsuite.test_cases.iter_mut() {
+                test_case.extra.swap_remove("file");
+            }
+        }
+    }
+    jm.write_reports_to_file(directory.as_ref(), reports)
+        .unwrap();
+}
+
 pub fn generate_mock_codeowners<T: AsRef<Path>>(directory: T) {
     const CODEOWNERS: &str = r#"
         [Owners of Everything]

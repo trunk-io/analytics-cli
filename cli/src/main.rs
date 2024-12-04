@@ -50,6 +50,8 @@ struct ValidateArgs {
     junit_paths: Vec<String>,
     #[arg(long, help = "Show warning-level log messages in output.")]
     show_warnings: bool,
+    #[arg(long, help = "Value to override CODEOWNERS file or directory path.")]
+    pub codeowners_path: Option<String>,
 }
 
 #[derive(Debug, Subcommand)]
@@ -199,9 +201,10 @@ async fn run(cli: Cli) -> anyhow::Result<i32> {
             let ValidateArgs {
                 junit_paths,
                 show_warnings,
+                codeowners_path,
             } = validate_args;
             print_cli_start_info();
-            validate(junit_paths, show_warnings).await
+            validate(junit_paths, show_warnings, codeowners_path).await
         }
     }
 }

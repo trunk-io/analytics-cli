@@ -11,7 +11,7 @@ use super::{Entry, Error, Section, SectionParser};
 pub type ParsedData = IndexMap<String, IndexMap<String, Entry>>;
 
 /// Reference: https://gitlab.com/gitlab-org/gitlab/-/blob/master/ee/lib/gitlab/code_owners/file.rb
-#[derive(Debug, Clone, Default, PartialEq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct File {
     path: PathBuf,
     errors: Vec<Error>,

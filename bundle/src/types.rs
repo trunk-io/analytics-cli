@@ -1,10 +1,13 @@
+use context::repo::BundleRepo;
+#[cfg(feature = "pyo3")]
+use pyo3::prelude::*;
+#[cfg(feature = "pyo3")]
+use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pyclass_enum};
+use serde::{Deserialize, Serialize};
 #[cfg(feature = "wasm")]
 use tsify_next::Tsify;
 #[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::*;
-
-use context::repo::BundleRepo;
-use serde::{Deserialize, Serialize};
 
 pub struct RunResult {
     pub exit_code: i32,
@@ -17,7 +20,8 @@ pub struct QuarantineRunResult {
     pub quarantine_status: QuarantineBulkTestStatus,
 }
 
-#[derive(Debug, Serialize, Clone, Deserialize)]
+#[derive(Debug, Serialize, Clone, Deserialize, PartialEq, Eq)]
+#[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass(get_all))]
 #[cfg_attr(feature = "wasm", derive(Tsify))]
 pub struct Test {
     pub name: String,
@@ -85,7 +89,8 @@ pub struct BundleUploader {
     pub org_slug: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq, Eq)]
+#[cfg_attr(feature = "pyo3", gen_stub_pyclass_enum, pyclass(eq, eq_int))]
 #[cfg_attr(feature = "wasm", derive(Tsify))]
 pub enum FileSetType {
     #[default]
@@ -94,7 +99,8 @@ pub enum FileSetType {
 
 #[cfg(feature = "wasm")]
 // u128 will be supported in the next release after 0.2.95
-#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq, Eq)]
+#[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass(get_all))]
 #[cfg_attr(feature = "wasm", derive(Tsify))]
 pub struct BundledFile {
     pub original_path: String,
@@ -106,7 +112,8 @@ pub struct BundledFile {
 }
 
 #[cfg(not(feature = "wasm"))]
-#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+#[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass(get_all))]
+#[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq, Eq)]
 pub struct BundledFile {
     pub original_path: String,
     /// Added in v0.5.33
@@ -131,6 +138,7 @@ impl BundledFile {
 /// Custom tags defined by the user.
 ///
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass(get_all))]
 #[cfg_attr(feature = "wasm", derive(Tsify))]
 pub struct CustomTag {
     pub key: String,

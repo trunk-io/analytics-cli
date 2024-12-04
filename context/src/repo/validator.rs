@@ -4,7 +4,7 @@ use magnus::value::ReprValue;
 #[cfg(feature = "pyo3")]
 use pyo3::prelude::*;
 #[cfg(feature = "pyo3")]
-use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pyclass_enum};
+use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pyclass_enum, gen_stub_pymethods};
 use thiserror::Error;
 #[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::*;
@@ -232,7 +232,7 @@ impl magnus::TryConvert for RepoValidationFlatIssue {
     }
 }
 
-#[cfg_attr(feature = "pyo3", pymethods)]
+#[cfg_attr(feature = "pyo3", gen_stub_pymethods, pymethods)]
 #[cfg_attr(feature = "wasm", wasm_bindgen)]
 impl RepoValidation {
     pub fn level(&self) -> RepoValidationLevel {
