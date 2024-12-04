@@ -2,8 +2,8 @@ use chrono::{DateTime, FixedOffset, Utc};
 #[cfg(feature = "pyo3")]
 use pyo3::prelude::*;
 #[cfg(feature = "pyo3")]
-use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pyclass_enum};
-use quick_junit::Report;
+use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pyclass_enum, gen_stub_pymethods};
+use quick_junit::{Report, TestCase, TestSuite};
 use std::{cmp::Ordering, collections::HashSet};
 use thiserror::Error;
 #[cfg(feature = "wasm")]
@@ -86,14 +86,15 @@ pub fn validate(report: &Report) -> JunitReportValidation {
         if let Some(raw_test_suite_id) = test_suite.extra.get("id") {
             let test_case_id = uuid::Uuid::parse_str(raw_test_suite_id).unwrap_or_default();
             if test_case_id.get_version() != Some(uuid::Version::Sha1) {
-                test_suite_validation.add_issue(JunitValidationIssue::Invalid(
-                    JunitTestSuiteValidationIssueInvalid::TestSuiteInvalidId(
+                test_suite_validation.add_issue(JunitValidationIssue::SubOptimal(
+                    JunitTestSuiteValidationIssueSubOptimal::TestSuiteInvalidId(
                         raw_test_suite_id.to_string().clone(),
                     ),
                 ));
             }
         }
 
+        let mut valid_test_cases: Vec<TestCase> = Vec::new();
         for test_case in test_suite.test_cases.iter() {
             let mut test_case_validation = JunitTestCaseValidation::default();
 
@@ -197,7 +198,17 @@ pub fn validate(report: &Report) -> JunitReportValidation {
                 ));
             }
 
+            if test_case_validation.level != JunitValidationLevel::Invalid {
+                valid_test_cases.push(test_case.clone());
+            }
+
             test_suite_validation.test_cases.push(test_case_validation);
+        }
+
+        if test_suite_validation.level != JunitValidationLevel::Invalid {
+            let mut valid_test_suite = test_suite.clone();
+            valid_test_suite.test_cases = valid_test_cases;
+            report_validation.valid_test_suites.push(valid_test_suite);
         }
 
         report_validation.test_suites.push(test_suite_validation);
@@ -208,13 +219,49 @@ pub fn validate(report: &Report) -> JunitReportValidation {
     report_validation
 }
 
-#[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass(eq, get_all))]
-#[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default)]
 pub struct JunitReportValidation {
-    all_issues: Vec<JunitReportValidationFlatIssue>,
-    level: JunitValidationLevel,
-    test_suites: Vec<JunitTestSuiteValidation>,
+    pub all_issues: Vec<JunitValidationIssueType>,
+    pub level: JunitValidationLevel,
+    pub test_suites: Vec<JunitTestSuiteValidation>,
+    pub valid_test_suites: Vec<TestSuite>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum JunitValidationIssueType {
+    Report(JunitReportValidationIssue),
+    TestSuite(JunitTestSuiteValidationIssue),
+    TestCase(JunitTestCaseValidationIssue),
+}
+
+impl ToString for JunitValidationIssueType {
+    fn to_string(&self) -> String {
+        match self {
+            JunitValidationIssueType::Report(i) => i.to_string(),
+            JunitValidationIssueType::TestSuite(i) => i.to_string(),
+            JunitValidationIssueType::TestCase(i) => i.to_string(),
+        }
+    }
+}
+
+impl From<&JunitValidationIssueType> for JunitValidationType {
+    fn from(value: &JunitValidationIssueType) -> Self {
+        match value {
+            JunitValidationIssueType::Report(..) => JunitValidationType::Report,
+            JunitValidationIssueType::TestSuite(..) => JunitValidationType::TestSuite,
+            JunitValidationIssueType::TestCase(..) => JunitValidationType::TestCase,
+        }
+    }
+}
+
+impl From<&JunitValidationIssueType> for JunitValidationLevel {
+    fn from(value: &JunitValidationIssueType) -> Self {
+        match value {
+            JunitValidationIssueType::Report(i) => JunitValidationLevel::from(i),
+            JunitValidationIssueType::TestSuite(i) => JunitValidationLevel::from(i),
+            JunitValidationIssueType::TestCase(i) => JunitValidationLevel::from(i),
+        }
+    }
 }
 
 #[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass(get_all))]
@@ -226,15 +273,31 @@ pub struct JunitReportValidationFlatIssue {
     pub error_message: String,
 }
 
-#[cfg_attr(feature = "pyo3", pymethods)]
-#[cfg_attr(feature = "wasm", wasm_bindgen)]
 impl JunitReportValidation {
-    pub fn all_issues_owned(&self) -> Vec<JunitReportValidationFlatIssue> {
-        self.all_issues.clone()
+    pub fn all_issues(&self) -> &[JunitValidationIssueType] {
+        &self.all_issues
     }
 
-    pub fn test_suites_owned(&self) -> Vec<JunitTestSuiteValidation> {
-        self.test_suites.clone()
+    pub fn all_issues_flat(&self) -> Vec<JunitReportValidationFlatIssue> {
+        self.all_issues
+            .iter()
+            .map(|i| JunitReportValidationFlatIssue {
+                level: JunitValidationLevel::from(i),
+                error_type: JunitValidationType::from(i),
+                error_message: i.to_string(),
+            })
+            .collect()
+    }
+
+    pub fn test_suites(&self) -> &[JunitTestSuiteValidation] {
+        &self.test_suites
+    }
+
+    pub fn test_cases(&self) -> Vec<&JunitTestCaseValidation> {
+        self.test_suites
+            .iter()
+            .flat_map(|test_suite| test_suite.test_cases())
+            .collect()
     }
 
     pub fn max_level(&self) -> JunitValidationLevel {
@@ -255,45 +318,24 @@ impl JunitReportValidation {
     pub fn num_invalid_issues(&self) -> usize {
         self.all_issues
             .iter()
-            .filter(|issue| issue.level == JunitValidationLevel::Invalid)
+            .filter(|issue| JunitValidationLevel::from(*issue) == JunitValidationLevel::Invalid)
             .count()
     }
 
     pub fn num_suboptimal_issues(&self) -> usize {
         self.all_issues
             .iter()
-            .filter(|issue| issue.level == JunitValidationLevel::SubOptimal)
+            .filter(|issue| JunitValidationLevel::from(*issue) == JunitValidationLevel::SubOptimal)
             .count()
-    }
-}
-
-impl JunitReportValidation {
-    pub fn all_issues(&self) -> &[JunitReportValidationFlatIssue] {
-        &self.all_issues
-    }
-
-    pub fn test_suites(&self) -> &[JunitTestSuiteValidation] {
-        &self.test_suites
-    }
-
-    pub fn test_cases_flat(&self) -> Vec<&JunitTestCaseValidation> {
-        self.test_suites
-            .iter()
-            .flat_map(|test_suite| test_suite.test_cases())
-            .collect()
     }
 
     fn derive_all_issues(&mut self) {
         let mut report_level_issues: HashSet<JunitReportValidationIssue> = HashSet::new();
-        let mut other_issues: Vec<JunitReportValidationFlatIssue> = Vec::new();
+        let mut other_issues: Vec<JunitValidationIssueType> = Vec::new();
 
         for test_suite in &self.test_suites {
             for issue in &test_suite.issues {
-                other_issues.push(JunitReportValidationFlatIssue {
-                    level: JunitValidationLevel::from(issue),
-                    error_type: JunitValidationType::TestSuite,
-                    error_message: issue.to_string(),
-                });
+                other_issues.push(JunitValidationIssueType::TestSuite(issue.clone()));
             }
 
             for test_case in &test_suite.test_cases {
@@ -307,6 +349,21 @@ impl JunitReportValidation {
                             JunitReportValidationIssueSubOptimal::TestCasesFileOrFilepathMissing,
                         )),
                         JunitValidationIssue::SubOptimal(
+                            JunitTestCaseValidationIssueSubOptimal::TestCaseNoTimestamp,
+                        ) => Some(JunitValidationIssue::SubOptimal(
+                            JunitReportValidationIssueSubOptimal::MissingTimestamps,
+                        )),
+                        JunitValidationIssue::SubOptimal(
+                            JunitTestCaseValidationIssueSubOptimal::TestCaseFutureTimestamp(..),
+                        ) => Some(JunitValidationIssue::SubOptimal(
+                            JunitReportValidationIssueSubOptimal::FutureTimestamps,
+                        )),
+                        JunitValidationIssue::SubOptimal(
+                            JunitTestCaseValidationIssueSubOptimal::TestCaseOldTimestamp(..),
+                        ) => Some(JunitValidationIssue::SubOptimal(
+                            JunitReportValidationIssueSubOptimal::OldTimestamps,
+                        )),
+                        JunitValidationIssue::SubOptimal(
                             JunitTestCaseValidationIssueSubOptimal::TestCaseStaleTimestamp(..),
                         ) => Some(JunitValidationIssue::SubOptimal(
                             JunitReportValidationIssueSubOptimal::StaleTimestamps,
@@ -315,11 +372,7 @@ impl JunitReportValidation {
                     } {
                         report_level_issues.insert(report_level_issue);
                     } else {
-                        other_issues.push(JunitReportValidationFlatIssue {
-                            level: JunitValidationLevel::from(issue),
-                            error_type: JunitValidationType::TestCase,
-                            error_message: issue.to_string(),
-                        });
+                        other_issues.push(JunitValidationIssueType::TestCase(issue.clone()));
                     }
                 }
             }
@@ -331,21 +384,24 @@ impl JunitReportValidation {
             .max()
             .map_or(self.level, |l| l.max(self.level));
 
+        if self.level == JunitValidationLevel::Invalid {
+            self.valid_test_suites.clear();
+        }
+
         other_issues.extend(
             report_level_issues
                 .iter()
-                .map(|report_level_issue| JunitReportValidationFlatIssue {
-                    level: JunitValidationLevel::from(report_level_issue),
-                    error_type: JunitValidationType::Report,
-                    error_message: report_level_issue.to_string(),
-                })
-                .collect::<Vec<JunitReportValidationFlatIssue>>(),
+                .map(|issue| JunitValidationIssueType::Report(issue.clone())),
         );
 
-        other_issues.sort_by(|a, b| match (a.level, b.level) {
-            (JunitValidationLevel::Invalid, JunitValidationLevel::SubOptimal) => Ordering::Less,
-            (JunitValidationLevel::SubOptimal, JunitValidationLevel::Invalid) => Ordering::Greater,
-            _ => a.error_message.cmp(&b.error_message),
+        other_issues.sort_by(|a, b| {
+            match (JunitValidationLevel::from(a), JunitValidationLevel::from(b)) {
+                (JunitValidationLevel::Invalid, JunitValidationLevel::SubOptimal) => Ordering::Less,
+                (JunitValidationLevel::SubOptimal, JunitValidationLevel::Invalid) => {
+                    Ordering::Greater
+                }
+                _ => a.to_string().cmp(&b.to_string()),
+            }
         });
 
         self.all_issues = other_issues;
@@ -368,6 +424,12 @@ impl ToString for JunitReportValidationIssue {
 pub enum JunitReportValidationIssueSubOptimal {
     #[error("report has test cases with missing file or filepath")]
     TestCasesFileOrFilepathMissing,
+    #[error("report has test cases with missing timestamp")]
+    MissingTimestamps,
+    #[error("report has test cases with future timestamp")]
+    FutureTimestamps,
+    #[error("report has old (> {} day(s)) timestamps", TIMESTAMP_OLD_DAYS)]
+    OldTimestamps,
     #[error("report has stale (> {} hour(s)) timestamps", TIMESTAMP_STALE_HOURS)]
     StaleTimestamps,
 }
@@ -398,7 +460,7 @@ pub struct JunitTestSuiteValidation {
     test_cases: Vec<JunitTestCaseValidation>,
 }
 
-#[cfg_attr(feature = "pyo3", pymethods)]
+#[cfg_attr(feature = "pyo3", gen_stub_pymethods, pymethods)]
 #[cfg_attr(feature = "wasm", wasm_bindgen)]
 impl JunitTestSuiteValidation {
     pub fn level(&self) -> JunitValidationLevel {
@@ -453,6 +515,8 @@ impl JunitTestSuiteValidation {
 
 #[derive(Error, Debug, Clone, PartialEq, Eq)]
 pub enum JunitTestSuiteValidationIssueSubOptimal {
+    #[error("test suite id is not a valid uuidv5")]
+    TestSuiteInvalidId(String),
     #[error("test suite name too long, truncated to {}", MAX_FIELD_LEN)]
     TestSuiteNameTooLong(String),
 }
@@ -461,8 +525,6 @@ pub enum JunitTestSuiteValidationIssueSubOptimal {
 pub enum JunitTestSuiteValidationIssueInvalid {
     #[error("test suite name too short")]
     TestSuiteNameTooShort(String),
-    #[error("test suite id is not a valid uuidv5")]
-    TestSuiteInvalidId(String),
 }
 
 pub type JunitTestCaseValidationIssue = JunitValidationIssue<
@@ -487,7 +549,7 @@ pub struct JunitTestCaseValidation {
     issues: Vec<JunitTestCaseValidationIssue>,
 }
 
-#[cfg_attr(feature = "pyo3", pymethods)]
+#[cfg_attr(feature = "pyo3", gen_stub_pymethods, pymethods)]
 #[cfg_attr(feature = "wasm", wasm_bindgen)]
 impl JunitTestCaseValidation {
     pub fn level(&self) -> JunitValidationLevel {

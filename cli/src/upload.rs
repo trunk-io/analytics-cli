@@ -11,8 +11,8 @@ use xcresult::XCResult;
 
 use api::BundleUploadStatus;
 use bundle::{
-    parse_custom_tags, BundleMeta, BundleMetaBaseProps, BundleMetaJunitProps, BundlerUtil, FileSet,
-    QuarantineBulkTestStatus, QuarantineRunResult, META_VERSION,
+    parse_custom_tags, BundleMeta, BundleMetaBaseProps, BundleMetaDebugProps, BundleMetaJunitProps,
+    BundlerUtil, FileSet, QuarantineBulkTestStatus, QuarantineRunResult, META_VERSION,
 };
 use codeowners::CodeOwners;
 use constants::{EXIT_FAILURE, EXIT_SUCCESS};
@@ -125,6 +125,10 @@ pub async fn run_upload(
         repo_head_commit_epoch,
     )?;
 
+    let command_line = env::args()
+        .collect::<Vec<String>>()
+        .join(" ")
+        .replace(&token, "***");
     let api_client = ApiClient::new(token)?;
 
     let codeowners =
@@ -206,6 +210,14 @@ pub async fn run_upload(
     let envs = EnvScanner::scan_env();
     let os_info: String = env::consts::OS.to_string();
 
+    api_client
+        .create_trunk_repo(&api::CreateRepoRequest {
+            repo: repo.repo.clone(),
+            org_url_slug: org_url_slug.clone(),
+            remote_urls: vec![repo.repo_url.clone()],
+        })
+        .await?;
+
     let cli_version = format!(
         "cargo={} git={} rustc={}",
         env!("CARGO_PKG_VERSION"),
@@ -224,8 +236,8 @@ pub async fn run_upload(
     let meta = BundleMeta {
         base_props: BundleMetaBaseProps {
             version: META_VERSION.to_string(),
-            org: org_url_slug.clone(),
-            repo: repo.clone(),
+            org: org_url_slug,
+            repo,
             cli_version,
             bundle_upload_id: upload.id.clone(),
             tags,
@@ -241,6 +253,7 @@ pub async fn run_upload(
             num_files,
             num_tests,
         },
+        debug_props: BundleMetaDebugProps { command_line },
     };
 
     log::info!("Total files pack and upload: {}", file_counter.get_count());
@@ -304,14 +317,6 @@ pub async fn run_upload(
             BundleUploadStatus::UploadComplete
         )
     }
-
-    api_client
-        .create_trunk_repo(&api::CreateRepoRequest {
-            repo: repo.repo,
-            org_url_slug,
-            remote_urls: vec![repo.repo_url.clone()],
-        })
-        .await?;
 
     if exit_code == EXIT_SUCCESS {
         log::info!("Done");

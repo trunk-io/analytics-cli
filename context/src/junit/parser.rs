@@ -32,8 +32,6 @@ pub mod extra_attrs {
 
 #[derive(Error, Debug, Copy, Clone, PartialEq, Eq)]
 pub enum JunitParseError {
-    #[error("could not parse report name")]
-    ReportName,
     #[error("no reports found")]
     ReportNotFound,
     #[error("multiple reports found")]
@@ -86,6 +84,7 @@ pub struct JunitParser {
     current_report: Report,
     current_report_state: CurrentReportState,
     current_test_suite: Option<TestSuite>,
+    current_test_suite_depth: usize,
     current_test_case: Option<TestCase>,
     current_test_rerun: Option<TestRerun>,
     current_text: Option<Text>,
@@ -100,6 +99,7 @@ impl JunitParser {
             current_report: Report::new(""),
             current_report_state: CurrentReportState::Default,
             current_test_suite: Default::default(),
+            current_test_suite_depth: Default::default(),
             current_test_case: Default::default(),
             current_test_rerun: Default::default(),
             current_text: Default::default(),
@@ -256,9 +256,6 @@ impl JunitParser {
 
     fn open_report(&mut self, e: &BytesStart) {
         let report_name = parse_attr::name(e).unwrap_or_default();
-        if report_name.is_empty() {
-            self.errors.push(JunitParseError::ReportName);
-        }
         let mut report = Report::new(report_name);
 
         if let Some(timestamp) = parse_attr::timestamp(e, &mut self.date_parser) {
@@ -292,6 +289,11 @@ impl JunitParser {
     }
 
     fn open_test_suite(&mut self, e: &BytesStart) {
+        self.current_test_suite_depth += 1;
+        if self.current_test_suite_depth > 1 {
+            return; // Ignore all but outermost test suite in set of nested test suites
+        }
+
         let test_suite_name = parse_attr::name(e).unwrap_or_default();
         if test_suite_name.is_empty() {
             self.errors.push(JunitParseError::TestSuiteName);
@@ -332,6 +334,11 @@ impl JunitParser {
     }
 
     fn close_test_suite(&mut self) {
+        self.current_test_suite_depth -= 1;
+        if self.current_test_suite_depth > 0 {
+            return; // Ignore all but outermost test suite in set of nested test suites
+        }
+
         if let Some(test_suite) = self.current_test_suite.take() {
             if self.current_report_state == CurrentReportState::Default {
                 self.current_report_state = CurrentReportState::DefaultWithTestSuites
@@ -404,6 +411,9 @@ impl JunitParser {
 
     fn set_test_case_status(&mut self, e: &BytesStart) {
         if let Some(test_case) = self.current_test_case.as_mut() {
+            if !matches!(test_case.status, TestCaseStatus::Success { .. }) {
+                return; // Only set status once
+            }
             let tag = e.name();
             let mut test_case_status = if tag.as_ref() == TAG_TEST_CASE_STATUS_SKIPPED {
                 TestCaseStatus::skipped()

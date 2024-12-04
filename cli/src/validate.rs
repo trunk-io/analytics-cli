@@ -2,6 +2,7 @@ use quick_junit::Report;
 use std::{collections::BTreeMap, io::BufReader};
 
 use bundle::{FileSet, FileSetCounter};
+use codeowners::CodeOwners;
 use colored::{ColoredString, Colorize};
 use console::Emoji;
 use constants::{EXIT_FAILURE, EXIT_SUCCESS};
@@ -9,6 +10,7 @@ use context::junit::{
     parser::{JunitParseError, JunitParser},
     validator::{
         validate as validate_report, JunitReportValidation, JunitReportValidationFlatIssue,
+        JunitReportValidationIssueSubOptimal, JunitValidationIssue, JunitValidationIssueType,
         JunitValidationLevel,
     },
 };
@@ -18,7 +20,11 @@ use crate::runner::build_filesets;
 type JunitFileToReportAndErrors = BTreeMap<String, (anyhow::Result<Report>, Vec<JunitParseError>)>;
 type JunitFileToValidation = BTreeMap<String, anyhow::Result<JunitReportValidation>>;
 
-pub async fn validate(junit_paths: Vec<String>, show_warnings: bool) -> anyhow::Result<i32> {
+pub async fn validate(
+    junit_paths: Vec<String>,
+    show_warnings: bool,
+    codeowners_path: Option<String>,
+) -> anyhow::Result<i32> {
     // scan files
     let current_dir = std::env::current_dir()
         .ok()
@@ -51,17 +57,23 @@ pub async fn validate(junit_paths: Vec<String>, show_warnings: bool) -> anyhow::
     // print results
     let (num_invalid_reports, num_suboptimal_reports) =
         print_validation_errors(&report_validations);
-    if num_invalid_reports == 0 {
+    let exit = if num_invalid_reports == 0 {
         print_summary_success(report_validations.len(), num_suboptimal_reports);
-        Ok(EXIT_SUCCESS)
+        EXIT_SUCCESS
     } else {
         print_summary_failure(
             report_validations.len(),
             num_invalid_reports,
             num_suboptimal_reports,
         );
-        Ok(EXIT_FAILURE)
-    }
+        EXIT_FAILURE
+    };
+
+    let codeowners = CodeOwners::find_file(&current_dir, &codeowners_path);
+
+    print_codeowners_validation(codeowners, &report_validations);
+
+    Ok(exit)
 }
 
 fn parse_file_sets(file_sets: Vec<FileSet>) -> JunitFileToReportAndErrors {
@@ -201,12 +213,12 @@ fn print_validation_errors(report_validations: &JunitFileToValidation) -> (usize
         match report_validation.1 {
             Ok(validation) => {
                 num_test_suites = validation.test_suites().len();
-                num_test_cases = validation.test_cases_flat().len();
+                num_test_cases = validation.test_cases().len();
 
                 num_validation_errors = validation.num_invalid_issues();
                 num_validation_warnings = validation.num_suboptimal_issues();
 
-                all_issues = validation.all_issues_owned();
+                all_issues = validation.all_issues_flat();
             }
             Err(e) => {
                 report_parse_error = Some(e);
@@ -268,5 +280,45 @@ fn print_validation_level(level: JunitValidationLevel) -> ColoredString {
         JunitValidationLevel::SubOptimal => "OPTIONAL".yellow(),
         JunitValidationLevel::Invalid => "INVALID".red(),
         JunitValidationLevel::Valid => "VALID".green(),
+    }
+}
+
+fn print_codeowners_validation(
+    codeowners: Option<CodeOwners>,
+    report_validations: &JunitFileToValidation,
+) {
+    println!("\nChecking for codeowners file...");
+    match codeowners {
+        Some(owners) => {
+            println!(
+                "  {} - Found codeowners:",
+                print_validation_level(JunitValidationLevel::Valid)
+            );
+            println!("    Path: {:?}", owners.path);
+
+            let has_test_cases_without_matching_codeowners_paths = report_validations
+                .iter()
+                .filter_map(|(_, report_validation)| report_validation.as_ref().ok())
+                .flat_map(|report_validation| report_validation.all_issues())
+                .any(|issue| {
+                    matches!(
+                        issue,
+                        JunitValidationIssueType::Report(JunitValidationIssue::SubOptimal(
+                            JunitReportValidationIssueSubOptimal::TestCasesFileOrFilepathMissing
+                        ))
+                    )
+                });
+
+            if has_test_cases_without_matching_codeowners_paths {
+                println!(
+                    "    {} - CODEOWNERS found but test cases are missing filepaths. We will not be able to correlate flaky tests with owners.",
+                    print_validation_level(JunitValidationLevel::SubOptimal)
+                );
+            }
+        }
+        None => println!(
+            "  {} - No codeowners file found.",
+            print_validation_level(JunitValidationLevel::SubOptimal)
+        ),
     }
 }

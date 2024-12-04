@@ -1,15 +1,20 @@
 use std::{collections::HashMap, time::Duration};
 
-use chrono::DateTime;
+use chrono::{DateTime, TimeDelta};
 #[cfg(feature = "pyo3")]
 use pyo3::prelude::*;
 #[cfg(feature = "pyo3")]
-use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pyclass_enum};
+use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pyclass_enum, gen_stub_pymethods};
 use quick_junit::{
     NonSuccessKind, Property, Report, TestCase, TestCaseStatus, TestRerun, TestSuite,
 };
 #[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::*;
+
+use super::validator::{
+    JunitReportValidation, JunitReportValidationFlatIssue, JunitTestSuiteValidation,
+    JunitValidationLevel, JunitValidationType,
+};
 
 #[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass(get_all))]
 #[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
@@ -18,6 +23,7 @@ pub struct BindingsReport {
     pub name: String,
     pub uuid: Option<String>,
     pub timestamp: Option<i64>,
+    pub timestamp_micros: Option<i64>,
     pub time: Option<f64>,
     pub tests: usize,
     pub failures: usize,
@@ -42,6 +48,7 @@ impl From<Report> for BindingsReport {
             name: name.into_string(),
             uuid: uuid.map(|u| u.to_string()),
             timestamp: timestamp.map(|t| t.timestamp()),
+            timestamp_micros: timestamp.map(|t| t.timestamp_micros()),
             time: time.map(|t| t.as_secs_f64()),
             tests,
             failures,
@@ -59,7 +66,8 @@ impl Into<Report> for BindingsReport {
         let Self {
             name,
             uuid,
-            timestamp,
+            timestamp: _,
+            timestamp_micros,
             time,
             tests,
             failures,
@@ -71,8 +79,14 @@ impl Into<Report> for BindingsReport {
         Report {
             name: name.into(),
             uuid: None,
-            timestamp: timestamp
-                .and_then(|secs| DateTime::from_timestamp(secs, 0))
+            timestamp: timestamp_micros
+                .and_then(|micro_secs| {
+                    let micros_delta = TimeDelta::microseconds(micro_secs);
+                    DateTime::from_timestamp(
+                        micros_delta.num_seconds(),
+                        micros_delta.subsec_nanos() as u32,
+                    )
+                })
                 .map(|dt| dt.fixed_offset()),
             time: time.map(|secs| Duration::from_secs_f64(secs)),
             tests,
@@ -96,6 +110,7 @@ pub struct BindingsTestSuite {
     pub errors: usize,
     pub failures: usize,
     pub timestamp: Option<i64>,
+    pub timestamp_micros: Option<i64>,
     pub time: Option<f64>,
     pub test_cases: Vec<BindingsTestCase>,
     pub properties: Vec<BindingsProperty>,
@@ -105,6 +120,7 @@ pub struct BindingsTestSuite {
 }
 
 #[cfg(feature = "pyo3")]
+#[gen_stub_pymethods]
 #[pymethods]
 impl BindingsTestSuite {
     fn py_extra(&self) -> HashMap<String, String> {
@@ -157,6 +173,7 @@ impl From<TestSuite> for BindingsTestSuite {
             errors,
             failures,
             timestamp: timestamp.map(|t| t.timestamp()),
+            timestamp_micros: timestamp.map(|t| t.timestamp_micros()),
             time: time.map(|t| t.as_secs_f64()),
             test_cases: test_cases.into_iter().map(BindingsTestCase::from).collect(),
             properties: properties.into_iter().map(BindingsProperty::from).collect(),
@@ -179,7 +196,8 @@ impl Into<TestSuite> for BindingsTestSuite {
             disabled,
             errors,
             failures,
-            timestamp,
+            timestamp: _,
+            timestamp_micros,
             time,
             test_cases,
             properties,
@@ -192,8 +210,14 @@ impl Into<TestSuite> for BindingsTestSuite {
         test_suite.disabled = disabled;
         test_suite.errors = errors;
         test_suite.failures = failures;
-        test_suite.timestamp = timestamp
-            .and_then(|secs| DateTime::from_timestamp(secs, 0))
+        test_suite.timestamp = timestamp_micros
+            .and_then(|micro_secs| {
+                let micros_delta = TimeDelta::microseconds(micro_secs);
+                DateTime::from_timestamp(
+                    micros_delta.num_seconds(),
+                    micros_delta.subsec_nanos() as u32,
+                )
+            })
             .map(|dt| dt.fixed_offset());
         test_suite.time = time.map(|secs| Duration::from_secs_f64(secs));
         test_suite.test_cases = test_cases
@@ -250,6 +274,7 @@ pub struct BindingsTestCase {
     pub classname: Option<String>,
     pub assertions: Option<usize>,
     pub timestamp: Option<i64>,
+    pub timestamp_micros: Option<i64>,
     pub time: Option<f64>,
     pub status: BindingsTestCaseStatus,
     pub system_out: Option<String>,
@@ -259,6 +284,7 @@ pub struct BindingsTestCase {
 }
 
 #[cfg(feature = "pyo3")]
+#[gen_stub_pymethods]
 #[pymethods]
 impl BindingsTestCase {
     fn py_extra(&self) -> HashMap<String, String> {
@@ -307,6 +333,7 @@ impl From<TestCase> for BindingsTestCase {
             classname: classname.map(|c| c.to_string()),
             assertions,
             timestamp: timestamp.map(|t| t.timestamp()),
+            timestamp_micros: timestamp.map(|t| t.timestamp_micros()),
             time: time.map(|t| t.as_secs_f64()),
             status: BindingsTestCaseStatus::from(status),
             system_out: system_out.map(|s| s.to_string()),
@@ -329,7 +356,8 @@ impl TryInto<TestCase> for BindingsTestCase {
             name,
             classname,
             assertions,
-            timestamp,
+            timestamp: _,
+            timestamp_micros,
             time,
             status,
             system_out,
@@ -340,8 +368,14 @@ impl TryInto<TestCase> for BindingsTestCase {
         let mut test_case = TestCase::new(name, status.try_into()?);
         test_case.classname = classname.map(|c| c.into());
         test_case.assertions = assertions;
-        test_case.timestamp = timestamp
-            .and_then(|secs| DateTime::from_timestamp(secs, 0))
+        test_case.timestamp = timestamp_micros
+            .and_then(|micro_secs| {
+                let micros_delta = TimeDelta::microseconds(micro_secs);
+                DateTime::from_timestamp(
+                    micros_delta.num_seconds(),
+                    micros_delta.subsec_nanos() as u32,
+                )
+            })
             .map(|dt| dt.fixed_offset());
         test_case.time = time.map(|secs| Duration::from_secs_f64(secs));
         test_case.system_out = system_out.map(|s| s.into());
@@ -528,6 +562,7 @@ impl Into<TestCaseStatus> for BindingsTestCaseStatusSkipped {
 pub struct BindingsTestRerun {
     pub kind: BindingsNonSuccessKind,
     pub timestamp: Option<i64>,
+    pub timestamp_micros: Option<i64>,
     pub time: Option<f64>,
     pub message: Option<String>,
     pub ty: Option<String>,
@@ -554,6 +589,7 @@ impl From<TestRerun> for BindingsTestRerun {
         Self {
             kind: BindingsNonSuccessKind::from(kind),
             timestamp: timestamp.map(|t| t.timestamp()),
+            timestamp_micros: timestamp.map(|t| t.timestamp_micros()),
             time: time.map(|t| t.as_secs_f64()),
             message: message.map(|m| m.to_string()),
             ty: ty.map(|t| t.to_string()),
@@ -569,7 +605,8 @@ impl Into<TestRerun> for BindingsTestRerun {
     fn into(self) -> TestRerun {
         let Self {
             kind,
-            timestamp,
+            timestamp: _,
+            timestamp_micros,
             time,
             message,
             ty,
@@ -580,8 +617,14 @@ impl Into<TestRerun> for BindingsTestRerun {
         } = self;
         TestRerun {
             kind: kind.into(),
-            timestamp: timestamp
-                .and_then(|secs| DateTime::from_timestamp(secs, 0))
+            timestamp: timestamp_micros
+                .and_then(|micro_secs| {
+                    let micros_delta = TimeDelta::microseconds(micro_secs);
+                    DateTime::from_timestamp(
+                        micros_delta.num_seconds(),
+                        micros_delta.subsec_nanos() as u32,
+                    )
+                })
                 .map(|dt| dt.fixed_offset()),
             time: time.map(|secs| Duration::from_secs_f64(secs)),
             message: message.map(|m| m.into()),
@@ -617,5 +660,73 @@ impl Into<NonSuccessKind> for BindingsNonSuccessKind {
             BindingsNonSuccessKind::Failure => NonSuccessKind::Failure,
             BindingsNonSuccessKind::Error => NonSuccessKind::Error,
         }
+    }
+}
+
+#[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass(get_all))]
+#[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
+#[derive(Clone, Debug)]
+pub struct BindingsJunitReportValidation {
+    all_issues: Vec<JunitReportValidationFlatIssue>,
+    level: JunitValidationLevel,
+    test_suites: Vec<JunitTestSuiteValidation>,
+    valid_test_suites: Vec<BindingsTestSuite>,
+}
+
+impl From<JunitReportValidation> for BindingsJunitReportValidation {
+    fn from(
+        JunitReportValidation {
+            all_issues,
+            level,
+            test_suites,
+            valid_test_suites,
+        }: JunitReportValidation,
+    ) -> Self {
+        Self {
+            all_issues: all_issues
+                .into_iter()
+                .map(|i| JunitReportValidationFlatIssue {
+                    level: JunitValidationLevel::from(&i),
+                    error_type: JunitValidationType::from(&i),
+                    error_message: i.to_string(),
+                })
+                .collect(),
+            level,
+            test_suites,
+            valid_test_suites: valid_test_suites
+                .into_iter()
+                .map(BindingsTestSuite::from)
+                .collect(),
+        }
+    }
+}
+
+#[cfg_attr(feature = "pyo3", gen_stub_pymethods, pymethods)]
+#[cfg_attr(feature = "wasm", wasm_bindgen)]
+impl BindingsJunitReportValidation {
+    pub fn all_issues_owned(&self) -> Vec<JunitReportValidationFlatIssue> {
+        self.all_issues.clone()
+    }
+
+    pub fn max_level(&self) -> JunitValidationLevel {
+        self.test_suites
+            .iter()
+            .map(|test_suite| test_suite.max_level())
+            .max()
+            .map_or(self.level, |l| l.max(self.level))
+    }
+
+    pub fn num_invalid_issues(&self) -> usize {
+        self.all_issues
+            .iter()
+            .filter(|issue| issue.level == JunitValidationLevel::Invalid)
+            .count()
+    }
+
+    pub fn num_suboptimal_issues(&self) -> usize {
+        self.all_issues
+            .iter()
+            .filter(|issue| issue.level == JunitValidationLevel::SubOptimal)
+            .count()
     }
 }

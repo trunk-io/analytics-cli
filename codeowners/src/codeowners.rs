@@ -1,9 +1,14 @@
-use constants::CODEOWNERS_LOCATIONS;
-use serde::{Deserialize, Serialize};
 use std::{
     fs::File,
     path::{Path, PathBuf},
 };
+
+use constants::CODEOWNERS_LOCATIONS;
+#[cfg(feature = "pyo3")]
+use pyo3::prelude::*;
+#[cfg(feature = "pyo3")]
+use pyo3_stub_gen::derive::gen_stub_pyclass;
+use serde::{Deserialize, Serialize};
 #[cfg(feature = "wasm")]
 use tsify_next::Tsify;
 #[cfg(feature = "wasm")]
@@ -12,7 +17,8 @@ use wasm_bindgen::prelude::*;
 use crate::{github::GitHubOwners, gitlab::GitLabOwners, traits::FromReader};
 
 // TODO(TRUNK-13628): Implement serializing and deserializing for CodeOwners
-#[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass)]
 #[cfg_attr(feature = "wasm", derive(Tsify))]
 pub struct CodeOwners {
     pub path: PathBuf,
@@ -56,12 +62,28 @@ impl CodeOwners {
             }
 
             let owners = Result::ok(owners_result);
-            Self { path, owners }
+            Self {
+                path: path.canonicalize().unwrap(),
+                owners,
+            }
         })
+    }
+
+    pub fn parse(codeowners: Vec<u8>) -> Self {
+        let owners_result = GitHubOwners::from_reader(codeowners.as_slice())
+            .map(Owners::GitHubOwners)
+            .or_else(|_| {
+                GitLabOwners::from_reader(codeowners.as_slice()).map(Owners::GitLabOwners)
+            });
+
+        Self {
+            path: PathBuf::new(),
+            owners: owners_result.ok(),
+        }
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Owners {
     GitHubOwners(GitHubOwners),
     GitLabOwners(GitLabOwners),

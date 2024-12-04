@@ -26,20 +26,22 @@ async fn upload_bundle() {
 
     let state = MockServerBuilder::new().spawn_mock_server().await;
 
+    let args = &[
+        "upload",
+        "--junit-paths",
+        "./*",
+        "--org-url-slug",
+        "test-org",
+        "--token",
+        "test-token",
+    ];
+
     let assert = Command::new(CARGO_RUN.path())
         .current_dir(&temp_dir)
         .env("TRUNK_PUBLIC_API_ADDRESS", &state.host)
         .env("CI", "1")
         .env("GITHUB_JOB", "test-job")
-        .args(&[
-            "upload",
-            "--junit-paths",
-            "./*",
-            "--org-url-slug",
-            "test-org",
-            "--token",
-            "test-token",
-        ])
+        .args(args)
         .assert()
         // should fail due to quarantine and succeed without quarantining
         .failure();
@@ -57,6 +59,21 @@ async fn upload_bundle() {
                 name: String::from("analytics-cli"),
             },
             org_url_slug: String::from("test-org"),
+        })
+    );
+
+    assert_eq!(
+        requests_iter.next().unwrap(),
+        RequestPayload::CreateRepo(CreateRepoRequest {
+            repo: Repo {
+                host: String::from("github.com"),
+                owner: String::from("trunk-io"),
+                name: String::from("analytics-cli"),
+            },
+            org_url_slug: String::from("test-org"),
+            remote_urls: Vec::from(&[String::from(
+                "https://github.com/trunk-io/analytics-cli.git"
+            )]),
         })
     );
 
@@ -84,6 +101,7 @@ async fn upload_bundle() {
     let bundle_meta: BundleMeta = serde_json::from_reader(reader).unwrap();
     let base_props = bundle_meta.base_props;
     let junit_props = bundle_meta.junit_props;
+    let debug_props = bundle_meta.debug_props;
 
     assert_eq!(base_props.org, "test-org");
     assert_eq!(
@@ -161,20 +179,9 @@ async fn upload_bundle() {
         }),
     );
 
-    assert_eq!(
-        requests_iter.next().unwrap(),
-        RequestPayload::CreateRepo(CreateRepoRequest {
-            repo: Repo {
-                host: String::from("github.com"),
-                owner: String::from("trunk-io"),
-                name: String::from("analytics-cli"),
-            },
-            org_url_slug: String::from("test-org"),
-            remote_urls: Vec::from(&[String::from(
-                "https://github.com/trunk-io/analytics-cli.git"
-            )]),
-        })
-    );
+    assert!(debug_props
+        .command_line
+        .ends_with(&args.join(" ").replace("test-token", "***")));
 
     // HINT: View CLI output with `cargo test -- --nocapture`
     println!("{assert}");
@@ -260,4 +267,36 @@ async fn upload_bundle_no_files_allow_missing_junit_files() {
         // HINT: View CLI output with `cargo test -- --nocapture`
         println!("{assert}");
     }
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn upload_bundle_valid_repo_root() {
+    let temp_dir = tempdir().unwrap();
+    generate_mock_git_repo(&temp_dir);
+
+    let state = MockServerBuilder::new().spawn_mock_server().await;
+
+    let assert = Command::new(CARGO_RUN.path())
+        .current_dir(&temp_dir)
+        .env("TRUNK_PUBLIC_API_ADDRESS", &state.host)
+        .env("CI", "1")
+        .args(&[
+            "upload",
+            "--junit-paths",
+            "./*",
+            "--org-url-slug",
+            "test-org",
+            "--repo-root",
+            "../",
+            "--token",
+            "test-token",
+        ])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains(
+            "Error: Failed to open git repository at \"../\"",
+        ));
+
+    // HINT: View CLI output with `cargo test -- --nocapture`
+    println!("{assert}");
 }

@@ -17,6 +17,7 @@ serde = { version = "1.0.215", default-features = false, features = ["derive"] }
 serde_json = "1.0.133"
 tsify-next = { version = "0.5.4", optional = true }
 wasm-bindgen = { version = "0.2.95", optional = true }
+pyo3-stub-gen = { version = "0.6.0", optional = true }
 
 # For encoding
 async-compression = { version = "0.4.17", features = ["futures-io", "zstd"] }
@@ -27,6 +28,14 @@ tar = { version = "0.4.30", default-features = false }
 uuid = { version = "1.10.0", features = ["v5"] }
 zstd = { version = "0.13.0", default-features = false }
 
+[target.'cfg(target_os = "linux")'.dependencies]
+pyo3 = { version = "0.22.5", optional = true, features = [
+  "abi3-py39",
+  "extension-module",
+] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+pyo3 = { version = "0.22.5", optional = true, features = ["abi3-py39"] }
 
 [features]
 bindings = []
@@ -37,4 +46,11 @@ wasm = [
   "dep:tsify-next",
   "codeowners/wasm",
   "context/wasm",
+]
+pyo3 = [
+  "bindings",
+  "dep:pyo3",
+  "dep:pyo3-stub-gen",
+  "codeowners/pyo3",
+  "context/pyo3",
 ]
