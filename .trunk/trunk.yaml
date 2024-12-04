@@ -15,6 +15,7 @@ runtimes:
     - node@18.12.1
     - python@3.10.8
     - rust@1.81.0
+    - ruby@3.1.0
 # This is the section where you manage your linters. (https://docs.trunk.io/check/configuration)
 lint:
   enabled:
@@ -56,6 +57,8 @@ actions:
     - trunk-fmt-pre-commit
     - trunk-upgrade-available
 tools:
+  runtimes:
+    - ruby
   enabled:
     - gh@2.52.0
     - pnpm@9.12.2
