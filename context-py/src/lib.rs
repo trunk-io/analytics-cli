@@ -70,8 +70,32 @@ fn junit_parse(xml: Vec<u8>) -> PyResult<Vec<junit::bindings::BindingsReport>> {
 #[pyfunction]
 fn junit_validate(
     report: junit::bindings::BindingsReport,
-) -> junit::validator::JunitReportValidation {
-    junit::validator::validate(&report.into())
+) -> junit::bindings::BindingsJunitReportValidation {
+    junit::bindings::BindingsJunitReportValidation::from(junit::validator::validate(&report.into()))
+}
+
+#[gen_stub_pyfunction]
+#[pyfunction]
+fn junit_validation_level_to_string(
+    junit_validation_level: junit::validator::JunitValidationLevel,
+) -> String {
+    match junit_validation_level {
+        junit::validator::JunitValidationLevel::Valid => "VALID".to_string(),
+        junit::validator::JunitValidationLevel::SubOptimal => "SUBOPTIMAL".to_string(),
+        junit::validator::JunitValidationLevel::Invalid => "INVALID".to_string(),
+    }
+}
+
+#[gen_stub_pyfunction]
+#[pyfunction]
+fn junit_validation_type_to_string(
+    junit_validation_type: junit::validator::JunitValidationType,
+) -> String {
+    match junit_validation_type {
+        junit::validator::JunitValidationType::Report => "Report".to_string(),
+        junit::validator::JunitValidationType::TestSuite => "TestSuite".to_string(),
+        junit::validator::JunitValidationType::TestCase => "TestCase".to_string(),
+    }
 }
 
 #[gen_stub_pyfunction]
@@ -109,10 +133,14 @@ fn context_py(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<junit::bindings::BindingsTestCase>()?;
     m.add_class::<junit::bindings::BindingsTestCaseStatusStatus>()?;
     m.add_class::<junit::bindings::BindingsNonSuccessKind>()?;
+    m.add_class::<junit::bindings::BindingsJunitReportValidation>()?;
+    m.add_class::<junit::validator::JunitReportValidationFlatIssue>()?;
     m.add_class::<junit::validator::JunitValidationLevel>()?;
     m.add_class::<junit::validator::JunitValidationType>()?;
     m.add_function(wrap_pyfunction!(junit_parse, m)?)?;
     m.add_function(wrap_pyfunction!(junit_validate, m)?)?;
+    m.add_function(wrap_pyfunction!(junit_validation_level_to_string, m)?)?;
+    m.add_function(wrap_pyfunction!(junit_validation_type_to_string, m)?)?;
 
     m.add_class::<repo::BundleRepo>()?;
     m.add_class::<repo::RepoUrlParts>()?;
