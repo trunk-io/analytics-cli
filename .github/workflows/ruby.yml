@@ -26,5 +26,7 @@ jobs:
 
       - name: Test ruby package
         if: "!cancelled()"
-        run: bundle exec rake test
+        run: |
+          bundle install
+          bundle exec rake test
         working-directory: context-ruby
