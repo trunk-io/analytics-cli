@@ -4,7 +4,6 @@ use context::repo::{
     validator::{RepoValidationIssue, RepoValidationLevel, MAX_SHA_FIELD_LEN},
     BundleRepo, RepoUrlParts,
 };
-use gix::odb::pack::bundle;
 use test_utils::mock_git_repo::{setup_repo_with_commit, TEST_BRANCH, TEST_ORIGIN};
 
 #[test]
