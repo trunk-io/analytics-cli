@@ -3,7 +3,10 @@ use std::{fs, io::BufReader};
 use crate::utils::{
     generate_mock_codeowners, generate_mock_git_repo, generate_mock_valid_junit_xmls, CARGO_RUN,
 };
-use api::{BundleUploadStatus, CreateRepoRequest, UpdateBundleUploadRequest};
+use api::{
+    BundleUploadStatus, CreateRepoRequest, GetQuarantineBulkTestStatusRequest,
+    UpdateBundleUploadRequest,
+};
 use assert_cmd::Command;
 use assert_matches::assert_matches;
 use bundle::{BundleMeta, FileSetType};
@@ -44,8 +47,20 @@ async fn upload_bundle() {
         .failure();
 
     let requests = state.requests.lock().unwrap().clone();
-    assert_eq!(requests.len(), 4);
+    assert_eq!(requests.len(), 5);
     let mut requests_iter = requests.into_iter();
+
+    assert_eq!(
+        requests_iter.next().unwrap(),
+        RequestPayload::GetQuarantineBulkTestStatus(GetQuarantineBulkTestStatusRequest {
+            repo: Repo {
+                host: String::from("github.com"),
+                owner: String::from("trunk-io"),
+                name: String::from("analytics-cli"),
+            },
+            org_url_slug: String::from("test-org"),
+        })
+    );
 
     assert_eq!(
         requests_iter.next().unwrap(),
@@ -130,6 +145,7 @@ async fn upload_bundle() {
     more_asserts::assert_lt!(time_since_upload.num_minutes(), 5);
     assert_eq!(base_props.test_command, None);
     assert!(base_props.os_info.is_some());
+    assert!(base_props.quarantined_tests.is_empty());
     assert_eq!(
         base_props.codeowners,
         Some(CodeOwners {

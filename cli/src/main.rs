@@ -37,12 +37,6 @@ struct TestArgs {
         help = "Test command to invoke."
     )]
     command: Vec<String>,
-    #[arg(
-        long,
-        help = "Run commands with the quarantining step.",
-        default_value = "true"
-    )]
-    use_quarantining: bool,
 }
 
 #[derive(Args, Clone, Debug)]
@@ -105,7 +99,6 @@ fn main() -> anyhow::Result<()> {
 async fn run_test(test_args: TestArgs) -> anyhow::Result<i32> {
     let TestArgs {
         command,
-        use_quarantining,
         upload_args,
     } = test_args;
     let UploadArgs {
@@ -117,6 +110,7 @@ async fn run_test(test_args: TestArgs) -> anyhow::Result<i32> {
         repo_head_sha,
         repo_head_branch,
         repo_head_commit_epoch,
+        use_quarantining,
         team,
         codeowners_path,
         ..
@@ -161,7 +155,7 @@ async fn run_test(test_args: TestArgs) -> anyhow::Result<i32> {
     let run_exit_code = run_result.exit_code;
     let failures = run_result.failures;
 
-    let quarantine_run_result = if use_quarantining {
+    let quarantine_run_result = if *use_quarantining {
         Some(
             run_quarantine_upload(
                 &api_client,
@@ -184,7 +178,15 @@ async fn run_test(test_args: TestArgs) -> anyhow::Result<i32> {
         .unwrap_or(run_exit_code);
 
     let exec_start = run_result.exec_start;
-    if let Err(e) = run_upload(upload_args, Some(command.join(" ")), codeowners, exec_start).await {
+    if let Err(e) = run_upload(
+        upload_args,
+        Some(command.join(" ")),
+        None, // don't re-run quarantine checks
+        codeowners,
+        exec_start,
+    )
+    .await
+    {
         log::error!("Error uploading test results: {:?}", e)
     };
 
@@ -195,7 +197,7 @@ async fn run(cli: Cli) -> anyhow::Result<i32> {
     match cli.command {
         Commands::Upload(upload_args) => {
             print_cli_start_info();
-            run_upload(upload_args, None, None, None).await
+            run_upload(upload_args, None, None, None, None).await
         }
         Commands::Quarantine(quarantine_args) => {
             print_cli_start_info();
