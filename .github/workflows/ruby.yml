@@ -21,8 +21,7 @@ jobs:
 
       - uses: ruby/setup-ruby@v1
         with:
-          ruby-version: "3.3" # Not needed with a `.ruby-version` or `.tool-versions`
-          bundler-cache: true # runs 'bundle install' and caches installed gems automatically
+          ruby-version: "2.5" # Not needed with a `.ruby-version` or `.tool-versions`
 
       - name: Test ruby package
         if: "!cancelled()"
