@@ -8,4 +8,4 @@ gem 'rspec'
 gem 'rspec-core'
 gem 'test-unit'
 
-gem "rb_sys", "~> 0.9.103"
+gem 'rb_sys', '~> 0.9.103'
