@@ -26,7 +26,7 @@ pub fn junitify_xcresult(
     let junit_temp_dir = tempfile::tempdir()?;
     let temp_paths = handle_xcresult(&junit_temp_dir, xcresult_path, &repo.repo, &org_url_slug)?;
     let junit_paths = [base_junit_paths.as_slice(), temp_paths.as_slice()].concat();
-    if junit_paths.is_empty() && !allow_empty_test_results {
+    if junit_paths.is_empty() && !*allow_empty_test_results {
         return Err(anyhow::anyhow!(
             "No tests found in the provided XCResult path."
         ));
@@ -39,7 +39,7 @@ pub fn junitify_xcresult(
 #[cfg(target_os = "macos")]
 fn handle_xcresult(
     junit_temp_dir: &tempfile::TempDir,
-    xcresult_path: Option<String>,
+    xcresult_path: &Option<String>,
     repo: &RepoUrlParts,
     org_url_slug: &str,
 ) -> Result<Vec<String>, anyhow::Error> {

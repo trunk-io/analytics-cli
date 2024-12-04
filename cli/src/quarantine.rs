@@ -102,11 +102,11 @@ pub async fn run_quarantine(
     #[cfg(target_os = "macos")]
     {
         let junitified = junitify_xcresult(
-            xcresult_path,
-            junit_paths,
-            repo,
-            org_url_slug,
-            allow_empty_test_results,
+            &xcresult_path,
+            &junit_paths,
+            &repo,
+            &org_url_slug,
+            &allow_empty_test_results,
         );
         if junitified.is_err() {
             return junitified.map(|_| EXIT_FAILURE);
