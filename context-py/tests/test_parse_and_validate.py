@@ -89,8 +89,9 @@ def test_junit_parse_valid():
 
 
 def test_junit_parse_non_xml():
-    from context_py import junit_parse
     from pytest import raises
+
+    from context_py import junit_parse
 
     simple_string = "no reports here!"
 
@@ -101,13 +102,14 @@ def test_junit_parse_non_xml():
 
 
 def test_junit_parse_broken_xml():
-    from context_py import junit_parse
     from pytest import raises
 
-    broken_xml = "<testsuites"
+    from context_py import junit_parse
+
+    broken_xml = b"<testsuites"
 
     with raises(Exception) as excinfo:
-        _ = junit_parse(str.encode(broken_xml))
+        _ = junit_parse(broken_xml)
 
     assert (
         str(excinfo.value)
@@ -120,7 +122,7 @@ def test_junit_parse_nested_testsuites():
 
     from context_py import BindingsReport, BindingsTestCaseStatusStatus, junit_parse
 
-    nested_testsuites_xml = """<?xml version="1.0" encoding="UTF-8"?>
+    nested_testsuites_xml = b"""<?xml version="1.0" encoding="UTF-8"?>
     <testsuites>
         <testsuite name="/home/runner/work/flake-farm/flake-farm/php/phpunit/phpunit.xml" tests="2" assertions="2" errors="0" failures="0" skipped="0" time="0.001161">
             <testsuite name="Project Test Suite" tests="2" assertions="2" errors="0" failures="0" skipped="0" time="0.001161">
@@ -132,7 +134,7 @@ def test_junit_parse_nested_testsuites():
         </testsuite>
     </testsuites>"""
 
-    reports: PT.List[BindingsReport] = junit_parse(str.encode(nested_testsuites_xml))
+    reports: PT.List[BindingsReport] = junit_parse(nested_testsuites_xml)
 
     assert len(reports) == 1
     report = reports[0]

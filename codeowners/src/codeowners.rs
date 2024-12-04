@@ -1,5 +1,4 @@
 use std::{
-    ffi::OsStr,
     fs::File,
     path::{Path, PathBuf},
 };
@@ -77,17 +76,9 @@ impl CodeOwners {
                 GitLabOwners::from_reader(codeowners.as_slice()).map(Owners::GitLabOwners)
             });
 
-        if let Err(ref err) = owners_result {
-            log::error!(
-                "Found CODEOWNERS file `{}` in bundle, but couldn't parse it",
-                err
-            );
-        }
-
-        let owners = Result::ok(owners_result);
         Self {
-            path: PathBuf::from(OsStr::new("")),
-            owners,
+            path: PathBuf::new(),
+            owners: owners_result.ok(),
         }
     }
 }

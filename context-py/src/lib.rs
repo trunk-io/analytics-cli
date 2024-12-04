@@ -99,10 +99,8 @@ pub fn parse_meta_from_tarball(
 
 #[gen_stub_pyfunction]
 #[pyfunction]
-fn codeowners_parse(codeowners_bytes: Vec<u8>) -> PyResult<CodeOwners> {
-    let codeowners = CodeOwners::parse(codeowners_bytes);
-
-    Ok(codeowners)
+fn codeowners_parse(codeowners_bytes: Vec<u8>) -> CodeOwners {
+    CodeOwners::parse(codeowners_bytes)
 }
 
 #[pymodule]
