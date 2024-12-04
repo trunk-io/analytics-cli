@@ -1,5 +1,5 @@
 #[cfg(feature = "ruby")]
-use magnus::value::ReprValue;
+use magnus::{value::ReprValue, Module, Object};
 #[cfg(feature = "pyo3")]
 use pyo3::prelude::*;
 #[cfg(feature = "pyo3")]
@@ -67,39 +67,22 @@ pub enum CIPlatform {
     Drone,
 }
 
+#[cfg(feature = "ruby")]
 impl CIPlatform {
-    pub fn new(platform: i32) -> Self {
-        match platform {
-            0 => CIPlatform::GitHubActions,
-            1 => CIPlatform::JenkinsPipeline,
-            2 => CIPlatform::CircleCI,
-            3 => CIPlatform::Buildkite,
-            4 => CIPlatform::Semaphore,
-            5 => CIPlatform::TravisCI,
-            6 => CIPlatform::Webappio,
-            7 => CIPlatform::AWSCodeBuild,
-            8 => CIPlatform::BitbucketPipelines,
-            9 => CIPlatform::AzurePipelines,
-            10 => CIPlatform::GitLabCI,
-            11 => CIPlatform::Drone,
-            // TODO
-            _ => CIPlatform::GitHubActions,
-        }
-    }
     pub fn to_string(&self) -> &str {
         match self {
-            CIPlatform::GitHubActions => ci_platform_env_key::GITHUB_ACTIONS,
-            CIPlatform::JenkinsPipeline => ci_platform_env_key::JENKINS_PIPELINE,
-            CIPlatform::CircleCI => ci_platform_env_key::CIRCLECI,
-            CIPlatform::Buildkite => ci_platform_env_key::BUILDKITE,
-            CIPlatform::Semaphore => ci_platform_env_key::SEMAPHORE,
-            CIPlatform::TravisCI => ci_platform_env_key::TRAVIS_CI,
-            CIPlatform::Webappio => ci_platform_env_key::WEBAPPIO,
-            CIPlatform::AWSCodeBuild => ci_platform_env_key::AWS_CODEBUILD,
-            CIPlatform::BitbucketPipelines => ci_platform_env_key::BITBUCKET,
-            CIPlatform::AzurePipelines => ci_platform_env_key::AZURE_PIPELINES,
-            CIPlatform::GitLabCI => ci_platform_env_key::GITLAB_CI,
-            CIPlatform::Drone => ci_platform_env_key::DRONE,
+            CIPlatform::GitHubActions => "GITHUB_ACTIONS",
+            CIPlatform::JenkinsPipeline => "JENKINS_PIPELINE",
+            CIPlatform::CircleCI => "CIRCLECI",
+            CIPlatform::Buildkite => "BUILDKITE",
+            CIPlatform::Semaphore => "SEMAPHORE",
+            CIPlatform::TravisCI => "TRAVIS_CI",
+            CIPlatform::Webappio => "WEBAPPIO",
+            CIPlatform::AWSCodeBuild => "AWS_CODEBUILD",
+            CIPlatform::BitbucketPipelines => "BITBUCKET",
+            CIPlatform::AzurePipelines => "AZURE_PIPELINES",
+            CIPlatform::GitLabCI => "GITLAB_CI",
+            CIPlatform::Drone => "DRONE",
         }
     }
 }
@@ -543,4 +526,32 @@ impl<'a> EnvParser<'a> {
             }
         }
     }
+}
+
+#[cfg(feature = "ruby")]
+pub fn ruby_init(ruby: &magnus::Ruby) -> Result<(), magnus::Error> {
+    let ci_platform = ruby.define_class("CIPlatform", ruby.class_object())?;
+    ci_platform.define_method("to_s", magnus::method!(CIPlatform::to_string, 0))?;
+    // unfortunately magnus requires explicit getters and setters for the object
+    // to be accessible from Ruby
+    let ci_info = ruby.define_class("CIInfo", ruby.class_object())?;
+    ci_info.define_singleton_method("new", magnus::function!(CIInfo::new, 1))?;
+    ci_info.define_method("platform", magnus::method!(CIInfo::platform, 0))?;
+    ci_info.define_method("job_url", magnus::method!(CIInfo::job_url, 0))?;
+    ci_info.define_method("branch", magnus::method!(CIInfo::branch, 0))?;
+    ci_info.define_method("branch_class", magnus::method!(CIInfo::branch_class, 0))?;
+    ci_info.define_method("pr_number", magnus::method!(CIInfo::pr_number, 0))?;
+    ci_info.define_method("actor", magnus::method!(CIInfo::actor, 0))?;
+    ci_info.define_method("committer_name", magnus::method!(CIInfo::committer_name, 0))?;
+    ci_info.define_method(
+        "committer_email",
+        magnus::method!(CIInfo::committer_email, 0),
+    )?;
+    ci_info.define_method("author_name", magnus::method!(CIInfo::author_name, 0))?;
+    ci_info.define_method("author_email", magnus::method!(CIInfo::author_email, 0))?;
+    ci_info.define_method("commit_message", magnus::method!(CIInfo::commit_message, 0))?;
+    ci_info.define_method("title", magnus::method!(CIInfo::title, 0))?;
+    ci_info.define_method("workflow", magnus::method!(CIInfo::workflow, 0))?;
+    ci_info.define_method("job", magnus::method!(CIInfo::job, 0))?;
+    Ok(())
 }

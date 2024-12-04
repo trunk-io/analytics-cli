@@ -1,6 +1,4 @@
 use chrono::{DateTime, Utc};
-#[cfg(feature = "ruby")]
-use magnus::value::ReprValue;
 #[cfg(feature = "pyo3")]
 use pyo3::prelude::*;
 #[cfg(feature = "pyo3")]
@@ -22,28 +20,11 @@ const TIMESTAMP_STALE_HOURS: u32 = 1;
 
 #[cfg_attr(feature = "pyo3", gen_stub_pyclass_enum, pyclass(eq, eq_int))]
 #[cfg_attr(feature = "wasm", wasm_bindgen)]
-#[cfg_attr(
-    feature = "ruby",
-    magnus::wrap(class = "RepoValidationLevel", free_immediately, size)
-)]
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum RepoValidationLevel {
     Valid = 0,
     SubOptimal = 1,
     Invalid = 2,
-}
-
-#[cfg(feature = "ruby")]
-impl magnus::TryConvert for RepoValidationLevel {
-    fn try_convert(val: magnus::Value) -> Result<Self, magnus::Error> {
-        let val: i32 = val.funcall("to_i", ())?;
-        match val {
-            0 => Ok(Self::Valid),
-            1 => Ok(Self::SubOptimal),
-            2 => Ok(Self::Invalid),
-            _ => Ok(Self::default()),
-        }
-    }
 }
 
 impl Default for RepoValidationLevel {
@@ -198,10 +179,6 @@ pub fn validate(bundle_repo: &BundleRepo) -> RepoValidation {
 
 #[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass(eq))]
 #[cfg_attr(feature = "wasm", wasm_bindgen)]
-#[cfg_attr(
-    feature = "ruby",
-    magnus::wrap(class = "RepoValidation", free_immediately, size)
-)]
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct RepoValidation {
     level: RepoValidationLevel,
@@ -210,26 +187,10 @@ pub struct RepoValidation {
 
 #[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass(get_all))]
 #[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
-#[cfg_attr(
-    feature = "ruby",
-    magnus::wrap(class = "RepoValidationFlatIssue", free_immediately, size)
-)]
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct RepoValidationFlatIssue {
     pub level: RepoValidationLevel,
     pub error_message: String,
-}
-
-#[cfg(feature = "ruby")]
-impl magnus::TryConvert for RepoValidationFlatIssue {
-    fn try_convert(val: magnus::Value) -> Result<Self, magnus::Error> {
-        let level: RepoValidationLevel = val.funcall("level", ())?;
-        let error_message: String = val.funcall("error_message", ())?;
-        Ok(Self {
-            level,
-            error_message,
-        })
-    }
 }
 
 #[cfg_attr(feature = "pyo3", gen_stub_pymethods, pymethods)]

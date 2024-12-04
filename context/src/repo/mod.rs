@@ -32,12 +32,7 @@ struct BundleRepoOptions {
 
 #[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass(get_all))]
 #[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
-#[cfg_attr(
-    feature = "ruby",
-    magnus::wrap(class = "BundleRepo", free_immediately, size)
-)]
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
->>>>>>> origin
 pub struct BundleRepo {
     pub repo: RepoUrlParts,
     pub repo_root: String,
@@ -318,33 +313,10 @@ impl BundleRepo {
     }
 }
 
-#[cfg(feature = "ruby")]
-impl BundleRepo {
-    // magnus does not support anyhow::Error
-    // https://github.com/matsadler/magnus/pull/71
-    pub fn ruby_new(
-        repo_root: Option<String>,
-        repo_url: Option<String>,
-        repo_head_sha: Option<String>,
-        repo_head_branch: Option<String>,
-        repo_head_commit_epoch: Option<String>,
-    ) -> Self {
-        let result = Self::new(
-            repo_root,
-            repo_url,
-            repo_head_sha,
-            repo_head_branch,
-            repo_head_commit_epoch,
-        );
-        result.unwrap()
-    }
-}
-
 /// The [`Repo` common type](https://github.com/trunk-io/trunk/blob/518397f/trunk/services/common/types/repo.ts#L10)
 // NOTE: This is named `RepoUrlParts` to prevent confusion as to its purpose
 #[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass(get_all))]
 #[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
-#[magnus::wrap(class = "RepoUrlParts", free_immediately, size)]
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct RepoUrlParts {
     pub host: String,
