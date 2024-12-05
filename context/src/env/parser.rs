@@ -231,7 +231,11 @@ impl<'a> CIInfoParser<'a> {
 
     fn parse_branch_class(&mut self) {
         if let Some(branch) = &self.ci_info.branch {
-            match BranchClass::try_from((branch.as_str(), self.ci_info.pr_number)) {
+            match BranchClass::try_from((
+                branch.as_str(),
+                self.ci_info.pr_number,
+                self.get_env_var("CI_MERGE_REQUEST_EVENT_TYPE"),
+            )) {
                 Ok(branch_class) => {
                     self.ci_info.branch_class = Some(branch_class);
                 }
@@ -416,11 +420,11 @@ pub enum BranchClass {
     Merge,
 }
 
-impl TryFrom<(&str, Option<usize>)> for BranchClass {
+impl TryFrom<(&str, Option<usize>, Option<String>)> for BranchClass {
     type Error = CIInfoParseError;
 
-    fn try_from(value: (&str, Option<usize>)) -> Result<Self, Self::Error> {
-        let (branch_name, pr_number) = value;
+    fn try_from(value: (&str, Option<usize>, Option<String>)) -> Result<Self, Self::Error> {
+        let (branch_name, pr_number, merge_request_event_type) = value;
         if pr_number.is_some() {
             return Ok(BranchClass::PullRequest);
         }
@@ -428,7 +432,10 @@ impl TryFrom<(&str, Option<usize>)> for BranchClass {
             Ok(BranchClass::PullRequest)
         } else if matches!(branch_name, "master" | "main") {
             Ok(BranchClass::ProtectedBranch)
-        } else if branch_name.contains("/trunk-merge/") {
+        } else if branch_name.contains("/trunk-merge/")
+            || branch_name.contains("/gh-readonly-queue/")
+            || merge_request_event_type.filter(|t| t == "merge").is_some()
+        {
             Ok(BranchClass::Merge)
         } else {
             Err(CIInfoParseError::BranchClass)
