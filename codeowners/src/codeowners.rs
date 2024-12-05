@@ -16,7 +16,6 @@ use wasm_bindgen::prelude::*;
 
 #[cfg(feature = "pyo3")]
 use crate::{github::BindingsGitHubOwners, gitlab::BindingsGitLabOwners};
-
 use crate::{github::GitHubOwners, gitlab::GitLabOwners, traits::FromReader};
 
 // TODO(TRUNK-13628): Implement serializing and deserializing for CodeOwners
@@ -72,7 +71,7 @@ impl CodeOwners {
         })
     }
 
-    // TODO: take in origin path and parse CODEOWNERS based on location
+    // TODO(TRUNK-13783): take in origin path and parse CODEOWNERS based on location
     // which informs which parser to use (GitHub or GitLab)
     pub fn parse(codeowners: Vec<u8>) -> Self {
         let owners_result = GitHubOwners::from_reader(codeowners.as_slice())
@@ -94,7 +93,7 @@ pub enum Owners {
     GitLabOwners(GitLabOwners),
 }
 
-// TODO: Make this smarter and return only an object with a .of method
+// TODO(TRUNK-13784): Make this smarter and return only an object with a .of method
 // instead of forcing the ETL to try GitHub or GitLab
 #[derive(Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass)]

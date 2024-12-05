@@ -119,10 +119,7 @@ pub struct BindingsGitLabOwners(pub GitLabOwners);
 impl BindingsGitLabOwners {
     fn of(&self, path: String) -> Option<Vec<String>> {
         let owners = self.0.of(Path::new(&path));
-        match owners {
-            Some(owners) => Some(owners.iter().map(|owner| owner.to_string()).collect()),
-            None => None,
-        }
+        owners.map(|owners| owners.iter().map(ToString::to_string).collect())
     }
 }
 

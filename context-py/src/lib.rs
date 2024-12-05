@@ -159,6 +159,7 @@ fn context_py(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(repo_validate, m)?)?;
 
     m.add_class::<codeowners::CodeOwners>()?;
+    m.add_class::<codeowners::BindingsOwners>()?;
     m.add_function(wrap_pyfunction!(codeowners_parse, m)?)?;
 
     m.add_function(wrap_pyfunction!(parse_meta_from_tarball, m)?)?;
