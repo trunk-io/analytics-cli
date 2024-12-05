@@ -106,7 +106,6 @@ jobs:
       - name: Setup Rust & Cargo
         uses: ./.github/actions/setup_rust_cargo
 
-      # TODO - migrate away from ubuntu-latest and put this in setup_rust_cargo
       - name: Update and install libclang-dev
         run: |
           sudo apt update
