@@ -14,11 +14,10 @@ use tsify_next::Tsify;
 #[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::*;
 
-use crate::{
-    github::{BindingsGitHubOwners, GitHubOwners},
-    gitlab::{BindingsGitLabOwners, GitLabOwners},
-    traits::FromReader,
-};
+#[cfg(feature = "pyo3")]
+use crate::{github::BindingsGitHubOwners, gitlab::BindingsGitLabOwners};
+
+use crate::{github::GitHubOwners, gitlab::GitLabOwners, traits::FromReader};
 
 // TODO(TRUNK-13628): Implement serializing and deserializing for CodeOwners
 #[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
