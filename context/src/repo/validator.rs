@@ -80,6 +80,8 @@ pub enum RepoValidationIssueSubOptimal {
         TIMESTAMP_STALE_HOURS
     )]
     RepoCommitStaleTimestamp(DateTime<Utc>),
+    #[error("repo sha too long, truncated to {}", MAX_SHA_FIELD_LEN)]
+    RepoShaTooLong(String),
 }
 
 #[derive(Error, Debug, Clone, PartialEq, Eq)]
@@ -88,8 +90,6 @@ pub enum RepoValidationIssueInvalid {
     RepoBranchNameTooShort(String),
     #[error("repo sha too short")]
     RepoShaTooShort(String),
-    #[error("repo sha too long, truncated to {}", MAX_SHA_FIELD_LEN)]
-    RepoShaTooLong(String),
 }
 
 impl From<&RepoValidationIssue> for RepoValidationLevel {
@@ -168,8 +168,8 @@ pub fn validate(bundle_repo: &BundleRepo) -> RepoValidation {
             ));
         }
         FieldLen::TooLong(s) => {
-            repo_validation.add_issue(RepoValidationIssue::Invalid(
-                RepoValidationIssueInvalid::RepoShaTooLong(s),
+            repo_validation.add_issue(RepoValidationIssue::SubOptimal(
+                RepoValidationIssueSubOptimal::RepoShaTooLong(s),
             ));
         }
     };

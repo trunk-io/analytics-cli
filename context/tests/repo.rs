@@ -455,11 +455,11 @@ fn test_parse_repo_shas_too_long() {
     let bundle_repo = bundle_repo.unwrap();
 
     let repo_validation = repo::validator::validate(&bundle_repo);
-    assert_eq!(repo_validation.max_level(), RepoValidationLevel::Invalid);
+    assert_eq!(repo_validation.max_level(), RepoValidationLevel::SubOptimal);
     pretty_assertions::assert_eq!(
         repo_validation.issues(),
-        &[RepoValidationIssue::Invalid(
-            repo::validator::RepoValidationIssueInvalid::RepoShaTooLong(
+        &[RepoValidationIssue::SubOptimal(
+            repo::validator::RepoValidationIssueSubOptimal::RepoShaTooLong(
                 sha.to_string()[..MAX_SHA_FIELD_LEN].to_string()
             )
         )]
