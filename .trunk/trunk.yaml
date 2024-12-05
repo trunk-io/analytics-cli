@@ -65,6 +65,7 @@ actions:
 tools:
   runtimes:
     - ruby
+    - node
   enabled:
     - gh@2.62.0
     - pnpm@9.14.2
