@@ -12,7 +12,7 @@ use std::{
 #[cfg(feature = "pyo3")]
 use pyo3::prelude::*;
 #[cfg(feature = "pyo3")]
-use pyo3_stub_gen::derive::gen_stub_pyclass;
+use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 
 use crate::{FromPath, FromReader, OwnersOfPath};
 
@@ -170,14 +170,11 @@ impl FromReader for GitHubOwners {
 pub struct BindingsGitHubOwners(pub GitHubOwners);
 
 #[cfg(feature = "pyo3")]
-impl OwnersOfPath for BindingsGitHubOwners {
-    type Owner = String;
-
-    fn of<P>(&self, path: P) -> Option<Vec<String>>
-    where
-        P: AsRef<Path>,
-    {
-        let owners = self.0.of(path);
+#[gen_stub_pymethods]
+#[pymethods]
+impl BindingsGitHubOwners {
+    fn of(&self, path: String) -> Option<Vec<String>> {
+        let owners = self.0.of(Path::new(&path));
         match owners {
             Some(owners) => Some(owners.iter().map(|owner| owner.to_string()).collect()),
             None => None,

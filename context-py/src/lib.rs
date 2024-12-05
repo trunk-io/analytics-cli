@@ -124,7 +124,11 @@ pub fn parse_meta_from_tarball(
 #[gen_stub_pyfunction]
 #[pyfunction]
 fn codeowners_parse(codeowners_bytes: Vec<u8>) -> PyResult<BindingsOwners> {
-    Ok(BindingsOwners(CodeOwners::parse(codeowners_bytes)))
+    let codeowners = CodeOwners::parse(codeowners_bytes);
+    match codeowners.owners {
+        Some(owners) => Ok(BindingsOwners(owners)),
+        None => Err(PyTypeError::new_err("Failed to parse CODEOWNERS file")),
+    }
 }
 
 #[pymodule]
