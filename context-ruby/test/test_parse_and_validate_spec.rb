@@ -32,4 +32,8 @@ describe 'context_ruby' do
     expect(ci.workflow).to eq(nil)
     expect(ci.job).to eq(nil)
   end
+
+  it 'should error on invalid CIInfo' do
+    expect { CIInfo.new(100) }.to raise_error(TypeError)
+  end
 end
