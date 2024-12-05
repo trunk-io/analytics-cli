@@ -282,7 +282,6 @@ pub async fn run_upload(
 
     log::info!("Total files pack and upload: {}", file_counter.get_count());
     if file_counter.get_count() == 0 {
-        // DONOTLAND FIX LOG MESSAGE HERE
         log::warn!(
             "No JUnit files found to pack and upload using globs: {:?}",
             junit_paths

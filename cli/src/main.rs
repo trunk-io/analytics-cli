@@ -136,7 +136,7 @@ async fn run_test(test_args: TestArgs) -> anyhow::Result<i32> {
     )?;
 
     if junit_paths.is_empty() && bazel_bep_path.is_none() {
-        return Err(anyhow::anyhow!("No junit or bazel BEP paths provided."));
+        return Err(anyhow::anyhow!("No junit paths provided."));
     }
 
     let api_client = ApiClient::new(String::from(token))?;

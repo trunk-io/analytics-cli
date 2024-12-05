@@ -97,3 +97,59 @@ impl BazelBepParser {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    const SIMPLE_EXAMPLE: &str = "test_fixtures/bep_example";
+    const EMPTY_EXAMPLE: &str = "test_fixtures/bep_empty";
+    const PARTIAL_EXAMPLE: &str = "test_fixtures/bep_partially_valid";
+
+    fn get_test_file(file: &str) -> String {
+        PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap())
+            .join(file)
+            .to_str()
+            .unwrap()
+            .to_string()
+    }
+
+    #[test]
+    fn test_parse_simple_bep() {
+        let input_file = get_test_file(SIMPLE_EXAMPLE);
+        let mut parser = BazelBepParser::new(input_file);
+        parser.parse().unwrap();
+
+        let empty_vec: Vec<String> = Vec::new();
+        assert_eq!(parser.xml_files(), vec!["/tmp/hello_test/test.xml"]);
+        assert_eq!(*parser.errors(), empty_vec);
+    }
+
+    #[test]
+    fn test_parse_empty_bep() {
+        let input_file = get_test_file(EMPTY_EXAMPLE);
+        let mut parser = BazelBepParser::new(input_file);
+        parser.parse().unwrap();
+
+        let empty_vec: Vec<String> = Vec::new();
+        assert_eq!(parser.xml_files(), empty_vec);
+        assert_eq!(*parser.errors(), empty_vec);
+    }
+
+    #[test]
+    fn test_parse_partial_bep() {
+        let input_file = get_test_file(PARTIAL_EXAMPLE);
+        let mut parser = BazelBepParser::new(input_file);
+        parser.parse().unwrap();
+
+        assert_eq!(
+            parser.xml_files(),
+            vec!["/tmp/hello_test/test.xml", "/tmp/client_test/test.xml"]
+        );
+        assert_eq!(
+            *parser.errors(),
+            vec!["Error parsing build event: EOF while parsing a value at line 108 column 0"]
+        );
+    }
+}
