@@ -109,7 +109,7 @@ describe("context-js", () => {
         num_tests: faker.number.int(100),
         num_files: faker.number.int(100),
         command_line: "trunk-analytics-cli upload --token=***",
-        id_v2: "SOME ID",
+        bundle_upload_id_v2: "SOME ID",
       },
     ],
   ];
