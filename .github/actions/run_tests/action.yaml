@@ -24,4 +24,4 @@ runs:
 
     - name: Run tests
       shell: bash
-      run: cargo nextest run --workspace ${{ contains(inputs.target, 'musl') && '--exclude context-js --exclude context-py --exclude context-ruby' || '' }} --profile=ci
+      run: cargo nextest run --workspace ${{ contains(inputs.target, 'musl') && '--exclude context-js --exclude context-py --exclude context_ruby' || '' }} --profile=ci

@@ -25,7 +25,7 @@ describe 'context_ruby' do
 
   it 'should be able to make a new CIInfo' do
     ci = CIInfo.new(1)
-    expect(ci.platform.to_s).to eq('JENKINS_PIPELINE')
+    expect(ci.platform.to_s).to eq('BUILD_ID')
     expect(ci.job_url).to eq(nil)
     expect(ci.branch).to eq(nil)
     expect(ci.actor).to eq(nil)

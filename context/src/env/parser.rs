@@ -67,31 +67,43 @@ pub enum CIPlatform {
     Drone,
 }
 
+impl Into<&str> for CIPlatform {
+    fn into(self) -> &'static str {
+        match self {
+            CIPlatform::GitHubActions => ci_platform_env_key::GITHUB_ACTIONS,
+            CIPlatform::JenkinsPipeline => ci_platform_env_key::JENKINS_PIPELINE,
+            CIPlatform::CircleCI => ci_platform_env_key::CIRCLECI,
+            CIPlatform::Buildkite => ci_platform_env_key::BUILDKITE,
+            CIPlatform::Semaphore => ci_platform_env_key::SEMAPHORE,
+            CIPlatform::TravisCI => ci_platform_env_key::TRAVIS_CI,
+            CIPlatform::Webappio => ci_platform_env_key::WEBAPPIO,
+            CIPlatform::AWSCodeBuild => ci_platform_env_key::AWS_CODEBUILD,
+            CIPlatform::BitbucketPipelines => ci_platform_env_key::BITBUCKET,
+            CIPlatform::AzurePipelines => ci_platform_env_key::AZURE_PIPELINES,
+            CIPlatform::GitLabCI => ci_platform_env_key::GITLAB_CI,
+            CIPlatform::Drone => ci_platform_env_key::DRONE,
+        }
+    }
+}
+
+impl ToString for CIPlatform {
+    fn to_string(&self) -> String {
+        String::from(Into::<&str>::into(*self))
+    }
+}
+
 #[cfg(feature = "ruby")]
 impl CIPlatform {
     pub fn to_string(&self) -> &str {
-        match self {
-            CIPlatform::GitHubActions => "GITHUB_ACTIONS",
-            CIPlatform::JenkinsPipeline => "JENKINS_PIPELINE",
-            CIPlatform::CircleCI => "CIRCLECI",
-            CIPlatform::Buildkite => "BUILDKITE",
-            CIPlatform::Semaphore => "SEMAPHORE",
-            CIPlatform::TravisCI => "TRAVIS_CI",
-            CIPlatform::Webappio => "WEBAPPIO",
-            CIPlatform::AWSCodeBuild => "AWS_CODEBUILD",
-            CIPlatform::BitbucketPipelines => "BITBUCKET",
-            CIPlatform::AzurePipelines => "AZURE_PIPELINES",
-            CIPlatform::GitLabCI => "GITLAB_CI",
-            CIPlatform::Drone => "DRONE",
-        }
+        (*self).into()
     }
 }
 
 #[cfg(feature = "ruby")]
 impl magnus::TryConvert for CIPlatform {
     fn try_convert(val: magnus::Value) -> Result<Self, magnus::Error> {
-        let val: i32 = val.funcall("to_i", ())?;
-        match val {
+        let ival: i32 = val.funcall("to_i", ())?;
+        match ival {
             0 => Ok(CIPlatform::GitHubActions),
             1 => Ok(CIPlatform::JenkinsPipeline),
             2 => Ok(CIPlatform::CircleCI),
@@ -104,8 +116,10 @@ impl magnus::TryConvert for CIPlatform {
             9 => Ok(CIPlatform::AzurePipelines),
             10 => Ok(CIPlatform::GitLabCI),
             11 => Ok(CIPlatform::Drone),
-            // TODO
-            _ => Ok(CIPlatform::GitHubActions),
+            _ => Err(magnus::Error::new(
+                magnus::Ruby::get_with(val).exception_type_error(),
+                format!("invalid CIPlatform: {}", val),
+            )),
         }
     }
 }
@@ -443,8 +457,6 @@ impl CIInfo {
     }
 }
 
-// unfortunately magnus requires explicit getters and setters for the object
-// to be accessible from Ruby
 #[cfg(feature = "ruby")]
 impl CIInfo {
     pub fn platform(&self) -> CIPlatform {

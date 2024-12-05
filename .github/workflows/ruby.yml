@@ -15,9 +15,18 @@ permissions:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: public-amd64-2xlarge
     steps:
       - uses: actions/checkout@v4
+
+      - name: Setup Rust & Cargo
+        uses: ./.github/actions/setup_rust_cargo
+
+      # TODO - migrate away from ubuntu-latest and put this in setup_rust_cargo
+      - name: Update and install libclang-dev
+        run: |
+          sudo apt update
+          sudo apt-get install libclang-dev -y
 
       - uses: ruby/setup-ruby@v1
         with:
