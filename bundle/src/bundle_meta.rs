@@ -118,7 +118,7 @@ pub struct BundleMetaV0_6_3 {
     pub junit_props: BundleMetaJunitProps,
     #[serde(flatten)]
     pub debug_props: BundleMetaDebugProps,
-    pub bundle_upload_id_v2: Option<String>, // TODO(pat): make this required
+    pub bundle_upload_id_v2: String,
 }
 
 impl From<BundleMetaV0_6_3> for BundleMetaV0_6_2 {

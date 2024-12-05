@@ -16,7 +16,7 @@ pub struct CreateBundleUploadRequest {
 pub struct CreateBundleUploadResponse {
     pub id: String,
     #[serde(rename = "idV2")]
-    pub id_v2: Option<String>,
+    pub id_v2: String,
     pub url: String,
     pub key: String,
 }
