@@ -73,6 +73,8 @@ impl CodeOwners {
         })
     }
 
+    // TODO: take in origin path and parse CODEOWNERS based on location
+    // which informs which parser to use (GitHub or GitLab)
     pub fn parse(codeowners: Vec<u8>) -> Self {
         let owners_result = GitHubOwners::from_reader(codeowners.as_slice())
             .map(Owners::GitHubOwners)
@@ -93,6 +95,8 @@ pub enum Owners {
     GitLabOwners(GitLabOwners),
 }
 
+// TODO: Make this smarter and return only an object with a .of method
+// instead of forcing the ETL to try GitHub or GitLab
 #[derive(Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass)]
 pub struct BindingsOwners(pub Owners);
