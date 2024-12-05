@@ -254,6 +254,7 @@ pub async fn run_upload(
             num_tests,
         },
         debug_props: BundleMetaDebugProps { command_line },
+        bundle_upload_id_v2: upload.id_v2,
     };
 
     log::info!("Total files pack and upload: {}", file_counter.get_count());
