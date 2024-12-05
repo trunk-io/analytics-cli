@@ -106,6 +106,9 @@ jobs:
       - name: Setup Rust & Cargo
         uses: ./.github/actions/setup_rust_cargo
 
+      - name: Setup Ruby
+        uses: ./.github/actions/setup_ruby
+
       - name: Build workspace
         run: cargo build --all
 

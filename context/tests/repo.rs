@@ -1,7 +1,7 @@
 use chrono::DateTime;
 use context::repo::{
     self,
-    validator::{RepoValidationIssue, RepoValidationLevel},
+    validator::{RepoValidationIssue, RepoValidationLevel, MAX_SHA_FIELD_LEN},
     BundleRepo, RepoUrlParts,
 };
 use test_utils::mock_git_repo::{setup_repo_with_commit, TEST_BRANCH, TEST_ORIGIN};
@@ -434,4 +434,62 @@ fn test_parse_git_urls() {
         let actual = RepoUrlParts::from_url(url);
         assert!(actual.is_err());
     }
+}
+
+#[test]
+fn test_parse_repo_shas_too_long() {
+    let root = tempfile::tempdir()
+        .expect("failed to create temp directory")
+        .into_path();
+    setup_repo_with_commit(&root).expect("failed to setup repo");
+    let sha = "12345678901234567890123456789012345678900";
+    let bundle_repo = BundleRepo::new(
+        Some(root.to_str().unwrap().to_string()),
+        None,
+        Some(sha.to_string()),
+        None,
+        None,
+    );
+
+    assert!(bundle_repo.is_ok());
+    let bundle_repo = bundle_repo.unwrap();
+
+    let repo_validation = repo::validator::validate(&bundle_repo);
+    assert_eq!(repo_validation.max_level(), RepoValidationLevel::SubOptimal);
+    pretty_assertions::assert_eq!(
+        repo_validation.issues(),
+        &[RepoValidationIssue::SubOptimal(
+            repo::validator::RepoValidationIssueSubOptimal::RepoShaTooLong(
+                sha.to_string()[..MAX_SHA_FIELD_LEN].to_string()
+            )
+        )]
+    );
+}
+
+#[test]
+fn test_parse_repo_shas_too_short() {
+    let root = tempfile::tempdir()
+        .expect("failed to create temp directory")
+        .into_path();
+    setup_repo_with_commit(&root).expect("failed to setup repo");
+    let blank_sha = "";
+    let bundle_repo = BundleRepo::new(
+        Some(root.to_str().unwrap().to_string()),
+        None,
+        Some(blank_sha.to_string()),
+        None,
+        None,
+    );
+
+    assert!(bundle_repo.is_ok());
+    let bundle_repo = bundle_repo.unwrap();
+
+    let repo_validation = repo::validator::validate(&bundle_repo);
+    assert_eq!(repo_validation.max_level(), RepoValidationLevel::Invalid);
+    pretty_assertions::assert_eq!(
+        repo_validation.issues(),
+        &[RepoValidationIssue::Invalid(
+            repo::validator::RepoValidationIssueInvalid::RepoShaTooShort(blank_sha.to_string())
+        )]
+    );
 }

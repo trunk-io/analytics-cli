@@ -14,6 +14,7 @@ path = "bin/stub_gen.rs"
 
 [dependencies]
 bundle = { path = "../bundle", default-features = false, features = ["pyo3"] }
+codeowners = { path = "../codeowners" }
 context = { path = "../context", features = ["git-access", "pyo3"] }
 pyo3-stub-gen = "0.6.0"
 futures-io = "0.3.31"

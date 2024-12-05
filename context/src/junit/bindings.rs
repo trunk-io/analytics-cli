@@ -1,6 +1,6 @@
 use std::{collections::HashMap, time::Duration};
 
-use chrono::DateTime;
+use chrono::{DateTime, TimeDelta};
 #[cfg(feature = "pyo3")]
 use pyo3::prelude::*;
 #[cfg(feature = "pyo3")]
@@ -11,7 +11,10 @@ use quick_junit::{
 #[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::*;
 
-const MICROSECONDS_PER_SECOND: i64 = 1_000_000;
+use super::validator::{
+    JunitReportValidation, JunitReportValidationFlatIssue, JunitTestSuiteValidation,
+    JunitValidationLevel, JunitValidationType,
+};
 
 #[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass(get_all))]
 #[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
@@ -78,9 +81,10 @@ impl Into<Report> for BindingsReport {
             uuid: None,
             timestamp: timestamp_micros
                 .and_then(|micro_secs| {
+                    let micros_delta = TimeDelta::microseconds(micro_secs);
                     DateTime::from_timestamp(
-                        micro_secs / MICROSECONDS_PER_SECOND,
-                        (micro_secs % MICROSECONDS_PER_SECOND) as u32,
+                        micros_delta.num_seconds(),
+                        micros_delta.subsec_nanos() as u32,
                     )
                 })
                 .map(|dt| dt.fixed_offset()),
@@ -208,9 +212,10 @@ impl Into<TestSuite> for BindingsTestSuite {
         test_suite.failures = failures;
         test_suite.timestamp = timestamp_micros
             .and_then(|micro_secs| {
+                let micros_delta = TimeDelta::microseconds(micro_secs);
                 DateTime::from_timestamp(
-                    micro_secs / MICROSECONDS_PER_SECOND,
-                    (micro_secs % MICROSECONDS_PER_SECOND) as u32,
+                    micros_delta.num_seconds(),
+                    micros_delta.subsec_nanos() as u32,
                 )
             })
             .map(|dt| dt.fixed_offset());
@@ -365,9 +370,10 @@ impl TryInto<TestCase> for BindingsTestCase {
         test_case.assertions = assertions;
         test_case.timestamp = timestamp_micros
             .and_then(|micro_secs| {
+                let micros_delta = TimeDelta::microseconds(micro_secs);
                 DateTime::from_timestamp(
-                    micro_secs / MICROSECONDS_PER_SECOND,
-                    (micro_secs % MICROSECONDS_PER_SECOND) as u32,
+                    micros_delta.num_seconds(),
+                    micros_delta.subsec_nanos() as u32,
                 )
             })
             .map(|dt| dt.fixed_offset());
@@ -613,9 +619,10 @@ impl Into<TestRerun> for BindingsTestRerun {
             kind: kind.into(),
             timestamp: timestamp_micros
                 .and_then(|micro_secs| {
+                    let micros_delta = TimeDelta::microseconds(micro_secs);
                     DateTime::from_timestamp(
-                        micro_secs / MICROSECONDS_PER_SECOND,
-                        (micro_secs % MICROSECONDS_PER_SECOND) as u32,
+                        micros_delta.num_seconds(),
+                        micros_delta.subsec_nanos() as u32,
                     )
                 })
                 .map(|dt| dt.fixed_offset()),
@@ -653,5 +660,73 @@ impl Into<NonSuccessKind> for BindingsNonSuccessKind {
             BindingsNonSuccessKind::Failure => NonSuccessKind::Failure,
             BindingsNonSuccessKind::Error => NonSuccessKind::Error,
         }
+    }
+}
+
+#[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass(get_all))]
+#[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
+#[derive(Clone, Debug)]
+pub struct BindingsJunitReportValidation {
+    all_issues: Vec<JunitReportValidationFlatIssue>,
+    level: JunitValidationLevel,
+    test_suites: Vec<JunitTestSuiteValidation>,
+    valid_test_suites: Vec<BindingsTestSuite>,
+}
+
+impl From<JunitReportValidation> for BindingsJunitReportValidation {
+    fn from(
+        JunitReportValidation {
+            all_issues,
+            level,
+            test_suites,
+            valid_test_suites,
+        }: JunitReportValidation,
+    ) -> Self {
+        Self {
+            all_issues: all_issues
+                .into_iter()
+                .map(|i| JunitReportValidationFlatIssue {
+                    level: JunitValidationLevel::from(&i),
+                    error_type: JunitValidationType::from(&i),
+                    error_message: i.to_string(),
+                })
+                .collect(),
+            level,
+            test_suites,
+            valid_test_suites: valid_test_suites
+                .into_iter()
+                .map(BindingsTestSuite::from)
+                .collect(),
+        }
+    }
+}
+
+#[cfg_attr(feature = "pyo3", gen_stub_pymethods, pymethods)]
+#[cfg_attr(feature = "wasm", wasm_bindgen)]
+impl BindingsJunitReportValidation {
+    pub fn all_issues_owned(&self) -> Vec<JunitReportValidationFlatIssue> {
+        self.all_issues.clone()
+    }
+
+    pub fn max_level(&self) -> JunitValidationLevel {
+        self.test_suites
+            .iter()
+            .map(|test_suite| test_suite.max_level())
+            .max()
+            .map_or(self.level, |l| l.max(self.level))
+    }
+
+    pub fn num_invalid_issues(&self) -> usize {
+        self.all_issues
+            .iter()
+            .filter(|issue| issue.level == JunitValidationLevel::Invalid)
+            .count()
+    }
+
+    pub fn num_suboptimal_issues(&self) -> usize {
+        self.all_issues
+            .iter()
+            .filter(|issue| issue.level == JunitValidationLevel::SubOptimal)
+            .count()
     }
 }

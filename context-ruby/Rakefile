@@ -1,0 +1,18 @@
+# frozen_string_literal: true
+
+require "rake/testtask"
+require "rake/extensiontask"
+require 'rspec/core/rake_task'
+
+Rake::ExtensionTask.new("context_ruby") do |c|
+  c.lib_dir = "lib/context_ruby"
+end
+
+task :dev do
+  ENV['RB_SYS_CARGO_PROFILE'] = 'dev'
+end
+
+RSpec::Core::RakeTask.new(:test) do |t|
+  Rake::Task['compile'].invoke
+  t.pattern = 'test/*_spec.rb'
+end
