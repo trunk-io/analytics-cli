@@ -1,0 +1,33 @@
+name: Build and test context-ruby
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - "*"
+  pull_request: {}
+  workflow_dispatch: {}
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  build:
+    runs-on: public-amd64-2xlarge
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Rust & Cargo
+        uses: ./.github/actions/setup_rust_cargo
+
+      - name: Setup Ruby
+        uses: ./.github/actions/setup_ruby
+
+      - name: Test ruby package
+        if: "!cancelled()"
+        run: |
+          bundle install
+          bundle exec rake test
+        working-directory: context-ruby
