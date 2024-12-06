@@ -36,6 +36,7 @@ pub fn repo_validate(bundle_repo: repo::BundleRepo) -> repo::validator::RepoVali
 #[magnus::init]
 fn init(ruby: &magnus::Ruby) -> Result<(), magnus::Error> {
     env::parser::ruby_init(ruby)?;
+    env::test_reporter::ruby_init(ruby)?;
     ruby.define_global_function("env_parse", magnus::function!(env_parse, 1));
     Ok(())
 }
