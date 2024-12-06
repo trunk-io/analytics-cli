@@ -22,6 +22,7 @@ jobs:
   linux:
     runs-on: ${{ matrix.platform.runner }}
     strategy:
+      fail-fast: false
       matrix:
         platform:
           - runner: ubuntu-latest
@@ -52,8 +53,8 @@ jobs:
             if [ -f /usr/bin/yum ]; then
               # quay.io/pypa/manylinux2014_x86_64:latest
               /usr/bin/yum -y upgrade
-              /usr/bin/yum -y install perl-IPC-Cmd perl-List-MoreUtils openssl-devel python3-pip
-              /usr/bin/ln -s /usr/bin/pip3 /usr/bin/pip unzip
+              /usr/bin/yum -y install perl-IPC-Cmd perl-List-MoreUtils openssl-devel python3-pip unzip
+              /usr/bin/ln -s /usr/bin/pip3 /usr/bin/pip
             elif [ -f /usr/bin/apt ]; then
               # ghcr.io/rust-cross/manylinux2014-cross:aarch64
               /usr/bin/apt update
