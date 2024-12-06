@@ -11,6 +11,8 @@ runs:
 
     - name: Install Protoc
       uses: arduino/setup-protoc@v3
+      with:
+        version: "29.1"
 
     - uses: actions/cache@v4
       with:
