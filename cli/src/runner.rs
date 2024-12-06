@@ -35,6 +35,7 @@ pub async fn run_test_command(
         JunitSpec::BazelBep(bep_path) => {
             let mut parser = BazelBepParser::new(bep_path.clone());
             parser.parse()?;
+            parser.print_parsed_results();
             parser.uncached_xml_files()
         }
     };

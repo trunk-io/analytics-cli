@@ -154,6 +154,7 @@ pub async fn run_upload(
     if let Some(bazel_bep_path) = bazel_bep_path {
         let mut parser = BazelBepParser::new(bazel_bep_path);
         parser.parse()?;
+        parser.print_parsed_results();
         junit_paths = parser.uncached_xml_files();
     }
 

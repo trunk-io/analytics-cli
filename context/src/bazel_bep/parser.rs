@@ -45,6 +45,18 @@ impl BazelBepParser {
             .collect()
     }
 
+    pub fn print_parsed_results(&self) {
+        if !self.errors.is_empty() {
+            log::warn!("Errors parsing BEP file: {:?}", &self.errors);
+        }
+
+        log::info!(
+            "Parsed {} ({} cached) test results from BEP file",
+            self.test_results.len(),
+            self.test_results.iter().filter(|r| r.cached).count()
+        );
+    }
+
     pub fn parse(&mut self) -> anyhow::Result<()> {
         let file = std::fs::File::open(&self.bazel_bep_path)?;
         let reader = std::io::BufReader::new(file);
@@ -100,16 +112,6 @@ impl BazelBepParser {
 
         self.errors = errors;
         self.test_results = test_results;
-
-        if !self.errors.is_empty() {
-            log::warn!("Errors parsing BEP file: {:?}", &self.errors);
-        }
-
-        log::info!(
-            "Parsed {} ({} cached) test results from BEP file",
-            self.test_results.len(),
-            self.test_results.iter().filter(|r| r.cached).count()
-        );
         Ok(())
     }
 }
