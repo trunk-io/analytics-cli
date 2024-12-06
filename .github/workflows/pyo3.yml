@@ -53,11 +53,11 @@ jobs:
               # quay.io/pypa/manylinux2014_x86_64:latest
               /usr/bin/yum -y upgrade
               /usr/bin/yum -y install perl-IPC-Cmd perl-List-MoreUtils openssl-devel python3-pip
-              /usr/bin/ln -s /usr/bin/pip3 /usr/bin/pip
+              /usr/bin/ln -s /usr/bin/pip3 /usr/bin/pip unzip
             elif [ -f /usr/bin/apt ]; then
               # ghcr.io/rust-cross/manylinux2014-cross:aarch64
               /usr/bin/apt update
-              /usr/bin/apt install -y pkg-config libssl-dev
+              /usr/bin/apt install -y pkg-config libssl-dev unzip
             fi
 
             if [ "$(uname -m)" == "aarch64" ]; then
