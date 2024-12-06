@@ -7,13 +7,15 @@ use constants::CODEOWNERS_LOCATIONS;
 #[cfg(feature = "pyo3")]
 use pyo3::prelude::*;
 #[cfg(feature = "pyo3")]
-use pyo3_stub_gen::derive::gen_stub_pyclass;
+use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "wasm")]
 use tsify_next::Tsify;
 #[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::*;
 
+#[cfg(feature = "pyo3")]
+use crate::{github::BindingsGitHubOwners, gitlab::BindingsGitLabOwners};
 use crate::{github::GitHubOwners, gitlab::GitLabOwners, traits::FromReader};
 
 // TODO(TRUNK-13628): Implement serializing and deserializing for CodeOwners
@@ -69,6 +71,8 @@ impl CodeOwners {
         })
     }
 
+    // TODO(TRUNK-13783): take in origin path and parse CODEOWNERS based on location
+    // which informs which parser to use (GitHub or GitLab)
     pub fn parse(codeowners: Vec<u8>) -> Self {
         let owners_result = GitHubOwners::from_reader(codeowners.as_slice())
             .map(Owners::GitHubOwners)
@@ -87,6 +91,34 @@ impl CodeOwners {
 pub enum Owners {
     GitHubOwners(GitHubOwners),
     GitLabOwners(GitLabOwners),
+}
+
+// TODO(TRUNK-13784): Make this smarter and return only an object with a .of method
+// instead of forcing the ETL to try GitHub or GitLab
+#[derive(Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass)]
+pub struct BindingsOwners(pub Owners);
+
+#[cfg(feature = "pyo3")]
+#[gen_stub_pymethods]
+#[pymethods]
+impl BindingsOwners {
+    pub fn get_github_owners(&self) -> Option<BindingsGitHubOwners> {
+        match &self.0 {
+            Owners::GitHubOwners(owners) => {
+                Some(BindingsGitHubOwners(GitHubOwners::from(owners.clone())))
+            }
+            _ => None,
+        }
+    }
+    pub fn get_gitlab_owners(&self) -> Option<BindingsGitLabOwners> {
+        match &self.0 {
+            Owners::GitLabOwners(owners) => {
+                Some(BindingsGitLabOwners(GitLabOwners::from(owners.clone())))
+            }
+            _ => None,
+        }
+    }
 }
 
 const CODEOWNERS: &str = "CODEOWNERS";
