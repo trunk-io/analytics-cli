@@ -225,7 +225,10 @@ pub async fn run_quarantine(
 
     // use the exit code from the command if the group is not quarantined
     // override exit code to be exit_success if the group is quarantined
-    let exit_code = if !quarantine_results.group_is_quarantined {
+    let exit_code = if total_failures == 0 {
+        log::info!("No failed tests to quarantine, returning exit code from command.");
+        exit_code
+    } else if !quarantine_results.group_is_quarantined {
         log::info!("Not all test failures were quarantined, returning exit code from command.");
         exit_code
     } else if exit_code != EXIT_SUCCESS && !quarantine_config.is_preview_mode {
