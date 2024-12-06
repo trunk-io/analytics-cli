@@ -22,7 +22,7 @@ pub async fn run_test_command(
     org_slug: &str,
     command: &String,
     args: Vec<&String>,
-    junit_spec: &JunitSpec,
+    junit_spec: JunitSpec,
     team: Option<String>,
     codeowners: &Option<CodeOwners>,
 ) -> anyhow::Result<RunResult> {
@@ -35,12 +35,17 @@ pub async fn run_test_command(
         JunitSpec::BazelBep(bep_path) => {
             let mut parser = BazelBepParser::new(bep_path.clone());
             parser.parse()?;
-            &parser.xml_files()
+            parser.uncached_xml_files()
         }
     };
 
-    let (file_sets, ..) =
-        build_filesets(&repo.repo_root, output_paths, team, codeowners, Some(start))?;
+    let (file_sets, ..) = build_filesets(
+        &repo.repo_root,
+        &output_paths,
+        team,
+        codeowners,
+        Some(start),
+    )?;
     let failures = if exit_code != EXIT_SUCCESS {
         extract_failed_tests(repo, org_slug, &file_sets).await
     } else {

@@ -145,7 +145,7 @@ async fn run_test(test_args: TestArgs) -> anyhow::Result<i32> {
     let junit_spec = if !junit_paths.is_empty() {
         JunitSpec::Paths(junit_paths.clone())
     } else {
-        JunitSpec::BazelBep(bazel_bep_path.clone().unwrap())
+        JunitSpec::BazelBep(bazel_bep_path.as_deref().unwrap_or_default().to_string())
     };
 
     log::info!("running command: {:?}", command);
@@ -154,7 +154,7 @@ async fn run_test(test_args: TestArgs) -> anyhow::Result<i32> {
         &org_url_slug,
         command.first().unwrap(),
         command.iter().skip(1).collect(),
-        &junit_spec,
+        junit_spec,
         team.clone(),
         &codeowners,
     )
@@ -226,9 +226,9 @@ async fn run(cli: Cli) -> anyhow::Result<i32> {
 
             let junit_file_paths = match bazel_bep_path {
                 Some(bazel_bep_path) => {
-                    let mut parser = BazelBepParser::new(bazel_bep_path.clone());
+                    let mut parser = BazelBepParser::new(bazel_bep_path);
                     parser.parse()?;
-                    parser.xml_files()
+                    parser.uncached_xml_files()
                 }
                 None => junit_paths,
             };

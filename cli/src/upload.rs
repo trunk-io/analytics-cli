@@ -152,9 +152,9 @@ pub async fn run_upload(
         codeowners.or_else(|| CodeOwners::find_file(&repo.repo_root, &codeowners_path));
 
     if let Some(bazel_bep_path) = bazel_bep_path {
-        let mut parser = BazelBepParser::new(bazel_bep_path.clone());
+        let mut parser = BazelBepParser::new(bazel_bep_path);
         parser.parse()?;
-        junit_paths = parser.xml_files();
+        junit_paths = parser.uncached_xml_files();
     }
 
     let tags = parse_custom_tags(&tags)?;

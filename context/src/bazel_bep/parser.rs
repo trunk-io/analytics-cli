@@ -2,7 +2,7 @@ use anyhow::Ok;
 use bazel_bep::types::build_event_stream::{build_event::Payload, file::File::Uri, BuildEvent};
 use serde_json::Deserializer;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct TestResult {
     pub cached: bool,
     pub xml_files: Vec<String>,
@@ -13,6 +13,7 @@ const FILE_URI_PREFIX: &str = "file://";
 /// Uses proto spec
 /// https://github.com/TylerJang27/bazel-bep/blob/master/proto/build_event_stream.proto based on
 /// https://github.com/bazelbuild/bazel/blob/master/src/main/java/com/google/devtools/build/lib/buildeventstream/proto/build_event_stream.proto
+#[derive(Debug, Clone, Default)]
 pub struct BazelBepParser {
     bazel_bep_path: String,
     test_results: Vec<TestResult>,
@@ -23,8 +24,7 @@ impl BazelBepParser {
     pub fn new(bazel_bep_path: String) -> Self {
         Self {
             bazel_bep_path,
-            test_results: Vec::new(),
-            errors: Vec::new(),
+            ..Default::default()
         }
     }
 
@@ -32,7 +32,7 @@ impl BazelBepParser {
         &self.errors
     }
 
-    pub fn xml_files(&self) -> Vec<String> {
+    pub fn uncached_xml_files(&self) -> Vec<String> {
         self.test_results
             .iter()
             .filter_map(|r| {
@@ -49,43 +49,59 @@ impl BazelBepParser {
         let file = std::fs::File::open(&self.bazel_bep_path)?;
         let reader = std::io::BufReader::new(file);
 
-        let build_events = Deserializer::from_reader(reader).into_iter::<BuildEvent>();
-        build_events.for_each(|parse_event| {
-            if let Some(err) = parse_event.as_ref().err() {
-                self.errors
-                    .push(format!("Error parsing build event: {}", err));
-                return;
-            }
-            if let Some(build_event) = parse_event.ok() {
-                if let Some(Payload::TestResult(test_result)) = build_event.payload {
-                    let xml_files = test_result.test_action_output.into_iter().fold(
-                        Vec::new(),
-                        |mut xml_files, action_output| {
-                            if action_output.name.ends_with(".xml") {
-                                if let Some(Uri(file)) = action_output.file {
-                                    xml_files.push(
-                                        file.strip_prefix(FILE_URI_PREFIX)
-                                            .unwrap_or(&file)
-                                            .to_string(),
-                                    );
-                                }
+        let (errors, test_results) = Deserializer::from_reader(reader)
+            .into_iter::<BuildEvent>()
+            .fold(
+                (Vec::<String>::new(), Vec::<TestResult>::new()),
+                |(mut errors, mut test_results), parse_event| {
+                    match parse_event {
+                        Result::Err(ref err) => {
+                            errors.push(format!("Error parsing build event: {}", err));
+                        }
+                        Result::Ok(build_event) => {
+                            if let Some(Payload::TestResult(test_result)) = build_event.payload {
+                                let xml_files = test_result
+                                    .test_action_output
+                                    .into_iter()
+                                    .filter_map(|action_output| {
+                                        if action_output.name.ends_with(".xml") {
+                                            action_output.file.and_then(|f| {
+                                                if let Uri(uri) = f {
+                                                    Some(
+                                                        uri.strip_prefix(FILE_URI_PREFIX)
+                                                            .unwrap_or(&uri)
+                                                            .to_string(),
+                                                    )
+                                                } else {
+                                                    None
+                                                }
+                                            })
+                                        } else {
+                                            None
+                                        }
+                                    })
+                                    .collect();
+
+                                let cached =
+                                    if let Some(execution_info) = test_result.execution_info {
+                                        execution_info.cached_remotely || test_result.cached_locally
+                                    } else {
+                                        test_result.cached_locally
+                                    };
+
+                                test_results.push(TestResult { cached, xml_files });
                             }
-                            xml_files
-                        },
-                    );
+                        }
+                    }
 
-                    let cached = if let Some(execution_info) = test_result.execution_info {
-                        execution_info.cached_remotely || test_result.cached_locally
-                    } else {
-                        test_result.cached_locally
-                    };
+                    (errors, test_results)
+                },
+            );
 
-                    self.test_results.push(TestResult { cached, xml_files });
-                }
-            }
-        });
+        self.errors = errors;
+        self.test_results = test_results;
 
-        if !&self.errors.is_empty() {
+        if !self.errors.is_empty() {
             log::warn!("Errors parsing BEP file: {:?}", &self.errors);
         }
 
@@ -122,7 +138,10 @@ mod tests {
         parser.parse().unwrap();
 
         let empty_vec: Vec<String> = Vec::new();
-        assert_eq!(parser.xml_files(), vec!["/tmp/hello_test/test.xml"]);
+        assert_eq!(
+            parser.uncached_xml_files(),
+            vec!["/tmp/hello_test/test.xml"]
+        );
         assert_eq!(*parser.errors(), empty_vec);
     }
 
@@ -133,7 +152,7 @@ mod tests {
         parser.parse().unwrap();
 
         let empty_vec: Vec<String> = Vec::new();
-        assert_eq!(parser.xml_files(), empty_vec);
+        assert_eq!(parser.uncached_xml_files(), empty_vec);
         assert_eq!(*parser.errors(), empty_vec);
     }
 
@@ -144,7 +163,7 @@ mod tests {
         parser.parse().unwrap();
 
         assert_eq!(
-            parser.xml_files(),
+            parser.uncached_xml_files(),
             vec!["/tmp/hello_test/test.xml", "/tmp/client_test/test.xml"]
         );
         assert_eq!(
