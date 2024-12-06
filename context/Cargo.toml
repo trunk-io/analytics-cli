@@ -31,6 +31,11 @@ thiserror = "1.0.63"
 uuid = { version = "1.10.0", features = ["v5"] }
 wasm-bindgen = { version = "0.2.95", optional = true }
 magnus = { version = "0.7.1", optional = true, default-features = false }
+proto = { path = "../proto" }
+prost-types = "0.13.4"
+prost-wkt-types = "0.6.0"
+prost = "0.13.4"
+tempfile = "3.2.0"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 pyo3 = { version = "0.22.5", optional = true, features = [

@@ -127,6 +127,9 @@ pub fn build_filesets(
             })
             .collect::<anyhow::Result<Vec<FileSet>>>()?;
     }
+    if file_counter.get_count() == 0 {
+        panic!("No files found in junit paths");
+    }
 
     Ok((file_sets, file_counter))
 }
