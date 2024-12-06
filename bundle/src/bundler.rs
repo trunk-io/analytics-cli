@@ -105,17 +105,21 @@ pub async fn parse_meta_from_tarball<R: AsyncBufRead>(input: R) -> anyhow::Resul
             let mut meta_bytes = Vec::new();
             owned_first_entry.read_to_end(&mut meta_bytes).await?;
 
-            if let Ok(message) = serde_json::from_slice(&meta_bytes) {
-                return Ok(VersionedBundle::V0_6_2(message));
-            }
-
-            if let Ok(message) = serde_json::from_slice(&meta_bytes) {
-                return Ok(VersionedBundle::V0_5_34(message));
-            }
-
-            let base_bundle = serde_json::from_slice(&meta_bytes)?;
-            return Ok(VersionedBundle::V0_5_29(base_bundle));
+            return parse_meta(meta_bytes);
         }
     }
     Err(anyhow::anyhow!("No meta.json file found in the tarball"))
+}
+
+pub fn parse_meta(meta_bytes: Vec<u8>) -> anyhow::Result<VersionedBundle> {
+    if let Ok(message) = serde_json::from_slice(&meta_bytes) {
+        return Ok(VersionedBundle::V0_6_2(message));
+    }
+
+    if let Ok(message) = serde_json::from_slice(&meta_bytes) {
+        return Ok(VersionedBundle::V0_5_34(message));
+    }
+
+    let base_bundle = serde_json::from_slice(&meta_bytes)?;
+    return Ok(VersionedBundle::V0_5_29(base_bundle));
 }

@@ -6,7 +6,7 @@ use thiserror::Error;
 #[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::*;
 
-use crate::string_safety::{validate_field_len, FieldLen};
+use crate::string_safety::{optional_string_to_empty_str, validate_field_len, FieldLen};
 
 use super::parser::{BranchClass, CIInfo};
 
@@ -58,6 +58,8 @@ pub enum EnvValidationIssueSubOptimal {
     CIInfoAuthorNameTooShort(String),
     #[error("CI info author name too long, truncated to {}", MAX_FIELD_LEN)]
     CIInfoAuthorNameTooLong(String),
+    #[error("CI info branch name too short")]
+    CIInfoBranchNameTooShort(String),
     #[error("CI info branch name too long, truncated to {}", MAX_BRANCH_NAME_LEN)]
     CIInfoBranchNameTooLong(String),
     #[error("CI info commit message too short")]
@@ -76,6 +78,10 @@ pub enum EnvValidationIssueSubOptimal {
     CIInfoJobURLTooShort(String),
     #[error("CI info job URL too long, truncated to {}", MAX_FIELD_LEN)]
     CIInfoJobURLTooLong(String),
+    #[error("CI info is classified as a PR, but has not PR number")]
+    CIInfoPRNumberMissing,
+    #[error("CI info has a PR number, but branch is not classified as a PR")]
+    CIInfoPRNumberConflictsWithBranchClass,
     #[error("CI info title too short")]
     CIInfoTitleTooShort(String),
     #[error("CI info title too long, truncated to {}", MAX_FIELD_LEN)]
@@ -83,14 +89,7 @@ pub enum EnvValidationIssueSubOptimal {
 }
 
 #[derive(Error, Debug, Clone, PartialEq, Eq)]
-pub enum EnvValidationIssueInvalid {
-    #[error("CI info branch name too short")]
-    CIInfoBranchNameTooShort(String),
-    #[error("CI info is classified as a PR, but has not PR number")]
-    CIInfoPRNumberMissing,
-    #[error("CI info has a PR number, but branch is not classified as a PR")]
-    CIInfoPRNumberConflictsWithBranchClass,
-}
+pub enum EnvValidationIssueInvalid {}
 
 impl From<&EnvValidationIssue> for EnvValidationLevel {
     fn from(value: &EnvValidationIssue) -> Self {
@@ -154,8 +153,8 @@ pub fn validate(ci_info: &CIInfo) -> EnvValidation {
     )) {
         FieldLen::Valid => (),
         FieldLen::TooShort(s) => {
-            env_validation.add_issue(EnvValidationIssue::Invalid(
-                EnvValidationIssueInvalid::CIInfoBranchNameTooShort(s),
+            env_validation.add_issue(EnvValidationIssue::SubOptimal(
+                EnvValidationIssueSubOptimal::CIInfoBranchNameTooShort(s),
             ));
         }
         FieldLen::TooLong(s) => {
@@ -244,17 +243,17 @@ pub fn validate(ci_info: &CIInfo) -> EnvValidation {
     if let Some(branch_class) = &ci_info.branch_class {
         match (branch_class, ci_info.pr_number) {
             (BranchClass::PullRequest, None) => {
-                env_validation.add_issue(EnvValidationIssue::Invalid(
-                    EnvValidationIssueInvalid::CIInfoPRNumberMissing,
+                env_validation.add_issue(EnvValidationIssue::SubOptimal(
+                    EnvValidationIssueSubOptimal::CIInfoPRNumberMissing,
                 ));
             }
-            (BranchClass::Merge | BranchClass::ProtectedBranch, Some(..)) => {
-                env_validation.add_issue(EnvValidationIssue::Invalid(
-                    EnvValidationIssueInvalid::CIInfoPRNumberConflictsWithBranchClass,
+            (BranchClass::Merge | BranchClass::ProtectedBranch | BranchClass::None, Some(..)) => {
+                env_validation.add_issue(EnvValidationIssue::SubOptimal(
+                    EnvValidationIssueSubOptimal::CIInfoPRNumberConflictsWithBranchClass,
                 ));
             }
             (BranchClass::PullRequest, Some(..))
-            | (BranchClass::Merge | BranchClass::ProtectedBranch, None) => (),
+            | (BranchClass::Merge | BranchClass::ProtectedBranch | BranchClass::None, None) => (),
         };
     }
 
@@ -308,8 +307,4 @@ impl EnvValidation {
         self.level = self.level.max(EnvValidationLevel::from(&issue));
         self.issues.push(issue);
     }
-}
-
-fn optional_string_to_empty_str<'a>(optional_string: &'a Option<String>) -> &'a str {
-    optional_string.as_ref().map_or("", |s| &s)
 }
