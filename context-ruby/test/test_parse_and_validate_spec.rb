@@ -37,3 +37,10 @@ describe 'context_ruby' do
     expect { CIInfo.new(100) }.to raise_error(TypeError)
   end
 end
+
+describe 'test_report' do
+  it 'should be able to create a new TestReport' do
+    report = TestReport.new()
+    report.to_s
+  end
+end
