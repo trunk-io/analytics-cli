@@ -15,8 +15,8 @@ runs:
         if [ -f /opt/homebrew/bin/brew ]; then
           /opt/homebrew/bin/brew install protobuf
         elif [ -f /usr/bin/apt ]; then
-          /usr/bin/apt update
-          /usr/bin/apt install -y protobuf-compiler
+          sudo /usr/bin/apt update
+          sudo /usr/bin/apt install -y protobuf-compiler
         fi
 
     - uses: actions/cache@v4
