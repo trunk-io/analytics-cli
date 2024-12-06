@@ -1,4 +1,4 @@
-use clap::Args;
+use clap::{ArgAction, Args};
 #[cfg(target_os = "macos")]
 use std::io::Write;
 use std::{
@@ -75,14 +75,22 @@ pub struct UploadArgs {
     #[arg(
         long,
         help = "Run commands with the quarantining step.",
-        default_value = "true"
+        action = ArgAction::Set,
+        required = false,
+        num_args = 0..=1,
+        default_value = "true",
+        default_missing_value = "true",
     )]
     pub use_quarantining: bool,
     #[arg(
         long,
         alias = "allow-missing-junit-files",
         help = "Do not fail if test results are not found.",
-        default_value = "true"
+        action = ArgAction::Set,
+        required = false,
+        num_args = 0..=1,
+        default_value = "true",
+        default_missing_value = "true",
     )]
     pub allow_empty_test_results: bool,
 }
