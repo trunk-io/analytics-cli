@@ -9,10 +9,9 @@ runs:
       with:
         targets: wasm32-unknown-unknown
 
-    - name: Install Protoc
-      uses: arduino/setup-protoc@v3
+    - uses: trunk-io/trunk-action/install@v1
       with:
-        version: "29.1"
+        tools: protoc
 
     - uses: actions/cache@v4
       with:
