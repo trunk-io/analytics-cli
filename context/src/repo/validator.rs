@@ -34,6 +34,16 @@ impl Default for RepoValidationLevel {
     }
 }
 
+impl ToString for RepoValidationLevel {
+    fn to_string(&self) -> String {
+        match self {
+            RepoValidationLevel::Valid => "VALID".to_string(),
+            RepoValidationLevel::SubOptimal => "SUBOPTIMAL".to_string(),
+            RepoValidationLevel::Invalid => "INVALID".to_string(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RepoValidationIssue {
     SubOptimal(RepoValidationIssueSubOptimal),

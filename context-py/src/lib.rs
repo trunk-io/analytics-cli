@@ -34,6 +34,20 @@ fn env_validate(ci_info: env::parser::CIInfo) -> env::validator::EnvValidation {
 
 #[gen_stub_pyfunction]
 #[pyfunction]
+fn env_validation_level_to_string(
+    env_validation_level: env::validator::EnvValidationLevel,
+) -> String {
+    env_validation_level.to_string()
+}
+
+#[gen_stub_pyfunction]
+#[pyfunction]
+fn ci_platform_to_string(ci_platform: env::parser::CIPlatform) -> String {
+    String::from(ci_platform.to_string())
+}
+
+#[gen_stub_pyfunction]
+#[pyfunction]
 fn junit_parse(xml: Vec<u8>) -> PyResult<Vec<junit::bindings::BindingsReport>> {
     let mut junit_parser = junit::parser::JunitParser::new();
     if let Err(e) = junit_parser.parse(BufReader::new(&xml[..])) {
@@ -100,6 +114,14 @@ fn repo_validate(bundle_repo: repo::BundleRepo) -> repo::validator::RepoValidati
 
 #[gen_stub_pyfunction]
 #[pyfunction]
+fn repo_validation_level_to_string(
+    repo_validation_level: repo::validator::RepoValidationLevel,
+) -> String {
+    repo_validation_level.to_string()
+}
+
+#[gen_stub_pyfunction]
+#[pyfunction]
 pub fn parse_meta_from_tarball(
     py: Python<'_>,
     reader: PyObject,
@@ -132,6 +154,14 @@ fn meta_validate(
 
 #[gen_stub_pyfunction]
 #[pyfunction]
+fn meta_validation_level_to_string(
+    meta_validation_level: meta::validator::MetaValidationLevel,
+) -> String {
+    meta_validation_level.to_string()
+}
+
+#[gen_stub_pyfunction]
+#[pyfunction]
 fn codeowners_parse(codeowners_bytes: Vec<u8>) -> PyResult<BindingsOwners> {
     let codeowners = CodeOwners::parse(codeowners_bytes);
     match codeowners.owners {
@@ -148,6 +178,8 @@ fn context_py(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<env::validator::EnvValidationLevel>()?;
     m.add_function(wrap_pyfunction!(env_parse, m)?)?;
     m.add_function(wrap_pyfunction!(env_validate, m)?)?;
+    m.add_function(wrap_pyfunction!(env_validation_level_to_string, m)?)?;
+    m.add_function(wrap_pyfunction!(ci_platform_to_string, m)?)?;
 
     m.add_class::<junit::bindings::BindingsReport>()?;
     m.add_class::<junit::bindings::BindingsTestSuite>()?;
@@ -167,6 +199,7 @@ fn context_py(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<repo::RepoUrlParts>()?;
     m.add_class::<repo::validator::RepoValidationLevel>()?;
     m.add_function(wrap_pyfunction!(repo_validate, m)?)?;
+    m.add_function(wrap_pyfunction!(repo_validation_level_to_string, m)?)?;
 
     m.add_class::<meta::bindings::BindingsMetaContext>()?;
     m.add_class::<meta::validator::MetaValidation>()?;
@@ -174,6 +207,7 @@ fn context_py(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(parse_meta_from_tarball, m)?)?;
     m.add_function(wrap_pyfunction!(parse_meta, m)?)?;
     m.add_function(wrap_pyfunction!(meta_validate, m)?)?;
+    m.add_function(wrap_pyfunction!(meta_validation_level_to_string, m)?)?;
 
     m.add_class::<codeowners::BindingsOwners>()?;
     m.add_function(wrap_pyfunction!(codeowners_parse, m)?)?;

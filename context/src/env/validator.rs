@@ -29,6 +29,16 @@ impl Default for EnvValidationLevel {
     }
 }
 
+impl ToString for EnvValidationLevel {
+    fn to_string(&self) -> String {
+        match self {
+            EnvValidationLevel::Valid => "VALID".to_string(),
+            EnvValidationLevel::SubOptimal => "SUBOPTIMAL".to_string(),
+            EnvValidationLevel::Invalid => "INVALID".to_string(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum EnvValidationIssue {
     SubOptimal(EnvValidationIssueSubOptimal),

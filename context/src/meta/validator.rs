@@ -31,6 +31,16 @@ impl Default for MetaValidationLevel {
     }
 }
 
+impl ToString for MetaValidationLevel {
+    fn to_string(&self) -> String {
+        match self {
+            MetaValidationLevel::Valid => "VALID".to_string(),
+            MetaValidationLevel::SubOptimal => "SUBOPTIMAL".to_string(),
+            MetaValidationLevel::Invalid => "INVALID".to_string(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MetaValidationIssue {
     SubOptimal(MetaValidationIssueSubOptimal),

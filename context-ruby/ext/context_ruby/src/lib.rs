@@ -1,28 +1,14 @@
 use context::{env, repo};
 use std::collections::HashMap;
 
-pub fn env_parse(env_vars: magnus::RHash) -> Result<Option<env::parser::CIInfo>, magnus::Error> {
+pub fn env_parse(env_vars: magnus::RHash) -> Option<env::parser::CIInfo> {
     let env_vars: HashMap<String, String> = env_vars.to_hash_map().unwrap_or_default();
     let mut env_parser = env::parser::EnvParser::new();
-    if env_parser.parse(&env_vars).is_err() {
-        let error_message = env_parser
-            .errors()
-            .into_iter()
-            .map(|e| e.to_string())
-            .collect::<Vec<String>>()
-            .join("\n");
-        let handle = magnus::Ruby::get().unwrap();
-        return Err(magnus::Error::new(
-            handle.exception_type_error(),
-            error_message,
-        ));
-    }
+    env_parser.parse(&env_vars);
 
-    let ci_info_class = env_parser
+    env_parser
         .into_ci_info_parser()
-        .map(|ci_info_parser| ci_info_parser.info_ci_info());
-
-    Ok(ci_info_class)
+        .map(|ci_info_parser| ci_info_parser.info_ci_info())
 }
 
 pub fn env_validate(ci_info: &env::parser::CIInfo) -> env::validator::EnvValidation {

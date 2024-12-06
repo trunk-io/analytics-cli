@@ -115,7 +115,7 @@ pub fn parse_meta(meta_bytes: Vec<u8>) -> anyhow::Result<VersionedBundle> {
     if let Ok(message) = serde_json::from_slice(&meta_bytes) {
         return Ok(VersionedBundle::V0_6_3(message));
     }
-    
+
     if let Ok(message) = serde_json::from_slice(&meta_bytes) {
         return Ok(VersionedBundle::V0_6_2(message));
     }
