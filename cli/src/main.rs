@@ -85,10 +85,16 @@ fn main() -> anyhow::Result<()> {
             let cli = Cli::parse();
             match run(cli).await {
                 Ok(exit_code) => std::process::exit(exit_code),
-                Err(e) => {
-                    log::error!("Error: {:?}", e);
-                    std::process::exit(exitcode::SOFTWARE);
-                }
+                Err(e) => match (*(e.root_cause())).downcast_ref::<std::io::Error>() {
+                    Some(io_error) if io_error.kind() == std::io::ErrorKind::ConnectionRefused => {
+                        log::warn!("Could not connect to trunk's server: {:?}", e);
+                        std::process::exit(exitcode::OK);
+                    }
+                    _ => {
+                        log::error!("Error: {:?}", e);
+                        std::process::exit(exitcode::SOFTWARE);
+                    }
+                },
             }
         })
 }

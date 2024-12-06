@@ -1,0 +1,40 @@
+GEM
+  remote: https://rubygems.org/
+  specs:
+    diff-lcs (1.5.1)
+    power_assert (2.0.4)
+    rake (13.2.1)
+    rake-compiler (1.2.0)
+      rake
+    rb_sys (0.9.103)
+    rspec (3.13.0)
+      rspec-core (~> 3.13.0)
+      rspec-expectations (~> 3.13.0)
+      rspec-mocks (~> 3.13.0)
+    rspec-core (3.13.2)
+      rspec-support (~> 3.13.0)
+    rspec-expectations (3.13.3)
+      diff-lcs (>= 1.2.0, < 2.0)
+      rspec-support (~> 3.13.0)
+    rspec-mocks (3.13.2)
+      diff-lcs (>= 1.2.0, < 2.0)
+      rspec-support (~> 3.13.0)
+    rspec-support (3.13.2)
+    test-unit (3.6.4)
+      power_assert
+
+PLATFORMS
+  darwin
+  linux
+  ruby
+
+DEPENDENCIES
+  rake
+  rake-compiler (= 1.2.0)
+  rb_sys (~> 0.9.103)
+  rspec
+  rspec-core
+  test-unit
+
+BUNDLED WITH
+   2.5.23

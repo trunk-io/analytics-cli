@@ -221,12 +221,27 @@ async fn upload_bundle_empty_junit_paths() {
 async fn upload_bundle_no_files_allow_missing_junit_files() {
     enum Flag {
         Long,
+        LongWithEquals,
         Alias,
+        AliasWithEquals,
         Default,
         Off,
+        OffWithEquals,
+        OffAlias,
+        OffAliasWithEquals,
     }
 
-    for flag in [Flag::Long, Flag::Alias, Flag::Default, Flag::Off] {
+    for flag in [
+        Flag::Long,
+        Flag::LongWithEquals,
+        Flag::Alias,
+        Flag::AliasWithEquals,
+        Flag::Default,
+        Flag::Off,
+        Flag::OffWithEquals,
+        Flag::OffAlias,
+        Flag::OffAliasWithEquals,
+    ] {
         let temp_dir = tempdir().unwrap();
         generate_mock_git_repo(&temp_dir);
 
@@ -244,10 +259,23 @@ async fn upload_bundle_no_files_allow_missing_junit_files() {
 
         match flag {
             Flag::Long => args.push("--allow-empty-test-results"),
+            Flag::LongWithEquals => args.push("--allow-empty-test-results=true"),
             Flag::Alias => args.push("--allow-missing-junit-files"),
+            Flag::AliasWithEquals => args.push("--allow-missing-junit-files=true"),
             Flag::Default => {}
             Flag::Off => {
-                args.push("--allow-empty-test-results false");
+                args.push("--allow-empty-test-results");
+                args.push("false");
+            }
+            Flag::OffWithEquals => {
+                args.push("--allow-empty-test-results=false");
+            }
+            Flag::OffAlias => {
+                args.push("--allow-missing-junit-files");
+                args.push("false");
+            }
+            Flag::OffAliasWithEquals => {
+                args.push("--allow-missing-junit-files=false");
             }
         };
 
@@ -258,11 +286,16 @@ async fn upload_bundle_no_files_allow_missing_junit_files() {
             .args(&args)
             .assert();
 
-        assert = if matches!(flag, Flag::Off) {
+        assert = if matches!(
+            flag,
+            Flag::Off | Flag::OffWithEquals | Flag::OffAlias | Flag::OffAliasWithEquals
+        ) {
             assert.failure()
         } else {
             assert.success()
         };
+
+        assert = assert.stderr(predicate::str::contains("unexpected argument").not());
 
         // HINT: View CLI output with `cargo test -- --nocapture`
         println!("{assert}");
@@ -298,5 +331,32 @@ async fn upload_bundle_valid_repo_root() {
         ));
 
     // HINT: View CLI output with `cargo test -- --nocapture`
+    println!("{assert}");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn upload_bundle_when_server_down() {
+    let temp_dir = tempdir().unwrap();
+    generate_mock_git_repo(&temp_dir);
+
+    let args = &[
+        "upload",
+        "--junit-paths",
+        "./*",
+        "--org-url-slug",
+        "test-org",
+        "--token",
+        "test-token",
+    ];
+
+    let assert = Command::new(CARGO_RUN.path())
+        .current_dir(&temp_dir)
+        .env("TRUNK_PUBLIC_API_ADDRESS", "https://localhost:10")
+        .env("CI", "1")
+        .env("GITHUB_JOB", "test-job")
+        .args(args)
+        .assert()
+        .success();
+
     println!("{assert}");
 }

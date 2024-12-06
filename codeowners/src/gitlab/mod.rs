@@ -12,6 +12,11 @@ use std::{
     path::Path,
 };
 
+#[cfg(feature = "pyo3")]
+use pyo3::prelude::*;
+#[cfg(feature = "pyo3")]
+use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
+
 use crate::{FromPath, FromReader, OwnersOfPath};
 
 pub use entry::*;
@@ -101,6 +106,20 @@ impl FromReader for GitLabOwners {
         }
 
         Ok(GitLabOwners { file })
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass)]
+pub struct BindingsGitLabOwners(pub GitLabOwners);
+
+#[cfg(feature = "pyo3")]
+#[gen_stub_pymethods]
+#[pymethods]
+impl BindingsGitLabOwners {
+    fn of(&self, path: String) -> Option<Vec<String>> {
+        let owners = self.0.of(Path::new(&path));
+        owners.map(|owners| owners.iter().map(ToString::to_string).collect())
     }
 }
 
