@@ -76,8 +76,10 @@ pub fn junit_parse(xml: Vec<u8>) -> Result<Vec<junit::bindings::BindingsReport>,
 #[wasm_bindgen]
 pub fn junit_validate(
     report: &junit::bindings::BindingsReport,
-) -> junit::validator::JunitReportValidation {
-    junit::validator::validate(&report.clone().into())
+) -> junit::bindings::BindingsJunitReportValidation {
+    junit::bindings::BindingsJunitReportValidation::from(junit::validator::validate(
+        &report.clone().into(),
+    ))
 }
 
 #[wasm_bindgen]

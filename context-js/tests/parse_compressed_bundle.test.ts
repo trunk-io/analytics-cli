@@ -103,6 +103,15 @@ describe("context-js", () => {
         command_line: "trunk-analytics-cli upload --token=***",
       },
     ],
+    [
+      "V0_6_3",
+      {
+        num_tests: faker.number.int(100),
+        num_files: faker.number.int(100),
+        command_line: "trunk-analytics-cli upload --token=***",
+        bundle_upload_id_v2: "SOME ID",
+      },
+    ],
   ];
 
   it.each(versionTests)(

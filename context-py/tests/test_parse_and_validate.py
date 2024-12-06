@@ -104,10 +104,10 @@ def test_junit_parse_broken_xml():
     from context_py import junit_parse
     from pytest import raises
 
-    broken_xml = "<testsuites"
+    broken_xml = b"<testsuites"
 
     with raises(Exception) as excinfo:
-        _ = junit_parse(str.encode(broken_xml))
+        _ = junit_parse(broken_xml)
 
     assert (
         str(excinfo.value)
@@ -120,7 +120,7 @@ def test_junit_parse_nested_testsuites():
 
     from context_py import BindingsReport, BindingsTestCaseStatusStatus, junit_parse
 
-    nested_testsuites_xml = """<?xml version="1.0" encoding="UTF-8"?>
+    nested_testsuites_xml = b"""<?xml version="1.0" encoding="UTF-8"?>
     <testsuites>
         <testsuite name="/home/runner/work/flake-farm/flake-farm/php/phpunit/phpunit.xml" tests="2" assertions="2" errors="0" failures="0" skipped="0" time="0.001161">
             <testsuite name="Project Test Suite" tests="2" assertions="2" errors="0" failures="0" skipped="0" time="0.001161">
@@ -132,7 +132,7 @@ def test_junit_parse_nested_testsuites():
         </testsuite>
     </testsuites>"""
 
-    reports: PT.List[BindingsReport] = junit_parse(str.encode(nested_testsuites_xml))
+    reports: PT.List[BindingsReport] = junit_parse(nested_testsuites_xml)
 
     assert len(reports) == 1
     report = reports[0]
@@ -189,11 +189,12 @@ def test_junit_validate_valid():
     ), "\n" + "\n".join(
         [
             issue.error_message
-            for test_suite in junit_report_validation.test_suites_owned()
+            for test_suite in junit_report_validation.test_suites
             for test_case in test_suite.test_cases_owned()
             for issue in test_case.issues_flat()
         ]
     )
+    assert len(junit_report_validation.valid_test_suites) == 1
 
 
 def test_junit_validate_suboptimal():
@@ -206,6 +207,8 @@ def test_junit_validate_suboptimal():
         JunitValidationType,
         junit_parse,
         junit_validate,
+        junit_validation_level_to_string,
+        junit_validation_type_to_string,
     )
 
     stale_timestamp = (
@@ -233,21 +236,23 @@ def test_junit_validate_suboptimal():
     ), "\n" + "\n".join(
         [
             issue.error_message
-            for test_suite in junit_report_validation.test_suites_owned()
+            for test_suite in junit_report_validation.test_suites
             for test_case in test_suite.test_cases_owned()
             for issue in test_case.issues_flat()
         ]
     )
     assert junit_report_validation.num_suboptimal_issues() == 1
+    report_level_issues = [
+        x
+        for x in junit_report_validation.all_issues
+        if x.error_type == JunitValidationType.Report
+    ]
+    assert len(report_level_issues) == 1
     assert (
-        len(
-            [
-                x
-                for x in junit_report_validation.all_issues_flat()
-                if x.error_type == JunitValidationType.Report
-            ]
-        )
-        == 1
+        junit_validation_type_to_string(report_level_issues[0].error_type) == "Report"
+    )
+    assert (
+        junit_validation_level_to_string(report_level_issues[0].level) == "SUBOPTIMAL"
     )
 
 

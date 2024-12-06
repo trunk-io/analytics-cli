@@ -81,6 +81,14 @@ impl From<BundleMetaV0_6_2> for BundleMetaV0_5_34 {
     }
 }
 
+impl From<BundleMetaV0_6_2> for BundleMetaV0_5_29 {
+    fn from(bundle_meta: BundleMetaV0_6_2) -> Self {
+        BundleMetaV0_5_29 {
+            base_props: bundle_meta.base_props,
+        }
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass(get_all))]
 #[cfg_attr(feature = "wasm", derive(Tsify))]
@@ -100,6 +108,46 @@ pub struct BundleMetaV0_6_2 {
     pub debug_props: BundleMetaDebugProps,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass(get_all))]
+#[cfg_attr(feature = "wasm", derive(Tsify))]
+pub struct BundleMetaV0_6_3 {
+    #[serde(flatten)]
+    pub base_props: BundleMetaBaseProps,
+    #[serde(flatten)]
+    pub junit_props: BundleMetaJunitProps,
+    #[serde(flatten)]
+    pub debug_props: BundleMetaDebugProps,
+    pub bundle_upload_id_v2: String,
+}
+
+impl From<BundleMetaV0_6_3> for BundleMetaV0_6_2 {
+    fn from(bundle_meta: BundleMetaV0_6_3) -> Self {
+        BundleMetaV0_6_2 {
+            base_props: bundle_meta.base_props,
+            junit_props: bundle_meta.junit_props,
+            debug_props: bundle_meta.debug_props,
+        }
+    }
+}
+
+impl From<BundleMetaV0_6_3> for BundleMetaV0_5_34 {
+    fn from(bundle_meta: BundleMetaV0_6_3) -> Self {
+        BundleMetaV0_5_34 {
+            base_props: bundle_meta.base_props,
+            junit_props: bundle_meta.junit_props,
+        }
+    }
+}
+
+impl From<BundleMetaV0_6_3> for BundleMetaV0_5_29 {
+    fn from(bundle_meta: BundleMetaV0_6_3) -> Self {
+        BundleMetaV0_5_29 {
+            base_props: bundle_meta.base_props,
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "wasm", derive(Tsify))]
 #[cfg_attr(feature = "wasm", tsify(into_wasm_abi, from_wasm_abi))]
@@ -108,6 +156,7 @@ pub enum VersionedBundle {
     V0_5_29(BundleMetaV0_5_29),
     V0_5_34(BundleMetaV0_5_34),
     V0_6_2(BundleMetaV0_6_2),
+    V0_6_3(BundleMetaV0_6_3),
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
@@ -122,6 +171,9 @@ pub struct BindingsVersionedBundle(pub VersionedBundle);
 impl BindingsVersionedBundle {
     pub fn get_v0_5_29(&self) -> BundleMetaV0_5_29 {
         match &self.0 {
+            VersionedBundle::V0_6_3(bundle_meta) => {
+                BundleMetaV0_5_29::from(BundleMetaV0_6_2::from(bundle_meta.clone()))
+            }
             VersionedBundle::V0_6_2(bundle_meta) => {
                 BundleMetaV0_5_29::from(BundleMetaV0_5_34::from(bundle_meta.clone()))
             }
@@ -131,6 +183,9 @@ impl BindingsVersionedBundle {
     }
     pub fn get_v0_5_34(&self) -> Option<BundleMetaV0_5_34> {
         match &self.0 {
+            VersionedBundle::V0_6_3(bundle_meta) => {
+                Some(BundleMetaV0_5_34::from(bundle_meta.clone()))
+            }
             VersionedBundle::V0_6_2(bundle_meta) => {
                 Some(BundleMetaV0_5_34::from(bundle_meta.clone()))
             }
@@ -140,11 +195,20 @@ impl BindingsVersionedBundle {
     }
     pub fn get_v0_6_2(&self) -> Option<BundleMetaV0_6_2> {
         match &self.0 {
+            VersionedBundle::V0_6_3(bundle_meta) => {
+                Some(BundleMetaV0_6_2::from(bundle_meta.clone()))
+            }
             VersionedBundle::V0_6_2(bundle_meta) => Some(bundle_meta.clone()),
+            _ => None,
+        }
+    }
+    pub fn get_v0_6_3(&self) -> Option<BundleMetaV0_6_3> {
+        match &self.0 {
+            VersionedBundle::V0_6_3(bundle_meta) => Some(bundle_meta.clone()),
             _ => None,
         }
     }
 }
 
 /// Signifies the latest BundleMeta version
-pub type BundleMeta = BundleMetaV0_6_2;
+pub type BundleMeta = BundleMetaV0_6_3;

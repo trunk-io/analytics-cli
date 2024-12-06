@@ -5,7 +5,7 @@ use std::{
 };
 
 use futures_io::{AsyncBufRead, AsyncRead};
-use pyo3::{prelude::*, types::PyBytes};
+use pyo3::{exceptions::PyValueError, prelude::*, types::PyBytes};
 
 pub struct PyBytesReader<'py> {
     inner: Bound<'py, PyAny>,
@@ -18,9 +18,15 @@ impl<'py> PyBytesReader<'py> {
     const DEFAULT_CHUNK_SIZE: usize = 1024;
 
     pub fn new(py_bytes_reader: Bound<'py, PyAny>) -> PyResult<Self> {
-        let content_length = py_bytes_reader
-            .getattr("_content_length")?
-            .extract::<usize>()?;
+        let content_length_attr = py_bytes_reader.getattr("_content_length")?;
+        let content_length = content_length_attr.extract::<usize>().or_else(|_| {
+            // NOTE: The stubs for `_content_length` indicate it is supposed to be an `int`, but in
+            // actuality it is a `str`.
+            content_length_attr.extract::<String>().and_then(|attr| {
+                attr.parse::<usize>()
+                    .map_err(|err| PyErr::new::<PyValueError, _>(err.to_string()))
+            })
+        })?;
         Ok(Self {
             inner: py_bytes_reader,
             content_length,
