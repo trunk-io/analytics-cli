@@ -9,6 +9,9 @@ runs:
       with:
         targets: wasm32-unknown-unknown
 
+    - name: Install Protoc
+      uses: arduino/setup-protoc@v3
+
     - uses: actions/cache@v4
       with:
         path: |
