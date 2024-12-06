@@ -11,6 +11,8 @@ path = "src/lib.rs"
 [dependencies]
 prost = "0.13.4"
 prost-types = "0.13.4"
+prost-wkt-types = "0.6.0"
+serde = "1.0.215"
 
 [build-dependencies]
 prost-build = "0.13.4"

@@ -8,3 +8,4 @@ pub mod junit;
 pub mod meta;
 pub mod repo;
 mod string_safety;
+pub mod test_report;

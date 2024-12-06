@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative '../lib/context_ruby'
+require_relative '../spec/spec_helper'
 
 # trunk-ignore(rubocop/Metrics/BlockLength)
 describe 'context_ruby' do
@@ -35,5 +36,12 @@ describe 'context_ruby' do
 
   it 'should error on invalid CIInfo' do
     expect { CIInfo.new(100) }.to raise_error(TypeError)
+  end
+end
+
+describe 'test_report' do
+  it 'should be able to create a new TestReport' do
+    report = TestReport.new()
+    report.to_s
   end
 end
