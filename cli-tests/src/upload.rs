@@ -300,3 +300,30 @@ async fn upload_bundle_valid_repo_root() {
     // HINT: View CLI output with `cargo test -- --nocapture`
     println!("{assert}");
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn upload_bundle_when_server_down() {
+    let temp_dir = tempdir().unwrap();
+    generate_mock_git_repo(&temp_dir);
+
+    let args = &[
+        "upload",
+        "--junit-paths",
+        "./*",
+        "--org-url-slug",
+        "test-org",
+        "--token",
+        "test-token",
+    ];
+
+    let assert = Command::new(CARGO_RUN.path())
+        .current_dir(&temp_dir)
+        .env("TRUNK_PUBLIC_API_ADDRESS", "https://localhost:10")
+        .env("CI", "1")
+        .env("GITHUB_JOB", "test-job")
+        .args(args)
+        .assert()
+        .success();
+
+    println!("{assert}");
+}
