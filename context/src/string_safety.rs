@@ -28,6 +28,10 @@ pub fn validate_field_len<const MAX_LEN: usize, T: AsRef<str>>(field: T) -> Fiel
     }
 }
 
+pub fn optional_string_to_empty_str<'a>(optional_string: &'a Option<String>) -> &'a str {
+    optional_string.as_ref().map_or("", |s| &s)
+}
+
 #[cfg(test)]
 mod tests {
     use crate::string_safety::safe_truncate_str;
