@@ -1,0 +1,29 @@
+[package]
+name = "bazel-bep"
+version = "0.2.2"
+edition = "2021"
+description = "Message definitions for bazel's Build Event Protocol"
+license = "MIT"
+repository = "https://github.com/ChristianBelloni/bazel-bep"
+
+[dependencies]
+tonic = { version = "0.10", default-features = false, features = [
+  "codegen",
+  "prost",
+] }
+prost = "0.13.3"
+prost-types = "0.13.3"
+pbjson = "0.7.0"
+pbjson-types = "0.7.0"
+serde = { version = "1.0.215", default-features = false, features = ["derive"] }
+serde_json = "1.0.133"
+
+[build-dependencies]
+tonic-build = "0.10"
+prost-build = "0.13.3"
+pbjson-build = "0.7.0"
+
+[features]
+default = []
+client = ["tonic/transport"]
+server = []
