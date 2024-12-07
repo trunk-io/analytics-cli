@@ -27,6 +27,20 @@ fn validate_success() {
 }
 
 #[test]
+fn validate_junit_and_bep() {
+    let temp_dir = tempdir().unwrap();
+
+    let assert = Command::new(CARGO_RUN.path())
+        .current_dir(&temp_dir)
+        .args(&["validate", "--junit-paths", "./*", "--bazel-bep-path", "bep.json"])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("the argument '--junit-paths <JUNIT_PATHS>' cannot be used with '--bazel-bep-path <BAZEL_BEP_PATH>'"));
+
+    println!("{assert}");
+}
+
+#[test]
 fn validate_no_junits() {
     let temp_dir = tempdir().unwrap();
 
