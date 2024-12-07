@@ -32,6 +32,20 @@ impl BazelBepParser {
         &self.errors
     }
 
+    pub fn test_counts(&self) -> (usize, usize) {
+        let (test_count, cached_count) = self.test_results.iter().fold(
+            (0, 0),
+            |(mut test_count, mut cached_count), test_result| {
+                test_count += test_result.xml_files.len();
+                if test_result.cached {
+                    cached_count += test_result.xml_files.len();
+                }
+                (test_count, cached_count)
+            },
+        );
+        (test_count, cached_count)
+    }
+
     pub fn uncached_xml_files(&self) -> Vec<String> {
         self.test_results
             .iter()
@@ -43,28 +57,6 @@ impl BazelBepParser {
             })
             .flatten()
             .collect()
-    }
-
-    pub fn print_parsed_results(&self) {
-        if !self.errors.is_empty() {
-            log::warn!("Errors parsing BEP file: {:?}", &self.errors);
-        }
-
-        let (test_count, cached_count) = self.test_results.iter().fold(
-            (0, 0),
-            |(mut test_count, mut cached_count), test_result| {
-                test_count += test_result.xml_files.len();
-                if test_result.cached {
-                    cached_count += test_result.xml_files.len();
-                }
-                (test_count, cached_count)
-            },
-        );
-        log::info!(
-            "Parsed {} ({} cached) test results from BEP file",
-            test_count,
-            cached_count
-        );
     }
 
     pub fn parse(&mut self) -> anyhow::Result<()> {

@@ -8,6 +8,7 @@ use constants::{EXIT_FAILURE, SENTRY_DSN};
 use context::{bazel_bep::parser::BazelBepParser, repo::BundleRepo};
 use trunk_analytics_cli::{
     api_client::ApiClient,
+    print::print_bep_results,
     runner::{run_quarantine, run_test_command, JunitSpec},
     upload::{run_upload, UploadArgs},
     validate::validate,
@@ -230,7 +231,7 @@ async fn run(cli: Cli) -> anyhow::Result<i32> {
                 Some(bazel_bep_path) => {
                     let mut parser = BazelBepParser::new(bazel_bep_path);
                     parser.parse()?;
-                    parser.print_parsed_results();
+                    print_bep_results(&parser);
                     parser.uncached_xml_files()
                 }
                 None => junit_paths,
