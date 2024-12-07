@@ -224,6 +224,8 @@ async fn run(cli: Cli) -> anyhow::Result<i32> {
                 codeowners_path,
             } = validate_args;
 
+            print_cli_start_info();
+
             let junit_file_paths = match bazel_bep_path {
                 Some(bazel_bep_path) => {
                     let mut parser = BazelBepParser::new(bazel_bep_path);
@@ -233,8 +235,6 @@ async fn run(cli: Cli) -> anyhow::Result<i32> {
                 }
                 None => junit_paths,
             };
-
-            print_cli_start_info();
             validate(junit_file_paths, show_warnings, codeowners_path).await
         }
     }
