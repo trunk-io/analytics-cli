@@ -42,6 +42,12 @@ fn env_validation_level_to_string(
 
 #[gen_stub_pyfunction]
 #[pyfunction]
+fn branch_class_to_string(branch_class: env::parser::BranchClass) -> String {
+    String::from(branch_class.to_string())
+}
+
+#[gen_stub_pyfunction]
+#[pyfunction]
 fn ci_platform_to_string(ci_platform: env::parser::CIPlatform) -> String {
     String::from(ci_platform.to_string())
 }
@@ -179,6 +185,7 @@ fn context_py(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(env_parse, m)?)?;
     m.add_function(wrap_pyfunction!(env_validate, m)?)?;
     m.add_function(wrap_pyfunction!(env_validation_level_to_string, m)?)?;
+    m.add_function(wrap_pyfunction!(branch_class_to_string, m)?)?;
     m.add_function(wrap_pyfunction!(ci_platform_to_string, m)?)?;
 
     m.add_class::<junit::bindings::BindingsReport>()?;

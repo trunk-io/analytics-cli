@@ -403,6 +403,17 @@ impl From<(&str, Option<usize>)> for BranchClass {
     }
 }
 
+impl ToString for BranchClass {
+    fn to_string(&self) -> String {
+        match self {
+            BranchClass::PullRequest => "PR".to_string(),
+            BranchClass::ProtectedBranch => "PB".to_string(),
+            BranchClass::Merge => "MERGE".to_string(),
+            BranchClass::None => "NONE".to_string(),
+        }
+    }
+}
+
 pub fn clean_branch(branch: &str) -> String {
     let new_branch = branch
         .replace("refs/heads/", "")

@@ -3,11 +3,14 @@ def test_branch_supplied_by_env():
         BindingsMetaContext,
         MetaValidation,
         MetaValidationLevel,
+        branch_class_to_string,
         meta_validate,
     )
 
     ci_info, bundle_repo = ci_info_and_bundle_repo()
     meta_context = BindingsMetaContext(ci_info, bundle_repo)
+    assert meta_context.ci_info.branch_class is not None
+    assert branch_class_to_string(meta_context.ci_info.branch_class) == "NONE"
     meta_validation: MetaValidation = meta_validate(meta_context)
 
     assert meta_validation.max_level() == MetaValidationLevel.Valid, "\n" + "\n".join(
@@ -20,6 +23,7 @@ def test_branch_supplied_by_repo():
         BindingsMetaContext,
         MetaValidation,
         MetaValidationLevel,
+        branch_class_to_string,
         env_parse,
         meta_validate,
     )
@@ -39,6 +43,8 @@ def test_branch_supplied_by_repo():
 
     _, bundle_repo = ci_info_and_bundle_repo()
     meta_context = BindingsMetaContext(ci_info, bundle_repo)
+    assert meta_context.ci_info.branch_class is not None
+    assert branch_class_to_string(meta_context.ci_info.branch_class) == "PB"
     meta_validation: MetaValidation = meta_validate(meta_context)
 
     assert meta_validation.max_level() == MetaValidationLevel.Valid, "\n" + "\n".join(
@@ -53,6 +59,7 @@ def test_no_branch_supplied():
         MetaValidation,
         MetaValidationLevel,
         RepoUrlParts,
+        branch_class_to_string,
         env_parse,
         meta_validate,
     )
@@ -83,6 +90,8 @@ def test_no_branch_supplied():
         "spikey@trunk.io",
     )
     meta_context = BindingsMetaContext(ci_info, bundle_repo)
+    assert meta_context.ci_info.branch_class is not None
+    assert branch_class_to_string(meta_context.ci_info.branch_class) == "NONE"
     meta_validation: MetaValidation = meta_validate(meta_context)
 
     assert meta_validation.max_level() == MetaValidationLevel.Invalid, "\n" + "\n".join(
