@@ -7,8 +7,7 @@ edition = "2021"
 api = { path = "../api" }
 assert_cmd = "2.0.16"
 assert_matches = "1.5.0"
-# Fork from 0.2.2 that adds serde serialize/deserialize via pbjson
-bazel-bep = { git = "https://github.com/TylerJang27/bazel-bep.git", rev = "e51c546960067b9fe98ae35ae00bc53302973a9e" }
+bazel-bep = { path = "../bazel-bep" }
 bundle = { path = "../bundle" }
 chrono = "0.4.33"
 codeowners = { path = "../codeowners" }

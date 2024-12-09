@@ -22,6 +22,7 @@ use context::{bazel_bep::parser::BazelBepParser, junit::parser::JunitParser, rep
 
 use crate::{
     api_client::ApiClient,
+    print::print_bep_results,
     runner::{build_filesets, extract_failed_tests, run_quarantine},
     scanner::EnvScanner,
 };
@@ -156,7 +157,7 @@ pub async fn run_upload(
     if let Some(bazel_bep_path) = bazel_bep_path {
         let mut parser = BazelBepParser::new(bazel_bep_path);
         parser.parse()?;
-        parser.print_parsed_results();
+        print_bep_results(&parser);
         junit_paths = parser.uncached_xml_files();
     }
 

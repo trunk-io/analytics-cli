@@ -10,7 +10,7 @@ use codeowners::CodeOwners;
 use constants::{EXIT_FAILURE, EXIT_SUCCESS};
 use context::{bazel_bep::parser::BazelBepParser, junit::parser::JunitParser, repo::BundleRepo};
 
-use crate::api_client::ApiClient;
+use crate::{api_client::ApiClient, print::print_bep_results};
 
 pub enum JunitSpec {
     Paths(Vec<String>),
@@ -33,9 +33,9 @@ pub async fn run_test_command(
     let output_paths = match junit_spec {
         JunitSpec::Paths(paths) => paths,
         JunitSpec::BazelBep(bep_path) => {
-            let mut parser = BazelBepParser::new(bep_path.clone());
+            let mut parser = BazelBepParser::new(bep_path);
             parser.parse()?;
-            parser.print_parsed_results();
+            print_bep_results(&parser);
             parser.uncached_xml_files()
         }
     };
