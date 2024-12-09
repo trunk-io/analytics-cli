@@ -75,6 +75,8 @@ pub enum RepoValidationIssueSubOptimal {
         MAX_FIELD_LEN
     )]
     RepoAuthorNameTooLong(String),
+    #[error("repo branch name too short")]
+    RepoBranchNameTooShort(String),
     #[error("repo head branch name too long, truncated to {}", MAX_BRANCH_NAME_LEN)]
     RepoBranchNameTooLong(String),
     #[error("repo head commit message too short")]
@@ -96,8 +98,6 @@ pub enum RepoValidationIssueSubOptimal {
 
 #[derive(Error, Debug, Clone, PartialEq, Eq)]
 pub enum RepoValidationIssueInvalid {
-    #[error("repo branch name too short")]
-    RepoBranchNameTooShort(String),
     #[error("repo sha too short")]
     RepoShaTooShort(String),
 }
@@ -145,8 +145,8 @@ pub fn validate(bundle_repo: &BundleRepo) -> RepoValidation {
     match validate_field_len::<MAX_BRANCH_NAME_LEN, _>(&bundle_repo.repo_head_branch) {
         FieldLen::Valid => (),
         FieldLen::TooShort(s) => {
-            repo_validation.add_issue(RepoValidationIssue::Invalid(
-                RepoValidationIssueInvalid::RepoBranchNameTooShort(s),
+            repo_validation.add_issue(RepoValidationIssue::SubOptimal(
+                RepoValidationIssueSubOptimal::RepoBranchNameTooShort(s),
             ));
         }
         FieldLen::TooLong(s) => {
