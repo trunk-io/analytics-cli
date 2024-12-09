@@ -324,6 +324,8 @@ async fn upload_bundle_no_files_allow_missing_junit_files() {
             }
         };
 
+        args.push("--print-files");
+
         let mut assert = Command::new(CARGO_RUN.path())
             .current_dir(&temp_dir)
             .env("TRUNK_PUBLIC_API_ADDRESS", &state.host)
@@ -340,7 +342,14 @@ async fn upload_bundle_no_files_allow_missing_junit_files() {
             assert.success()
         };
 
-        assert = assert.stderr(predicate::str::contains("unexpected argument").not());
+        let predicate_fn = predicate::str::contains("unexpected argument");
+
+        // `=` is required to set the flag to `false`
+        assert = if matches!(flag, Flag::Off | Flag::OffAlias) {
+            assert.stderr(predicate_fn)
+        } else {
+            assert.stderr(predicate_fn.not())
+        };
 
         // HINT: View CLI output with `cargo test -- --nocapture`
         println!("{assert}");
