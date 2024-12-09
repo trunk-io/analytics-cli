@@ -248,12 +248,12 @@ pub fn validate(ci_info: &CIInfo) -> EnvValidation {
                     EnvValidationIssueInvalid::CIInfoPRNumberMissing,
                 ));
             }
-            (BranchClass::Merge | BranchClass::ProtectedBranch, Some(..)) => {
+            (BranchClass::ProtectedBranch, Some(..)) => {
                 env_validation.add_issue(EnvValidationIssue::Invalid(
                     EnvValidationIssueInvalid::CIInfoPRNumberConflictsWithBranchClass,
                 ));
             }
-            (BranchClass::PullRequest, Some(..))
+            (BranchClass::PullRequest | BranchClass::Merge, Some(..))
             | (BranchClass::Merge | BranchClass::ProtectedBranch, None) => (),
         };
     }
