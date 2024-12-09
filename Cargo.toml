@@ -9,6 +9,7 @@ members = [
   "context-py",
   "context-ruby/ext/context_ruby",
   "junit-mock",
+  "proto",
   "test_utils",
   "xcresult",
 ]
