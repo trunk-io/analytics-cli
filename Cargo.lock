@@ -524,6 +524,7 @@ dependencies = [
  "prost 0.13.4",
  "prost-build 0.13.4",
  "prost-types 0.13.4",
+ "protobuf-src",
  "serde",
  "serde_json",
  "tonic",

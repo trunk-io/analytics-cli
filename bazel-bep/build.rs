@@ -1,6 +1,7 @@
 use std::{env, io, path::PathBuf};
 
 fn main() -> io::Result<()> {
+    std::env::set_var("PROTOC", protobuf_src::protoc());
     let protos = std::fs::read_dir("proto")?
         .filter(|a| {
             if let Ok(a) = a {
