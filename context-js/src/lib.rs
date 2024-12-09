@@ -44,8 +44,10 @@ pub fn env_parse(env_vars: js_sys::Object) -> Result<Option<env::parser::CIInfo>
 pub fn parse_branch_class(
     value: &str,
     pr_number: Option<usize>,
+    gitlab_merge_request_event_type: Option<env::parser::GitLabMergeRequestEventType>,
 ) -> Result<env::parser::BranchClass, JsError> {
-    env::parser::BranchClass::try_from((value, pr_number)).map_err(|e| JsError::new(&e.to_string()))
+    env::parser::BranchClass::try_from((value, pr_number, gitlab_merge_request_event_type))
+        .map_err(|e| JsError::new(&e.to_string()))
 }
 
 #[wasm_bindgen]
