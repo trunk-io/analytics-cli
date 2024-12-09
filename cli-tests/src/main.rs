@@ -5,4 +5,7 @@ mod utils;
 #[cfg(test)]
 mod validate;
 
+#[cfg(test)]
+mod test;
+
 fn main() {}
