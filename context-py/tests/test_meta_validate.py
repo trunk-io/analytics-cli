@@ -20,10 +20,24 @@ def test_branch_supplied_by_repo():
         BindingsMetaContext,
         MetaValidation,
         MetaValidationLevel,
+        env_parse,
         meta_validate,
     )
 
-    ci_info, bundle_repo = ci_info_and_bundle_repo({"GITHUB_REF": ""})
+    env_vars = {
+        "GITHUB_ACTIONS": "true",
+        "GITHUB_REF": "",
+        "GITHUB_ACTOR": "Spikey",
+        "GITHUB_REPOSITORY": "analytics-cli",
+        "GITHUB_RUN_ID": "12345",
+        "GITHUB_WORKFLOW": "test-workflow",
+        "GITHUB_JOB": "test-job",
+    }
+
+    ci_info = env_parse(env_vars)
+    assert ci_info is not None
+
+    _, bundle_repo = ci_info_and_bundle_repo()
     meta_context = BindingsMetaContext(ci_info, bundle_repo)
     meta_validation: MetaValidation = meta_validate(meta_context)
 
@@ -39,10 +53,23 @@ def test_no_branch_supplied():
         MetaValidation,
         MetaValidationLevel,
         RepoUrlParts,
+        env_parse,
         meta_validate,
     )
 
-    ci_info, _ = ci_info_and_bundle_repo({"GITHUB_REF": ""})
+    env_vars = {
+        "GITHUB_ACTIONS": "true",
+        "GITHUB_REF": "",
+        "GITHUB_ACTOR": "Spikey",
+        "GITHUB_REPOSITORY": "analytics-cli",
+        "GITHUB_RUN_ID": "12345",
+        "GITHUB_WORKFLOW": "test-workflow",
+        "GITHUB_JOB": "test-job",
+    }
+
+    ci_info = env_parse(env_vars)
+    assert ci_info is not None
+
     bundle_repo = BundleRepo(
         RepoUrlParts(host="github", owner="trunk-io", name="analytics-cli"),
         ".",
@@ -63,8 +90,8 @@ def test_no_branch_supplied():
     )
 
 
-def ci_info_and_bundle_repo(env_overrides: dict[str, str] | None = None):
-    from context_py import BundleRepo, CIInfo, RepoUrlParts, env_parse
+def ci_info_and_bundle_repo():
+    from context_py import BundleRepo, RepoUrlParts, env_parse
 
     env_vars = {
         "GITHUB_ACTIONS": "true",
@@ -76,10 +103,7 @@ def ci_info_and_bundle_repo(env_overrides: dict[str, str] | None = None):
         "GITHUB_JOB": "test-job",
     }
 
-    if env_overrides is not None:
-        env_vars.update(env_overrides)
-
-    ci_info: CIInfo | None = env_parse(env_vars)
+    ci_info = env_parse(env_vars)
     assert ci_info is not None
 
     bundle_repo = BundleRepo(
