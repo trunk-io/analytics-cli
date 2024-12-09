@@ -134,8 +134,6 @@ describe("context-js", () => {
       BranchClass.PullRequest,
     );
 
-    expect(() => parse_branch_class("")).toThrow(
-      "could not parse branch class",
-    );
+    expect(parse_branch_class("")).toBe(BranchClass.None);
   });
 });
