@@ -18,10 +18,11 @@ use codeowners::CodeOwners;
 use constants::{EXIT_FAILURE, EXIT_SUCCESS};
 #[cfg(target_os = "macos")]
 use context::repo::RepoUrlParts;
-use context::{junit::parser::JunitParser, repo::BundleRepo};
+use context::{bazel_bep::parser::BazelBepParser, junit::parser::JunitParser, repo::BundleRepo};
 
 use crate::{
     api_client::ApiClient,
+    print::print_bep_results,
     runner::{build_filesets, extract_failed_tests, run_quarantine},
     scanner::EnvScanner,
 };
@@ -30,14 +31,25 @@ use crate::{
 pub struct UploadArgs {
     #[arg(
         long,
-        required_unless_present = junit_require(),
+        required_unless_present_any = [junit_require(), "bazel_bep_path"],
+        conflicts_with = "bazel_bep_path",
         value_delimiter = ',',
         value_parser = clap::builder::NonEmptyStringValueParser::new(),
         help = "Comma-separated list of glob paths to junit files."
     )]
     pub junit_paths: Vec<String>,
+    #[arg(
+        long,
+        required_unless_present_any = [junit_require(), "junit_paths"],
+        help = "Path to bazel build event protocol JSON file."
+    )]
+    pub bazel_bep_path: Option<String>,
     #[cfg(target_os = "macos")]
-    #[arg(long, required = false, help = "Path of xcresult directory")]
+    #[arg(long,
+        required_unless_present_any = ["junit_paths", "bazel_bep_path"],
+        conflicts_with_all = ["junit_paths", "bazel_bep_path"],
+        required = false, help = "Path of xcresult directory"
+    )]
     pub xcresult_path: Option<String>,
     #[arg(long, help = "Organization url slug.")]
     pub org_url_slug: String,
@@ -77,6 +89,7 @@ pub struct UploadArgs {
         help = "Run commands with the quarantining step.",
         action = ArgAction::Set,
         required = false,
+        require_equals = true,
         num_args = 0..=1,
         default_value = "true",
         default_missing_value = "true",
@@ -88,6 +101,7 @@ pub struct UploadArgs {
         help = "Do not fail if test results are not found.",
         action = ArgAction::Set,
         required = false,
+        require_equals = true,
         num_args = 0..=1,
         default_value = "true",
         default_missing_value = "true",
@@ -103,12 +117,10 @@ pub async fn run_upload(
     exec_start: Option<SystemTime>,
 ) -> anyhow::Result<i32> {
     let UploadArgs {
-        #[cfg(target_os = "macos")]
         mut junit_paths,
-        #[cfg(target_os = "linux")]
-        junit_paths,
         #[cfg(target_os = "macos")]
         xcresult_path,
+        bazel_bep_path,
         org_url_slug,
         token,
         repo_root,
@@ -141,6 +153,13 @@ pub async fn run_upload(
 
     let codeowners =
         codeowners.or_else(|| CodeOwners::find_file(&repo.repo_root, &codeowners_path));
+
+    if let Some(bazel_bep_path) = bazel_bep_path {
+        let mut parser = BazelBepParser::new(bazel_bep_path);
+        parser.parse()?;
+        print_bep_results(&parser);
+        junit_paths = parser.uncached_xml_files();
+    }
 
     let tags = parse_custom_tags(&tags)?;
     #[cfg(target_os = "macos")]

@@ -257,12 +257,12 @@ pub fn validate(ci_info: &CIInfo) -> EnvValidation {
                     EnvValidationIssueSubOptimal::CIInfoPRNumberMissing,
                 ));
             }
-            (BranchClass::Merge | BranchClass::ProtectedBranch | BranchClass::None, Some(..)) => {
+            (BranchClass::ProtectedBranch | BranchClass::None, Some(..)) => {
                 env_validation.add_issue(EnvValidationIssue::SubOptimal(
                     EnvValidationIssueSubOptimal::CIInfoPRNumberConflictsWithBranchClass,
                 ));
             }
-            (BranchClass::PullRequest, Some(..))
+            (BranchClass::PullRequest | BranchClass::Merge, Some(..))
             | (BranchClass::Merge | BranchClass::ProtectedBranch | BranchClass::None, None) => (),
         };
     }

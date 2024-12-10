@@ -31,8 +31,8 @@ pub fn env_parse(env_vars: js_sys::Object) -> Option<env::parser::CIInfo> {
 }
 
 #[wasm_bindgen]
-pub fn parse_branch_class(value: &str, pr_number: Option<usize>) -> env::parser::BranchClass {
-    env::parser::BranchClass::from((value, pr_number))
+pub fn parse_branch_class(value: &str, pr_number: Option<usize>, gitlab_merge_request_event_type: Option<env::parser::GitLabMergeRequestEventType>) -> env::parser::BranchClass {
+    env::parser::BranchClass::from((value, pr_number, gitlab_merge_request_event_type))
 }
 
 #[wasm_bindgen]

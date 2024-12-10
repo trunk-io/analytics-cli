@@ -1,0 +1,17 @@
+[package]
+name = "proto"
+edition = "2021"
+version = "0.0.0"
+build = "src/build.rs"
+
+[lib]
+name = "proto"
+path = "src/lib.rs"
+
+[dependencies]
+prost = "0.13.4"
+prost-types = "0.13.4"
+
+[build-dependencies]
+prost-build = "0.13.4"
+protobuf-src = "2.1.0"

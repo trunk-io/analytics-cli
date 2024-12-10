@@ -150,6 +150,12 @@ impl From<&EnvVars> for CIPlatform {
     }
 }
 
+#[derive(Error, Debug, Copy, Clone, PartialEq, Eq)]
+pub enum CIInfoParseError {
+    #[error("could not parse GitLab merge request event type")]
+    GitLabMergeRequestEventType,
+}
+
 const MAX_BRANCH_NAME_SIZE: usize = 1000;
 
 #[derive(Debug, Clone)]
@@ -205,6 +211,18 @@ impl<'a> CIInfoParser<'a> {
 
     fn parse_branch_class(&mut self) {
         if let Some(branch) = &self.ci_info.branch {
+            let mut merge_request_event_type: Option<GitLabMergeRequestEventType> = None;
+            if let Some(env_event_type) = self.get_env_var("CI_MERGE_REQUEST_EVENT_TYPE") {
+                match GitLabMergeRequestEventType::try_from(env_event_type.as_str()) {
+                    Ok(event_type) => {
+                        merge_request_event_type = Some(event_type);
+                    }
+                    Err(err) => {
+                        self.errors.push(err);
+                    }
+                }
+            }
+
             self.ci_info.branch_class =
                 Some(BranchClass::from((branch.as_str(), self.ci_info.pr_number)));
         }
@@ -376,6 +394,29 @@ pub struct CIInfo {
 
 #[cfg_attr(feature = "pyo3", gen_stub_pyclass_enum, pyclass(eq, eq_int))]
 #[cfg_attr(feature = "wasm", wasm_bindgen)]
+#[cfg_attr(feature = "ruby", magnus::wrap(class = "GitLabMergeRequestEventType"))]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GitLabMergeRequestEventType {
+    Detached,
+    MergedResult,
+    MergeTrain,
+}
+
+impl TryFrom<&str> for GitLabMergeRequestEventType {
+    type Error = CIInfoParseError;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        match value {
+            "detached" => Ok(GitLabMergeRequestEventType::Detached),
+            "merged_result" => Ok(GitLabMergeRequestEventType::MergedResult),
+            "merge_train" => Ok(GitLabMergeRequestEventType::MergeTrain),
+            _ => Err(CIInfoParseError::GitLabMergeRequestEventType),
+        }
+    }
+}
+
+#[cfg_attr(feature = "pyo3", gen_stub_pyclass_enum, pyclass(eq, eq_int))]
+#[cfg_attr(feature = "wasm", wasm_bindgen)]
 #[cfg_attr(feature = "ruby", magnus::wrap(class = "BranchClass"))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BranchClass {
@@ -385,18 +426,24 @@ pub enum BranchClass {
     None,
 }
 
-impl From<(&str, Option<usize>)> for BranchClass {
-    fn from(value: (&str, Option<usize>)) -> Self {
-        let (branch_name, pr_number) = value;
-        if pr_number.is_some() {
-            return BranchClass::PullRequest;
-        }
-        if branch_name.starts_with("remotes/pull/") || branch_name.starts_with("pull/") {
+impl From<(&str, Option<usize>, Option<GitLabMergeRequestEventType>)> for BranchClass {
+    fn from(
+        value: (&str, Option<usize>, Option<GitLabMergeRequestEventType>),
+    ) -> Self {
+        let (branch_name, pr_number, merge_request_event_type) = value;
+        if branch_name.contains("/trunk-merge/")
+            || branch_name.contains("gh-readonly-queue/")
+            || merge_request_event_type
+                .filter(|t| *t == GitLabMergeRequestEventType::MergeTrain)
+                .is_some()
+        {
+            BranchClass::Merge
+        } else if pr_number.is_some() {
+            BranchClass::PullRequest
+        } else if branch_name.starts_with("remotes/pull/") || branch_name.starts_with("pull/") {
             BranchClass::PullRequest
         } else if matches!(branch_name, "master" | "main") {
             BranchClass::ProtectedBranch
-        } else if branch_name.contains("/trunk-merge/") {
-            BranchClass::Merge
         } else {
             BranchClass::None
         }

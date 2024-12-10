@@ -11,6 +11,7 @@ tempfile = "3.2.0"
 
 [dependencies]
 anyhow = "1.0.44"
+bazel-bep = { path = "../bazel-bep" }
 chrono = "0.4.33"
 gix = { version = "0.67.0", default-features = false, features = [
 ], optional = true }

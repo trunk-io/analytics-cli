@@ -17,6 +17,7 @@ import {
   repo_validate,
   parse_branch_class,
   BranchClass,
+  GitLabMergeRequestEventType,
 } from "../pkg/context_js";
 
 // eslint-disable-next-line vitest/require-hook
@@ -135,5 +136,23 @@ describe("context-js", () => {
     );
 
     expect(parse_branch_class("")).toBe(BranchClass.None);
+  });
+
+  it("validates merge branches", () => {
+    expect.hasAssertions();
+
+    expect(parse_branch_class("main")).toBe(BranchClass.ProtectedBranch);
+
+    expect(
+      parse_branch_class(
+        "testOwner/testFeature",
+        123,
+        GitLabMergeRequestEventType.MergeTrain,
+      ),
+    ).toBe(BranchClass.Merge);
+
+    expect(() => parse_branch_class("")).toThrow(
+      "could not parse branch class",
+    );
   });
 });
