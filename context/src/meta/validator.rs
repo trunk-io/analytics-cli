@@ -78,11 +78,11 @@ impl From<&MetaValidationIssue> for MetaValidationLevel {
 }
 
 pub fn validate(meta_context: &MetaContext) -> MetaValidation {
-    let mut meta_context_validation = MetaValidation::default();
-
     let env_validation = env_validate(&meta_context.ci_info);
-    env_validation.issues().into_iter().for_each(|issue| {
-        if let Some(meta_validation_issue) = match issue {
+    let meta_validation = env_validation
+        .issues()
+        .into_iter()
+        .filter_map(|issue| match issue {
             EnvValidationIssue::SubOptimal(
                 EnvValidationIssueSubOptimal::CIInfoBranchNameTooShort(branch_name),
             ) => Some(MetaValidationIssue::Invalid(
@@ -110,12 +110,17 @@ pub fn validate(meta_context: &MetaContext) -> MetaValidation {
                 ))
             }
             _ => None,
-        } {
-            meta_context_validation.add_issue(meta_validation_issue);
-        }
-    });
+        })
+        .fold(
+            MetaValidation::default(),
+            |mut meta_context_validation: MetaValidation,
+             meta_validation_issue: MetaValidationIssue| {
+                meta_context_validation.add_issue(meta_validation_issue);
+                meta_context_validation
+            },
+        );
 
-    meta_context_validation
+    meta_validation
 }
 
 #[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass)]
