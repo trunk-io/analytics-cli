@@ -121,23 +121,15 @@ impl BazelBepParser {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::path::PathBuf;
+    use test_utils::inputs::get_test_file_path;
 
     const SIMPLE_EXAMPLE: &str = "test_fixtures/bep_example";
     const EMPTY_EXAMPLE: &str = "test_fixtures/bep_empty";
     const PARTIAL_EXAMPLE: &str = "test_fixtures/bep_partially_valid";
 
-    fn get_test_file(file: &str) -> String {
-        PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap())
-            .join(file)
-            .to_str()
-            .unwrap()
-            .to_string()
-    }
-
     #[test]
     fn test_parse_simple_bep() {
-        let input_file = get_test_file(SIMPLE_EXAMPLE);
+        let input_file = get_test_file_path(SIMPLE_EXAMPLE);
         let mut parser = BazelBepParser::new(input_file);
         parser.parse().unwrap();
 
@@ -151,7 +143,7 @@ mod tests {
 
     #[test]
     fn test_parse_empty_bep() {
-        let input_file = get_test_file(EMPTY_EXAMPLE);
+        let input_file = get_test_file_path(EMPTY_EXAMPLE);
         let mut parser = BazelBepParser::new(input_file);
         parser.parse().unwrap();
 
@@ -162,7 +154,7 @@ mod tests {
 
     #[test]
     fn test_parse_partial_bep() {
-        let input_file = get_test_file(PARTIAL_EXAMPLE);
+        let input_file = get_test_file_path(PARTIAL_EXAMPLE);
         let mut parser = BazelBepParser::new(input_file);
         parser.parse().unwrap();
 

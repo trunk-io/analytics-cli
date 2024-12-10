@@ -1,4 +1,5 @@
 use quick_junit::TestCaseStatus;
+use std::collections::HashMap;
 use std::process::{Command, Stdio};
 use std::time::SystemTime;
 
@@ -130,12 +131,37 @@ pub fn build_filesets(
     Ok((file_sets, file_counter))
 }
 
+fn convert_case_to_test(
+    repo: &BundleRepo,
+    org_slug: &str,
+    parent_name: &String,
+    case: &quick_junit::TestCase,
+) -> Test {
+    let name = String::from(case.name.as_str());
+    let xml_string_to_string = |s: &quick_junit::XmlString| String::from(s.as_str());
+    let class_name = case.classname.as_ref().map(xml_string_to_string);
+    let file = case.extra.get("file").map(xml_string_to_string);
+    let id: Option<String> = case.extra.get("id").map(xml_string_to_string);
+    Test::new(
+        name,
+        parent_name.clone(),
+        class_name,
+        file,
+        id,
+        org_slug,
+        repo,
+        case.timestamp.map(|t| t.timestamp_millis()),
+    )
+}
+
 pub async fn extract_failed_tests(
     repo: &BundleRepo,
     org_slug: &str,
     file_sets: &[FileSet],
 ) -> Vec<Test> {
-    let mut failures = Vec::<Test>::new();
+    let mut failures: HashMap<String, Test> = HashMap::new();
+    let mut successes: HashMap<String, i64> = HashMap::new();
+
     for file_set in file_sets {
         for file in &file_set.files {
             let file = match std::fs::File::open(&file.original_path) {
@@ -158,31 +184,47 @@ pub async fn extract_failed_tests(
                 for suite in &report.test_suites {
                     let parent_name = String::from(suite.name.as_str());
                     for case in &suite.test_cases {
-                        if !matches!(case.status, TestCaseStatus::NonSuccess { .. }) {
-                            continue;
+                        let test = convert_case_to_test(repo, org_slug, &parent_name, case);
+                        match &case.status {
+                            TestCaseStatus::Skipped { .. } => {
+                                continue;
+                            }
+                            TestCaseStatus::Success { .. } => {
+                                if let Some(existing_timestamp) = successes.get(&test.id) {
+                                    if *existing_timestamp > test.timestamp_millis.unwrap_or(0) {
+                                        continue;
+                                    }
+                                }
+                                successes
+                                    .insert(test.id.clone(), test.timestamp_millis.unwrap_or(0));
+                            }
+                            TestCaseStatus::NonSuccess { .. } => {
+                                // Only store the most recent failure of a given test run ID
+                                if let Some(existing_test) = failures.get(&test.id) {
+                                    if existing_test.timestamp_millis > test.timestamp_millis {
+                                        continue;
+                                    }
+                                }
+                                failures.insert(test.id.clone(), test);
+                            }
                         }
-                        let name = String::from(case.name.as_str());
-                        let xml_string_to_string =
-                            |s: &quick_junit::XmlString| String::from(s.as_str());
-                        let classname = case.classname.as_ref().map(xml_string_to_string);
-                        let file = case.extra.get("file").map(xml_string_to_string);
-                        let id = case.extra.get("id").map(xml_string_to_string);
-                        let test = Test::new(
-                            name,
-                            parent_name.clone(),
-                            classname,
-                            file,
-                            id,
-                            org_slug,
-                            repo,
-                        );
-                        failures.push(test);
                     }
                 }
             }
         }
     }
     failures
+        .into_iter()
+        .filter_map(|(id, test)| {
+            // Tests with the same id and a later timestamp should override their previous status.
+            if let Some(existing_timestamp) = successes.get(&id) {
+                if *existing_timestamp > test.timestamp_millis.unwrap_or(0) {
+                    return None;
+                }
+            }
+            Some(test)
+        })
+        .collect()
 }
 
 pub async fn run_quarantine(
@@ -262,5 +304,97 @@ pub async fn run_quarantine(
     QuarantineRunResult {
         exit_code,
         quarantine_status: quarantine_results,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use bundle::{BundledFile, FileSetType};
+    use test_utils::inputs::get_test_file_path;
+
+    const JUNIT0_FAIL: &str = "test_fixtures/junit0_fail.xml";
+    const JUNIT0_PASS: &str = "test_fixtures/junit0_pass.xml";
+    const JUNIT1_FAIL: &str = "test_fixtures/junit1_fail.xml";
+    const JUNIT1_PASS: &str = "test_fixtures/junit1_pass.xml";
+
+    const ORG_SLUG: &str = "test-org";
+
+    #[tokio::test(start_paused = true)]
+    async fn test_extract_retry_failed_tests() {
+        let file_sets = vec![FileSet {
+            file_set_type: FileSetType::Junit,
+            files: vec![
+                BundledFile {
+                    original_path: get_test_file_path(JUNIT0_FAIL),
+                    ..BundledFile::default()
+                },
+                BundledFile {
+                    original_path: get_test_file_path(JUNIT0_PASS),
+                    ..BundledFile::default()
+                },
+            ],
+            glob: String::from("**/*.xml"),
+        }];
+
+        let retried_failures =
+            extract_failed_tests(&BundleRepo::default(), ORG_SLUG, &file_sets).await;
+        assert!(retried_failures.is_empty());
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn test_extract_multi_failed_tests() {
+        let file_sets = vec![FileSet {
+            file_set_type: FileSetType::Junit,
+            files: vec![
+                BundledFile {
+                    original_path: get_test_file_path(JUNIT0_FAIL),
+                    ..BundledFile::default()
+                },
+                BundledFile {
+                    original_path: get_test_file_path(JUNIT1_FAIL),
+                    ..BundledFile::default()
+                },
+            ],
+            glob: String::from("**/*.xml"),
+        }];
+
+        let mut multi_failures =
+            extract_failed_tests(&BundleRepo::default(), ORG_SLUG, &file_sets).await;
+        multi_failures.sort_by(|a, b| a.name.cmp(&b.name));
+        assert_eq!(multi_failures.len(), 2);
+        assert_eq!(multi_failures[0].name, "Goodbye");
+        assert_eq!(multi_failures[1].name, "Hello");
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn test_extract_some_retried_failed_tests() {
+        let file_sets = vec![FileSet {
+            file_set_type: FileSetType::Junit,
+            files: vec![
+                BundledFile {
+                    original_path: get_test_file_path(JUNIT0_FAIL),
+                    ..BundledFile::default()
+                },
+                BundledFile {
+                    original_path: get_test_file_path(JUNIT1_FAIL),
+                    ..BundledFile::default()
+                },
+                BundledFile {
+                    original_path: get_test_file_path(JUNIT0_PASS),
+                    ..BundledFile::default()
+                },
+                BundledFile {
+                    original_path: get_test_file_path(JUNIT1_PASS),
+                    ..BundledFile::default()
+                },
+            ],
+            glob: String::from("**/*.xml"),
+        }];
+
+        let some_failures =
+            extract_failed_tests(&BundleRepo::default(), ORG_SLUG, &file_sets).await;
+        assert_eq!(some_failures.len(), 1);
+        assert_eq!(some_failures[0].name, "Goodbye");
     }
 }
