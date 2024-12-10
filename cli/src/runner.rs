@@ -313,9 +313,13 @@ mod tests {
     use bundle::{BundledFile, FileSetType};
     use test_utils::inputs::get_test_file_path;
 
+    /// Contains 1 failure at 1:00
     const JUNIT0_FAIL: &str = "test_fixtures/junit0_fail.xml";
+    // Contains 1 pass at 2:00
     const JUNIT0_PASS: &str = "test_fixtures/junit0_pass.xml";
+    // Contains 1 failure at 3:00 and 1 failure at 5:00
     const JUNIT1_FAIL: &str = "test_fixtures/junit1_fail.xml";
+    // Contains 2 passes at 4:00
     const JUNIT1_PASS: &str = "test_fixtures/junit1_pass.xml";
 
     const ORG_SLUG: &str = "test-org";
