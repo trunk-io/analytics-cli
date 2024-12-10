@@ -343,7 +343,7 @@ fn test_simple_github_merge_queue() {
     );
 
     let mut env_parser = EnvParser::new();
-    env_parser.parse(&env_vars).unwrap();
+    env_parser.parse(&env_vars);
 
     let ci_info = env_parser.into_ci_info_parser().unwrap().info_ci_info();
 
@@ -589,7 +589,7 @@ fn test_simple_gitlab_merge_branch() {
     );
 
     let mut env_parser = EnvParser::new();
-    env_parser.parse(&env_vars).unwrap();
+    env_parser.parse(&env_vars);
 
     let ci_info = env_parser.into_ci_info_parser().unwrap().info_ci_info();
 

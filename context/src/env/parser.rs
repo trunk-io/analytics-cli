@@ -4,6 +4,7 @@ use magnus::{value::ReprValue, Module, Object};
 use pyo3::prelude::*;
 #[cfg(feature = "pyo3")]
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pyclass_enum};
+use thiserror::Error;
 #[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::*;
 
@@ -160,6 +161,7 @@ const MAX_BRANCH_NAME_SIZE: usize = 1000;
 
 #[derive(Debug, Clone)]
 pub struct CIInfoParser<'a> {
+    errors: Vec<CIInfoParseError>,
     ci_info: CIInfo,
     env_vars: &'a EnvVars,
 }
@@ -167,6 +169,7 @@ pub struct CIInfoParser<'a> {
 impl<'a> CIInfoParser<'a> {
     pub fn new(platform: CIPlatform, env_vars: &'a EnvVars) -> Self {
         Self {
+            errors: Vec::new(),
             ci_info: CIInfo::new(platform),
             env_vars,
         }
@@ -223,8 +226,11 @@ impl<'a> CIInfoParser<'a> {
                 }
             }
 
-            self.ci_info.branch_class =
-                Some(BranchClass::from((branch.as_str(), self.ci_info.pr_number)));
+            self.ci_info.branch_class = Some(BranchClass::from((
+                branch.as_str(),
+                self.ci_info.pr_number,
+                merge_request_event_type,
+            )));
         }
     }
 
@@ -427,9 +433,7 @@ pub enum BranchClass {
 }
 
 impl From<(&str, Option<usize>, Option<GitLabMergeRequestEventType>)> for BranchClass {
-    fn from(
-        value: (&str, Option<usize>, Option<GitLabMergeRequestEventType>),
-    ) -> Self {
+    fn from(value: (&str, Option<usize>, Option<GitLabMergeRequestEventType>)) -> Self {
         let (branch_name, pr_number, merge_request_event_type) = value;
         if branch_name.contains("/trunk-merge/")
             || branch_name.contains("gh-readonly-queue/")

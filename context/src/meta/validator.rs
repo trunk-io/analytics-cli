@@ -60,7 +60,7 @@ impl ToString for MetaValidationIssue {
 pub enum MetaValidationIssueInvalid {
     #[error("CI info branch name too short")]
     CIInfoBranchNameTooShort(String),
-    #[error("CI info is classified as a PR, but has not PR number")]
+    #[error("CI info is classified as a PR, but has no PR number")]
     CIInfoPRNumberMissing,
     #[error("CI info has a PR number, but branch is not classified as a PR")]
     CIInfoPRNumberConflictsWithBranchClass,

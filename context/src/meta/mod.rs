@@ -28,7 +28,7 @@ impl MetaContext {
         if enriched_ci_info.branch.is_none() {
             let new_branch = clean_branch(&repo.repo_head_branch);
             let new_branch_class =
-                BranchClass::from((new_branch.as_str(), enriched_ci_info.pr_number));
+                BranchClass::from((new_branch.as_str(), enriched_ci_info.pr_number, None));
             enriched_ci_info.branch = Some(new_branch);
             enriched_ci_info.branch_class = Some(new_branch_class);
         }

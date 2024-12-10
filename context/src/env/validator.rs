@@ -88,7 +88,7 @@ pub enum EnvValidationIssueSubOptimal {
     CIInfoJobURLTooShort(String),
     #[error("CI info job URL too long, truncated to {}", MAX_FIELD_LEN)]
     CIInfoJobURLTooLong(String),
-    #[error("CI info is classified as a PR, but has not PR number")]
+    #[error("CI info is classified as a PR, but has no PR number")]
     CIInfoPRNumberMissing,
     #[error("CI info has a PR number, but branch is not classified as a PR")]
     CIInfoPRNumberConflictsWithBranchClass,
