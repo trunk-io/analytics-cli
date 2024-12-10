@@ -6,7 +6,7 @@ use thiserror::Error;
 #[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::*;
 
-use crate::string_safety::{optional_string_to_empty_str, validate_field_len, FieldLen};
+use crate::string_safety::{validate_field_len, FieldLen};
 
 use super::parser::{BranchClass, CIInfo};
 
@@ -317,4 +317,8 @@ impl EnvValidation {
         self.level = self.level.max(EnvValidationLevel::from(&issue));
         self.issues.push(issue);
     }
+}
+
+fn optional_string_to_empty_str<'a>(optional_string: &'a Option<String>) -> &'a str {
+    optional_string.as_ref().map_or("", |s| &s)
 }

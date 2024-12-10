@@ -6,12 +6,8 @@ use thiserror::Error;
 #[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::*;
 
-use crate::{
-    env::{
-        parser::BranchClass,
-        validator::{MAX_BRANCH_NAME_LEN, MAX_EMAIL_LEN, MAX_FIELD_LEN},
-    },
-    string_safety::{optional_string_to_empty_str, validate_field_len, FieldLen},
+use crate::env::validator::{
+    validate as env_validate, EnvValidationIssue, EnvValidationIssueSubOptimal,
 };
 
 use super::MetaContext;
@@ -68,32 +64,8 @@ pub enum MetaValidationIssueInvalid {
 
 #[derive(Error, Debug, Clone, PartialEq, Eq)]
 pub enum MetaValidationIssueSubOptimal {
-    #[error("CI info actor too short")]
-    CIInfoActorTooShort(String),
-    #[error("CI info actor too long, truncated to {}", MAX_FIELD_LEN)]
-    CIInfoActorTooLong(String),
-    #[error("CI info author email too short")]
-    CIInfoAuthorEmailTooShort(String),
-    #[error("CI info author email too long, truncated to {}", MAX_EMAIL_LEN)]
-    CIInfoAuthorEmailTooLong(String),
-    #[error("CI info author name too short")]
-    CIInfoAuthorNameTooShort(String),
-    #[error("CI info author name too long, truncated to {}", MAX_FIELD_LEN)]
-    CIInfoAuthorNameTooLong(String),
-    #[error("CI info branch name too long, truncated to {}", MAX_BRANCH_NAME_LEN)]
-    CIInfoBranchNameTooLong(String),
-    #[error("CI info commit message too short")]
-    CIInfoCommitMessageTooShort(String),
-    #[error("CI info commit message too long, truncated to {}", MAX_FIELD_LEN)]
-    CIInfoCommitMessageTooLong(String),
-    #[error("CI info committer email too short")]
-    CIInfoCommitterEmailTooShort(String),
-    #[error("CI info committer email too long, truncated to {}", MAX_EMAIL_LEN)]
-    CIInfoCommitterEmailTooLong(String),
-    #[error("CI info committer name too short")]
-    CIInfoCommitterNameTooShort(String),
-    #[error("CI info committer name too long, truncated to {}", MAX_FIELD_LEN)]
-    CIInfoCommitterNameTooLong(String),
+    #[error("{}", .0.to_string())]
+    EnvValidationIssueSubOptimal(EnvValidationIssueSubOptimal),
 }
 
 impl From<&MetaValidationIssue> for MetaValidationLevel {
@@ -108,134 +80,40 @@ impl From<&MetaValidationIssue> for MetaValidationLevel {
 pub fn validate(meta_context: &MetaContext) -> MetaValidation {
     let mut meta_context_validation = MetaValidation::default();
 
-    match validate_field_len::<MAX_FIELD_LEN, _>(optional_string_to_empty_str(
-        &meta_context.ci_info.actor,
-    )) {
-        FieldLen::Valid => (),
-        FieldLen::TooShort(s) => {
-            meta_context_validation.add_issue(MetaValidationIssue::SubOptimal(
-                MetaValidationIssueSubOptimal::CIInfoActorTooShort(s),
-            ));
-        }
-        FieldLen::TooLong(s) => {
-            meta_context_validation.add_issue(MetaValidationIssue::SubOptimal(
-                MetaValidationIssueSubOptimal::CIInfoActorTooLong(s),
-            ));
-        }
-    };
-
-    match validate_field_len::<MAX_EMAIL_LEN, _>(optional_string_to_empty_str(
-        &meta_context.ci_info.author_email,
-    )) {
-        FieldLen::Valid => (),
-        FieldLen::TooShort(s) => {
-            meta_context_validation.add_issue(MetaValidationIssue::SubOptimal(
-                MetaValidationIssueSubOptimal::CIInfoAuthorEmailTooShort(s),
-            ));
-        }
-        FieldLen::TooLong(s) => {
-            meta_context_validation.add_issue(MetaValidationIssue::SubOptimal(
-                MetaValidationIssueSubOptimal::CIInfoAuthorEmailTooLong(s),
-            ));
-        }
-    };
-
-    match validate_field_len::<MAX_FIELD_LEN, _>(optional_string_to_empty_str(
-        &meta_context.ci_info.author_name,
-    )) {
-        FieldLen::Valid => (),
-        FieldLen::TooShort(s) => {
-            meta_context_validation.add_issue(MetaValidationIssue::SubOptimal(
-                MetaValidationIssueSubOptimal::CIInfoAuthorNameTooShort(s),
-            ));
-        }
-        FieldLen::TooLong(s) => {
-            meta_context_validation.add_issue(MetaValidationIssue::SubOptimal(
-                MetaValidationIssueSubOptimal::CIInfoAuthorNameTooLong(s),
-            ));
-        }
-    };
-
-    match validate_field_len::<MAX_BRANCH_NAME_LEN, _>(optional_string_to_empty_str(
-        &meta_context.ci_info.branch,
-    )) {
-        FieldLen::Valid => (),
-        FieldLen::TooShort(s) => {
-            meta_context_validation.add_issue(MetaValidationIssue::Invalid(
-                MetaValidationIssueInvalid::CIInfoBranchNameTooShort(s),
-            ));
-        }
-        FieldLen::TooLong(s) => {
-            meta_context_validation.add_issue(MetaValidationIssue::SubOptimal(
-                MetaValidationIssueSubOptimal::CIInfoBranchNameTooLong(s),
-            ));
-        }
-    };
-
-    match validate_field_len::<MAX_FIELD_LEN, _>(optional_string_to_empty_str(
-        &meta_context.ci_info.commit_message,
-    )) {
-        FieldLen::Valid => (),
-        FieldLen::TooShort(s) => {
-            meta_context_validation.add_issue(MetaValidationIssue::SubOptimal(
-                MetaValidationIssueSubOptimal::CIInfoCommitMessageTooShort(s),
-            ));
-        }
-        FieldLen::TooLong(s) => {
-            meta_context_validation.add_issue(MetaValidationIssue::SubOptimal(
-                MetaValidationIssueSubOptimal::CIInfoCommitMessageTooLong(s),
-            ));
-        }
-    };
-
-    match validate_field_len::<MAX_EMAIL_LEN, _>(optional_string_to_empty_str(
-        &meta_context.ci_info.committer_email,
-    )) {
-        FieldLen::Valid => (),
-        FieldLen::TooShort(s) => {
-            meta_context_validation.add_issue(MetaValidationIssue::SubOptimal(
-                MetaValidationIssueSubOptimal::CIInfoCommitterEmailTooShort(s),
-            ));
-        }
-        FieldLen::TooLong(s) => {
-            meta_context_validation.add_issue(MetaValidationIssue::SubOptimal(
-                MetaValidationIssueSubOptimal::CIInfoCommitterEmailTooLong(s),
-            ));
-        }
-    };
-
-    match validate_field_len::<MAX_FIELD_LEN, _>(optional_string_to_empty_str(
-        &meta_context.ci_info.committer_name,
-    )) {
-        FieldLen::Valid => (),
-        FieldLen::TooShort(s) => {
-            meta_context_validation.add_issue(MetaValidationIssue::SubOptimal(
-                MetaValidationIssueSubOptimal::CIInfoCommitterNameTooShort(s),
-            ));
-        }
-        FieldLen::TooLong(s) => {
-            meta_context_validation.add_issue(MetaValidationIssue::SubOptimal(
-                MetaValidationIssueSubOptimal::CIInfoCommitterNameTooLong(s),
-            ));
-        }
-    };
-
-    if let Some(branch_class) = &meta_context.ci_info.branch_class {
-        match (branch_class, meta_context.ci_info.pr_number) {
-            (BranchClass::PullRequest, None) => {
-                meta_context_validation.add_issue(MetaValidationIssue::Invalid(
+    let env_validation = env_validate(&meta_context.ci_info);
+    env_validation.issues().into_iter().for_each(|issue| {
+        if let Some(meta_validation_issue) = match issue {
+            EnvValidationIssue::SubOptimal(
+                EnvValidationIssueSubOptimal::CIInfoBranchNameTooShort(branch_name),
+            ) => Some(MetaValidationIssue::Invalid(
+                MetaValidationIssueInvalid::CIInfoBranchNameTooShort(branch_name.clone()),
+            )),
+            EnvValidationIssue::SubOptimal(EnvValidationIssueSubOptimal::CIInfoPRNumberMissing) => {
+                Some(MetaValidationIssue::Invalid(
                     MetaValidationIssueInvalid::CIInfoPRNumberMissing,
-                ));
+                ))
             }
-            (BranchClass::Merge | BranchClass::ProtectedBranch | BranchClass::None, Some(..)) => {
-                meta_context_validation.add_issue(MetaValidationIssue::Invalid(
-                    MetaValidationIssueInvalid::CIInfoPRNumberConflictsWithBranchClass,
-                ));
+            EnvValidationIssue::SubOptimal(
+                EnvValidationIssueSubOptimal::CIInfoPRNumberConflictsWithBranchClass,
+            ) => Some(MetaValidationIssue::Invalid(
+                MetaValidationIssueInvalid::CIInfoPRNumberConflictsWithBranchClass,
+            )),
+            EnvValidationIssue::SubOptimal(
+                EnvValidationIssueSubOptimal::CIInfoTitleTooLong(..)
+                | EnvValidationIssueSubOptimal::CIInfoTitleTooShort(..),
+            ) => None,
+            EnvValidationIssue::SubOptimal(env_validation_issue_suboptimal) => {
+                Some(MetaValidationIssue::SubOptimal(
+                    MetaValidationIssueSubOptimal::EnvValidationIssueSubOptimal(
+                        env_validation_issue_suboptimal.clone(),
+                    ),
+                ))
             }
-            (BranchClass::PullRequest, Some(..))
-            | (BranchClass::Merge | BranchClass::ProtectedBranch | BranchClass::None, None) => (),
-        };
-    }
+            _ => None,
+        } {
+            meta_context_validation.add_issue(meta_validation_issue);
+        }
+    });
 
     meta_context_validation
 }
