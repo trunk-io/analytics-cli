@@ -55,6 +55,7 @@ impl MutTestReport {
     // adds a test to the test report
     pub fn add_test(
         &self,
+        id: String,
         name: String,
         classname: String,
         file: String,
@@ -67,6 +68,9 @@ impl MutTestReport {
         output: String,
     ) {
         let mut test = TestCaseRun::default();
+        if !id.is_empty() {
+            test.id = id;
+        }
         test.name = name;
         test.classname = classname;
         test.file = file;
@@ -133,7 +137,7 @@ pub fn ruby_init(ruby: &magnus::Ruby) -> Result<(), magnus::Error> {
     test_report.define_method("to_s", magnus::method!(MutTestReport::to_string, 0))?;
     test_report.define_method("publish", magnus::method!(MutTestReport::publish, 0))?;
     test_report.define_method("save", magnus::method!(MutTestReport::save, 0))?;
-    test_report.define_method("add_test", magnus::method!(MutTestReport::add_test, 10))?;
+    test_report.define_method("add_test", magnus::method!(MutTestReport::add_test, 11))?;
     test_report.define_method(
         "list_quarantined_tests",
         magnus::method!(MutTestReport::list_quarantined_tests, 0),
