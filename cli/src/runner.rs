@@ -136,12 +136,17 @@ fn convert_case_to_test(
     org_slug: &str,
     parent_name: &String,
     case: &quick_junit::TestCase,
+    suite: &quick_junit::TestSuite,
 ) -> Test {
     let name = String::from(case.name.as_str());
     let xml_string_to_string = |s: &quick_junit::XmlString| String::from(s.as_str());
     let class_name = case.classname.as_ref().map(xml_string_to_string);
     let file = case.extra.get("file").map(xml_string_to_string);
     let id: Option<String> = case.extra.get("id").map(xml_string_to_string);
+    let timestamp = case
+        .timestamp
+        .or(suite.timestamp)
+        .map(|t| t.timestamp_millis());
     Test::new(
         name,
         parent_name.clone(),
@@ -150,7 +155,7 @@ fn convert_case_to_test(
         id,
         org_slug,
         repo,
-        case.timestamp.map(|t| t.timestamp_millis()),
+        timestamp,
     )
 }
 
@@ -184,7 +189,7 @@ pub async fn extract_failed_tests(
                 for suite in &report.test_suites {
                     let parent_name = String::from(suite.name.as_str());
                     for case in &suite.test_cases {
-                        let test = convert_case_to_test(repo, org_slug, &parent_name, case);
+                        let test = convert_case_to_test(repo, org_slug, &parent_name, case, suite);
                         match &case.status {
                             TestCaseStatus::Skipped { .. } => {
                                 continue;
