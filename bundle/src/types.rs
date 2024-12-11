@@ -4,6 +4,7 @@ use pyo3::prelude::*;
 #[cfg(feature = "pyo3")]
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pyclass_enum};
 use serde::{Deserialize, Serialize};
+use std::hash::Hash;
 #[cfg(feature = "wasm")]
 use tsify_next::Tsify;
 #[cfg(feature = "wasm")]
@@ -20,7 +21,7 @@ pub struct QuarantineRunResult {
     pub quarantine_status: QuarantineBulkTestStatus,
 }
 
-#[derive(Debug, Serialize, Clone, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Serialize, Clone, Deserialize, PartialEq, Eq, Hash)] // Add `Hash` here
 #[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass(get_all))]
 #[cfg_attr(feature = "wasm", derive(Tsify))]
 pub struct Test {

@@ -216,7 +216,8 @@ pub async fn run_quarantine(
 
     // quarantine the failed tests
     let mut quarantine_results = QuarantineBulkTestStatus::default();
-    let quarantined = quarantine_config.quarantined_tests;
+    let quarantined = &quarantine_config.quarantined_tests;
+
     let total_failures = failures.len();
     quarantine_results.quarantine_results = failures
         .clone()

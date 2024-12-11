@@ -2,7 +2,7 @@ mod bundle_meta;
 mod bundler;
 mod custom_tag;
 mod files;
-mod types;
+pub mod types;
 
 pub use bundle_meta::*;
 pub use bundler::*;

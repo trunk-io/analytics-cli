@@ -1,7 +1,7 @@
-use std::collections::HashSet;
-
+use bundle::types::Test;
 use context::repo::RepoUrlParts;
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet; // Add this import
 
 #[derive(Debug, Serialize, Clone, Deserialize, PartialEq, Eq)]
 pub struct CreateBundleUploadRequest {
@@ -54,6 +54,8 @@ pub struct GetQuarantineBulkTestStatusRequest {
     pub repo: RepoUrlParts,
     #[serde(rename = "orgUrlSlug")]
     pub org_url_slug: String,
+    #[serde(rename = "testIdentifiers")]
+    pub test_identifiers: Vec<Test>,
 }
 
 #[derive(Debug, Serialize, Clone, Deserialize, Default)]
