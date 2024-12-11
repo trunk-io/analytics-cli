@@ -136,12 +136,17 @@ fn convert_case_to_test(
     org_slug: &str,
     parent_name: &String,
     case: &quick_junit::TestCase,
+    suite: &quick_junit::TestSuite,
 ) -> Test {
     let name = String::from(case.name.as_str());
     let xml_string_to_string = |s: &quick_junit::XmlString| String::from(s.as_str());
     let class_name = case.classname.as_ref().map(xml_string_to_string);
     let file = case.extra.get("file").map(xml_string_to_string);
     let id: Option<String> = case.extra.get("id").map(xml_string_to_string);
+    let timestamp = case
+        .timestamp
+        .or(suite.timestamp)
+        .map(|t| t.timestamp_millis());
     Test::new(
         name,
         parent_name.clone(),
@@ -150,7 +155,7 @@ fn convert_case_to_test(
         id,
         org_slug,
         repo,
-        case.timestamp.map(|t| t.timestamp_millis()),
+        timestamp,
     )
 }
 
@@ -184,7 +189,7 @@ pub async fn extract_failed_tests(
                 for suite in &report.test_suites {
                     let parent_name = String::from(suite.name.as_str());
                     for case in &suite.test_cases {
-                        let test = convert_case_to_test(repo, org_slug, &parent_name, case);
+                        let test = convert_case_to_test(repo, org_slug, &parent_name, case, suite);
                         match &case.status {
                             TestCaseStatus::Skipped { .. } => {
                                 continue;
@@ -315,8 +320,10 @@ mod tests {
 
     /// Contains 1 failure at 1:00
     const JUNIT0_FAIL: &str = "test_fixtures/junit0_fail.xml";
+    const JUNIT0_FAIL_SUITE: &str = "test_fixtures/junit0_fail_suite_timestamp.xml";
     // Contains 1 pass at 2:00
     const JUNIT0_PASS: &str = "test_fixtures/junit0_pass.xml";
+    const JUNIT0_PASS_SUITE: &str = "test_fixtures/junit0_pass_suite_timestamp.xml";
     // Contains 1 failure at 3:00 and 1 failure at 5:00
     const JUNIT1_FAIL: &str = "test_fixtures/junit1_fail.xml";
     // Contains 2 passes at 4:00
@@ -335,6 +342,28 @@ mod tests {
                 },
                 BundledFile {
                     original_path: get_test_file_path(JUNIT0_PASS),
+                    ..BundledFile::default()
+                },
+            ],
+            glob: String::from("**/*.xml"),
+        }];
+
+        let retried_failures =
+            extract_failed_tests(&BundleRepo::default(), ORG_SLUG, &file_sets).await;
+        assert!(retried_failures.is_empty());
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn test_extract_retry_suite_failed_tests() {
+        let file_sets = vec![FileSet {
+            file_set_type: FileSetType::Junit,
+            files: vec![
+                BundledFile {
+                    original_path: get_test_file_path(JUNIT0_FAIL_SUITE),
+                    ..BundledFile::default()
+                },
+                BundledFile {
+                    original_path: get_test_file_path(JUNIT0_PASS_SUITE),
                     ..BundledFile::default()
                 },
             ],
