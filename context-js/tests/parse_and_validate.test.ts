@@ -135,9 +135,7 @@ describe("context-js", () => {
       BranchClass.PullRequest,
     );
 
-    expect(() => parse_branch_class("")).toThrow(
-      "could not parse branch class",
-    );
+    expect(parse_branch_class("")).toBe(BranchClass.None);
   });
 
   it("validates merge branches", () => {
@@ -153,8 +151,6 @@ describe("context-js", () => {
       ),
     ).toBe(BranchClass.Merge);
 
-    expect(() => parse_branch_class("")).toThrow(
-      "could not parse branch class",
-    );
+    expect(parse_branch_class("")).toBe(BranchClass.None);
   });
 });
