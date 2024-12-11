@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites tests="1" failures="0" disabled="0" errors="0" time="0." timestamp="2024-12-10T02:00:00.000" name="AllTests">
+  <testsuite name="HelloTest" tests="1" failures="0" disabled="0" skipped="0" errors="0" time="0." timestamp="2024-12-10T02:00:00.000">
+    <testcase name="Hello" file="trunk/hello_world/cc/hello_test.cc" line="9" status="run" result="completed" time="0." timestamp="2024-12-10T02:00:00.000" classname="HelloTest" />
+  </testsuite>
+</testsuites>
