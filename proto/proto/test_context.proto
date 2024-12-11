@@ -1,0 +1,8 @@
+syntax = "proto3";
+
+import "google/protobuf/timestamp.proto";
+
+package test_context.test_run;
+
+message TestCaseRun {
+}

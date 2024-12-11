@@ -7,11 +7,12 @@ members = [
   "context",
   "context-js",
   "context-py",
-  "context-ruby/ext/context_ruby",
   "junit-mock",
+  "proto",
   "test_utils",
   "xcresult",
 ]
+exclude = ["context-ruby/ext/context_ruby"]
 resolver = "2"
 
 [profile.release]

@@ -12,14 +12,6 @@ use crate::string_safety::safe_truncate_string;
 
 use super::EnvVars;
 
-#[derive(Error, Debug, Copy, Clone, PartialEq, Eq)]
-pub enum EnvParseError {
-    #[error("no env vars passed")]
-    EnvVarsEmpty,
-    #[error("could not parse CI platform from env vars")]
-    CIPlatform,
-}
-
 // TODO(TRUNK-12908): Switch to using a crate for parsing the CI platform and related env vars
 mod ci_platform_env_key {
     /// https://docs.github.com/en/actions/writing-workflows/choosing-what-your-workflow-does/store-information-in-variables#default-environment-variables
@@ -65,6 +57,7 @@ pub enum CIPlatform {
     AzurePipelines,
     GitLabCI,
     Drone,
+    Unknown,
 }
 
 impl Into<&str> for CIPlatform {
@@ -82,6 +75,7 @@ impl Into<&str> for CIPlatform {
             CIPlatform::AzurePipelines => ci_platform_env_key::AZURE_PIPELINES,
             CIPlatform::GitLabCI => ci_platform_env_key::GITLAB_CI,
             CIPlatform::Drone => ci_platform_env_key::DRONE,
+            CIPlatform::Unknown => "UNKNOWN",
         }
     }
 }
@@ -124,11 +118,9 @@ impl magnus::TryConvert for CIPlatform {
     }
 }
 
-impl TryFrom<&str> for CIPlatform {
-    type Error = EnvParseError;
-
-    fn try_from(value: &str) -> Result<Self, Self::Error> {
-        let ci_platform = match value {
+impl From<&str> for CIPlatform {
+    fn from(value: &str) -> Self {
+        match value {
             ci_platform_env_key::GITHUB_ACTIONS => CIPlatform::GitHubActions,
             ci_platform_env_key::JENKINS_PIPELINE => CIPlatform::JenkinsPipeline,
             ci_platform_env_key::CIRCLECI => CIPlatform::CircleCI,
@@ -141,21 +133,17 @@ impl TryFrom<&str> for CIPlatform {
             ci_platform_env_key::AZURE_PIPELINES => CIPlatform::AzurePipelines,
             ci_platform_env_key::GITLAB_CI => CIPlatform::GitLabCI,
             ci_platform_env_key::DRONE => CIPlatform::Drone,
-            _ => return Err(EnvParseError::CIPlatform),
-        };
-
-        Ok(ci_platform)
+            _ => CIPlatform::Unknown,
+        }
     }
 }
 
-impl TryFrom<&EnvVars> for CIPlatform {
-    type Error = EnvParseError;
-
-    fn try_from(value: &EnvVars) -> Result<Self, Self::Error> {
-        let mut ci_platform = Err(EnvParseError::EnvVarsEmpty);
+impl From<&EnvVars> for CIPlatform {
+    fn from(value: &EnvVars) -> Self {
+        let mut ci_platform = CIPlatform::Unknown;
         for (key, ..) in value.iter() {
-            ci_platform = CIPlatform::try_from(key.as_str());
-            if ci_platform.is_ok() {
+            ci_platform = CIPlatform::from(key.as_str());
+            if ci_platform != CIPlatform::Unknown {
                 break;
             }
         }
@@ -165,8 +153,8 @@ impl TryFrom<&EnvVars> for CIPlatform {
 
 #[derive(Error, Debug, Copy, Clone, PartialEq, Eq)]
 pub enum CIInfoParseError {
-    #[error("could not parse branch class")]
-    BranchClass,
+    #[error("could not parse GitLab merge request event type")]
+    GitLabMergeRequestEventType,
 }
 
 const MAX_BRANCH_NAME_SIZE: usize = 1000;
@@ -195,7 +183,7 @@ impl<'a> CIInfoParser<'a> {
         self.ci_info
     }
 
-    pub fn parse(&mut self) -> anyhow::Result<()> {
+    pub fn parse(&mut self) {
         match self.ci_info.platform {
             CIPlatform::GitHubActions => self.parse_github_actions(),
             CIPlatform::JenkinsPipeline => self.parse_jenkins_pipeline(),
@@ -208,37 +196,41 @@ impl<'a> CIInfoParser<'a> {
             | CIPlatform::Webappio
             | CIPlatform::AWSCodeBuild
             | CIPlatform::BitbucketPipelines
-            | CIPlatform::AzurePipelines => {
+            | CIPlatform::AzurePipelines
+            | CIPlatform::Unknown => {
                 // TODO(TRUNK-12908): Switch to using a crate for parsing the CI platform and related env vars
                 // TODO(TRUNK-12909): parse more platforms
             }
         };
         self.clean_branch();
         self.parse_branch_class();
-        Ok(())
     }
 
     fn clean_branch(&mut self) {
         if let Some(branch) = &mut self.ci_info.branch {
-            let new_branch = branch
-                .replace("refs/heads/", "")
-                .replace("refs/", "")
-                .replace("origin/", "");
-
-            *branch = String::from(safe_truncate_string::<MAX_BRANCH_NAME_SIZE, _>(&new_branch));
+            *branch = clean_branch(branch);
         }
     }
 
     fn parse_branch_class(&mut self) {
         if let Some(branch) = &self.ci_info.branch {
-            match BranchClass::try_from((branch.as_str(), self.ci_info.pr_number)) {
-                Ok(branch_class) => {
-                    self.ci_info.branch_class = Some(branch_class);
-                }
-                Err(err) => {
-                    self.errors.push(err);
+            let mut merge_request_event_type: Option<GitLabMergeRequestEventType> = None;
+            if let Some(env_event_type) = self.get_env_var("CI_MERGE_REQUEST_EVENT_TYPE") {
+                match GitLabMergeRequestEventType::try_from(env_event_type.as_str()) {
+                    Ok(event_type) => {
+                        merge_request_event_type = Some(event_type);
+                    }
+                    Err(err) => {
+                        self.errors.push(err);
+                    }
                 }
             }
+
+            self.ci_info.branch_class = Some(BranchClass::from((
+                branch.as_str(),
+                self.ci_info.pr_number,
+                merge_request_event_type,
+            )));
         }
     }
 
@@ -408,32 +400,78 @@ pub struct CIInfo {
 
 #[cfg_attr(feature = "pyo3", gen_stub_pyclass_enum, pyclass(eq, eq_int))]
 #[cfg_attr(feature = "wasm", wasm_bindgen)]
+#[cfg_attr(feature = "ruby", magnus::wrap(class = "GitLabMergeRequestEventType"))]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GitLabMergeRequestEventType {
+    Detached,
+    MergedResult,
+    MergeTrain,
+}
+
+impl TryFrom<&str> for GitLabMergeRequestEventType {
+    type Error = CIInfoParseError;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        match value {
+            "detached" => Ok(GitLabMergeRequestEventType::Detached),
+            "merged_result" => Ok(GitLabMergeRequestEventType::MergedResult),
+            "merge_train" => Ok(GitLabMergeRequestEventType::MergeTrain),
+            _ => Err(CIInfoParseError::GitLabMergeRequestEventType),
+        }
+    }
+}
+
+#[cfg_attr(feature = "pyo3", gen_stub_pyclass_enum, pyclass(eq, eq_int))]
+#[cfg_attr(feature = "wasm", wasm_bindgen)]
 #[cfg_attr(feature = "ruby", magnus::wrap(class = "BranchClass"))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BranchClass {
     PullRequest,
     ProtectedBranch,
     Merge,
+    None,
 }
 
-impl TryFrom<(&str, Option<usize>)> for BranchClass {
-    type Error = CIInfoParseError;
-
-    fn try_from(value: (&str, Option<usize>)) -> Result<Self, Self::Error> {
-        let (branch_name, pr_number) = value;
-        if pr_number.is_some() {
-            return Ok(BranchClass::PullRequest);
-        }
-        if branch_name.starts_with("remotes/pull/") || branch_name.starts_with("pull/") {
-            Ok(BranchClass::PullRequest)
+impl From<(&str, Option<usize>, Option<GitLabMergeRequestEventType>)> for BranchClass {
+    fn from(value: (&str, Option<usize>, Option<GitLabMergeRequestEventType>)) -> Self {
+        let (branch_name, pr_number, merge_request_event_type) = value;
+        if branch_name.contains("/trunk-merge/")
+            || branch_name.contains("gh-readonly-queue/")
+            || merge_request_event_type
+                .filter(|t| *t == GitLabMergeRequestEventType::MergeTrain)
+                .is_some()
+        {
+            BranchClass::Merge
+        } else if pr_number.is_some() {
+            BranchClass::PullRequest
+        } else if branch_name.starts_with("remotes/pull/") || branch_name.starts_with("pull/") {
+            BranchClass::PullRequest
         } else if matches!(branch_name, "master" | "main") {
-            Ok(BranchClass::ProtectedBranch)
-        } else if branch_name.contains("/trunk-merge/") {
-            Ok(BranchClass::Merge)
+            BranchClass::ProtectedBranch
         } else {
-            Err(CIInfoParseError::BranchClass)
+            BranchClass::None
         }
     }
+}
+
+impl ToString for BranchClass {
+    fn to_string(&self) -> String {
+        match self {
+            BranchClass::PullRequest => "PR".to_string(),
+            BranchClass::ProtectedBranch => "PB".to_string(),
+            BranchClass::Merge => "MERGE".to_string(),
+            BranchClass::None => "NONE".to_string(),
+        }
+    }
+}
+
+pub fn clean_branch(branch: &str) -> String {
+    let new_branch = branch
+        .replace("refs/heads/", "")
+        .replace("refs/", "")
+        .replace("origin/", "");
+
+    return String::from(safe_truncate_string::<MAX_BRANCH_NAME_SIZE, _>(&new_branch));
 }
 
 impl CIInfo {
@@ -505,17 +543,12 @@ impl CIInfo {
 
 #[derive(Debug, Clone, Default)]
 pub struct EnvParser<'a> {
-    errors: Vec<EnvParseError>,
     ci_info_parser: Option<CIInfoParser<'a>>,
 }
 
 impl<'a> EnvParser<'a> {
     pub fn new() -> Self {
         Default::default()
-    }
-
-    pub fn errors(&self) -> &Vec<EnvParseError> {
-        &self.errors
     }
 
     pub fn ci_info_parser(&self) -> &Option<CIInfoParser> {
@@ -526,23 +559,15 @@ impl<'a> EnvParser<'a> {
         self.ci_info_parser
     }
 
-    pub fn parse(&mut self, env_vars: &'a EnvVars) -> anyhow::Result<()> {
+    pub fn parse(&mut self, env_vars: &'a EnvVars) {
         self.parse_ci_platform(env_vars);
         if let Some(ci_info) = &mut self.ci_info_parser {
-            ci_info.parse()?;
+            ci_info.parse();
         }
-        Ok(())
     }
 
     fn parse_ci_platform(&mut self, env_vars: &'a EnvVars) {
-        match CIPlatform::try_from(env_vars) {
-            Ok(ci_platform) => {
-                self.ci_info_parser = Some(CIInfoParser::new(ci_platform, &env_vars));
-            }
-            Err(err) => {
-                self.errors.push(err);
-            }
-        }
+        self.ci_info_parser = Some(CIInfoParser::new(CIPlatform::from(env_vars), &env_vars));
     }
 }
 

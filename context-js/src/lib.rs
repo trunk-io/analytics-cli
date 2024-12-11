@@ -8,7 +8,7 @@ use bundle::{parse_meta_from_tarball as parse_tarball, VersionedBundle};
 use context::{env, junit, repo};
 
 #[wasm_bindgen]
-pub fn env_parse(env_vars: js_sys::Object) -> Result<Option<env::parser::CIInfo>, JsError> {
+pub fn env_parse(env_vars: js_sys::Object) -> Option<env::parser::CIInfo> {
     let env_vars: HashMap<String, String> = js_sys::Object::entries(&env_vars)
         .iter()
         .filter_map(|entry| {
@@ -23,29 +23,20 @@ pub fn env_parse(env_vars: js_sys::Object) -> Result<Option<env::parser::CIInfo>
         })
         .collect();
     let mut env_parser = env::parser::EnvParser::new();
-    if env_parser.parse(&env_vars).is_err() {
-        let error_message = env_parser
-            .errors()
-            .into_iter()
-            .map(|e| e.to_string())
-            .collect::<Vec<String>>()
-            .join("\n");
-        return Err(JsError::new(&error_message));
-    }
+    env_parser.parse(&env_vars);
 
-    let ci_info_class = env_parser
+    env_parser
         .into_ci_info_parser()
-        .map(|ci_info_parser| ci_info_parser.info_ci_info());
-
-    Ok(ci_info_class)
+        .map(|ci_info_parser| ci_info_parser.info_ci_info())
 }
 
 #[wasm_bindgen]
 pub fn parse_branch_class(
     value: &str,
     pr_number: Option<usize>,
-) -> Result<env::parser::BranchClass, JsError> {
-    env::parser::BranchClass::try_from((value, pr_number)).map_err(|e| JsError::new(&e.to_string()))
+    gitlab_merge_request_event_type: Option<env::parser::GitLabMergeRequestEventType>,
+) -> env::parser::BranchClass {
+    env::parser::BranchClass::from((value, pr_number, gitlab_merge_request_event_type))
 }
 
 #[wasm_bindgen]

@@ -31,6 +31,7 @@ pub struct Test {
     pub class_name: Option<String>,
     pub file: Option<String>,
     pub id: String,
+    pub timestamp_millis: Option<i64>,
 }
 
 impl Test {
@@ -42,6 +43,7 @@ impl Test {
         id: Option<String>,
         org_slug: &str,
         repo: &BundleRepo,
+        timestamp_millis: Option<i64>,
     ) -> Self {
         if let Some(id) = id {
             return Test {
@@ -50,6 +52,7 @@ impl Test {
                 class_name,
                 file,
                 id,
+                timestamp_millis,
             };
         }
         // generate a unique id if not provided
@@ -72,6 +75,7 @@ impl Test {
             class_name,
             file,
             id,
+            timestamp_millis,
         }
     }
 }
@@ -267,6 +271,7 @@ mod tests {
             None,
             org_slug,
             &repo,
+            Some(0),
         );
         assert_eq!(result.name, name);
         assert_eq!(result.parent_name, parent_name);
@@ -281,6 +286,7 @@ mod tests {
             Some(String::from("da5b8893-d6ca-5c1c-9a9c-91f40a2a3649")),
             org_slug,
             &repo,
+            Some(0),
         );
         assert_eq!(result.name, name);
         assert_eq!(result.parent_name, parent_name);

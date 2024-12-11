@@ -1,3 +1,4 @@
+pub mod inputs;
 pub mod mock_git_repo;
 mod mock_logger;
 mod mock_sentry;

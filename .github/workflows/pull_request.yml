@@ -109,6 +109,9 @@ jobs:
       - name: Setup Ruby
         uses: ./.github/actions/setup_ruby
 
+      - name: Setup proto
+        uses: ./.github/actions/setup_proto
+
       - name: Build workspace
         run: cargo build --all
 
