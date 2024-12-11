@@ -320,8 +320,10 @@ mod tests {
 
     /// Contains 1 failure at 1:00
     const JUNIT0_FAIL: &str = "test_fixtures/junit0_fail.xml";
+    const JUNIT0_FAIL_SUITE: &str = "test_fixtures/junit0_fail_suite_timestamp.xml";
     // Contains 1 pass at 2:00
     const JUNIT0_PASS: &str = "test_fixtures/junit0_pass.xml";
+    const JUNIT0_PASS_SUITE: &str = "test_fixtures/junit0_pass_suite_timestamp.xml";
     // Contains 1 failure at 3:00 and 1 failure at 5:00
     const JUNIT1_FAIL: &str = "test_fixtures/junit1_fail.xml";
     // Contains 2 passes at 4:00
@@ -340,6 +342,28 @@ mod tests {
                 },
                 BundledFile {
                     original_path: get_test_file_path(JUNIT0_PASS),
+                    ..BundledFile::default()
+                },
+            ],
+            glob: String::from("**/*.xml"),
+        }];
+
+        let retried_failures =
+            extract_failed_tests(&BundleRepo::default(), ORG_SLUG, &file_sets).await;
+        assert!(retried_failures.is_empty());
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn test_extract_retry_suite_failed_tests() {
+        let file_sets = vec![FileSet {
+            file_set_type: FileSetType::Junit,
+            files: vec![
+                BundledFile {
+                    original_path: get_test_file_path(JUNIT0_FAIL_SUITE),
+                    ..BundledFile::default()
+                },
+                BundledFile {
+                    original_path: get_test_file_path(JUNIT0_PASS_SUITE),
                     ..BundledFile::default()
                 },
             ],
