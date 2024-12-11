@@ -27,7 +27,7 @@ fn test_simple_buildkite() {
     );
 
     let mut env_parser = EnvParser::new();
-    env_parser.parse(&env_vars).unwrap();
+    env_parser.parse(&env_vars);
 
     let ci_info = env_parser.into_ci_info_parser().unwrap().info_ci_info();
 
@@ -37,7 +37,7 @@ fn test_simple_buildkite() {
             platform: CIPlatform::Buildkite,
             job_url: Some(job_url),
             branch: Some(branch),
-            branch_class: None,
+            branch_class: Some(BranchClass::None),
             pr_number: None,
             actor: None,
             committer_name: None,
@@ -114,7 +114,7 @@ fn test_simple_drone() {
     );
 
     let mut env_parser = EnvParser::new();
-    env_parser.parse(&env_vars).unwrap();
+    env_parser.parse(&env_vars);
 
     let ci_info = env_parser.into_ci_info_parser().unwrap().info_ci_info();
 
@@ -175,7 +175,7 @@ fn test_simple_github() {
     );
 
     let mut env_parser = EnvParser::new();
-    env_parser.parse(&env_vars).unwrap();
+    env_parser.parse(&env_vars);
 
     let ci_info = env_parser.into_ci_info_parser().unwrap().info_ci_info();
 
@@ -187,7 +187,7 @@ fn test_simple_github() {
                 "https://github.com/{repository}/actions/runs/{run_id}"
             )),
             branch: Some(branch),
-            branch_class: None,
+            branch_class: Some(BranchClass::None),
             pr_number: None,
             actor: Some(actor),
             committer_name: None,
@@ -260,7 +260,7 @@ fn test_simple_github_pr() {
     );
 
     let mut env_parser = EnvParser::new();
-    env_parser.parse(&env_vars).unwrap();
+    env_parser.parse(&env_vars);
 
     let ci_info = env_parser.into_ci_info_parser().unwrap().info_ci_info();
 
@@ -343,7 +343,7 @@ fn test_simple_github_merge_queue() {
     );
 
     let mut env_parser = EnvParser::new();
-    env_parser.parse(&env_vars).unwrap();
+    env_parser.parse(&env_vars);
 
     let ci_info = env_parser.into_ci_info_parser().unwrap().info_ci_info();
 
@@ -436,7 +436,7 @@ fn test_simple_semaphore() {
     );
 
     let mut env_parser = EnvParser::new();
-    env_parser.parse(&env_vars).unwrap();
+    env_parser.parse(&env_vars);
 
     let ci_info = env_parser.into_ci_info_parser().unwrap().info_ci_info();
 
@@ -446,7 +446,7 @@ fn test_simple_semaphore() {
             platform: CIPlatform::Semaphore,
             job_url: Some(format!("{org_url}/projects/{project_id}/jobs/{job_id}")),
             branch: Some(branch),
-            branch_class: None,
+            branch_class: Some(BranchClass::None),
             pr_number: None,
             actor: Some(actor.clone()),
             committer_name: None,
@@ -515,7 +515,7 @@ fn test_simple_gitlab_pr() {
     );
 
     let mut env_parser = EnvParser::new();
-    env_parser.parse(&env_vars).unwrap();
+    env_parser.parse(&env_vars);
 
     let ci_info = env_parser.into_ci_info_parser().unwrap().info_ci_info();
 
@@ -589,7 +589,7 @@ fn test_simple_gitlab_merge_branch() {
     );
 
     let mut env_parser = EnvParser::new();
-    env_parser.parse(&env_vars).unwrap();
+    env_parser.parse(&env_vars);
 
     let ci_info = env_parser.into_ci_info_parser().unwrap().info_ci_info();
 
