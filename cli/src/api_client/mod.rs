@@ -164,8 +164,8 @@ impl ApiClient {
                 match serde_json::from_str::<api::QuarantineConfig>(&response_body) {
                     Ok(config) => Ok(config),
                     Err(e) => {
-                        log::error!("Error parsing response: {}", e);
-                        return Err(anyhow::anyhow!("Failed to parse response body as json"));
+                        log::error!("Error retrieving quarantine configuration");
+                        return Err(anyhow::anyhow!("Failed to parse response body as json: {}", e));
                     }
                 }
             },
