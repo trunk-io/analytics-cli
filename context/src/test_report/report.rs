@@ -75,6 +75,7 @@ pub struct MutTestReport(RefCell<TestReport>);
 impl MutTestReport {
     pub fn new(origin: String) -> Self {
         let mut test_result = TestResult::default();
+        // TODO - include git and env states
         test_result.uploader_metadata = Some(UploaderMetadata {
             origin,
             version: VERSION.to_string(),
@@ -93,9 +94,10 @@ impl MutTestReport {
     // sends out to the trunk api
     pub fn publish(&self) -> Vec<u8> {
         self.serialize_test_result()
+        // TODO - integrate with the trunk api
     }
 
-    // saves to local fs and prints the path
+    // saves to local fs and returns the path
     pub fn save(&self) -> String {
         let buf = self.serialize_test_result();
         // TODO - make this random
