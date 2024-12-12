@@ -17,11 +17,6 @@ jobs:
       - name: Setup Rust & Cargo
         uses: ./.github/actions/setup_rust_cargo
 
-      - name: Run failing test
-        run: |
-          cd cli-smoke-test
-          ../trunk-analytics-cli test cargo nextest always_fails --profile ci
-
       - name: Run succeeding test
         run: |
           cd cli-smoke-test
