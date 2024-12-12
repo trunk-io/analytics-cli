@@ -263,7 +263,8 @@ pub async fn run_quarantine(
 
     // quarantine the failed tests
     let mut quarantine_results = QuarantineBulkTestStatus::default();
-    let quarantined = quarantine_config.quarantined_tests;
+    let quarantined = &quarantine_config.quarantined_tests;
+
     let total_failures = failures.len();
     quarantine_results.quarantine_results = failures
         .clone()
@@ -299,7 +300,7 @@ pub async fn run_quarantine(
     } else if !quarantine_results.group_is_quarantined {
         log::info!("Not all test failures were quarantined, returning exit code from command.");
         exit_code
-    } else if exit_code != EXIT_SUCCESS && !quarantine_config.is_preview_mode {
+    } else if exit_code != EXIT_SUCCESS {
         log::info!("All test failures were quarantined, overriding exit code to be exit_success");
         EXIT_SUCCESS
     } else {

@@ -63,6 +63,7 @@ async fn upload_bundle() {
                 name: String::from("analytics-cli"),
             },
             org_url_slug: String::from("test-org"),
+            test_identifiers: vec![],
         })
     );
 

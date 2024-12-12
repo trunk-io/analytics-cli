@@ -179,6 +179,7 @@ async fn run_test(test_args: TestArgs) -> anyhow::Result<i32> {
                 &api::GetQuarantineBulkTestStatusRequest {
                     repo: repo.repo,
                     org_url_slug: org_url_slug.clone(),
+                    test_identifiers: failures.clone(),
                 },
                 failures,
                 run_exit_code,

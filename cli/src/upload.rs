@@ -205,6 +205,7 @@ pub async fn run_upload(
                 &api::GetQuarantineBulkTestStatusRequest {
                     repo: repo.repo.clone(),
                     org_url_slug: org_url_slug.clone(),
+                    test_identifiers: failures.clone(),
                 },
                 failures,
                 exit_code,
