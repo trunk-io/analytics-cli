@@ -1,6 +1,6 @@
 use chrono::prelude::*;
 #[cfg(feature = "ruby")]
-use magnus::{Module, Object};
+use magnus::{value::ReprValue, Module, Object};
 use prost_wkt_types::Timestamp;
 use proto::test_context::test_run::{TestCaseRun, TestCaseRunStatus, TestResult, UploaderMetadata};
 use std::cell::RefCell;
@@ -14,6 +14,58 @@ pub struct TestReport {
     test_result: TestResult,
 }
 
+#[cfg_attr(feature = "wasm", wasm_bindgen)]
+#[cfg_attr(feature = "ruby", magnus::wrap(class = "Status"))]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Status {
+    Success,
+    Failure,
+    Skipped,
+}
+
+#[cfg(feature = "ruby")]
+impl Status {
+    fn new(status: String) -> Self {
+        match status.as_str() {
+            "success" => Status::Success,
+            "failure" => Status::Failure,
+            "skipped" => Status::Skipped,
+            _ => panic!("invalid Status: {}", status),
+        }
+    }
+}
+
+impl Into<&str> for Status {
+    fn into(self) -> &'static str {
+        match self {
+            Status::Success => "success",
+            Status::Failure => "failure",
+            Status::Skipped => "skipped",
+        }
+    }
+}
+
+impl ToString for Status {
+    fn to_string(&self) -> String {
+        String::from(Into::<&str>::into(*self))
+    }
+}
+
+#[cfg(feature = "ruby")]
+impl Status {
+    pub fn to_string(&self) -> &str {
+        (*self).into()
+    }
+}
+
+#[cfg(feature = "ruby")]
+impl magnus::TryConvert for Status {
+    fn try_convert(val: magnus::Value) -> Result<Self, magnus::Error> {
+        let sval: String = val.funcall("to_s", ())?;
+        Ok(Status::new(sval))
+    }
+}
+
 #[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
 #[cfg_attr(feature = "ruby", magnus::wrap(class = "TestReport"))]
 #[derive(Debug, Clone, PartialEq)]
@@ -24,7 +76,7 @@ impl MutTestReport {
     pub fn new(origin: String) -> Self {
         let mut test_result = TestResult::default();
         test_result.uploader_metadata = Some(UploaderMetadata {
-            origin: origin,
+            origin,
             version: VERSION.to_string(),
         });
         Self(RefCell::new(TestReport {
@@ -61,7 +113,7 @@ impl MutTestReport {
         file: String,
         parent_name: String,
         line: i32,
-        status: String,
+        status: Status,
         attempt: i32,
         started_at: i64,
         finished_at: i64,
@@ -76,11 +128,10 @@ impl MutTestReport {
         test.file = file;
         test.parent_name = parent_name;
         test.line = line;
-        match status.as_str() {
-            "success" => test.status = TestCaseRunStatus::Success.into(),
-            "failure" => test.status = TestCaseRunStatus::Failure.into(),
-            "skipped" => test.status = TestCaseRunStatus::Skipped.into(),
-            _ => test.status = TestCaseRunStatus::Unspecified.into(),
+        match status {
+            Status::Success => test.status = TestCaseRunStatus::Success.into(),
+            Status::Failure => test.status = TestCaseRunStatus::Failure.into(),
+            Status::Skipped => test.status = TestCaseRunStatus::Skipped.into(),
         }
         // test.status = status;
         test.attempt = attempt;
@@ -132,6 +183,9 @@ impl Into<String> for MutTestReport {
 
 #[cfg(feature = "ruby")]
 pub fn ruby_init(ruby: &magnus::Ruby) -> Result<(), magnus::Error> {
+    let status = ruby.define_class("Status", ruby.class_object())?;
+    status.define_singleton_method("new", magnus::function!(Status::new, 1))?;
+    status.define_method("to_s", magnus::method!(Status::to_string, 0))?;
     let test_report = ruby.define_class("TestReport", ruby.class_object())?;
     test_report.define_singleton_method("new", magnus::function!(MutTestReport::new, 1))?;
     test_report.define_method("to_s", magnus::method!(MutTestReport::to_string, 0))?;
