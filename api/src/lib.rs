@@ -1,7 +1,6 @@
-use bundle::types::Test;
+use bundle::Test;
 use context::repo::RepoUrlParts;
 use serde::{Deserialize, Serialize};
-use std::collections::HashSet; // Add this import
 
 #[derive(Debug, Serialize, Clone, Deserialize, PartialEq, Eq)]
 pub struct CreateBundleUploadRequest {
@@ -63,5 +62,5 @@ pub struct QuarantineConfig {
     #[serde(rename = "isDisabled")]
     pub is_disabled: bool,
     #[serde(rename = "testIds")]
-    pub quarantined_tests: HashSet<String>,
+    pub quarantined_tests: Vec<String>,
 }

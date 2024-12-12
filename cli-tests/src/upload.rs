@@ -49,7 +49,7 @@ async fn upload_bundle() {
     let mut requests_iter = requests.into_iter();
 
     let quarantine_request = requests_iter.next().unwrap();
-    if let RequestPayload::GetQuarantineBulkTestStatus(req) = quarantine_request {
+    assert_matches!(quarantine_request, RequestPayload::GetQuarantineBulkTestStatus(req) => {
         assert_eq!(req.repo.host, "github.com");
         assert_eq!(req.repo.owner, "trunk-io");
         assert_eq!(req.repo.name, "analytics-cli");
@@ -66,9 +66,7 @@ async fn upload_bundle() {
             );
             assert!(test.id.len() == 36, "Test ID should be a valid UUID");
         }
-    } else {
-        panic!("Expected GetQuarantineBulkTestStatus request");
-    }
+    });
 
     assert_eq!(
         requests_iter.next().unwrap(),

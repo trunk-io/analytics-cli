@@ -1,7 +1,6 @@
 use anyhow::Context;
 use http::{header::HeaderMap, HeaderValue};
 use reqwest::{header, Client, Response, StatusCode};
-use serde_json;
 use std::path::Path;
 use tokio::fs;
 
@@ -138,7 +137,7 @@ impl ApiClient {
         &self,
         request: &api::GetQuarantineBulkTestStatusRequest,
     ) -> anyhow::Result<api::QuarantineConfig> {
-        let result = CallApi {
+        CallApi {
             action: || async {
                 let response = self
                     .trunk_client
@@ -160,14 +159,10 @@ impl ApiClient {
                     },
                 )?;
 
-                let response_body = response.text().await?;
-                match serde_json::from_str::<api::QuarantineConfig>(&response_body) {
-                    Ok(config) => Ok(config),
-                    Err(e) => {
-                        log::error!("Error retrieving quarantine configuration");
-                        return Err(anyhow::anyhow!("Failed to parse response body as json: {}", e));
-                    }
-                }
+                response
+                    .json::<api::QuarantineConfig>()
+                    .await
+                    .context("Failed to get response body as json.")
             },
             log_progress_message: |time_elapsed, _| {
                 format!("Getting quarantine configuration from Trunk services is taking longer than expected. It has taken {} seconds so far.", time_elapsed.as_secs())
@@ -177,14 +172,7 @@ impl ApiClient {
             },
         }
         .call_api()
-        .await;
-
-        if let Err(ref e) = result {
-            log::error!("Error during API call: {}", e);
-            return Err(anyhow::anyhow!(e.to_string()));
-        }
-
-        result
+        .await
     }
 
     pub async fn put_bundle_to_s3<U: AsRef<str>, B: AsRef<Path>>(
