@@ -22,12 +22,13 @@ jobs:
       - name: Setup Rust & Cargo
         uses: ./.github/actions/setup_rust_cargo
 
-      - name: Debugging
-        run: |
-          pwd
-          ls
-          ls ../
-
       - name: Run succeeding test
+        env:
+          TRUNK_PUBLIC_API_ADDRESS: https://api.trunk-staging.io
+        shell: bash
         run: |
-          ./trunk-analytics-cli test cargo nextest always_succeeds --profile ci
+          ./trunk-analytics-cli test \
+          --org-url-slug trunk-staging-org \
+          --junit-paths target/nextest/ci/junit.xml \
+          --token ${{ secrets.TRUNK_STAGING_ORG_API_TOKEN }}
+          cargo nextest always_succeeds --profile ci
