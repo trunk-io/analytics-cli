@@ -12,7 +12,9 @@ jobs:
     steps:
       - name: Get Release
         run: |
-          curl -fsSLO --retry 3 https://github.com/trunk-io/analytics-cli/releases/download/${{ env.RELEASE }}/trunk-analytics-cli-x86_64-unknown-linux.tar.gz && chmod +x trunk
+          curl -fsSLO --retry 3 https://github.com/trunk-io/analytics-cli/releases/download/${{ env.RELEASE }}/trunk-analytics-cli-x86_64-unknown-linux.tar.gz
+          tar -zxf trunk-analytics-cli-x86_64-unknown-linux.tar.gz
+          chmod +x trunk-analytics-cli
 
       - name: Setup Rust & Cargo
         uses: ./.github/actions/setup_rust_cargo
