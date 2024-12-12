@@ -1,0 +1,38 @@
+name: (WIP) Smoke Test
+on:
+  workflow_dispatch:
+    inputs:
+      release:
+        type: string
+        description: Release number
+        required: true
+
+jobs:
+  build_cli:
+    name: Build cli from release ${{ github.event.inputs.release }}
+    runs-on: public-amd64-2xlarge
+    steps:
+      - name: Get Release
+        uses: robinraju/release-downloader@v1
+        with:
+          tag: ${{ github.event.inputs.release }}
+          fileName: trunk-analytics-cli-aarch64-unknown-linux.tar.gz
+          extract: true
+
+      - name: Checkout Test Repo
+        uses: actions/checkout@v4
+        with:
+          repository: trunk-io/cli-smoke-test
+
+      - name: Setup Rust & Cargo
+        uses: ./.github/actions/setup_rust_cargo
+
+      - name: Run failing test
+        run: |
+          cd cli-smoke-test
+          ../trunk-analytics-cli test cargo nextest always_fails --profile ci
+
+      - name: Run succeeding test
+        run: |
+          cd cli-smoke-test
+          ../trunk-analytics-cli test cargo nextest always_succeeds --profile ci
