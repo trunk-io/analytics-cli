@@ -1,21 +1,19 @@
 name: Smoke Test
+permissions:
+  actions: read
 on:
-  workflow_dispatch:
-    inputs:
-      release:
-        type: string
-        description: Release number
-        required: true
-
+  workflow_dispatch: {}
+env:
+  RELEASE: 0.6.7
 jobs:
   build_cli:
-    name: Build cli from release ${{ github.event.inputs.release }}
+    name: Build cli from release
     runs-on: public-amd64-2xlarge
     steps:
       - name: Get Release
         uses: robinraju/release-downloader@v1
         with:
-          tag: ${{ github.event.inputs.release }}
+          tag: ${{ env.RELEASE }}
           fileName: trunk-analytics-cli-aarch64-unknown-linux.tar.gz
           extract: true
 
