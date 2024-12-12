@@ -19,6 +19,9 @@ runs:
           sudo /usr/bin/apt install -y protobuf-compiler
         fi
 
+    - name: Install cmake
+      uses: ./.github/actions/setup_proto
+
     - uses: actions/cache@v4
       with:
         path: |
