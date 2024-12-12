@@ -24,5 +24,4 @@ jobs:
 
       - name: Run succeeding test
         run: |
-          cd cli-smoke-test
-          ../trunk-analytics-cli test cargo nextest always_succeeds --profile ci
+          ./trunk-analytics-cli test cargo nextest always_succeeds --profile ci
