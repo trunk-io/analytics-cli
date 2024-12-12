@@ -387,6 +387,7 @@ mod tests {
                     name: String::from("name"),
                 },
                 org_url_slug: String::from("org_url_slug"),
+                test_identifiers: vec![],
             })
             .await
             .unwrap_err()

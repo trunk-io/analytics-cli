@@ -4,10 +4,7 @@ use crate::utils::{
     generate_mock_bazel_bep, generate_mock_codeowners, generate_mock_git_repo,
     generate_mock_valid_junit_xmls, CARGO_RUN,
 };
-use api::{
-    BundleUploadStatus, CreateRepoRequest, GetQuarantineBulkTestStatusRequest,
-    UpdateBundleUploadRequest,
-};
+use api::{BundleUploadStatus, CreateRepoRequest, UpdateBundleUploadRequest};
 use assert_cmd::Command;
 use assert_matches::assert_matches;
 use bundle::{BundleMeta, FileSetType};
@@ -51,17 +48,27 @@ async fn upload_bundle() {
     assert_eq!(requests.len(), 5);
     let mut requests_iter = requests.into_iter();
 
-    assert_eq!(
-        requests_iter.next().unwrap(),
-        RequestPayload::GetQuarantineBulkTestStatus(GetQuarantineBulkTestStatusRequest {
-            repo: Repo {
-                host: String::from("github.com"),
-                owner: String::from("trunk-io"),
-                name: String::from("analytics-cli"),
-            },
-            org_url_slug: String::from("test-org"),
-        })
-    );
+    let quarantine_request = requests_iter.next().unwrap();
+    if let RequestPayload::GetQuarantineBulkTestStatus(req) = quarantine_request {
+        assert_eq!(req.repo.host, "github.com");
+        assert_eq!(req.repo.owner, "trunk-io");
+        assert_eq!(req.repo.name, "analytics-cli");
+        assert_eq!(req.org_url_slug, "test-org");
+        assert!(
+            !req.test_identifiers.is_empty(),
+            "test_identifiers should not be empty"
+        );
+        for test in &req.test_identifiers {
+            assert!(!test.name.is_empty(), "Test name should not be empty");
+            assert!(
+                !test.parent_name.is_empty(),
+                "Parent name should not be empty"
+            );
+            assert!(test.id.len() == 36, "Test ID should be a valid UUID");
+        }
+    } else {
+        panic!("Expected GetQuarantineBulkTestStatus request");
+    }
 
     assert_eq!(
         requests_iter.next().unwrap(),
