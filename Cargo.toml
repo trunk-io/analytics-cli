@@ -9,6 +9,7 @@ members = [
   "context-py",
   "junit-mock",
   "proto",
+  "smoke-test",
   "test_utils",
   "xcresult",
 ]
