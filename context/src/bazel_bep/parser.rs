@@ -1,8 +1,9 @@
-use std::path::PathBuf;
-
 use anyhow::Ok;
-use bazel_bep::types::build_event_stream::{build_event::Payload, file::File::Uri, BuildEvent};
+use bazel_bep::types::build_event_stream::{
+    build_event::Payload, build_event_id::Id, file::File::Uri, BuildEvent, BuildEventId, TestStatus,
+};
 use serde_json::Deserializer;
+use std::{collections::HashSet, path::PathBuf};
 
 #[derive(Debug, Clone, Default)]
 pub struct TestResult {
@@ -68,59 +69,81 @@ impl BazelBepParser {
         let file = std::fs::File::open(&self.bazel_bep_path)?;
         let reader = std::io::BufReader::new(file);
 
-        let (errors, test_results, bep_test_events) = Deserializer::from_reader(reader)
-            .into_iter::<BuildEvent>()
-            .fold(
-                (
-                    Vec::<String>::new(),
-                    Vec::<TestResult>::new(),
-                    Vec::<BuildEvent>::new(),
-                ),
-                |(mut errors, mut test_results, mut bep_test_events), parse_event| {
-                    match parse_event {
-                        Result::Err(ref err) => {
-                            errors.push(format!("Error parsing build event: {}", err));
-                        }
-                        Result::Ok(build_event) => {
-                            if let Some(Payload::TestResult(test_result)) = &build_event.payload {
-                                let xml_files: Vec<String> = test_result
-                                    .test_action_output
-                                    .iter()
-                                    .filter_map(|action_output| {
-                                        if action_output.name.ends_with(".xml") {
-                                            action_output.file.clone().and_then(|f| {
-                                                if let Uri(uri) = f {
-                                                    Some(
-                                                        uri.strip_prefix(FILE_URI_PREFIX)
-                                                            .unwrap_or(&uri)
-                                                            .to_string(),
-                                                    )
-                                                } else {
-                                                    None
-                                                }
-                                            })
-                                        } else {
-                                            None
-                                        }
-                                    })
-                                    .collect();
+        let (errors, test_results, pass_labels, bep_test_events) =
+            Deserializer::from_reader(reader)
+                .into_iter::<BuildEvent>()
+                .fold(
+                    (
+                        Vec::<String>::new(),
+                        Vec::<TestResult>::new(),
+                        HashSet::<String>::new(),
+                        Vec::<BuildEvent>::new(),
+                    ),
+                    |(mut errors, mut test_results, mut pass_labels, mut bep_test_events),
+                     parse_event| {
+                        match parse_event {
+                            Result::Err(ref err) => {
+                                errors.push(format!("Error parsing build event: {}", err));
+                            }
+                            Result::Ok(build_event) => {
+                                if let (
+                                    Some(Payload::TestSummary(test_summary)),
+                                    Some(Id::TestSummary(id)),
+                                ) = (&build_event.payload, &build_event.id.and_then(|id| id.id))
+                                {
+                                    // These are the cases in which bazel marks a test as passing
+                                    if test_summary.overall_status == TestStatus::Passed as i32
+                                        || test_summary.overall_status == TestStatus::Flaky as i32
+                                    {
+                                        pass_labels.insert(id.label.clone());
+                                    }
+                                    bep_test_events.push(build_event);
+                                } else if let (
+                                    Some(Payload::TestResult(test_result)),
+                                    Some(Id::TestResult(id)),
+                                ) =
+                                    (&build_event.payload, &build_event.id.and_then(|id| id.id))
+                                {
+                                    // TODO: TYLER GRAB ID TOO
+                                    let xml_files = test_result
+                                        .test_action_output
+                                        .iter()
+                                        .filter_map(|action_output| {
+                                            if action_output.name.ends_with(".xml") {
+                                                action_output.file.clone().and_then(|f| {
+                                                    if let Uri(uri) = f {
+                                                        Some(
+                                                            uri.strip_prefix(FILE_URI_PREFIX)
+                                                                .unwrap_or(&uri)
+                                                                .to_string(),
+                                                        )
+                                                    } else {
+                                                        None
+                                                    }
+                                                })
+                                            } else {
+                                                None
+                                            }
+                                        })
+                                        .collect();
 
-                                let cached =
-                                    if let Some(execution_info) = &test_result.execution_info {
+                                    let cached = if let Some(execution_info) =
+                                        &test_result.execution_info
+                                    {
                                         execution_info.cached_remotely || test_result.cached_locally
                                     } else {
                                         test_result.cached_locally
                                     };
 
-                                bep_test_events.push(build_event);
-                                test_results.push(TestResult { cached, xml_files });
+                                    bep_test_events.push(build_event);
+                                    test_results.push(TestResult { cached, xml_files });
+                                }
                             }
                         }
-                    }
 
-                    (errors, test_results, bep_test_events)
-                },
-            );
+                        (errors, test_results, pass_labels, bep_test_events)
+                    },
+                );
 
         Ok(BepParseResult {
             bep_test_events,
