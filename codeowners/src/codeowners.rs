@@ -48,11 +48,11 @@ impl CodeOwners {
         codeowners_path.map(|path| {
             let owners_result = File::open(&path)
                 .map_err(anyhow::Error::from)
-                .and_then(|file| GitHubOwners::from_reader(&file).map(Owners::GitHubOwners))
+                .and_then(|file| GitLabOwners::from_reader(&file).map(Owners::GitLabOwners))
                 .or_else(|_| {
                     File::open(&path)
                         .map_err(anyhow::Error::from)
-                        .and_then(|file| GitLabOwners::from_reader(&file).map(Owners::GitLabOwners))
+                        .and_then(|file| GitHubOwners::from_reader(&file).map(Owners::GitHubOwners))
                 });
 
             if let Err(ref err) = owners_result {
@@ -74,10 +74,10 @@ impl CodeOwners {
     // TODO(TRUNK-13783): take in origin path and parse CODEOWNERS based on location
     // which informs which parser to use (GitHub or GitLab)
     pub fn parse(codeowners: Vec<u8>) -> Self {
-        let owners_result = GitHubOwners::from_reader(codeowners.as_slice())
-            .map(Owners::GitHubOwners)
+        let owners_result = GitLabOwners::from_reader(codeowners.as_slice())
+            .map(Owners::GitLabOwners)
             .or_else(|_| {
-                GitLabOwners::from_reader(codeowners.as_slice()).map(Owners::GitLabOwners)
+                GitHubOwners::from_reader(codeowners.as_slice()).map(Owners::GitHubOwners)
             });
 
         Self {
