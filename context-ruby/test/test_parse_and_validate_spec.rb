@@ -41,7 +41,7 @@ end
 
 describe 'test_report' do
   it 'should be able to create a new TestReport' do
-    report = TestReport.new()
+    report = TestReport.new('rspec')
     report.to_s
   end
 end
