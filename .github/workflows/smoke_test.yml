@@ -38,7 +38,7 @@ jobs:
       - name: Analytics Cli Smoke Test Failure
         uses: slackapi/slack-github-action@v1
         with:
-          channel-id: cmillar-test-channel
+          channel-id: production-notifications
           payload: |
             {
               "blocks": [
