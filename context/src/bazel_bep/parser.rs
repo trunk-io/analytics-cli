@@ -7,6 +7,7 @@ use std::{collections::HashSet, path::PathBuf};
 
 #[derive(Debug, Clone, Default)]
 pub struct TestResult {
+    label: String,
     pub cached: bool,
     pub xml_files: Vec<String>,
 }
@@ -86,57 +87,66 @@ impl BazelBepParser {
                                 errors.push(format!("Error parsing build event: {}", err));
                             }
                             Result::Ok(build_event) => {
-                                if let (
-                                    Some(Payload::TestSummary(test_summary)),
-                                    Some(Id::TestSummary(id)),
-                                ) = (&build_event.payload, &build_event.id.and_then(|id| id.id))
-                                {
-                                    // These are the cases in which bazel marks a test as passing
-                                    if test_summary.overall_status == TestStatus::Passed as i32
-                                        || test_summary.overall_status == TestStatus::Flaky as i32
-                                    {
-                                        pass_labels.insert(id.label.clone());
+                                match (
+                                    &build_event.payload,
+                                    &build_event.clone().id.and_then(|id| id.id),
+                                ) {
+                                    (
+                                        Some(Payload::TestSummary(test_summary)),
+                                        Some(Id::TestSummary(id)),
+                                    ) => {
+                                        // These are the cases in which bazel marks a test as passing
+                                        if test_summary.overall_status == TestStatus::Passed as i32
+                                            || test_summary.overall_status
+                                                == TestStatus::Flaky as i32
+                                        {
+                                            pass_labels.insert(id.label.clone());
+                                        }
+                                        bep_test_events.push(build_event);
                                     }
-                                    bep_test_events.push(build_event);
-                                } else if let (
-                                    Some(Payload::TestResult(test_result)),
-                                    Some(Id::TestResult(id)),
-                                ) =
-                                    (&build_event.payload, &build_event.id.and_then(|id| id.id))
-                                {
-                                    // TODO: TYLER GRAB ID TOO
-                                    let xml_files = test_result
-                                        .test_action_output
-                                        .iter()
-                                        .filter_map(|action_output| {
-                                            if action_output.name.ends_with(".xml") {
-                                                action_output.file.clone().and_then(|f| {
-                                                    if let Uri(uri) = f {
-                                                        Some(
-                                                            uri.strip_prefix(FILE_URI_PREFIX)
-                                                                .unwrap_or(&uri)
-                                                                .to_string(),
-                                                        )
-                                                    } else {
-                                                        None
-                                                    }
-                                                })
-                                            } else {
-                                                None
-                                            }
-                                        })
-                                        .collect();
+                                    (
+                                        Some(Payload::TestResult(test_result)),
+                                        Some(Id::TestResult(id)),
+                                    ) => {
+                                        let xml_files = test_result
+                                            .test_action_output
+                                            .iter()
+                                            .filter_map(|action_output| {
+                                                if action_output.name.ends_with(".xml") {
+                                                    action_output.file.clone().and_then(|f| {
+                                                        if let Uri(uri) = f {
+                                                            Some(
+                                                                uri.strip_prefix(FILE_URI_PREFIX)
+                                                                    .unwrap_or(&uri)
+                                                                    .to_string(),
+                                                            )
+                                                        } else {
+                                                            None
+                                                        }
+                                                    })
+                                                } else {
+                                                    None
+                                                }
+                                            })
+                                            .collect();
 
-                                    let cached = if let Some(execution_info) =
-                                        &test_result.execution_info
-                                    {
-                                        execution_info.cached_remotely || test_result.cached_locally
-                                    } else {
-                                        test_result.cached_locally
-                                    };
+                                        let cached = if let Some(execution_info) =
+                                            &test_result.execution_info
+                                        {
+                                            execution_info.cached_remotely
+                                                || test_result.cached_locally
+                                        } else {
+                                            test_result.cached_locally
+                                        };
 
-                                    bep_test_events.push(build_event);
-                                    test_results.push(TestResult { cached, xml_files });
+                                        test_results.push(TestResult {
+                                            label: id.label.clone(),
+                                            cached,
+                                            xml_files,
+                                        });
+                                        bep_test_events.push(build_event);
+                                    }
+                                    _ => {}
                                 }
                             }
                         }
