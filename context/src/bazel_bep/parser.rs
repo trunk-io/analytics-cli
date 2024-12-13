@@ -1,15 +1,16 @@
 use anyhow::Ok;
 use bazel_bep::types::build_event_stream::{
-    build_event::Payload, build_event_id::Id, file::File::Uri, BuildEvent, BuildEventId, TestStatus,
+    build_event::Payload, build_event_id::Id, file::File::Uri, BuildEvent, TestStatus,
 };
 use serde_json::Deserializer;
 use std::{collections::HashSet, path::PathBuf};
 
 #[derive(Debug, Clone, Default)]
 pub struct TestResult {
-    label: String,
+    pub label: String,
     pub cached: bool,
     pub xml_files: Vec<String>,
+    pub override_pass: bool,
 }
 
 const FILE_URI_PREFIX: &str = "file://";
@@ -143,6 +144,7 @@ impl BazelBepParser {
                                             label: id.label.clone(),
                                             cached,
                                             xml_files,
+                                            override_pass: false,
                                         });
                                         bep_test_events.push(build_event);
                                     }
@@ -158,7 +160,16 @@ impl BazelBepParser {
         Ok(BepParseResult {
             bep_test_events,
             errors,
-            test_results,
+            test_results: test_results.iter().map(|test_result| {
+                let mut override_pass = false;
+                if pass_labels.contains(&test_result.label.to_string()) {
+                    override_pass = true;
+                }
+                TestResult {
+                    override_pass,
+                    ..test_result.clone()
+                }
+            }).collect(),
         })
     }
 }
