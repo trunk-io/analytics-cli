@@ -1,5 +1,4 @@
 use std::{
-    collections::HashSet,
     fs,
     io::Read,
     path::PathBuf,
@@ -210,9 +209,8 @@ pub async fn get_quarantining_config_handler(
             get_quarantine_bulk_test_status_request,
         ));
     Json(QuarantineConfig {
-        is_preview_mode: true,
         is_disabled: false,
-        quarantined_tests: HashSet::new(),
+        quarantined_tests: Vec::new(),
     })
 }
 
