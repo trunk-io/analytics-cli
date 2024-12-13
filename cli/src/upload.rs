@@ -309,7 +309,7 @@ pub async fn run_upload(
 
     let bundle_temp_dir = tempfile::tempdir()?;
     let bundle_time_file = bundle_temp_dir.path().join("bundle.tar.zstd");
-    let mut bundle = BundlerUtil::new(meta, bep_parser);
+    let bundle = BundlerUtil::new(meta, bep_parser);
     bundle.make_tarball(&bundle_time_file)?;
     log::info!("Flushed temporary tarball to {:?}", bundle_time_file);
 

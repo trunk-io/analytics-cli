@@ -12,7 +12,9 @@ use assert_cmd::Command;
 use assert_matches::assert_matches;
 use bundle::{BundleMeta, FileSetType};
 use codeowners::CodeOwners;
-use context::{junit::parser::JunitParser, repo::RepoUrlParts as Repo};
+use context::{
+    bazel_bep::parser::BazelBepParser, junit::parser::JunitParser, repo::RepoUrlParts as Repo,
+};
 use predicates::prelude::*;
 use tempfile::tempdir;
 use test_utils::{
@@ -223,13 +225,23 @@ async fn upload_bundle_using_bep() {
 
     let tar_extract_directory = assert_matches!(&requests[3], RequestPayload::S3Upload(d) => d);
 
-    let file = fs::File::open(tar_extract_directory.join("junit/0")).unwrap();
-    let reader = BufReader::new(file);
+    let junit_file = fs::File::open(tar_extract_directory.join("junit/0")).unwrap();
+    let junit_reader = BufReader::new(junit_file);
 
     // Uploaded file is a junit, even when using BEP
     let mut junit_parser = JunitParser::new();
-    assert!(junit_parser.parse(reader).is_ok());
+    assert!(junit_parser.parse(junit_reader).is_ok());
     assert!(junit_parser.errors().is_empty());
+
+    let mut bazel_bep_parser = BazelBepParser::new(
+        tar_extract_directory
+            .join("bazel_bep.json")
+            .to_string_lossy()
+            .to_string(),
+    );
+    assert!(bazel_bep_parser.parse().is_ok());
+    assert!(bazel_bep_parser.errors().is_empty());
+    assert_eq!(bazel_bep_parser.test_counts(), (1, 0));
 
     // HINT: View CLI output with `cargo test -- --nocapture`
     println!("{assert}");
