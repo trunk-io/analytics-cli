@@ -25,7 +25,7 @@ jobs:
           ../trunk-analytics-cli test cargo nextest always_succeeds --profile ci
 
   slack-workflow-status:
-    if: needs.build_cli.result != 'success'
+    if: always() && needs.build_cli.result != 'success'
     name: Post Smoke Test Failure
     needs:
       - build_cli
