@@ -86,6 +86,8 @@ impl BundlerUtil {
                     log::error!("Failed to write BEP event: {}", e);
                 }
             });
+            bep_events_file.flush()?;
+            bep_events_file.seek(std::io::SeekFrom::Start(0))?;
             tar.append_file("bazel_bep.json", &mut bep_events_file)?;
             total_bytes_in += bep_events_file.seek(std::io::SeekFrom::End(0))?;
         }
