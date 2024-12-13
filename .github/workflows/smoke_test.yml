@@ -46,7 +46,7 @@ jobs:
                   "type": "section",
                   "text": {
                     "type": "mrkdwn",
-                    "text": ":siren: Release ${{ env.RELEASE }} of the analytics cli is broken! The job attempting a simple upload had a result of ${{ needs.build_cli.result }}. Runs can be found at https://github.com/trunk-io/analytics-cli/actions/workflows/smoke_test.yml",
+                    "text": ":siren: Release ${{ env.RELEASE }} of the analytics cli is broken! The job attempting a simple upload had a result of ${{ needs.build_cli.result }}. Runs can be found at https://github.com/trunk-io/analytics-cli/actions/workflows/smoke_test.yml"
                   }
                 }
               ]
