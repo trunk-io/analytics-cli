@@ -3,6 +3,8 @@ permissions:
   actions: read
 on:
   workflow_dispatch: {}
+  schedule:
+    - cron: 0 0/4 * * *
 env:
   RELEASE: 0.6.7
 jobs:
@@ -21,3 +23,31 @@ jobs:
         run: |
           cd cli-smoke-test
           ../trunk-analytics-cli test cargo nextest always_succeeds --profile ci
+
+  slack-workflow-status:
+    if: needs.build_cli.result != 'success'
+    name: Post Smoke Test Failure
+    needs:
+      - build_cli
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+    env:
+      SLACK_BOT_TOKEN: ${{ secrets.TRUNKBOT_SLACK_BOT_TOKEN }}
+    steps:
+      - name: Analytics Cli Smoke Test Failure
+        uses: slackapi/slack-github-action@v1
+        with:
+          channel-id: cmillar-test-channel
+          payload: |
+            {
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": ":siren: Release ${{ env.RELEASE }} of the analytics cli is broken! The job attempting a simple upload had a result of ${{ needs.build_cli.result }}",
+                  }
+                }
+              ]
+            }
