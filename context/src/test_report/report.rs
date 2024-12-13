@@ -4,14 +4,30 @@ use magnus::{value::ReprValue, Module, Object};
 use prost_wkt_types::Timestamp;
 use proto::test_context::test_run::{TestCaseRun, TestCaseRunStatus, TestResult, UploaderMetadata};
 use std::cell::RefCell;
+use tempfile::NamedTempFile;
 #[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::wasm_bindgen;
-
-const VERSION: &str = "0.0.1";
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct TestReport {
     test_result: TestResult,
+}
+
+#[cfg_attr(feature = "wasm", wasm_bindgen)]
+#[cfg_attr(feature = "ruby", magnus::wrap(class = "TestExecution"))]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TestExecution {
+    id: Option<String>,
+    name: String,
+    classname: String,
+    file: String,
+    parent_name: String,
+    line: Option<i32>,
+    status: Status,
+    attempt: i32,
+    started_at: i64,
+    finished_at: i64,
+    output: String,
 }
 
 #[cfg_attr(feature = "wasm", wasm_bindgen)]
@@ -78,7 +94,7 @@ impl MutTestReport {
         // TODO - include git and env states
         test_result.uploader_metadata = Some(UploaderMetadata {
             origin,
-            version: VERSION.to_string(),
+            version: std::env!("CARGO_PKG_VERSION").to_string(),
         });
         Self(RefCell::new(TestReport {
             test_result: TestResult::default(),
@@ -100,21 +116,24 @@ impl MutTestReport {
     // saves to local fs and returns the path
     pub fn save(&self) -> String {
         let buf = self.serialize_test_result();
-        // TODO - make this random
-        let path = "/tmp/test_report.bin";
-        std::fs::write(path, buf).unwrap_or_default();
-        path.to_string()
+        if let Ok(named_temp_file) = NamedTempFile::new() {
+            std::fs::write(&named_temp_file, buf).unwrap_or_default();
+            let (_, path) = named_temp_file.keep().unwrap();
+            let path_str = path.to_str().unwrap_or_default();
+            return path_str.to_string();
+        }
+        panic!("Could not create a temp file");
     }
 
     // adds a test to the test report
     pub fn add_test(
         &self,
-        id: String,
+        id: Option<String>,
         name: String,
         classname: String,
         file: String,
         parent_name: String,
-        line: i32,
+        line: Option<i32>,
         status: Status,
         attempt: i32,
         started_at: i64,
@@ -122,14 +141,16 @@ impl MutTestReport {
         output: String,
     ) {
         let mut test = TestCaseRun::default();
-        if !id.is_empty() {
+        if let Some(id) = id {
             test.id = id;
         }
         test.name = name;
         test.classname = classname;
         test.file = file;
         test.parent_name = parent_name;
-        test.line = line;
+        if let Some(line) = line {
+            test.line = line;
+        }
         match status {
             Status::Success => test.status = TestCaseRunStatus::Success.into(),
             Status::Failure => test.status = TestCaseRunStatus::Failure.into(),
@@ -159,17 +180,22 @@ impl MutTestReport {
 
     // lists the quarantined tests in the test report
     pub fn list_quarantined_tests(&self) {
-        println!("List quarantined");
+        panic!("TODO - List quarantined");
+    }
+
+    // checks if a test is quarantined
+    pub fn is_quarantined(&self, _id: String) {
+        panic!("TODO - Is quarantined");
     }
 
     // validates the env is set for CI
     pub fn valid_env(&self) {
-        println!("Valid env");
+        panic!("TODO - Valid env");
     }
 
     // validates that we are in a git repo
     pub fn valid_git(&self) {
-        println!("Valid git");
+        panic!("TODO - Valid git");
     }
 
     pub fn to_string(&self) -> String {

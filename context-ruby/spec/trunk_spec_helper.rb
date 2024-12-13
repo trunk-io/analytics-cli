@@ -87,7 +87,6 @@ class TrunkAnalyticsListener
 
   def close(_notification)
     puts @testreport.save
-    puts @testreport.to_s
   end
 
   def description_generated?(example)
