@@ -437,6 +437,8 @@ impl From<(&str, Option<usize>, Option<GitLabMergeRequestEventType>)> for Branch
         let (branch_name, pr_number, merge_request_event_type) = value;
         if branch_name.contains("trunk-merge/")
             || branch_name.contains("gh-readonly-queue/")
+            || branch_name.contains("/gtmq_")
+            || branch_name.starts_with("gtmq_")
             || merge_request_event_type
                 .filter(|t| *t == GitLabMergeRequestEventType::MergeTrain)
                 .is_some()
