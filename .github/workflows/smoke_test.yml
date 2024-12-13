@@ -35,10 +35,11 @@ jobs:
       - name: Run succeeding test
         env:
           TRUNK_PUBLIC_API_ADDRESS: https://api.trunk-staging.io
+          RUST_BACKTRACE: 1
         shell: bash
         run: |
           ./trunk-analytics-cli test \
           --org-url-slug trunk-staging-org \
-          --junit-paths target/nextest/ci/junit.xml \
+          --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
           --token ${{ secrets.TRUNK_STAGING_ORG_API_TOKEN }} \
           cargo nextest run always_succeeds --profile ci
