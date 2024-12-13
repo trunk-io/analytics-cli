@@ -22,6 +22,11 @@ jobs:
       - name: Setup Rust & Cargo
         uses: ./.github/actions/setup_rust_cargo
 
+      - name: Install Nextest
+        shell: bash
+        run: |
+          cargo install nextest
+
       - name: Run succeeding test
         env:
           TRUNK_PUBLIC_API_ADDRESS: https://api.trunk-staging.io
