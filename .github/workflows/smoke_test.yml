@@ -3,6 +3,8 @@ permissions:
   actions: read
 on:
   workflow_dispatch: {}
+  schedule:
+    - cron: 0 0/2 * * *
 env:
   RELEASE: 0.6.7
 jobs:
@@ -42,3 +44,31 @@ jobs:
           --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
           --token ${{ secrets.TRUNK_STAGING_ORG_API_TOKEN }} \
           cargo nextest run -p smoke-test --profile ci
+
+  slack-workflow-status:
+    if: always() && needs.build_cli.result != 'success'
+    name: Post Smoke Test Failure
+    needs:
+      - build_cli
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+    env:
+      SLACK_BOT_TOKEN: ${{ secrets.TRUNKBOT_SLACK_BOT_TOKEN }}
+    steps:
+      - name: Analytics Cli Smoke Test Failure
+        uses: slackapi/slack-github-action@v1
+        with:
+          channel-id: production-notifications
+          payload: |
+            {
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "Release ${{ env.RELEASE }} of the analytics cli is broken! The job attempting a simple upload had a result of ${{ needs.build_cli.result }}. Runs can be found at https://github.com/trunk-io/analytics-cli/actions/workflows/smoke_test.yml"
+                  }
+                }
+              ]
+            }
