@@ -1,5 +1,4 @@
-use std::collections::HashSet;
-
+use bundle::Test;
 use context::repo::RepoUrlParts;
 use serde::{Deserialize, Serialize};
 
@@ -54,14 +53,14 @@ pub struct GetQuarantineBulkTestStatusRequest {
     pub repo: RepoUrlParts,
     #[serde(rename = "orgUrlSlug")]
     pub org_url_slug: String,
+    #[serde(rename = "testIdentifiers")]
+    pub test_identifiers: Vec<Test>,
 }
 
 #[derive(Debug, Serialize, Clone, Deserialize, Default)]
 pub struct QuarantineConfig {
-    #[serde(rename = "isPreview")]
-    pub is_preview_mode: bool,
     #[serde(rename = "isDisabled")]
     pub is_disabled: bool,
     #[serde(rename = "testIds")]
-    pub quarantined_tests: HashSet<String>,
+    pub quarantined_tests: Vec<String>,
 }

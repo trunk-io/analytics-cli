@@ -435,7 +435,7 @@ pub enum BranchClass {
 impl From<(&str, Option<usize>, Option<GitLabMergeRequestEventType>)> for BranchClass {
     fn from(value: (&str, Option<usize>, Option<GitLabMergeRequestEventType>)) -> Self {
         let (branch_name, pr_number, merge_request_event_type) = value;
-        if branch_name.contains("/trunk-merge/")
+        if branch_name.contains("trunk-merge/")
             || branch_name.contains("gh-readonly-queue/")
             || merge_request_event_type
                 .filter(|t| *t == GitLabMergeRequestEventType::MergeTrain)
