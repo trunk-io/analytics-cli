@@ -12,17 +12,38 @@ jobs:
     name: Build cli from release
     runs-on: public-amd64-2xlarge
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Get Release
         run: |
-          curl -fsSLO --retry 3 https://github.com/trunk-io/analytics-cli/releases/download/${{ env.RELEASE }}/trunk-analytics-cli-x86_64-unknown-linux.tar.gz && chmod +x trunk
+          curl -fsSLO --retry 3 https://github.com/trunk-io/analytics-cli/releases/download/${{ env.RELEASE }}/trunk-analytics-cli-x86_64-unknown-linux.tar.gz
+          tar -zxf trunk-analytics-cli-x86_64-unknown-linux.tar.gz
+          chmod +x trunk-analytics-cli
 
       - name: Setup Rust & Cargo
         uses: ./.github/actions/setup_rust_cargo
 
-      - name: Run succeeding test
+      - name: Install Nextest
+        shell: bash
         run: |
-          cd cli-smoke-test
-          ../trunk-analytics-cli test cargo nextest always_succeeds --profile ci
+          cargo install --version 0.9.85 cargo-nextest
+
+      - name: Install cmake
+        shell: bash
+        run: |
+          sudo apt-get install cmake -y
+
+      - name: Run succeeding test
+        env:
+          TRUNK_PUBLIC_API_ADDRESS: https://api.trunk-staging.io
+        shell: bash
+        run: |
+          ./trunk-analytics-cli test \
+          --org-url-slug trunk-staging-org \
+          --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
+          --token ${{ secrets.TRUNK_STAGING_ORG_API_TOKEN }} \
+          cargo nextest run -p smoke-test --profile ci
 
   slack-workflow-status:
     if: always() && needs.build_cli.result != 'success'
