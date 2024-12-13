@@ -25,7 +25,7 @@ jobs:
       - name: Install Nextest
         shell: bash
         run: |
-          cargo install cargo-nextest
+          cargo install --version 0.9.85 cargo-nextest
 
       - name: Run succeeding test
         env:
