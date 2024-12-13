@@ -35,7 +35,7 @@ jobs:
       - name: Run succeeding test
         env:
           TRUNK_PUBLIC_API_ADDRESS: https://api.trunk-staging.io
-          RUST_BACKTRACE: 1
+          RUST_BACKTRACE: full
         shell: bash
         run: |
           ./trunk-analytics-cli test \
