@@ -17,6 +17,7 @@ const FILE_URI_PREFIX: &str = "file://";
 pub struct BazelBepParser {
     bazel_bep_path: String,
     test_results: Vec<TestResult>,
+    bep_test_events: Vec<BuildEvent>,
     errors: Vec<String>,
 }
 
@@ -30,6 +31,10 @@ impl BazelBepParser {
 
     pub fn errors(&self) -> &Vec<String> {
         &self.errors
+    }
+
+    pub fn bep_test_events(&self) -> &Vec<BuildEvent> {
+        &self.bep_test_events
     }
 
     pub fn test_counts(&self) -> (usize, usize) {
@@ -63,23 +68,27 @@ impl BazelBepParser {
         let file = std::fs::File::open(&self.bazel_bep_path)?;
         let reader = std::io::BufReader::new(file);
 
-        let (errors, test_results) = Deserializer::from_reader(reader)
+        let (errors, test_results, bep_test_events) = Deserializer::from_reader(reader)
             .into_iter::<BuildEvent>()
             .fold(
-                (Vec::<String>::new(), Vec::<TestResult>::new()),
-                |(mut errors, mut test_results), parse_event| {
+                (
+                    Vec::<String>::new(),
+                    Vec::<TestResult>::new(),
+                    Vec::<BuildEvent>::new(),
+                ),
+                |(mut errors, mut test_results, mut bep_test_events), parse_event| {
                     match parse_event {
                         Result::Err(ref err) => {
                             errors.push(format!("Error parsing build event: {}", err));
                         }
                         Result::Ok(build_event) => {
-                            if let Some(Payload::TestResult(test_result)) = build_event.payload {
-                                let xml_files = test_result
+                            if let Some(Payload::TestResult(test_result)) = &build_event.payload {
+                                let xml_files: Vec<String> = test_result
                                     .test_action_output
-                                    .into_iter()
+                                    .iter()
                                     .filter_map(|action_output| {
                                         if action_output.name.ends_with(".xml") {
-                                            action_output.file.and_then(|f| {
+                                            action_output.file.clone().and_then(|f| {
                                                 if let Uri(uri) = f {
                                                     Some(
                                                         uri.strip_prefix(FILE_URI_PREFIX)
@@ -97,23 +106,25 @@ impl BazelBepParser {
                                     .collect();
 
                                 let cached =
-                                    if let Some(execution_info) = test_result.execution_info {
+                                    if let Some(execution_info) = &test_result.execution_info {
                                         execution_info.cached_remotely || test_result.cached_locally
                                     } else {
                                         test_result.cached_locally
                                     };
 
+                                bep_test_events.push(build_event);
                                 test_results.push(TestResult { cached, xml_files });
                             }
                         }
                     }
 
-                    (errors, test_results)
+                    (errors, test_results, bep_test_events)
                 },
             );
 
         self.errors = errors;
         self.test_results = test_results;
+        self.bep_test_events = bep_test_events;
         Ok(())
     }
 }

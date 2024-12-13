@@ -154,11 +154,13 @@ pub async fn run_upload(
     let codeowners =
         codeowners.or_else(|| CodeOwners::find_file(&repo.repo_root, &codeowners_path));
 
+    let mut bep_parser: Option<BazelBepParser> = None;
     if let Some(bazel_bep_path) = bazel_bep_path {
         let mut parser = BazelBepParser::new(bazel_bep_path);
         parser.parse()?;
         print_bep_results(&parser);
         junit_paths = parser.uncached_xml_files();
+        bep_parser = Some(parser);
     }
 
     let tags = parse_custom_tags(&tags)?;
@@ -307,7 +309,7 @@ pub async fn run_upload(
 
     let bundle_temp_dir = tempfile::tempdir()?;
     let bundle_time_file = bundle_temp_dir.path().join("bundle.tar.zstd");
-    let bundle = BundlerUtil::new(meta);
+    let mut bundle = BundlerUtil::new(meta, bep_parser);
     bundle.make_tarball(&bundle_time_file)?;
     log::info!("Flushed temporary tarball to {:?}", bundle_time_file);
 

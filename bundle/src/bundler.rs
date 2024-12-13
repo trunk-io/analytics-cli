@@ -1,9 +1,13 @@
 use async_compression::futures::bufread::ZstdDecoder;
 use async_std::{io::ReadExt, stream::StreamExt};
 use async_tar_wasm::Archive;
+use context::bazel_bep::parser::BazelBepParser;
 use futures_io::AsyncBufRead;
-use std::io::{Seek, Write};
 use std::path::PathBuf;
+use std::{
+    fs::File,
+    io::{Seek, Write},
+};
 #[cfg(feature = "wasm")]
 use tsify_next::Tsify;
 #[cfg(feature = "wasm")]
@@ -18,6 +22,7 @@ use crate::bundle_meta::{BundleMeta, VersionedBundle};
 #[cfg_attr(feature = "wasm", derive(Tsify))]
 pub struct BundlerUtil {
     pub meta: BundleMeta,
+    pub bep_parser: Option<BazelBepParser>,
 }
 
 const META_FILENAME: &'static str = "meta.json";
@@ -25,8 +30,12 @@ const META_FILENAME: &'static str = "meta.json";
 impl BundlerUtil {
     const ZSTD_COMPRESSION_LEVEL: i32 = 15; // This gives roughly 10x compression for text, 22 gives 11x.
 
-    pub fn new(meta: BundleMeta) -> Self {
-        Self { meta }
+    pub fn new(meta: BundleMeta, bep_parser: Option<BazelBepParser>) -> Self {
+        Self { meta, bep_parser }
+    }
+
+    pub fn set_bep_parser(&mut self, bep_parser: BazelBepParser) {
+        self.bep_parser = Some(bep_parser);
     }
 
     /// Writes compressed tarball to disk.
@@ -34,7 +43,7 @@ impl BundlerUtil {
     pub fn make_tarball(&self, bundle_path: &PathBuf) -> anyhow::Result<()> {
         let mut total_bytes_in: u64 = 0;
 
-        let tar_file = std::fs::File::create(bundle_path)?;
+        let tar_file = File::create(bundle_path)?;
         let zstd_encoder = zstd::Encoder::new(tar_file, Self::ZSTD_COMPRESSION_LEVEL)?;
         let mut tar = tar::Builder::new(zstd_encoder);
 
@@ -56,7 +65,7 @@ impl BundlerUtil {
             .try_for_each(|file_set| {
                 file_set.files.iter().try_for_each(|bundled_file| {
                     let path = std::path::Path::new(&bundled_file.original_path);
-                    let mut file = std::fs::File::open(path)?;
+                    let mut file = File::open(path)?;
                     tar.append_file(&bundled_file.path, &mut file)?;
                     total_bytes_in += std::fs::metadata(path)?.len();
                     Ok::<(), anyhow::Error>(())
@@ -65,9 +74,20 @@ impl BundlerUtil {
             })?;
 
         if let Some(CodeOwners { ref path, .. }) = self.meta.base_props.codeowners {
-            let mut file = std::fs::File::open(path)?;
+            let mut file = File::open(path)?;
             tar.append_file("CODEOWNERS", &mut file)?;
             total_bytes_in += std::fs::metadata(path)?.len();
+        }
+
+        if let Some(bep_parser) = self.bep_parser.as_ref() {
+            let mut bep_events_file = tempfile::tempfile()?;
+            bep_parser.bep_test_events().iter().for_each(|event| {
+                if let Err(e) = serde_json::to_writer(&bep_events_file, event) {
+                    log::error!("Failed to write BEP event: {}", e);
+                }
+            });
+            tar.append_file("bazel_bep.json", &mut bep_events_file)?;
+            total_bytes_in += bep_events_file.seek(std::io::SeekFrom::End(0))?;
         }
 
         // Flush to disk.
