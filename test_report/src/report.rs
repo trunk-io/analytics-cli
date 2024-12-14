@@ -4,7 +4,6 @@ use magnus::{value::ReprValue, Module, Object};
 use prost_wkt_types::Timestamp;
 use proto::test_context::test_run::{TestCaseRun, TestCaseRunStatus, TestResult, UploaderMetadata};
 use std::cell::RefCell;
-use tempfile::NamedTempFile;
 #[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::wasm_bindgen;
 
@@ -108,15 +107,48 @@ impl MutTestReport {
     }
 
     // sends out to the trunk api
-    pub fn publish(&self) -> Vec<u8> {
-        self.serialize_test_result()
-        // TODO - integrate with the trunk api
+    pub fn publish(&self) -> bool {
+        let path = self.save();
+        let token = std::env::var("TRUNK_API_TOKEN").unwrap_or_default();
+        let org_url_slug = std::env::var("TRUNK_ORG_URL_SLUG").unwrap_or_default();
+        if token.is_empty() || org_url_slug.is_empty() {
+            println!("Missing TRUNK_API_TOKEN or TRUNK_ORG_URL_SLUG");
+            return false;
+        }
+        let upload_args = trunk_analytics_cli::upload::UploadArgs::new(
+            token,
+            org_url_slug,
+            vec![path],
+            // TODO - this isn't right, find the repo root
+            "..".to_string(),
+        );
+        let res = tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .unwrap()
+            .block_on(trunk_analytics_cli::upload::run_upload(
+                upload_args,
+                None,
+                None,
+                None,
+                None,
+            ));
+        match res {
+            Ok(_) => {
+                println!("Successfully uploaded");
+                true
+            }
+            Err(e) => {
+                println!("Error uploading: {:?}", e);
+                false
+            }
+        }
     }
 
     // saves to local fs and returns the path
     pub fn save(&self) -> String {
         let buf = self.serialize_test_result();
-        if let Ok(named_temp_file) = NamedTempFile::new() {
+        if let Ok(named_temp_file) = tempfile::Builder::new().suffix(".bin").tempfile() {
             std::fs::write(&named_temp_file, buf).unwrap_or_default();
             let (_, path) = named_temp_file.keep().unwrap();
             let path_str = path.to_str().unwrap_or_default();

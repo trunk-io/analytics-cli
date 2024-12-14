@@ -1,6 +1,6 @@
-use context::test_report::report;
 use context::{env, repo};
 use std::collections::HashMap;
+use test_report::report;
 
 pub fn env_parse(env_vars: magnus::RHash) -> Option<env::parser::CIInfo> {
     let env_vars: HashMap<String, String> = env_vars.to_hash_map().unwrap_or_default();

@@ -113,6 +113,36 @@ pub struct UploadArgs {
     pub allow_empty_test_results: bool,
 }
 
+impl UploadArgs {
+    pub fn new(
+        token: String,
+        org_url_slug: String,
+        junit_paths: Vec<String>,
+        repo_root: String,
+    ) -> Self {
+        Self {
+            junit_paths,
+            #[cfg(target_os = "macos")]
+            xcresult_path: None,
+            org_url_slug,
+            token,
+            bazel_bep_path: None,
+            repo_root: Some(repo_root),
+            repo_url: None,
+            repo_head_sha: None,
+            repo_head_branch: None,
+            repo_head_commit_epoch: None,
+            tags: Vec::new(),
+            print_files: true,
+            dry_run: false,
+            team: None,
+            codeowners_path: None,
+            use_quarantining: false,
+            allow_empty_test_results: true,
+        }
+    }
+}
+
 pub async fn run_upload(
     upload_args: UploadArgs,
     test_command: Option<String>,

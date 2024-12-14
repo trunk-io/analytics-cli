@@ -9,4 +9,5 @@ crate-type = ["cdylib"]
 [dependencies]
 anyhow = "1.0.93"
 context = { path = "../../../context", features = ["git-access", "ruby"] }
+test_report = { path = "../../../test_report", features = ["ruby"] }
 magnus = { version = "0.7" }

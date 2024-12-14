@@ -1,0 +1,25 @@
+[package]
+name = "test_report"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+wasm-bindgen = { version = "0.2.95", optional = true }
+magnus = { version = "0.7.1", optional = true, default-features = false }
+proto = { path = "../proto" }
+trunk-analytics-cli = { path = "../cli" }
+prost-wkt-types = "0.6.0"
+prost = "0.13.4"
+tempfile = "3.2.0"
+speedate = "0.14.4"
+chrono = "0.4.33"
+serde_json = "1.0.133"
+js-sys = { version = "0.3.70", optional = true }
+tokio = "1.42.0"
+log = "0.4.22"
+env_logger = { version = "0.11.0", default-features = false }
+
+[features]
+bindings = []
+wasm = ["bindings", "dep:wasm-bindgen", "dep:js-sys"]
+ruby = ["bindings", "dep:magnus"]

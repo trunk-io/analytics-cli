@@ -4286,6 +4286,26 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3369f5ac52d5eb6ab48c6b4ffdc8efbcad6b89c765749064ba298f2c68a16a76"
 
 [[package]]
+name = "test_report"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "env_logger",
+ "js-sys",
+ "log",
+ "magnus",
+ "prost 0.13.4",
+ "prost-wkt-types",
+ "proto",
+ "serde_json",
+ "speedate",
+ "tempfile",
+ "tokio",
+ "trunk-analytics-cli",
+ "wasm-bindgen",
+]
+
+[[package]]
 name = "test_utils"
 version = "0.1.0"
 dependencies = [

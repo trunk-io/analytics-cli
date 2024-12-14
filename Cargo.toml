@@ -12,6 +12,7 @@ members = [
   "smoke-test",
   "test_utils",
   "xcresult",
+  "test_report",
 ]
 exclude = ["context-ruby/ext/context_ruby"]
 resolver = "2"
