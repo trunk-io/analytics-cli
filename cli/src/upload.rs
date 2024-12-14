@@ -18,7 +18,11 @@ use codeowners::CodeOwners;
 use constants::{EXIT_FAILURE, EXIT_SUCCESS};
 #[cfg(target_os = "macos")]
 use context::repo::RepoUrlParts;
-use context::{bazel_bep::parser::BazelBepParser, junit::parser::JunitParser, repo::BundleRepo};
+use context::{
+    bazel_bep::parser::{BazelBepParser, BepParseResult},
+    junit::parser::JunitParser,
+    repo::BundleRepo,
+};
 
 use crate::{
     api_client::ApiClient,
@@ -154,13 +158,13 @@ pub async fn run_upload(
     let codeowners =
         codeowners.or_else(|| CodeOwners::find_file(&repo.repo_root, &codeowners_path));
 
-    let mut bep_parser: Option<BazelBepParser> = None;
+    let mut bep_result: Option<BepParseResult> = None;
     if let Some(bazel_bep_path) = bazel_bep_path {
         let mut parser = BazelBepParser::new(bazel_bep_path);
-        parser.parse()?;
-        print_bep_results(&parser);
-        junit_paths = parser.uncached_xml_files();
-        bep_parser = Some(parser);
+        let bep_parse_result = parser.parse()?;
+        print_bep_results(&bep_parse_result);
+        junit_paths = bep_parse_result.uncached_xml_files();
+        bep_result = Some(bep_parse_result);
     }
 
     let tags = parse_custom_tags(&tags)?;
@@ -309,7 +313,7 @@ pub async fn run_upload(
 
     let bundle_temp_dir = tempfile::tempdir()?;
     let bundle_time_file = bundle_temp_dir.path().join("bundle.tar.zstd");
-    let bundle = BundlerUtil::new(meta, bep_parser);
+    let bundle = BundlerUtil::new(meta, bep_result);
     bundle.make_tarball(&bundle_time_file)?;
     log::info!("Flushed temporary tarball to {:?}", bundle_time_file);
 

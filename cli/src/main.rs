@@ -230,9 +230,9 @@ async fn run(cli: Cli) -> anyhow::Result<i32> {
             let junit_file_paths = match bazel_bep_path {
                 Some(bazel_bep_path) => {
                     let mut parser = BazelBepParser::new(bazel_bep_path);
-                    parser.parse()?;
-                    print_bep_results(&parser);
-                    parser.uncached_xml_files()
+                    let bep_result = parser.parse()?;
+                    print_bep_results(&bep_result);
+                    bep_result.uncached_xml_files()
                 }
                 None => junit_paths,
             };

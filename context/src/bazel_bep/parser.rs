@@ -10,35 +10,16 @@ pub struct TestResult {
 
 const FILE_URI_PREFIX: &str = "file://";
 
-/// Uses proto spec
-/// https://github.com/TylerJang27/bazel-bep/blob/master/proto/build_event_stream.proto based on
-/// https://github.com/bazelbuild/bazel/blob/master/src/main/java/com/google/devtools/build/lib/buildeventstream/proto/build_event_stream.proto
 #[derive(Debug, Clone, Default)]
-pub struct BazelBepParser {
-    bazel_bep_path: String,
-    test_results: Vec<TestResult>,
-    bep_test_events: Vec<BuildEvent>,
-    errors: Vec<String>,
+pub struct BepParseResult {
+    pub bep_test_events: Vec<BuildEvent>,
+    pub errors: Vec<String>,
+    pub test_results: Vec<TestResult>,
 }
 
-impl BazelBepParser {
-    pub fn new(bazel_bep_path: String) -> Self {
-        Self {
-            bazel_bep_path,
-            ..Default::default()
-        }
-    }
-
-    pub fn errors(&self) -> &Vec<String> {
-        &self.errors
-    }
-
-    pub fn bep_test_events(&self) -> &Vec<BuildEvent> {
-        &self.bep_test_events
-    }
-
-    pub fn test_counts(&self) -> (usize, usize) {
-        let (test_count, cached_count) = self.test_results.iter().fold(
+impl BepParseResult {
+    pub fn xml_file_counts(&self) -> (usize, usize) {
+        let (xml_count, cached_xml_count) = self.test_results.iter().fold(
             (0, 0),
             |(mut test_count, mut cached_count), test_result| {
                 test_count += test_result.xml_files.len();
@@ -48,7 +29,7 @@ impl BazelBepParser {
                 (test_count, cached_count)
             },
         );
-        (test_count, cached_count)
+        (xml_count, cached_xml_count)
     }
 
     pub fn uncached_xml_files(&self) -> Vec<String> {
@@ -63,8 +44,25 @@ impl BazelBepParser {
             .flatten()
             .collect()
     }
+}
 
-    pub fn parse(&mut self) -> anyhow::Result<()> {
+/// Uses proto spec
+/// https://github.com/TylerJang27/bazel-bep/blob/master/proto/build_event_stream.proto based on
+/// https://github.com/bazelbuild/bazel/blob/master/src/main/java/com/google/devtools/build/lib/buildeventstream/proto/build_event_stream.proto
+#[derive(Debug, Clone, Default)]
+pub struct BazelBepParser {
+    bazel_bep_path: String,
+}
+
+impl BazelBepParser {
+    pub fn new(bazel_bep_path: String) -> Self {
+        Self {
+            bazel_bep_path,
+            ..Default::default()
+        }
+    }
+
+    pub fn parse(&mut self) -> anyhow::Result<BepParseResult> {
         let file = std::fs::File::open(&self.bazel_bep_path)?;
         let reader = std::io::BufReader::new(file);
 
@@ -122,10 +120,11 @@ impl BazelBepParser {
                 },
             );
 
-        self.errors = errors;
-        self.test_results = test_results;
-        self.bep_test_events = bep_test_events;
-        Ok(())
+        Ok(BepParseResult {
+            bep_test_events,
+            errors,
+            test_results,
+        })
     }
 }
 
@@ -142,39 +141,42 @@ mod tests {
     fn test_parse_simple_bep() {
         let input_file = get_test_file_path(SIMPLE_EXAMPLE);
         let mut parser = BazelBepParser::new(input_file);
-        parser.parse().unwrap();
+        let parse_result = parser.parse().unwrap();
 
         let empty_vec: Vec<String> = Vec::new();
         assert_eq!(
-            parser.uncached_xml_files(),
+            parse_result.uncached_xml_files(),
             vec!["/tmp/hello_test/test.xml"]
         );
-        assert_eq!(*parser.errors(), empty_vec);
+        assert_eq!(parse_result.xml_file_counts(), (1, 0));
+        assert_eq!(*parse_result.errors, empty_vec);
     }
 
     #[test]
     fn test_parse_empty_bep() {
         let input_file = get_test_file_path(EMPTY_EXAMPLE);
         let mut parser = BazelBepParser::new(input_file);
-        parser.parse().unwrap();
+        let parse_result = parser.parse().unwrap();
 
         let empty_vec: Vec<String> = Vec::new();
-        assert_eq!(parser.uncached_xml_files(), empty_vec);
-        assert_eq!(*parser.errors(), empty_vec);
+        assert_eq!(parse_result.uncached_xml_files(), empty_vec);
+        assert_eq!(parse_result.xml_file_counts(), (0, 0));
+        assert_eq!(*parse_result.errors, empty_vec);
     }
 
     #[test]
     fn test_parse_partial_bep() {
         let input_file = get_test_file_path(PARTIAL_EXAMPLE);
         let mut parser = BazelBepParser::new(input_file);
-        parser.parse().unwrap();
+        let parse_result = parser.parse().unwrap();
 
         assert_eq!(
-            parser.uncached_xml_files(),
+            parse_result.uncached_xml_files(),
             vec!["/tmp/hello_test/test.xml", "/tmp/client_test/test.xml"]
         );
+        assert_eq!(parse_result.xml_file_counts(), (3, 1));
         assert_eq!(
-            *parser.errors(),
+            *parse_result.errors,
             vec!["Error parsing build event: EOF while parsing a value at line 108 column 0"]
         );
     }

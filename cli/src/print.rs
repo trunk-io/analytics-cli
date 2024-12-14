@@ -1,14 +1,14 @@
-use context::bazel_bep::parser::BazelBepParser;
+use context::bazel_bep::parser::BepParseResult;
 
-pub fn print_bep_results(parser: &BazelBepParser) {
-    if !parser.errors().is_empty() {
-        log::warn!("Errors parsing BEP file: {:?}", &parser.errors());
+pub fn print_bep_results(bep_result: &BepParseResult) {
+    if !bep_result.errors.is_empty() {
+        log::warn!("Errors parsing BEP file: {:?}", &bep_result.errors);
     }
 
-    let (test_count, cached_count) = parser.test_counts();
+    let (xml_count, cached_xml_count) = bep_result.xml_file_counts();
     log::info!(
         "Parsed {} ({} cached) test results from BEP file",
-        test_count,
-        cached_count
+        xml_count,
+        cached_xml_count
     );
 }

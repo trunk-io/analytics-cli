@@ -239,9 +239,9 @@ async fn upload_bundle_using_bep() {
             .to_string_lossy()
             .to_string(),
     );
-    assert!(bazel_bep_parser.parse().is_ok());
-    assert!(bazel_bep_parser.errors().is_empty());
-    assert_eq!(bazel_bep_parser.test_counts(), (1, 0));
+    let parse_result = bazel_bep_parser.parse().ok().unwrap();
+    assert!(parse_result.errors.is_empty());
+    assert_eq!(parse_result.xml_file_counts(), (1, 0));
 
     // HINT: View CLI output with `cargo test -- --nocapture`
     println!("{assert}");

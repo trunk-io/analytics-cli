@@ -1,7 +1,7 @@
 use async_compression::futures::bufread::ZstdDecoder;
 use async_std::{io::ReadExt, stream::StreamExt};
 use async_tar_wasm::Archive;
-use context::bazel_bep::parser::BazelBepParser;
+use context::bazel_bep::parser::BepParseResult;
 use futures_io::AsyncBufRead;
 use std::path::PathBuf;
 use std::{
@@ -22,7 +22,7 @@ use crate::bundle_meta::{BundleMeta, VersionedBundle};
 #[cfg_attr(feature = "wasm", derive(Tsify))]
 pub struct BundlerUtil {
     pub meta: BundleMeta,
-    pub bep_parser: Option<BazelBepParser>,
+    pub bep_result: Option<BepParseResult>,
 }
 
 const META_FILENAME: &'static str = "meta.json";
@@ -30,12 +30,8 @@ const META_FILENAME: &'static str = "meta.json";
 impl BundlerUtil {
     const ZSTD_COMPRESSION_LEVEL: i32 = 15; // This gives roughly 10x compression for text, 22 gives 11x.
 
-    pub fn new(meta: BundleMeta, bep_parser: Option<BazelBepParser>) -> Self {
-        Self { meta, bep_parser }
-    }
-
-    pub fn set_bep_parser(&mut self, bep_parser: BazelBepParser) {
-        self.bep_parser = Some(bep_parser);
+    pub fn new(meta: BundleMeta, bep_result: Option<BepParseResult>) -> Self {
+        Self { meta, bep_result }
     }
 
     /// Writes compressed tarball to disk.
@@ -79,9 +75,9 @@ impl BundlerUtil {
             total_bytes_in += std::fs::metadata(path)?.len();
         }
 
-        if let Some(bep_parser) = self.bep_parser.as_ref() {
+        if let Some(bep_result) = self.bep_result.as_ref() {
             let mut bep_events_file = tempfile::tempfile()?;
-            bep_parser.bep_test_events().iter().for_each(|event| {
+            bep_result.bep_test_events.iter().for_each(|event| {
                 if let Err(e) = serde_json::to_writer(&bep_events_file, event) {
                     log::error!("Failed to write BEP event: {}", e);
                 }
