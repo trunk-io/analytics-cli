@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use anyhow::Ok;
 use bazel_bep::types::build_event_stream::{build_event::Payload, file::File::Uri, BuildEvent};
 use serde_json::Deserializer;
@@ -51,13 +53,13 @@ impl BepParseResult {
 /// https://github.com/bazelbuild/bazel/blob/master/src/main/java/com/google/devtools/build/lib/buildeventstream/proto/build_event_stream.proto
 #[derive(Debug, Clone, Default)]
 pub struct BazelBepParser {
-    bazel_bep_path: String,
+    bazel_bep_path: PathBuf,
 }
 
 impl BazelBepParser {
-    pub fn new(bazel_bep_path: String) -> Self {
+    pub fn new<T: Into<PathBuf>>(bazel_bep_path: T) -> Self {
         Self {
-            bazel_bep_path,
+            bazel_bep_path: bazel_bep_path.into(),
             ..Default::default()
         }
     }

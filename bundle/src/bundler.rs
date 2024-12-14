@@ -3,10 +3,10 @@ use async_std::{io::ReadExt, stream::StreamExt};
 use async_tar_wasm::Archive;
 use context::bazel_bep::parser::BepParseResult;
 use futures_io::AsyncBufRead;
-use std::path::PathBuf;
 use std::{
     fs::File,
     io::{Seek, Write},
+    path::PathBuf,
 };
 #[cfg(feature = "wasm")]
 use tsify_next::Tsify;
@@ -21,8 +21,8 @@ use crate::bundle_meta::{BundleMeta, VersionedBundle};
 ///
 #[cfg_attr(feature = "wasm", derive(Tsify))]
 pub struct BundlerUtil {
-    pub meta: BundleMeta,
-    pub bep_result: Option<BepParseResult>,
+    meta: BundleMeta,
+    bep_result: Option<BepParseResult>,
 }
 
 const META_FILENAME: &'static str = "meta.json";
@@ -76,12 +76,16 @@ impl BundlerUtil {
         }
 
         if let Some(bep_result) = self.bep_result.as_ref() {
-            let mut bep_events_file = tempfile::tempfile()?;
-            bep_result.bep_test_events.iter().for_each(|event| {
-                if let Err(e) = serde_json::to_writer(&bep_events_file, event) {
-                    log::error!("Failed to write BEP event: {}", e);
-                }
-            });
+            let mut bep_events_file =
+                bep_result
+                    .bep_test_events
+                    .iter()
+                    .fold(tempfile::tempfile()?, |f, event| {
+                        if let Err(e) = serde_json::to_writer(&f, event) {
+                            log::error!("Failed to write BEP event: {}", e);
+                        }
+                        f
+                    });
             bep_events_file.flush()?;
             bep_events_file.seek(std::io::SeekFrom::Start(0))?;
             tar.append_file("bazel_bep.json", &mut bep_events_file)?;

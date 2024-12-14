@@ -233,12 +233,7 @@ async fn upload_bundle_using_bep() {
     assert!(junit_parser.parse(junit_reader).is_ok());
     assert!(junit_parser.errors().is_empty());
 
-    let mut bazel_bep_parser = BazelBepParser::new(
-        tar_extract_directory
-            .join("bazel_bep.json")
-            .to_string_lossy()
-            .to_string(),
-    );
+    let mut bazel_bep_parser = BazelBepParser::new(tar_extract_directory.join("bazel_bep.json"));
     let parse_result = bazel_bep_parser.parse().ok().unwrap();
     assert!(parse_result.errors.is_empty());
     assert_eq!(parse_result.xml_file_counts(), (1, 0));
