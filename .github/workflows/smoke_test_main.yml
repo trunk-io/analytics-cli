@@ -2,7 +2,9 @@ name: Smoke Test Main
 permissions:
   actions: read
 on:
-  pull_request: {}
+  workflow_dispatch: {}
+  schedule:
+    - cron: 0 0/2 * * *
 jobs:
   build_cli:
     name: Build cli from release
@@ -10,8 +12,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          ref: ${{ github.base_ref }}
 
       - name: Setup Run Smoke Tests
         uses: ./.github/actions/setup_run_smoke_tests
@@ -32,3 +32,31 @@ jobs:
           --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
           --token ${{ secrets.TRUNK_STAGING_ORG_API_TOKEN }} \
           cargo nextest run -p smoke-test --profile ci
+
+  slack-workflow-status:
+    if: always() && needs.build_cli.result != 'success'
+    name: Post Smoke Test Failure
+    needs:
+      - build_cli
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+    env:
+      SLACK_BOT_TOKEN: ${{ secrets.TRUNKBOT_SLACK_BOT_TOKEN }}
+    steps:
+      - name: Analytics Cli Smoke Test Failure
+        uses: slackapi/slack-github-action@v1
+        with:
+          channel-id: staging-notifications
+          payload: |
+            {
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "The main branch of the analytics cli is broken! The job attempting a simple upload had a result of ${{ needs.build_cli.result }}. Runs can be found at https://github.com/trunk-io/analytics-cli/actions/workflows/smoke_test_main.yml"
+                  }
+                }
+              ]
+            }
