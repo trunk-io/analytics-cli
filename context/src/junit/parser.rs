@@ -38,8 +38,6 @@ pub enum JunitParseError {
     ReportMultipleFound,
     #[error("report end tag found without start tag")]
     ReportStartTagNotFound,
-    #[error("could not parse test suite name")]
-    TestSuiteName,
     #[error("test suite end tag found without start tag")]
     TestSuiteStartTagNotFound,
     #[error("could not parse test case name")]
@@ -54,12 +52,6 @@ pub enum JunitParseError {
     TestRerunStartTagNotFound,
     #[error("test rerun end tag found without start tag")]
     TestRerunTestCaseNotFound,
-    #[error("system out is empty")]
-    SystemOutEmpty,
-    #[error("system err is empty")]
-    SystemErrEmpty,
-    #[error("stack trace is empty")]
-    StackTraceEmpty,
 }
 
 #[derive(Debug, Clone)]
@@ -213,9 +205,6 @@ impl JunitParser {
                     self.open_test_rerun(&e);
                     self.close_test_rerun();
                 }
-                TAG_TEST_RERUN_STACK_TRACE => self.errors.push(JunitParseError::StackTraceEmpty),
-                TAG_SYSTEM_OUT => self.errors.push(JunitParseError::SystemOutEmpty),
-                TAG_SYSTEM_ERR => self.errors.push(JunitParseError::SystemErrEmpty),
                 _ => (),
             },
             Event::CData(e) => {
@@ -295,9 +284,6 @@ impl JunitParser {
         }
 
         let test_suite_name = parse_attr::name(e).unwrap_or_default();
-        if test_suite_name.is_empty() {
-            self.errors.push(JunitParseError::TestSuiteName);
-        };
         let mut test_suite = TestSuite::new(test_suite_name);
 
         if let Some(timestamp) = parse_attr::timestamp(e, &mut self.date_parser) {

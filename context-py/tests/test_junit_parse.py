@@ -19,7 +19,20 @@ def test_junit_parse_valid():
           <failure message="AssertionError: assert 'testdata' in '# estdata'">
             FAILURE BODY
           </failure>
-
+          <system-out/>
+          <system-err/>
+          <error message="       " type="">
+            <!-- Example of a test case with empty error text. -->
+          </error>
+        </testcase>
+      </testsuite>
+      <testsuite name="" tests="1" disabled="0" errors="0" failures="1" timestamp="{valid_timestamp}">
+        <testcase name="failure-case" file="test.py" classname="MyClass" timestamp="{valid_timestamp}" time="1">
+          <failure message="AssertionError: assert 'testdata' in '# estdata'">
+            FAILURE BODY
+          </failure>
+          <system-out/>
+          <system-err/>
           <error message="       " type="">
             <!-- Example of a test case with empty error text. -->
           </error>

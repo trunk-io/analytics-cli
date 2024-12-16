@@ -68,6 +68,15 @@ describe("context-js", () => {
         <testsuite name="my-test-suite" tests="1" disabled="0" errors="0" failures="1" timestamp="${validTimestamp}">
           <testcase name="failure-case" file="test.py" classname="MyClass" timestamp="${validTimestamp}" time="1">
             <failure/>
+            <system-out/>
+            <system-err/>
+          </testcase>
+        </testsuite>
+        <testsuite name="" tests="1" disabled="0" errors="0" failures="1" timestamp="${validTimestamp}">
+          <testcase name="failure-case" file="test.py" classname="MyClass" timestamp="${validTimestamp}" time="1">
+            <failure/>
+            <system-out/>
+            <system-err/>
           </testcase>
         </testsuite>
       </testsuites>
