@@ -962,6 +962,8 @@ dependencies = [
  "codeowners",
  "context",
  "futures-io",
+ "prost 0.13.4",
+ "proto",
  "pyo3",
  "pyo3-stub-gen",
  "tokio",

@@ -116,7 +116,7 @@ pub struct BindingsTestSuite {
     pub properties: Vec<BindingsProperty>,
     pub system_out: Option<String>,
     pub system_err: Option<String>,
-    extra: HashMap<String, String>,
+    pub extra: HashMap<String, String>,
 }
 
 #[cfg(feature = "pyo3")]
@@ -279,7 +279,7 @@ pub struct BindingsTestCase {
     pub status: BindingsTestCaseStatus,
     pub system_out: Option<String>,
     pub system_err: Option<String>,
-    extra: HashMap<String, String>,
+    pub extra: HashMap<String, String>,
     pub properties: Vec<BindingsProperty>,
 }
 

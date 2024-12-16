@@ -126,14 +126,14 @@ impl FileSet {
 
             // Save file under junit/0, junit/1, etc.
             // This is to avoid having to deal with potential file name collisions.
-            let path = match original_path_abs.ends_with(".xml") {
+            let path_formatted = match original_path_abs.ends_with(".xml") {
                 true => format!("junit/{}", file_counter.count_file()),
                 false => format!("bin/{}", file_counter.count_file()),
             };
             files.push(BundledFile {
                 original_path: original_path_abs,
                 original_path_rel: Some(original_path_rel),
-                path,
+                path: path_formatted,
                 #[cfg(not(feature = "wasm"))]
                 last_modified_epoch_ns: path
                     .metadata()?
