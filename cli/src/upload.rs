@@ -120,6 +120,7 @@ impl UploadArgs {
         junit_paths: Vec<String>,
         repo_root: String,
     ) -> Self {
+        // TODO - indicate coming from bin + version
         Self {
             junit_paths,
             #[cfg(target_os = "macos")]
