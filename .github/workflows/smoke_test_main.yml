@@ -19,18 +19,8 @@ jobs:
           target: x86_64-unknown-linux-musl
           profile: release
 
-      - name: Setup Rust & Cargo
-        uses: ./.github/actions/setup_rust_cargo
-
-      - name: Install Nextest
-        shell: bash
-        run: |
-          cargo install --version 0.9.85 cargo-nextest --locked
-
-      - name: Install cmake
-        shell: bash
-        run: |
-          sudo apt-get install cmake -y
+      - name: Setup Run Smoke Tests
+        uses: ./.github/actions/setup_run_smoke_tests
 
       - name: Run succeeding test
         env:
