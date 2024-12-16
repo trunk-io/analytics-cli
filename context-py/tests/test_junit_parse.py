@@ -93,19 +93,21 @@ def test_junit_parse_nested_testsuites():
 
     valid_timestamp = datetime.now().astimezone(timezone.utc).isoformat()
 
-    nested_testsuites_xml = f"""<?xml version="1.0" encoding="UTF-8"?>
+    nested_testsuites_xml = f"""
+    <?xml version="1.0" encoding="UTF-8"?>
     <testsuites>
-        <testsuite name="/home/runner/work/flake-farm/flake-farm/php/phpunit/phpunit.xml" tests="2" assertions="2" errors="0" failures="0" skipped="0" time="0.001161" timestamp="{valid_timestamp}>
-            <testsuite name="Project Test Suite" tests="2" assertions="2" errors="0" failures="0" skipped="0" time="0.001161" timestamp="{valid_timestamp}>
-                <testsuite name="" file="/home/runner/work/flake-farm/flake-farm/php/phpunit/tests/EmailTest.php" tests="2" assertions="2" errors="0" failures="0" skipped="0" time="0.001161" timestamp="{valid_timestamp}>
-                    <testcase name="testCanBeCreatedFromValidEmail" file="/home/runner/work/flake-farm/flake-farm/php/phpunit/tests/EmailTest.php" line="6" class="EmailTest" classname="EmailTest" assertions="1" time="0.000860"/>
-                    <testcase name="testCannotBeCreatedFromInvalidEmail" file="/home/runner/work/flake-farm/flake-farm/php/phpunit/tests/EmailTest.php" line="15" class="EmailTest" classname="EmailTest" assertions="1" time="0.000301"/>
-                </testsuite>
-            </testsuite>
-        </testsuite>
-    </testsuites>"""
+      <testsuite name="/home/runner/work/flake-farm/flake-farm/php/phpunit/phpunit.xml" tests="2" assertions="2" errors="0" failures="0" skipped="0" time="0.001161" timestamp="{valid_timestamp}>
+          <testsuite name="Project Test Suite" tests="2" assertions="2" errors="0" failures="0" skipped="0" time="0.001161" timestamp="{valid_timestamp}>
+              <testsuite name="" file="/home/runner/work/flake-farm/flake-farm/php/phpunit/tests/EmailTest.php" tests="2" assertions="2" errors="0" failures="0" skipped="0" time="0.001161" timestamp="{valid_timestamp}>
+                  <testcase name="testCanBeCreatedFromValidEmail" file="/home/runner/work/flake-farm/flake-farm/php/phpunit/tests/EmailTest.php" line="6" class="EmailTest" classname="EmailTest" assertions="1" time="0.000860"/>
+                  <testcase name="testCannotBeCreatedFromInvalidEmail" file="/home/runner/work/flake-farm/flake-farm/php/phpunit/tests/EmailTest.php" line="15" class="EmailTest" classname="EmailTest" assertions="1" time="0.000301"/>
+              </testsuite>
+          </testsuite>
+      </testsuite>
+    </testsuites>
+    """
 
-    reports: PT.List[BindingsReport] = junit_parse(nested_testsuites_xml)
+    reports: PT.List[BindingsReport] = junit_parse(str.encode(nested_testsuites_xml))
 
     assert len(reports) == 1
     report = reports[0]
