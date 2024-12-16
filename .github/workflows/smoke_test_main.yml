@@ -1,0 +1,44 @@
+name: Smoke Test Main
+permissions:
+  actions: read
+on:
+  pull_request: {}
+jobs:
+  build_cli:
+    name: Build cli from release
+    runs-on: public-amd64-2xlarge
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.base_ref }}
+
+      - name: Build Cli
+        uses: ./.github/actions/build_cli_linux_target
+        with:
+          target: x86_64-unknown-linux-musl
+          profile: release
+
+      - name: Setup Rust & Cargo
+        uses: ./.github/actions/setup_rust_cargo
+
+      - name: Install Nextest
+        shell: bash
+        run: |
+          cargo install --version 0.9.85 cargo-nextest --locked
+
+      - name: Install cmake
+        shell: bash
+        run: |
+          sudo apt-get install cmake -y
+
+      - name: Run succeeding test
+        env:
+          TRUNK_PUBLIC_API_ADDRESS: https://api.trunk-staging.io
+        shell: bash
+        run: |
+          ./target/x86_64-unknown-linux-musl/release/trunk-analytics-cli test \
+          --org-url-slug trunk-staging-org \
+          --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
+          --token ${{ secrets.TRUNK_STAGING_ORG_API_TOKEN }} \
+          cargo nextest run -p smoke-test --profile ci
