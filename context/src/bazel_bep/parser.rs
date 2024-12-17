@@ -88,10 +88,9 @@ impl BazelBepParser {
                                 errors.push(format!("Error parsing build event: {}", err));
                             }
                             Result::Ok(build_event) => {
-                                match (
-                                    &build_event.payload,
-                                    &build_event.clone().id.and_then(|id| id.id),
-                                ) {
+                                let payload = &build_event.payload;
+                                let id = build_event.id.clone().and_then(|id| id.id);
+                                match (payload, id) {
                                     (
                                         Some(Payload::TestSummary(test_summary)),
                                         Some(Id::TestSummary(id)),
@@ -160,16 +159,19 @@ impl BazelBepParser {
         Ok(BepParseResult {
             bep_test_events,
             errors,
-            test_results: test_results.iter().map(|test_result| {
-                let mut override_pass = false;
-                if pass_labels.contains(&test_result.label.to_string()) {
-                    override_pass = true;
-                }
-                TestResult {
-                    override_pass,
-                    ..test_result.clone()
-                }
-            }).collect(),
+            test_results: test_results
+                .iter()
+                .map(|test_result| {
+                    let mut override_pass = false;
+                    if pass_labels.contains(&test_result.label.to_string()) {
+                        override_pass = true;
+                    }
+                    TestResult {
+                        override_pass,
+                        ..test_result.clone()
+                    }
+                })
+                .collect(),
         })
     }
 }
@@ -182,6 +184,7 @@ mod tests {
     const SIMPLE_EXAMPLE: &str = "test_fixtures/bep_example";
     const EMPTY_EXAMPLE: &str = "test_fixtures/bep_empty";
     const PARTIAL_EXAMPLE: &str = "test_fixtures/bep_partially_valid";
+    // DONOTLAND TODO: TYLER NEED TO ADD A TEST CASE FOR SUMMARY STATUS
 
     #[test]
     fn test_parse_simple_bep() {
