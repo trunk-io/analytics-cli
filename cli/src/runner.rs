@@ -455,4 +455,43 @@ mod tests {
         assert_eq!(some_failures.len(), 1);
         assert_eq!(some_failures[0].name, "Goodbye");
     }
+
+    #[tokio::test(start_paused = true)]
+    async fn test_extract_multi_failed_tests_with_runner_status() {
+        let file_sets = vec![
+            FileSet {
+                file_set_type: FileSetType::Junit,
+                files: vec![BundledFile {
+                    original_path: get_test_file_path(JUNIT1_FAIL),
+                    ..BundledFile::default()
+                }],
+                glob: String::from("1/*.xml"),
+                test_runner_status: Some(TestRunnerJunitStatus::Passed),
+            },
+            FileSet {
+                file_set_type: FileSetType::Junit,
+                files: vec![BundledFile {
+                    original_path: get_test_file_path(JUNIT1_FAIL),
+                    ..BundledFile::default()
+                }],
+                glob: String::from("2/*.xml"),
+                test_runner_status: Some(TestRunnerJunitStatus::Flaky),
+            },
+            FileSet {
+                file_set_type: FileSetType::Junit,
+                files: vec![BundledFile {
+                    original_path: get_test_file_path(JUNIT0_FAIL),
+                    ..BundledFile::default()
+                }],
+                glob: String::from("3/*.xml"),
+                test_runner_status: Some(TestRunnerJunitStatus::Failed),
+            },
+        ];
+
+        let mut multi_failures =
+            extract_failed_tests(&BundleRepo::default(), ORG_SLUG, &file_sets).await;
+        multi_failures.sort_by(|a, b| a.name.cmp(&b.name));
+        assert_eq!(multi_failures.len(), 1);
+        assert_eq!(multi_failures[0].name, "Hello");
+    }
 }
