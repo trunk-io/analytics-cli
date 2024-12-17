@@ -215,7 +215,10 @@ mod tests {
         let empty_vec: Vec<String> = Vec::new();
         assert_eq!(
             parse_result.uncached_xml_files(),
-            vec!["/tmp/hello_test/test.xml"]
+            vec![JunitPathWrapper {
+                junit_path: "/tmp/hello_test/test.xml".to_string(),
+                status: None
+            }]
         );
         assert_eq!(parse_result.xml_file_counts(), (1, 0));
         assert_eq!(*parse_result.errors, empty_vec);
@@ -227,10 +230,11 @@ mod tests {
         let mut parser = BazelBepParser::new(input_file);
         let parse_result = parser.parse().unwrap();
 
-        let empty_vec: Vec<String> = Vec::new();
-        assert_eq!(parse_result.uncached_xml_files(), empty_vec);
+        let empty_xml_vec: Vec<JunitPathWrapper> = Vec::new();
+        let empty_errors_vec: Vec<String> = Vec::new();
+        assert_eq!(parse_result.uncached_xml_files(), empty_xml_vec);
         assert_eq!(parse_result.xml_file_counts(), (0, 0));
-        assert_eq!(*parse_result.errors, empty_vec);
+        assert_eq!(*parse_result.errors, empty_errors_vec);
     }
 
     #[test]
@@ -241,7 +245,16 @@ mod tests {
 
         assert_eq!(
             parse_result.uncached_xml_files(),
-            vec!["/tmp/hello_test/test.xml", "/tmp/client_test/test.xml"]
+            vec![
+                JunitPathWrapper {
+                    junit_path: "/tmp/hello_test/test.xml".to_string(),
+                    status: Some(TestRunnerJunitStatus::Passed)
+                },
+                JunitPathWrapper {
+                    junit_path: "/tmp/client_test/test.xml".to_string(),
+                    status: Some(TestRunnerJunitStatus::Passed)
+                }
+            ]
         );
         assert_eq!(parse_result.xml_file_counts(), (3, 1));
         assert_eq!(
