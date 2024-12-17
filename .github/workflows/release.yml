@@ -124,8 +124,7 @@ jobs:
           TRUNK_PUBLIC_API_ADDRESS: https://api.trunk-staging.io
         shell: bash
         run: |
-          ls trunk-analytics-cli/* &&
-          ./trunk-analytics-cli test \
+          ./trunk-analytics-cli/trunk-analytics-cli test \
           --org-url-slug trunk-staging-org \
           --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
           --token ${{ secrets.TRUNK_STAGING_ORG_API_TOKEN }} \
