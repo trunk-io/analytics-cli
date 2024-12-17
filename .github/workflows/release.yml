@@ -101,49 +101,78 @@ jobs:
           path: target/${{ matrix.target }}/release-with-debug/trunk-analytics-cli
           if-no-files-found: error
 
-  tag_and_release:
-    name: Tag and Release [ ${{ github.event.inputs.release_tag }} ]
+  perform_smoke_test:
+    name: Smoke test ${{ github.event.inputs.release_tag }}
     runs-on: public-amd64-small
-    needs: [build_linux, build_macos]
-
+    needs:
+      - build_linux
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - id: download
+      - name: Get Release Candidate
         uses: actions/download-artifact@v4
         with:
-          path: build
+          name: x86_64-unknown-linux-musl
 
-      - name: Compress binaries
-        run: |
-          for target in $(ls build)
-          do
-            chmod u+x build/${target}/trunk-analytics-cli
-            tar czvf \
-              build/trunk-analytics-cli-${target}.tar.gz \
-              -C build/${target} trunk-analytics-cli
-          done
+      - name: Setup Run Smoke Tests
+        uses: ./.github/actions/setup_run_smoke_tests
 
-      - name: Install gh
-        uses: trunk-io/trunk-action/install@v1
-        with:
-          tools: gh
-
-      - name: Create GH release and upload binary
+      - name: Run succeeding test
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TRUNK_PUBLIC_API_ADDRESS: https://api.trunk-staging.io
+        shell: bash
         run: |
-          gh release create --prerelease --latest=false \
-            --target ${{ github.ref }} \
-            --generate-notes ${{ github.event.inputs.release_tag }} \
-            ./build/*.tar.gz
+          ./trunk-analytics-cli test \
+          --org-url-slug trunk-staging-org \
+          --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
+          --token ${{ secrets.TRUNK_STAGING_ORG_API_TOKEN }} \
+          cargo nextest run -p smoke-test --profile ci
 
-      - name: Create Sentry release
-        uses: getsentry/action-release@v1
-        env:
-          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
-          SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
-          SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
-        with:
-          environment: production
-          version: ${{ github.event.inputs.release_tag }}
+#  tag_and_release:
+#    name: Tag and Release [ ${{ github.event.inputs.release_tag }} ]
+#    runs-on: public-amd64-small
+#    needs: [build_linux, build_macos, perform_smoke_test]
+#    if: needs.perform_smoke_test.result == 'success'
+#
+#    steps:
+#      - uses: actions/checkout@v4
+#
+#      - id: download
+#        uses: actions/download-artifact@v4
+#        with:
+#          path: build
+#
+#      - name: Compress binaries
+#        run: |
+#          for target in $(ls build)
+#          do
+#            chmod u+x build/${target}/trunk-analytics-cli
+#            tar czvf \
+#              build/trunk-analytics-cli-${target}.tar.gz \
+#              -C build/${target} trunk-analytics-cli
+#          done
+#
+#      - name: Install gh
+#        uses: trunk-io/trunk-action/install@v1
+#        with:
+#          tools: gh
+#
+#      - name: Create GH release and upload binary
+#        env:
+#          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+#        run: |
+#          gh release create --prerelease --latest=false \
+#            --target ${{ github.ref }} \
+#            --generate-notes ${{ github.event.inputs.release_tag }} \
+#            ./build/*.tar.gz
+#
+#      - name: Create Sentry release
+#        uses: getsentry/action-release@v1
+#        env:
+#          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+#          SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
+#          SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
+#        with:
+#          environment: production
+#          version: ${{ github.event.inputs.release_tag }}
