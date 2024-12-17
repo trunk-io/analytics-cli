@@ -61,15 +61,6 @@ impl BepParseResult {
 }
 
 fn convert_test_summary_status(status: TestStatus) -> Option<TestRunnerJunitStatus> {
-    // DONOTLAND TODO: REMOVE
-    // // These are the cases in which bazel marks a test as passing
-    // if test_summary.overall_status == TestStatus::Passed as i32
-    //     || test_summary.overall_status
-    //         == TestStatus::Flaky as i32
-    // {
-    //     summary_statuses.insert(id.label.clone(), TestRunnerJunitStatus::Passed);
-    // }
-
     match status {
         TestStatus::Passed => Some(TestRunnerJunitStatus::Passed),
         TestStatus::Failed => Some(TestRunnerJunitStatus::Failed),
@@ -204,7 +195,7 @@ mod tests {
     const SIMPLE_EXAMPLE: &str = "test_fixtures/bep_example";
     const EMPTY_EXAMPLE: &str = "test_fixtures/bep_empty";
     const PARTIAL_EXAMPLE: &str = "test_fixtures/bep_partially_valid";
-    // DONOTLAND TODO: TYLER NEED TO ADD A TEST CASE FOR SUMMARY STATUS
+    const FLAKY_SUMMARY_EXAMPLE: &str = "test_fixtures/bep_flaky_summary";
 
     #[test]
     fn test_parse_simple_bep() {
@@ -261,5 +252,35 @@ mod tests {
             *parse_result.errors,
             vec!["Error parsing build event: EOF while parsing a value at line 108 column 0"]
         );
+    }
+
+    #[test]
+    fn test_parse_flaky_summary_bep() {
+        let input_file = get_test_file_path(FLAKY_SUMMARY_EXAMPLE);
+        let mut parser = BazelBepParser::new(input_file);
+        let parse_result = parser.parse().unwrap();
+
+        assert_eq!(
+            parse_result.uncached_xml_files(),
+            vec![
+                JunitPathWrapper {
+                    junit_path: "/tmp/hello_test/test_attempts/attempt_1.xml".to_string(),
+                    status: Some(TestRunnerJunitStatus::Flaky)
+                },
+                JunitPathWrapper {
+                    junit_path: "/tmp/hello_test/test_attempts/attempt_2.xml".to_string(),
+                    status: Some(TestRunnerJunitStatus::Flaky)
+                },
+                JunitPathWrapper {
+                    junit_path: "/tmp/hello_test/test.xml".to_string(),
+                    status: Some(TestRunnerJunitStatus::Flaky)
+                },
+                JunitPathWrapper {
+                    junit_path: "/tmp/client_test/test.xml".to_string(),
+                    status: Some(TestRunnerJunitStatus::Failed)
+                }
+            ]
+        );
+        assert_eq!(parse_result.xml_file_counts(), (4, 0));
     }
 }
