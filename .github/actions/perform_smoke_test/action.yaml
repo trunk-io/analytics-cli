@@ -1,0 +1,59 @@
+name: Perform Smoke Test
+description: Runs the actual smoke tests
+#TODO secrets.TRUNK_ORG_API_TOKEN is not a real secret yet, gotta get an admin to add it to github
+
+inputs:
+  cli-binary-location:
+    description: Location for the cli binary, relative to current directory. Uses x86_64-unknown-linux binaries.
+
+runs:
+  using: composite
+  steps:
+    - name: Make executable
+      shell: bash
+      run: |
+        chmod +x ${{ inputs.cli-binary-location }}
+
+    - name: Run succeeding test on staging
+      env:
+        TRUNK_PUBLIC_API_ADDRESS: https://api.trunk-staging.io
+      shell: bash
+      run: |
+        ./${{ inputs.cli-binary-location }} test \
+        --org-url-slug trunk-staging-org \
+        --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
+        --token ${{ secrets.TRUNK_STAGING_ORG_API_TOKEN }} \
+        cargo nextest run -p smoke-test --profile ci
+
+    #    - name: Run succeeding test on production
+    #      env:
+    #        TRUNK_PUBLIC_API_ADDRESS: https://api.trunk.io
+    #      shell: bash
+    #      run: |
+    #        ./${{ inputs.cli-binary-location }} test \
+    #        --org-url-slug trunk \
+    #        --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
+    #        --token ${{ secrets.TRUNK_ORG_API_TOKEN }} \
+    #        cargo nextest run -p smoke-test --profile ci
+
+    - name: Upload to staging
+      env:
+        TRUNK_PUBLIC_API_ADDRESS: https://api.trunk-staging.io
+      shell: bash
+      run: |
+        ./${{ inputs.cli-binary-location }} upload \
+        --org-url-slug trunk-staging-org \
+        --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
+        --token ${{ secrets.TRUNK_STAGING_ORG_API_TOKEN }} \
+        cargo nextest run -p smoke-test --profile ci
+
+#    - name: Upload to production
+#      env:
+#        TRUNK_PUBLIC_API_ADDRESS: https://api.trunk.io
+#      shell: bash
+#      run: |
+#        ./${{ inputs.cli-binary-location }} upload \
+#        --org-url-slug trunk \
+#        --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
+#        --token ${{ secrets.TRUNK_ORG_API_TOKEN }} \
+#        cargo nextest run -p smoke-test --profile ci
