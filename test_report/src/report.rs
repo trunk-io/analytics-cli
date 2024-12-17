@@ -23,7 +23,7 @@ pub struct TestExecution {
     parent_name: String,
     line: Option<i32>,
     status: Status,
-    attempt: i32,
+    attempt_number: i32,
     started_at: i64,
     finished_at: i64,
     output: String,
@@ -94,6 +94,7 @@ impl MutTestReport {
         test_result.uploader_metadata = Some(UploaderMetadata {
             origin,
             version: std::env!("CARGO_PKG_VERSION").to_string(),
+            upload_time: None,
         });
         Self(RefCell::new(TestReport {
             test_result: TestResult::default(),
@@ -108,6 +109,16 @@ impl MutTestReport {
 
     // sends out to the trunk api
     pub fn publish(&self) -> bool {
+        self.0
+            .borrow_mut()
+            .test_result
+            .uploader_metadata
+            .as_mut()
+            .unwrap()
+            .upload_time = Some(Timestamp {
+            seconds: Utc::now().timestamp(),
+            nanos: Utc::now().timestamp_subsec_nanos() as i32,
+        });
         let path = self.save();
         let token = std::env::var("TRUNK_API_TOKEN").unwrap_or_default();
         let org_url_slug = std::env::var("TRUNK_ORG_URL_SLUG").unwrap_or_default();
@@ -167,7 +178,7 @@ impl MutTestReport {
         parent_name: String,
         line: Option<i32>,
         status: Status,
-        attempt: i32,
+        attempt_number: i32,
         started_at: i64,
         finished_at: i64,
         output: String,
@@ -189,7 +200,7 @@ impl MutTestReport {
             Status::Skipped => test.status = TestCaseRunStatus::Skipped.into(),
         }
         // test.status = status;
-        test.attempt = attempt;
+        test.attempt_number = attempt_number;
         let started_at_date_time = DateTime::from_timestamp(started_at, 0).unwrap_or_default();
         let test_started_at = Timestamp {
             seconds: started_at_date_time.timestamp(),
@@ -202,7 +213,7 @@ impl MutTestReport {
             nanos: finished_at_date_time.timestamp_subsec_nanos() as i32,
         };
         test.finished_at = Some(test_finished_at);
-        test.output_message = output;
+        test.status_output_message = output;
         self.0
             .borrow_mut()
             .test_result

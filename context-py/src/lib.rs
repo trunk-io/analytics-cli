@@ -85,80 +85,8 @@ fn junit_parse(xml: Vec<u8>) -> PyResult<Vec<junit::bindings::BindingsReport>> {
 #[pyfunction]
 fn bin_parse(bin: Vec<u8>) -> PyResult<Vec<junit::bindings::BindingsReport>> {
     let test_cases = proto::test_context::test_run::TestResult::decode(&*bin).unwrap();
-    let bindings_test_cases: Vec<junit::bindings::BindingsTestCase> = test_cases
-        .test_case_runs
-        .into_iter()
-        .map(
-            |proto::test_context::test_run::TestCaseRun {
-                 name,
-                 parent_name,
-                 classname,
-                 started_at,
-                 finished_at,
-                 status,
-                 output_message,
-                 ..
-             }| junit::bindings::BindingsTestCase {
-                name,
-                classname: Some(classname),
-                assertions: None,
-                timestamp: Some(0),
-                timestamp_micros: Some(0),
-                time: Some(0.0),
-                status: junit::bindings::BindingsTestCaseStatus {
-                    status: match proto::test_context::test_run::TestCaseRunStatus::try_from(status)
-                    {
-                        Ok(proto::test_context::test_run::TestCaseRunStatus::Success) => {
-                            junit::bindings::BindingsTestCaseStatusStatus::Success
-                        }
-                        Ok(proto::test_context::test_run::TestCaseRunStatus::Failure) => {
-                            junit::bindings::BindingsTestCaseStatusStatus::NonSuccess
-                        }
-                        Ok(proto::test_context::test_run::TestCaseRunStatus::Skipped) => {
-                            junit::bindings::BindingsTestCaseStatusStatus::Skipped
-                        }
-                        Err(_) => todo!(),
-                        Ok(proto::test_context::test_run::TestCaseRunStatus::Unspecified) => {
-                            todo!()
-                        }
-                    },
-                    success: None,
-                    non_success: None,
-                    skipped: None,
-                },
-                system_err: Some(output_message),
-                system_out: None,
-                extra: std::collections::HashMap::from([("id".to_string(), "".to_string())]),
-                properties: vec![],
-            },
-        )
-        .collect();
-    let reports = vec![junit::bindings::BindingsReport {
-        name: "".to_string(),
-        test_suites: vec![junit::bindings::BindingsTestSuite {
-            name: "".to_string(),
-            tests: bindings_test_cases.len(),
-            disabled: 0,
-            errors: 0,
-            failures: 0,
-            test_cases: bindings_test_cases,
-            extra: std::collections::HashMap::default(),
-            properties: vec![],
-            time: Some(0.0),
-            timestamp: Some(0),
-            timestamp_micros: Some(0),
-            system_err: None,
-            system_out: None,
-        }],
-        time: Some(0.0),
-        uuid: None,
-        timestamp: Some(0),
-        timestamp_micros: Some(0),
-        errors: 0,
-        failures: 0,
-        tests: 0,
-    }];
-    Ok(reports)
+    let bindings_report = junit::bindings::BindingsReport::from(test_cases);
+    Ok(vec![bindings_report])
 }
 
 #[gen_stub_pyfunction]

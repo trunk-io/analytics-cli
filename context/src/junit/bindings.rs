@@ -1,6 +1,7 @@
 use std::{collections::HashMap, time::Duration};
 
 use chrono::{DateTime, TimeDelta};
+use proto::test_context::test_run::{TestCaseRun, TestCaseRunStatus, TestResult};
 #[cfg(feature = "pyo3")]
 use pyo3::prelude::*;
 #[cfg(feature = "pyo3")]
@@ -29,6 +30,180 @@ pub struct BindingsReport {
     pub failures: usize,
     pub errors: usize,
     pub test_suites: Vec<BindingsTestSuite>,
+}
+
+impl From<TestCaseRunStatus> for BindingsTestCaseStatusStatus {
+    fn from(value: TestCaseRunStatus) -> Self {
+        match value {
+            TestCaseRunStatus::Success => BindingsTestCaseStatusStatus::Success,
+            TestCaseRunStatus::Failure => BindingsTestCaseStatusStatus::NonSuccess,
+            TestCaseRunStatus::Skipped => BindingsTestCaseStatusStatus::Skipped,
+            TestCaseRunStatus::Unspecified => todo!(),
+        }
+    }
+}
+
+impl From<TestResult> for BindingsReport {
+    fn from(
+        TestResult {
+            test_case_runs,
+            ci_info: _ci_info,
+            bundle_repo: _bundle_repo,
+            uploader_metadata,
+        }: TestResult,
+    ) -> Self {
+        let test_cases: Vec<BindingsTestCase> = test_case_runs
+            .into_iter()
+            .map(|testcase| BindingsTestCase::from(testcase))
+            .collect();
+        let parent_name_map: HashMap<String, Vec<BindingsTestCase>> =
+            test_cases.iter().fold(HashMap::new(), |mut acc, testcase| {
+                let parent_name = testcase.extra.get("parent_name").unwrap();
+                acc.entry(parent_name.clone())
+                    .or_insert_with(Vec::new)
+                    .push(testcase.to_owned());
+                acc
+            });
+        let mut report_time = 0.0;
+        let mut report_failures = 0;
+        let mut report_tests = 0;
+        let test_suites = parent_name_map
+            .into_iter()
+            .map(|(name, testcases)| {
+                let tests = testcases.len();
+                let disabled = testcases
+                    .iter()
+                    .filter(|tc| tc.status.status == BindingsTestCaseStatusStatus::Skipped)
+                    .count();
+                let failures = testcases
+                    .iter()
+                    .filter(|tc| tc.status.status == BindingsTestCaseStatusStatus::NonSuccess)
+                    .count();
+                let timestamp = testcases.iter().map(|tc| tc.timestamp.unwrap_or(0)).max();
+                let timestamp_micros = testcases
+                    .iter()
+                    .map(|tc| tc.timestamp_micros.unwrap_or(0))
+                    .max();
+                let time = testcases.iter().map(|tc| tc.time.unwrap_or(0.0)).sum();
+                report_time += time;
+                report_failures += failures;
+                report_tests += tests;
+                BindingsTestSuite {
+                    name,
+                    tests,
+                    disabled,
+                    errors: 0,
+                    failures,
+                    timestamp,
+                    timestamp_micros,
+                    time: Some(time),
+                    test_cases: testcases,
+                    properties: vec![],
+                    system_out: None,
+                    system_err: None,
+                    extra: HashMap::new(),
+                }
+            })
+            .collect();
+        let (name, timestamp, timestamp_micros) = match uploader_metadata {
+            Some(t) => (
+                t.origin,
+                Some(t.upload_time.unwrap_or_default().seconds),
+                Some(t.upload_time.unwrap_or_default().nanos as i64 * 1000),
+            ),
+            None => ("Unknown".to_string(), None, None),
+        };
+        BindingsReport {
+            name,
+            test_suites,
+            time: Some(report_time),
+            uuid: None,
+            timestamp,
+            timestamp_micros,
+            errors: 0,
+            failures: report_failures,
+            tests: report_tests,
+        }
+    }
+}
+
+impl From<TestCaseRun> for BindingsTestCase {
+    fn from(
+        TestCaseRun {
+            name,
+            parent_name,
+            classname,
+            started_at,
+            finished_at,
+            status,
+            status_output_message,
+            id,
+            file,
+            line,
+            attempt_number,
+        }: TestCaseRun,
+    ) -> Self {
+        let (timestamp, timestamp_micros) = match started_at {
+            Some(started_at) => (
+                Some(started_at.seconds),
+                Some(started_at.nanos as i64 * 1000),
+            ),
+            None => (None, None),
+        };
+        let time = match (started_at, finished_at) {
+            (Some(started_at), Some(finished_at)) => Some(
+                (finished_at.seconds - started_at.seconds) as f64
+                    + (finished_at.nanos - started_at.nanos) as f64 / 1_000_000_000.0,
+            ),
+            _ => None,
+        };
+        let typed_status = TestCaseRunStatus::try_from(status).ok().unwrap();
+        Self {
+            name,
+            classname: Some(classname),
+            assertions: None,
+            timestamp,
+            timestamp_micros,
+            time,
+            status: BindingsTestCaseStatus {
+                status: typed_status.into(),
+                success: {
+                    match typed_status == TestCaseRunStatus::Success {
+                        true => Some(BindingsTestCaseStatusSuccess { flaky_runs: vec![] }),
+                        false => None,
+                    }
+                },
+                non_success: match typed_status == TestCaseRunStatus::Success {
+                    false => Some(BindingsTestCaseStatusNonSuccess {
+                        kind: BindingsNonSuccessKind::Failure,
+                        message: Some(status_output_message.clone()),
+                        ty: None,
+                        description: None,
+                        reruns: vec![],
+                    }),
+                    true => None,
+                },
+                skipped: match typed_status == TestCaseRunStatus::Skipped {
+                    true => Some(BindingsTestCaseStatusSkipped {
+                        message: Some(status_output_message.clone()),
+                        ty: None,
+                        description: None,
+                    }),
+                    false => None,
+                },
+            },
+            system_err: None,
+            system_out: None,
+            extra: HashMap::from([
+                ("id".to_string(), id.to_string()),
+                ("file".to_string(), file),
+                ("line".to_string(), line.to_string()),
+                ("attempt_number".to_string(), attempt_number.to_string()),
+                ("parent_name".to_string(), parent_name),
+            ]),
+            properties: vec![],
+        }
+    }
 }
 
 impl From<Report> for BindingsReport {
@@ -116,7 +291,7 @@ pub struct BindingsTestSuite {
     pub properties: Vec<BindingsProperty>,
     pub system_out: Option<String>,
     pub system_err: Option<String>,
-    pub extra: HashMap<String, String>,
+    extra: HashMap<String, String>,
 }
 
 #[cfg(feature = "pyo3")]
@@ -279,7 +454,7 @@ pub struct BindingsTestCase {
     pub status: BindingsTestCaseStatus,
     pub system_out: Option<String>,
     pub system_err: Option<String>,
-    pub extra: HashMap<String, String>,
+    extra: HashMap<String, String>,
     pub properties: Vec<BindingsProperty>,
 }
 
