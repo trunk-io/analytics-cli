@@ -101,10 +101,41 @@ jobs:
           path: target/${{ matrix.target }}/release-with-debug/trunk-analytics-cli
           if-no-files-found: error
 
+  perform_smoke_test:
+    name: Smoke test ${{ github.event.inputs.release_tag }}
+    runs-on: public-amd64-small
+    needs:
+      - build_linux
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Get Release Candidate
+        uses: actions/download-artifact@v4
+        with:
+          name: x86_64-unknown-linux
+          path: ./trunk-analytics-cli
+
+      - name: Setup Run Smoke Tests
+        uses: ./.github/actions/setup_run_smoke_tests
+
+      - name: Run succeeding test
+        env:
+          TRUNK_PUBLIC_API_ADDRESS: https://api.trunk-staging.io
+        shell: bash
+        run: |
+          chmod +x trunk-analytics-cli/trunk-analytics-cli && \
+          ./trunk-analytics-cli/trunk-analytics-cli test \
+          --org-url-slug trunk-staging-org \
+          --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
+          --token ${{ secrets.TRUNK_STAGING_ORG_API_TOKEN }} \
+          cargo nextest run -p smoke-test --profile ci
+
   tag_and_release:
     name: Tag and Release [ ${{ github.event.inputs.release_tag }} ]
     runs-on: public-amd64-small
-    needs: [build_linux, build_macos]
+    needs: [build_linux, build_macos, perform_smoke_test]
+    if: needs.perform_smoke_test.result == 'success'
 
     steps:
       - uses: actions/checkout@v4
