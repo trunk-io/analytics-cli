@@ -17,6 +17,7 @@ runs:
     - name: Run tests on staging
       env:
         TRUNK_PUBLIC_API_ADDRESS: https://api.trunk-staging.io
+        FAIL_TEST: true
       shell: bash
       run: |
         ./${{ inputs.cli-binary-location }} test \
@@ -28,6 +29,7 @@ runs:
     #    - name: Run tests on production
     #      env:
     #        TRUNK_PUBLIC_API_ADDRESS: https://api.trunk.io
+    #        FAIL_TEST: true
     #      shell: bash
     #      run: |
     #        ./${{ inputs.cli-binary-location }} test \
