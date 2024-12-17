@@ -251,8 +251,62 @@ async fn upload_bundle_using_bep() {
 async fn upload_bundle_success_status_code() {
     let temp_dir = tempdir().unwrap();
     generate_mock_git_repo(&temp_dir);
-    // DONOTLAND TODO: TYLER NEED TO FIX THIS TO INCLUDE SUMMARIES
     let test_bep_path = get_test_file_path("test_fixtures/bep_retries");
+    // The test cases need not match up or have timestamps, so long as there is a testSummary
+    // That indicates a flake or pass
+    let uri_fail = format!(
+        "file://{}",
+        get_test_file_path("../cli/test_fixtures/junit1_fail.xml")
+    );
+    let uri_pass = format!(
+        "file://{}",
+        get_test_file_path("../cli/test_fixtures/junit0_pass.xml")
+    );
+
+    let bep_content = fs::read_to_string(&test_bep_path)
+        .unwrap()
+        .replace("${URI_FAIL}", &uri_fail)
+        .replace("${URI_PASS}", &uri_pass);
+    let bep_path = temp_dir.path().join("bep.json");
+    fs::write(&bep_path, bep_content).unwrap();
+
+    let state = MockServerBuilder::new().spawn_mock_server().await;
+
+    let args = &[
+        "upload",
+        "--bazel-bep-path",
+        "./bep.json",
+        "--org-url-slug",
+        "test-org",
+        "--token",
+        "test-token",
+    ];
+
+    // Even though the junits contain failures, they contain retries that succeeded,
+    // so the upload command should have a successful exit code
+    let assert = Command::new(CARGO_RUN.path())
+        .current_dir(&temp_dir)
+        .env("TRUNK_PUBLIC_API_ADDRESS", &state.host)
+        .env("CI", "1")
+        .env("GITHUB_JOB", "test-job")
+        .args(args)
+        .assert()
+        .code(0)
+        .success();
+
+    // No quarantine request
+    let requests = state.requests.lock().unwrap().clone();
+    assert_eq!(requests.len(), 4);
+
+    // HINT: View CLI output with `cargo test -- --nocapture`
+    println!("{assert}");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn upload_bundle_success_timestamp_status_code() {
+    let temp_dir = tempdir().unwrap();
+    generate_mock_git_repo(&temp_dir);
+    let test_bep_path = get_test_file_path("test_fixtures/bep_retries_timestamp");
     let uri_fail = format!(
         "file://{}",
         get_test_file_path("../cli/test_fixtures/junit0_fail.xml")

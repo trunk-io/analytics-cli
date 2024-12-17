@@ -97,7 +97,6 @@ async fn run_test_and_get_exit_code(command: &String, args: Vec<&String>) -> any
     Ok(result)
 }
 
-// TODO: TYLER FILESET AND THE INPUT TO THIS NEEDS TO INCLUDE TEST RUNNER STATUS
 pub fn build_filesets(
     repo_root: &str,
     junit_paths: &[JunitPathWrapper],

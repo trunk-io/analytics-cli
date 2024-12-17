@@ -245,7 +245,6 @@ async fn run(cli: Cli) -> anyhow::Result<i32> {
                     })
                     .collect(),
             };
-            dbg!(&junit_file_paths); // DONOTLAND TODO: REMOVE
             validate(junit_file_paths, show_warnings, codeowners_path).await
         }
     }

@@ -46,7 +46,6 @@ pub fn generate_mock_valid_junit_xmls<T: AsRef<Path>>(directory: T) -> Vec<PathB
 pub fn generate_mock_bazel_bep<T: AsRef<Path>>(directory: T) {
     let mock_junits = generate_mock_valid_junit_xmls(&directory);
 
-    // TODO: TYLER SHOULD WE MAKE TESTSUMMARY EVENTS TOO? DONOTLAND
     let build_events: Vec<BuildEvent> = mock_junits
         .iter()
         .map(|junit| {

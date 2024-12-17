@@ -204,7 +204,6 @@ pub async fn run_upload(
     }
 
     let failures = extract_failed_tests(&repo, &org_url_slug, &file_sets).await;
-    dbg!(&failures); // TODO: REMOVE
 
     // Run the quarantine step and update the exit code.
     let exit_code = if failures.is_empty() {
