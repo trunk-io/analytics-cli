@@ -22,16 +22,10 @@ jobs:
           target: x86_64-unknown-linux-musl
           profile: release
 
-      - name: Run succeeding test
-        env:
-          TRUNK_PUBLIC_API_ADDRESS: https://api.trunk-staging.io
-        shell: bash
-        run: |
-          ./target/x86_64-unknown-linux-musl/release/trunk-analytics-cli test \
-          --org-url-slug trunk-staging-org \
-          --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
-          --token ${{ secrets.TRUNK_STAGING_ORG_API_TOKEN }} \
-          cargo nextest run -p smoke-test --profile ci
+      - name: Run Smoke Tests
+        uses: ./.github/actions/perform_smoke_test
+        with:
+          cli-binary-location: target/x86_64-unknown-linux-musl/release/trunk-analytics-cli
 
   slack-workflow-status:
     if: always() && needs.build_cli.result != 'success'

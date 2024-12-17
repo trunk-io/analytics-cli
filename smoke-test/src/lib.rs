@@ -9,4 +9,9 @@ mod tests {
     fn always_succeeds() {
         assert_eq!(1, 1)
     }
+
+    #[test]
+    fn always_fails() {
+        assert_eq!(1, 2)
+    }
 }

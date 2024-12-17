@@ -119,17 +119,10 @@ jobs:
       - name: Setup Run Smoke Tests
         uses: ./.github/actions/setup_run_smoke_tests
 
-      - name: Run succeeding test
-        env:
-          TRUNK_PUBLIC_API_ADDRESS: https://api.trunk-staging.io
-        shell: bash
-        run: |
-          chmod +x trunk-analytics-cli/trunk-analytics-cli && \
-          ./trunk-analytics-cli/trunk-analytics-cli test \
-          --org-url-slug trunk-staging-org \
-          --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
-          --token ${{ secrets.TRUNK_STAGING_ORG_API_TOKEN }} \
-          cargo nextest run -p smoke-test --profile ci
+      - name: Run Smoke Tests
+        uses: ./.github/actions/perform_smoke_test
+        with:
+          cli-binary-location: trunk-analytics-cli/trunk-analytics-cli
 
   tag_and_release:
     name: Tag and Release [ ${{ github.event.inputs.release_tag }} ]
