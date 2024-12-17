@@ -182,11 +182,11 @@ pub async fn run_upload(
         let temp_paths =
             handle_xcresult(&junit_temp_dir, xcresult_path, &repo.repo, &org_url_slug)?;
         junit_path_wrappers = [junit_path_wrappers.as_slice(), temp_paths.as_slice()].concat();
-        if junit_paths.is_empty() && !allow_empty_test_results {
+        if junit_path_wrappers.is_empty() && !allow_empty_test_results {
             return Err(anyhow::anyhow!(
                 "No tests found in the provided XCResult path."
             ));
-        } else if junit_paths.is_empty() && allow_empty_test_results {
+        } else if junit_path_wrappers.is_empty() && allow_empty_test_results {
             log::warn!("No tests found in the provided XCResult path.");
         }
     }
