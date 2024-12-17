@@ -9,7 +9,14 @@ use bundle::{
 };
 use codeowners::CodeOwners;
 use constants::{EXIT_FAILURE, EXIT_SUCCESS};
-use context::{bazel_bep::parser::BazelBepParser, junit::parser::JunitParser, repo::BundleRepo};
+use context::{
+    bazel_bep::parser::BazelBepParser,
+    junit::{
+        junit_path::{JunitPathWrapper, TestRunnerJunitStatus},
+        parser::JunitParser,
+    },
+    repo::BundleRepo,
+};
 
 use crate::{api_client::ApiClient, print::print_bep_results};
 
@@ -32,7 +39,13 @@ pub async fn run_test_command(
     log::info!("Command exit code: {}", exit_code);
 
     let output_paths = match junit_spec {
-        JunitSpec::Paths(paths) => paths,
+        JunitSpec::Paths(paths) => paths
+            .into_iter()
+            .map(|p| JunitPathWrapper {
+                junit_path: p,
+                status: None,
+            })
+            .collect(),
         JunitSpec::BazelBep(bep_path) => {
             let mut parser = BazelBepParser::new(bep_path);
             let bep_result = parser.parse()?;
@@ -87,7 +100,7 @@ async fn run_test_and_get_exit_code(command: &String, args: Vec<&String>) -> any
 // TODO: TYLER FILESET AND THE INPUT TO THIS NEEDS TO INCLUDE TEST RUNNER STATUS
 pub fn build_filesets(
     repo_root: &str,
-    junit_paths: &[String],
+    junit_paths: &[JunitPathWrapper],
     team: Option<String>,
     codeowners: &Option<CodeOwners>,
     exec_start: Option<SystemTime>,
@@ -95,10 +108,11 @@ pub fn build_filesets(
     let mut file_counter = FileSetCounter::default();
     let mut file_sets = junit_paths
         .iter()
-        .map(|path| {
+        .map(|junit_wrapper| {
             FileSet::scan_from_glob(
                 repo_root,
-                path.to_string(),
+                junit_wrapper.junit_path.to_string(),
+                junit_wrapper.status.clone(),
                 &mut file_counter,
                 team.clone(),
                 codeowners,
@@ -111,8 +125,8 @@ pub fn build_filesets(
     if file_counter.get_count() == 0 {
         file_sets = junit_paths
             .iter()
-            .map(|path| {
-                let mut path = path.clone();
+            .map(|junit_wrapper| {
+                let mut path = junit_wrapper.junit_path.clone();
                 if !path.ends_with('/') {
                     path.push('/');
                 }
@@ -120,6 +134,7 @@ pub fn build_filesets(
                 FileSet::scan_from_glob(
                     repo_root,
                     path.to_string(),
+                    junit_wrapper.status.clone(),
                     &mut file_counter,
                     team.clone(),
                     codeowners,
@@ -169,6 +184,11 @@ pub async fn extract_failed_tests(
     let mut successes: HashMap<String, i64> = HashMap::new();
 
     for file_set in file_sets {
+        if let Some(test_runner_status) = &file_set.test_runner_status {
+            if test_runner_status != &TestRunnerJunitStatus::Failed {
+                continue;
+            }
+        }
         for file in &file_set.files {
             let file = match std::fs::File::open(&file.original_path) {
                 Ok(file) => file,
@@ -348,6 +368,7 @@ mod tests {
                 },
             ],
             glob: String::from("**/*.xml"),
+            test_runner_status: None,
         }];
 
         let retried_failures =
@@ -370,6 +391,7 @@ mod tests {
                 },
             ],
             glob: String::from("**/*.xml"),
+            test_runner_status: None,
         }];
 
         let retried_failures =
@@ -392,6 +414,7 @@ mod tests {
                 },
             ],
             glob: String::from("**/*.xml"),
+            test_runner_status: None,
         }];
 
         let mut multi_failures =
@@ -425,6 +448,7 @@ mod tests {
                 },
             ],
             glob: String::from("**/*.xml"),
+            test_runner_status: None,
         }];
 
         let some_failures =

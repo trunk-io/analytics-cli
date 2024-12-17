@@ -20,7 +20,7 @@ use constants::{EXIT_FAILURE, EXIT_SUCCESS};
 use context::repo::RepoUrlParts;
 use context::{
     bazel_bep::parser::{BazelBepParser, BepParseResult},
-    junit::parser::JunitParser,
+    junit::{junit_path::JunitPathWrapper, parser::JunitParser},
     repo::BundleRepo,
 };
 
@@ -121,7 +121,7 @@ pub async fn run_upload(
     exec_start: Option<SystemTime>,
 ) -> anyhow::Result<i32> {
     let UploadArgs {
-        mut junit_paths,
+        junit_paths,
         #[cfg(target_os = "macos")]
         xcresult_path,
         bazel_bep_path,
@@ -140,6 +140,13 @@ pub async fn run_upload(
         team,
         codeowners_path,
     } = upload_args;
+    let mut junit_path_wrappers = junit_paths
+        .into_iter()
+        .map(|p| JunitPathWrapper {
+            junit_path: p,
+            status: None,
+        })
+        .collect();
 
     let repo = BundleRepo::new(
         repo_root,
@@ -163,7 +170,7 @@ pub async fn run_upload(
         let mut parser = BazelBepParser::new(bazel_bep_path);
         let bep_parse_result = parser.parse()?;
         print_bep_results(&bep_parse_result);
-        junit_paths = bep_parse_result.uncached_xml_files();
+        junit_path_wrappers = bep_parse_result.uncached_xml_files();
         bep_result = Some(bep_parse_result);
     }
 
@@ -174,7 +181,7 @@ pub async fn run_upload(
     {
         let temp_paths =
             handle_xcresult(&junit_temp_dir, xcresult_path, &repo.repo, &org_url_slug)?;
-        junit_paths = [junit_paths.as_slice(), temp_paths.as_slice()].concat();
+        junit_path_wrappers = [junit_paths.as_slice(), temp_paths.as_slice()].concat();
         if junit_paths.is_empty() && !allow_empty_test_results {
             return Err(anyhow::anyhow!(
                 "No tests found in the provided XCResult path."
@@ -186,7 +193,7 @@ pub async fn run_upload(
 
     let (file_sets, file_counter) = build_filesets(
         &repo.repo_root,
-        &junit_paths,
+        &junit_path_wrappers,
         team.clone(),
         &codeowners,
         exec_start,
@@ -197,6 +204,7 @@ pub async fn run_upload(
     }
 
     let failures = extract_failed_tests(&repo, &org_url_slug, &file_sets).await;
+    dbg!(&failures); // TODO: REMOVE
 
     // Run the quarantine step and update the exit code.
     let exit_code = if failures.is_empty() {
@@ -295,7 +303,7 @@ pub async fn run_upload(
     if file_counter.get_count() == 0 {
         log::warn!(
             "No JUnit files found to pack and upload using globs: {:?}",
-            junit_paths
+            junit_path_wrappers.iter().map(|j| &j.junit_path)
         );
     }
 
@@ -370,7 +378,7 @@ fn handle_xcresult(
     xcresult_path: Option<String>,
     repo: &RepoUrlParts,
     org_url_slug: &str,
-) -> Result<Vec<String>, anyhow::Error> {
+) -> Result<Vec<JunitPathWrapper>, anyhow::Error> {
     let mut temp_paths = Vec::new();
     if let Some(xcresult_path) = xcresult_path {
         let xcresult = XCResult::new(xcresult_path, repo, org_url_slug.to_string());
@@ -389,7 +397,10 @@ fn handle_xcresult(
                 .map_err(|e| anyhow::anyhow!("Failed to write junit file: {}", e))?;
             let junit_temp_path_str = junit_temp_path.to_str();
             if let Some(junit_temp_path_string) = junit_temp_path_str {
-                temp_paths.push(junit_temp_path_string.to_string());
+                temp_paths.push(JunitPathWrapper {
+                    junit_path: junit_temp_path_string.to_string(),
+                    status: None,
+                });
             } else {
                 return Err(anyhow::anyhow!(
                     "Failed to convert junit temp path to string."

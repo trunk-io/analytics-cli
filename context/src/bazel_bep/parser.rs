@@ -1,16 +1,17 @@
+use crate::junit::junit_path::{JunitPathWrapper, TestRunnerJunitStatus};
 use anyhow::Ok;
 use bazel_bep::types::build_event_stream::{
     build_event::Payload, build_event_id::Id, file::File::Uri, BuildEvent, TestStatus,
 };
 use serde_json::Deserializer;
-use std::{collections::HashSet, path::PathBuf};
+use std::{collections::HashMap, path::PathBuf};
 
 #[derive(Debug, Clone, Default)]
 pub struct TestResult {
     pub label: String,
     pub cached: bool,
     pub xml_files: Vec<String>,
-    pub override_pass: bool,
+    pub summary_status: Option<TestRunnerJunitStatus>,
 }
 
 const FILE_URI_PREFIX: &str = "file://";
@@ -37,17 +38,43 @@ impl BepParseResult {
         (xml_count, cached_xml_count)
     }
 
-    pub fn uncached_xml_files(&self) -> Vec<String> {
+    pub fn uncached_xml_files(&self) -> Vec<JunitPathWrapper> {
         self.test_results
             .iter()
             .filter_map(|r| {
                 if r.cached {
                     return None;
                 }
-                Some(r.xml_files.clone())
+                Some(
+                    r.xml_files
+                        .iter()
+                        .map(|f| JunitPathWrapper {
+                            junit_path: f.clone(),
+                            status: r.summary_status.clone(),
+                        })
+                        .collect::<Vec<JunitPathWrapper>>(),
+                )
             })
             .flatten()
             .collect()
+    }
+}
+
+fn convert_test_summary_status(status: TestStatus) -> Option<TestRunnerJunitStatus> {
+    // DONOTLAND TODO: REMOVE
+    // // These are the cases in which bazel marks a test as passing
+    // if test_summary.overall_status == TestStatus::Passed as i32
+    //     || test_summary.overall_status
+    //         == TestStatus::Flaky as i32
+    // {
+    //     summary_statuses.insert(id.label.clone(), TestRunnerJunitStatus::Passed);
+    // }
+
+    match status {
+        TestStatus::Passed => Some(TestRunnerJunitStatus::Passed),
+        TestStatus::Failed => Some(TestRunnerJunitStatus::Failed),
+        TestStatus::Flaky => Some(TestRunnerJunitStatus::Flaky),
+        _ => None,
     }
 }
 
@@ -71,17 +98,17 @@ impl BazelBepParser {
         let file = std::fs::File::open(&self.bazel_bep_path)?;
         let reader = std::io::BufReader::new(file);
 
-        let (errors, test_results, pass_labels, bep_test_events) =
+        let (errors, test_results, summary_statuses, bep_test_events) =
             Deserializer::from_reader(reader)
                 .into_iter::<BuildEvent>()
                 .fold(
                     (
                         Vec::<String>::new(),
                         Vec::<TestResult>::new(),
-                        HashSet::<String>::new(),
+                        HashMap::<String, TestRunnerJunitStatus>::new(),
                         Vec::<BuildEvent>::new(),
                     ),
-                    |(mut errors, mut test_results, mut pass_labels, mut bep_test_events),
+                    |(mut errors, mut test_results, mut summary_statuses, mut bep_test_events),
                      parse_event| {
                         match parse_event {
                             Result::Err(ref err) => {
@@ -95,12 +122,11 @@ impl BazelBepParser {
                                         Some(Payload::TestSummary(test_summary)),
                                         Some(Id::TestSummary(id)),
                                     ) => {
-                                        // These are the cases in which bazel marks a test as passing
-                                        if test_summary.overall_status == TestStatus::Passed as i32
-                                            || test_summary.overall_status
-                                                == TestStatus::Flaky as i32
-                                        {
-                                            pass_labels.insert(id.label.clone());
+                                        let summary_status = convert_test_summary_status(
+                                            test_summary.overall_status(),
+                                        );
+                                        if let Some(status) = summary_status {
+                                            summary_statuses.insert(id.label.clone(), status);
                                         }
                                         bep_test_events.push(build_event);
                                     }
@@ -143,7 +169,7 @@ impl BazelBepParser {
                                             label: id.label.clone(),
                                             cached,
                                             xml_files,
-                                            override_pass: false,
+                                            summary_status: None,
                                         });
                                         bep_test_events.push(build_event);
                                     }
@@ -152,7 +178,7 @@ impl BazelBepParser {
                             }
                         }
 
-                        (errors, test_results, pass_labels, bep_test_events)
+                        (errors, test_results, summary_statuses, bep_test_events)
                     },
                 );
 
@@ -160,16 +186,10 @@ impl BazelBepParser {
             bep_test_events,
             errors,
             test_results: test_results
-                .iter()
-                .map(|test_result| {
-                    let mut override_pass = false;
-                    if pass_labels.contains(&test_result.label.to_string()) {
-                        override_pass = true;
-                    }
-                    TestResult {
-                        override_pass,
-                        ..test_result.clone()
-                    }
+                .into_iter()
+                .map(|test_result| TestResult {
+                    summary_status: summary_statuses.get(&test_result.label).cloned(),
+                    ..test_result
                 })
                 .collect(),
         })

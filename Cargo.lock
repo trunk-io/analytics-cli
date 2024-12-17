@@ -931,6 +931,7 @@ dependencies = [
  "tempfile",
  "test_utils",
  "thiserror 1.0.69",
+ "tsify-next",
  "uuid",
  "wasm-bindgen",
 ]

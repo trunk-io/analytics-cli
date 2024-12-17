@@ -2,6 +2,7 @@ use std::{format, time::SystemTime};
 
 use codeowners::{CodeOwners, Owners, OwnersOfPath};
 use constants::ALLOW_LIST;
+use context::junit::junit_path::TestRunnerJunitStatus;
 #[cfg(feature = "pyo3")]
 use pyo3::prelude::*;
 #[cfg(feature = "pyo3")]
@@ -39,6 +40,7 @@ pub struct FileSet {
     pub file_set_type: FileSetType,
     pub files: Vec<BundledFile>,
     pub glob: String,
+    pub test_runner_status: Option<TestRunnerJunitStatus>,
 }
 
 impl FileSet {
@@ -48,6 +50,7 @@ impl FileSet {
     pub fn scan_from_glob(
         repo_root: &str,
         glob_path: String,
+        test_runner_status: Option<TestRunnerJunitStatus>,
         file_counter: &mut FileSetCounter,
         team: Option<String>,
         codeowners: &Option<CodeOwners>,
@@ -147,6 +150,7 @@ impl FileSet {
             file_set_type: FileSetType::Junit,
             files,
             glob: glob_path,
+            test_runner_status,
         })
     }
 }
