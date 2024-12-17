@@ -113,7 +113,8 @@ jobs:
       - name: Get Release Candidate
         uses: actions/download-artifact@v4
         with:
-          name: x86_64-unknown-linux-musl
+          name: x86_64-unknown-linux
+          path: ./trunk-analytics-cli
 
       - name: Setup Run Smoke Tests
         uses: ./.github/actions/setup_run_smoke_tests
