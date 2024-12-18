@@ -18,17 +18,17 @@ runs:
       run: |
         chmod +x ${{ inputs.cli-binary-location }}
 
-    #    - name: Run tests on staging
-    #      env:
-    #        TRUNK_PUBLIC_API_ADDRESS: https://api.trunk-staging.io
-    #        FAIL_TEST: true
-    #      shell: bash
-    #      run: |
-    #        ./${{ inputs.cli-binary-location }} test \
-    #        --org-url-slug trunk-staging-org \
-    #        --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
-    #        --token ${{ inputs.staging-api-token }} \
-    #        cargo nextest run -p smoke-test --profile ci
+    - name: Run tests on staging
+      env:
+        TRUNK_PUBLIC_API_ADDRESS: https://api.trunk-staging.io
+        FAIL_TEST: true
+      shell: bash
+      run: |
+        ./${{ inputs.cli-binary-location }} test \
+        --org-url-slug trunk-staging-org \
+        --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
+        --token ${{ inputs.staging-api-token }} \
+        cargo nextest run -p smoke-test --profile ci
 
     #    - name: Run tests on production
     #      env:
