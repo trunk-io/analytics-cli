@@ -14,11 +14,10 @@ use bazel_bep::types::build_event_stream::TestStatus;
 #[cfg_attr(feature = "pyo3", gen_stub_pyclass_enum, pyclass(eq, eq_int))]
 #[cfg_attr(feature = "wasm", derive(Tsify))]
 pub enum JunitReportStatus {
+    #[default]
     Passed,
     Failed,
     Flaky,
-    #[default]
-    Unknown,
 }
 
 impl TryFrom<TestStatus> for JunitReportStatus {
@@ -42,14 +41,14 @@ pub struct JunitReportFileWithStatus {
     pub junit_path: String,
     /// Refers to an optional status parsed from the test runner's output, before junits have been parsed.
     /// TODO(TRUNK-13911): We should populate the status for all junits, regardless of the presence of a test runner status.
-    pub status: JunitReportStatus,
+    pub status: Option<JunitReportStatus>,
 }
 
 impl From<String> for JunitReportFileWithStatus {
     fn from(junit_path: String) -> Self {
         Self {
             junit_path,
-            status: JunitReportStatus::Unknown,
+            status: None,
         }
     }
 }

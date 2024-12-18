@@ -11,7 +11,7 @@ pub struct TestResult {
     pub label: String,
     pub cached: bool,
     pub xml_files: Vec<String>,
-    pub summary_status: JunitReportStatus,
+    pub summary_status: Option<JunitReportStatus>,
 }
 
 const FILE_URI_PREFIX: &str = "file://";
@@ -150,7 +150,7 @@ impl BazelBepParser {
                                             label: id.label.clone(),
                                             cached,
                                             xml_files,
-                                            summary_status: JunitReportStatus::Unknown,
+                                            summary_status: None,
                                         });
                                         bep_test_events.push(build_event);
                                     }
@@ -169,10 +169,7 @@ impl BazelBepParser {
             test_results: test_results
                 .into_iter()
                 .map(|test_result| TestResult {
-                    summary_status: summary_statuses
-                        .get(&test_result.label)
-                        .cloned()
-                        .unwrap_or(JunitReportStatus::Unknown),
+                    summary_status: summary_statuses.get(&test_result.label).cloned(),
                     ..test_result
                 })
                 .collect(),
@@ -201,7 +198,7 @@ mod tests {
             parse_result.uncached_xml_files(),
             vec![JunitReportFileWithStatus {
                 junit_path: "/tmp/hello_test/test.xml".to_string(),
-                status: JunitReportStatus::Unknown
+                status: None
             }]
         );
         assert_eq!(parse_result.xml_file_counts(), (1, 0));
@@ -232,11 +229,11 @@ mod tests {
             vec![
                 JunitReportFileWithStatus {
                     junit_path: "/tmp/hello_test/test.xml".to_string(),
-                    status: JunitReportStatus::Passed
+                    status: Some(JunitReportStatus::Passed)
                 },
                 JunitReportFileWithStatus {
                     junit_path: "/tmp/client_test/test.xml".to_string(),
-                    status: JunitReportStatus::Passed
+                    status: Some(JunitReportStatus::Passed)
                 }
             ]
         );
@@ -258,19 +255,19 @@ mod tests {
             vec![
                 JunitReportFileWithStatus {
                     junit_path: "/tmp/hello_test/test_attempts/attempt_1.xml".to_string(),
-                    status: JunitReportStatus::Flaky
+                    status: Some(JunitReportStatus::Flaky)
                 },
                 JunitReportFileWithStatus {
                     junit_path: "/tmp/hello_test/test_attempts/attempt_2.xml".to_string(),
-                    status: JunitReportStatus::Flaky
+                    status: Some(JunitReportStatus::Flaky)
                 },
                 JunitReportFileWithStatus {
                     junit_path: "/tmp/hello_test/test.xml".to_string(),
-                    status: JunitReportStatus::Flaky
+                    status: Some(JunitReportStatus::Flaky)
                 },
                 JunitReportFileWithStatus {
                     junit_path: "/tmp/client_test/test.xml".to_string(),
-                    status: JunitReportStatus::Failed
+                    status: Some(JunitReportStatus::Failed)
                 }
             ]
         );

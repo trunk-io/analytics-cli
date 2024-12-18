@@ -41,7 +41,7 @@ pub struct FileSet {
     pub files: Vec<BundledFile>,
     pub glob: String,
     /// Added in v0.6.11. Populated when parsing from BEP, not from junit globs
-    pub test_runner_status: JunitReportStatus,
+    pub test_runner_status: Option<JunitReportStatus>,
 }
 
 impl FileSet {
