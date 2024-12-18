@@ -27,7 +27,7 @@ runs:
         ./${{ inputs.cli-binary-location }} test \
         --org-url-slug trunk-staging-org \
         --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
-        --token ${{ staging-api-token }} \
+        --token ${{ inputs.staging-api-token }} \
         cargo nextest run -p smoke-test --profile ci
 
     #    - name: Run tests on production
@@ -39,7 +39,7 @@ runs:
     #        ./${{ inputs.cli-binary-location }} test \
     #        --org-url-slug trunk \
     #        --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
-    #        --token ${{ production-api-token }} \
+    #        --token ${{ inputs.production-api-token }} \
     #        cargo nextest run -p smoke-test --profile ci
 
     - name: Upload to staging
@@ -50,7 +50,7 @@ runs:
         ./${{ inputs.cli-binary-location }} upload \
         --org-url-slug trunk-staging-org \
         --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
-        --token ${{ staging-api-token }} \
+        --token ${{ inputs.staging-api-token }} \
         cargo nextest run -p smoke-test --profile ci
 
 #    - name: Upload to production
@@ -61,5 +61,5 @@ runs:
 #        ./${{ inputs.cli-binary-location }} upload \
 #        --org-url-slug trunk \
 #        --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
-#        --token ${{ production-api-token }} \
+#        --token ${{ inputs.production-api-token }} \
 #        cargo nextest run -p smoke-test --profile ci
