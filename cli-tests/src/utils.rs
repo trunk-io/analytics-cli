@@ -1,5 +1,8 @@
 use bazel_bep::types::build_event_stream::{
-    build_event::Payload, file::File::Uri, BuildEvent, File, TestResult,
+    build_event::Payload,
+    build_event_id::{Id, TestResultId},
+    file::File::Uri,
+    BuildEvent, BuildEventId, File, TestResult,
 };
 use chrono::{TimeDelta, Utc};
 use escargot::{CargoBuild, CargoRun};
@@ -54,6 +57,12 @@ pub fn generate_mock_bazel_bep<T: AsRef<Path>>(directory: T) {
                 ..Default::default()
             }];
             build_event.payload = Some(Payload::TestResult(payload));
+            build_event.id = Some(BuildEventId {
+                id: Some(Id::TestResult(TestResultId {
+                    label: "//path:test".to_string(),
+                    ..Default::default()
+                })),
+            });
             build_event
         })
         .collect();
