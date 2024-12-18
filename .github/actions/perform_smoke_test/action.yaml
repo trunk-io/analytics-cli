@@ -50,8 +50,7 @@ runs:
         ./${{ inputs.cli-binary-location }} upload \
         --org-url-slug trunk-staging-org \
         --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
-        --token ${{ inputs.staging-api-token }} \
-        cargo nextest run -p smoke-test --profile ci
+        --token ${{ inputs.staging-api-token }}
 
 #    - name: Upload to production
 #      env:
@@ -61,5 +60,4 @@ runs:
 #        ./${{ inputs.cli-binary-location }} upload \
 #        --org-url-slug trunk \
 #        --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
-#        --token ${{ inputs.production-api-token }} \
-#        cargo nextest run -p smoke-test --profile ci
+#        --token ${{ inputs.production-api-token }}
