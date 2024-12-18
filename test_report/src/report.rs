@@ -109,22 +109,18 @@ impl MutTestReport {
 
     // sends out to the trunk api
     pub fn publish(&self) -> bool {
-        self.0
-            .borrow_mut()
-            .test_result
-            .uploader_metadata
-            .as_mut()
-            .unwrap()
-            .upload_time = Some(Timestamp {
-            seconds: Utc::now().timestamp(),
-            nanos: Utc::now().timestamp_subsec_nanos() as i32,
-        });
         let path = self.save();
         let token = std::env::var("TRUNK_API_TOKEN").unwrap_or_default();
         let org_url_slug = std::env::var("TRUNK_ORG_URL_SLUG").unwrap_or_default();
         if token.is_empty() || org_url_slug.is_empty() {
             println!("Missing TRUNK_API_TOKEN or TRUNK_ORG_URL_SLUG");
             return false;
+        }
+        if let Some(uploader_metadata) = &mut self.0.borrow_mut().test_result.uploader_metadata {
+            uploader_metadata.upload_time = Some(Timestamp {
+                seconds: Utc::now().timestamp(),
+                nanos: Utc::now().timestamp_subsec_nanos() as i32,
+            });
         }
         let upload_args = trunk_analytics_cli::upload::UploadArgs::new(
             token,
@@ -223,22 +219,22 @@ impl MutTestReport {
 
     // lists the quarantined tests in the test report
     pub fn list_quarantined_tests(&self) {
-        panic!("TODO - List quarantined");
+        todo!("List quarantined");
     }
 
     // checks if a test is quarantined
     pub fn is_quarantined(&self, _id: String) {
-        panic!("TODO - Is quarantined");
+        todo!("Is quarantined");
     }
 
     // validates the env is set for CI
     pub fn valid_env(&self) {
-        panic!("TODO - Valid env");
+        todo!("Valid env");
     }
 
     // validates that we are in a git repo
     pub fn valid_git(&self) {
-        panic!("TODO - Valid git");
+        todo!("Valid git");
     }
 
     pub fn to_string(&self) -> String {

@@ -20,6 +20,8 @@ GEM
       diff-lcs (>= 1.2.0, < 2.0)
       rspec-support (~> 3.13.0)
     rspec-support (3.13.2)
+    rspec_junit_formatter (0.6.0)
+      rspec-core (>= 2, < 4, != 2.12.0)
     test-unit (3.6.4)
       power_assert
 
@@ -34,6 +36,7 @@ DEPENDENCIES
   rb_sys (~> 0.9.103)
   rspec
   rspec-core
+  rspec_junit_formatter
   test-unit
 
 BUNDLED WITH

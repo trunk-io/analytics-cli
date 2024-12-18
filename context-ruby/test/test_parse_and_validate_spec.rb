@@ -4,7 +4,7 @@ require_relative '../lib/context_ruby'
 require_relative '../spec/spec_helper'
 
 # trunk-ignore(rubocop/Metrics/BlockLength)
-describe 'context_ruby' do
+describe do
   it 'should be able to env_parse' do
     env_vars = {
       'GITHUB_ACTIONS' => 'true',

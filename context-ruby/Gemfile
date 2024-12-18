@@ -7,5 +7,6 @@ gem 'rake-compiler', '1.2.0'
 gem 'rspec'
 gem 'rspec-core'
 gem 'test-unit'
+gem 'rspec_junit_formatter'
 
 gem 'rb_sys', '~> 0.9.103'

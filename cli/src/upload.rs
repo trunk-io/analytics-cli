@@ -343,8 +343,9 @@ pub async fn run_upload(
         }
     }
 
-    let bundle_temp_dir = tempfile::tempdir()?;
-    let bundle_time_file = bundle_temp_dir.path().join("bundle.tar.zstd");
+    let bundle_temp_dir = std::path::Path::new("/tmp");
+    let bundle_time_file = bundle_temp_dir.join("bundle.tar.zstd");
+    println!("Creating bundle tarball... {}", bundle_time_file.display());
     let bundle = BundlerUtil::new(meta, bep_result);
     bundle.make_tarball(&bundle_time_file)?;
     log::info!("Flushed temporary tarball to {:?}", bundle_time_file);

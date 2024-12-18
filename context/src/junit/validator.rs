@@ -115,8 +115,8 @@ pub fn validate(report: &Report) -> JunitReportValidation {
             if let Some(raw_test_case_id) = test_case.extra.get("id") {
                 let test_case_id = uuid::Uuid::parse_str(raw_test_case_id).unwrap_or_default();
                 if test_case_id.get_version() != Some(uuid::Version::Sha1) {
-                    test_case_validation.add_issue(JunitValidationIssue::Invalid(
-                        JunitTestCaseValidationIssueInvalid::TestCaseInvalidId(
+                    test_case_validation.add_issue(JunitValidationIssue::SubOptimal(
+                        JunitTestCaseValidationIssueSubOptimal::TestCaseInvalidId(
                             raw_test_case_id.to_string().clone(),
                         ),
                     ));
@@ -607,12 +607,12 @@ pub enum JunitTestCaseValidationIssueSubOptimal {
         TIMESTAMP_STALE_HOURS
     )]
     TestCaseStaleTimestamp(DateTime<FixedOffset>),
+    #[error("test case id is not a valid uuidv5")]
+    TestCaseInvalidId(String),
 }
 
 #[derive(Error, Debug, Clone, PartialEq, Eq)]
 pub enum JunitTestCaseValidationIssueInvalid {
     #[error("test case name too short")]
     TestCaseNameTooShort(String),
-    #[error("test case id is not a valid uuidv5")]
-    TestCaseInvalidId(String),
 }

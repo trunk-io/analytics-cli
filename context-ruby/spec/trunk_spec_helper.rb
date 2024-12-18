@@ -61,10 +61,10 @@ module RSpec
       # run the test
       @example.run
       # monitor attempts in the metadata
-      if @example.metadata[:attempts]
-        @example.metadata[:attempts] += 1
+      if @example.metadata[:attempt_number]
+        @example.metadata[:attempt_number] += 1
       else
-        @example.metadata[:attempts] = 1
+        @example.metadata[:attempt_number] = 0
       end
 
       # add the test to the report
@@ -87,6 +87,7 @@ class TrunkAnalyticsListener
 
   def close(_notification)
     puts @testreport.publish
+    puts @testreport.to_s
   end
 
   def description_generated?(example)
@@ -99,7 +100,7 @@ class TrunkAnalyticsListener
 
   def generate_id(example)
     "#{example.id}-#{example.location}" if description_generated?(example)
-    ''
+    nil
   end
 
   # trunk-ignore(rubocop/Metrics/AbcSize,rubocop/Metrics/MethodLength)
@@ -120,7 +121,7 @@ class TrunkAnalyticsListener
     finished_at = example.execution_result.finished_at.to_i
     id = generate_id(example)
 
-    attempts = example.metadata[:attempts] || 0
+    attempt_number = example.metadata[:attempt_number] || 0
     status = example.execution_result.status.to_s
     case example.execution_result.status
     when :passed
@@ -130,7 +131,9 @@ class TrunkAnalyticsListener
     when :pending
       status = Status.new('skipped')
     end
-    @testreport.add_test(id, name, classname, file, example.example_group.description, line, status, attempts,
+    parent_name = example.example_group.metadata[:description]
+    parent_name = parent_name.empty? ? 'rspec' : parent_name
+    @testreport.add_test(id, name, classname, file, parent_name, line, status, attempt_number,
                          started_at, finished_at, failure_message || '')
   end
 end

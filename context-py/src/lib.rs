@@ -84,8 +84,8 @@ fn junit_parse(xml: Vec<u8>) -> PyResult<Vec<junit::bindings::BindingsReport>> {
 #[gen_stub_pyfunction]
 #[pyfunction]
 fn bin_parse(bin: Vec<u8>) -> PyResult<Vec<junit::bindings::BindingsReport>> {
-    let test_cases = proto::test_context::test_run::TestResult::decode(&*bin).unwrap();
-    let bindings_report = junit::bindings::BindingsReport::from(test_cases);
+    let test_result = proto::test_context::test_run::TestResult::decode(&*bin).unwrap();
+    let bindings_report = junit::bindings::BindingsReport::from(test_result);
     Ok(vec![bindings_report])
 }
 
