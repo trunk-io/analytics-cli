@@ -68,6 +68,8 @@ describe("context-js", () => {
         <testsuite name="my-test-suite" tests="1" disabled="0" errors="0" failures="1" timestamp="${validTimestamp}">
           <testcase name="failure-case" file="test.py" classname="MyClass" timestamp="${validTimestamp}" time="1">
             <failure/>
+            <system-out/>
+            <system-err/>
           </testcase>
         </testsuite>
       </testsuites>
@@ -101,6 +103,23 @@ describe("context-js", () => {
         .all_issues_owned()
         .filter((issue) => issue.error_type === JunitValidationType.Report),
     ).toHaveLength(1);
+
+    const nestedJunitXml = `<?xml version="1.0" encoding="UTF-8"?>
+      <testsuites>
+          <testsuite name="/home/runner/work/flake-farm/flake-farm/php/phpunit/phpunit.xml" tests="2" assertions="2" errors="0" failures="0" skipped="0" timestamp="${validTimestamp}" time="0.001161">
+              <testsuite name="Project Test Suite" tests="2" assertions="2" errors="0" failures="0" skipped="0" time="0.001161" timestamp="${validTimestamp}">
+                  <testsuite name="" file="/home/runner/work/flake-farm/flake-farm/php/phpunit/tests/EmailTest.php" tests="2" assertions="2" errors="0" failures="0" skipped="0" time="0.001161" timestamp="${validTimestamp}">
+                      <testcase name="testCanBeCreatedFromValidEmail" file="/home/runner/work/flake-farm/flake-farm/php/phpunit/tests/EmailTest.php" line="6" class="EmailTest" classname="EmailTest" assertions="1" time="0.000860" timestamp="${validTimestamp}"/>
+                      <testcase name="testCannotBeCreatedFromInvalidEmail" file="/home/runner/work/flake-farm/flake-farm/php/phpunit/tests/EmailTest.php" line="15" class="EmailTest" classname="EmailTest" assertions="1" time="0.000301" timestamp="${validTimestamp}"/>
+                  </testsuite>
+              </testsuite>
+          </testsuite>
+      </testsuites>`;
+
+    report = junit_parse(Buffer.from(nestedJunitXml, "utf-8"));
+    junitReportValidation = junit_validate(report[0]);
+
+    expect(junitReportValidation.max_level()).toBe(JunitValidationLevel.Valid);
   });
 
   it("validates repos", () => {
