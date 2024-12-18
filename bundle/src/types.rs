@@ -31,6 +31,7 @@ pub struct Test {
     pub class_name: Option<String>,
     pub file: Option<String>,
     pub id: String,
+    /// Added in v0.6.9
     pub timestamp_millis: Option<i64>,
 }
 
