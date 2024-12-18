@@ -120,7 +120,6 @@ impl UploadArgs {
         junit_paths: Vec<String>,
         repo_root: String,
     ) -> Self {
-        // TODO - indicate coming from bin + version
         Self {
             junit_paths,
             #[cfg(target_os = "macos")]
@@ -134,9 +133,10 @@ impl UploadArgs {
             repo_head_branch: None,
             repo_head_commit_epoch: None,
             tags: Vec::new(),
-            print_files: true,
+            print_files: false,
             dry_run: false,
             team: None,
+            // TODO - how are code owners handled?
             codeowners_path: None,
             use_quarantining: false,
             allow_empty_test_results: true,

@@ -26,57 +26,6 @@ message TestCaseRun {
   string status_output_message = 11;
 }
 
-enum CIPlatform {
-  CI_PLATFORM_UNSPECIFIED = 0;
-  CI_PLATFORM_GITHUB_ACTIONS = 1;
-  CI_PLATFORM_JENKINS_PIPELINE = 2;
-  CI_PLATFORM_CIRCLE_CI = 3;
-  CI_PLATFORM_BUILDKITE = 4;
-  CI_PLATFORM_SEMAPHORE = 5;
-  CI_PLATFORM_TRAVIS_CI = 6;
-  CI_PLATFORM_WEBAPPIO = 7;
-  CI_PLATFORM_AWS_CODE_BUILD = 8;
-  CI_PLATFORM_BITBUCKET_PIPELINES = 9;
-  CI_PLATFORM_AZURE_PIPELINES = 10;
-  CI_PLATFORM_GITLAB_CI = 11;
-  CI_PLATFORM_DRONE = 12;
-}
-
-enum BranchClass {
-  BRANCH_CLASS_UNSPECIFIED = 0;
-  BRANCH_CLASS_PROTECTED = 1;
-  BRANCH_CLASS_PULL_REQUEST = 2;
-  BRANCH_CLASS_MERGE = 3;
-}
-
-message CIInfo {
-    CIPlatform platform = 1;
-    string job_url = 2;
-    string branch = 3;
-    BranchClass branch_class = 4;
-    int32 pr_number = 5;
-    string actor = 6;
-    string committer_name = 7;
-    string committer_email = 8;
-    string author_name = 9;
-    string author_email = 10;
-    string commit_message = 11;
-    string title = 12;
-    string workflow = 13;
-    string job = 14;
-}
-
-message BundleRepo {
-    string repo_root = 1;
-    string repo_url = 2;
-    string repo_head_sha = 3;
-    string repo_head_branch = 4;
-    int64 repo_head_commit_epoch = 5;
-    string repo_head_commit_message = 6;
-    string repo_head_author_name = 7;
-    string repo_head_author_email = 8;
-}
-
 message UploaderMetadata {
     string version = 1;
     string origin = 2; // RSpec, jest, etc..
@@ -85,7 +34,5 @@ message UploaderMetadata {
 
 message TestResult {
   repeated TestCaseRun test_case_runs = 1;
-  CIInfo ci_info = 2;
-  BundleRepo bundle_repo = 3;
-  UploaderMetadata uploader_metadata = 4;
+  UploaderMetadata uploader_metadata = 2;
 }

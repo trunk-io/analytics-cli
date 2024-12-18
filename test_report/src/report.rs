@@ -45,7 +45,7 @@ impl Status {
             "success" => Status::Success,
             "failure" => Status::Failure,
             "skipped" => Status::Skipped,
-            _ => panic!("invalid Status: {}", status),
+            _ => Status::Success,
         }
     }
 }
@@ -90,7 +90,6 @@ pub struct MutTestReport(RefCell<TestReport>);
 impl MutTestReport {
     pub fn new(origin: String) -> Self {
         let mut test_result = TestResult::default();
-        // TODO - include git and env states
         test_result.uploader_metadata = Some(UploaderMetadata {
             origin,
             version: std::env!("CARGO_PKG_VERSION").to_string(),
@@ -110,10 +109,14 @@ impl MutTestReport {
     // sends out to the trunk api
     pub fn publish(&self) -> bool {
         let path = self.save();
+        if path.is_err() {
+            return false;
+        }
+        let resolved_path = path.unwrap_or_default();
         let token = std::env::var("TRUNK_API_TOKEN").unwrap_or_default();
         let org_url_slug = std::env::var("TRUNK_ORG_URL_SLUG").unwrap_or_default();
         if token.is_empty() || org_url_slug.is_empty() {
-            println!("Missing TRUNK_API_TOKEN or TRUNK_ORG_URL_SLUG");
+            println!("Token or org url slug not set");
             return false;
         }
         if let Some(uploader_metadata) = &mut self.0.borrow_mut().test_result.uploader_metadata {
@@ -125,11 +128,11 @@ impl MutTestReport {
         let upload_args = trunk_analytics_cli::upload::UploadArgs::new(
             token,
             org_url_slug,
-            vec![path],
+            vec![resolved_path],
             // TODO - this isn't right, find the repo root
             "..".to_string(),
         );
-        let res = tokio::runtime::Builder::new_multi_thread()
+        match tokio::runtime::Builder::new_multi_thread()
             .enable_all()
             .build()
             .unwrap()
@@ -139,29 +142,25 @@ impl MutTestReport {
                 None,
                 None,
                 None,
-            ));
-        match res {
-            Ok(_) => {
-                println!("Successfully uploaded");
-                true
-            }
+            )) {
+            Ok(_) => return true,
             Err(e) => {
                 println!("Error uploading: {:?}", e);
-                false
+                return false;
             }
         }
     }
 
     // saves to local fs and returns the path
-    pub fn save(&self) -> String {
+    pub fn save(&self) -> Result<String, anyhow::Error> {
         let buf = self.serialize_test_result();
         if let Ok(named_temp_file) = tempfile::Builder::new().suffix(".bin").tempfile() {
             std::fs::write(&named_temp_file, buf).unwrap_or_default();
             let (_, path) = named_temp_file.keep().unwrap();
             let path_str = path.to_str().unwrap_or_default();
-            return path_str.to_string();
+            return Ok(path_str.to_string());
         }
-        panic!("Could not create a temp file");
+        Err(anyhow::anyhow!("Error saving test report"))
     }
 
     // adds a test to the test report

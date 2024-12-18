@@ -127,6 +127,7 @@ impl FileSet {
             // Save file under junit/0, junit/1, etc.
             // This is to avoid having to deal with potential file name collisions.
             let path_formatted = match original_path_abs.ends_with(".xml") {
+                // we currently support junit and internal binary files
                 true => format!("junit/{}", file_counter.count_file()),
                 false => format!("bin/{}", file_counter.count_file()),
             };

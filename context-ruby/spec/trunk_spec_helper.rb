@@ -103,7 +103,7 @@ class TrunkAnalyticsListener
     nil
   end
 
-  # trunk-ignore(rubocop/Metrics/AbcSize,rubocop/Metrics/MethodLength)
+  # trunk-ignore(rubocop/Metrics/AbcSize,rubocop/Metrics/MethodLength,rubocop/Metrics/CyclomaticComplexity)
   def add_test_case(example)
     if example.exception
       failure_message = example.exception.message

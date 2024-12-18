@@ -47,8 +47,6 @@ impl From<TestResult> for BindingsReport {
     fn from(
         TestResult {
             test_case_runs,
-            ci_info: _ci_info,
-            bundle_repo: _bundle_repo,
             uploader_metadata,
         }: TestResult,
     ) -> Self {

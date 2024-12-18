@@ -715,9 +715,6 @@ dependencies = [
  "log",
  "magnus",
  "openssl",
- "prost 0.13.4",
- "prost-types 0.13.4",
- "prost-wkt-types",
  "proto",
  "quick-junit",
  "quick-xml 0.36.2",
@@ -725,7 +722,6 @@ dependencies = [
  "serde",
  "serde_json",
  "speedate",
- "tempfile",
  "thiserror 1.0.69",
  "uuid",
 ]
@@ -3479,15 +3475,13 @@ dependencies = [
 name = "test_report"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "chrono",
- "env_logger",
- "log",
  "magnus",
  "prost 0.13.4",
  "prost-wkt-types",
  "proto",
  "serde_json",
- "speedate",
  "tempfile",
  "tokio",
  "trunk-analytics-cli",

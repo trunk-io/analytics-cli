@@ -9,7 +9,7 @@ mod tests {
     use crate::test_context::test_run::TestCaseRun;
     #[test]
     fn create_test_run() {
-        let mut test_case_run = TestCaseRun::default();
+        let test_case_run = TestCaseRun::default();
         assert_eq!(test_case_run, TestCaseRun::default());
     }
 }
