@@ -6,7 +6,8 @@ use clap::{Args, Parser, Subcommand};
 use codeowners::CodeOwners;
 use constants::{EXIT_FAILURE, SENTRY_DSN};
 use context::{
-    bazel_bep::parser::BazelBepParser, junit::junit_path::JunitPathWrapper, repo::BundleRepo,
+    bazel_bep::parser::BazelBepParser, junit::junit_path::JunitReportFileWithStatus,
+    repo::BundleRepo,
 };
 use trunk_analytics_cli::{
     api_client::ApiClient,
@@ -239,10 +240,7 @@ async fn run(cli: Cli) -> anyhow::Result<i32> {
                 }
                 None => junit_paths
                     .into_iter()
-                    .map(|p| JunitPathWrapper {
-                        junit_path: p,
-                        status: None,
-                    })
+                    .map(JunitReportFileWithStatus::from)
                     .collect(),
             };
             validate(junit_file_paths, show_warnings, codeowners_path).await

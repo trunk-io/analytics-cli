@@ -7,7 +7,7 @@ use colored::{ColoredString, Colorize};
 use console::Emoji;
 use constants::{EXIT_FAILURE, EXIT_SUCCESS};
 use context::junit::{
-    junit_path::JunitPathWrapper,
+    junit_path::JunitReportFileWithStatus,
     parser::{JunitParseError, JunitParser},
     validator::{
         validate as validate_report, JunitReportValidation, JunitReportValidationFlatIssue,
@@ -22,7 +22,7 @@ type JunitFileToReportAndErrors = BTreeMap<String, (anyhow::Result<Report>, Vec<
 type JunitFileToValidation = BTreeMap<String, anyhow::Result<JunitReportValidation>>;
 
 pub async fn validate(
-    junit_paths: Vec<JunitPathWrapper>,
+    junit_paths: Vec<JunitReportFileWithStatus>,
     show_warnings: bool,
     codeowners_path: Option<String>,
 ) -> anyhow::Result<i32> {

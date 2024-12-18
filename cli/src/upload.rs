@@ -20,7 +20,7 @@ use constants::{EXIT_FAILURE, EXIT_SUCCESS};
 use context::repo::RepoUrlParts;
 use context::{
     bazel_bep::parser::{BazelBepParser, BepParseResult},
-    junit::{junit_path::JunitPathWrapper, parser::JunitParser},
+    junit::{junit_path::JunitReportFileWithStatus, parser::JunitParser},
     repo::BundleRepo,
 };
 
@@ -142,10 +142,7 @@ pub async fn run_upload(
     } = upload_args;
     let mut junit_path_wrappers = junit_paths
         .into_iter()
-        .map(|p| JunitPathWrapper {
-            junit_path: p,
-            status: None,
-        })
+        .map(JunitReportFileWithStatus::from)
         .collect();
 
     let repo = BundleRepo::new(
@@ -377,7 +374,7 @@ fn handle_xcresult(
     xcresult_path: Option<String>,
     repo: &RepoUrlParts,
     org_url_slug: &str,
-) -> Result<Vec<JunitPathWrapper>, anyhow::Error> {
+) -> Result<Vec<JunitReportFileWithStatus>, anyhow::Error> {
     let mut temp_paths = Vec::new();
     if let Some(xcresult_path) = xcresult_path {
         let xcresult = XCResult::new(xcresult_path, repo, org_url_slug.to_string());
@@ -396,7 +393,7 @@ fn handle_xcresult(
                 .map_err(|e| anyhow::anyhow!("Failed to write junit file: {}", e))?;
             let junit_temp_path_str = junit_temp_path.to_str();
             if let Some(junit_temp_path_string) = junit_temp_path_str {
-                temp_paths.push(JunitPathWrapper {
+                temp_paths.push(JunitReportFileWithStatus {
                     junit_path: junit_temp_path_string.to_string(),
                     status: None,
                 });

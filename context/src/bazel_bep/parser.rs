@@ -1,7 +1,7 @@
-use crate::junit::junit_path::{JunitPathWrapper, TestRunnerJunitStatus};
+use crate::junit::junit_path::{JunitReportFileWithStatus, JunitReportStatus};
 use anyhow::Ok;
 use bazel_bep::types::build_event_stream::{
-    build_event::Payload, build_event_id::Id, file::File::Uri, BuildEvent, TestStatus,
+    build_event::Payload, build_event_id::Id, file::File::Uri, BuildEvent,
 };
 use serde_json::Deserializer;
 use std::{collections::HashMap, path::PathBuf};
@@ -11,7 +11,7 @@ pub struct TestResult {
     pub label: String,
     pub cached: bool,
     pub xml_files: Vec<String>,
-    pub summary_status: Option<TestRunnerJunitStatus>,
+    pub summary_status: JunitReportStatus,
 }
 
 const FILE_URI_PREFIX: &str = "file://";
@@ -38,7 +38,7 @@ impl BepParseResult {
         (xml_count, cached_xml_count)
     }
 
-    pub fn uncached_xml_files(&self) -> Vec<JunitPathWrapper> {
+    pub fn uncached_xml_files(&self) -> Vec<JunitReportFileWithStatus> {
         self.test_results
             .iter()
             .filter_map(|r| {
@@ -48,24 +48,15 @@ impl BepParseResult {
                 Some(
                     r.xml_files
                         .iter()
-                        .map(|f| JunitPathWrapper {
+                        .map(|f| JunitReportFileWithStatus {
                             junit_path: f.clone(),
                             status: r.summary_status.clone(),
                         })
-                        .collect::<Vec<JunitPathWrapper>>(),
+                        .collect::<Vec<JunitReportFileWithStatus>>(),
                 )
             })
             .flatten()
             .collect()
-    }
-}
-
-fn convert_test_summary_status(status: TestStatus) -> Option<TestRunnerJunitStatus> {
-    match status {
-        TestStatus::Passed => Some(TestRunnerJunitStatus::Passed),
-        TestStatus::Failed => Some(TestRunnerJunitStatus::Failed),
-        TestStatus::Flaky => Some(TestRunnerJunitStatus::Flaky),
-        _ => None,
     }
 }
 
@@ -96,7 +87,7 @@ impl BazelBepParser {
                     (
                         Vec::<String>::new(),
                         Vec::<TestResult>::new(),
-                        HashMap::<String, TestRunnerJunitStatus>::new(),
+                        HashMap::<String, JunitReportStatus>::new(),
                         Vec::<BuildEvent>::new(),
                     ),
                     |(mut errors, mut test_results, mut summary_statuses, mut bep_test_events),
@@ -113,10 +104,9 @@ impl BazelBepParser {
                                         Some(Payload::TestSummary(test_summary)),
                                         Some(Id::TestSummary(id)),
                                     ) => {
-                                        let summary_status = convert_test_summary_status(
+                                        if let Result::Ok(status) = JunitReportStatus::try_from(
                                             test_summary.overall_status(),
-                                        );
-                                        if let Some(status) = summary_status {
+                                        ) {
                                             summary_statuses.insert(id.label.clone(), status);
                                         }
                                         bep_test_events.push(build_event);
@@ -160,7 +150,7 @@ impl BazelBepParser {
                                             label: id.label.clone(),
                                             cached,
                                             xml_files,
-                                            summary_status: None,
+                                            summary_status: JunitReportStatus::Unknown,
                                         });
                                         bep_test_events.push(build_event);
                                     }
@@ -179,7 +169,10 @@ impl BazelBepParser {
             test_results: test_results
                 .into_iter()
                 .map(|test_result| TestResult {
-                    summary_status: summary_statuses.get(&test_result.label).cloned(),
+                    summary_status: summary_statuses
+                        .get(&test_result.label)
+                        .cloned()
+                        .unwrap_or(JunitReportStatus::Unknown),
                     ..test_result
                 })
                 .collect(),
@@ -206,9 +199,9 @@ mod tests {
         let empty_vec: Vec<String> = Vec::new();
         assert_eq!(
             parse_result.uncached_xml_files(),
-            vec![JunitPathWrapper {
+            vec![JunitReportFileWithStatus {
                 junit_path: "/tmp/hello_test/test.xml".to_string(),
-                status: None
+                status: JunitReportStatus::Unknown
             }]
         );
         assert_eq!(parse_result.xml_file_counts(), (1, 0));
@@ -221,7 +214,7 @@ mod tests {
         let mut parser = BazelBepParser::new(input_file);
         let parse_result = parser.parse().unwrap();
 
-        let empty_xml_vec: Vec<JunitPathWrapper> = Vec::new();
+        let empty_xml_vec: Vec<JunitReportFileWithStatus> = Vec::new();
         let empty_errors_vec: Vec<String> = Vec::new();
         assert_eq!(parse_result.uncached_xml_files(), empty_xml_vec);
         assert_eq!(parse_result.xml_file_counts(), (0, 0));
@@ -237,13 +230,13 @@ mod tests {
         assert_eq!(
             parse_result.uncached_xml_files(),
             vec![
-                JunitPathWrapper {
+                JunitReportFileWithStatus {
                     junit_path: "/tmp/hello_test/test.xml".to_string(),
-                    status: Some(TestRunnerJunitStatus::Passed)
+                    status: JunitReportStatus::Passed
                 },
-                JunitPathWrapper {
+                JunitReportFileWithStatus {
                     junit_path: "/tmp/client_test/test.xml".to_string(),
-                    status: Some(TestRunnerJunitStatus::Passed)
+                    status: JunitReportStatus::Passed
                 }
             ]
         );
@@ -263,21 +256,21 @@ mod tests {
         assert_eq!(
             parse_result.uncached_xml_files(),
             vec![
-                JunitPathWrapper {
+                JunitReportFileWithStatus {
                     junit_path: "/tmp/hello_test/test_attempts/attempt_1.xml".to_string(),
-                    status: Some(TestRunnerJunitStatus::Flaky)
+                    status: JunitReportStatus::Flaky
                 },
-                JunitPathWrapper {
+                JunitReportFileWithStatus {
                     junit_path: "/tmp/hello_test/test_attempts/attempt_2.xml".to_string(),
-                    status: Some(TestRunnerJunitStatus::Flaky)
+                    status: JunitReportStatus::Flaky
                 },
-                JunitPathWrapper {
+                JunitReportFileWithStatus {
                     junit_path: "/tmp/hello_test/test.xml".to_string(),
-                    status: Some(TestRunnerJunitStatus::Flaky)
+                    status: JunitReportStatus::Flaky
                 },
-                JunitPathWrapper {
+                JunitReportFileWithStatus {
                     junit_path: "/tmp/client_test/test.xml".to_string(),
-                    status: Some(TestRunnerJunitStatus::Failed)
+                    status: JunitReportStatus::Failed
                 }
             ]
         );

@@ -2,7 +2,7 @@ use std::{format, time::SystemTime};
 
 use codeowners::{CodeOwners, Owners, OwnersOfPath};
 use constants::ALLOW_LIST;
-use context::junit::junit_path::TestRunnerJunitStatus;
+use context::junit::junit_path::{JunitReportFileWithStatus, JunitReportStatus};
 #[cfg(feature = "pyo3")]
 use pyo3::prelude::*;
 #[cfg(feature = "pyo3")]
@@ -41,7 +41,7 @@ pub struct FileSet {
     pub files: Vec<BundledFile>,
     pub glob: String,
     /// Added in v0.6.11. Populated when parsing from BEP, not from junit globs
-    pub test_runner_status: Option<TestRunnerJunitStatus>,
+    pub test_runner_status: JunitReportStatus,
 }
 
 impl FileSet {
@@ -50,13 +50,16 @@ impl FileSet {
     ///
     pub fn scan_from_glob(
         repo_root: &str,
-        glob_path: String,
-        test_runner_status: Option<TestRunnerJunitStatus>,
+        glob_with_status: JunitReportFileWithStatus,
         file_counter: &mut FileSetCounter,
         team: Option<String>,
         codeowners: &Option<CodeOwners>,
         start: Option<SystemTime>,
     ) -> anyhow::Result<FileSet> {
+        let JunitReportFileWithStatus {
+            junit_path: glob_path,
+            status: test_runner_status,
+        } = glob_with_status;
         let path_to_scan = if !std::path::Path::new(&glob_path).is_absolute() {
             std::path::Path::new(repo_root)
                 .join(&glob_path)

@@ -12,7 +12,7 @@ use constants::{EXIT_FAILURE, EXIT_SUCCESS};
 use context::{
     bazel_bep::parser::BazelBepParser,
     junit::{
-        junit_path::{JunitPathWrapper, TestRunnerJunitStatus},
+        junit_path::{JunitReportFileWithStatus, JunitReportStatus},
         parser::JunitParser,
     },
     repo::BundleRepo,
@@ -41,10 +41,7 @@ pub async fn run_test_command(
     let output_paths = match junit_spec {
         JunitSpec::Paths(paths) => paths
             .into_iter()
-            .map(|p| JunitPathWrapper {
-                junit_path: p,
-                status: None,
-            })
+            .map(JunitReportFileWithStatus::from)
             .collect(),
         JunitSpec::BazelBep(bep_path) => {
             let mut parser = BazelBepParser::new(bep_path);
@@ -99,7 +96,7 @@ async fn run_test_and_get_exit_code(command: &String, args: Vec<&String>) -> any
 
 pub fn build_filesets(
     repo_root: &str,
-    junit_paths: &[JunitPathWrapper],
+    junit_paths: &[JunitReportFileWithStatus],
     team: Option<String>,
     codeowners: &Option<CodeOwners>,
     exec_start: Option<SystemTime>,
@@ -110,8 +107,7 @@ pub fn build_filesets(
         .map(|junit_wrapper| {
             FileSet::scan_from_glob(
                 repo_root,
-                junit_wrapper.junit_path.to_string(),
-                junit_wrapper.status.clone(),
+                junit_wrapper.clone(),
                 &mut file_counter,
                 team.clone(),
                 codeowners,
@@ -132,8 +128,10 @@ pub fn build_filesets(
                 path.push_str("**/*.xml");
                 FileSet::scan_from_glob(
                     repo_root,
-                    path.to_string(),
-                    junit_wrapper.status.clone(),
+                    JunitReportFileWithStatus {
+                        junit_path: path,
+                        status: junit_wrapper.status.clone(),
+                    },
                     &mut file_counter,
                     team.clone(),
                     codeowners,
@@ -183,10 +181,11 @@ pub async fn extract_failed_tests(
     let mut successes: HashMap<String, i64> = HashMap::new();
 
     for file_set in file_sets {
-        if let Some(test_runner_status) = &file_set.test_runner_status {
-            if test_runner_status != &TestRunnerJunitStatus::Failed {
-                continue;
-            }
+        // TODO(TRUNK-13911): We should populate the status for all junits, regardless of the presence of a test runner status.
+        if file_set.test_runner_status == JunitReportStatus::Passed
+            || file_set.test_runner_status == JunitReportStatus::Flaky
+        {
+            continue;
         }
         for file in &file_set.files {
             let file = match std::fs::File::open(&file.original_path) {
@@ -367,7 +366,7 @@ mod tests {
                 },
             ],
             glob: String::from("**/*.xml"),
-            test_runner_status: None,
+            test_runner_status: JunitReportStatus::Unknown,
         }];
 
         let retried_failures =
@@ -390,7 +389,7 @@ mod tests {
                 },
             ],
             glob: String::from("**/*.xml"),
-            test_runner_status: None,
+            test_runner_status: JunitReportStatus::Unknown,
         }];
 
         let retried_failures =
@@ -413,7 +412,7 @@ mod tests {
                 },
             ],
             glob: String::from("**/*.xml"),
-            test_runner_status: None,
+            test_runner_status: JunitReportStatus::Unknown,
         }];
 
         let mut multi_failures =
@@ -447,7 +446,7 @@ mod tests {
                 },
             ],
             glob: String::from("**/*.xml"),
-            test_runner_status: None,
+            test_runner_status: JunitReportStatus::Unknown,
         }];
 
         let some_failures =
@@ -466,7 +465,7 @@ mod tests {
                     ..BundledFile::default()
                 }],
                 glob: String::from("1/*.xml"),
-                test_runner_status: Some(TestRunnerJunitStatus::Passed),
+                test_runner_status: JunitReportStatus::Passed,
             },
             FileSet {
                 file_set_type: FileSetType::Junit,
@@ -475,7 +474,7 @@ mod tests {
                     ..BundledFile::default()
                 }],
                 glob: String::from("2/*.xml"),
-                test_runner_status: Some(TestRunnerJunitStatus::Flaky),
+                test_runner_status: JunitReportStatus::Flaky,
             },
             FileSet {
                 file_set_type: FileSetType::Junit,
@@ -484,7 +483,7 @@ mod tests {
                     ..BundledFile::default()
                 }],
                 glob: String::from("3/*.xml"),
-                test_runner_status: Some(TestRunnerJunitStatus::Failed),
+                test_runner_status: JunitReportStatus::Failed,
             },
         ];
 
