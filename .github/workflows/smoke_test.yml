@@ -24,17 +24,12 @@ jobs:
       - name: Setup Run Smoke Tests
         uses: ./.github/actions/setup_run_smoke_tests
 
-      - name: Run succeeding test
-        env:
-          TRUNK_PUBLIC_API_ADDRESS: https://api.trunk-staging.io
-        shell: bash
-        run: |
-          ./trunk-analytics-cli test \
-          --org-url-slug trunk-staging-org \
-          --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
-          --token ${{ secrets.TRUNK_STAGING_ORG_API_TOKEN }} \
-          cargo nextest run -p smoke-test --profile ci
-
+      - name: Run Smoke Tests
+        uses: ./.github/actions/perform_smoke_test
+        with:
+          cli-binary-location: trunk-analytics-cli
+          staging-api-token: ${{ secrets.TRUNK_STAGING_ORG_API_TOKEN }}
+          production-api-token: ${{ secrets.TRUNK_PROD_ORG_API_TOKEN }}
   slack-workflow-status:
     if: always() && needs.build_cli.result != 'success'
     name: Post Smoke Test Failure
