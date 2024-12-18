@@ -41,7 +41,7 @@ pub struct FileSet {
     pub files: Vec<BundledFile>,
     pub glob: String,
     /// Added in v0.6.11. Populated when parsing from BEP, not from junit globs
-    pub test_runner_status: Option<JunitReportStatus>,
+    pub resolved_status: Option<JunitReportStatus>,
 }
 
 impl FileSet {
@@ -58,7 +58,7 @@ impl FileSet {
     ) -> anyhow::Result<FileSet> {
         let JunitReportFileWithStatus {
             junit_path: glob_path,
-            status: test_runner_status,
+            status: resolved_status,
         } = glob_with_status;
         let path_to_scan = if !std::path::Path::new(&glob_path).is_absolute() {
             std::path::Path::new(repo_root)
@@ -154,7 +154,7 @@ impl FileSet {
             file_set_type: FileSetType::Junit,
             files,
             glob: glob_path,
-            test_runner_status,
+            resolved_status,
         })
     }
 }

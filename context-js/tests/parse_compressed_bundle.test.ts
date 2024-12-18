@@ -35,7 +35,7 @@ const generateBundleMeta = (): TestBundleMeta => ({
         },
       ],
       glob: "**/*.xml",
-      test_runner_status: null,
+      resolved_status: null,
     },
   ],
   org: faker.company.name(),
