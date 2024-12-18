@@ -30,17 +30,17 @@ runs:
         --token ${{ inputs.staging-api-token }} \
         cargo nextest run -p smoke-test --profile ci
 
-    #    - name: Run tests on production
-    #      env:
-    #        TRUNK_PUBLIC_API_ADDRESS: https://api.trunk.io
-    #        FAIL_TEST: true
-    #      shell: bash
-    #      run: |
-    #        ./${{ inputs.cli-binary-location }} test \
-    #        --org-url-slug trunk \
-    #        --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
-    #        --token ${{ inputs.production-api-token }} \
-    #        cargo nextest run -p smoke-test --profile ci
+    - name: Run tests on production
+      env:
+        TRUNK_PUBLIC_API_ADDRESS: https://api.trunk.io
+        FAIL_TEST: true
+      shell: bash
+      run: |
+        ./${{ inputs.cli-binary-location }} test \
+        --org-url-slug trunk \
+        --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
+        --token ${{ inputs.production-api-token }} \
+        cargo nextest run -p smoke-test --profile ci
 
     - name: Upload to staging
       env:
@@ -52,12 +52,12 @@ runs:
         --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
         --token ${{ inputs.staging-api-token }}
 
-#    - name: Upload to production
-#      env:
-#        TRUNK_PUBLIC_API_ADDRESS: https://api.trunk.io
-#      shell: bash
-#      run: |
-#        ./${{ inputs.cli-binary-location }} upload \
-#        --org-url-slug trunk \
-#        --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
-#        --token ${{ inputs.production-api-token }}
+    - name: Upload to production
+      env:
+        TRUNK_PUBLIC_API_ADDRESS: https://api.trunk.io
+      shell: bash
+      run: |
+        ./${{ inputs.cli-binary-location }} upload \
+        --org-url-slug trunk \
+        --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
+        --token ${{ inputs.production-api-token }}

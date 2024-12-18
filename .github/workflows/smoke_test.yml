@@ -29,7 +29,7 @@ jobs:
         with:
           cli-binary-location: trunk-analytics-cli
           staging-api-token: ${{ secrets.TRUNK_STAGING_ORG_API_TOKEN }}
-          production-api-token: TODO
+          production-api-token: ${{ secrets.TRUNK_PROD_ORG_API_TOKEN }}
 #  slack-workflow-status:
 #    if: always() && needs.build_cli.result != 'success'
 #    name: Post Smoke Test Failure
