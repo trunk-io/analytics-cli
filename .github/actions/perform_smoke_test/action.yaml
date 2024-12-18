@@ -5,6 +5,10 @@ description: Runs the actual smoke tests
 inputs:
   cli-binary-location:
     description: Location for the cli binary, relative to current directory. Uses x86_64-unknown-linux binaries.
+  staging-api-token:
+    description: Api token for the trunk-staging-org org on trunk-staging (should be available in secrets)
+  production-api-token:
+    description: Api token for the trunk org on trunk (should be available in secrets)
 
 runs:
   using: composite
@@ -23,7 +27,7 @@ runs:
         ./${{ inputs.cli-binary-location }} test \
         --org-url-slug trunk-staging-org \
         --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
-        --token ${{ secrets.TRUNK_STAGING_ORG_API_TOKEN }} \
+        --token ${{ staging-api-token }} \
         cargo nextest run -p smoke-test --profile ci
 
     #    - name: Run tests on production
@@ -35,7 +39,7 @@ runs:
     #        ./${{ inputs.cli-binary-location }} test \
     #        --org-url-slug trunk \
     #        --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
-    #        --token ${{ secrets.TRUNK_ORG_API_TOKEN }} \
+    #        --token ${{ production-api-token }} \
     #        cargo nextest run -p smoke-test --profile ci
 
     - name: Upload to staging
@@ -46,7 +50,7 @@ runs:
         ./${{ inputs.cli-binary-location }} upload \
         --org-url-slug trunk-staging-org \
         --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
-        --token ${{ secrets.TRUNK_STAGING_ORG_API_TOKEN }} \
+        --token ${{ staging-api-token }} \
         cargo nextest run -p smoke-test --profile ci
 
 #    - name: Upload to production
@@ -57,5 +61,5 @@ runs:
 #        ./${{ inputs.cli-binary-location }} upload \
 #        --org-url-slug trunk \
 #        --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
-#        --token ${{ secrets.TRUNK_ORG_API_TOKEN }} \
+#        --token ${{ production-api-token }} \
 #        cargo nextest run -p smoke-test --profile ci

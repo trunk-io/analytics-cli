@@ -123,6 +123,8 @@ jobs:
         uses: ./.github/actions/perform_smoke_test
         with:
           cli-binary-location: trunk-analytics-cli/trunk-analytics-cli
+          staging-api-token: ${{ secrets.TRUNK_STAGING_ORG_API_TOKEN }}
+          production-api-token: TODO
 
   tag_and_release:
     name: Tag and Release [ ${{ github.event.inputs.release_tag }} ]

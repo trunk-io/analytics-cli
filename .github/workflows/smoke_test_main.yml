@@ -26,6 +26,8 @@ jobs:
         uses: ./.github/actions/perform_smoke_test
         with:
           cli-binary-location: target/x86_64-unknown-linux-musl/release/trunk-analytics-cli
+          staging-api-token: ${{ secrets.TRUNK_STAGING_ORG_API_TOKEN }}
+          production-api-token: TODO
 
   slack-workflow-status:
     if: always() && needs.build_cli.result != 'success'
