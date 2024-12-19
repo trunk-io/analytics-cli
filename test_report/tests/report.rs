@@ -2,6 +2,9 @@ use std::{env, fs, io::BufReader, thread};
 
 use assert_matches::assert_matches;
 use bundle::{BundleMeta, FileSetType};
+use prost::Message;
+use prost_wkt_types::Timestamp;
+use proto::test_context::test_run::TestCaseRunStatus;
 use tempfile::tempdir;
 use test_report::report::{MutTestReport, Status};
 use test_utils::mock_git_repo::setup_repo_with_commit;
@@ -84,4 +87,45 @@ async fn publish_test_report() {
 
     let file_set = base_props.file_sets.get(0).unwrap();
     assert_eq!(file_set.file_set_type, FileSetType::Junit);
+    assert!(file_set.glob.ends_with(".bin"));
+    assert_eq!(file_set.files.len(), 1);
+
+    let junit_props = bundle_meta.junit_props;
+    assert_eq!(junit_props.num_files, 1);
+    assert_eq!(junit_props.num_tests, 0);
+
+    let bundled_file = file_set.files.get(0).unwrap();
+    assert_eq!(bundled_file.path, "bin/0");
+    assert_eq!(bundled_file.owners.len(), 0);
+    assert_eq!(bundled_file.team, None);
+
+    let bin = fs::read(tar_extract_directory.join(&bundled_file.path)).unwrap();
+    let report = proto::test_context::test_run::TestResult::decode(&*bin).unwrap();
+
+    let test_started_at = Timestamp {
+        seconds: 1000,
+        nanos: 0,
+    };
+    let test_finished_at = Timestamp {
+        seconds: 1001,
+        nanos: 0,
+    };
+    assert_eq!(report.test_case_runs.len(), 1);
+    assert_eq!(report.test_case_runs[0].id, "1");
+    assert_eq!(report.test_case_runs[0].name, "test-name");
+    assert_eq!(report.test_case_runs[0].classname, "test-classname");
+    assert_eq!(report.test_case_runs[0].file, "test-file");
+    assert_eq!(report.test_case_runs[0].parent_name, "test-parent-name");
+    assert_eq!(
+        report.test_case_runs[0].status,
+        TestCaseRunStatus::Success as i32
+    );
+    assert_eq!(report.test_case_runs[0].line, 0);
+    assert_eq!(report.test_case_runs[0].attempt_number, 0);
+    assert_eq!(report.test_case_runs[0].started_at, Some(test_started_at));
+    assert_eq!(report.test_case_runs[0].finished_at, Some(test_finished_at));
+    assert_eq!(
+        report.test_case_runs[0].status_output_message,
+        "test-message"
+    );
 }
