@@ -4302,9 +4302,12 @@ name = "test_report"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "assert_matches",
+ "bundle",
  "chrono",
  "js-sys",
  "magnus",
+ "more-asserts",
  "prost 0.13.4",
  "prost-wkt-types",
  "proto",

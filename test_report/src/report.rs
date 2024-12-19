@@ -1,9 +1,10 @@
+use std::{cell::RefCell, env, fs};
+
 use chrono::prelude::*;
 #[cfg(feature = "ruby")]
 use magnus::{value::ReprValue, Module, Object};
 use prost_wkt_types::Timestamp;
 use proto::test_context::test_run::{TestCaseRun, TestCaseRunStatus, TestResult, UploaderMetadata};
-use std::cell::RefCell;
 #[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::wasm_bindgen;
 
@@ -13,39 +14,28 @@ pub struct TestReport {
 }
 
 #[cfg_attr(feature = "wasm", wasm_bindgen)]
-#[cfg_attr(feature = "ruby", magnus::wrap(class = "TestExecution"))]
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TestExecution {
-    id: Option<String>,
-    name: String,
-    classname: String,
-    file: String,
-    parent_name: String,
-    line: Option<i32>,
-    status: Status,
-    attempt_number: i32,
-    started_at: i64,
-    finished_at: i64,
-    output: String,
-}
-
-#[cfg_attr(feature = "wasm", wasm_bindgen)]
 #[cfg_attr(feature = "ruby", magnus::wrap(class = "Status"))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Status {
     Success,
     Failure,
     Skipped,
+    Unspecified,
 }
+
+const SUCCESS: &str = "success";
+const FAILURE: &str = "failure";
+const SKIPPED: &str = "skipped";
+const UNSPECIFIED: &str = "unspecified";
 
 #[cfg(feature = "ruby")]
 impl Status {
     fn new(status: String) -> Self {
         match status.as_str() {
-            "success" => Status::Success,
-            "failure" => Status::Failure,
-            "skipped" => Status::Skipped,
-            _ => Status::Success,
+            SUCCESS => Status::Success,
+            FAILURE => Status::Failure,
+            SKIPPED => Status::Skipped,
+            _ => Status::Unspecified,
         }
     }
 }
@@ -53,9 +43,10 @@ impl Status {
 impl Into<&str> for Status {
     fn into(self) -> &'static str {
         match self {
-            Status::Success => "success",
-            Status::Failure => "failure",
-            Status::Skipped => "skipped",
+            Status::Success => SUCCESS,
+            Status::Failure => FAILURE,
+            Status::Skipped => SKIPPED,
+            Status::Unspecified => UNSPECIFIED,
         }
     }
 }
@@ -92,18 +83,14 @@ impl MutTestReport {
         let mut test_result = TestResult::default();
         test_result.uploader_metadata = Some(UploaderMetadata {
             origin,
-            version: std::env!("CARGO_PKG_VERSION").to_string(),
+            version: env!("CARGO_PKG_VERSION").to_string(),
             upload_time: None,
         });
-        Self(RefCell::new(TestReport {
-            test_result: TestResult::default(),
-        }))
+        Self(RefCell::new(TestReport { test_result }))
     }
 
     fn serialize_test_result(&self) -> Vec<u8> {
-        let test_result = self.0.borrow().test_result.clone();
-        let buf: Vec<u8> = prost::Message::encode_to_vec(&test_result);
-        buf
+        prost::Message::encode_to_vec(&self.0.borrow().test_result)
     }
 
     // sends out to the trunk api
@@ -112,9 +99,14 @@ impl MutTestReport {
         if path.is_err() {
             return false;
         }
-        let resolved_path = path.unwrap_or_default();
-        let token = std::env::var("TRUNK_API_TOKEN").unwrap_or_default();
-        let org_url_slug = std::env::var("TRUNK_ORG_URL_SLUG").unwrap_or_default();
+        let resolved_path = if let Ok(path) = self.save() {
+            path
+        } else {
+            return false;
+        };
+        let resolved_path_str = resolved_path.path().to_str().unwrap_or_default();
+        let token = env::var("TRUNK_API_TOKEN").unwrap_or_default();
+        let org_url_slug = env::var("TRUNK_ORG_URL_SLUG").unwrap_or_default();
         if token.is_empty() || org_url_slug.is_empty() {
             println!("Token or org url slug not set");
             return false;
@@ -129,7 +121,7 @@ impl MutTestReport {
         let upload_args = trunk_analytics_cli::upload::UploadArgs::new(
             token,
             org_url_slug,
-            vec![resolved_path],
+            vec![resolved_path_str.into()],
             repo_root,
         );
         match tokio::runtime::Builder::new_multi_thread()
@@ -152,15 +144,11 @@ impl MutTestReport {
     }
 
     // saves to local fs and returns the path
-    pub fn save(&self) -> Result<String, anyhow::Error> {
+    fn save(&self) -> Result<tempfile::NamedTempFile, anyhow::Error> {
         let buf = self.serialize_test_result();
-        if let Ok(named_temp_file) = tempfile::Builder::new().suffix(".bin").tempfile() {
-            std::fs::write(&named_temp_file, buf).unwrap_or_default();
-            let (_, path) = named_temp_file.keep().unwrap();
-            let path_str = path.to_str().unwrap_or_default();
-            return Ok(path_str.to_string());
-        }
-        Err(anyhow::anyhow!("Error saving test report"))
+        let named_temp_file = tempfile::Builder::new().suffix(".bin").tempfile()?;
+        fs::write(&named_temp_file, buf).unwrap_or_default();
+        Ok(named_temp_file)
     }
 
     // adds a test to the test report
@@ -193,6 +181,7 @@ impl MutTestReport {
             Status::Success => test.status = TestCaseRunStatus::Success.into(),
             Status::Failure => test.status = TestCaseRunStatus::Failure.into(),
             Status::Skipped => test.status = TestCaseRunStatus::Skipped.into(),
+            Status::Unspecified => test.status = TestCaseRunStatus::Unspecified.into(),
         }
         // test.status = status;
         test.attempt_number = attempt_number;
@@ -235,13 +224,7 @@ pub fn ruby_init(ruby: &magnus::Ruby) -> Result<(), magnus::Error> {
     let test_report = ruby.define_class("TestReport", ruby.class_object())?;
     test_report.define_singleton_method("new", magnus::function!(MutTestReport::new, 1))?;
     test_report.define_method("to_s", magnus::method!(MutTestReport::to_string, 0))?;
-    test_report.define_method("publish", magnus::method!(MutTestReport::publish, 0))?;
+    test_report.define_method("publish", magnus::method!(MutTestReport::publish, 1))?;
     test_report.define_method("add_test", magnus::method!(MutTestReport::add_test, 11))?;
-    test_report.define_method(
-        "list_quarantined_tests",
-        magnus::method!(MutTestReport::list_quarantined_tests, 0),
-    )?;
-    test_report.define_method("valid_env", magnus::method!(MutTestReport::valid_env, 0))?;
-    test_report.define_method("valid_git", magnus::method!(MutTestReport::valid_git, 0))?;
     Ok(())
 }

@@ -18,6 +18,9 @@ tokio = "1.42.0"
 anyhow = "1.0.94"
 
 [dev-dependencies]
+assert_matches = "1.5.0"
+bundle = { path = "../bundle" }
+more-asserts = "0.3.1"
 test_utils = { path = "../test_utils" }
 
 

@@ -16,7 +16,6 @@ message TestCaseRun {
   string name = 2;
   string classname = 3;
   string file = 4;
-  // need parent_id
   string parent_name = 5;
   int32 line = 6;
   TestCaseRunStatus status = 7;
