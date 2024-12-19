@@ -6,6 +6,7 @@ use bundle::{
 };
 use codeowners::{BindingsOwners, CodeOwners};
 use context::{env, junit, meta, repo};
+use prost::Message;
 use pyo3::{exceptions::PyTypeError, prelude::*};
 use pyo3_stub_gen::{define_stub_info_gatherer, derive::gen_stub_pyfunction};
 
@@ -78,6 +79,14 @@ fn junit_parse(xml: Vec<u8>) -> PyResult<Vec<junit::bindings::BindingsReport>> {
         .into_iter()
         .map(junit::bindings::BindingsReport::from)
         .collect())
+}
+
+#[gen_stub_pyfunction]
+#[pyfunction]
+fn bin_parse(bin: Vec<u8>) -> PyResult<Vec<junit::bindings::BindingsReport>> {
+    let test_result = proto::test_context::test_run::TestResult::decode(&*bin).unwrap();
+    let bindings_report = junit::bindings::BindingsReport::from(test_result);
+    Ok(vec![bindings_report])
 }
 
 #[gen_stub_pyfunction]
@@ -199,6 +208,7 @@ fn context_py(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<junit::validator::JunitValidationLevel>()?;
     m.add_class::<junit::validator::JunitValidationType>()?;
     m.add_function(wrap_pyfunction!(junit_parse, m)?)?;
+    m.add_function(wrap_pyfunction!(bin_parse, m)?)?;
     m.add_function(wrap_pyfunction!(junit_validate, m)?)?;
     m.add_function(wrap_pyfunction!(junit_validation_level_to_string, m)?)?;
     m.add_function(wrap_pyfunction!(junit_validation_type_to_string, m)?)?;
