@@ -256,7 +256,6 @@ pub fn ruby_init(ruby: &magnus::Ruby) -> Result<(), magnus::Error> {
     test_report.define_singleton_method("new", magnus::function!(MutTestReport::new, 1))?;
     test_report.define_method("to_s", magnus::method!(MutTestReport::to_string, 0))?;
     test_report.define_method("publish", magnus::method!(MutTestReport::publish, 0))?;
-    test_report.define_method("save", magnus::method!(MutTestReport::save, 0))?;
     test_report.define_method("add_test", magnus::method!(MutTestReport::add_test, 11))?;
     test_report.define_method(
         "list_quarantined_tests",
