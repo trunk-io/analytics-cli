@@ -4,6 +4,13 @@ description: Setup Rust & Cargo
 runs:
   using: composite
   steps:
+    - name: Install cmake
+      if: runner.os == 'Linux'
+      run: |
+        sudo apt-get update
+        sudo apt-get install cmake -y
+      shell: bash
+
     - name: Install Rust toolchain
       uses: dtolnay/rust-toolchain@nightly
       with:
