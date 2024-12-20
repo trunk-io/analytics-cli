@@ -301,7 +301,10 @@ pub async fn run_upload(
     if file_counter.get_count() == 0 {
         log::warn!(
             "No JUnit files found to pack and upload using globs: {:?}",
-            junit_path_wrappers.iter().map(|j| &j.junit_path)
+            junit_path_wrappers
+                .iter()
+                .map(|j| &j.junit_path)
+                .collect::<Vec<&String>>()
         );
     }
 
