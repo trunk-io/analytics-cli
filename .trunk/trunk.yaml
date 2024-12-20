@@ -91,30 +91,6 @@ actions:
     - trunk-fmt-pre-commit
     - trunk-upgrade-available
 downloads:
-  - name: cmake
-    downloads:
-      - os: linux
-        cpu:
-          x86_64: x86_64
-          arm_64: aarch64
-        url: https://github.com/Kitware/CMake/releases/download/v${version}/cmake-${version}-linux-${cpu}.tar.gz
-      - os: macos
-        url: https://github.com/Kitware/CMake/releases/download/v${version}/cmake-${version}-macos10.10-universal.tar.gz
-        strip_components: 3
-  - name: protoc
-    downloads:
-      - os:
-          linux: linux
-          macos: osx
-        cpu:
-          x86_64: x86_64
-          arm_64: aarch_64
-        url: https://github.com/protocolbuffers/protobuf/releases/download/v${version}/protoc-${version}-${os}-${cpu}.zip
-      - os:
-          windows: windows
-        cpu:
-          x86_64: x86_64
-        url: https://github.com/protocolbuffers/protobuf/releases/download/v29.1/protoc-29.1-win64.zip
   - name: rust
     downloads:
       - os:
@@ -126,33 +102,10 @@ downloads:
         url: https://static.rust-lang.org/dist/${version}/rust-nightly-${cpu}-${os}.tar.gz
         strip_components: 2
 tools:
-  definitions:
-    - name: protoc
-      download: protoc
-      known_good_version: 29.1
-      shims: [protoc]
-      environment:
-        - name: PATH
-          list: ["${tool}/bin"]
-      health_checks:
-        - command: protoc --version
-          parse_regex: libprotoc (\d+\.\d+)
-    - name: cmake
-      download: cmake
-      known_good_version: 3.31.2
-      shims: [ccmake, cmake, cpack, ctest]
-      environment:
-        - name: PATH
-          list: ["${tool}/bin"]
-      health_checks:
-        - command: cmake --version
-          parse_regex: cmake version (\d+\.\d+\.\d+)
   runtimes:
     - ruby
     - node
     - rust
   enabled:
-    - cmake@3.31.2
     - gh@2.62.0
     - pnpm@9.14.2
-    - protoc@29.1
