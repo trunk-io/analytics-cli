@@ -133,10 +133,19 @@ impl FileSet {
 
             // Save file under junit/0, junit/1, etc.
             // This is to avoid having to deal with potential file name collisions.
+            let path_formatted;
+            if original_path_abs.ends_with(".xml") {
+                // we currently support junit and internal binary files
+                path_formatted = format!("junit/{}", file_counter.count_file());
+            } else if original_path_abs.ends_with(".bin") {
+                path_formatted = format!("internal/{}", file_counter.count_file());
+            } else {
+                return Ok::<(), anyhow::Error>(());
+            }
             files.push(BundledFile {
                 original_path: original_path_abs,
                 original_path_rel: Some(original_path_rel),
-                path: format!("junit/{}", file_counter.count_file()),
+                path: path_formatted,
                 #[cfg(not(feature = "wasm"))]
                 last_modified_epoch_ns: path
                     .metadata()?
