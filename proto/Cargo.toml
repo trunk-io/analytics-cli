@@ -14,4 +14,4 @@ prost-types = "0.13.4"
 
 [build-dependencies]
 prost-build = "0.13.4"
-protobuf-src = "2.1.0"
+protox = "0.7.1"
