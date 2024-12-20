@@ -4,5 +4,34 @@ import "google/protobuf/timestamp.proto";
 
 package test_context.test_run;
 
+enum TestCaseRunStatus {
+  TEST_CASE_RUN_STATUS_UNSPECIFIED = 0;
+  TEST_CASE_RUN_STATUS_SUCCESS = 1;
+  TEST_CASE_RUN_STATUS_FAILURE = 2;
+  TEST_CASE_RUN_STATUS_SKIPPED = 3;
+}
+
 message TestCaseRun {
+  string id = 1;
+  string name = 2;
+  string classname = 3;
+  string file = 4;
+  string parent_name = 5;
+  int32 line = 6;
+  TestCaseRunStatus status = 7;
+  int32 attempt_number = 8;
+  google.protobuf.Timestamp started_at = 9;
+  google.protobuf.Timestamp finished_at = 10;
+  string status_output_message = 11;
+}
+
+message UploaderMetadata {
+    string version = 1;
+    string origin = 2; // RSpec, jest, etc..
+    google.protobuf.Timestamp upload_time = 3;
+}
+
+message TestResult {
+  repeated TestCaseRun test_case_runs = 1;
+  UploaderMetadata uploader_metadata = 2;
 }
