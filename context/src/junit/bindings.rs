@@ -38,7 +38,7 @@ impl From<TestCaseRunStatus> for BindingsTestCaseStatusStatus {
             TestCaseRunStatus::Success => BindingsTestCaseStatusStatus::Success,
             TestCaseRunStatus::Failure => BindingsTestCaseStatusStatus::NonSuccess,
             TestCaseRunStatus::Skipped => BindingsTestCaseStatusStatus::Skipped,
-            TestCaseRunStatus::Unspecified => todo!(),
+            TestCaseRunStatus::Unspecified => BindingsTestCaseStatusStatus::Unspecified,
         }
     }
 }
@@ -52,20 +52,18 @@ impl From<TestResult> for BindingsReport {
     ) -> Self {
         let test_cases: Vec<BindingsTestCase> = test_case_runs
             .into_iter()
-            .map(|testcase| BindingsTestCase::from(testcase))
+            .map(BindingsTestCase::from)
             .collect();
         let parent_name_map: HashMap<String, Vec<BindingsTestCase>> =
             test_cases.iter().fold(HashMap::new(), |mut acc, testcase| {
-                let parent_name = testcase.extra.get("parent_name").unwrap();
-                acc.entry(parent_name.clone())
-                    .or_insert_with(Vec::new)
-                    .push(testcase.to_owned());
+                if let Some(parent_name) = testcase.extra.get("parent_name") {
+                    acc.entry(parent_name.clone())
+                        .or_insert_with(Vec::new)
+                        .push(testcase.to_owned());
+                }
                 acc
             });
-        let mut report_time = 0.0;
-        let mut report_failures = 0;
-        let mut report_tests = 0;
-        let test_suites = parent_name_map
+        let test_suites: Vec<BindingsTestSuite> = parent_name_map
             .into_iter()
             .map(|(name, testcases)| {
                 let tests = testcases.len();
@@ -83,9 +81,6 @@ impl From<TestResult> for BindingsReport {
                     .map(|tc| tc.timestamp_micros.unwrap_or(0))
                     .max();
                 let time = testcases.iter().map(|tc| tc.time.unwrap_or(0.0)).sum();
-                report_time += time;
-                report_failures += failures;
-                report_tests += tests;
                 BindingsTestSuite {
                     name,
                     tests,
@@ -103,11 +98,23 @@ impl From<TestResult> for BindingsReport {
                 }
             })
             .collect();
+        let (report_time, report_failures, report_tests) =
+            test_suites.iter().fold((0.0, 0, 0), |acc, ts| {
+                (
+                    acc.0 + ts.time.unwrap_or(0.0),
+                    acc.1 + ts.failures,
+                    acc.2 + ts.tests,
+                )
+            });
         let (name, timestamp, timestamp_micros) = match uploader_metadata {
             Some(t) => (
                 t.origin,
                 Some(t.upload_time.unwrap_or_default().seconds),
-                Some(t.upload_time.unwrap_or_default().nanos as i64 * 1000),
+                Some(
+                    chrono::Duration::nanoseconds(t.upload_time.unwrap_or_default().nanos as i64)
+                        .num_microseconds()
+                        .unwrap_or_default(),
+                ),
             ),
             None => ("Unknown".to_string(), None, None),
         };
@@ -141,53 +148,53 @@ impl From<TestCaseRun> for BindingsTestCase {
             attempt_number,
         }: TestCaseRun,
     ) -> Self {
-        let (timestamp, timestamp_micros) = match started_at {
-            Some(started_at) => (
-                Some(started_at.seconds),
-                Some(started_at.nanos as i64 * 1000),
-            ),
-            None => (None, None),
-        };
-        let time = match (started_at, finished_at) {
-            (Some(started_at), Some(finished_at)) => Some(
-                (finished_at.seconds - started_at.seconds) as f64
-                    + (finished_at.nanos - started_at.nanos) as f64 / 1_000_000_000.0,
-            ),
-            _ => None,
-        };
-        let typed_status = TestCaseRunStatus::try_from(status).ok().unwrap();
+        let timestamp = chrono::DateTime::from(started_at.unwrap_or_default());
+        let timestamp_micros =
+            chrono::DateTime::from(started_at.unwrap_or_default()).timestamp_subsec_micros() as i64;
+        let time = (chrono::DateTime::from(finished_at.unwrap_or_default()) - timestamp)
+            .to_std()
+            .unwrap_or_default();
+        let typed_status =
+            TestCaseRunStatus::try_from(status).unwrap_or(TestCaseRunStatus::Unspecified);
         Self {
             name,
             classname: Some(classname),
             assertions: None,
-            timestamp,
-            timestamp_micros,
-            time,
+            timestamp: Some(timestamp.timestamp()),
+            timestamp_micros: Some(timestamp_micros),
+            time: Some(time.as_secs_f64()),
             status: BindingsTestCaseStatus {
                 status: typed_status.into(),
                 success: {
-                    match typed_status == TestCaseRunStatus::Success {
-                        true => Some(BindingsTestCaseStatusSuccess { flaky_runs: vec![] }),
-                        false => None,
+                    if typed_status == TestCaseRunStatus::Success {
+                        Some(BindingsTestCaseStatusSuccess { flaky_runs: vec![] })
+                    } else {
+                        None
                     }
                 },
-                non_success: match typed_status == TestCaseRunStatus::Success {
-                    false => Some(BindingsTestCaseStatusNonSuccess {
-                        kind: BindingsNonSuccessKind::Failure,
-                        message: Some(status_output_message.clone()),
-                        ty: None,
-                        description: None,
-                        reruns: vec![],
-                    }),
-                    true => None,
+                non_success: {
+                    if typed_status == TestCaseRunStatus::Success {
+                        Some(BindingsTestCaseStatusNonSuccess {
+                            kind: BindingsNonSuccessKind::Failure,
+                            message: Some(status_output_message.clone()),
+                            ty: None,
+                            description: None,
+                            reruns: vec![],
+                        })
+                    } else {
+                        None
+                    }
                 },
-                skipped: match typed_status == TestCaseRunStatus::Skipped {
-                    true => Some(BindingsTestCaseStatusSkipped {
-                        message: Some(status_output_message.clone()),
-                        ty: None,
-                        description: None,
-                    }),
-                    false => None,
+                skipped: {
+                    if typed_status == TestCaseRunStatus::Skipped {
+                        Some(BindingsTestCaseStatusSkipped {
+                            message: Some(status_output_message.clone()),
+                            ty: None,
+                            description: None,
+                        })
+                    } else {
+                        None
+                    }
                 },
             },
             system_err: None,
@@ -654,6 +661,7 @@ pub enum BindingsTestCaseStatusStatus {
     Success,
     NonSuccess,
     Skipped,
+    Unspecified,
 }
 
 #[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass(get_all))]
@@ -908,47 +916,43 @@ impl BindingsJunitReportValidation {
 #[test]
 fn parse_test_report_to_bindings() {
     use prost_wkt_types::Timestamp;
-    let mut test1 = TestCaseRun::default();
-    test1.id = "test_id1".into();
-    test1.name = "test_name".into();
-    test1.classname = "test_classname".into();
-    test1.file = "test_file".into();
-    test1.parent_name = "test_parent_name1".into();
-    test1.line = 1;
-    test1.status = TestCaseRunStatus::Success.into();
-    test1.attempt_number = 1;
     let test_started_at = Timestamp {
         seconds: 1000,
         nanos: 0,
     };
-    test1.started_at = Some(test_started_at);
     let test_finished_at = Timestamp {
         seconds: 2000,
         nanos: 0,
     };
-    test1.finished_at = Some(test_finished_at);
-    test1.status_output_message = "test_status_output_message".into();
+    let test1 = TestCaseRun {
+        id: "test_id1".into(),
+        name: "test_name".into(),
+        classname: "test_classname".into(),
+        file: "test_file".into(),
+        parent_name: "test_parent_name1".into(),
+        line: 1,
+        status: TestCaseRunStatus::Success.into(),
+        attempt_number: 1,
+        started_at: Some(test_started_at),
+        finished_at: Some(test_finished_at),
+        status_output_message: "test_status_output_message".into(),
+        ..Default::default()
+    };
 
-    let mut test2 = TestCaseRun::default();
-    test2.id = "test_id2".into();
-    test2.name = "test_name".into();
-    test2.classname = "test_classname".into();
-    test2.file = "test_file".into();
-    test2.parent_name = "test_parent_name2".into();
-    test2.line = 1;
-    test2.status = TestCaseRunStatus::Failure.into();
-    test2.attempt_number = 1;
-    let test_started_at = Timestamp {
-        seconds: 1000,
-        nanos: 0,
+    let test2 = TestCaseRun {
+        id: "test_id2".into(),
+        name: "test_name".into(),
+        classname: "test_classname".into(),
+        file: "test_file".into(),
+        parent_name: "test_parent_name2".into(),
+        line: 1,
+        status: TestCaseRunStatus::Failure.into(),
+        attempt_number: 1,
+        started_at: Some(test_started_at),
+        finished_at: Some(test_finished_at),
+        status_output_message: "test_status_output_message".into(),
+        ..Default::default()
     };
-    test2.started_at = Some(test_started_at);
-    let test_finished_at = Timestamp {
-        seconds: 2000,
-        nanos: 0,
-    };
-    test2.finished_at = Some(test_finished_at);
-    test2.status_output_message = "test_status_output_message".into();
 
     let mut test_result = TestResult::default();
     test_result.test_case_runs.push(test1.clone());
