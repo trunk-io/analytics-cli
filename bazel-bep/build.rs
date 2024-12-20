@@ -1,4 +1,6 @@
-use std::{env, io, path::PathBuf};
+use std::{env, fs, io, path::PathBuf};
+
+use protox::prost::Message;
 
 fn main() -> io::Result<()> {
     let protos = std::fs::read_dir("proto")?
@@ -20,8 +22,13 @@ fn main() -> io::Result<()> {
     #[cfg(not(feature = "server"))]
     let compiler = compiler.build_server(false);
 
+    let file_descriptors = protox::compile(&protos, ["proto/"]).unwrap();
+
+    fs::write(&descriptor_path, file_descriptors.encode_to_vec()).unwrap();
+
     compiler
         .file_descriptor_set_path(&descriptor_path)
+        .skip_protoc_run()
         .compile_well_known_types(true)
         // Override prost-types with pbjson-types
         .extern_path(".google.protobuf", "::pbjson_types")

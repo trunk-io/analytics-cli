@@ -1,7 +1,4 @@
-use std::io::Result;
-
-fn main() -> Result<()> {
-    std::env::set_var("PROTOC", protobuf_src::protoc());
-    prost_build::compile_protos(&["proto/test_context.proto"], &["proto/"])?;
-    Ok(())
+fn main() {
+    let file_descriptors = protox::compile(["proto/test_context.proto"], ["proto/"]).unwrap();
+    prost_build::compile_fds(file_descriptors).unwrap();
 }
