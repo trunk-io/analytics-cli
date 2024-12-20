@@ -95,7 +95,7 @@ async fn publish_test_report() {
     assert_eq!(junit_props.num_tests, 0);
 
     let bundled_file = file_set.files.get(0).unwrap();
-    assert_eq!(bundled_file.path, "bin/0");
+    assert_eq!(bundled_file.path, "internal/0");
     assert_eq!(bundled_file.owners.len(), 0);
     assert_eq!(bundled_file.team, None);
 
