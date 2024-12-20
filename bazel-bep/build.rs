@@ -28,6 +28,7 @@ fn main() -> io::Result<()> {
 
     compiler
         .file_descriptor_set_path(&descriptor_path)
+        .skip_protoc_run()
         .compile_well_known_types(true)
         // Override prost-types with pbjson-types
         .extern_path(".google.protobuf", "::pbjson_types")
