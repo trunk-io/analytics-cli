@@ -1,6 +1,7 @@
 use std::{collections::HashMap, time::Duration};
 
 use chrono::{DateTime, TimeDelta};
+use proto::test_context::test_run::{TestCaseRun, TestCaseRunStatus, TestResult};
 #[cfg(feature = "pyo3")]
 use pyo3::prelude::*;
 #[cfg(feature = "pyo3")]
@@ -29,6 +30,185 @@ pub struct BindingsReport {
     pub failures: usize,
     pub errors: usize,
     pub test_suites: Vec<BindingsTestSuite>,
+}
+
+impl From<TestCaseRunStatus> for BindingsTestCaseStatusStatus {
+    fn from(value: TestCaseRunStatus) -> Self {
+        match value {
+            TestCaseRunStatus::Success => BindingsTestCaseStatusStatus::Success,
+            TestCaseRunStatus::Failure => BindingsTestCaseStatusStatus::NonSuccess,
+            TestCaseRunStatus::Skipped => BindingsTestCaseStatusStatus::Skipped,
+            TestCaseRunStatus::Unspecified => BindingsTestCaseStatusStatus::Unspecified,
+        }
+    }
+}
+
+impl From<TestResult> for BindingsReport {
+    fn from(
+        TestResult {
+            test_case_runs,
+            uploader_metadata,
+        }: TestResult,
+    ) -> Self {
+        let test_cases: Vec<BindingsTestCase> = test_case_runs
+            .into_iter()
+            .map(BindingsTestCase::from)
+            .collect();
+        let parent_name_map: HashMap<String, Vec<BindingsTestCase>> =
+            test_cases.iter().fold(HashMap::new(), |mut acc, testcase| {
+                if let Some(parent_name) = testcase.extra.get("parent_name") {
+                    acc.entry(parent_name.clone())
+                        .or_insert_with(Vec::new)
+                        .push(testcase.to_owned());
+                }
+                acc
+            });
+        let test_suites: Vec<BindingsTestSuite> = parent_name_map
+            .into_iter()
+            .map(|(name, testcases)| {
+                let tests = testcases.len();
+                let disabled = testcases
+                    .iter()
+                    .filter(|tc| tc.status.status == BindingsTestCaseStatusStatus::Skipped)
+                    .count();
+                let failures = testcases
+                    .iter()
+                    .filter(|tc| tc.status.status == BindingsTestCaseStatusStatus::NonSuccess)
+                    .count();
+                let timestamp = testcases.iter().map(|tc| tc.timestamp.unwrap_or(0)).max();
+                let timestamp_micros = testcases
+                    .iter()
+                    .map(|tc| tc.timestamp_micros.unwrap_or(0))
+                    .max();
+                let time = testcases.iter().map(|tc| tc.time.unwrap_or(0.0)).sum();
+                BindingsTestSuite {
+                    name,
+                    tests,
+                    disabled,
+                    errors: 0,
+                    failures,
+                    timestamp,
+                    timestamp_micros,
+                    time: Some(time),
+                    test_cases: testcases,
+                    properties: vec![],
+                    system_out: None,
+                    system_err: None,
+                    extra: HashMap::new(),
+                }
+            })
+            .collect();
+        let (report_time, report_failures, report_tests) =
+            test_suites.iter().fold((0.0, 0, 0), |acc, ts| {
+                (
+                    acc.0 + ts.time.unwrap_or(0.0),
+                    acc.1 + ts.failures,
+                    acc.2 + ts.tests,
+                )
+            });
+        let (name, timestamp, timestamp_micros) = match uploader_metadata {
+            Some(t) => (
+                t.origin,
+                Some(t.upload_time.unwrap_or_default().seconds),
+                Some(
+                    chrono::Duration::nanoseconds(t.upload_time.unwrap_or_default().nanos as i64)
+                        .num_microseconds()
+                        .unwrap_or_default(),
+                ),
+            ),
+            None => ("Unknown".to_string(), None, None),
+        };
+        BindingsReport {
+            name,
+            test_suites,
+            time: Some(report_time),
+            uuid: None,
+            timestamp,
+            timestamp_micros,
+            errors: 0,
+            failures: report_failures,
+            tests: report_tests,
+        }
+    }
+}
+
+impl From<TestCaseRun> for BindingsTestCase {
+    fn from(
+        TestCaseRun {
+            name,
+            parent_name,
+            classname,
+            started_at,
+            finished_at,
+            status,
+            status_output_message,
+            id,
+            file,
+            line,
+            attempt_number,
+        }: TestCaseRun,
+    ) -> Self {
+        let timestamp = chrono::DateTime::from(started_at.unwrap_or_default());
+        let timestamp_micros =
+            chrono::DateTime::from(started_at.unwrap_or_default()).timestamp_subsec_micros() as i64;
+        let time = (chrono::DateTime::from(finished_at.unwrap_or_default()) - timestamp)
+            .to_std()
+            .unwrap_or_default();
+        let typed_status =
+            TestCaseRunStatus::try_from(status).unwrap_or(TestCaseRunStatus::Unspecified);
+        Self {
+            name,
+            classname: Some(classname),
+            assertions: None,
+            timestamp: Some(timestamp.timestamp()),
+            timestamp_micros: Some(timestamp_micros),
+            time: Some(time.as_secs_f64()),
+            status: BindingsTestCaseStatus {
+                status: typed_status.into(),
+                success: {
+                    if typed_status == TestCaseRunStatus::Success {
+                        Some(BindingsTestCaseStatusSuccess { flaky_runs: vec![] })
+                    } else {
+                        None
+                    }
+                },
+                non_success: {
+                    if typed_status == TestCaseRunStatus::Success {
+                        Some(BindingsTestCaseStatusNonSuccess {
+                            kind: BindingsNonSuccessKind::Failure,
+                            message: Some(status_output_message.clone()),
+                            ty: None,
+                            description: None,
+                            reruns: vec![],
+                        })
+                    } else {
+                        None
+                    }
+                },
+                skipped: {
+                    if typed_status == TestCaseRunStatus::Skipped {
+                        Some(BindingsTestCaseStatusSkipped {
+                            message: Some(status_output_message.clone()),
+                            ty: None,
+                            description: None,
+                        })
+                    } else {
+                        None
+                    }
+                },
+            },
+            system_err: None,
+            system_out: None,
+            extra: HashMap::from([
+                ("id".to_string(), id.to_string()),
+                ("file".to_string(), file),
+                ("line".to_string(), line.to_string()),
+                ("attempt_number".to_string(), attempt_number.to_string()),
+                ("parent_name".to_string(), parent_name),
+            ]),
+            properties: vec![],
+        }
+    }
 }
 
 impl From<Report> for BindingsReport {
@@ -481,6 +661,7 @@ pub enum BindingsTestCaseStatusStatus {
     Success,
     NonSuccess,
     Skipped,
+    Unspecified,
 }
 
 #[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass(get_all))]
@@ -729,4 +910,114 @@ impl BindingsJunitReportValidation {
             .filter(|issue| issue.level == JunitValidationLevel::SubOptimal)
             .count()
     }
+}
+
+#[cfg(feature = "bindings")]
+#[test]
+fn parse_test_report_to_bindings() {
+    use prost_wkt_types::Timestamp;
+    let test_started_at = Timestamp {
+        seconds: 1000,
+        nanos: 0,
+    };
+    let test_finished_at = Timestamp {
+        seconds: 2000,
+        nanos: 0,
+    };
+    let test1 = TestCaseRun {
+        id: "test_id1".into(),
+        name: "test_name".into(),
+        classname: "test_classname".into(),
+        file: "test_file".into(),
+        parent_name: "test_parent_name1".into(),
+        line: 1,
+        status: TestCaseRunStatus::Success.into(),
+        attempt_number: 1,
+        started_at: Some(test_started_at),
+        finished_at: Some(test_finished_at),
+        status_output_message: "test_status_output_message".into(),
+        ..Default::default()
+    };
+
+    let test2 = TestCaseRun {
+        id: "test_id2".into(),
+        name: "test_name".into(),
+        classname: "test_classname".into(),
+        file: "test_file".into(),
+        parent_name: "test_parent_name2".into(),
+        line: 1,
+        status: TestCaseRunStatus::Failure.into(),
+        attempt_number: 1,
+        started_at: Some(test_started_at),
+        finished_at: Some(test_finished_at),
+        status_output_message: "test_status_output_message".into(),
+        ..Default::default()
+    };
+
+    let mut test_result = TestResult::default();
+    test_result.test_case_runs.push(test1.clone());
+    test_result.test_case_runs.push(test1.clone());
+    test_result.test_case_runs.push(test2.clone());
+
+    let converted_bindings: BindingsReport = test_result.into();
+    assert_eq!(converted_bindings.test_suites.len(), 2);
+    let mut test_suite1 = &converted_bindings.test_suites[0];
+    let mut test_suite2 = &converted_bindings.test_suites[1];
+    if test_suite1.name == "test_parent_name1" {
+        assert_eq!(test_suite1.tests, 2);
+        assert_eq!(test_suite2.tests, 1);
+    } else {
+        assert_eq!(test_suite1.tests, 1);
+        assert_eq!(test_suite2.tests, 2);
+        // swap them for convenience
+        (test_suite1, test_suite2) = (test_suite2, test_suite1);
+    }
+    let test_case1 = &test_suite1.test_cases[0];
+    assert_eq!(test_case1.name, test1.name);
+    assert_eq!(test_case1.classname, Some(test1.classname));
+    assert_eq!(test_case1.assertions, None);
+    assert_eq!(
+        test_case1.timestamp,
+        Some(test1.started_at.unwrap().seconds)
+    );
+    assert_eq!(
+        test_case1.timestamp_micros,
+        Some(test1.started_at.unwrap().nanos as i64)
+    );
+    assert_eq!(test_case1.time, Some(1000.0));
+    assert_eq!(test_case1.system_out, None);
+    assert_eq!(test_case1.system_err, None);
+    assert_eq!(test_case1.extra["id"], test1.id);
+    assert_eq!(test_case1.extra["file"], test1.file);
+    assert_eq!(test_case1.extra["line"], test1.line.to_string());
+    assert_eq!(
+        test_case1.extra["attempt_number"],
+        test1.attempt_number.to_string()
+    );
+    assert_eq!(test_case1.properties.len(), 0);
+
+    assert_eq!(test_suite2.test_cases.len(), 1);
+    let test_case2 = &test_suite2.test_cases[0];
+    assert_eq!(test_case2.name, test2.name);
+    assert_eq!(test_case2.classname, Some(test2.classname));
+    assert_eq!(test_case2.assertions, None);
+    assert_eq!(
+        test_case2.timestamp,
+        Some(test2.started_at.unwrap().seconds)
+    );
+    assert_eq!(
+        test_case2.timestamp_micros,
+        Some(test2.started_at.unwrap().nanos as i64)
+    );
+    assert_eq!(test_case2.time, Some(1000.0));
+    assert_eq!(test_case2.system_out, None);
+    assert_eq!(test_case2.system_err, None);
+    assert_eq!(test_case2.extra["id"], test2.id);
+    assert_eq!(test_case2.extra["file"], test2.file);
+    assert_eq!(test_case2.extra["line"], test2.line.to_string());
+    assert_eq!(
+        test_case2.extra["attempt_number"],
+        test2.attempt_number.to_string()
+    );
+    assert_eq!(test_case2.properties.len(), 0);
 }

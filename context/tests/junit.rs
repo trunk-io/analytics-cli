@@ -184,7 +184,7 @@ fn validate_test_case_invalid_id() {
 
     assert_eq!(
         report_validation.max_level(),
-        JunitValidationLevel::Invalid,
+        JunitValidationLevel::SubOptimal,
         "failed to validate with seed `{}`",
         seed,
     );
@@ -196,8 +196,8 @@ fn validate_test_case_invalid_id() {
             .flat_map(|test_suite| test_suite.test_cases())
             .flat_map(|test_case| Vec::from(test_case.issues()))
             .collect::<Vec<JunitTestCaseValidationIssue>>(),
-        vec![JunitValidationIssue::Invalid(
-            JunitTestCaseValidationIssueInvalid::TestCaseInvalidId(String::new()),
+        vec![JunitValidationIssue::SubOptimal(
+            JunitTestCaseValidationIssueSubOptimal::TestCaseInvalidId(String::new()),
         )],
         "failed to validate with seed `{}`",
         seed,
