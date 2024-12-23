@@ -5,7 +5,6 @@ These are instructions for building, running, and testing the Rust CLI locally. 
 ## Prerequisites
 
 - Install a nightly version of Cargo using [rustup](https://doc.rust-lang.org/cargo/getting-started/installation.html)
-- Install [CMake](https://cliutils.gitlab.io/modern-cmake/chapters/intro/installing.html)
 - Install [protoc](https://grpc.io/docs/protoc-installation/)
 - Run `trunk tools install`
 

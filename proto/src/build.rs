@@ -1,7 +1,6 @@
 use std::io::Result;
 
 fn main() -> Result<()> {
-    std::env::set_var("PROTOC", protobuf_src::protoc());
     let mut prost_build = prost_build::Config::new();
     prost_build
         .type_attribute(".", "#[derive(serde::Serialize,serde::Deserialize)]")
