@@ -22,9 +22,6 @@ runs:
       shell: bash
       run: curl -LsSf https://get.nexte.st/latest/linux-arm | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin
 
-    - name: Setup Proto
-      uses: ./.github/actions/setup_proto
-
     - name: Run tests
       shell: bash
       run: cargo nextest run --workspace ${{ contains(inputs.target, 'musl') && '--exclude context-js --exclude context-py --exclude context_ruby' || '' }} --profile=ci
