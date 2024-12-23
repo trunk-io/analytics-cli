@@ -6,7 +6,7 @@ on:
   schedule:
     - cron: 0 0/2 * * *
 env:
-  RELEASE: 0.6.7
+  RELEASE: 0.6.10
 jobs:
   build_cli:
     name: Build cli from release
