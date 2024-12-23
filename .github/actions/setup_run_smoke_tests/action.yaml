@@ -11,8 +11,3 @@ runs:
       shell: bash
       run: |
         cargo install --version 0.9.85 cargo-nextest --locked
-
-    - name: Install cmake
-      shell: bash
-      run: |
-        sudo apt-get install cmake -y
