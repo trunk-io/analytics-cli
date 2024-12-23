@@ -86,7 +86,7 @@ class TrunkAnalyticsListener
   end
 
   def close(_notification)
-    @testreport.publish("..")
+    @testreport.publish('..')
   end
 
   def description_generated?(example)
