@@ -32,7 +32,7 @@ fn main() -> io::Result<()> {
         .compile_well_known_types(true)
         // Override prost-types with pbjson-types
         .extern_path(".google.protobuf", "::pbjson_types")
-        .compile(&protos, &["proto/"])?;
+        .compile_protos(&protos, &["proto/"])?;
 
     let descriptor_set = std::fs::read(descriptor_path)?;
     pbjson_build::Builder::new()
