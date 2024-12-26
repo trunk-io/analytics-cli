@@ -17,8 +17,6 @@ use bundle::{
 use codeowners::CodeOwners;
 use constants::{EXIT_FAILURE, EXIT_SUCCESS};
 #[cfg(target_os = "macos")]
-use context::junit::junit_path::JunitReportStatus;
-#[cfg(target_os = "macos")]
 use context::repo::RepoUrlParts;
 use context::{
     bazel_bep::parser::{BazelBepParser, BepParseResult},
