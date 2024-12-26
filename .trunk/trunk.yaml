@@ -97,20 +97,6 @@ actions:
     - trunk-fmt-pre-commit
     - trunk-upgrade-available
 downloads:
-  - name: protoc
-    downloads:
-      - os:
-          linux: linux
-          macos: osx
-        cpu:
-          x86_64: x86_64
-          arm_64: aarch_64
-        url: https://github.com/protocolbuffers/protobuf/releases/download/v${version}/protoc-${version}-${os}-${cpu}.zip
-      - os:
-          windows: windows
-        cpu:
-          x86_64: x86_64
-        url: https://github.com/protocolbuffers/protobuf/releases/download/v29.1/protoc-29.1-win64.zip
   - name: rust
     downloads:
       - os:
@@ -126,16 +112,6 @@ downloads:
       - url: https://static.rust-lang.org/dist/${version}/rust-src-nightly.tar.xz
 tools:
   definitions:
-    - name: protoc
-      download: protoc
-      known_good_version: 29.1
-      shims: [protoc]
-      environment:
-        - name: PATH
-          list: ["${tool}/bin"]
-      health_checks:
-        - command: protoc --version
-          parse_regex: libprotoc (\d+\.\d+)
     - name: rust-src
       download: rust-src
       known_good_version: 2024-11-15
@@ -147,7 +123,6 @@ tools:
   enabled:
     - gh@2.62.0
     - pnpm@9.14.2
-    - protoc@29.1
     # Update `RUST_SRC_PATH` path to `rust-src` if this is updated
     # IfChange
     - rust-src@2024-11-15
