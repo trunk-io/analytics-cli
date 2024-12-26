@@ -12,7 +12,7 @@ path = "src/lib.rs"
 prost = "0.12.6"
 prost-types = "0.12.6"
 prost-wkt-types = { version = "0.5.1", features = ["vendored-protox"] }
-serde = "1.0.215"
+serde = { version = "1.0.215", default-features = false, features = ["derive"] }
 
 [build-dependencies]
 prost-build = "0.12.6"
