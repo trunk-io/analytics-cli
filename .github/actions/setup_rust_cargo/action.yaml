@@ -9,16 +9,6 @@ runs:
       with:
         targets: wasm32-unknown-unknown
 
-    - name: Install protoc
-      shell: bash
-      run: |
-        if [ -f /opt/homebrew/bin/brew ]; then
-          /opt/homebrew/bin/brew install protobuf
-        elif [ -f /usr/bin/apt ]; then
-          sudo /usr/bin/apt update
-          sudo /usr/bin/apt install -y protobuf-compiler
-        fi
-
     - uses: actions/cache@v4
       with:
         path: |
