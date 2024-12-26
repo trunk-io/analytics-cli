@@ -9,11 +9,11 @@ name = "proto"
 path = "src/lib.rs"
 
 [dependencies]
-prost = "0.13.4"
-prost-types = "0.13.4"
-prost-wkt-types = "0.6.0"
+prost = "0.12.6"
+prost-types = "0.12.6"
+prost-wkt-types = { version = "0.5.1", features = ["vendored-protox"] }
 serde = "1.0.215"
 
 [build-dependencies]
-prost-build = "0.13.4"
-protox = "0.7.1"
+prost-build = "0.12.6"
+protox = "0.6.1"
