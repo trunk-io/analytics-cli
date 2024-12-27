@@ -39,9 +39,9 @@ fn test_xcresult_with_valid_path() {
     let xcresult = XCResult::new(path_str, &REPO, ORG_URL_SLUG);
     assert!(xcresult.is_ok());
 
-    let junits = xcresult.unwrap().generate_junits().unwrap();
+    let mut junits = xcresult.unwrap().generate_junits().unwrap();
     assert_eq!(junits.len(), 1);
-    let junit = junits[0].clone();
+    let junit = junits.pop().unwrap();
     let mut junit_writer: Vec<u8> = Vec::new();
     junit.serialize(&mut junit_writer).unwrap();
     let expected_path = TEMP_DIR.as_ref().join("data/test1.junit");
@@ -83,9 +83,9 @@ fn test_complex_xcresult_with_valid_path() {
     let xcresult = XCResult::new(path_str, &REPO, ORG_URL_SLUG);
     assert!(xcresult.is_ok());
 
-    let junits = xcresult.unwrap().generate_junits().unwrap();
+    let mut junits = xcresult.unwrap().generate_junits().unwrap();
     assert_eq!(junits.len(), 1);
-    let junit = junits[0].clone();
+    let junit = junits.pop().unwrap();
     let mut junit_writer: Vec<u8> = Vec::new();
     junit.serialize(&mut junit_writer).unwrap();
     let expected_path = TEMP_DIR.as_ref().join("data/test4.junit");
@@ -103,4 +103,24 @@ fn test_xcresult_with_valid_path_invalid_os() {
         xcresult.err().unwrap().to_string(),
         "xcrun is only available on macOS"
     );
+}
+
+#[cfg(target_os = "macos")]
+#[test]
+fn test_expected_failures_xcresult_with_valid_path() {
+    let path = TEMP_DIR
+        .as_ref()
+        .join("data/test-ExpectedFailures.xcresult");
+    let path_str = path.to_str().unwrap();
+    let xcresult = XCResult::new(path_str, &REPO, ORG_URL_SLUG);
+    assert!(xcresult.is_ok());
+
+    let mut junits = xcresult.unwrap().generate_junits().unwrap();
+    assert_eq!(junits.len(), 1);
+    let junit = junits.pop().unwrap();
+    let mut junit_writer: Vec<u8> = Vec::new();
+    junit.serialize(&mut junit_writer).unwrap();
+    let expected_path = TEMP_DIR.as_ref().join("data/test-ExpectedFailures.junit");
+    let expected = std::fs::read_to_string(expected_path).unwrap();
+    assert_eq!(String::from_utf8(junit_writer).unwrap(), expected);
 }
