@@ -40,13 +40,13 @@ pub struct Test {
 }
 
 impl Test {
-    pub fn new(
+    pub fn new<T: AsRef<str>>(
         name: String,
         parent_name: String,
         class_name: Option<String>,
         file: Option<String>,
         id: Option<String>,
-        org_slug: &str,
+        org_slug: T,
         repo: &RepoUrlParts,
         timestamp_millis: Option<i64>,
     ) -> Self {
@@ -61,7 +61,7 @@ impl Test {
             };
         }
         let info_id_input = [
-            org_slug,
+            org_slug.as_ref(),
             repo.repo_full_name().as_str(),
             file.as_deref().unwrap_or(""),
             class_name.as_deref().unwrap_or(""),

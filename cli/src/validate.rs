@@ -1,25 +1,77 @@
-use quick_junit::Report;
 use std::{collections::BTreeMap, io::BufReader};
 
 use bundle::{FileSet, FileSetBuilder};
+use clap::{arg, Args};
 use codeowners::CodeOwners;
 use colored::{ColoredString, Colorize};
 use console::Emoji;
 use constants::{EXIT_FAILURE, EXIT_SUCCESS};
-use context::junit::{
-    junit_path::JunitReportFileWithStatus,
-    parser::{JunitParseError, JunitParser},
-    validator::{
-        validate as validate_report, JunitReportValidation, JunitReportValidationFlatIssue,
-        JunitReportValidationIssueSubOptimal, JunitValidationIssue, JunitValidationIssueType,
-        JunitValidationLevel,
+use context::{
+    bazel_bep::parser::BazelBepParser,
+    junit::{
+        junit_path::JunitReportFileWithStatus,
+        parser::{JunitParseError, JunitParser},
+        validator::{
+            validate as validate_report, JunitReportValidation, JunitReportValidationFlatIssue,
+            JunitReportValidationIssueSubOptimal, JunitValidationIssue, JunitValidationIssueType,
+            JunitValidationLevel,
+        },
     },
 };
+use quick_junit::Report;
+
+use crate::print::print_bep_results;
+
+#[derive(Args, Clone, Debug)]
+pub struct ValidateArgs {
+    #[arg(
+        long,
+        required_unless_present = "bazel_bep_path",
+        conflicts_with = "bazel_bep_path",
+        value_delimiter = ',',
+        value_parser = clap::builder::NonEmptyStringValueParser::new(),
+        help = "Comma-separated list of glob paths to junit files."
+    )]
+    junit_paths: Vec<String>,
+    #[arg(
+        long,
+        required_unless_present = "junit_paths",
+        help = "Path to bazel build event protocol JSON file."
+    )]
+    bazel_bep_path: Option<String>,
+    #[arg(long, help = "Show warning-level log messages in output.")]
+    show_warnings: bool,
+    #[arg(long, help = "Value to override CODEOWNERS file or directory path.")]
+    pub codeowners_path: Option<String>,
+}
+
+pub async fn run_validate(validate_args: ValidateArgs) -> anyhow::Result<i32> {
+    let ValidateArgs {
+        junit_paths,
+        bazel_bep_path,
+        show_warnings,
+        codeowners_path,
+    } = validate_args;
+
+    let junit_file_paths = match bazel_bep_path {
+        Some(bazel_bep_path) => {
+            let mut parser = BazelBepParser::new(bazel_bep_path);
+            let bep_result = parser.parse()?;
+            print_bep_results(&bep_result);
+            bep_result.uncached_xml_files()
+        }
+        None => junit_paths
+            .into_iter()
+            .map(JunitReportFileWithStatus::from)
+            .collect(),
+    };
+    validate(junit_file_paths, show_warnings, codeowners_path).await
+}
 
 type JunitFileToReportAndErrors = BTreeMap<String, (anyhow::Result<Report>, Vec<JunitParseError>)>;
 type JunitFileToValidation = BTreeMap<String, anyhow::Result<JunitReportValidation>>;
 
-pub async fn validate(
+async fn validate(
     junit_paths: Vec<JunitReportFileWithStatus>,
     show_warnings: bool,
     codeowners_path: Option<String>,
