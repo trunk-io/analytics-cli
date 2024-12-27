@@ -1,4 +1,3 @@
-use clap::{ArgAction, Args};
 #[cfg(target_os = "macos")]
 use std::io::Write;
 use std::{
@@ -6,14 +5,13 @@ use std::{
     io::BufReader,
     time::{SystemTime, UNIX_EPOCH},
 };
-#[cfg(target_os = "macos")]
-use xcresult::XCResult;
 
 use api::BundleUploadStatus;
 use bundle::{
     parse_custom_tags, BundleMeta, BundleMetaBaseProps, BundleMetaDebugProps, BundleMetaJunitProps,
     BundlerUtil, FileSet, QuarantineBulkTestStatus, QuarantineRunResult, META_VERSION,
 };
+use clap::{ArgAction, Args};
 use codeowners::CodeOwners;
 use constants::{EXIT_FAILURE, EXIT_SUCCESS};
 #[cfg(target_os = "macos")]
@@ -23,11 +21,14 @@ use context::{
     junit::{junit_path::JunitReportFileWithStatus, parser::JunitParser},
     repo::BundleRepo,
 };
+#[cfg(target_os = "macos")]
+use xcresult::XCResult;
 
 use crate::{
     api_client::ApiClient,
     print::print_bep_results,
-    runner::{build_filesets, extract_failed_tests, run_quarantine},
+    quarantine::{extract_failed_tests, run_quarantine},
+    runner::build_filesets,
     scanner::EnvScanner,
 };
 
