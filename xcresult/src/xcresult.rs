@@ -137,7 +137,7 @@ impl XCResult {
             "Error" => TestCaseStatus::non_success(NonSuccessKind::Error),
             "Failure" => TestCaseStatus::non_success(NonSuccessKind::Failure),
             "Skipped" => TestCaseStatus::skipped(),
-            "Success" => TestCaseStatus::success(),
+            "Success" | "Expected Failure" => TestCaseStatus::success(),
             _ => TestCaseStatus::non_success(NonSuccessKind::Error),
         };
         let mut uri = String::new();
