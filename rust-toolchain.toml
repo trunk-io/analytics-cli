@@ -1,2 +1,3 @@
 [toolchain]
-channel = "nightly-2024-05-01" # Output tests in JSON for Junit reports requires nightly
+channel = "nightly-2024-05-01"
+components = ["clippy", "rustfmt", "rust-src"]
