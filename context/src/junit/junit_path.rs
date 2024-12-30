@@ -1,3 +1,4 @@
+use bazel_bep::types::build_event_stream::TestStatus;
 #[cfg(feature = "pyo3")]
 use pyo3::prelude::*;
 #[cfg(feature = "pyo3")]
@@ -7,8 +8,6 @@ use serde::{Deserialize, Serialize};
 use tsify_next::Tsify;
 #[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::*;
-
-use bazel_bep::types::build_event_stream::TestStatus;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[cfg_attr(feature = "pyo3", gen_stub_pyclass_enum, pyclass(eq, eq_int))]
