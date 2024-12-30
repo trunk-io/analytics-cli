@@ -45,6 +45,8 @@ pub mod types {
     }
 }
 
+// NOTE: `build_event_stream(.serde).rs` has some failing clippy lints
+#[allow(clippy::all)]
 pub(crate) mod build_event_stream {
     include!(concat!(env!("OUT_DIR"), "/build_event_stream.rs"));
     include!(concat!(env!("OUT_DIR"), "/build_event_stream.serde.rs"));

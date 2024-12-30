@@ -8,7 +8,6 @@ pretty_assertions = "0.6"
 junit-mock = { path = "../junit-mock" }
 test_utils = { path = "../test_utils" }
 tempfile = "3.2.0"
-prost-wkt-types = "0.6.0"
 
 [dependencies]
 anyhow = "1.0.44"
@@ -34,7 +33,7 @@ uuid = { version = "1.10.0", features = ["v5"] }
 wasm-bindgen = { version = "0.2.95", optional = true }
 magnus = { version = "0.7.1", optional = true, default-features = false }
 proto = { path = "../proto" }
-prost-wkt-types = "0.6.0"
+prost-wkt-types = { version = "0.5.1", features = ["vendored-protox"] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 pyo3 = { version = "0.22.5", optional = true, features = [

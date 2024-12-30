@@ -107,15 +107,18 @@ impl From<TestResult> for BindingsReport {
                 )
             });
         let (name, timestamp, timestamp_micros) = match uploader_metadata {
-            Some(t) => (
-                t.origin,
-                Some(t.upload_time.unwrap_or_default().seconds),
-                Some(
-                    chrono::Duration::nanoseconds(t.upload_time.unwrap_or_default().nanos as i64)
-                        .num_microseconds()
-                        .unwrap_or_default(),
-                ),
-            ),
+            Some(t) => {
+                let upload_time = t.upload_time.clone().unwrap_or_default();
+                (
+                    t.origin,
+                    Some(upload_time.seconds),
+                    Some(
+                        chrono::Duration::nanoseconds(upload_time.nanos as i64)
+                            .num_microseconds()
+                            .unwrap_or_default(),
+                    ),
+                )
+            }
             None => ("Unknown".to_string(), None, None),
         };
         BindingsReport {
@@ -148,9 +151,9 @@ impl From<TestCaseRun> for BindingsTestCase {
             attempt_number,
         }: TestCaseRun,
     ) -> Self {
-        let timestamp = chrono::DateTime::from(started_at.unwrap_or_default());
-        let timestamp_micros =
-            chrono::DateTime::from(started_at.unwrap_or_default()).timestamp_subsec_micros() as i64;
+        let started_at = started_at.unwrap_or_default();
+        let timestamp = chrono::DateTime::from(started_at.clone());
+        let timestamp_micros = chrono::DateTime::from(started_at).timestamp_subsec_micros() as i64;
         let time = (chrono::DateTime::from(finished_at.unwrap_or_default()) - timestamp)
             .to_std()
             .unwrap_or_default();
@@ -933,8 +936,8 @@ fn parse_test_report_to_bindings() {
         line: 1,
         status: TestCaseRunStatus::Success.into(),
         attempt_number: 1,
-        started_at: Some(test_started_at),
-        finished_at: Some(test_finished_at),
+        started_at: Some(test_started_at.clone()),
+        finished_at: Some(test_finished_at.clone()),
         status_output_message: "test_status_output_message".into(),
         ..Default::default()
     };
@@ -948,7 +951,7 @@ fn parse_test_report_to_bindings() {
         line: 1,
         status: TestCaseRunStatus::Failure.into(),
         attempt_number: 1,
-        started_at: Some(test_started_at),
+        started_at: Some(test_started_at.clone()),
         finished_at: Some(test_finished_at),
         status_output_message: "test_status_output_message".into(),
         ..Default::default()
@@ -978,7 +981,7 @@ fn parse_test_report_to_bindings() {
     assert_eq!(test_case1.assertions, None);
     assert_eq!(
         test_case1.timestamp,
-        Some(test1.started_at.unwrap().seconds)
+        Some(test1.started_at.clone().unwrap().seconds)
     );
     assert_eq!(
         test_case1.timestamp_micros,
@@ -1003,7 +1006,7 @@ fn parse_test_report_to_bindings() {
     assert_eq!(test_case2.assertions, None);
     assert_eq!(
         test_case2.timestamp,
-        Some(test2.started_at.unwrap().seconds)
+        Some(test2.started_at.clone().unwrap().seconds)
     );
     assert_eq!(
         test_case2.timestamp_micros,

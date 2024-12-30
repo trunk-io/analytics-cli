@@ -14,8 +14,8 @@ runtimes:
   enabled:
     - node@18.12.1
     - python@3.10.8
-    - rust@1.81.0
     - ruby@3.1.0
+    - rust@2024-05-01
 # This is the section where you manage your linters. (https://docs.trunk.io/check/configuration)
 lint:
   enabled:
@@ -24,7 +24,7 @@ lint:
     - bandit@1.7.10
     - black@24.10.0
     - checkov@3.2.296
-    - clippy@1.81.0
+    - clippy@2024-05-01
     - eslint@9.14.0
     - git-diff-check
     - isort@5.13.2
@@ -32,7 +32,7 @@ lint:
     - osv-scanner@1.9.1
     - prettier@3.3.3
     - ruff@0.7.3
-    - rustfmt@1.81.0
+    - rustfmt@2024-05-01
     - taplo@0.9.3
     - trufflehog@3.83.7
     - yamllint@1.35.1
@@ -48,9 +48,43 @@ lint:
           run: pyright -p context-py --outputjson
           target: .
           batch: false
+    - name: clippy
+      runtime: rust
+      environment:
+        - name: PATH
+          list: ["${runtime}", "${env.PATH}"]
+      commands:
+        - name: lint
+          run:
+            cargo clippy --message-format json --locked --all-targets --all-features --
+            --cap-lints=warn --no-deps
+          output: clippy
+          target: ${parent_with(Cargo.toml)}
+          success_codes: [0, 101, 383]
+          run_from: ${target_directory}
+          disable_upstream: true
+    - name: rustfmt
+      runtime: rust
+      commands:
+        - name: format
+          output: rewrite
+          read_output_from: stdout
+          stdin: true
+          success_codes: [0]
+          cache_results: false # sometimes caches an empty file for some reason
+          in_place: false
+          batch: false
+          run: rustfmt --edition=2021
+  ignore:
+    - linters: [ALL]
+      paths:
+        # Ignore generated files
+        - target/**
+        - "**/target/**"
 actions:
   definitions:
     - id: generate-pyi
+      runtime: rust
       description: Generate Python stubs
       # Don't use hermetic runtime so we can use nightly cargo
       run: |
@@ -63,36 +97,33 @@ actions:
     - trunk-fmt-pre-commit
     - trunk-upgrade-available
 downloads:
-  - name: protoc
+  - name: rust
     downloads:
       - os:
-          linux: linux
-          macos: osx
+          macos: apple-darwin
+          linux: unknown-linux-gnu
         cpu:
           x86_64: x86_64
-          arm_64: aarch_64
-        url: https://github.com/protocolbuffers/protobuf/releases/download/v${version}/protoc-${version}-${os}-${cpu}.zip
-      - os:
-          windows: windows
-        cpu:
-          x86_64: x86_64
-        url: https://github.com/protocolbuffers/protobuf/releases/download/v29.1/protoc-29.1-win64.zip
+          arm_64: aarch64
+        url: https://static.rust-lang.org/dist/${version}/rust-nightly-${cpu}-${os}.tar.gz
+        strip_components: 2
+  - name: rust-src
+    downloads:
+      - url: https://static.rust-lang.org/dist/${version}/rust-src-nightly.tar.xz
 tools:
   definitions:
-    - name: protoc
-      download: protoc
-      known_good_version: 29.1
-      shims: [protoc]
-      environment:
-        - name: PATH
-          list: ["${tool}/bin"]
-      health_checks:
-        - command: protoc --version
-          parse_regex: libprotoc (\d+\.\d+)
+    - name: rust-src
+      download: rust-src
+      known_good_version: 2024-05-01
+      shims: [rust-src]
   runtimes:
     - ruby
     - node
+    - rust
   enabled:
     - gh@2.62.0
     - pnpm@9.14.2
-    - protoc@29.1
+    # Update `RUST_SRC_PATH` path to `rust-src` if this is updated
+    # IfChange
+    - rust-src@2024-05-01
+    # ThenChange .envrc
