@@ -9,7 +9,8 @@ use std::{
 use api::BundleUploadStatus;
 use bundle::{
     parse_custom_tags, BundleMeta, BundleMetaBaseProps, BundleMetaDebugProps, BundleMetaJunitProps,
-    BundlerUtil, FileSet, FileSetBuilder, QuarantineRunResult, META_VERSION,
+    BundlerUtil, FileSet, FileSetBuilder, QuarantineBulkTestStatus, QuarantineRunResult, Test,
+    META_VERSION,
 };
 use clap::{ArgAction, Args};
 use codeowners::CodeOwners;
@@ -21,6 +22,7 @@ use context::{
     junit::{junit_path::JunitReportFileWithStatus, parser::JunitParser},
     repo::BundleRepo,
 };
+use tempfile::TempDir;
 #[cfg(target_os = "macos")]
 use xcresult::XCResult;
 
@@ -147,184 +149,28 @@ impl UploadArgs {
 pub async fn run_upload(
     upload_args: UploadArgs,
     test_command: Option<String>,
-    quarantine_results: Option<QuarantineRunResult>,
+    quarantine_run_result: Option<QuarantineRunResult>,
     codeowners: Option<CodeOwners>,
     exec_start: Option<SystemTime>,
 ) -> anyhow::Result<i32> {
     let UploadArgs {
-        junit_paths,
-        #[cfg(target_os = "macos")]
-        xcresult_path,
-        bazel_bep_path,
         org_url_slug,
         token,
-        repo_root,
-        repo_url,
-        repo_head_sha,
-        repo_head_branch,
-        repo_head_commit_epoch,
-        tags,
         print_files,
         dry_run,
         use_quarantining,
-        allow_empty_test_results,
-        team,
-        codeowners_path,
-    } = upload_args;
-    let mut junit_path_wrappers = junit_paths
-        .into_iter()
-        .map(JunitReportFileWithStatus::from)
-        .collect();
+        ..
+    } = upload_args.clone();
 
-    let repo = BundleRepo::new(
-        repo_root,
-        repo_url,
-        repo_head_sha,
-        repo_head_branch,
-        repo_head_commit_epoch,
-    )?;
+    let api_client = ApiClient::new(&token)?;
 
-    let command_line = env::args()
-        .collect::<Vec<String>>()
-        .join(" ")
-        .replace(&token, "***");
-    let api_client = ApiClient::new(token)?;
-
-    let codeowners =
-        codeowners.or_else(|| CodeOwners::find_file(&repo.repo_root, &codeowners_path));
-
-    let mut bep_result: Option<BepParseResult> = None;
-    if let Some(bazel_bep_path) = bazel_bep_path {
-        let mut parser = BazelBepParser::new(bazel_bep_path);
-        let bep_parse_result = parser.parse()?;
-        print_bep_results(&bep_parse_result);
-        junit_path_wrappers = bep_parse_result.uncached_xml_files();
-        bep_result = Some(bep_parse_result);
-    }
-
-    let tags = parse_custom_tags(&tags)?;
-    #[cfg(target_os = "macos")]
-    let junit_temp_dir = tempfile::tempdir()?;
-    #[cfg(target_os = "macos")]
-    {
-        let temp_paths =
-            handle_xcresult(&junit_temp_dir, xcresult_path, &repo.repo, &org_url_slug)?;
-        junit_path_wrappers = [junit_path_wrappers.as_slice(), temp_paths.as_slice()].concat();
-        if junit_path_wrappers.is_empty() && !allow_empty_test_results {
-            return Err(anyhow::anyhow!(
-                "No tests found in the provided XCResult path."
-            ));
-        } else if junit_path_wrappers.is_empty() && allow_empty_test_results {
-            log::warn!("No tests found in the provided XCResult path.");
-        }
-    }
-
-    let file_set_builder = FileSetBuilder::build_file_sets(
-        &repo.repo_root,
-        &junit_path_wrappers,
-        team.clone(),
-        &codeowners,
-        exec_start,
-    )?;
-
-    if !allow_empty_test_results && file_set_builder.no_files_found() {
-        return Err(anyhow::anyhow!("No JUnit files found to upload."));
-    }
-
-    // Run the quarantine step and update the exit code.
-    let failed_tests_extractor =
-        FailedTestsExtractor::new(&repo.repo, &org_url_slug, file_set_builder.file_sets());
-    let exit_code = failed_tests_extractor.exit_code();
-    let quarantine_run_results = if use_quarantining && quarantine_results.is_none() {
-        Some(
-            run_quarantine(
-                &api_client,
-                &api::GetQuarantineBulkTestStatusRequest {
-                    repo: repo.repo.clone(),
-                    org_url_slug: org_url_slug.clone(),
-                    test_identifiers: failed_tests_extractor.failed_tests().to_vec(),
-                },
-                &file_set_builder,
-                Some(failed_tests_extractor),
-                None,
-            )
-            .await,
-        )
-    } else {
-        quarantine_results
-    };
-
-    let QuarantineRunResult {
-        exit_code,
-        quarantine_status: resolved_quarantine_results,
-    } = quarantine_run_results.unwrap_or_else(|| QuarantineRunResult {
-        exit_code,
-        ..Default::default()
-    });
-
-    let num_files = file_set_builder.count();
-    let num_tests = parse_num_tests(file_set_builder.file_sets());
-
-    let envs = EnvScanner::scan_env();
-    let os_info: String = env::consts::OS.to_string();
-
-    api_client
-        .create_trunk_repo(&api::CreateRepoRequest {
-            repo: repo.repo.clone(),
-            org_url_slug: org_url_slug.clone(),
-            remote_urls: vec![repo.repo_url.clone()],
-        })
-        .await?;
-
-    let cli_version = format!(
-        "cargo={} git={} rustc={}",
-        env!("CARGO_PKG_VERSION"),
-        env!("VERGEN_GIT_SHA"),
-        env!("VERGEN_RUSTC_SEMVER")
-    );
-    let client_version = format!("trunk-analytics-cli {}", cli_version);
-    let upload = api_client
-        .create_bundle_upload_intent(&api::CreateBundleUploadRequest {
-            repo: repo.repo.clone(),
-            org_url_slug: org_url_slug.clone(),
-            client_version,
-        })
-        .await?;
-
-    let meta = BundleMeta {
-        base_props: BundleMetaBaseProps {
-            version: META_VERSION.to_string(),
-            org: org_url_slug,
-            repo,
-            cli_version,
-            bundle_upload_id: upload.id.clone(),
-            tags,
-            file_sets: file_set_builder.file_sets().to_vec(),
-            envs,
-            upload_time_epoch: SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs(),
-            test_command,
-            quarantined_tests: resolved_quarantine_results.quarantine_results.to_vec(),
-            os_info: Some(os_info),
-            codeowners,
-        },
-        junit_props: BundleMetaJunitProps {
-            num_files,
-            num_tests,
-        },
-        debug_props: BundleMetaDebugProps { command_line },
-        bundle_upload_id_v2: upload.id_v2,
-    };
-
-    log::info!("Total files pack and upload: {}", file_set_builder.count());
-    if file_set_builder.no_files_found() {
-        log::warn!(
-            "No JUnit files found to pack and upload using globs: {:?}",
-            junit_path_wrappers
-                .iter()
-                .map(|j| &j.junit_path)
-                .collect::<Vec<&String>>()
-        );
-    }
+    let (
+        mut meta,
+        file_set_builder,
+        bep_result,
+        // directory is removed on drop
+        _junit_path_wrappers_temp_dir,
+    ) = gather_context(upload_args, test_command, codeowners, exec_start).await?;
 
     if print_files {
         println!("Files to upload:");
@@ -339,11 +185,40 @@ pub async fn run_upload(
         }
     }
 
-    let bundle_temp_dir = tempfile::tempdir()?;
-    let bundle_time_file = bundle_temp_dir.path().join("bundle.tar.zstd");
-    let bundle = BundlerUtil::new(meta, bep_result);
-    bundle.make_tarball(&bundle_time_file)?;
-    log::info!("Flushed temporary tarball to {:?}", bundle_time_file);
+    let (exit_code, quarantined_tests) = extract_exit_code_and_quarantined_tests(
+        use_quarantining,
+        &api_client,
+        &meta.base_props,
+        quarantine_run_result,
+        &file_set_builder,
+    )
+    .await;
+    meta.base_props.quarantined_tests = quarantined_tests;
+
+    api_client
+        .create_trunk_repo(&api::CreateRepoRequest {
+            repo: meta.base_props.repo.repo.clone(),
+            org_url_slug: org_url_slug.clone(),
+            remote_urls: vec![meta.base_props.repo.repo_url.clone()],
+        })
+        .await?;
+
+    let upload = api_client
+        .create_bundle_upload_intent(&api::CreateBundleUploadRequest {
+            repo: meta.base_props.repo.repo.clone(),
+            org_url_slug: org_url_slug.clone(),
+            client_version: format!("trunk-analytics-cli {}", meta.base_props.cli_version),
+        })
+        .await?;
+    meta.base_props.bundle_upload_id.clone_from(&upload.id);
+    meta.bundle_upload_id_v2 = upload.id_v2;
+
+    let (
+        bundle_temp_file,
+        // directory is removed on drop
+        _bundle_temp_dir,
+    ) = BundlerUtil::new(meta, bep_result).make_tarball_in_temp_dir()?;
+    log::info!("Flushed temporary tarball to {:?}", bundle_temp_file);
 
     if dry_run {
         if let Err(e) = api_client
@@ -358,37 +233,253 @@ pub async fn run_upload(
             log::debug!("Updated bundle upload status to DRY_RUN");
         }
         log::info!("Dry run, skipping upload.");
-        return Ok(exit_code);
-    }
-
-    api_client
-        .put_bundle_to_s3(&upload.url, &bundle_time_file)
-        .await?;
-
-    if let Err(e) = api_client
-        .update_bundle_upload_status(&api::UpdateBundleUploadRequest {
-            id: upload.id.clone(),
-            upload_status: BundleUploadStatus::UploadComplete,
-        })
-        .await
-    {
-        log::warn!("{}", e)
     } else {
-        log::debug!(
-            "Updated bundle upload status to {:#?}",
-            BundleUploadStatus::UploadComplete
-        )
+        api_client
+            .put_bundle_to_s3(&upload.url, &bundle_temp_file)
+            .await?;
+
+        if let Err(e) = api_client
+            .update_bundle_upload_status(&api::UpdateBundleUploadRequest {
+                id: upload.id.clone(),
+                upload_status: BundleUploadStatus::UploadComplete,
+            })
+            .await
+        {
+            log::warn!("{}", e)
+        } else {
+            log::debug!(
+                "Updated bundle upload status to {:#?}",
+                BundleUploadStatus::UploadComplete
+            )
+        }
+
+        if exit_code == EXIT_SUCCESS {
+            log::info!("Done");
+        } else {
+            log::info!(
+                "Upload successful; returning unsuccessful exit code of test run: {}",
+                exit_code
+            )
+        }
     }
 
-    if exit_code == EXIT_SUCCESS {
-        log::info!("Done");
-    } else {
-        log::info!(
-            "Upload successful; returning unsuccessful exit code of test run: {}",
-            exit_code
-        )
-    }
     Ok(exit_code)
+}
+
+async fn gather_context(
+    upload_args: UploadArgs,
+    test_command: Option<String>,
+    codeowners: Option<CodeOwners>,
+    exec_start: Option<SystemTime>,
+) -> anyhow::Result<(
+    BundleMeta,
+    FileSetBuilder,
+    Option<BepParseResult>,
+    Option<TempDir>,
+)> {
+    let UploadArgs {
+        junit_paths,
+        #[cfg(target_os = "macos")]
+        xcresult_path,
+        bazel_bep_path,
+        org_url_slug,
+        token,
+        repo_root,
+        repo_url,
+        repo_head_sha,
+        repo_head_branch,
+        repo_head_commit_epoch,
+        tags,
+        allow_empty_test_results,
+        team,
+        codeowners_path,
+        ..
+    } = upload_args;
+
+    let repo = BundleRepo::new(
+        repo_root,
+        repo_url,
+        repo_head_sha,
+        repo_head_branch,
+        repo_head_commit_epoch,
+    )?;
+
+    let (junit_path_wrappers, bep_result, junit_path_wrappers_temp_dir) =
+        coalesce_junit_path_wrappers(
+            junit_paths,
+            bazel_bep_path,
+            #[cfg(target_os = "macos")]
+            xcresult_path,
+            #[cfg(target_os = "macos")]
+            &repo.repo,
+            #[cfg(target_os = "macos")]
+            &org_url_slug,
+            #[cfg(target_os = "macos")]
+            allow_empty_test_results,
+        )?;
+
+    let codeowners =
+        codeowners.or_else(|| CodeOwners::find_file(&repo.repo_root, &codeowners_path));
+
+    let file_set_builder = FileSetBuilder::build_file_sets(
+        &repo.repo_root,
+        &junit_path_wrappers,
+        team.clone(),
+        &codeowners,
+        exec_start,
+    )?;
+
+    if !allow_empty_test_results && file_set_builder.no_files_found() {
+        return Err(anyhow::anyhow!("No JUnit files found to upload."));
+    }
+
+    log::info!("Total files pack and upload: {}", file_set_builder.count());
+    if file_set_builder.no_files_found() {
+        log::warn!(
+            "No JUnit files found to pack and upload using globs: {:?}",
+            junit_path_wrappers
+                .iter()
+                .map(|j| &j.junit_path)
+                .collect::<Vec<_>>()
+        );
+    }
+
+    let meta = BundleMeta {
+        junit_props: BundleMetaJunitProps {
+            num_files: file_set_builder.count(),
+            num_tests: parse_num_tests(file_set_builder.file_sets()),
+        },
+        debug_props: BundleMetaDebugProps {
+            command_line: env::args()
+                .collect::<Vec<String>>()
+                .join(" ")
+                .replace(&token, "***"),
+        },
+        bundle_upload_id_v2: String::with_capacity(0),
+        base_props: BundleMetaBaseProps {
+            version: META_VERSION.to_string(),
+            org: org_url_slug,
+            repo,
+            cli_version: format!(
+                "cargo={} git={} rustc={}",
+                env!("CARGO_PKG_VERSION"),
+                env!("VERGEN_GIT_SHA"),
+                env!("VERGEN_RUSTC_SEMVER")
+            ),
+            bundle_upload_id: String::with_capacity(0),
+            tags: parse_custom_tags(&tags)?,
+            file_sets: file_set_builder.file_sets().to_vec(),
+            envs: EnvScanner::scan_env(),
+            upload_time_epoch: SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs(),
+            test_command,
+            quarantined_tests: Vec::with_capacity(0),
+            os_info: Some(env::consts::OS.to_string()),
+            codeowners,
+        },
+    };
+
+    Ok((
+        meta,
+        file_set_builder,
+        bep_result,
+        junit_path_wrappers_temp_dir,
+    ))
+}
+
+fn coalesce_junit_path_wrappers(
+    junit_paths: Vec<String>,
+    bazel_bep_path: Option<String>,
+    #[cfg(target_os = "macos")] xcresult_path: Option<String>,
+    #[cfg(target_os = "macos")] repo: &RepoUrlParts,
+    #[cfg(target_os = "macos")] org_url_slug: &str,
+    #[cfg(target_os = "macos")] allow_empty_test_results: bool,
+) -> anyhow::Result<(
+    Vec<JunitReportFileWithStatus>,
+    Option<BepParseResult>,
+    Option<TempDir>,
+)> {
+    let mut junit_path_wrappers = junit_paths
+        .into_iter()
+        .map(JunitReportFileWithStatus::from)
+        .collect();
+
+    let mut bep_result: Option<BepParseResult> = None;
+    if let Some(bazel_bep_path) = bazel_bep_path {
+        let mut parser = BazelBepParser::new(bazel_bep_path);
+        let bep_parse_result = parser.parse()?;
+        print_bep_results(&bep_parse_result);
+        junit_path_wrappers = bep_parse_result.uncached_xml_files();
+        bep_result = Some(bep_parse_result);
+    }
+
+    let mut _junit_path_wrappers_temp_dir = None;
+    #[cfg(target_os = "macos")]
+    {
+        let temp_dir = tempfile::tempdir()?;
+        let temp_paths = handle_xcresult(&temp_dir, xcresult_path, repo, org_url_slug)?;
+        _junit_path_wrappers_temp_dir = Some(temp_dir);
+        junit_path_wrappers = [junit_path_wrappers.as_slice(), temp_paths.as_slice()].concat();
+        if junit_path_wrappers.is_empty() {
+            if allow_empty_test_results {
+                log::warn!("No tests found in the provided XCResult path.");
+            } else {
+                return Err(anyhow::anyhow!(
+                    "No tests found in the provided XCResult path."
+                ));
+            }
+        }
+    }
+
+    Ok((
+        junit_path_wrappers,
+        bep_result,
+        _junit_path_wrappers_temp_dir,
+    ))
+}
+
+async fn extract_exit_code_and_quarantined_tests(
+    use_quarantining: bool,
+    api_client: &ApiClient,
+    meta_base_props: &BundleMetaBaseProps,
+    quarantine_run_result: Option<QuarantineRunResult>,
+    file_set_builder: &FileSetBuilder,
+) -> (i32, Vec<Test>) {
+    // Run the quarantine step and update the exit code.
+    let failed_tests_extractor = FailedTestsExtractor::new(
+        &meta_base_props.repo.repo,
+        &meta_base_props.org,
+        file_set_builder.file_sets(),
+    );
+    let QuarantineRunResult {
+        exit_code,
+        quarantine_status:
+            QuarantineBulkTestStatus {
+                quarantine_results: quarantined_tests,
+                ..
+            },
+    } = if !use_quarantining {
+        QuarantineRunResult {
+            exit_code: failed_tests_extractor.exit_code(),
+            ..Default::default()
+        }
+    } else if let Some(quarantine_run_result) = quarantine_run_result {
+        quarantine_run_result
+    } else {
+        run_quarantine(
+            api_client,
+            &api::GetQuarantineBulkTestStatusRequest {
+                repo: meta_base_props.repo.repo.clone(),
+                org_url_slug: meta_base_props.org.clone(),
+                test_identifiers: failed_tests_extractor.failed_tests().to_vec(),
+            },
+            file_set_builder,
+            Some(failed_tests_extractor),
+            None,
+        )
+        .await
+    };
+
+    (exit_code, quarantined_tests)
 }
 
 #[cfg(target_os = "macos")]
@@ -400,7 +491,7 @@ fn handle_xcresult(
 ) -> Result<Vec<JunitReportFileWithStatus>, anyhow::Error> {
     let mut temp_paths = Vec::new();
     if let Some(xcresult_path) = xcresult_path {
-        let xcresult = XCResult::new(xcresult_path, repo, org_url_slug.to_string());
+        let xcresult = XCResult::new(xcresult_path, repo, org_url_slug);
         let junits = xcresult?
             .generate_junits()
             .map_err(|e| anyhow::anyhow!("Failed to generate junit files from xcresult: {}", e))?;
