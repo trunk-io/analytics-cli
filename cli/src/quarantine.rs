@@ -13,7 +13,7 @@ use crate::api_client::ApiClient;
 fn convert_case_to_test(
     repo: &BundleRepo,
     org_slug: &str,
-    parent_name: &String,
+    parent_name: String,
     case: &quick_junit::TestCase,
     suite: &quick_junit::TestSuite,
 ) -> Test {
@@ -28,7 +28,7 @@ fn convert_case_to_test(
         .map(|t| t.timestamp_millis());
     Test::new(
         name,
-        parent_name.clone(),
+        parent_name,
         class_name,
         file,
         id,
@@ -74,7 +74,8 @@ pub async fn extract_failed_tests(
                 for suite in &report.test_suites {
                     let parent_name = String::from(suite.name.as_str());
                     for case in &suite.test_cases {
-                        let test = convert_case_to_test(repo, org_slug, &parent_name, case, suite);
+                        let test =
+                            convert_case_to_test(repo, org_slug, parent_name.clone(), case, suite);
                         match &case.status {
                             TestCaseStatus::Skipped { .. } => {
                                 continue;
