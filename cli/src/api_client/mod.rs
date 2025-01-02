@@ -21,9 +21,9 @@ impl ApiClient {
     const TRUNK_API_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
     const TRUNK_API_TOKEN_HEADER: &'static str = "x-api-token";
 
-    pub fn new(api_token: String) -> anyhow::Result<Self> {
-        let trimmed_token = api_token.trim();
-        if trimmed_token.is_empty() {
+    pub fn new<T: AsRef<str>>(api_token: T) -> anyhow::Result<Self> {
+        let api_token = api_token.as_ref();
+        if api_token.trim().is_empty() {
             return Err(anyhow::anyhow!("Trunk API token is required."));
         }
         let api_token_header_value = HeaderValue::from_str(&api_token)
