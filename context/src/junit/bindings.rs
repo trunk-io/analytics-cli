@@ -176,7 +176,7 @@ impl From<TestCaseRun> for BindingsTestCase {
                     }
                 },
                 non_success: {
-                    if typed_status == TestCaseRunStatus::Success {
+                    if typed_status == TestCaseRunStatus::Failure {
                         Some(BindingsTestCaseStatusNonSuccess {
                             kind: BindingsNonSuccessKind::Failure,
                             message: Some(status_output_message.clone()),
@@ -918,6 +918,7 @@ impl BindingsJunitReportValidation {
 #[cfg(feature = "bindings")]
 #[test]
 fn parse_test_report_to_bindings() {
+    use crate::junit::validator::validate;
     use prost_wkt_types::Timestamp;
     let test_started_at = Timestamp {
         seconds: 1000,
@@ -1023,4 +1024,38 @@ fn parse_test_report_to_bindings() {
         test2.attempt_number.to_string()
     );
     assert_eq!(test_case2.properties.len(), 0);
+
+    // verify that the test report is valid
+    let results = validate(&converted_bindings.clone().into());
+    assert_eq!(results.all_issues_flat().len(), 4);
+    results
+        .all_issues_flat()
+        .sort_by(|a, b| a.error_message.cmp(&b.error_message));
+    results
+        .all_issues_flat()
+        .iter()
+        .enumerate()
+        .for_each(|issue| {
+            assert_eq!(issue.1.level, JunitValidationLevel::SubOptimal);
+            if issue.0 == 0 {
+                assert_eq!(issue.1.error_type, JunitValidationType::Report);
+                assert_eq!(
+                    issue.1.error_message,
+                    "report has old (> 30 day(s)) timestamps"
+                );
+            } else {
+                assert_eq!(issue.1.error_type, JunitValidationType::TestCase);
+                assert_eq!(issue.1.error_message, "test case id is not a valid uuidv5");
+            }
+        });
+    assert_eq!(results.test_suites.len(), 2);
+    assert_eq!(results.valid_test_suites.len(), 2);
+    assert_eq!(
+        results.valid_test_suites[0].test_cases.len(),
+        converted_bindings.test_suites[0].tests
+    );
+    assert_eq!(
+        results.valid_test_suites[1].test_cases.len(),
+        converted_bindings.test_suites[1].tests
+    );
 }
