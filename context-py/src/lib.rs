@@ -235,6 +235,7 @@ fn context_py(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<meta::bindings::BindingsMetaContext>()?;
     m.add_class::<meta::validator::MetaValidation>()?;
     m.add_class::<meta::validator::MetaValidationLevel>()?;
+    m.add_function(wrap_pyfunction!(extract_files_from_tarball, m)?)?;
     m.add_function(wrap_pyfunction!(parse_meta_from_tarball, m)?)?;
     m.add_function(wrap_pyfunction!(parse_meta, m)?)?;
     m.add_function(wrap_pyfunction!(meta_validate, m)?)?;

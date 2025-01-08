@@ -158,17 +158,16 @@ pub fn parse_meta(meta_bytes: Vec<u8>) -> anyhow::Result<VersionedBundle> {
     Ok(VersionedBundle::V0_5_29(base_bundle))
 }
 
-#[cfg(feature = "pyo3")]
-#[gen_stub_pyclass]
-#[pyclass]
+#[derive(Clone)]
+#[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass(get_all))]
 pub struct BundledFileWrapper {
     pub file: BundledFile,
-    pub buffer: Box<dyn AsyncRead + Send>,
+    // pub buffer: Box<dyn AsyncRead + Send>,
+    pub buffer: Vec<u8>,
 }
 
-#[cfg(feature = "pyo3")]
-#[gen_stub_pyclass]
-#[pyclass]
+#[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass(get_all))]
+#[derive(Clone)]
 pub struct BundleFiles {
     pub meta: BindingsVersionedBundle,
     pub codeowners: Option<Vec<u8>>,
@@ -209,7 +208,7 @@ pub async fn extract_files_from_tarball<R: AsyncBufRead>(input: R) -> anyhow::Re
             meta = Some(parsed_meta);
         } else if path_str == codeowners::CODEOWNERS {
             let mut codeowners_bytes = Vec::new();
-            owned_entry.read_to_end(&mut codeowners_bytes);
+            owned_entry.read_to_end(&mut codeowners_bytes).await?;
             codeowners = Some(codeowners_bytes);
         } else {
             if meta.is_none() {
@@ -226,7 +225,8 @@ pub async fn extract_files_from_tarball<R: AsyncBufRead>(input: R) -> anyhow::Re
             futures::io::copy(&mut owned_entry, &mut buffer).await?;
             files.push(BundledFileWrapper {
                 file: file.clone(),
-                buffer: Box::new(Cursor::new(buffer)),
+                // buffer: Box::new(Cursor::new(buffer)),
+                buffer,
             });
         }
     }

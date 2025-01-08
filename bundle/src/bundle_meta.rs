@@ -148,7 +148,7 @@ impl From<BundleMetaV0_6_3> for BundleMetaV0_5_29 {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 #[cfg_attr(feature = "wasm", derive(Tsify))]
 #[cfg_attr(feature = "wasm", tsify(into_wasm_abi, from_wasm_abi))]
 #[serde(tag = "schema")]
@@ -159,7 +159,7 @@ pub enum VersionedBundle {
     V0_6_3(BundleMetaV0_6_3),
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 #[cfg(feature = "pyo3")]
 #[gen_stub_pyclass]
 #[pyclass]
