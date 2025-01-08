@@ -1,3 +1,11 @@
+PATH
+  remote: .
+  specs:
+    trunk_analytics (0.0.4)
+      rb_sys
+      rspec (~> 3.0)
+      rspec-core (~> 3.0)
+
 GEM
   remote: https://rubygems.org/
   specs:
@@ -6,7 +14,7 @@ GEM
     rake (13.2.1)
     rake-compiler (1.2.0)
       rake
-    rb_sys (0.9.103)
+    rb_sys (0.9.98)
     rspec (3.13.0)
       rspec-core (~> 3.13.0)
       rspec-expectations (~> 3.13.0)
@@ -24,17 +32,19 @@ GEM
       power_assert
 
 PLATFORMS
-  darwin
-  linux
-  ruby
+  arm64-darwin
+  arm64-linux
+  x86_64-darwin
+  x86_64-linux
 
 DEPENDENCIES
   rake
   rake-compiler (= 1.2.0)
-  rb_sys (~> 0.9.103)
+  rb_sys (= 0.9.98)
   rspec
   rspec-core
   test-unit
+  trunk_analytics!
 
 BUNDLED WITH
-   2.5.23
+   2.4.4

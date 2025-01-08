@@ -2,17 +2,35 @@
 
 require "rake/testtask"
 require "rake/extensiontask"
-require 'rspec/core/rake_task'
+#require 'rspec/core/rake_task'
+require "rb_sys/extensiontask"
+require "bundler/gem_tasks"
 
-Rake::ExtensionTask.new("context_ruby") do |c|
-  c.lib_dir = "lib/context_ruby"
+GEMSPEC_PATH = "context_ruby.gemspec"
+GEMSPEC = Gem::Specification.load('context_ruby.gemspec') || abort('Could not load trunk_analytics.gemspec')
+
+RbSys::ExtensionTask.new("context_ruby", GEMSPEC) do |ext|
+  ext.lib_dir = "lib/context_ruby"
+  ext.cross_compile = true
 end
 
-task :dev do
-  ENV['RB_SYS_CARGO_PROFILE'] = 'dev'
+#RSpec::Core::RakeTask.new(:test) do |t|
+#  Rake::Task['compile'].invoke
+#  t.pattern = FileList["test/*_spec.rb"]
+#end
+
+desc "Build native extension for a provided platform"
+task :native, [:platform] do |_t, platform:|
+  Dir.chdir '..' do
+    # TODO (grab ruby version from env)
+    if platform == 'x86_64-linux'
+      sh 'bundle', 'exec', 'rb-sys-dock', '--platform', platform, '--build', "--directory", "context-ruby", "--ruby-versions", "3.1", "--", "./setup-x86_64-linux-gnu.sh" 
+    else
+      sh 'bundle', 'exec', 'rb-sys-dock', '--platform', platform, '--build', "--directory", "context-ruby", "--ruby-versions", "3.1"
+    end
+    #sh "rb-sys-dock", "--platform", platform, "--mount-toolchains", "--directory", "context-ruby", "--build", "--ruby-versions", "3.1"
+  end
 end
 
-RSpec::Core::RakeTask.new(:test) do |t|
-  Rake::Task['compile'].invoke
-  t.pattern = 'test/*_spec.rb'
-end
+task build: :compile
+task default: :test

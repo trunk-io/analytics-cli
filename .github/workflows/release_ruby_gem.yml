@@ -1,0 +1,109 @@
+---
+name: Release Ruby Gem
+
+on:
+  push:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  ci-data:
+    runs-on: ubuntu-latest
+    outputs:
+      result: ${{ steps.fetch.outputs.result }}
+    steps:
+      - uses: oxidize-rb/actions/setup-ruby-and-rust@main
+        with:
+          rubygems: latest
+          ruby-version: "3.1"
+          bundler-cache: false
+          cargo-cache: false
+          cargo-vendor: false
+
+      - uses: oxidize-rb/actions/fetch-ci-data@v1
+        id: fetch
+        with:
+          supported-ruby-platforms: |
+            exclude: [arm-linux]
+          stable-ruby-versions: |
+            exclude: [head]
+  cross-gem:
+    name: Compile native gem for ${{ matrix.platform }}
+    runs-on: ubuntu-latest
+    needs: ci-data
+    strategy:
+      matrix:
+        platform:
+          - x86_64-linux-musl
+          - x86_64-linux
+          - aarch64-linux
+          - aarch64-linux-musl
+          - arm64-darwin
+          - x86_64-darwin
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Vars
+        id: vars
+        run: |
+          if [[ "${{ inputs.rb-sys-branch }}" == "" ]]; then
+            echo "rb_sys_branch=main" >> $GITHUB_OUTPUT
+          else
+            echo "rb_sys_branch=${{ inputs.rb-sys-branch }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Patch rb-sys version
+        id: patch
+        if: ${{ inputs.rb-sys-branch }}
+        run: |
+          mkdir -p .cargo
+          echo "[patch.crates-io]" >> .cargo/config.toml
+          echo "rb-sys = { git = \"https://github.com/oxidize-rb/rb-sys\", branch = \"${{ inputs.rb-sys-branch }}\" }" >> .cargo/config.toml
+          echo "rb-sys-env = { git = \"https://github.com/oxidize-rb/rb-sys\", branch = \"${{ inputs.rb-sys-branch }}\" }" >> .cargo/config.toml
+          sed -i "s|gem 'rb_sys', '.*'|gem 'rb_sys', github: 'oxidize-rb/rb-sys', branch: '${{ inputs.rb-sys-branch }}'|g" Gemfile
+          cargo update -p rb-sys
+
+      - uses: "ruby/setup-ruby@v1"
+        with:
+          ruby-version: "3.1"
+          bundler-cache: true
+          working-directory: context-ruby
+
+      - uses: oxidize-rb/actions/cross-gem@v1
+        with:
+          platform: ${{ matrix.platform }}
+          working-directory: context-ruby
+          ruby-versions: "3.1"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cross-gem-${{ matrix.platform }}
+          path: context-ruby/pkg/*.gem
+          if-no-files-found: error
+          retention-days: 1
+
+  publish:
+    runs-on: ubuntu-latest
+    needs: cross-gem
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: rubygems/configure-rubygems-credentials@main
+        with:
+          role-to-assume: rg_oidc_akr_vxb9d9w6dob8q6sr6jz5
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: cross-gem-*
+          path: context-ruby/pkg/
+          merge-multiple: true
+
+      - working-directory: context-ruby
+        run: |
+          set -euxo pipefail
+          find pkg
+          for i in $(ls pkg/*.gem); do
+            gem push $i
+          done

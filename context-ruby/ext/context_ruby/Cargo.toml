@@ -11,3 +11,22 @@ anyhow = "1.0.93"
 context = { path = "../../../context", features = ["git-access", "ruby"] }
 magnus = { version = "0.7" }
 test_report = { path = "../../../test_report", features = ["ruby"] }
+openssl = { version = "0.10.66", features = ["vendored"], optional = true }
+openssl-src = { version = "=300.3.1", optional = true }
+home = "=0.5.9"
+
+
+[dev-dependencies.magnus]
+version = "0.7.1"
+features = ["rb-sys", "embed"]
+
+[build-dependencies]
+rb-sys-env = { version = "0.1" }
+
+[dev-dependencies]
+rb-sys = { version = "0.9", features = [
+  "link-ruby",
+  "bindgen-rbimpls",
+  "bindgen-deprecated-types",
+  "stable-api-compiled-fallback",
+] }
