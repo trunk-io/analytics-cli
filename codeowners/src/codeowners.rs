@@ -7,6 +7,7 @@ use constants::CODEOWNERS_LOCATIONS;
 #[cfg(feature = "pyo3")]
 use pyo3::prelude::*;
 #[cfg(feature = "pyo3")]
+// use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods, gen_stub_pyclass_enum};
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "wasm")]
@@ -88,6 +89,7 @@ impl CodeOwners {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+// #[cfg_attr(feature = "pyo3", gen_stub_pyclass_enum, pyclass(eq))]
 pub enum Owners {
     GitHubOwners(GitHubOwners),
     GitLabOwners(GitLabOwners),
@@ -95,7 +97,7 @@ pub enum Owners {
 
 // TODO(TRUNK-13784): Make this smarter and return only an object with a .of method
 // instead of forcing the ETL to try GitHub or GitLab
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass)]
 pub struct BindingsOwners(pub Owners);
 

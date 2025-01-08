@@ -1,4 +1,5 @@
-use std::{collections::HashMap, io::BufReader};
+use std::sync::{Arc, RwLock};
+use std::{collections::HashMap, io::BufReader, thread};
 
 use bundle::{
     parse_meta as parse_meta_impl, parse_meta_from_tarball as parse_meta_from_tarball_impl,
@@ -185,6 +186,62 @@ fn codeowners_parse(codeowners_bytes: Vec<u8>) -> PyResult<BindingsOwners> {
     }
 }
 
+#[gen_stub_pyfunction]
+#[pyfunction]
+fn associate_codeowners_multithreaded(
+    codeowners_matchers: HashMap<String, Option<BindingsOwners>>,
+    to_match: Vec<(String, Option<String>)>,
+) -> Vec<Vec<String>> {
+    // fn associate_codeowners_multithreaded(codeowners_matchers: &BindingsOwners) -> Vec<Option<String>> {
+    // let codeowners_matchers_native: HashMap<String, Option<Owners>> = codeowners_matchers.iter().map(|(key, &value)| {
+    //     (key.clone(), value.and_then(|bo| bo.))
+    // })
+    // Number of threads we want to spawn
+    let num_threads = 4; // You can adjust this as needed
+    let chunk_size = (to_match.len() + num_threads - 1) / num_threads; // Ceiling division
+
+    // Create a vector to hold the handles of the threads
+    let mut handles = Vec::with_capacity(num_threads);
+    let shared_map = Arc::new(RwLock::new(codeowners_matchers));
+
+    // Spawn threads, each processing a chunk of the slice
+    for chunk in to_match.chunks(chunk_size) {
+        let chunk = chunk.to_vec(); // To move data into the closure
+        let shared_map = Arc::clone(&shared_map);
+        let handle = thread::spawn(move || {
+            let map = shared_map.read().unwrap();
+            chunk
+                .into_iter()
+                .map(|bundle_upload_id_and_file| -> Vec<String> {
+                    let matcher = map.get(&bundle_upload_id_and_file.0);
+                    match (matcher, &bundle_upload_id_and_file.1) {
+                        (Some(Some(bo)), Some(file)) => {
+                            if let Some(gho) = bo.get_github_owners() {
+                                gho.of(file.to_string()).unwrap_or_default()
+                            } else if let Some(glo) = bo.get_gitlab_owners() {
+                                glo.of(file.to_string()).unwrap_or_default()
+                            } else {
+                                Vec::new()
+                            }
+                        }
+                        _ => Vec::new(),
+                    }
+                })
+                .collect::<Vec<Vec<String>>>()
+        });
+        handles.push(handle);
+    }
+
+    // Collect the results from each thread
+    let mut result = Vec::new();
+    for handle in handles {
+        let chunk_result = handle.join().unwrap();
+        result.extend(chunk_result);
+    }
+
+    result
+}
+
 #[pymodule]
 fn context_py(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<env::parser::CIInfo>()?;
@@ -229,6 +286,7 @@ fn context_py(m: &Bound<'_, PyModule>) -> PyResult<()> {
 
     m.add_class::<codeowners::BindingsOwners>()?;
     m.add_function(wrap_pyfunction!(codeowners_parse, m)?)?;
+    m.add_function(wrap_pyfunction!(associate_codeowners_multithreaded, m)?)?;
 
     Ok(())
 }

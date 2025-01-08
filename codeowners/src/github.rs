@@ -73,6 +73,7 @@ impl FromStr for GitHubOwner {
 
 /// Mappings of GitHub owners to path patterns
 #[derive(Debug, PartialEq, Clone, Eq)]
+// #[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass)]
 pub struct GitHubOwners {
     paths: Vec<(Pattern, Vec<GitHubOwner>)>,
 }
@@ -173,7 +174,7 @@ pub struct BindingsGitHubOwners(pub GitHubOwners);
 #[gen_stub_pymethods]
 #[pymethods]
 impl BindingsGitHubOwners {
-    fn of(&self, path: String) -> Option<Vec<String>> {
+    pub fn of(&self, path: String) -> Option<Vec<String>> {
         let owners = self.0.of(Path::new(&path));
         owners.map(|owners| owners.iter().map(ToString::to_string).collect())
     }
