@@ -1,20 +1,24 @@
-use context::repo::BundleRepo;
+use context::repo::RepoUrlParts;
 #[cfg(feature = "pyo3")]
 use pyo3::prelude::*;
 #[cfg(feature = "pyo3")]
-use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pyclass_enum};
+use pyo3_stub_gen::derive::gen_stub_pyclass;
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "wasm")]
 use tsify_next::Tsify;
 #[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::*;
 
+use crate::FileSetBuilder;
+
+#[derive(Debug, Default, Clone)]
 pub struct RunResult {
     pub exit_code: i32,
-    pub failures: Vec<Test>,
+    pub file_set_builder: FileSetBuilder,
     pub exec_start: Option<std::time::SystemTime>,
 }
 
+#[derive(Debug, Default, Clone)]
 pub struct QuarantineRunResult {
     pub exit_code: i32,
     pub quarantine_status: QuarantineBulkTestStatus,
@@ -43,7 +47,7 @@ impl Test {
         file: Option<String>,
         id: Option<String>,
         org_slug: &str,
-        repo: &BundleRepo,
+        repo: &RepoUrlParts,
         timestamp_millis: Option<i64>,
     ) -> Self {
         if let Some(id) = id {
@@ -56,11 +60,9 @@ impl Test {
                 timestamp_millis,
             };
         }
-        // generate a unique id if not provided
-        let repo_full_name = repo.repo.repo_full_name();
         let info_id_input = [
             org_slug,
-            &repo_full_name,
+            repo.repo_full_name().as_str(),
             file.as_deref().unwrap_or(""),
             class_name.as_deref().unwrap_or(""),
             &parent_name,
@@ -92,52 +94,6 @@ pub struct QuarantineBulkTestStatus {
 #[derive(Debug, Serialize, Clone)]
 pub struct BundleUploader {
     pub org_slug: String,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq, Eq)]
-#[cfg_attr(feature = "pyo3", gen_stub_pyclass_enum, pyclass(eq, eq_int))]
-#[cfg_attr(feature = "wasm", derive(Tsify))]
-pub enum FileSetType {
-    #[default]
-    Junit,
-}
-
-#[cfg(feature = "wasm")]
-// u128 will be supported in the next release after 0.2.95
-#[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq, Eq)]
-#[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass(get_all))]
-#[cfg_attr(feature = "wasm", derive(Tsify))]
-pub struct BundledFile {
-    pub original_path: String,
-    /// Added in v0.5.33
-    pub original_path_rel: Option<String>,
-    pub path: String,
-    pub owners: Vec<String>,
-    pub team: Option<String>,
-}
-
-#[cfg(not(feature = "wasm"))]
-#[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass(get_all))]
-#[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq, Eq)]
-pub struct BundledFile {
-    pub original_path: String,
-    /// Added in v0.5.33
-    pub original_path_rel: Option<String>,
-    pub path: String,
-    // deserialize u128 from flatten not supported
-    // https://github.com/serde-rs/json/issues/625
-    #[serde(skip_deserializing)]
-    pub last_modified_epoch_ns: u128,
-    pub owners: Vec<String>,
-    pub team: Option<String>,
-}
-
-impl BundledFile {
-    pub fn get_print_path(&self) -> &str {
-        self.original_path_rel
-            .as_ref()
-            .unwrap_or(&self.original_path)
-    }
 }
 
 /// Custom tags defined by the user.
@@ -248,21 +204,10 @@ mod tests {
         let class_name = Some("class_name".to_string());
         let file = Some("file".to_string());
         let org_slug = "org_slug";
-        let repo = BundleRepo {
-            repo: Repo {
-                host: "host".to_string(),
-                owner: "owner".to_string(),
-                name: "name".to_string(),
-            },
-            repo_root: "repo_root".to_string(),
-            repo_url: "repo_url".to_string(),
-            repo_head_sha: "repo_head_sha".to_string(),
-            repo_head_sha_short: Some("repo_head_sha_short".to_string()),
-            repo_head_branch: "repo_head_branch".to_string(),
-            repo_head_commit_epoch: 1724102768,
-            repo_head_commit_message: "repo_head_commit_message".to_string(),
-            repo_head_author_name: "repo_head_author_name".to_string(),
-            repo_head_author_email: "repo_head_author_email".to_string(),
+        let repo = Repo {
+            host: "host".to_string(),
+            owner: "owner".to_string(),
+            name: "name".to_string(),
         };
         let result = Test::new(
             name.clone(),

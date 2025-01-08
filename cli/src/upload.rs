@@ -12,10 +12,10 @@ use xcresult::XCResult;
 use api::BundleUploadStatus;
 use bundle::{
     parse_custom_tags, BundleMeta, BundleMetaBaseProps, BundleMetaDebugProps, BundleMetaJunitProps,
-    BundlerUtil, FileSet, QuarantineBulkTestStatus, QuarantineRunResult, META_VERSION,
+    BundlerUtil, FileSet, FileSetBuilder, QuarantineRunResult, META_VERSION,
 };
 use codeowners::CodeOwners;
-use constants::{EXIT_FAILURE, EXIT_SUCCESS};
+use constants::EXIT_SUCCESS;
 #[cfg(target_os = "macos")]
 use context::repo::RepoUrlParts;
 use context::{
@@ -27,7 +27,7 @@ use context::{
 use crate::{
     api_client::ApiClient,
     print::print_bep_results,
-    runner::{build_filesets, extract_failed_tests, run_quarantine},
+    runner::{run_quarantine, FailedTestsExtractor},
     scanner::EnvScanner,
 };
 
@@ -219,7 +219,7 @@ pub async fn run_upload(
         }
     }
 
-    let (file_sets, file_counter) = build_filesets(
+    let file_set_builder = FileSetBuilder::build_file_sets(
         &repo.repo_root,
         &junit_path_wrappers,
         team.clone(),
@@ -227,18 +227,14 @@ pub async fn run_upload(
         exec_start,
     )?;
 
-    if !allow_empty_test_results && (file_counter.get_count() == 0 || file_sets.is_empty()) {
+    if !allow_empty_test_results && file_set_builder.no_files_found() {
         return Err(anyhow::anyhow!("No JUnit files found to upload."));
     }
 
-    let failures = extract_failed_tests(&repo, &org_url_slug, &file_sets).await;
-
     // Run the quarantine step and update the exit code.
-    let exit_code = if failures.is_empty() {
-        EXIT_SUCCESS
-    } else {
-        EXIT_FAILURE
-    };
+    let failed_tests_extractor =
+        FailedTestsExtractor::new(&repo.repo, &org_url_slug, file_set_builder.file_sets());
+    let exit_code = failed_tests_extractor.exit_code();
     let quarantine_run_results = if use_quarantining && quarantine_results.is_none() {
         Some(
             run_quarantine(
@@ -246,10 +242,11 @@ pub async fn run_upload(
                 &api::GetQuarantineBulkTestStatusRequest {
                     repo: repo.repo.clone(),
                     org_url_slug: org_url_slug.clone(),
-                    test_identifiers: failures.clone(),
+                    test_identifiers: failed_tests_extractor.failed_tests().to_vec(),
                 },
-                failures,
-                exit_code,
+                &file_set_builder,
+                Some(failed_tests_extractor),
+                None,
             )
             .await,
         )
@@ -257,24 +254,16 @@ pub async fn run_upload(
         quarantine_results
     };
 
-    let (exit_code, resolved_quarantine_results) = if let Some(r) = quarantine_run_results.as_ref()
-    {
-        (r.exit_code, r.quarantine_status.clone())
-    } else {
-        (
-            EXIT_SUCCESS,
-            QuarantineBulkTestStatus {
-                group_is_quarantined: false,
-                quarantine_results: Vec::new(),
-            },
-        )
-    };
-
-    let num_files = file_sets.iter().fold(0, |mut num_files, file_set| {
-        num_files += file_set.files.len();
-        num_files
+    let QuarantineRunResult {
+        exit_code,
+        quarantine_status: resolved_quarantine_results,
+    } = quarantine_run_results.unwrap_or_else(|| QuarantineRunResult {
+        exit_code,
+        ..Default::default()
     });
-    let num_tests = parse_num_tests(&file_sets);
+
+    let num_files = file_set_builder.count();
+    let num_tests = parse_num_tests(file_set_builder.file_sets());
 
     let envs = EnvScanner::scan_env();
     let os_info: String = env::consts::OS.to_string();
@@ -310,7 +299,7 @@ pub async fn run_upload(
             cli_version,
             bundle_upload_id: upload.id.clone(),
             tags,
-            file_sets,
+            file_sets: file_set_builder.file_sets().to_vec(),
             envs,
             upload_time_epoch: SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs(),
             test_command,
@@ -326,8 +315,8 @@ pub async fn run_upload(
         bundle_upload_id_v2: upload.id_v2,
     };
 
-    log::info!("Total files pack and upload: {}", file_counter.get_count());
-    if file_counter.get_count() == 0 {
+    log::info!("Total files pack and upload: {}", file_set_builder.count());
+    if file_set_builder.no_files_found() {
         log::warn!(
             "No JUnit files found to pack and upload using globs: {:?}",
             junit_path_wrappers
