@@ -1,4 +1,9 @@
-use std::{collections::HashMap, io::BufReader};
+use std::{
+    collections::HashMap,
+    io::BufReader,
+    sync::{Arc, RwLock},
+    thread,
+};
 
 use bundle::{
     extract_files_from_tarball as extract_files_from_tarball_impl, parse_meta as parse_meta_impl,
@@ -162,6 +167,36 @@ pub fn extract_files_from_tarball(py: Python<'_>, reader: PyObject) -> PyResult<
         .block_on(extract_files_from_tarball_impl(py_bytes_reader))
         .map_err(|err| PyTypeError::new_err(err.to_string()))?;
     Ok(bundle_files)
+}
+
+#[gen_stub_pyfunction]
+#[pyfunction]
+pub fn extract_files_from_tarball_multithreaded(
+    py: Python<'_>,
+    readers: Vec<PyObject>,
+    num_threads: usize,
+) -> Vec<PyResult<BundleFiles>> {
+    let chunk_size = (readers.len() + num_threads - 1) / num_threads;
+    let mut handles = Vec::with_capacity(num_threads);
+
+    for chunk in readers.chunks(chunk_size) {
+        let chunk = chunk.to_vec();
+        let handle = thread::spawn(move || {
+            chunk
+                .into_iter()
+                .map(|reader: PyObject| extract_files_from_tarball(py, reader))
+                .collect::<Vec<PyResult<BundleFiles>>>()
+        });
+        handles.push(handle);
+    }
+
+    let mut result = Vec::new();
+    for handle in handles {
+        let chunk_result = handle.join().unwrap();
+        result.extend(chunk_result);
+    }
+
+    result
 }
 
 #[gen_stub_pyfunction]
