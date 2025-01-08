@@ -121,7 +121,7 @@ impl BindingsOwners {
     }
 }
 
-const CODEOWNERS: &str = "CODEOWNERS";
+pub const CODEOWNERS: &str = "CODEOWNERS";
 
 fn locate_codeowners<T, U>(repo_root: T, location: U) -> Option<PathBuf>
 where

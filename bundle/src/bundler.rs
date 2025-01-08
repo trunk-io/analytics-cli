@@ -1,9 +1,16 @@
 use async_compression::futures::bufread::ZstdDecoder;
 use async_std::{io::ReadExt, stream::StreamExt};
 use async_tar_wasm::Archive;
+use codeowners::CodeOwners;
 use context::bazel_bep::parser::BepParseResult;
-use futures_io::AsyncBufRead;
+use futures::io::Cursor;
+use futures_io::{AsyncBufRead, AsyncRead};
+#[cfg(feature = "pyo3")]
+use pyo3::prelude::*;
+#[cfg(feature = "pyo3")]
+use pyo3_stub_gen::derive::gen_stub_pyclass;
 use std::{
+    collections::HashMap,
     fs::File,
     io::{Seek, Write},
     path::PathBuf,
@@ -13,9 +20,10 @@ use tsify_next::Tsify;
 #[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::*;
 
-use codeowners::CodeOwners;
-
-use crate::bundle_meta::{BundleMeta, VersionedBundle};
+use crate::{
+    bundle_meta::{BundleMeta, VersionedBundle},
+    BindingsVersionedBundle, BundledFile,
+};
 
 /// Utility type for packing files into tarball.
 ///
@@ -147,5 +155,88 @@ pub fn parse_meta(meta_bytes: Vec<u8>) -> anyhow::Result<VersionedBundle> {
     }
 
     let base_bundle = serde_json::from_slice(&meta_bytes)?;
-    return Ok(VersionedBundle::V0_5_29(base_bundle));
+    Ok(VersionedBundle::V0_5_29(base_bundle))
+}
+
+#[cfg(feature = "pyo3")]
+#[gen_stub_pyclass]
+#[pyclass]
+pub struct BundledFileWrapper {
+    pub file: BundledFile,
+    pub buffer: Box<dyn AsyncRead + Send>,
+}
+
+#[cfg(feature = "pyo3")]
+#[gen_stub_pyclass]
+#[pyclass]
+pub struct BundleFiles {
+    pub meta: BindingsVersionedBundle,
+    pub codeowners: Option<Vec<u8>>,
+    pub files: Vec<BundledFileWrapper>,
+}
+
+/// Reads and decompresses a .tar.zstd file from an input stream into all its parts
+///
+pub async fn extract_files_from_tarball<R: AsyncBufRead>(input: R) -> anyhow::Result<BundleFiles> {
+    let zstd_decoder = ZstdDecoder::new(Box::pin(input));
+    let archive = Archive::new(zstd_decoder);
+
+    let mut meta = None;
+    let mut filesets = HashMap::new();
+    let mut files = Vec::new();
+    let mut codeowners = None;
+
+    let mut entries = archive.entries()?;
+    while let Some(entry) = entries.next().await {
+        let mut owned_entry = entry?;
+        let path_str = owned_entry.path()?.to_str().unwrap_or_default().to_owned();
+
+        if path_str == META_FILENAME {
+            let mut meta_bytes = Vec::new();
+            owned_entry.read_to_end(&mut meta_bytes).await?;
+            let parsed_meta = BindingsVersionedBundle(parse_meta(meta_bytes)?);
+            parsed_meta
+                .get_v0_5_29()
+                .base_props
+                .file_sets
+                .iter()
+                .for_each(|file_set| {
+                    file_set.files.iter().for_each(|bundled_file| {
+                        filesets.insert(bundled_file.path.clone(), bundled_file.clone());
+                    });
+                });
+
+            meta = Some(parsed_meta);
+        } else if path_str == codeowners::CODEOWNERS {
+            let mut codeowners_bytes = Vec::new();
+            owned_entry.read_to_end(&mut codeowners_bytes);
+            codeowners = Some(codeowners_bytes);
+        } else {
+            if meta.is_none() {
+                return Err(anyhow::anyhow!(
+                    "meta.json must be first file in the tarball"
+                ));
+            }
+
+            let file = filesets
+                .get(&path_str)
+                .ok_or_else(|| anyhow::anyhow!("File not found in meta.json"))?;
+            // let buffer = Box::new(BufReader::new(owned_entry));
+            let mut buffer = Vec::new();
+            futures::io::copy(&mut owned_entry, &mut buffer).await?;
+            files.push(BundledFileWrapper {
+                file: file.clone(),
+                buffer: Box::new(Cursor::new(buffer)),
+            });
+        }
+    }
+
+    if let Some(meta) = meta {
+        return Ok(BundleFiles {
+            meta,
+            codeowners,
+            files,
+        });
+    }
+    Err(anyhow::anyhow!("No meta.json file found in the tarball"))
 }

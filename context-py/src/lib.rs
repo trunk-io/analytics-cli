@@ -1,8 +1,8 @@
 use std::{collections::HashMap, io::BufReader};
 
 use bundle::{
-    parse_meta as parse_meta_impl, parse_meta_from_tarball as parse_meta_from_tarball_impl,
-    BindingsVersionedBundle,
+    extract_files_from_tarball as extract_files_from_tarball_impl, parse_meta as parse_meta_impl,
+    parse_meta_from_tarball as parse_meta_from_tarball_impl, BindingsVersionedBundle, BundleFiles,
 };
 use codeowners::{BindingsOwners, CodeOwners};
 use context::{env, junit, meta, repo};
@@ -149,6 +149,19 @@ pub fn parse_meta_from_tarball(
         .block_on(parse_meta_from_tarball_impl(py_bytes_reader))
         .map_err(|err| PyTypeError::new_err(err.to_string()))?;
     Ok(BindingsVersionedBundle(versioned_bundle))
+}
+
+#[gen_stub_pyfunction]
+#[pyfunction]
+pub fn extract_files_from_tarball(py: Python<'_>, reader: PyObject) -> PyResult<BundleFiles> {
+    let py_bytes_reader = PyBytesReader::new(reader.into_bound(py))?;
+    let rt = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()?;
+    let bundle_files = rt
+        .block_on(extract_files_from_tarball_impl(py_bytes_reader))
+        .map_err(|err| PyTypeError::new_err(err.to_string()))?;
+    Ok(bundle_files)
 }
 
 #[gen_stub_pyfunction]
