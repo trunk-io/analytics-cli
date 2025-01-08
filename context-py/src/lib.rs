@@ -192,21 +192,13 @@ fn associate_codeowners_multithreaded(
     codeowners_matchers: HashMap<String, Option<BindingsOwners>>,
     to_match: Vec<(String, Option<String>)>,
 ) -> Vec<Vec<String>> {
-    // fn associate_codeowners_multithreaded(codeowners_matchers: &BindingsOwners) -> Vec<Option<String>> {
-    // let codeowners_matchers_native: HashMap<String, Option<Owners>> = codeowners_matchers.iter().map(|(key, &value)| {
-    //     (key.clone(), value.and_then(|bo| bo.))
-    // })
-    // Number of threads we want to spawn
-    let num_threads = 4; // You can adjust this as needed
-    let chunk_size = (to_match.len() + num_threads - 1) / num_threads; // Ceiling division
-
-    // Create a vector to hold the handles of the threads
+    let num_threads = 4;
+    let chunk_size = (to_match.len() + num_threads - 1) / num_threads;
     let mut handles = Vec::with_capacity(num_threads);
     let shared_map = Arc::new(RwLock::new(codeowners_matchers));
 
-    // Spawn threads, each processing a chunk of the slice
     for chunk in to_match.chunks(chunk_size) {
-        let chunk = chunk.to_vec(); // To move data into the closure
+        let chunk = chunk.to_vec();
         let shared_map = Arc::clone(&shared_map);
         let handle = thread::spawn(move || {
             let map = shared_map.read().unwrap();
@@ -232,7 +224,6 @@ fn associate_codeowners_multithreaded(
         handles.push(handle);
     }
 
-    // Collect the results from each thread
     let mut result = Vec::new();
     for handle in handles {
         let chunk_result = handle.join().unwrap();
