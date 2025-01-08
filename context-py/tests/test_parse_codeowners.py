@@ -224,6 +224,6 @@ def test_associate_multithreaded():
     matchers = {"id_1": codeowners}
     files = [("id_1", "foo.rb"), ("id_2", "bar.js"), ("id_3", None)]
 
-    results = associate_codeowners_multithreaded(matchers, files)
+    results = associate_codeowners_multithreaded(matchers, files, 4)
     print(results)
     assert len(results) == 3

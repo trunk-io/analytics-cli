@@ -191,8 +191,8 @@ fn codeowners_parse(codeowners_bytes: Vec<u8>) -> PyResult<BindingsOwners> {
 fn associate_codeowners_multithreaded(
     codeowners_matchers: HashMap<String, Option<BindingsOwners>>,
     to_match: Vec<(String, Option<String>)>,
+    num_threads: usize,
 ) -> Vec<Vec<String>> {
-    let num_threads = 4;
     let chunk_size = (to_match.len() + num_threads - 1) / num_threads;
     let mut handles = Vec::with_capacity(num_threads);
     let shared_map = Arc::new(RwLock::new(codeowners_matchers));
