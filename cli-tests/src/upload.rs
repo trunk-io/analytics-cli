@@ -537,3 +537,35 @@ async fn upload_bundle_when_server_down() {
 
     println!("{assert}");
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn upload_bundle_with_no_junit_files_no_quarantine_successful_upload() {
+    let temp_dir = tempdir().unwrap();
+    generate_mock_git_repo(&temp_dir);
+
+    let state = MockServerBuilder::new().spawn_mock_server().await;
+
+    let assert = Command::new(CARGO_RUN.path())
+        .current_dir(&temp_dir)
+        .env("TRUNK_PUBLIC_API_ADDRESS", &state.host)
+        .env("CI", "1")
+        .env("GITHUB_JOB", "test-job")
+        .args([
+            "upload",
+            "--junit-paths",
+            "./*",
+            "--org-url-slug",
+            "test-org",
+            "--token",
+            "test-token",
+        ])
+        .assert()
+        .code(0)
+        .success()
+        .stderr(predicate::str::contains(
+            "No JUnit files found, not quarantining any tests",
+        ));
+
+    // HINT: View CLI output with `cargo test -- --nocapture`
+    println!("{assert}");
+}
