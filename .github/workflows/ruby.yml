@@ -31,3 +31,7 @@ jobs:
           bundle install
           bundle exec rake test
         working-directory: context-ruby
+        env:
+          TRUNK_PUBLIC_API_ADDRESS: https://api.trunk-staging.io
+          TRUNK_ORG_URL_SLUG: trunk-staging-org
+          TRUNK_API_TOKEN: ${{ secrets.TRUNK_STAGING_ORG_API_TOKEN }}
