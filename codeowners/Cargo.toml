@@ -22,11 +22,6 @@ js-sys = { version = "0.3.70", optional = true }
 log = "0.4.14"
 serde = { version = "1.0.215", default-features = false, features = ["derive"] }
 serde_json = "1.0.133"
-tokio = { version = "*", default-features = false, features = [
-  "rt-multi-thread",
-  "macros",
-  "test-util",
-] }
 tsify-next = { version = "0.5.4", optional = true }
 wasm-bindgen = { version = "0.2.95", optional = true }
 pyo3-stub-gen = { version = "0.6.0", optional = true }
@@ -39,6 +34,13 @@ pyo3 = { version = "0.22.5", optional = true, features = [
 
 [target.'cfg(target_os = "macos")'.dependencies]
 pyo3 = { version = "0.22.5", optional = true, features = ["abi3-py39"] }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+tokio = { version = "*", default-features = false, features = [
+  "rt-multi-thread",
+  "macros",
+  "test-util",
+] }
 
 [features]
 bindings = []

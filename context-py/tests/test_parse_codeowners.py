@@ -161,6 +161,7 @@ def test_parse_and_associate_multithreaded():
 
     num_codeowners_files = 100
     num_files_to_associate_owners = 1000
+    num_threads = 4
 
     codeowners_files = [
         make_codeowners_bytes(i) for i in range(0, num_codeowners_files)
@@ -173,12 +174,16 @@ def test_parse_and_associate_multithreaded():
         for i in range(0, num_files_to_associate_owners)
     ]
 
-    parsed_codeowners = parse_many_codeowners_multithreaded(codeowners_files)
+    parsed_codeowners = parse_many_codeowners_multithreaded(
+        codeowners_files, num_threads
+    )
     codeowners_matchers = {
         f"{i}": codeowners_matcher
         for i, codeowners_matcher in enumerate(parsed_codeowners)
     }
-    owners = associate_codeowners_multithreaded(codeowners_matchers, to_associate)
+    owners = associate_codeowners_multithreaded(
+        codeowners_matchers, to_associate, num_threads
+    )
 
     assert len(owners) == num_files_to_associate_owners
 
