@@ -1,12 +1,18 @@
-use std::{format, time::SystemTime};
+use std::{
+    fmt::Debug,
+    format,
+    path::{Path, PathBuf},
+    time::SystemTime,
+};
 
 use codeowners::{CodeOwners, Owners, OwnersOfPath};
 use constants::ALLOW_LIST;
 use context::junit::junit_path::{JunitReportFileWithStatus, JunitReportStatus};
+use glob::glob;
 #[cfg(feature = "pyo3")]
 use pyo3::prelude::*;
 #[cfg(feature = "pyo3")]
-use pyo3_stub_gen::derive::gen_stub_pyclass;
+use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pyclass_enum};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "wasm")]
@@ -14,22 +20,122 @@ use tsify_next::Tsify;
 #[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::*;
 
-use crate::types::{BundledFile, FileSetType};
-
-#[derive(Default, Debug)]
-pub struct FileSetCounter {
-    inner: usize,
+#[derive(Debug, Default, Clone)]
+pub struct FileSetBuilder {
+    count: usize,
+    file_sets: Vec<FileSet>,
 }
 
-impl FileSetCounter {
-    pub fn count_file(&mut self) -> usize {
-        let prev = self.inner;
-        self.inner += 1;
-        prev
+impl FileSetBuilder {
+    pub fn build_file_sets(
+        repo_root: &str,
+        junit_paths: &[JunitReportFileWithStatus],
+        team: Option<String>,
+        codeowners: &Option<CodeOwners>,
+        exec_start: Option<SystemTime>,
+    ) -> anyhow::Result<Self> {
+        let file_set_builder = Self::file_sets_from_glob(
+            repo_root,
+            junit_paths,
+            team.clone(),
+            codeowners,
+            exec_start,
+        )?;
+
+        // Handle case when junit paths are not globs.
+        if file_set_builder.count == 0 {
+            let junit_paths_with_glob = junit_paths
+                .iter()
+                .cloned()
+                .map(|mut junit_wrapper| {
+                    junit_wrapper.junit_path = PathBuf::from(junit_wrapper.junit_path)
+                        .join("**/*.xml")
+                        .to_string_lossy()
+                        .to_string();
+                    junit_wrapper
+                })
+                .collect::<Vec<_>>();
+
+            return Self::file_sets_from_glob(
+                repo_root,
+                junit_paths_with_glob.as_slice(),
+                team,
+                codeowners,
+                exec_start,
+            );
+        }
+
+        Ok(file_set_builder)
     }
 
-    pub fn get_count(&self) -> usize {
-        self.inner
+    fn file_sets_from_glob(
+        repo_root: &str,
+        junit_paths: &[JunitReportFileWithStatus],
+        team: Option<String>,
+        codeowners: &Option<CodeOwners>,
+        exec_start: Option<SystemTime>,
+    ) -> anyhow::Result<Self> {
+        junit_paths.iter().try_fold(
+            Self::default(),
+            |mut acc, junit_wrapper| -> anyhow::Result<Self> {
+                let files = Self::scan_from_glob(&junit_wrapper.junit_path, repo_root)?;
+                let (count, bundled_files) = files.iter().try_fold(
+                    (acc.count, Vec::new()),
+                    |mut acc, file| -> anyhow::Result<(usize, Vec<BundledFile>)> {
+                        if let Some(bundled_file) = BundledFile::from_path(
+                            file.as_path(),
+                            acc.0,
+                            repo_root,
+                            &junit_wrapper.junit_path,
+                            team.clone(),
+                            codeowners.clone(),
+                            exec_start,
+                        )? {
+                            acc.0 += 1;
+                            acc.1.push(bundled_file);
+                        }
+                        Ok(acc)
+                    },
+                )?;
+                acc.count = count;
+                acc.file_sets.push(FileSet::new(
+                    bundled_files,
+                    junit_wrapper.junit_path.clone(),
+                    junit_wrapper.status.clone(),
+                ));
+                Ok(acc)
+            },
+        )
+    }
+
+    pub fn count(&self) -> usize {
+        self.count
+    }
+
+    pub fn file_sets(&self) -> &[FileSet] {
+        &self.file_sets
+    }
+
+    pub fn no_files_found(&self) -> bool {
+        self.count() == 0 || self.file_sets().is_empty()
+    }
+
+    fn scan_from_glob<T: AsRef<str>, U: AsRef<str>>(
+        glob_path: T,
+        repo_root: U,
+    ) -> anyhow::Result<Vec<PathBuf>> {
+        let glob_path = PathBuf::from(glob_path.as_ref());
+        let path_to_scan = if glob_path.is_absolute() {
+            glob_path
+        } else {
+            Path::new(repo_root.as_ref()).join(glob_path)
+        };
+
+        let paths = glob(&path_to_scan.to_string_lossy())?
+            .filter_map(|entry| entry.ok().filter(|path| path.is_file()))
+            .collect();
+
+        Ok(paths)
     }
 }
 
@@ -45,125 +151,144 @@ pub struct FileSet {
 }
 
 impl FileSet {
-    /// Scan a file set from a glob path.
-    /// And generates file set using file counter.
-    ///
-    pub fn scan_from_glob(
-        repo_root: &str,
-        glob_with_status: JunitReportFileWithStatus,
-        file_counter: &mut FileSetCounter,
-        team: Option<String>,
-        codeowners: &Option<CodeOwners>,
-        start: Option<SystemTime>,
-    ) -> anyhow::Result<FileSet> {
-        let JunitReportFileWithStatus {
-            junit_path: glob_path,
-            status: resolved_status,
-        } = glob_with_status;
-        let path_to_scan = if !std::path::Path::new(&glob_path).is_absolute() {
-            std::path::Path::new(repo_root)
-                .join(&glob_path)
-                .to_str()
-                .ok_or_else(|| anyhow::Error::msg("failed to convert path to string"))?
-                .to_string()
-        } else {
-            glob_path.clone()
-        };
-
-        let mut files = Vec::new();
-
-        glob::glob(&path_to_scan)?.try_for_each(|entry| {
-            let path = match entry {
-                Ok(path) => path,
-                Err(e) => {
-                    return Err(anyhow::anyhow!("Error scanning file set: {:?}", e));
-                }
-            };
-
-            if !path.is_file() {
-                return Ok::<(), anyhow::Error>(());
-            }
-
-            let original_path_abs = path
-                .to_str()
-                .ok_or_else(|| anyhow::Error::msg("failed to convert path to string"))?
-                .to_string();
-            let original_path_rel = path
-                .strip_prefix(repo_root)
-                .unwrap_or(&path)
-                .to_str()
-                .ok_or_else(|| anyhow::Error::msg("failed to convert path to string"))?
-                .to_string();
-            // Check if file is allowed.
-            let mut is_allowed = false;
-            for allow in ALLOW_LIST {
-                let re = Regex::new(allow).unwrap();
-                if re.is_match(&original_path_abs) {
-                    is_allowed = true;
-                    break;
-                }
-            }
-            if !is_allowed {
-                log::warn!("File {:?} from glob {:?} is not allowed", path, glob_path);
-                return Ok::<(), anyhow::Error>(());
-            }
-
-            // When start is provided, check if file is stale
-            if let Some(start) = start {
-                let modified = path.metadata()?.modified()?;
-                if modified < start {
-                    log::warn!("File {:?} from glob {:?} is stale", path, glob_path);
-                    return Ok::<(), anyhow::Error>(());
-                }
-            }
-
-            // Get owners of file.
-            let owners = codeowners
-                .as_ref()
-                .and_then(|codeowners| codeowners.owners.as_ref())
-                .and_then(|codeowners_owners| match codeowners_owners {
-                    Owners::GitHubOwners(gho) => gho
-                        .of(path.as_path())
-                        .map(|o| o.iter().map(ToString::to_string).collect::<Vec<String>>()),
-                    Owners::GitLabOwners(glo) => glo
-                        .of(path.as_path())
-                        .map(|o| o.iter().map(ToString::to_string).collect::<Vec<String>>()),
-                })
-                .unwrap_or_default();
-
-            // Save file under junit/0, junit/1, etc.
-            // This is to avoid having to deal with potential file name collisions.
-            let path_formatted;
-            if original_path_abs.ends_with(".xml") {
-                // we currently support junit and internal binary files
-                path_formatted = format!("junit/{}", file_counter.count_file());
-            } else if original_path_abs.ends_with(".bin") {
-                path_formatted = format!("internal/{}", file_counter.count_file());
-            } else {
-                return Ok::<(), anyhow::Error>(());
-            }
-            files.push(BundledFile {
-                original_path: original_path_abs,
-                original_path_rel: Some(original_path_rel),
-                path: path_formatted,
-                #[cfg(not(feature = "wasm"))]
-                last_modified_epoch_ns: path
-                    .metadata()?
-                    .modified()?
-                    .duration_since(std::time::UNIX_EPOCH)?
-                    .as_nanos(),
-                owners,
-                team: team.clone(),
-            });
-
-            Ok(())
-        })?;
-
-        Ok(FileSet {
+    pub fn new(
+        files: Vec<BundledFile>,
+        glob: String,
+        resolved_status: Option<JunitReportStatus>,
+    ) -> Self {
+        Self {
             file_set_type: FileSetType::Junit,
             files,
-            glob: glob_path,
+            glob,
             resolved_status,
-        })
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq, Eq)]
+#[cfg_attr(feature = "pyo3", gen_stub_pyclass_enum, pyclass(eq, eq_int))]
+#[cfg_attr(feature = "wasm", derive(Tsify))]
+pub enum FileSetType {
+    #[default]
+    Junit,
+}
+
+#[cfg(feature = "wasm")]
+// u128 will be supported in the next release after 0.2.95
+#[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq, Eq)]
+#[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass(get_all))]
+#[cfg_attr(feature = "wasm", derive(Tsify))]
+pub struct BundledFile {
+    pub original_path: String,
+    /// Added in v0.5.33
+    pub original_path_rel: Option<String>,
+    pub path: String,
+    pub owners: Vec<String>,
+    pub team: Option<String>,
+}
+
+#[cfg(not(feature = "wasm"))]
+#[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass(get_all))]
+#[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq, Eq)]
+pub struct BundledFile {
+    pub original_path: String,
+    /// Added in v0.5.33
+    pub original_path_rel: Option<String>,
+    pub path: String,
+    // deserialize u128 from flatten not supported
+    // https://github.com/serde-rs/json/issues/625
+    #[serde(skip_deserializing)]
+    pub last_modified_epoch_ns: u128,
+    pub owners: Vec<String>,
+    pub team: Option<String>,
+}
+
+impl BundledFile {
+    pub fn from_path<T: AsRef<Path>, U: Debug>(
+        path: &Path,
+        file_index: usize,
+        repo_root: T,
+        glob_path: U,
+        team: Option<String>,
+        codeowners: Option<CodeOwners>,
+        start: Option<SystemTime>,
+    ) -> anyhow::Result<Option<Self>> {
+        let original_path_abs = path
+            .to_str()
+            .ok_or_else(|| anyhow::Error::msg("failed to convert path to string"))?
+            .to_string();
+        let original_path_rel = path
+            .strip_prefix(repo_root)
+            .unwrap_or(&path)
+            .to_str()
+            .ok_or_else(|| anyhow::Error::msg("failed to convert path to string"))?
+            .to_string();
+        // Check if file is allowed.
+        let mut is_allowed = false;
+        for allow in ALLOW_LIST {
+            let re = Regex::new(allow).unwrap();
+            if re.is_match(&original_path_abs) {
+                is_allowed = true;
+                break;
+            }
+        }
+        if !is_allowed {
+            log::warn!("File {:?} from glob {:?} is not allowed", path, glob_path);
+            return Ok(None);
+        }
+
+        // When start is provided, check if file is stale
+        if let Some(start) = start {
+            let modified = path.metadata()?.modified()?;
+            if modified < start {
+                log::warn!("File {:?} from glob {:?} is stale", path, glob_path);
+                return Ok(None);
+            }
+        }
+
+        // Get owners of file.
+        let owners = codeowners
+            .as_ref()
+            .and_then(|codeowners| codeowners.owners.as_ref())
+            .and_then(|codeowners_owners| match codeowners_owners {
+                Owners::GitHubOwners(gho) => gho
+                    .of(path)
+                    .map(|o| o.iter().map(ToString::to_string).collect::<Vec<String>>()),
+                Owners::GitLabOwners(glo) => glo
+                    .of(path)
+                    .map(|o| o.iter().map(ToString::to_string).collect::<Vec<String>>()),
+            })
+            .unwrap_or_default();
+
+        // Save file under junit/0, junit/1, etc.
+        // This is to avoid having to deal with potential file name collisions.
+        let path_formatted;
+        if original_path_abs.ends_with(".xml") {
+            // we currently support junit and internal binary files
+            path_formatted = format!("junit/{}", file_index);
+        } else if original_path_abs.ends_with(".bin") {
+            path_formatted = format!("internal/{}", file_index);
+        } else {
+            return Ok(None);
+        }
+        Ok(Some(Self {
+            original_path: original_path_abs,
+            original_path_rel: Some(original_path_rel),
+            path: path_formatted,
+            #[cfg(not(feature = "wasm"))]
+            last_modified_epoch_ns: path
+                .metadata()?
+                .modified()?
+                .duration_since(std::time::UNIX_EPOCH)?
+                .as_nanos(),
+            owners,
+            team: team.clone(),
+        }))
+    }
+
+    pub fn get_print_path(&self) -> &str {
+        self.original_path_rel
+            .as_ref()
+            .unwrap_or(&self.original_path)
     }
 }

@@ -1,3 +1,4 @@
+use context::repo::RepoUrlParts;
 use quick_junit::TestCaseStatus;
 use std::collections::HashMap;
 use std::process::{Command, Stdio};
@@ -5,7 +6,7 @@ use std::time::SystemTime;
 
 use api;
 use bundle::{
-    FileSet, FileSetCounter, QuarantineBulkTestStatus, QuarantineRunResult, RunResult, Test,
+    FileSet, FileSetBuilder, QuarantineBulkTestStatus, QuarantineRunResult, RunResult, Test,
 };
 use codeowners::CodeOwners;
 use constants::{EXIT_FAILURE, EXIT_SUCCESS};
@@ -27,7 +28,6 @@ pub enum JunitSpec {
 
 pub async fn run_test_command(
     repo: &BundleRepo,
-    org_slug: &str,
     command: &String,
     args: Vec<&String>,
     junit_spec: JunitSpec,
@@ -35,7 +35,7 @@ pub async fn run_test_command(
     codeowners: &Option<CodeOwners>,
 ) -> anyhow::Result<RunResult> {
     let start = SystemTime::now();
-    let exit_code = run_test_and_get_exit_code(command, args).await?;
+    let exit_code = run_test_and_get_exit_code(command, args)?;
     log::info!("Command exit code: {}", exit_code);
 
     let output_paths = match junit_spec {
@@ -51,29 +51,22 @@ pub async fn run_test_command(
         }
     };
 
-    let (file_sets, ..) = build_filesets(
+    let file_set_builder = FileSetBuilder::build_file_sets(
         &repo.repo_root,
         &output_paths,
         team,
         codeowners,
         Some(start),
     )?;
-    let failures = if exit_code != EXIT_SUCCESS {
-        extract_failed_tests(repo, org_slug, &file_sets).await
-    } else {
-        Vec::new()
-    };
-    if failures.is_empty() && exit_code != EXIT_SUCCESS {
-        log::warn!("Command failed but no test failures were found!");
-    }
+
     Ok(RunResult {
         exit_code,
-        failures,
+        file_set_builder,
         exec_start: Some(start),
     })
 }
 
-async fn run_test_and_get_exit_code(command: &String, args: Vec<&String>) -> anyhow::Result<i32> {
+fn run_test_and_get_exit_code(command: &String, args: Vec<&String>) -> anyhow::Result<i32> {
     let mut child = Command::new(command)
         .args(args)
         .stdout(Stdio::inherit())
@@ -94,58 +87,8 @@ async fn run_test_and_get_exit_code(command: &String, args: Vec<&String>) -> any
     Ok(result)
 }
 
-pub fn build_filesets(
-    repo_root: &str,
-    junit_paths: &[JunitReportFileWithStatus],
-    team: Option<String>,
-    codeowners: &Option<CodeOwners>,
-    exec_start: Option<SystemTime>,
-) -> anyhow::Result<(Vec<FileSet>, FileSetCounter)> {
-    let mut file_counter = FileSetCounter::default();
-    let mut file_sets = junit_paths
-        .iter()
-        .map(|junit_wrapper| {
-            FileSet::scan_from_glob(
-                repo_root,
-                junit_wrapper.clone(),
-                &mut file_counter,
-                team.clone(),
-                codeowners,
-                exec_start,
-            )
-        })
-        .collect::<anyhow::Result<Vec<FileSet>>>()?;
-
-    // Handle case when junit paths are not globs.
-    if file_counter.get_count() == 0 {
-        file_sets = junit_paths
-            .iter()
-            .map(|junit_wrapper| {
-                let mut path = junit_wrapper.junit_path.clone();
-                if !path.ends_with('/') {
-                    path.push('/');
-                }
-                path.push_str("**/*.xml");
-                FileSet::scan_from_glob(
-                    repo_root,
-                    JunitReportFileWithStatus {
-                        junit_path: path,
-                        status: junit_wrapper.status.clone(),
-                    },
-                    &mut file_counter,
-                    team.clone(),
-                    codeowners,
-                    exec_start,
-                )
-            })
-            .collect::<anyhow::Result<Vec<FileSet>>>()?;
-    }
-
-    Ok((file_sets, file_counter))
-}
-
 fn convert_case_to_test(
-    repo: &BundleRepo,
+    repo: &RepoUrlParts,
     org_slug: &str,
     parent_name: &String,
     case: &quick_junit::TestCase,
@@ -172,104 +115,149 @@ fn convert_case_to_test(
     )
 }
 
-pub async fn extract_failed_tests(
-    repo: &BundleRepo,
-    org_slug: &str,
-    file_sets: &[FileSet],
-) -> Vec<Test> {
-    let mut failures: HashMap<String, Test> = HashMap::new();
-    let mut successes: HashMap<String, i64> = HashMap::new();
+#[derive(Debug, Default, Clone)]
+pub struct FailedTestsExtractor {
+    failed_tests: Vec<Test>,
+}
 
-    for file_set in file_sets {
-        if let Some(resolved_status) = &file_set.resolved_status {
-            // TODO(TRUNK-13911): We should populate the status for all junits, regardless of the presence of a test runner status.
-            if resolved_status != &JunitReportStatus::Failed {
-                continue;
+impl FailedTestsExtractor {
+    pub fn new<T: AsRef<str>>(repo: &RepoUrlParts, org_slug: T, file_sets: &[FileSet]) -> Self {
+        let mut failures: HashMap<String, Test> = HashMap::new();
+        let mut successes: HashMap<String, i64> = HashMap::new();
+
+        for file_set in file_sets {
+            if let Some(resolved_status) = &file_set.resolved_status {
+                // TODO(TRUNK-13911): We should populate the status for all junits, regardless of the presence of a test runner status.
+                if resolved_status != &JunitReportStatus::Failed {
+                    continue;
+                }
             }
-        }
-        for file in &file_set.files {
-            let file = match std::fs::File::open(&file.original_path) {
-                Ok(file) => file,
-                Err(e) => {
-                    log::warn!("Error opening file: {}", e);
-                    continue;
-                }
-            };
-            let reader = std::io::BufReader::new(file);
-            let mut junitxml = JunitParser::new();
-            match junitxml.parse(reader) {
-                Ok(junitxml) => junitxml,
-                Err(e) => {
-                    log::warn!("Error parsing junitxml: {}", e);
-                    continue;
-                }
-            };
-            for report in junitxml.reports() {
-                for suite in &report.test_suites {
-                    let parent_name = String::from(suite.name.as_str());
-                    for case in &suite.test_cases {
-                        let test = convert_case_to_test(repo, org_slug, &parent_name, case, suite);
-                        match &case.status {
-                            TestCaseStatus::Skipped { .. } => {
-                                continue;
-                            }
-                            TestCaseStatus::Success { .. } => {
-                                if let Some(existing_timestamp) = successes.get(&test.id) {
-                                    if *existing_timestamp > test.timestamp_millis.unwrap_or(0) {
-                                        continue;
-                                    }
+            for file in &file_set.files {
+                let file = match std::fs::File::open(&file.original_path) {
+                    Ok(file) => file,
+                    Err(e) => {
+                        log::warn!("Error opening file: {}", e);
+                        continue;
+                    }
+                };
+                let reader = std::io::BufReader::new(file);
+                let mut junitxml = JunitParser::new();
+                match junitxml.parse(reader) {
+                    Ok(junitxml) => junitxml,
+                    Err(e) => {
+                        log::warn!("Error parsing junitxml: {}", e);
+                        continue;
+                    }
+                };
+                for report in junitxml.reports() {
+                    for suite in &report.test_suites {
+                        let parent_name = String::from(suite.name.as_str());
+                        for case in &suite.test_cases {
+                            let test = convert_case_to_test(
+                                repo,
+                                org_slug.as_ref(),
+                                &parent_name,
+                                case,
+                                suite,
+                            );
+                            match &case.status {
+                                TestCaseStatus::Skipped { .. } => {
+                                    continue;
                                 }
-                                successes
-                                    .insert(test.id.clone(), test.timestamp_millis.unwrap_or(0));
-                            }
-                            TestCaseStatus::NonSuccess { .. } => {
-                                // Only store the most recent failure of a given test run ID
-                                if let Some(existing_test) = failures.get(&test.id) {
-                                    if existing_test.timestamp_millis > test.timestamp_millis {
-                                        continue;
+                                TestCaseStatus::Success { .. } => {
+                                    if let Some(existing_timestamp) = successes.get(&test.id) {
+                                        if *existing_timestamp > test.timestamp_millis.unwrap_or(0)
+                                        {
+                                            continue;
+                                        }
                                     }
+                                    successes.insert(
+                                        test.id.clone(),
+                                        test.timestamp_millis.unwrap_or(0),
+                                    );
                                 }
-                                failures.insert(test.id.clone(), test);
+                                TestCaseStatus::NonSuccess { .. } => {
+                                    // Only store the most recent failure of a given test run ID
+                                    if let Some(existing_test) = failures.get(&test.id) {
+                                        if existing_test.timestamp_millis > test.timestamp_millis {
+                                            continue;
+                                        }
+                                    }
+                                    failures.insert(test.id.clone(), test);
+                                }
                             }
                         }
                     }
                 }
             }
         }
-    }
-    failures
-        .into_iter()
-        .filter_map(|(id, test)| {
-            // Tests with the same id and a later timestamp should override their previous status.
-            if let Some(existing_timestamp) = successes.get(&id) {
-                if *existing_timestamp > test.timestamp_millis.unwrap_or(0) {
-                    return None;
+
+        let failed_tests = failures
+            .into_iter()
+            .filter_map(|(id, test)| {
+                // Tests with the same id and a later timestamp should override their previous status.
+                if let Some(existing_timestamp) = successes.get(&id) {
+                    if *existing_timestamp > test.timestamp_millis.unwrap_or(0) {
+                        return None;
+                    }
                 }
-            }
-            Some(test)
-        })
-        .collect()
+                Some(test)
+            })
+            .collect();
+
+        Self { failed_tests }
+    }
+
+    pub fn failed_tests(&self) -> &[Test] {
+        &self.failed_tests
+    }
+
+    pub fn exit_code(&self) -> i32 {
+        if self.failed_tests.is_empty() {
+            EXIT_SUCCESS
+        } else {
+            EXIT_FAILURE
+        }
+    }
 }
 
 pub async fn run_quarantine(
     api_client: &ApiClient,
     request: &api::GetQuarantineBulkTestStatusRequest,
-    failures: Vec<Test>,
-    exit_code: i32,
+    file_set_builder: &FileSetBuilder,
+    failed_tests_extractor: Option<FailedTestsExtractor>,
+    test_run_exit_code: Option<i32>,
 ) -> QuarantineRunResult {
-    let quarantine_config: api::QuarantineConfig = if !failures.is_empty() {
-        log::info!("Checking if failed tests can be quarantined");
-        let result = api_client.get_quarantining_config(request).await;
+    let failed_tests_extractor = failed_tests_extractor.unwrap_or_else(|| {
+        FailedTestsExtractor::new(
+            &request.repo,
+            &request.org_url_slug,
+            file_set_builder.file_sets(),
+        )
+    });
 
-        if let Err(ref err) = result {
-            log::error!("{}", err);
+    if let Some(exit_code) = test_run_exit_code {
+        if failed_tests_extractor.failed_tests().is_empty() && exit_code != EXIT_SUCCESS {
+            log::warn!("Command failed but no test failures were found!");
         }
+    }
 
-        result.unwrap_or_default()
-    } else {
-        log::debug!("No failed tests to quarantine");
-        api::QuarantineConfig::default()
-    };
+    let exit_code = test_run_exit_code.unwrap_or_else(|| failed_tests_extractor.exit_code());
+
+    let quarantine_config: api::QuarantineConfig =
+        if !failed_tests_extractor.failed_tests().is_empty() {
+            log::info!("Checking if failed tests can be quarantined");
+            let result = api_client.get_quarantining_config(request).await;
+
+            if let Err(ref err) = result {
+                log::error!("{}", err);
+            }
+
+            result.unwrap_or_default()
+        } else {
+            log::debug!("No failed tests to quarantine");
+            api::QuarantineConfig::default()
+        };
 
     // if quarantining is not enabled, return exit code and empty quarantine status
     if quarantine_config.is_disabled {
@@ -284,10 +272,11 @@ pub async fn run_quarantine(
     let mut quarantine_results = QuarantineBulkTestStatus::default();
     let quarantined = &quarantine_config.quarantined_tests;
 
-    let total_failures = failures.len();
-    quarantine_results.quarantine_results = failures
-        .clone()
-        .into_iter()
+    let total_failures = failed_tests_extractor.failed_tests().len();
+    quarantine_results.quarantine_results = failed_tests_extractor
+        .failed_tests()
+        .iter()
+        .cloned()
         .filter_map(|failure| {
             let quarantine_failure = quarantined.contains(&failure.id);
             log::info!(
@@ -370,7 +359,9 @@ mod tests {
         }];
 
         let retried_failures =
-            extract_failed_tests(&BundleRepo::default(), ORG_SLUG, &file_sets).await;
+            FailedTestsExtractor::new(&RepoUrlParts::default(), ORG_SLUG, &file_sets)
+                .failed_tests()
+                .to_vec();
         assert!(retried_failures.is_empty());
     }
 
@@ -393,7 +384,9 @@ mod tests {
         }];
 
         let retried_failures =
-            extract_failed_tests(&BundleRepo::default(), ORG_SLUG, &file_sets).await;
+            FailedTestsExtractor::new(&RepoUrlParts::default(), ORG_SLUG, &file_sets)
+                .failed_tests()
+                .to_vec();
         assert!(retried_failures.is_empty());
     }
 
@@ -416,7 +409,9 @@ mod tests {
         }];
 
         let mut multi_failures =
-            extract_failed_tests(&BundleRepo::default(), ORG_SLUG, &file_sets).await;
+            FailedTestsExtractor::new(&RepoUrlParts::default(), ORG_SLUG, &file_sets)
+                .failed_tests()
+                .to_vec();
         multi_failures.sort_by(|a, b| a.name.cmp(&b.name));
         assert_eq!(multi_failures.len(), 2);
         assert_eq!(multi_failures[0].name, "Goodbye");
@@ -450,7 +445,9 @@ mod tests {
         }];
 
         let some_failures =
-            extract_failed_tests(&BundleRepo::default(), ORG_SLUG, &file_sets).await;
+            FailedTestsExtractor::new(&RepoUrlParts::default(), ORG_SLUG, &file_sets)
+                .failed_tests()
+                .to_vec();
         assert_eq!(some_failures.len(), 1);
         assert_eq!(some_failures[0].name, "Goodbye");
     }
@@ -488,7 +485,9 @@ mod tests {
         ];
 
         let mut multi_failures =
-            extract_failed_tests(&BundleRepo::default(), ORG_SLUG, &file_sets).await;
+            FailedTestsExtractor::new(&RepoUrlParts::default(), ORG_SLUG, &file_sets)
+                .failed_tests()
+                .to_vec();
         multi_failures.sort_by(|a, b| a.name.cmp(&b.name));
         assert_eq!(multi_failures.len(), 1);
         assert_eq!(multi_failures[0].name, "Hello");

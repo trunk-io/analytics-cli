@@ -1,7 +1,7 @@
 use quick_junit::Report;
 use std::{collections::BTreeMap, io::BufReader};
 
-use bundle::{FileSet, FileSetCounter};
+use bundle::{FileSet, FileSetBuilder};
 use codeowners::CodeOwners;
 use colored::{ColoredString, Colorize};
 use console::Emoji;
@@ -16,8 +16,6 @@ use context::junit::{
     },
 };
 
-use crate::runner::build_filesets;
-
 type JunitFileToReportAndErrors = BTreeMap<String, (anyhow::Result<Report>, Vec<JunitParseError>)>;
 type JunitFileToValidation = BTreeMap<String, anyhow::Result<JunitReportValidation>>;
 
@@ -31,14 +29,15 @@ pub async fn validate(
         .ok()
         .and_then(|p| p.to_str().map(String::from))
         .unwrap_or_default();
-    let (file_sets, file_counter) = build_filesets(&current_dir, &junit_paths, None, &None, None)?;
-    if file_counter.get_count() == 0 || file_sets.is_empty() {
+    let file_set_builder =
+        FileSetBuilder::build_file_sets(&current_dir, &junit_paths, None, &None, None)?;
+    if file_set_builder.no_files_found() {
         return Err(anyhow::anyhow!("No JUnit files found to validate."));
     }
-    print_matched_files(&file_sets, file_counter);
+    print_matched_files(&file_set_builder);
 
     // parse and validate
-    let parse_results = parse_file_sets(file_sets);
+    let parse_results = parse_file_sets(file_set_builder.file_sets());
     if show_warnings {
         print_parse_errors(&parse_results);
     }
@@ -77,7 +76,7 @@ pub async fn validate(
     Ok(exit)
 }
 
-fn parse_file_sets(file_sets: Vec<FileSet>) -> JunitFileToReportAndErrors {
+fn parse_file_sets(file_sets: &[FileSet]) -> JunitFileToReportAndErrors {
     file_sets.iter().flat_map(|file_set| &file_set.files).fold(
         JunitFileToReportAndErrors::new(),
         |mut parse_results, bundled_file| -> JunitFileToReportAndErrors {
@@ -116,12 +115,12 @@ fn parse_file_sets(file_sets: Vec<FileSet>) -> JunitFileToReportAndErrors {
     )
 }
 
-fn print_matched_files(file_sets: &[FileSet], file_counter: FileSetCounter) {
+fn print_matched_files(file_set_builder: &FileSetBuilder) {
     println!(
         "\nValidating the following {} files:",
-        file_counter.get_count()
+        file_set_builder.count()
     );
-    for file_set in file_sets {
+    for file_set in file_set_builder.file_sets() {
         println!("  File set matching {}:", file_set.glob);
         for file in &file_set.files {
             println!("    {}", file.get_print_path());
