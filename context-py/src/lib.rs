@@ -6,7 +6,7 @@ use bundle::{
 };
 use codeowners::{
     associate_codeowners_multithreaded as associate_codeowners, BindingsOwners,
-    BundleUploadIDAndCodeOwnersBytes, CodeOwners,
+    BundleUploadIDAndFilePath, CodeOwners,
 };
 use context::{env, junit, meta, repo};
 use prost::Message;
@@ -181,7 +181,10 @@ fn meta_validation_level_to_string(
 #[gen_stub_pyfunction]
 #[pyfunction]
 fn codeowners_parse(codeowners_bytes: Vec<u8>) -> PyResult<BindingsOwners> {
-    let codeowners = CodeOwners::parse(codeowners_bytes);
+    let rt = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()?;
+    let codeowners = rt.block_on(CodeOwners::parse(codeowners_bytes));
     match codeowners.owners {
         Some(owners) => Ok(BindingsOwners(owners)),
         None => Err(PyTypeError::new_err("Failed to parse CODEOWNERS file")),
@@ -191,37 +194,41 @@ fn codeowners_parse(codeowners_bytes: Vec<u8>) -> PyResult<BindingsOwners> {
 #[gen_stub_pyfunction]
 #[pyfunction]
 fn parse_many_codeowners_multithreaded(
-    to_parse: Vec<BundleUploadIDAndCodeOwnersBytes>,
-    num_threads: usize,
-) -> HashMap<String, Option<BindingsOwners>> {
-    CodeOwners::parse_many_multithreaded(to_parse, num_threads)
+    to_parse: Vec<Option<Vec<u8>>>,
+) -> PyResult<Vec<Option<BindingsOwners>>> {
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()?;
+    let parsed_codeowners = rt
+        .block_on(CodeOwners::parse_many_multithreaded(to_parse))
+        .map_err(|err| PyTypeError::new_err(err.to_string()))?;
+    Ok(parsed_codeowners
         .into_iter()
-        .map(|(bundle_upload_id, codeowners)| {
-            (
-                bundle_upload_id,
-                codeowners.and_then(|codeowners| codeowners.owners.map(BindingsOwners)),
-            )
-        })
-        .collect()
+        .map(|codeowners| codeowners.and_then(|codeowners| codeowners.owners.map(BindingsOwners)))
+        .collect())
 }
 
 #[gen_stub_pyfunction]
 #[pyfunction]
 fn associate_codeowners_multithreaded(
     codeowners_matchers: HashMap<String, Option<BindingsOwners>>,
-    to_associate: Vec<(String, Option<String>)>,
-    num_threads: usize,
-) -> Vec<Vec<String>> {
-    associate_codeowners(
-        codeowners_matchers
-            .into_iter()
-            .map(|(bundle_upload_id, codeowners)| {
-                (bundle_upload_id, codeowners.map(|codeowners| codeowners.0))
-            })
-            .collect(),
-        to_associate,
-        num_threads,
-    )
+    to_associate: Vec<BundleUploadIDAndFilePath>,
+) -> PyResult<Vec<Vec<String>>> {
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()?;
+    let associated_codeowners = rt
+        .block_on(associate_codeowners(
+            codeowners_matchers
+                .into_iter()
+                .map(|(bundle_upload_id, codeowners)| {
+                    (bundle_upload_id, codeowners.map(|codeowners| codeowners.0))
+                })
+                .collect(),
+            to_associate,
+        ))
+        .map_err(|err| PyTypeError::new_err(err.to_string()))?;
+    Ok(associated_codeowners)
 }
 
 #[pymodule]
