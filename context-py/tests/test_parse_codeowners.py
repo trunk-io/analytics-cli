@@ -152,8 +152,8 @@ def test_parse_codeowners_from_bytes_gitlab_sections():
 
 def test_parse_and_associate_multithreaded():
     from context_py import (
-        associate_codeowners_multithreaded,
-        parse_many_codeowners_multithreaded,
+        associate_codeowners_n_threads,
+        parse_many_codeowners_n_threads,
     )
 
     def make_codeowners_bytes(i: int) -> bytes:
@@ -174,14 +174,12 @@ def test_parse_and_associate_multithreaded():
         for i in range(0, num_files_to_associate_owners)
     ]
 
-    parsed_codeowners = parse_many_codeowners_multithreaded(
-        codeowners_files, num_threads
-    )
+    parsed_codeowners = parse_many_codeowners_n_threads(codeowners_files, num_threads)
     codeowners_matchers = {
         f"{i}": codeowners_matcher
         for i, codeowners_matcher in enumerate(parsed_codeowners)
     }
-    owners = associate_codeowners_multithreaded(
+    owners = associate_codeowners_n_threads(
         codeowners_matchers, to_associate, num_threads
     )
 

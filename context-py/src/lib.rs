@@ -193,20 +193,32 @@ fn codeowners_parse(codeowners_bytes: Vec<u8>) -> PyResult<BindingsOwners> {
 
 #[gen_stub_pyfunction]
 #[pyfunction]
-#[pyo3(signature = (to_parse, num_threads=None))]
+fn parse_many_codeowners_n_threads(
+    to_parse: Vec<Option<Vec<u8>>>,
+    num_threads: usize,
+) -> PyResult<Vec<Option<BindingsOwners>>> {
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(num_threads)
+        .enable_all()
+        .build()?;
+    parse_many_codeowners_multithreaded_impl(rt, to_parse)
+}
+
+#[gen_stub_pyfunction]
+#[pyfunction]
 fn parse_many_codeowners_multithreaded(
     to_parse: Vec<Option<Vec<u8>>>,
-    num_threads: Option<usize>,
 ) -> PyResult<Vec<Option<BindingsOwners>>> {
-    let rt = match num_threads {
-        Some(threads) => tokio::runtime::Builder::new_multi_thread()
-            .worker_threads(threads)
-            .enable_all()
-            .build()?,
-        None => tokio::runtime::Builder::new_multi_thread()
-            .enable_all()
-            .build()?,
-    };
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()?;
+    parse_many_codeowners_multithreaded_impl(rt, to_parse)
+}
+
+fn parse_many_codeowners_multithreaded_impl(
+    rt: tokio::runtime::Runtime,
+    to_parse: Vec<Option<Vec<u8>>>,
+) -> PyResult<Vec<Option<BindingsOwners>>> {
     let parsed_codeowners = rt
         .block_on(CodeOwners::parse_many_multithreaded(to_parse))
         .map_err(|err| PyTypeError::new_err(err.to_string()))?;
@@ -218,21 +230,35 @@ fn parse_many_codeowners_multithreaded(
 
 #[gen_stub_pyfunction]
 #[pyfunction]
-#[pyo3(signature = (codeowners_matchers, to_associate, num_threads=None))]
+fn associate_codeowners_n_threads(
+    codeowners_matchers: HashMap<String, Option<BindingsOwners>>,
+    to_associate: Vec<BundleUploadIDAndFilePath>,
+    num_threads: usize,
+) -> PyResult<Vec<Vec<String>>> {
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(num_threads)
+        .enable_all()
+        .build()?;
+    associate_codeowners_multithreaded_impl(rt, codeowners_matchers, to_associate)
+}
+
+#[gen_stub_pyfunction]
+#[pyfunction]
 fn associate_codeowners_multithreaded(
     codeowners_matchers: HashMap<String, Option<BindingsOwners>>,
     to_associate: Vec<BundleUploadIDAndFilePath>,
-    num_threads: Option<usize>,
 ) -> PyResult<Vec<Vec<String>>> {
-    let rt = match num_threads {
-        Some(threads) => tokio::runtime::Builder::new_multi_thread()
-            .worker_threads(threads)
-            .enable_all()
-            .build()?,
-        None => tokio::runtime::Builder::new_multi_thread()
-            .enable_all()
-            .build()?,
-    };
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()?;
+    associate_codeowners_multithreaded_impl(rt, codeowners_matchers, to_associate)
+}
+
+fn associate_codeowners_multithreaded_impl(
+    rt: tokio::runtime::Runtime,
+    codeowners_matchers: HashMap<String, Option<BindingsOwners>>,
+    to_associate: Vec<BundleUploadIDAndFilePath>,
+) -> PyResult<Vec<Vec<String>>> {
     let associated_codeowners = rt
         .block_on(associate_codeowners(
             codeowners_matchers
@@ -292,7 +318,9 @@ fn context_py(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<codeowners::BindingsOwners>()?;
     m.add_function(wrap_pyfunction!(codeowners_parse, m)?)?;
     m.add_function(wrap_pyfunction!(associate_codeowners_multithreaded, m)?)?;
+    m.add_function(wrap_pyfunction!(associate_codeowners_n_threads, m)?)?;
     m.add_function(wrap_pyfunction!(parse_many_codeowners_multithreaded, m)?)?;
+    m.add_function(wrap_pyfunction!(parse_many_codeowners_n_threads, m)?)?;
 
     Ok(())
 }
