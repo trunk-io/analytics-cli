@@ -150,80 +150,42 @@ def test_parse_codeowners_from_bytes_gitlab_sections():
     ]
 
 
-def test_associate_multithreaded():
-    from context_py import associate_codeowners_multithreaded, codeowners_parse
+def test_parse_and_associate_multithreaded():
+    from context_py import (
+        associate_codeowners_multithreaded,
+        parse_many_codeowners_multithreaded,
+    )
 
-    codeowners_text = b"""
-        # This is an example of a CODEOWNERS file.
-        # Lines that start with `#` are ignored.
+    def make_codeowners_bytes(i: int) -> bytes:
+        return f"{i}.txt @user{i}".encode()
 
-        # app/ @commented-rule
+    num_codeowners_files = 100
+    num_files_to_associate_owners = 1000
+    num_threads = 4
 
-        # Specify a default Code Owner by using a wildcard:
-        * @default-codeowner
+    codeowners_files = [
+        (f"{i}", make_codeowners_bytes(i)) for i in range(0, num_codeowners_files)
+    ]
+    to_associate = [
+        (
+            f"{i % num_codeowners_files}",
+            f"{i % num_codeowners_files if i % 2 == 0 else 'foo'}.txt",
+        )
+        for i in range(0, num_files_to_associate_owners)
+    ]
 
-        # Specify multiple Code Owners by using a tab or space:
-        * @multiple @code @owners
+    codeowners_matchers = parse_many_codeowners_multithreaded(
+        codeowners_files, num_threads
+    )
+    owners = associate_codeowners_multithreaded(
+        codeowners_matchers, to_associate, num_threads
+    )
 
-        # Rules defined later in the file take precedence over the rules
-        # defined before.
-        # For example, for all files with a filename ending in `.rb`:
-        *.rb @ruby-owner
+    assert len(owners) == num_files_to_associate_owners
 
-        # Specify multiple Code Owners separated by spaces or tabs.
-        # In the following case the CODEOWNERS file from the root of the repo
-        # has 3 Code Owners (@multiple @code @owners):
-        CODEOWNERS @multiple @code @owners
-
-        # You can use both usernames or email addresses to match
-        # users. Everything else is ignored. For example, this code
-        # specifies the `@legal` and a user with email `janedoe@gitlab.com` as the
-        # owner for the LICENSE file:
-        LICENSE @legal this_does_not_match janedoe@gitlab.com
-
-        # Use group names to match groups, and nested groups to specify
-        # them as owners for a file:
-        README @group @group/with-nested/subgroup
-
-        # End a path in a `/` to specify the Code Owners for every file
-        # nested in that directory, on any level:
-        /docs/ @all-docs
-
-        # End a path in `/*` to specify Code Owners for every file in
-        # a directory, but not nested deeper. This code matches
-        # `docs/index.md` but not `docs/projects/index.md`:
-        /docs/* @root-docs
-
-        # Include `/**` to specify Code Owners for all subdirectories
-        # in a directory. This rule matches `docs/projects/index.md` or
-        # `docs/development/index.md`
-        /docs/**/*.md @root-docs
-
-        # This code makes matches a `lib` directory nested anywhere in the repository:
-        lib/ @lib-owner
-
-        # This code match only a `config` directory in the root of the repository:
-        /config/ @config-owner
-
-        # Code Owners section:
-        [Documentation]
-        ee/docs    @docs
-        docs       @docs
-
-        # Use of default owners for a section. In this case, all files (*) are owned by the dev team except the README.md and data-models which are owned by other teams.
-        [Development] @dev-team
-        *
-        README.md @docs-team
-        data-models/ @data-science-team
-
-        # This section is combined with the previously defined [Documentation] section:
-        [DOCUMENTATION]
-        README.md  @docs
-    """
-    codeowners = codeowners_parse(codeowners_text)
-    matchers = {"id_1": codeowners}
-    files = [("id_1", "foo.rb"), ("id_2", "bar.js"), ("id_3", None)]
-
-    results = associate_codeowners_multithreaded(matchers, files, 4)
-    print(results)
-    assert len(results) == 3
+    for i in range(0, num_files_to_associate_owners):
+        if i % 2 == 0:
+            assert len(owners[i]) == 1
+            assert owners[i][0] == f"@user{i % num_codeowners_files}"
+        else:
+            assert len(owners[i]) == 0

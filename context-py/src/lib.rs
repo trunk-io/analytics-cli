@@ -1,11 +1,13 @@
-use std::sync::{Arc, RwLock};
-use std::{collections::HashMap, io::BufReader, thread};
+use std::{collections::HashMap, io::BufReader};
 
 use bundle::{
     parse_meta as parse_meta_impl, parse_meta_from_tarball as parse_meta_from_tarball_impl,
     BindingsVersionedBundle,
 };
-use codeowners::{BindingsOwners, CodeOwners};
+use codeowners::{
+    associate_codeowners_multithreaded as associate_codeowners, BindingsOwners,
+    BundleUploadIDAndCodeOwnersBytes, CodeOwners,
+};
 use context::{env, junit, meta, repo};
 use prost::Message;
 use pyo3::{exceptions::PyTypeError, prelude::*};
@@ -188,49 +190,38 @@ fn codeowners_parse(codeowners_bytes: Vec<u8>) -> PyResult<BindingsOwners> {
 
 #[gen_stub_pyfunction]
 #[pyfunction]
+fn parse_many_codeowners_multithreaded(
+    to_parse: Vec<BundleUploadIDAndCodeOwnersBytes>,
+    num_threads: usize,
+) -> HashMap<String, Option<BindingsOwners>> {
+    CodeOwners::parse_many_multithreaded(to_parse, num_threads)
+        .into_iter()
+        .map(|(bundle_upload_id, codeowners)| {
+            (
+                bundle_upload_id,
+                codeowners.and_then(|codeowners| codeowners.owners.map(BindingsOwners)),
+            )
+        })
+        .collect()
+}
+
+#[gen_stub_pyfunction]
+#[pyfunction]
 fn associate_codeowners_multithreaded(
     codeowners_matchers: HashMap<String, Option<BindingsOwners>>,
-    to_match: Vec<(String, Option<String>)>,
+    to_associate: Vec<(String, Option<String>)>,
     num_threads: usize,
 ) -> Vec<Vec<String>> {
-    let chunk_size = (to_match.len() + num_threads - 1) / num_threads;
-    let mut handles = Vec::with_capacity(num_threads);
-    let shared_map = Arc::new(RwLock::new(codeowners_matchers));
-
-    for chunk in to_match.chunks(chunk_size) {
-        let chunk = chunk.to_vec();
-        let shared_map = Arc::clone(&shared_map);
-        let handle = thread::spawn(move || {
-            let map = shared_map.read().unwrap();
-            chunk
-                .into_iter()
-                .map(|bundle_upload_id_and_file| -> Vec<String> {
-                    let matcher = map.get(&bundle_upload_id_and_file.0);
-                    match (matcher, &bundle_upload_id_and_file.1) {
-                        (Some(Some(bo)), Some(file)) => {
-                            if let Some(gho) = bo.get_github_owners() {
-                                gho.of(file.to_string()).unwrap_or_default()
-                            } else if let Some(glo) = bo.get_gitlab_owners() {
-                                glo.of(file.to_string()).unwrap_or_default()
-                            } else {
-                                Vec::new()
-                            }
-                        }
-                        _ => Vec::new(),
-                    }
-                })
-                .collect::<Vec<Vec<String>>>()
-        });
-        handles.push(handle);
-    }
-
-    let mut result = Vec::new();
-    for handle in handles {
-        let chunk_result = handle.join().unwrap();
-        result.extend(chunk_result);
-    }
-
-    result
+    associate_codeowners(
+        codeowners_matchers
+            .into_iter()
+            .map(|(bundle_upload_id, codeowners)| {
+                (bundle_upload_id, codeowners.map(|codeowners| codeowners.0))
+            })
+            .collect(),
+        to_associate,
+        num_threads,
+    )
 }
 
 #[pymodule]
@@ -278,6 +269,7 @@ fn context_py(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<codeowners::BindingsOwners>()?;
     m.add_function(wrap_pyfunction!(codeowners_parse, m)?)?;
     m.add_function(wrap_pyfunction!(associate_codeowners_multithreaded, m)?)?;
+    m.add_function(wrap_pyfunction!(parse_many_codeowners_multithreaded, m)?)?;
 
     Ok(())
 }
