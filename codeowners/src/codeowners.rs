@@ -10,7 +10,6 @@ use constants::CODEOWNERS_LOCATIONS;
 #[cfg(feature = "pyo3")]
 use pyo3::prelude::*;
 #[cfg(feature = "pyo3")]
-// use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods, gen_stub_pyclass_enum};
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "wasm")]
@@ -101,7 +100,9 @@ impl CodeOwners {
         num_threads: usize,
     ) -> HashMap<String, Option<Self>> {
         let chunk_size = (to_parse.len() + num_threads - 1) / num_threads;
+
         let mut handles = Vec::with_capacity(num_threads);
+
         let results_map: Arc<Mutex<HashMap<String, Option<Self>>>> =
             Arc::new(Mutex::new(HashMap::new()));
 
@@ -128,7 +129,6 @@ impl CodeOwners {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-// #[cfg_attr(feature = "pyo3", gen_stub_pyclass_enum, pyclass(eq))]
 pub enum Owners {
     GitHubOwners(GitHubOwners),
     GitLabOwners(GitLabOwners),
@@ -169,19 +169,26 @@ pub fn associate_codeowners_multithreaded(
 ) -> Vec<Vec<String>> {
     let input_len = to_associate.len();
     let chunk_size = (input_len + num_threads - 1) / num_threads;
+
     let mut handles = Vec::with_capacity(num_threads);
+
     let codeowners_matchers = Arc::new(RwLock::new(codeowners_matchers));
+    let to_associate = Arc::new(RwLock::new(to_associate));
     let all_associated_owners: Arc<Mutex<Vec<Option<Vec<String>>>>> =
         Arc::new(Mutex::new(vec![None; input_len]));
 
     for i in 0..num_threads {
-        let to_associate = to_associate.clone();
         let codeowners_matchers = Arc::clone(&codeowners_matchers);
+        let to_associate = Arc::clone(&to_associate);
         let all_associated_owners = Arc::clone(&all_associated_owners);
+
         let start = i * chunk_size;
         let end = ((i + 1) * chunk_size).min(input_len);
+
         let handle = thread::spawn(move || {
             let codeowners_matchers = codeowners_matchers.read().unwrap();
+            let to_associate = to_associate.read().unwrap();
+
             for j in start..end {
                 let (bundle_upload_id, file) = &to_associate[j];
                 let codeowners_matcher = codeowners_matchers.get(bundle_upload_id);

@@ -44,7 +44,6 @@ impl fmt::Display for GitLabOwner {
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
-// #[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass)]
 pub struct GitLabOwners {
     file: File,
 }
@@ -118,7 +117,7 @@ pub struct BindingsGitLabOwners(pub GitLabOwners);
 #[gen_stub_pymethods]
 #[pymethods]
 impl BindingsGitLabOwners {
-    pub fn of(&self, path: String) -> Option<Vec<String>> {
+    fn of(&self, path: String) -> Option<Vec<String>> {
         let owners = self.0.of(Path::new(&path));
         owners.map(|owners| owners.iter().map(ToString::to_string).collect())
     }
