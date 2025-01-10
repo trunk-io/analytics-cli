@@ -12,7 +12,7 @@ use context::{
 use trunk_analytics_cli::{
     api_client::ApiClient,
     print::print_bep_results,
-    runner::{run_quarantine, run_test_command, JunitSpec},
+    runner::{run_quarantine, run_test_command, FailedTestsExtractor, JunitSpec},
     upload::{run_upload, UploadArgs},
     validate::validate,
 };
@@ -155,7 +155,6 @@ async fn run_test(test_args: TestArgs) -> anyhow::Result<i32> {
     log::info!("running command: {:?}", command);
     let run_result = run_test_command(
         &repo,
-        &org_url_slug,
         command.first().unwrap(),
         command.iter().skip(1).collect(),
         junit_spec,
@@ -167,13 +166,16 @@ async fn run_test(test_args: TestArgs) -> anyhow::Result<i32> {
         log::error!("Test command failed to run: {}", e);
         RunResult {
             exit_code: EXIT_FAILURE,
-            failures: Vec::new(),
-            exec_start: None,
+            ..Default::default()
         }
     });
 
     let run_exit_code = run_result.exit_code;
-    let failures = run_result.failures;
+    let failed_tests_extractor = FailedTestsExtractor::new(
+        &repo.repo,
+        org_url_slug,
+        run_result.file_set_builder.file_sets(),
+    );
 
     let quarantine_run_result = if *use_quarantining {
         Some(
@@ -182,10 +184,11 @@ async fn run_test(test_args: TestArgs) -> anyhow::Result<i32> {
                 &api::GetQuarantineBulkTestStatusRequest {
                     repo: repo.repo,
                     org_url_slug: org_url_slug.clone(),
-                    test_identifiers: failures.clone(),
+                    test_identifiers: failed_tests_extractor.failed_tests().to_vec(),
                 },
-                failures,
-                run_exit_code,
+                &run_result.file_set_builder,
+                Some(failed_tests_extractor),
+                Some(run_exit_code),
             )
             .await,
         )
