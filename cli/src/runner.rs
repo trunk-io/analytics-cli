@@ -236,13 +236,15 @@ pub async fn run_quarantine(
         )
     });
 
-    if let Some(exit_code) = test_run_exit_code {
-        if failed_tests_extractor.failed_tests().is_empty() && exit_code != EXIT_SUCCESS {
-            log::warn!("Command failed but no test failures were found!");
-        }
-    }
-
     let exit_code = test_run_exit_code.unwrap_or_else(|| failed_tests_extractor.exit_code());
+
+    if file_set_builder.no_files_found() {
+        log::info!("No JUnit files found, not quarantining any tests");
+        return QuarantineRunResult {
+            exit_code,
+            ..Default::default()
+        };
+    }
 
     let quarantine_config: api::QuarantineConfig =
         if !failed_tests_extractor.failed_tests().is_empty() {
