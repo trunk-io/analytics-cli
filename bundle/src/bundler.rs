@@ -8,6 +8,7 @@ use std::{
     io::{Seek, Write},
     path::PathBuf,
 };
+use tempfile::TempDir;
 #[cfg(feature = "wasm")]
 use tsify_next::Tsify;
 #[cfg(feature = "wasm")]
@@ -106,6 +107,13 @@ impl BundlerUtil {
         );
 
         Ok(())
+    }
+
+    pub fn make_tarball_in_temp_dir(&self) -> anyhow::Result<(PathBuf, TempDir)> {
+        let bundle_temp_dir = tempfile::tempdir()?;
+        let bundle_temp_file = bundle_temp_dir.path().join("bundle.tar.zstd");
+        self.make_tarball(&bundle_temp_file)?;
+        Ok((bundle_temp_file, bundle_temp_dir))
     }
 }
 
