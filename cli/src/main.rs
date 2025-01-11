@@ -1,20 +1,12 @@
-use std::env;
-use std::io::Write;
+use std::{env, io::Write};
 
-use bundle::RunResult;
-use clap::{Args, Parser, Subcommand};
-use codeowners::CodeOwners;
-use constants::{EXIT_FAILURE, SENTRY_DSN};
-use context::{
-    bazel_bep::parser::BazelBepParser, junit::junit_path::JunitReportFileWithStatus,
-    repo::BundleRepo,
-};
+use clap::{Parser, Subcommand};
+use constants::SENTRY_DSN;
+
 use trunk_analytics_cli::{
-    api_client::ApiClient,
-    print::print_bep_results,
-    runner::{run_quarantine, run_test_command, FailedTestsExtractor, JunitSpec},
+    test::{run_test, TestArgs},
     upload::{run_upload, UploadArgs},
-    validate::validate,
+    validate::{run_validate, ValidateArgs},
 };
 
 #[derive(Debug, Parser)]
@@ -27,42 +19,6 @@ use trunk_analytics_cli::{
 struct Cli {
     #[command(subcommand)]
     pub command: Commands,
-}
-
-#[derive(Args, Clone, Debug)]
-struct TestArgs {
-    #[command(flatten)]
-    upload_args: UploadArgs,
-    #[arg(
-        required = true,
-        allow_hyphen_values = true,
-        trailing_var_arg = true,
-        help = "Test command to invoke."
-    )]
-    command: Vec<String>,
-}
-
-#[derive(Args, Clone, Debug)]
-struct ValidateArgs {
-    #[arg(
-        long,
-        required_unless_present = "bazel_bep_path",
-        conflicts_with = "bazel_bep_path",
-        value_delimiter = ',',
-        value_parser = clap::builder::NonEmptyStringValueParser::new(),
-        help = "Comma-separated list of glob paths to junit files."
-    )]
-    junit_paths: Vec<String>,
-    #[arg(
-        long,
-        required_unless_present = "junit_paths",
-        help = "Path to bazel build event protocol JSON file."
-    )]
-    bazel_bep_path: Option<String>,
-    #[arg(long, help = "Show warning-level log messages in output.")]
-    show_warnings: bool,
-    #[arg(long, help = "Value to override CODEOWNERS file or directory path.")]
-    pub codeowners_path: Option<String>,
 }
 
 #[derive(Debug, Subcommand)]
@@ -110,113 +66,6 @@ fn main() -> anyhow::Result<()> {
         })
 }
 
-async fn run_test(test_args: TestArgs) -> anyhow::Result<i32> {
-    let TestArgs {
-        command,
-        upload_args,
-    } = test_args;
-    let UploadArgs {
-        junit_paths,
-        bazel_bep_path,
-        org_url_slug,
-        token,
-        repo_root,
-        repo_url,
-        repo_head_sha,
-        repo_head_branch,
-        repo_head_commit_epoch,
-        use_quarantining,
-        team,
-        codeowners_path,
-        ..
-    } = &upload_args;
-
-    let repo = BundleRepo::new(
-        repo_root.clone(),
-        repo_url.clone(),
-        repo_head_sha.clone(),
-        repo_head_branch.clone(),
-        repo_head_commit_epoch.clone(),
-    )?;
-
-    if junit_paths.is_empty() && bazel_bep_path.is_none() {
-        return Err(anyhow::anyhow!("No junit paths provided."));
-    }
-
-    let api_client = ApiClient::new(String::from(token))?;
-
-    let codeowners = CodeOwners::find_file(&repo.repo_root, codeowners_path);
-    let junit_spec = if !junit_paths.is_empty() {
-        JunitSpec::Paths(junit_paths.clone())
-    } else {
-        JunitSpec::BazelBep(bazel_bep_path.as_deref().unwrap_or_default().to_string())
-    };
-
-    log::info!("running command: {:?}", command);
-    let run_result = run_test_command(
-        &repo,
-        command.first().unwrap(),
-        command.iter().skip(1).collect(),
-        junit_spec,
-        team.clone(),
-        &codeowners,
-    )
-    .await
-    .unwrap_or_else(|e| {
-        log::error!("Test command failed to run: {}", e);
-        RunResult {
-            exit_code: EXIT_FAILURE,
-            ..Default::default()
-        }
-    });
-
-    let run_exit_code = run_result.exit_code;
-    let failed_tests_extractor = FailedTestsExtractor::new(
-        &repo.repo,
-        org_url_slug,
-        run_result.file_set_builder.file_sets(),
-    );
-
-    let quarantine_run_result = if *use_quarantining {
-        Some(
-            run_quarantine(
-                &api_client,
-                &api::GetQuarantineBulkTestStatusRequest {
-                    repo: repo.repo,
-                    org_url_slug: org_url_slug.clone(),
-                    test_identifiers: failed_tests_extractor.failed_tests().to_vec(),
-                },
-                &run_result.file_set_builder,
-                Some(failed_tests_extractor),
-                Some(run_exit_code),
-            )
-            .await,
-        )
-    } else {
-        None
-    };
-
-    let exit_code = quarantine_run_result
-        .as_ref()
-        .map(|r| r.exit_code)
-        .unwrap_or(run_exit_code);
-
-    let exec_start = run_result.exec_start;
-    if let Err(e) = run_upload(
-        upload_args,
-        Some(command.join(" ")),
-        None, // don't re-run quarantine checks
-        codeowners,
-        exec_start,
-    )
-    .await
-    {
-        log::error!("Error uploading test results: {:?}", e)
-    };
-
-    Ok(exit_code)
-}
-
 async fn run(cli: Cli) -> anyhow::Result<i32> {
     match cli.command {
         Commands::Upload(upload_args) => {
@@ -225,28 +74,8 @@ async fn run(cli: Cli) -> anyhow::Result<i32> {
         }
         Commands::Test(test_args) => run_test(test_args).await,
         Commands::Validate(validate_args) => {
-            let ValidateArgs {
-                junit_paths,
-                bazel_bep_path,
-                show_warnings,
-                codeowners_path,
-            } = validate_args;
-
             print_cli_start_info();
-
-            let junit_file_paths = match bazel_bep_path {
-                Some(bazel_bep_path) => {
-                    let mut parser = BazelBepParser::new(bazel_bep_path);
-                    let bep_result = parser.parse()?;
-                    print_bep_results(&bep_result);
-                    bep_result.uncached_xml_files()
-                }
-                None => junit_paths
-                    .into_iter()
-                    .map(JunitReportFileWithStatus::from)
-                    .collect(),
-            };
-            validate(junit_file_paths, show_warnings, codeowners_path).await
+            run_validate(validate_args).await
         }
     }
 }

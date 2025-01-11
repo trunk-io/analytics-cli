@@ -40,46 +40,42 @@ pub struct Test {
 }
 
 impl Test {
-    pub fn new(
+    pub fn new<T: AsRef<str>>(
         name: String,
         parent_name: String,
         class_name: Option<String>,
         file: Option<String>,
-        id: Option<String>,
-        org_slug: &str,
+        org_slug: T,
         repo: &RepoUrlParts,
         timestamp_millis: Option<i64>,
     ) -> Self {
-        if let Some(id) = id {
-            return Test {
-                parent_name,
-                name,
-                class_name,
-                file,
-                id,
-                timestamp_millis,
-            };
-        }
-        let info_id_input = [
-            org_slug,
-            repo.repo_full_name().as_str(),
-            file.as_deref().unwrap_or(""),
-            class_name.as_deref().unwrap_or(""),
-            &parent_name,
-            &name,
-            "JUNIT_TESTCASE",
-        ]
-        .join("#");
-        let id =
-            uuid::Uuid::new_v5(&uuid::Uuid::NAMESPACE_URL, info_id_input.as_bytes()).to_string();
-        Test {
+        let mut test = Self {
             parent_name,
             name,
             class_name,
             file,
-            id,
+            id: String::with_capacity(0),
             timestamp_millis,
-        }
+        };
+
+        test.set_id(org_slug, repo);
+
+        test
+    }
+
+    pub fn set_id<T: AsRef<str>>(&mut self, org_slug: T, repo: &RepoUrlParts) {
+        let info_id_input = [
+            org_slug.as_ref(),
+            repo.repo_full_name().as_str(),
+            self.file.as_deref().unwrap_or(""),
+            self.class_name.as_deref().unwrap_or(""),
+            &self.parent_name,
+            &self.name,
+            "JUNIT_TESTCASE",
+        ]
+        .join("#");
+        self.id =
+            uuid::Uuid::new_v5(&uuid::Uuid::NAMESPACE_URL, info_id_input.as_bytes()).to_string()
     }
 }
 
@@ -214,7 +210,6 @@ mod tests {
             parent_name.clone(),
             class_name.clone(),
             file.clone(),
-            None,
             org_slug,
             &repo,
             Some(0),
@@ -224,16 +219,14 @@ mod tests {
         assert_eq!(result.class_name, class_name);
         assert_eq!(result.file, file);
         assert_eq!(result.id, "aad1f138-09ab-5ea9-9c21-af48a03d6edd");
-        let result = Test::new(
-            name.clone(),
-            parent_name.clone(),
-            class_name.clone(),
-            file.clone(),
-            Some(String::from("da5b8893-d6ca-5c1c-9a9c-91f40a2a3649")),
-            org_slug,
-            &repo,
-            Some(0),
-        );
+        let result = Test {
+            name: name.clone(),
+            parent_name: parent_name.clone(),
+            class_name: class_name.clone(),
+            file: file.clone(),
+            id: String::from("da5b8893-d6ca-5c1c-9a9c-91f40a2a3649"),
+            timestamp_millis: Some(0),
+        };
         assert_eq!(result.name, name);
         assert_eq!(result.parent_name, parent_name);
         assert_eq!(result.class_name, class_name);
