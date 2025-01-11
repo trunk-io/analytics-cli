@@ -4,7 +4,10 @@ use bundle::{
     parse_meta as parse_meta_impl, parse_meta_from_tarball as parse_meta_from_tarball_impl,
     BindingsVersionedBundle,
 };
-use codeowners::{BindingsOwners, CodeOwners};
+use codeowners::{
+    associate_codeowners_multithreaded as associate_codeowners, BindingsOwners,
+    BundleUploadIDAndFilePath, CodeOwners,
+};
 use context::{env, junit, meta, repo};
 use prost::Message;
 use pyo3::{exceptions::PyTypeError, prelude::*};
@@ -178,11 +181,96 @@ fn meta_validation_level_to_string(
 #[gen_stub_pyfunction]
 #[pyfunction]
 fn codeowners_parse(codeowners_bytes: Vec<u8>) -> PyResult<BindingsOwners> {
-    let codeowners = CodeOwners::parse(codeowners_bytes);
+    let rt = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()?;
+    let codeowners = rt.block_on(CodeOwners::parse(codeowners_bytes));
     match codeowners.owners {
         Some(owners) => Ok(BindingsOwners(owners)),
         None => Err(PyTypeError::new_err("Failed to parse CODEOWNERS file")),
     }
+}
+
+#[gen_stub_pyfunction]
+#[pyfunction]
+fn parse_many_codeowners_n_threads(
+    to_parse: Vec<Option<Vec<u8>>>,
+    num_threads: usize,
+) -> PyResult<Vec<Option<BindingsOwners>>> {
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(num_threads)
+        .enable_all()
+        .build()?;
+    parse_many_codeowners_multithreaded_impl(rt, to_parse)
+}
+
+#[gen_stub_pyfunction]
+#[pyfunction]
+fn parse_many_codeowners_multithreaded(
+    to_parse: Vec<Option<Vec<u8>>>,
+) -> PyResult<Vec<Option<BindingsOwners>>> {
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()?;
+    parse_many_codeowners_multithreaded_impl(rt, to_parse)
+}
+
+fn parse_many_codeowners_multithreaded_impl(
+    rt: tokio::runtime::Runtime,
+    to_parse: Vec<Option<Vec<u8>>>,
+) -> PyResult<Vec<Option<BindingsOwners>>> {
+    let parsed_codeowners = rt
+        .block_on(CodeOwners::parse_many_multithreaded(to_parse))
+        .map_err(|err| PyTypeError::new_err(err.to_string()))?;
+    Ok(parsed_codeowners
+        .into_iter()
+        .map(|codeowners| codeowners.and_then(|codeowners| codeowners.owners.map(BindingsOwners)))
+        .collect())
+}
+
+#[gen_stub_pyfunction]
+#[pyfunction]
+fn associate_codeowners_n_threads(
+    codeowners_matchers: HashMap<String, Option<BindingsOwners>>,
+    to_associate: Vec<BundleUploadIDAndFilePath>,
+    num_threads: usize,
+) -> PyResult<Vec<Vec<String>>> {
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(num_threads)
+        .enable_all()
+        .build()?;
+    associate_codeowners_multithreaded_impl(rt, codeowners_matchers, to_associate)
+}
+
+#[gen_stub_pyfunction]
+#[pyfunction]
+fn associate_codeowners_multithreaded(
+    codeowners_matchers: HashMap<String, Option<BindingsOwners>>,
+    to_associate: Vec<BundleUploadIDAndFilePath>,
+) -> PyResult<Vec<Vec<String>>> {
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()?;
+    associate_codeowners_multithreaded_impl(rt, codeowners_matchers, to_associate)
+}
+
+fn associate_codeowners_multithreaded_impl(
+    rt: tokio::runtime::Runtime,
+    codeowners_matchers: HashMap<String, Option<BindingsOwners>>,
+    to_associate: Vec<BundleUploadIDAndFilePath>,
+) -> PyResult<Vec<Vec<String>>> {
+    let associated_codeowners = rt
+        .block_on(associate_codeowners(
+            codeowners_matchers
+                .into_iter()
+                .map(|(bundle_upload_id, codeowners)| {
+                    (bundle_upload_id, codeowners.map(|codeowners| codeowners.0))
+                })
+                .collect(),
+            to_associate,
+        ))
+        .map_err(|err| PyTypeError::new_err(err.to_string()))?;
+    Ok(associated_codeowners)
 }
 
 #[pymodule]
@@ -229,6 +317,10 @@ fn context_py(m: &Bound<'_, PyModule>) -> PyResult<()> {
 
     m.add_class::<codeowners::BindingsOwners>()?;
     m.add_function(wrap_pyfunction!(codeowners_parse, m)?)?;
+    m.add_function(wrap_pyfunction!(associate_codeowners_multithreaded, m)?)?;
+    m.add_function(wrap_pyfunction!(associate_codeowners_n_threads, m)?)?;
+    m.add_function(wrap_pyfunction!(parse_many_codeowners_multithreaded, m)?)?;
+    m.add_function(wrap_pyfunction!(parse_many_codeowners_n_threads, m)?)?;
 
     Ok(())
 }

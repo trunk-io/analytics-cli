@@ -148,3 +148,46 @@ def test_parse_codeowners_from_bytes_gitlab_sections():
         "@ruby-owner",
         "@dev-team",
     ]
+
+
+def test_parse_and_associate_multithreaded():
+    from context_py import (
+        associate_codeowners_n_threads,
+        parse_many_codeowners_n_threads,
+    )
+
+    def make_codeowners_bytes(i: int) -> bytes:
+        return f"{i}.txt @user{i}".encode()
+
+    num_codeowners_files = 100
+    num_files_to_associate_owners = 1000
+    num_threads = 4
+
+    codeowners_files = [
+        make_codeowners_bytes(i) for i in range(0, num_codeowners_files)
+    ]
+    to_associate = [
+        (
+            f"{i % num_codeowners_files}",
+            f"{i % num_codeowners_files if i % 2 == 0 else 'foo'}.txt",
+        )
+        for i in range(0, num_files_to_associate_owners)
+    ]
+
+    parsed_codeowners = parse_many_codeowners_n_threads(codeowners_files, num_threads)
+    codeowners_matchers = {
+        f"{i}": codeowners_matcher
+        for i, codeowners_matcher in enumerate(parsed_codeowners)
+    }
+    owners = associate_codeowners_n_threads(
+        codeowners_matchers, to_associate, num_threads
+    )
+
+    assert len(owners) == num_files_to_associate_owners
+
+    for i in range(0, num_files_to_associate_owners):
+        if i % 2 == 0:
+            assert len(owners[i]) == 1
+            assert owners[i][0] == f"@user{i % num_codeowners_files}"
+        else:
+            assert len(owners[i]) == 0
