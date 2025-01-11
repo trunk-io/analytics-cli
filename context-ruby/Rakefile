@@ -3,6 +3,7 @@
 require "rake/testtask"
 require "rake/extensiontask"
 require 'rspec/core/rake_task'
+require 'rake/release/task'
 
 Rake::ExtensionTask.new("context_ruby") do |c|
   c.lib_dir = "lib/context_ruby"
@@ -16,3 +17,8 @@ RSpec::Core::RakeTask.new(:test) do |t|
   Rake::Task['compile'].invoke
   t.pattern = 'test/*_spec.rb'
 end
+
+Rake::Release::Task.new do |spec|
+  Rake::Task['compile'].invoke
+end
+
