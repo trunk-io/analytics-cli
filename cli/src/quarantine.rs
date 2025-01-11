@@ -21,21 +21,24 @@ fn convert_case_to_test<T: AsRef<str>>(
     let xml_string_to_string = |s: &quick_junit::XmlString| String::from(s.as_str());
     let class_name = case.classname.as_ref().map(xml_string_to_string);
     let file = case.extra.get("file").map(xml_string_to_string);
-    let id: Option<String> = case.extra.get("id").map(xml_string_to_string);
-    let timestamp = case
+    let timestamp_millis = case
         .timestamp
         .or(suite.timestamp)
         .map(|t| t.timestamp_millis());
-    Test::new(
+    let mut test = Test {
         name,
         parent_name,
         class_name,
         file,
-        id,
-        org_slug,
-        repo,
-        timestamp,
-    )
+        id: String::with_capacity(0),
+        timestamp_millis,
+    };
+    if let Some(id) = case.extra.get("id").map(xml_string_to_string) {
+        test.id = id;
+    } else {
+        test.set_id(org_slug, repo);
+    }
+    test
 }
 
 #[derive(Debug, Default, Clone)]
