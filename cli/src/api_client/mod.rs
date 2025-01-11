@@ -1,12 +1,12 @@
-use anyhow::Context;
-use http::{header::HeaderMap, HeaderValue};
-use reqwest::{header, Client, Response, StatusCode};
 use std::path::Path;
-use tokio::fs;
 
+use anyhow::Context;
 use api;
 use call_api::CallApi;
 use constants::{DEFAULT_ORIGIN, TRUNK_PUBLIC_API_ADDRESS_ENV};
+use http::{header::HeaderMap, HeaderValue};
+use reqwest::{header, Client, Response, StatusCode};
+use tokio::fs;
 
 mod call_api;
 

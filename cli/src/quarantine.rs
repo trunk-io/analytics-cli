@@ -1,96 +1,19 @@
-use context::repo::RepoUrlParts;
-use quick_junit::TestCaseStatus;
 use std::collections::HashMap;
-use std::process::{Command, Stdio};
-use std::time::SystemTime;
 
-use api;
-use bundle::{
-    FileSet, FileSetBuilder, QuarantineBulkTestStatus, QuarantineRunResult, RunResult, Test,
-};
-use codeowners::CodeOwners;
+use bundle::{FileSet, FileSetBuilder, QuarantineBulkTestStatus, QuarantineRunResult, Test};
 use constants::{EXIT_FAILURE, EXIT_SUCCESS};
 use context::{
-    bazel_bep::parser::BazelBepParser,
-    junit::{
-        junit_path::{JunitReportFileWithStatus, JunitReportStatus},
-        parser::JunitParser,
-    },
-    repo::BundleRepo,
+    junit::{junit_path::JunitReportStatus, parser::JunitParser},
+    repo::RepoUrlParts,
 };
+use quick_junit::TestCaseStatus;
 
-use crate::{api_client::ApiClient, print::print_bep_results};
+use crate::api_client::ApiClient;
 
-pub enum JunitSpec {
-    Paths(Vec<String>),
-    BazelBep(String),
-}
-
-pub async fn run_test_command(
-    repo: &BundleRepo,
-    command: &String,
-    args: Vec<&String>,
-    junit_spec: JunitSpec,
-    team: Option<String>,
-    codeowners: &Option<CodeOwners>,
-) -> anyhow::Result<RunResult> {
-    let start = SystemTime::now();
-    let exit_code = run_test_and_get_exit_code(command, args)?;
-    log::info!("Command exit code: {}", exit_code);
-
-    let output_paths = match junit_spec {
-        JunitSpec::Paths(paths) => paths
-            .into_iter()
-            .map(JunitReportFileWithStatus::from)
-            .collect(),
-        JunitSpec::BazelBep(bep_path) => {
-            let mut parser = BazelBepParser::new(bep_path);
-            let bep_result = parser.parse()?;
-            print_bep_results(&bep_result);
-            bep_result.uncached_xml_files()
-        }
-    };
-
-    let file_set_builder = FileSetBuilder::build_file_sets(
-        &repo.repo_root,
-        &output_paths,
-        team,
-        codeowners,
-        Some(start),
-    )?;
-
-    Ok(RunResult {
-        exit_code,
-        file_set_builder,
-        exec_start: Some(start),
-    })
-}
-
-fn run_test_and_get_exit_code(command: &String, args: Vec<&String>) -> anyhow::Result<i32> {
-    let mut child = Command::new(command)
-        .args(args)
-        .stdout(Stdio::inherit())
-        .stderr(Stdio::inherit())
-        .spawn()?;
-
-    let result = child
-        .wait()
-        .map_or_else(
-            |e| {
-                log::error!("Error waiting for execution: {}", e);
-                None
-            },
-            |exit_status| exit_status.code(),
-        )
-        .unwrap_or(EXIT_FAILURE);
-
-    Ok(result)
-}
-
-fn convert_case_to_test(
+fn convert_case_to_test<T: AsRef<str>>(
     repo: &RepoUrlParts,
-    org_slug: &str,
-    parent_name: &String,
+    org_slug: T,
+    parent_name: String,
     case: &quick_junit::TestCase,
     suite: &quick_junit::TestSuite,
 ) -> Test {
@@ -98,21 +21,24 @@ fn convert_case_to_test(
     let xml_string_to_string = |s: &quick_junit::XmlString| String::from(s.as_str());
     let class_name = case.classname.as_ref().map(xml_string_to_string);
     let file = case.extra.get("file").map(xml_string_to_string);
-    let id: Option<String> = case.extra.get("id").map(xml_string_to_string);
-    let timestamp = case
+    let timestamp_millis = case
         .timestamp
         .or(suite.timestamp)
         .map(|t| t.timestamp_millis());
-    Test::new(
+    let mut test = Test {
         name,
-        parent_name.clone(),
+        parent_name,
         class_name,
         file,
-        id,
-        org_slug,
-        repo,
-        timestamp,
-    )
+        id: String::with_capacity(0),
+        timestamp_millis,
+    };
+    if let Some(id) = case.extra.get("id").map(xml_string_to_string) {
+        test.id = id;
+    } else {
+        test.set_id(org_slug, repo);
+    }
+    test
 }
 
 #[derive(Debug, Default, Clone)]
@@ -156,7 +82,7 @@ impl FailedTestsExtractor {
                             let test = convert_case_to_test(
                                 repo,
                                 org_slug.as_ref(),
-                                &parent_name,
+                                parent_name.clone(),
                                 case,
                                 suite,
                             );
