@@ -33,11 +33,16 @@ use crate::{
     scanner::EnvScanner,
 };
 
-#[derive(Args, Clone, Debug)]
+#[cfg(target_os = "macos")]
+const JUNIT_GLOB_REQUIRED_UNLESS_PRESENT_ARG: &str = "xcresult_path";
+#[cfg(not(target_os = "macos"))]
+const JUNIT_GLOB_REQUIRED_UNLESS_PRESENT_ARG: &str = "junit_paths";
+
+#[derive(Args, Clone, Debug, Default)]
 pub struct UploadArgs {
     #[arg(
         long,
-        required_unless_present_any = [junit_require(), "bazel_bep_path"],
+        required_unless_present_any = [JUNIT_GLOB_REQUIRED_UNLESS_PRESENT_ARG, "bazel_bep_path"],
         conflicts_with = "bazel_bep_path",
         value_delimiter = ',',
         value_parser = clap::builder::NonEmptyStringValueParser::new(),
@@ -46,7 +51,7 @@ pub struct UploadArgs {
     pub junit_paths: Vec<String>,
     #[arg(
         long,
-        required_unless_present_any = [junit_require(), "junit_paths"],
+        required_unless_present_any = [JUNIT_GLOB_REQUIRED_UNLESS_PRESENT_ARG, "junit_paths"],
         help = "Path to bazel build event protocol JSON file."
     )]
     pub bazel_bep_path: Option<String>,
@@ -124,24 +129,11 @@ impl UploadArgs {
     ) -> Self {
         Self {
             junit_paths,
-            #[cfg(target_os = "macos")]
-            xcresult_path: None,
             org_url_slug,
             token,
-            bazel_bep_path: None,
             repo_root: Some(repo_root),
-            repo_url: None,
-            repo_head_sha: None,
-            repo_head_branch: None,
-            repo_head_commit_epoch: None,
-            tags: Vec::new(),
-            print_files: false,
-            dry_run: false,
-            team: None,
-            // TODO - how are code owners handled?
-            codeowners_path: None,
-            use_quarantining: false,
             allow_empty_test_results: true,
+            ..Default::default()
         }
     }
 }
@@ -519,14 +511,6 @@ fn handle_xcresult(
         }
     }
     Ok(temp_paths)
-}
-
-fn junit_require() -> &'static str {
-    if cfg!(target_os = "macos") {
-        "xcresult_path"
-    } else {
-        "junit_paths"
-    }
 }
 
 fn parse_num_tests(file_sets: &[FileSet]) -> usize {
