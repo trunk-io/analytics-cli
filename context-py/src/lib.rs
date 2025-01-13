@@ -1,11 +1,11 @@
-use std::{collections::HashMap, io::BufReader};
+use std::{collections::HashMap, io::BufReader, sync::Arc};
 
 use bundle::{
     parse_meta as parse_meta_impl, parse_meta_from_tarball as parse_meta_from_tarball_impl,
     BindingsVersionedBundle,
 };
 use codeowners::{
-    associate_codeowners_multithreaded as associate_codeowners, BindingsOwners, CodeOwners,
+    associate_codeowners_multithreaded as associate_codeowners, BindingsOwners, CodeOwners, Owners,
 };
 use context::{env, junit, meta, repo};
 use prost::Message;
@@ -281,6 +281,15 @@ fn associate_codeowners_multithreaded_impl(
             codeowners_matcher.as_ref().map(|_codeowners_matcher| i)
         })
         .collect::<Vec<_>>();
+    let codeowners_matchers: HashMap<String, Option<Arc<Owners>>> = codeowners_matchers
+        .into_iter()
+        .map(|(key, value)| {
+            (
+                key,
+                value.map(|bindings_owners| Arc::new(bindings_owners.0)),
+            )
+        })
+        .collect();
     let associated_codeowners = rt
         .block_on(associate_codeowners(
             to_associate
@@ -293,8 +302,8 @@ fn associate_codeowners_multithreaded_impl(
                 })
                 .filter_map(|(codeowners_matcher, file)| {
                     codeowners_matcher
-                        .clone()
-                        .map(|codeowners_matcher| (codeowners_matcher.0, file))
+                        .as_ref()
+                        .map(|codeowners_matcher| (Arc::clone(codeowners_matcher), file))
                 })
                 .collect(),
         ))
