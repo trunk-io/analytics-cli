@@ -27,10 +27,10 @@ use xcresult::XCResult;
 
 use crate::{
     api_client::ApiClient,
+    context_quarantine::{gather_quarantine_context, FailedTestsExtractor, QuarantineContext},
     print::print_bep_results,
-    quarantine::{run_quarantine, FailedTestsExtractor, QuarantineRunResult},
-    test::TestRunResult,
-    upload::UploadArgs,
+    test_command::TestRunResult,
+    upload_command::UploadArgs,
 };
 
 pub struct PreTestContext {
@@ -235,7 +235,7 @@ pub async fn gather_exit_code_and_quarantined_tests_context(
         &meta.base_props.org,
         file_set_builder.file_sets(),
     );
-    let QuarantineRunResult {
+    let QuarantineContext {
         exit_code,
         quarantine_status:
             QuarantineBulkTestStatus {
@@ -243,7 +243,7 @@ pub async fn gather_exit_code_and_quarantined_tests_context(
                 ..
             },
     } = if !use_quarantining {
-        QuarantineRunResult {
+        QuarantineContext {
             exit_code: test_run_result
                 .as_ref()
                 .map(|t| t.exit_code)
@@ -251,7 +251,7 @@ pub async fn gather_exit_code_and_quarantined_tests_context(
             ..Default::default()
         }
     } else {
-        run_quarantine(
+        gather_quarantine_context(
             api_client,
             &api::GetQuarantineBulkTestStatusRequest {
                 repo: meta.base_props.repo.repo.clone(),

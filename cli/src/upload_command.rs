@@ -10,7 +10,7 @@ use crate::{
         gather_exit_code_and_quarantined_tests_context, gather_post_test_context,
         gather_pre_test_context, gather_upload_id_context, PreTestContext,
     },
-    test::TestRunResult,
+    test_command::TestRunResult,
 };
 
 #[cfg(target_os = "macos")]

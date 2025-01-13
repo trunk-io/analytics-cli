@@ -11,7 +11,7 @@ use quick_junit::TestCaseStatus;
 use crate::api_client::ApiClient;
 
 #[derive(Debug, Default, Clone)]
-pub struct QuarantineRunResult {
+pub struct QuarantineContext {
     pub exit_code: i32,
     pub quarantine_status: QuarantineBulkTestStatus,
 }
@@ -153,13 +153,13 @@ impl FailedTestsExtractor {
     }
 }
 
-pub async fn run_quarantine(
+pub async fn gather_quarantine_context(
     api_client: &ApiClient,
     request: &api::GetQuarantineBulkTestStatusRequest,
     file_set_builder: &FileSetBuilder,
     failed_tests_extractor: Option<FailedTestsExtractor>,
     test_run_exit_code: Option<i32>,
-) -> QuarantineRunResult {
+) -> QuarantineContext {
     let failed_tests_extractor = failed_tests_extractor.unwrap_or_else(|| {
         FailedTestsExtractor::new(
             &request.repo,
@@ -172,7 +172,7 @@ pub async fn run_quarantine(
 
     if file_set_builder.no_files_found() {
         log::info!("No JUnit files found, not quarantining any tests");
-        return QuarantineRunResult {
+        return QuarantineContext {
             exit_code,
             ..Default::default()
         };
@@ -196,7 +196,7 @@ pub async fn run_quarantine(
     // if quarantining is not enabled, return exit code and empty quarantine status
     if quarantine_config.is_disabled {
         log::info!("Quarantining is not enabled, not quarantining any tests");
-        return QuarantineRunResult {
+        return QuarantineContext {
             exit_code,
             quarantine_status: QuarantineBulkTestStatus::default(),
         };
@@ -249,7 +249,7 @@ pub async fn run_quarantine(
         exit_code
     };
 
-    QuarantineRunResult {
+    QuarantineContext {
         exit_code,
         quarantine_status: quarantine_results,
     }

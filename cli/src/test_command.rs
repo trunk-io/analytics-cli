@@ -8,7 +8,7 @@ use constants::EXIT_FAILURE;
 
 use crate::{
     context::gather_pre_test_context,
-    upload::{run_upload, UploadArgs},
+    upload_command::{run_upload, UploadArgs},
 };
 
 #[derive(Args, Clone, Debug)]
