@@ -70,7 +70,7 @@ async fn run(cli: Cli) -> anyhow::Result<i32> {
     match cli.command {
         Commands::Upload(upload_args) => {
             print_cli_start_info();
-            run_upload(upload_args, None, None, None, None).await
+            run_upload(upload_args, None, None).await
         }
         Commands::Test(test_args) => run_test(test_args).await,
         Commands::Validate(validate_args) => {

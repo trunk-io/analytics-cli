@@ -24,23 +24,23 @@ use wasm_bindgen::prelude::*;
 pub struct FileSetBuilder {
     count: usize,
     file_sets: Vec<FileSet>,
+    codeowners: Option<CodeOwners>,
 }
 
 impl FileSetBuilder {
-    pub fn build_file_sets(
-        repo_root: &str,
+    pub fn build_file_sets<T: AsRef<str>, U: AsRef<Path>>(
+        repo_root: T,
         junit_paths: &[JunitReportFileWithStatus],
-        team: Option<String>,
-        codeowners: &Option<CodeOwners>,
+        team: &Option<String>,
+        codeowners_path: &Option<U>,
         exec_start: Option<SystemTime>,
     ) -> anyhow::Result<Self> {
-        let file_set_builder = Self::file_sets_from_glob(
-            repo_root,
-            junit_paths,
-            team.clone(),
-            codeowners,
-            exec_start,
-        )?;
+        let repo_root = repo_root.as_ref();
+
+        let codeowners = CodeOwners::find_file(repo_root, codeowners_path);
+
+        let file_set_builder =
+            Self::file_sets_from_glob(repo_root, junit_paths, team, codeowners, exec_start)?;
 
         // Handle case when junit paths are not globs.
         if file_set_builder.count == 0 {
@@ -60,7 +60,7 @@ impl FileSetBuilder {
                 repo_root,
                 junit_paths_with_glob.as_slice(),
                 team,
-                codeowners,
+                file_set_builder.codeowners,
                 exec_start,
             );
         }
@@ -71,14 +71,18 @@ impl FileSetBuilder {
     fn file_sets_from_glob(
         repo_root: &str,
         junit_paths: &[JunitReportFileWithStatus],
-        team: Option<String>,
-        codeowners: &Option<CodeOwners>,
+        team: &Option<String>,
+        codeowners: Option<CodeOwners>,
         exec_start: Option<SystemTime>,
     ) -> anyhow::Result<Self> {
         junit_paths.iter().try_fold(
-            Self::default(),
+            Self {
+                codeowners,
+                ..Self::default()
+            },
             |mut acc, junit_wrapper| -> anyhow::Result<Self> {
                 let files = Self::scan_from_glob(&junit_wrapper.junit_path, repo_root)?;
+                let codeowners = &acc.codeowners;
                 let (count, bundled_files) = files.iter().try_fold(
                     (acc.count, Vec::new()),
                     |mut acc, file| -> anyhow::Result<(usize, Vec<BundledFile>)> {
@@ -88,7 +92,7 @@ impl FileSetBuilder {
                             repo_root,
                             &junit_wrapper.junit_path,
                             team.clone(),
-                            codeowners.clone(),
+                            codeowners,
                             exec_start,
                         )? {
                             acc.0 += 1;
@@ -114,6 +118,14 @@ impl FileSetBuilder {
 
     pub fn file_sets(&self) -> &[FileSet] {
         &self.file_sets
+    }
+
+    pub fn codeowners(&self) -> &Option<CodeOwners> {
+        &self.codeowners
+    }
+
+    pub fn take_codeowners(&mut self) -> Option<CodeOwners> {
+        self.codeowners.take()
     }
 
     pub fn no_files_found(&self) -> bool {
@@ -210,7 +222,7 @@ impl BundledFile {
         repo_root: T,
         glob_path: U,
         team: Option<String>,
-        codeowners: Option<CodeOwners>,
+        codeowners: &Option<CodeOwners>,
         start: Option<SystemTime>,
     ) -> anyhow::Result<Option<Self>> {
         let original_path_abs = path
@@ -282,7 +294,7 @@ impl BundledFile {
                 .duration_since(std::time::UNIX_EPOCH)?
                 .as_nanos(),
             owners,
-            team: team.clone(),
+            team,
         }))
     }
 
