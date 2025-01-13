@@ -1,19 +1,16 @@
 use std::{
-    collections::HashMap,
     fs::File,
     path::{Path, PathBuf},
-    sync::Arc,
 };
 
 use anyhow::Result;
-use tokio::task;
-
 use constants::CODEOWNERS_LOCATIONS;
 #[cfg(feature = "pyo3")]
 use pyo3::prelude::*;
 #[cfg(feature = "pyo3")]
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 use serde::{Deserialize, Serialize};
+use tokio::task;
 #[cfg(feature = "wasm")]
 use tsify_next::Tsify;
 #[cfg(feature = "wasm")]
@@ -84,7 +81,7 @@ impl CodeOwners {
 
     // TODO(TRUNK-13783): take in origin path and parse CODEOWNERS based on location
     // which informs which parser to use (GitHub or GitLab)
-    pub async fn parse(codeowners: Vec<u8>) -> Self {
+    pub fn parse(codeowners: Vec<u8>) -> Self {
         let owners_result = GitLabOwners::from_reader(codeowners.as_slice())
             .map(Owners::GitLabOwners)
             .or_else(|_| {
@@ -97,27 +94,22 @@ impl CodeOwners {
         }
     }
 
-    pub async fn parse_many_multithreaded(
-        to_parse: Vec<Option<Vec<u8>>>,
-    ) -> Result<Vec<Option<Self>>> {
-        let mut results = vec![None; to_parse.len()];
-        let mut tasks = Vec::new();
-        for (i, codeowners_bytes) in to_parse.into_iter().enumerate() {
-            let task = task::spawn(async move {
-                match codeowners_bytes {
-                    Some(cb) => (i, Some(Self::parse(cb).await)),
-                    None => (i, None),
-                }
-            });
-            tasks.push(task);
-        }
+    pub async fn parse_many_multithreaded(to_parse: Vec<Vec<u8>>) -> Result<Vec<Self>> {
+        let tasks = to_parse
+            .into_iter()
+            .enumerate()
+            .map(|(i, codeowners_bytes)| {
+                task::spawn(async move { (i, Self::parse(codeowners_bytes)) })
+            })
+            .collect::<Vec<_>>();
 
+        let mut results = vec![None; tasks.len()];
         for task in tasks {
             let (i, result) = task.await?;
-            results[i] = result;
+            results[i] = Some(result);
         }
 
-        Ok(results)
+        Ok(results.into_iter().flatten().collect())
     }
 }
 
@@ -155,50 +147,35 @@ impl BindingsOwners {
     }
 }
 
-async fn associate_codeowners(
-    codeowners_matchers: Arc<HashMap<String, Option<Owners>>>,
-    bundle_upload_id_and_file_path: BundleUploadIDAndFilePath,
-) -> Vec<String> {
-    let (bundle_upload_id, file) = bundle_upload_id_and_file_path;
-    let codeowners_matcher = codeowners_matchers.get(&bundle_upload_id);
-    match (codeowners_matcher, &file) {
-        (Some(Some(owners)), Some(file)) => match owners {
-            Owners::GitHubOwners(gho) => gho
-                .of(file)
-                .unwrap_or_default()
-                .iter()
-                .map(ToString::to_string)
-                .collect(),
-            Owners::GitLabOwners(glo) => glo
-                .of(file)
-                .unwrap_or_default()
-                .iter()
-                .map(ToString::to_string)
-                .collect(),
-        },
-        _ => Vec::new(),
+fn associate_codeowners<T: AsRef<Path>>(owners: Owners, file: T) -> Vec<String> {
+    match owners {
+        Owners::GitHubOwners(gho) => gho
+            .of(file)
+            .unwrap_or_default()
+            .iter()
+            .map(ToString::to_string)
+            .collect(),
+        Owners::GitLabOwners(glo) => glo
+            .of(file)
+            .unwrap_or_default()
+            .iter()
+            .map(ToString::to_string)
+            .collect(),
     }
 }
 
 pub async fn associate_codeowners_multithreaded(
-    codeowners_matchers: HashMap<String, Option<Owners>>,
-    to_associate: Vec<BundleUploadIDAndFilePath>,
+    to_associate: Vec<(Owners, String)>,
 ) -> Result<Vec<Vec<String>>> {
-    let codeowners_matchers = Arc::new(codeowners_matchers);
-    let mut results = vec![None; to_associate.len()];
-    let mut tasks = Vec::new();
+    let tasks = to_associate
+        .into_iter()
+        .enumerate()
+        .map(|(i, (owners, file))| {
+            task::spawn(async move { (i, associate_codeowners(owners, file)) })
+        })
+        .collect::<Vec<_>>();
 
-    for (i, bundle_upload_id_and_file_path) in to_associate.into_iter().enumerate() {
-        let codeowners_matchers = Arc::clone(&codeowners_matchers);
-        let task = task::spawn(async move {
-            (
-                i,
-                associate_codeowners(codeowners_matchers, bundle_upload_id_and_file_path).await,
-            )
-        });
-        tasks.push(task);
-    }
-
+    let mut results = vec![None; tasks.len()];
     for task in tasks {
         let (i, result) = task.await?;
         results[i] = Some(result);
@@ -235,33 +212,32 @@ mod tests {
         let num_codeowners_files = 100;
         let num_files_to_associate_owners = 1000;
 
-        let codeowners_files: Vec<Option<Vec<u8>>> = (0..num_codeowners_files)
-            .map(|i| Some(make_codeowners_bytes(i)))
+        let codeowners_files: Vec<Vec<u8>> = (0..num_codeowners_files)
+            .map(make_codeowners_bytes)
             .collect();
-        let to_associate: Vec<BundleUploadIDAndFilePath> = (0..num_files_to_associate_owners)
+
+        let codeowners_matchers = CodeOwners::parse_many_multithreaded(codeowners_files)
+            .await
+            .unwrap();
+
+        let to_associate: Vec<(Owners, String)> = (0..num_files_to_associate_owners)
             .map(|i| {
                 let mut file = "unassociated".to_string();
                 if i % 2 == 0 {
                     let file_prefix = i % num_codeowners_files;
                     file = format!("{file_prefix}.txt");
                 }
-                ((i % num_codeowners_files).to_string(), Some(file))
-            })
-            .collect();
-
-        let codeowners_matchers = CodeOwners::parse_many_multithreaded(codeowners_files)
-            .await
-            .unwrap()
-            .into_iter()
-            .enumerate()
-            .map(|(i, codeowners)| {
                 (
-                    i.to_string(),
-                    codeowners.and_then(|codeowners| codeowners.owners),
+                    codeowners_matchers[i % num_codeowners_files]
+                        .owners
+                        .clone()
+                        .unwrap(),
+                    file,
                 )
             })
             .collect();
-        let owners = crate::associate_codeowners_multithreaded(codeowners_matchers, to_associate)
+
+        let owners = crate::associate_codeowners_multithreaded(to_associate)
             .await
             .unwrap();
 
