@@ -24,8 +24,6 @@ use crate::{
     traits::{FromReader, OwnersOfPath},
 };
 
-pub type BundleUploadIDAndFilePath = (String, Option<String>);
-
 // TODO(TRUNK-13628): Implement serializing and deserializing for CodeOwners
 #[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass)]

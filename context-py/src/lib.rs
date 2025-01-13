@@ -5,8 +5,7 @@ use bundle::{
     BindingsVersionedBundle,
 };
 use codeowners::{
-    associate_codeowners_multithreaded as associate_codeowners, BindingsOwners,
-    BundleUploadIDAndFilePath, CodeOwners,
+    associate_codeowners_multithreaded as associate_codeowners, BindingsOwners, CodeOwners,
 };
 use context::{env, junit, meta, repo};
 use prost::Message;
@@ -239,7 +238,7 @@ fn parse_many_codeowners_multithreaded_impl(
 #[pyfunction]
 fn associate_codeowners_n_threads(
     codeowners_matchers: HashMap<String, Option<BindingsOwners>>,
-    to_associate: Vec<BundleUploadIDAndFilePath>,
+    to_associate: Vec<(String, Option<String>)>,
     num_threads: usize,
 ) -> PyResult<Vec<Vec<String>>> {
     let rt = tokio::runtime::Builder::new_multi_thread()
@@ -253,7 +252,7 @@ fn associate_codeowners_n_threads(
 #[pyfunction]
 fn associate_codeowners_multithreaded(
     codeowners_matchers: HashMap<String, Option<BindingsOwners>>,
-    to_associate: Vec<BundleUploadIDAndFilePath>,
+    to_associate: Vec<(String, Option<String>)>,
 ) -> PyResult<Vec<Vec<String>>> {
     let rt = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
@@ -264,7 +263,7 @@ fn associate_codeowners_multithreaded(
 fn associate_codeowners_multithreaded_impl(
     rt: tokio::runtime::Runtime,
     codeowners_matchers: HashMap<String, Option<BindingsOwners>>,
-    to_associate: Vec<BundleUploadIDAndFilePath>,
+    to_associate: Vec<(String, Option<String>)>,
 ) -> PyResult<Vec<Vec<String>>> {
     let to_associate_len = to_associate.len();
     let associated_indexes = to_associate
