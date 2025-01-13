@@ -798,6 +798,7 @@ dependencies = [
  "api",
  "assert_cmd",
  "assert_matches",
+ "axum 0.7.9",
  "bazel-bep",
  "bundle",
  "chrono",
