@@ -8,7 +8,7 @@ use constants::EXIT_FAILURE;
 
 use crate::{
     context::gather_pre_test_context,
-    upload_command::{run_upload, UploadArgs},
+    upload_command::{run_upload, UploadArgs, UploadRunResult},
 };
 
 #[derive(Args, Clone, Debug)]
@@ -46,10 +46,22 @@ pub async fn run_test(
     let upload_run_result =
         run_upload(upload_args, Some(pre_test_context), Some(test_run_result)).await;
 
-    upload_run_result.or_else(|e| {
-        log::error!("Error uploading test results: {:?}", e);
-        Ok(test_run_result_exit_code)
-    })
+    upload_run_result
+        .and_then(
+            |UploadRunResult {
+                 exit_code,
+                 upload_bundle_error,
+             }| {
+                if let Some(e) = upload_bundle_error {
+                    return Err(e);
+                }
+                Ok(exit_code)
+            },
+        )
+        .or_else(|e| {
+            log::error!("Error uploading test results: {:?}", e);
+            Ok(test_run_result_exit_code)
+        })
 }
 
 pub async fn run_test_command<T: AsRef<str>>(command: &[T]) -> anyhow::Result<TestRunResult> {
