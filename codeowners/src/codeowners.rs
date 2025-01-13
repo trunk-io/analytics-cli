@@ -1,6 +1,7 @@
 use std::{
     fs::File,
     path::{Path, PathBuf},
+    sync::Arc,
 };
 
 use anyhow::Result;
@@ -145,7 +146,7 @@ impl BindingsOwners {
     }
 }
 
-fn associate_codeowners<T: AsRef<Path>>(owners: Owners, file: T) -> Vec<String> {
+fn associate_codeowners<T: AsRef<Path>>(owners: &Owners, file: T) -> Vec<String> {
     match owners {
         Owners::GitHubOwners(gho) => gho
             .of(file)
@@ -162,14 +163,14 @@ fn associate_codeowners<T: AsRef<Path>>(owners: Owners, file: T) -> Vec<String> 
     }
 }
 
-pub async fn associate_codeowners_multithreaded(
-    to_associate: Vec<(Owners, String)>,
+pub async fn associate_codeowners_multithreaded<T: AsRef<Path> + Send + Sync + 'static>(
+    to_associate: Vec<(Arc<Owners>, T)>,
 ) -> Result<Vec<Vec<String>>> {
     let tasks = to_associate
         .into_iter()
         .enumerate()
         .map(|(i, (owners, file))| {
-            task::spawn(async move { (i, associate_codeowners(owners, file)) })
+            task::spawn(async move { (i, associate_codeowners(owners.as_ref(), file)) })
         })
         .collect::<Vec<_>>();
 
@@ -218,7 +219,7 @@ mod tests {
             .await
             .unwrap();
 
-        let to_associate: Vec<(Owners, String)> = (0..num_files_to_associate_owners)
+        let to_associate: Vec<(Arc<Owners>, String)> = (0..num_files_to_associate_owners)
             .map(|i| {
                 let mut file = "unassociated".to_string();
                 if i % 2 == 0 {
@@ -226,10 +227,12 @@ mod tests {
                     file = format!("{file_prefix}.txt");
                 }
                 (
-                    codeowners_matchers[i % num_codeowners_files]
-                        .owners
-                        .clone()
-                        .unwrap(),
+                    Arc::new(
+                        codeowners_matchers[i % num_codeowners_files]
+                            .owners
+                            .clone()
+                            .unwrap(),
+                    ),
                     file,
                 )
             })
