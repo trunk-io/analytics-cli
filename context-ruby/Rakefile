@@ -4,13 +4,26 @@ require "rake/testtask"
 require "rake/extensiontask"
 require 'rspec/core/rake_task'
 require 'rake/release/task'
+require "rb_sys/extensiontask"
 
-Rake::ExtensionTask.new("context_ruby") do |c|
+platforms = [
+  "x86_64-linux",
+  "aarch64-linux",
+  "x86_64-darwin",
+  "arm64-darwin",
+  "x64-mingw-ucrt",
+  "x64-mingw32"
+]
+
+gemspec = Bundler.load_gemspec("trunk_analytics.gemspec")
+Rake::ExtensionTask.new("context_ruby", gemspec) do |c|
   c.lib_dir = "lib/context_ruby"
-end
-
-task :dev do
-  ENV['RB_SYS_CARGO_PROFILE'] = 'dev'
+  c.cross_compile = true
+  c.cross_platform = platforms
+  c.cross_compiling do |spec|
+    spec.dependencies.reject! { |dep| dep.name == "rb_sys" }
+    spec.files.reject! { |file| File.fnmatch?("ext/*", file, File::FNM_EXTGLOB) }
+  end
 end
 
 RSpec::Core::RakeTask.new(:test) do |t|
@@ -19,6 +32,5 @@ RSpec::Core::RakeTask.new(:test) do |t|
 end
 
 Rake::Release::Task.new do |spec|
-  Rake::Task['compile'].invoke
 end
 

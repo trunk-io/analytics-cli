@@ -2,10 +2,6 @@ GEM
   remote: https://rubygems.org/
   specs:
     diff-lcs (1.5.1)
-    libclang (14.0.6-aarch64-linux)
-    libclang (14.0.6-arm64-darwin)
-    libclang (14.0.6-x86_64-darwin)
-    libclang (14.0.6-x86_64-linux)
     power_assert (2.0.4)
     rake (13.2.1)
     rake-compiler (1.2.0)
@@ -31,11 +27,10 @@ GEM
       power_assert
 
 PLATFORMS
-  darwin
-  linux
+  ruby
+  x86_64-linux
 
 DEPENDENCIES
-  libclang (~> 14.0.6)
   rake
   rake-compiler (= 1.2.0)
   rake-compiler-dock (~> 1.8)

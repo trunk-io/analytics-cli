@@ -8,10 +8,11 @@ Gem::Specification.new do |s|
   s.description = 'trunk analytics helper gem'
   s.authors     = ['Trunk Technologies, Inc.']
   s.email       = 'support@trunk.io'
-  s.files       = ['lib/trunk_analytics/trunk_spec_helper.rb', 'lib/context_ruby/context_ruby.so',
-                   'lib/context_ruby.rb']
+  s.files       = Dir["{ext,lib}/**/*", "Cargo.*"]
   s.add_dependency 'rspec', '~> 3.0'
   s.add_dependency 'rspec-core', '~> 3.0'
   s.homepage    = 'https://trunk.io'
   s.license     = 'MIT'
+  s.add_dependency "rb_sys"
+  s.extensions = ["ext/context_ruby/extconf.rb"]
 end

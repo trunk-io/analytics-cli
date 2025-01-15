@@ -12,4 +12,3 @@ gem 'rake-release'
 gem 'rb_sys', '~> 0.9.103'
 
 gem "rake-compiler-dock", "~> 1.8"
-gem "libclang", "~> 14.0.6"
