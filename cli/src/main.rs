@@ -4,8 +4,9 @@ use clap::{Parser, Subcommand};
 use constants::SENTRY_DSN;
 
 use trunk_analytics_cli::{
+    quarantine_command::{run_quarantine, QuarantineArgs},
     test_command::{run_test, TestArgs},
-    upload_command::{run_upload, UploadArgs},
+    upload_command::{run_upload, UploadArgs, UploadRunResult},
     validate_command::{run_validate, ValidateArgs},
 };
 
@@ -23,10 +24,12 @@ struct Cli {
 
 #[derive(Debug, Subcommand)]
 enum Commands {
-    /// Upload data to Trunk Flaky Tests
-    Upload(UploadArgs),
+    /// Quarantine flaky tests and upload data to Trunk Flaky Tests
+    Quarantine(QuarantineArgs),
     /// Run a test command and upload data to Trunk Flaky Tests
     Test(TestArgs),
+    /// Upload data to Trunk Flaky Tests
+    Upload(UploadArgs),
     /// Validate that your test runner output is suitable for Trunk Flaky Tests
     Validate(ValidateArgs),
 }
@@ -74,7 +77,17 @@ async fn run(cli: Cli) -> anyhow::Result<i32> {
         env!("VERGEN_RUSTC_SEMVER")
     );
     match cli.command {
-        Commands::Upload(upload_args) => run_upload(upload_args, None, None).await,
+        Commands::Quarantine(quarantine_args) => run_quarantine(quarantine_args).await,
+        Commands::Upload(upload_args) => {
+            let UploadRunResult {
+                exit_code,
+                upload_bundle_error,
+            } = run_upload(upload_args, None, None).await?;
+            if let Some(upload_bundle_error) = upload_bundle_error {
+                return Err(upload_bundle_error);
+            }
+            Ok(exit_code)
+        }
         Commands::Test(test_args) => run_test(test_args).await,
         Commands::Validate(validate_args) => run_validate(validate_args).await,
     }

@@ -118,11 +118,16 @@ impl UploadArgs {
     }
 }
 
+pub struct UploadRunResult {
+    pub exit_code: i32,
+    pub upload_bundle_error: Option<anyhow::Error>,
+}
+
 pub async fn run_upload(
     upload_args: UploadArgs,
     pre_test_context: Option<PreTestContext>,
     test_run_result: Option<TestRunResult>,
-) -> anyhow::Result<i32> {
+) -> anyhow::Result<UploadRunResult> {
     let api_client = ApiClient::new(&upload_args.token)?;
 
     let PreTestContext {
@@ -168,16 +173,19 @@ pub async fn run_upload(
     )
     .await;
 
-    upload_bundle(
+    let upload_bundle_result = upload_bundle(
         meta,
         &api_client,
         bep_result,
         upload_args.dry_run,
         exit_code,
     )
-    .await?;
+    .await;
 
-    Ok(exit_code)
+    Ok(UploadRunResult {
+        exit_code,
+        upload_bundle_error: upload_bundle_result.err(),
+    })
 }
 
 async fn upload_bundle(
