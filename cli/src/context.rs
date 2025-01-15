@@ -88,7 +88,7 @@ pub fn gather_pre_test_context(
             #[cfg(target_os = "macos")]
             &repo.repo,
             #[cfg(target_os = "macos")]
-            &org_url_slug,
+            org_url_slug.clone(),
             #[cfg(target_os = "macos")]
             allow_empty_test_results,
         )?;
@@ -183,7 +183,7 @@ fn coalesce_junit_path_wrappers(
     bazel_bep_path: Option<String>,
     #[cfg(target_os = "macos")] xcresult_path: Option<String>,
     #[cfg(target_os = "macos")] repo: &RepoUrlParts,
-    #[cfg(target_os = "macos")] org_url_slug: &str,
+    #[cfg(target_os = "macos")] org_url_slug: String,
     #[cfg(target_os = "macos")] allow_empty_test_results: bool,
 ) -> anyhow::Result<(
     Vec<JunitReportFileWithStatus>,
@@ -301,14 +301,17 @@ fn handle_xcresult(
     junit_temp_dir: &tempfile::TempDir,
     xcresult_path: Option<String>,
     repo: &RepoUrlParts,
-    org_url_slug: &str,
+    org_url_slug: String,
 ) -> Result<Vec<JunitReportFileWithStatus>, anyhow::Error> {
     let mut temp_paths = Vec::new();
     if let Some(xcresult_path) = xcresult_path {
-        let xcresult = XCResult::new(xcresult_path, repo, org_url_slug);
-        let junits = xcresult?
-            .generate_junits()
-            .map_err(|e| anyhow::anyhow!("Failed to generate junit files from xcresult: {}", e))?;
+        let xcresult = XCResult::new(xcresult_path, org_url_slug, repo.repo_full_name())?;
+        let junits = xcresult.generate_junits();
+        if junits.is_empty() {
+            return Err(anyhow::anyhow!(
+                "Failed to generate junit files from xcresult."
+            ));
+        }
         for (i, junit) in junits.iter().enumerate() {
             let mut junit_writer: Vec<u8> = Vec::new();
             junit.serialize(&mut junit_writer)?;
