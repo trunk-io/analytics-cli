@@ -69,8 +69,12 @@ pub struct UploadArgs {
     pub tags: Vec<String>,
     #[arg(long, help = "Print files which will be uploaded to stdout.")]
     pub print_files: bool,
-    #[arg(long, help = "Run metrics CLI without uploading to API.")]
-    pub dry_run: bool,
+    #[arg(
+        long,
+        alias = "dry-run",
+        help = "Run metrics CLI without uploading to API."
+    )]
+    pub no_upload: bool,
     #[arg(long, help = "Value to tag team owner of upload.")]
     pub team: Option<String>,
     #[arg(long, help = "Value to override CODEOWNERS file or directory path.")]
@@ -177,7 +181,7 @@ pub async fn run_upload(
         meta,
         &api_client,
         bep_result,
-        upload_args.dry_run,
+        upload_args.no_upload,
         exit_code,
     )
     .await;
@@ -192,7 +196,7 @@ async fn upload_bundle(
     mut meta: BundleMeta,
     api_client: &ApiClient,
     bep_result: Option<BepParseResult>,
-    dry_run: bool,
+    no_upload: bool,
     exit_code: i32,
 ) -> anyhow::Result<()> {
     api_client
@@ -212,7 +216,7 @@ async fn upload_bundle(
     ) = BundlerUtil::new(meta, bep_result).make_tarball_in_temp_dir()?;
     log::info!("Flushed temporary tarball to {:?}", bundle_temp_file);
 
-    if dry_run {
+    if no_upload {
         if let Err(e) = api_client
             .update_bundle_upload_status(&api::UpdateBundleUploadRequest {
                 id: upload.id.clone(),
@@ -224,7 +228,7 @@ async fn upload_bundle(
         } else {
             log::debug!("Updated bundle upload status to DRY_RUN");
         }
-        log::info!("Dry run, skipping upload.");
+        log::info!("Skipping upload.");
     } else {
         api_client
             .put_bundle_to_s3(&upload.url, &bundle_temp_file)
