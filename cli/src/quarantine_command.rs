@@ -8,6 +8,7 @@ pub struct QuarantineArgs {
     upload_args: UploadArgs,
 }
 
+// This is an alias to `run_upload`, but does not exit on upload failure
 pub async fn run_quarantine(QuarantineArgs { upload_args }: QuarantineArgs) -> anyhow::Result<i32> {
     let upload_run_result = run_upload(upload_args, None, None).await;
     upload_run_result.map(
