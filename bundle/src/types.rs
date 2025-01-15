@@ -9,21 +9,6 @@ use tsify_next::Tsify;
 #[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::*;
 
-use crate::FileSetBuilder;
-
-#[derive(Debug, Default, Clone)]
-pub struct RunResult {
-    pub exit_code: i32,
-    pub file_set_builder: FileSetBuilder,
-    pub exec_start: Option<std::time::SystemTime>,
-}
-
-#[derive(Debug, Default, Clone)]
-pub struct QuarantineRunResult {
-    pub exit_code: i32,
-    pub quarantine_status: QuarantineBulkTestStatus,
-}
-
 #[derive(Debug, Serialize, Clone, Deserialize, PartialEq, Eq)]
 #[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass(get_all))]
 #[cfg_attr(feature = "wasm", derive(Tsify))]

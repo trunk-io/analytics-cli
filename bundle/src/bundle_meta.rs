@@ -54,7 +54,7 @@ impl From<BundleMetaV0_5_34> for BundleMetaV0_5_29 {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass(get_all))]
 #[cfg_attr(feature = "wasm", derive(Tsify))]
 pub struct BundleMetaJunitProps {

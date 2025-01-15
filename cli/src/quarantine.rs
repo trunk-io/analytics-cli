@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use bundle::{FileSet, FileSetBuilder, QuarantineBulkTestStatus, QuarantineRunResult, Test};
+use bundle::{FileSet, FileSetBuilder, QuarantineBulkTestStatus, Test};
 use constants::{EXIT_FAILURE, EXIT_SUCCESS};
 use context::{
     junit::{junit_path::JunitReportStatus, parser::JunitParser},
@@ -9,6 +9,12 @@ use context::{
 use quick_junit::TestCaseStatus;
 
 use crate::api_client::ApiClient;
+
+#[derive(Debug, Default, Clone)]
+pub struct QuarantineRunResult {
+    pub exit_code: i32,
+    pub quarantine_status: QuarantineBulkTestStatus,
+}
 
 fn convert_case_to_test<T: AsRef<str>>(
     repo: &RepoUrlParts,

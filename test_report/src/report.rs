@@ -132,8 +132,6 @@ impl MutTestReport {
                 upload_args,
                 None,
                 None,
-                None,
-                None,
             )) {
             Ok(_) => return true,
             Err(e) => {
