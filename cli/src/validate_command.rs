@@ -101,13 +101,13 @@ async fn validate(
     let report_validations: JunitFileToValidation = parse_results
         .into_iter()
         .map(|parse_result| {
-            return (
+            (
                 parse_result.0,
                 match parse_result.1 .0 {
                     Ok(report) => Ok(validate_report(&report)),
                     Err(e) => Err(e),
                 },
-            );
+            )
         })
         .collect();
 
@@ -329,7 +329,7 @@ fn print_validation_errors(report_validations: &JunitFileToValidation) -> (usize
         }
     }
 
-    return (num_invalid_reports, num_suboptimal_reports);
+    (num_invalid_reports, num_suboptimal_reports)
 }
 
 fn print_validation_level(level: JunitValidationLevel) -> ColoredString {

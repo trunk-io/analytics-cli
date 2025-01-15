@@ -118,7 +118,7 @@ impl MutTestReport {
             });
         }
         // TODO - handle finding the repo root automatically
-        let upload_args = trunk_analytics_cli::upload::UploadArgs::new(
+        let upload_args = trunk_analytics_cli::upload_command::UploadArgs::new(
             token,
             org_url_slug,
             vec![resolved_path_str.into()],
@@ -128,7 +128,7 @@ impl MutTestReport {
             .enable_all()
             .build()
             .unwrap()
-            .block_on(trunk_analytics_cli::upload::run_upload(
+            .block_on(trunk_analytics_cli::upload_command::run_upload(
                 upload_args,
                 None,
                 None,
