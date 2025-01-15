@@ -4,9 +4,9 @@ use clap::{Parser, Subcommand};
 use constants::SENTRY_DSN;
 
 use trunk_analytics_cli::{
-    test::{run_test, TestArgs},
-    upload::{run_upload, UploadArgs},
-    validate::{run_validate, ValidateArgs},
+    test_command::{run_test, TestArgs},
+    upload_command::{run_upload, UploadArgs},
+    validate_command::{run_validate, ValidateArgs},
 };
 
 #[derive(Debug, Parser)]
@@ -67,16 +67,16 @@ fn main() -> anyhow::Result<()> {
 }
 
 async fn run(cli: Cli) -> anyhow::Result<i32> {
+    log::info!(
+        "Starting trunk flakytests {} (git={}) rustc={}",
+        env!("CARGO_PKG_VERSION"),
+        env!("VERGEN_GIT_SHA"),
+        env!("VERGEN_RUSTC_SEMVER")
+    );
     match cli.command {
-        Commands::Upload(upload_args) => {
-            print_cli_start_info();
-            run_upload(upload_args, None, None).await
-        }
+        Commands::Upload(upload_args) => run_upload(upload_args, None, None).await,
         Commands::Test(test_args) => run_test(test_args).await,
-        Commands::Validate(validate_args) => {
-            print_cli_start_info();
-            run_validate(validate_args).await
-        }
+        Commands::Validate(validate_args) => run_validate(validate_args).await,
     }
 }
 
@@ -98,13 +98,4 @@ fn setup_logger() -> anyhow::Result<()> {
     }
     builder.init();
     Ok(())
-}
-
-fn print_cli_start_info() {
-    log::info!(
-        "Starting trunk flakytests {} (git={}) rustc={}",
-        env!("CARGO_PKG_VERSION"),
-        env!("VERGEN_GIT_SHA"),
-        env!("VERGEN_RUSTC_SEMVER")
-    );
 }
