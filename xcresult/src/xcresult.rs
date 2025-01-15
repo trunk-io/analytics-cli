@@ -152,18 +152,18 @@ impl XCResult {
                     }
                 }
 
-                let repetitions = Self::xcresult_repetition_to_junit_test_rerun(
+                let test_reruns = Self::xcresult_repetitions_to_junit_test_reruns(
                     xcresult_test_case.children.as_slice(),
                 );
-                if !repetitions.is_empty() {
+                if !test_reruns.is_empty() {
                     match test_case.status {
                         TestCaseStatus::Success {
                             ref mut flaky_runs, ..
                         } => {
-                            *flaky_runs = repetitions;
+                            *flaky_runs = test_reruns;
                         }
                         TestCaseStatus::NonSuccess { ref mut reruns, .. } => {
-                            *reruns = repetitions;
+                            *reruns = test_reruns;
                         }
                         _ => {}
                     }
@@ -183,7 +183,9 @@ impl XCResult {
             .collect()
     }
 
-    fn xcresult_repetition_to_junit_test_rerun(test_nodes: &[schema::TestNode]) -> Vec<TestRerun> {
+    fn xcresult_repetitions_to_junit_test_reruns(
+        test_nodes: &[schema::TestNode],
+    ) -> Vec<TestRerun> {
         test_nodes
             .iter()
             .filter(|tn| matches!(tn.node_type, schema::TestNodeType::Repetition))
