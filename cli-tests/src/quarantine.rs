@@ -1,4 +1,4 @@
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex};
 
 use crate::utils::{
     generate_mock_codeowners, generate_mock_git_repo, generate_mock_valid_junit_xmls, CARGO_RUN,
@@ -23,8 +23,16 @@ async fn quarantines_tests_regardless_of_upload() {
     generate_mock_codeowners(&temp_dir);
 
     let mut mock_server_builder = MockServerBuilder::new();
+
+    #[derive(Debug, Clone, Copy)]
+    enum QuarantineConfigResponse {
+        None,
+        Some,
+        All,
+    }
     lazy_static! {
-        static ref CALLED_COUNT: AtomicUsize = AtomicUsize::new(0);
+        static ref QUARANTINE_CONFIG_RESPONSE: Arc<Mutex<QuarantineConfigResponse>> =
+            Arc::new(Mutex::new(QuarantineConfigResponse::None));
     }
     mock_server_builder.set_get_quarantining_config_handler(
         |Json(get_quarantine_bulk_test_status_request): Json<
@@ -35,14 +43,12 @@ async fn quarantines_tests_regardless_of_upload() {
                 .into_iter()
                 .map(|t| t.id)
                 .collect::<Vec<_>>();
-            let called_count = CALLED_COUNT.load(Ordering::SeqCst);
-            let quarantined_tests = match called_count {
-                0 => Vec::new(),
-                1 => test_ids.split_off(1),
-                2..=3 => test_ids,
-                _ => panic!("Should not be called again"),
+            let quarantine_config_response = *QUARANTINE_CONFIG_RESPONSE.lock().unwrap();
+            let quarantined_tests = match quarantine_config_response {
+                QuarantineConfigResponse::None => Vec::new(),
+                QuarantineConfigResponse::Some => test_ids.split_off(1),
+                QuarantineConfigResponse::All => test_ids,
             };
-            CALLED_COUNT.store(called_count + 1, Ordering::SeqCst);
             async {
                 Json(QuarantineConfig {
                     is_disabled: false,
@@ -51,11 +57,22 @@ async fn quarantines_tests_regardless_of_upload() {
             }
         },
     );
+
+    #[derive(Debug, Clone, Copy)]
+    enum CreateBundleResponse {
+        Error,
+        Success,
+    }
+    lazy_static! {
+        static ref CREATE_BUNDLE_RESPONSE: Arc<Mutex<CreateBundleResponse>> =
+            Arc::new(Mutex::new(CreateBundleResponse::Error));
+    }
     mock_server_builder.set_create_bundle_handler(
         |State(state): State<SharedMockServerState>, _: Json<CreateBundleUploadRequest>| {
-            let result = match CALLED_COUNT.load(Ordering::SeqCst) {
-                0..=3 => Err(String::from("Server is down")),
-                4 => {
+            let create_bundle_response = *CREATE_BUNDLE_RESPONSE.lock().unwrap();
+            let result = match create_bundle_response {
+                CreateBundleResponse::Error => Err(String::from("Server is down")),
+                CreateBundleResponse::Success => {
                     let host = &state.host;
                     Ok(Json(CreateBundleUploadResponse {
                         id: String::from("test-bundle-upload-id"),
@@ -64,7 +81,6 @@ async fn quarantines_tests_regardless_of_upload() {
                         key: String::from("unused"),
                     }))
                 }
-                _ => panic!("Should not be called again"),
             };
             async { result }
         },
@@ -92,15 +108,23 @@ async fn quarantines_tests_regardless_of_upload() {
     let upload_failure = predicate::str::contains("Error uploading test results");
 
     // First run won't quarantine any tests
+    *QUARANTINE_CONFIG_RESPONSE.lock().unwrap() = QuarantineConfigResponse::None;
+    *CREATE_BUNDLE_RESPONSE.lock().unwrap() = CreateBundleResponse::Error;
     command.assert().failure().stderr(upload_failure.clone());
 
     // Second run quarantines all, but 1 test
+    *QUARANTINE_CONFIG_RESPONSE.lock().unwrap() = QuarantineConfigResponse::Some;
+    *CREATE_BUNDLE_RESPONSE.lock().unwrap() = CreateBundleResponse::Error;
     command.assert().failure().stderr(upload_failure.clone());
 
     // Third run will quarantine all tests
+    *QUARANTINE_CONFIG_RESPONSE.lock().unwrap() = QuarantineConfigResponse::All;
+    *CREATE_BUNDLE_RESPONSE.lock().unwrap() = CreateBundleResponse::Error;
     command.assert().success().stderr(upload_failure.clone());
 
     // Fourth run will quarantine all tests, and upload them
+    *QUARANTINE_CONFIG_RESPONSE.lock().unwrap() = QuarantineConfigResponse::All;
+    *CREATE_BUNDLE_RESPONSE.lock().unwrap() = CreateBundleResponse::Success;
     command
         .assert()
         .success()
