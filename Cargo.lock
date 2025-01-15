@@ -5524,7 +5524,6 @@ dependencies = [
  "clap",
  "context",
  "flate2",
- "indexmap 2.7.0",
  "lazy_static",
  "pretty_assertions",
  "prettyplease",
