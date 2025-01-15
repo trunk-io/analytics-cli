@@ -3,7 +3,7 @@
 require "rake/testtask"
 require "rake/extensiontask"
 require 'rspec/core/rake_task'
-require 'rake/release/task'
+#require 'rake/release/task'
 require "rb_sys/extensiontask"
 
 platforms = [
@@ -29,6 +29,7 @@ RSpec::Core::RakeTask.new(:test) do |t|
   t.pattern = 'test/*_spec.rb'
 end
 
+"""
 Rake::Release::Task.new do |spec|
 end
-
+"""
