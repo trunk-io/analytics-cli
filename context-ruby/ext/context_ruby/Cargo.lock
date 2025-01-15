@@ -741,7 +741,8 @@ dependencies = [
  "anyhow",
  "context",
  "magnus",
- "rb-sys",
+ "openssl",
+ "reqwest",
  "test_report",
 ]
 
