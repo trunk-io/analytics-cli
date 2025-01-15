@@ -81,8 +81,13 @@ async fn validate(
         .ok()
         .and_then(|p| p.to_str().map(String::from))
         .unwrap_or_default();
-    let file_set_builder =
-        FileSetBuilder::build_file_sets(&current_dir, &junit_paths, None, &None, None)?;
+    let file_set_builder = FileSetBuilder::build_file_sets(
+        &current_dir,
+        &junit_paths,
+        &None,
+        &Option::<&str>::None,
+        None,
+    )?;
     if file_set_builder.no_files_found() {
         return Err(anyhow::anyhow!("No JUnit files found to validate."));
     }
