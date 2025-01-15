@@ -100,7 +100,7 @@ class TrunkAnalyticsListener
   def generate_id(example)
     if description_generated?(example)
       # trunk-ignore(rubocop/Style/SoleNestedConditional)
-      return "#{example.id}-#{example.location}" if description_generated?(example)
+      return "trunk:#{example.id}-#{example.location}" if description_generated?(example)
     end
     nil
   end
