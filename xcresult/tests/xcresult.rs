@@ -1,16 +1,33 @@
 use context::repo::RepoUrlParts;
-use ctor::ctor;
 use flate2::read::GzDecoder;
 use lazy_static::lazy_static;
-use std::fs::File;
+use std::{fs::File, path::Path};
 use tar::Archive;
 use temp_testdir::TempDir;
 use xcresult::XCResult;
 
 const ORG_URL_SLUG: &str = "trunk";
 
+fn unpack_archive_to_temp_dir<T: AsRef<Path>>(archive_file_path: T) -> TempDir {
+    let file = File::open(archive_file_path).unwrap();
+    let decoder = GzDecoder::new(file);
+    let mut archive = Archive::new(decoder);
+    let temp_dir = TempDir::default();
+    if let Err(e) = archive.unpack(temp_dir.as_ref()) {
+        panic!("failed to unpack data.tar.gz: {}", e);
+    }
+    temp_dir
+}
+
 lazy_static! {
-    static ref TEMP_DIR: TempDir = TempDir::default();
+    static ref TEMP_DIR_TEST_1: TempDir =
+        unpack_archive_to_temp_dir("tests/data/test1.xcresult.tar.gz");
+    static ref TEMP_DIR_TEST_3: TempDir =
+        unpack_archive_to_temp_dir("tests/data/test3.xcresult.tar.gz");
+    static ref TEMP_DIR_TEST_4: TempDir =
+        unpack_archive_to_temp_dir("tests/data/test4.xcresult.tar.gz");
+    static ref TEMP_DIR_TEST_EXPECTED_FAILURES: TempDir =
+        unpack_archive_to_temp_dir("tests/data/test-ExpectedFailures.xcresult.tar.gz");
     static ref REPO: RepoUrlParts = RepoUrlParts {
         host: "github.com".to_string(),
         owner: "trunk-io".to_string(),
@@ -18,23 +35,10 @@ lazy_static! {
     };
 }
 
-#[cfg(test)]
-#[ctor]
-fn init() {
-    let path = "tests/data.tar.gz";
-    let file = File::open(path).unwrap();
-    let decoder = GzDecoder::new(file);
-    let mut archive = Archive::new(decoder);
-    match archive.unpack(TEMP_DIR.as_ref()) {
-        Ok(_) => (),
-        Err(e) => panic!("failed to unpack data.tar.gz: {}", e),
-    }
-}
-
 #[cfg(target_os = "macos")]
 #[test]
 fn test_xcresult_with_valid_path() {
-    let path = TEMP_DIR.as_ref().join("data/test1.xcresult");
+    let path = TEMP_DIR_TEST_1.as_ref().join("test1.xcresult");
     let path_str = path.to_str().unwrap();
     let xcresult = XCResult::new(path_str, &REPO, ORG_URL_SLUG);
     assert!(xcresult.is_ok());
@@ -44,15 +48,16 @@ fn test_xcresult_with_valid_path() {
     let junit = junits.pop().unwrap();
     let mut junit_writer: Vec<u8> = Vec::new();
     junit.serialize(&mut junit_writer).unwrap();
-    let expected_path = TEMP_DIR.as_ref().join("data/test1.junit");
-    let expected = std::fs::read_to_string(expected_path).unwrap();
-    assert_eq!(String::from_utf8(junit_writer).unwrap(), expected);
+    assert_eq!(
+        String::from_utf8(junit_writer).unwrap(),
+        include_str!("data/test1.junit.xml")
+    );
 }
 
 #[cfg(target_os = "macos")]
 #[test]
 fn test_xcresult_with_invalid_path() {
-    let path = TEMP_DIR.as_ref().join("data/test2.xcresult");
+    let path = TempDir::default().join("does-not-exist.xcresult");
     let path_str = path.to_str().unwrap();
     let xcresult = XCResult::new(path_str, &REPO, ORG_URL_SLUG);
     assert!(xcresult.is_err());
@@ -65,7 +70,7 @@ fn test_xcresult_with_invalid_path() {
 #[cfg(target_os = "macos")]
 #[test]
 fn test_xcresult_with_invalid_xcresult() {
-    let path = TEMP_DIR.as_ref().join("data/test3.xcresult");
+    let path = TEMP_DIR_TEST_3.as_ref().join("test3.xcresult");
     let path_str = path.to_str().unwrap();
     let xcresult = XCResult::new(path_str, &REPO, ORG_URL_SLUG);
     assert!(xcresult.is_err());
@@ -78,7 +83,7 @@ fn test_xcresult_with_invalid_xcresult() {
 #[cfg(target_os = "macos")]
 #[test]
 fn test_complex_xcresult_with_valid_path() {
-    let path = TEMP_DIR.as_ref().join("data/test4.xcresult");
+    let path = TEMP_DIR_TEST_4.as_ref().join("test4.xcresult");
     let path_str = path.to_str().unwrap();
     let xcresult = XCResult::new(path_str, &REPO, ORG_URL_SLUG);
     assert!(xcresult.is_ok());
@@ -88,15 +93,16 @@ fn test_complex_xcresult_with_valid_path() {
     let junit = junits.pop().unwrap();
     let mut junit_writer: Vec<u8> = Vec::new();
     junit.serialize(&mut junit_writer).unwrap();
-    let expected_path = TEMP_DIR.as_ref().join("data/test4.junit");
-    let expected = std::fs::read_to_string(expected_path).unwrap();
-    assert_eq!(String::from_utf8(junit_writer).unwrap(), expected);
+    assert_eq!(
+        String::from_utf8(junit_writer).unwrap(),
+        include_str!("data/test4.junit.xml")
+    );
 }
 
 #[cfg(target_os = "linux")]
 #[test]
 fn test_xcresult_with_valid_path_invalid_os() {
-    let path = TEMP_DIR.as_ref().join("data/test1.xcresult");
+    let path = TEMP_DIR_TEST_1.as_ref().join("test1.xcresult");
     let path_str = path.to_str().unwrap();
     let xcresult = XCResult::new(path_str, &REPO, ORG_URL_SLUG);
     assert_eq!(
@@ -108,9 +114,9 @@ fn test_xcresult_with_valid_path_invalid_os() {
 #[cfg(target_os = "macos")]
 #[test]
 fn test_expected_failures_xcresult_with_valid_path() {
-    let path = TEMP_DIR
+    let path = TEMP_DIR_TEST_EXPECTED_FAILURES
         .as_ref()
-        .join("data/test-ExpectedFailures.xcresult");
+        .join("test-ExpectedFailures.xcresult");
     let path_str = path.to_str().unwrap();
     let xcresult = XCResult::new(path_str, &REPO, ORG_URL_SLUG);
     assert!(xcresult.is_ok());
@@ -120,7 +126,8 @@ fn test_expected_failures_xcresult_with_valid_path() {
     let junit = junits.pop().unwrap();
     let mut junit_writer: Vec<u8> = Vec::new();
     junit.serialize(&mut junit_writer).unwrap();
-    let expected_path = TEMP_DIR.as_ref().join("data/test-ExpectedFailures.junit");
-    let expected = std::fs::read_to_string(expected_path).unwrap();
-    assert_eq!(String::from_utf8(junit_writer).unwrap(), expected);
+    assert_eq!(
+        String::from_utf8(junit_writer).unwrap(),
+        include_str!("data/test-ExpectedFailures.junit.xml")
+    );
 }

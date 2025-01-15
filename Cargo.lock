@@ -1026,16 +1026,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "ctor"
-version = "0.2.9"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "32a2785755761f3ddc1492979ce1e48d2c00d09311c39e4466429188f3dd6501"
-dependencies = [
- "quote",
- "syn 2.0.90",
-]
-
-[[package]]
 name = "debugid"
 version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3214,7 +3204,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3f81e1644e1b54f5a68959a29aa86cde704219254669da328ecfdf6a1f09d427"
 dependencies = [
  "ansi_term",
- "ctor 0.1.26",
+ "ctor",
  "difference",
  "output_vt100",
 ]
@@ -5406,7 +5396,6 @@ dependencies = [
  "chrono",
  "clap",
  "context",
- "ctor 0.2.9",
  "flate2",
  "indexmap 2.7.0",
  "lazy_static",
