@@ -3,7 +3,7 @@ use std::{fs, path::Path, time::Duration};
 use quick_junit::{NonSuccessKind, Report, TestCase, TestCaseStatus, TestRerun, TestSuite};
 use schema::TestNode;
 
-#[allow(dead_code)]
+#[allow(clippy::all)]
 mod schema {
     include!(concat!(env!("OUT_DIR"), "/codegen.rs"));
 }
