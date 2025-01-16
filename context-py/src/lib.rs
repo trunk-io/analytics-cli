@@ -57,30 +57,40 @@ fn ci_platform_to_string(ci_platform: env::parser::CIPlatform) -> String {
 
 #[gen_stub_pyfunction]
 #[pyfunction]
-fn junit_parse(xml: Vec<u8>) -> PyResult<Vec<junit::bindings::BindingsReport>> {
+fn junit_parse(xml: Vec<u8>) -> PyResult<junit::bindings::BindingsParseResult> {
     let mut junit_parser = junit::parser::JunitParser::new();
     if let Err(e) = junit_parser.parse(BufReader::new(&xml[..])) {
-        let collected_errors = collect_parse_errors(&junit_parser);
-        if !collected_errors.is_empty() {
-            return Err(PyTypeError::new_err(format!(
-                "{}\n{}",
-                e.to_string(),
-                collected_errors
-            )));
-        }
         return Err(PyTypeError::new_err(e.to_string()));
     }
 
-    let collected_errors = collect_parse_errors(&junit_parser);
-    if !collected_errors.is_empty() {
-        return Err(PyTypeError::new_err(collected_errors));
+    let issues_flat = junit_parser.issues_flat();
+    let mut parsed_reports = junit_parser.into_reports();
+
+    if parsed_reports.len() != 1 {
+        return Ok(junit::bindings::BindingsParseResult {
+            report: None,
+            issues: issues_flat,
+        });
     }
 
-    Ok(junit_parser
-        .into_reports()
-        .into_iter()
-        .map(junit::bindings::BindingsReport::from)
-        .collect())
+    Ok(junit::bindings::BindingsParseResult {
+        report: Some(junit::bindings::BindingsReport::from(
+            parsed_reports.remove(0),
+        )),
+        issues: issues_flat,
+    })
+}
+
+#[gen_stub_pyfunction]
+#[pyfunction]
+fn junit_parse_issue_level_to_string(
+    junit_parse_issue_level: junit::parser::JunitParseIssueLevel,
+) -> String {
+    match junit_parse_issue_level {
+        junit::parser::JunitParseIssueLevel::Valid => "VALID".to_string(),
+        junit::parser::JunitParseIssueLevel::SubOptimal => "SUBOPTIMAL".to_string(),
+        junit::parser::JunitParseIssueLevel::Invalid => "INVALID".to_string(),
+    }
 }
 
 #[gen_stub_pyfunction]
@@ -328,6 +338,7 @@ fn context_py(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(branch_class_to_string, m)?)?;
     m.add_function(wrap_pyfunction!(ci_platform_to_string, m)?)?;
 
+    m.add_class::<junit::bindings::BindingsParseResult>()?;
     m.add_class::<junit::bindings::BindingsReport>()?;
     m.add_class::<junit::bindings::BindingsTestSuite>()?;
     m.add_class::<junit::bindings::BindingsTestCase>()?;
@@ -335,11 +346,14 @@ fn context_py(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<junit::bindings::BindingsTestCaseStatusStatus>()?;
     m.add_class::<junit::bindings::BindingsNonSuccessKind>()?;
     m.add_class::<junit::bindings::BindingsJunitReportValidation>()?;
+    m.add_class::<junit::parser::JunitParseFlatIssue>()?;
+    m.add_class::<junit::parser::JunitParseIssueLevel>()?;
     m.add_class::<junit::validator::JunitReportValidationFlatIssue>()?;
     m.add_class::<junit::validator::JunitValidationLevel>()?;
     m.add_class::<junit::validator::JunitValidationType>()?;
     m.add_function(wrap_pyfunction!(junit_parse, m)?)?;
     m.add_function(wrap_pyfunction!(bin_parse, m)?)?;
+    m.add_function(wrap_pyfunction!(junit_parse_issue_level_to_string, m)?)?;
     m.add_function(wrap_pyfunction!(junit_validate, m)?)?;
     m.add_function(wrap_pyfunction!(junit_validation_level_to_string, m)?)?;
     m.add_function(wrap_pyfunction!(junit_validation_type_to_string, m)?)?;
@@ -366,13 +380,4 @@ fn context_py(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(parse_many_codeowners_n_threads, m)?)?;
 
     Ok(())
-}
-
-fn collect_parse_errors(parser: &junit::parser::JunitParser) -> String {
-    parser
-        .errors()
-        .into_iter()
-        .map(|e| e.to_string())
-        .collect::<Vec<String>>()
-        .join("\n")
 }

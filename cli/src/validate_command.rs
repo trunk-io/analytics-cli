@@ -10,7 +10,7 @@ use context::{
     bazel_bep::parser::BazelBepParser,
     junit::{
         junit_path::JunitReportFileWithStatus,
-        parser::{JunitParseError, JunitParser},
+        parser::{JunitParseIssue, JunitParseIssueLevel, JunitParser},
         validator::{
             validate as validate_report, JunitReportValidation, JunitReportValidationFlatIssue,
             JunitReportValidationIssueSubOptimal, JunitValidationIssue, JunitValidationIssueType,
@@ -39,8 +39,6 @@ pub struct ValidateArgs {
         help = "Path to bazel build event protocol JSON file."
     )]
     bazel_bep_path: Option<String>,
-    #[arg(long, help = "Show warning-level log messages in output.")]
-    show_warnings: bool,
     #[arg(long, help = "Value to override CODEOWNERS file or directory path.")]
     pub codeowners_path: Option<String>,
 }
@@ -49,7 +47,6 @@ pub async fn run_validate(validate_args: ValidateArgs) -> anyhow::Result<i32> {
     let ValidateArgs {
         junit_paths,
         bazel_bep_path,
-        show_warnings,
         codeowners_path,
     } = validate_args;
 
@@ -65,15 +62,17 @@ pub async fn run_validate(validate_args: ValidateArgs) -> anyhow::Result<i32> {
             .map(JunitReportFileWithStatus::from)
             .collect(),
     };
-    validate(junit_file_paths, show_warnings, codeowners_path).await
+    validate(junit_file_paths, codeowners_path).await
 }
 
-type JunitFileToReportAndErrors = BTreeMap<String, (anyhow::Result<Report>, Vec<JunitParseError>)>;
-type JunitFileToValidation = BTreeMap<String, anyhow::Result<JunitReportValidation>>;
+type JunitFileToReportAndParseIssues =
+    BTreeMap<String, (anyhow::Result<Option<Report>>, Vec<JunitParseIssue>)>;
+type JunitFileToReport = BTreeMap<String, Report>;
+type JunitFileToParseIssues = BTreeMap<String, (anyhow::Result<()>, Vec<JunitParseIssue>)>;
+type JunitFileToValidation = BTreeMap<String, JunitReportValidation>;
 
 async fn validate(
     junit_paths: Vec<JunitReportFileWithStatus>,
-    show_warnings: bool,
     codeowners_path: Option<String>,
 ) -> anyhow::Result<i32> {
     // scan files
@@ -93,36 +92,49 @@ async fn validate(
     }
     print_matched_files(&file_set_builder);
 
-    // parse and validate
+    // parse
     let parse_results = parse_file_sets(file_set_builder.file_sets());
-    if show_warnings {
-        print_parse_errors(&parse_results);
-    }
-    let report_validations: JunitFileToValidation = parse_results
-        .into_iter()
-        .map(|parse_result| {
-            (
-                parse_result.0,
-                match parse_result.1 .0 {
-                    Ok(report) => Ok(validate_report(&report)),
-                    Err(e) => Err(e),
+    let num_reports = parse_results.len();
+    let (parsed_reports, parse_issues) = parse_results.into_iter().fold(
+        (JunitFileToReport::new(), JunitFileToParseIssues::new()),
+        |(mut parsed_reports, mut parse_issues), (file, (parse_result, issues))| {
+            match parse_result {
+                Ok(report) => match report {
+                    Some(report) => {
+                        parsed_reports.insert(file, report);
+                    }
+                    None => {
+                        parse_issues.insert(file, (Ok(()), issues));
+                    }
                 },
-            )
-        })
-        .collect();
+                Err(e) => {
+                    parse_issues.insert(file, (Err(e), Vec::new()));
+                }
+            }
+            (parsed_reports, parse_issues)
+        },
+    );
+    // print parse issues
+    let (num_unparsable_reports, num_suboptimally_parsable_reports) =
+        print_parse_issues(&parse_issues);
 
-    // print results
-    let (num_invalid_reports, num_suboptimal_reports) =
-        print_validation_errors(&report_validations);
+    // validate
+    let report_validations: JunitFileToValidation = parsed_reports
+        .into_iter()
+        .map(|(file, report)| (file, validate_report(&report)))
+        .collect();
+    // print validation results
+    let (mut num_invalid_reports, mut num_suboptimal_reports) =
+        print_validation_issues(&report_validations);
+
+    // print summary
+    num_invalid_reports += num_unparsable_reports;
+    num_suboptimal_reports += num_suboptimally_parsable_reports;
     let exit = if num_invalid_reports == 0 {
-        print_summary_success(report_validations.len(), num_suboptimal_reports);
+        print_summary_success(num_reports, num_suboptimal_reports);
         EXIT_SUCCESS
     } else {
-        print_summary_failure(
-            report_validations.len(),
-            num_invalid_reports,
-            num_suboptimal_reports,
-        );
+        print_summary_failure(num_reports, num_invalid_reports, num_suboptimal_reports);
         EXIT_FAILURE
     };
 
@@ -133,10 +145,10 @@ async fn validate(
     Ok(exit)
 }
 
-fn parse_file_sets(file_sets: &[FileSet]) -> JunitFileToReportAndErrors {
+fn parse_file_sets(file_sets: &[FileSet]) -> JunitFileToReportAndParseIssues {
     file_sets.iter().flat_map(|file_set| &file_set.files).fold(
-        JunitFileToReportAndErrors::new(),
-        |mut parse_results, bundled_file| -> JunitFileToReportAndErrors {
+        JunitFileToReportAndParseIssues::new(),
+        |mut parse_results, bundled_file| -> JunitFileToReportAndParseIssues {
             let path = std::path::Path::new(&bundled_file.original_path);
             let file = match std::fs::File::open(path) {
                 Ok(file) => file,
@@ -159,13 +171,20 @@ fn parse_file_sets(file_sets: &[FileSet]) -> JunitFileToReportAndErrors {
                 return parse_results;
             }
 
-            let parse_errors = junit_parser.errors().to_vec();
-            for report in junit_parser.into_reports() {
+            let parse_issues = junit_parser.issues().to_vec();
+            let mut parsed_reports = junit_parser.into_reports();
+            if parsed_reports.len() != 1 {
                 parse_results.insert(
                     bundled_file.get_print_path().to_string(),
-                    (Ok(report), parse_errors.clone()),
+                    (Ok(None), parse_issues),
                 );
+                return parse_results;
             }
+
+            parse_results.insert(
+                bundled_file.get_print_path().to_string(),
+                (Ok(Some(parsed_reports.remove(0))), Vec::new()),
+            );
 
             parse_results
         },
@@ -185,33 +204,91 @@ fn print_matched_files(file_set_builder: &FileSetBuilder) {
     }
 }
 
-fn print_parse_errors(parse_results: &JunitFileToReportAndErrors) {
-    let num_parse_errors = parse_results
-        .iter()
-        .fold(0, |mut num_parse_errors, parse_result| {
-            num_parse_errors += parse_result.1 .1.len();
-            num_parse_errors
-        });
+fn print_parse_issues(parse_issues: &JunitFileToParseIssues) -> (usize, usize) {
+    let mut num_unparsable_reports: usize = 0;
+    let mut num_suboptimally_parsable_reports: usize = 0;
+    for (i, (file, (parse_result, parse_issues))) in parse_issues.iter().enumerate() {
+        if i == 0 {
+            println!();
+        }
 
-    if num_parse_errors == 0 {
-        return;
+        let mut fatal_parse_error: Option<&anyhow::Error> = None;
+        let mut issues: &[JunitParseIssue] = &[];
+        let num_parse_errors: usize;
+        let mut num_parse_warnings: usize = 0;
+
+        match parse_result {
+            Ok(..) => {
+                issues = parse_issues;
+                num_parse_errors = issues
+                    .iter()
+                    .filter(|issue| {
+                        JunitParseIssueLevel::from(*issue) == JunitParseIssueLevel::Invalid
+                    })
+                    .count();
+                num_parse_warnings = issues
+                    .iter()
+                    .filter(|issue| {
+                        JunitParseIssueLevel::from(*issue) == JunitParseIssueLevel::SubOptimal
+                    })
+                    .count();
+            }
+            Err(e) => {
+                fatal_parse_error = Some(e);
+                num_parse_errors = 1;
+            }
+        }
+
+        let num_parse_errors_str = if num_parse_errors > 0 {
+            num_parse_errors.to_string().red()
+        } else {
+            num_parse_errors.to_string().green()
+        };
+        let num_parse_warnings_str = if num_parse_warnings > 0 {
+            format!(
+                ", {} validation warnings",
+                num_parse_warnings.to_string().yellow()
+            )
+        } else {
+            String::from("")
+        };
+        println!(
+            "{} - {} validation errors{}",
+            file, num_parse_errors_str, num_parse_warnings_str,
+        );
+
+        if let Some(parse_error) = fatal_parse_error {
+            println!(
+                "  {} - {}",
+                print_parse_issue_level(JunitParseIssueLevel::Invalid),
+                parse_error,
+            );
+        }
+
+        for issue in issues {
+            println!(
+                "  {} - {}",
+                print_parse_issue_level(JunitParseIssueLevel::from(issue)),
+                issue,
+            );
+        }
+
+        if num_parse_errors > 0 {
+            num_unparsable_reports += 1;
+        }
+        if num_parse_warnings > 0 {
+            num_suboptimally_parsable_reports += 1;
+        }
     }
 
-    println!(
-        "\nEncountered the following {} non-fatal errors while parsing files:",
-        num_parse_errors.to_string().yellow()
-    );
+    (num_unparsable_reports, num_suboptimally_parsable_reports)
+}
 
-    for parse_result in parse_results {
-        if parse_result.1 .1.is_empty() {
-            continue;
-        }
-
-        println!("  File: {}", parse_result.0);
-
-        for parse_error in &parse_result.1 .1 {
-            println!("    {}", parse_error);
-        }
+fn print_parse_issue_level(level: JunitParseIssueLevel) -> ColoredString {
+    match level {
+        JunitParseIssueLevel::SubOptimal => "OPTIONAL".yellow(),
+        JunitParseIssueLevel::Invalid => "INVALID".red(),
+        JunitParseIssueLevel::Valid => "VALID".green(),
     }
 }
 
@@ -255,33 +332,19 @@ fn print_summary_success(num_reports: usize, num_suboptimal_reports: usize) {
     );
 }
 
-fn print_validation_errors(report_validations: &JunitFileToValidation) -> (usize, usize) {
-    println!();
+fn print_validation_issues(report_validations: &JunitFileToValidation) -> (usize, usize) {
     let mut num_invalid_reports: usize = 0;
     let mut num_suboptimal_reports: usize = 0;
-    for report_validation in report_validations {
-        let mut num_test_suites = 0;
-        let mut num_test_cases = 0;
-        let num_validation_errors: usize;
-        let mut num_validation_warnings = 0;
-        let mut report_parse_error: Option<&anyhow::Error> = None;
-        let mut all_issues: Vec<JunitReportValidationFlatIssue> = Vec::new();
-
-        match report_validation.1 {
-            Ok(validation) => {
-                num_test_suites = validation.test_suites().len();
-                num_test_cases = validation.test_cases().len();
-
-                num_validation_errors = validation.num_invalid_issues();
-                num_validation_warnings = validation.num_suboptimal_issues();
-
-                all_issues = validation.all_issues_flat();
-            }
-            Err(e) => {
-                report_parse_error = Some(e);
-                num_validation_errors = 1;
-            }
+    for (i, (file, report_validation)) in report_validations.iter().enumerate() {
+        if i == 0 {
+            println!();
         }
+
+        let num_test_suites = report_validation.test_suites().len();
+        let num_test_cases = report_validation.test_cases().len();
+        let num_validation_errors = report_validation.num_invalid_issues();
+        let num_validation_warnings = report_validation.num_suboptimal_issues();
+        let all_issues: Vec<JunitReportValidationFlatIssue> = report_validation.all_issues_flat();
 
         let num_validation_errors_str = if num_validation_errors > 0 {
             num_validation_errors.to_string().red()
@@ -298,20 +361,12 @@ fn print_validation_errors(report_validations: &JunitFileToValidation) -> (usize
         };
         println!(
             "{} - {} test suites, {} test cases, {} validation errors{}",
-            report_validation.0,
+            file,
             num_test_suites,
             num_test_cases,
             num_validation_errors_str,
             num_validation_warnings_str,
         );
-
-        if let Some(parse_error) = report_parse_error {
-            println!(
-                "  {} - {}",
-                print_validation_level(JunitValidationLevel::Invalid),
-                parse_error,
-            );
-        }
 
         for issue in all_issues {
             println!(
@@ -355,8 +410,7 @@ fn print_codeowners_validation(
 
             let has_test_cases_without_matching_codeowners_paths = report_validations
                 .iter()
-                .filter_map(|(_, report_validation)| report_validation.as_ref().ok())
-                .flat_map(|report_validation| report_validation.all_issues())
+                .flat_map(|(_, report_validation)| report_validation.all_issues())
                 .any(|issue| {
                     matches!(
                         issue,

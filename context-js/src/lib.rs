@@ -45,23 +45,28 @@ pub fn env_validate(ci_info: &env::parser::CIInfo) -> env::validator::EnvValidat
 }
 
 #[wasm_bindgen]
-pub fn junit_parse(xml: Vec<u8>) -> Result<Vec<junit::bindings::BindingsReport>, JsError> {
+pub fn junit_parse(xml: Vec<u8>) -> Result<junit::bindings::BindingsParseResult, JsError> {
     let mut junit_parser = junit::parser::JunitParser::new();
-    if junit_parser.parse(BufReader::new(&xml[..])).is_err() {
-        let error_message = junit_parser
-            .errors()
-            .into_iter()
-            .map(|e| e.to_string())
-            .collect::<Vec<String>>()
-            .join("\n");
-        return Err(JsError::new(&error_message));
+    if let Err(e) = junit_parser.parse(BufReader::new(&xml[..])) {
+        return Err(JsError::new(&e.to_string()));
     }
 
-    Ok(junit_parser
-        .into_reports()
-        .into_iter()
-        .map(junit::bindings::BindingsReport::from)
-        .collect())
+    let issues_flat = junit_parser.issues_flat();
+    let mut parsed_reports = junit_parser.into_reports();
+
+    if parsed_reports.len() != 1 {
+        return Ok(junit::bindings::BindingsParseResult {
+            report: None,
+            issues: issues_flat,
+        });
+    }
+
+    Ok(junit::bindings::BindingsParseResult {
+        report: Some(junit::bindings::BindingsReport::from(
+            parsed_reports.remove(0),
+        )),
+        issues: issues_flat,
+    })
 }
 
 #[wasm_bindgen]

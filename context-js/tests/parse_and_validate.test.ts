@@ -75,8 +75,12 @@ describe("context-js", () => {
       </testsuites>
     `;
 
-    let report = junit_parse(Buffer.from(validJunitXml, "utf-8"));
-    let junitReportValidation = junit_validate(report[0]);
+    let parse_result = junit_parse(Buffer.from(validJunitXml, "utf-8"));
+    let report = parse_result.report;
+
+    expect(report).toBeDefined();
+
+    let junitReportValidation = junit_validate(report);
 
     expect(junitReportValidation.max_level()).toBe(JunitValidationLevel.Valid);
 
@@ -91,8 +95,12 @@ describe("context-js", () => {
       </testsuites>
     `;
 
-    report = junit_parse(Buffer.from(suboptimalJunitXml, "utf-8"));
-    junitReportValidation = junit_validate(report[0]);
+    parse_result = junit_parse(Buffer.from(suboptimalJunitXml, "utf-8"));
+    report = parse_result.report;
+
+    expect(report).toBeDefined();
+
+    junitReportValidation = junit_validate(report);
 
     expect(junitReportValidation.max_level()).toBe(
       JunitValidationLevel.SubOptimal,
@@ -116,8 +124,12 @@ describe("context-js", () => {
           </testsuite>
       </testsuites>`;
 
-    report = junit_parse(Buffer.from(nestedJunitXml, "utf-8"));
-    junitReportValidation = junit_validate(report[0]);
+    parse_result = junit_parse(Buffer.from(nestedJunitXml, "utf-8"));
+    report = parse_result.report;
+
+    expect(report).toBeDefined();
+
+    junitReportValidation = junit_validate(report);
 
     expect(junitReportValidation.max_level()).toBe(JunitValidationLevel.Valid);
   });
