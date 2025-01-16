@@ -92,18 +92,7 @@ impl XCResult {
     }
 
     fn generate_id(&self, raw_id: &str) -> String {
-        // join the org and repo name to the raw id and generate uuid v5 from it
-        return uuid::Uuid::new_v5(
-            &uuid::Uuid::NAMESPACE_URL,
-            format!(
-                "{}#{}#{}",
-                self.org_url_slug,
-                &self.repo_url_parts.repo_full_name(),
-                raw_id
-            )
-            .as_bytes(),
-        )
-        .to_string();
+        format!("trunk:{}", raw_id)
     }
 
     fn junit_testcase(

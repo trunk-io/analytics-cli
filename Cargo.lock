@@ -5416,7 +5416,6 @@ dependencies = [
  "serde_json",
  "tar",
  "temp_testdir",
- "uuid",
 ]
 
 [[package]]
