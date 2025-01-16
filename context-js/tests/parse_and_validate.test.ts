@@ -78,8 +78,6 @@ describe("context-js", () => {
     let parse_result = junit_parse(Buffer.from(validJunitXml, "utf-8"));
     let report = parse_result.report;
 
-    expect(report).toBeDefined();
-
     let junitReportValidation = junit_validate(report);
 
     expect(junitReportValidation.max_level()).toBe(JunitValidationLevel.Valid);
@@ -97,8 +95,6 @@ describe("context-js", () => {
 
     parse_result = junit_parse(Buffer.from(suboptimalJunitXml, "utf-8"));
     report = parse_result.report;
-
-    expect(report).toBeDefined();
 
     junitReportValidation = junit_validate(report);
 
@@ -126,8 +122,6 @@ describe("context-js", () => {
 
     parse_result = junit_parse(Buffer.from(nestedJunitXml, "utf-8"));
     report = parse_result.report;
-
-    expect(report).toBeDefined();
 
     junitReportValidation = junit_validate(report);
 
