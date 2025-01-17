@@ -3,6 +3,7 @@ use std::{fs, io::BufReader};
 use assert_cmd::Command;
 use assert_matches::assert_matches;
 use bundle::BundleMeta;
+use constants::{TRUNK_API_CLIENT_RETRY_COUNT_ENV, TRUNK_PUBLIC_API_ADDRESS_ENV};
 use predicates::prelude::*;
 use tempfile::tempdir;
 use test_utils::mock_server::{MockServerBuilder, RequestPayload};
@@ -38,7 +39,8 @@ async fn test_command_succeeds_with_successful_upload() {
 
     Command::new(CARGO_RUN.path())
         .current_dir(&temp_dir)
-        .env("TRUNK_PUBLIC_API_ADDRESS", &state.host)
+        .env(TRUNK_PUBLIC_API_ADDRESS_ENV, &state.host)
+        .env(TRUNK_API_CLIENT_RETRY_COUNT_ENV, "0")
         .env("CI", "1")
         .env("GITHUB_JOB", "test-job")
         .args(args)
@@ -72,7 +74,8 @@ async fn test_command_fails_with_successful_upload() {
 
     Command::new(CARGO_RUN.path())
         .current_dir(&temp_dir)
-        .env("TRUNK_PUBLIC_API_ADDRESS", &state.host)
+        .env(TRUNK_PUBLIC_API_ADDRESS_ENV, &state.host)
+        .env(TRUNK_API_CLIENT_RETRY_COUNT_ENV, "0")
         .env("CI", "1")
         .env("GITHUB_JOB", "test-job")
         .args(args)
@@ -104,7 +107,8 @@ async fn test_command_fails_with_no_junit_files_no_quarantine_successful_upload(
 
     let assert = Command::new(CARGO_RUN.path())
         .current_dir(&temp_dir)
-        .env("TRUNK_PUBLIC_API_ADDRESS", &state.host)
+        .env(TRUNK_PUBLIC_API_ADDRESS_ENV, &state.host)
+        .env(TRUNK_API_CLIENT_RETRY_COUNT_ENV, "0")
         .env("CI", "1")
         .env("GITHUB_JOB", "test-job")
         .args(args)
@@ -169,7 +173,8 @@ async fn test_command_succeeds_with_upload_not_connected() {
 
     Command::new(CARGO_RUN.path())
         .current_dir(&temp_dir)
-        .env("TRUNK_PUBLIC_API_ADDRESS", "https://localhost:10")
+        .env(TRUNK_PUBLIC_API_ADDRESS_ENV, "https://localhost:10")
+        .env(TRUNK_API_CLIENT_RETRY_COUNT_ENV, "0")
         .env("CI", "1")
         .env("GITHUB_JOB", "test-job")
         .args(args)
@@ -201,7 +206,8 @@ async fn test_command_fails_with_upload_not_connected() {
 
     Command::new(CARGO_RUN.path())
         .current_dir(&temp_dir)
-        .env("TRUNK_PUBLIC_API_ADDRESS", "https://localhost:10")
+        .env(TRUNK_PUBLIC_API_ADDRESS_ENV, "https://localhost:10")
+        .env(TRUNK_API_CLIENT_RETRY_COUNT_ENV, "0")
         .env("CI", "1")
         .env("GITHUB_JOB", "test-job")
         .args(args)

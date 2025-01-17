@@ -12,6 +12,7 @@ bazel-bep = { path = "../bazel-bep" }
 bundle = { path = "../bundle" }
 chrono = "0.4.33"
 codeowners = { path = "../codeowners" }
+constants = { path = "../constants" }
 context = { path = "../context" }
 escargot = "0.5.12"
 junit-mock = { path = "../junit-mock" }
