@@ -1,11 +1,21 @@
-use std::{io::BufRead, mem};
+use std::{
+    fmt::{Display, Formatter, Result},
+    io::BufRead,
+    mem,
+};
 
+#[cfg(feature = "pyo3")]
+use pyo3::prelude::*;
+#[cfg(feature = "pyo3")]
+use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pyclass_enum};
 use quick_junit::{NonSuccessKind, Report, TestCase, TestCaseStatus, TestRerun, TestSuite};
 use quick_xml::{
     events::{BytesStart, BytesText, Event},
     Reader,
 };
 use thiserror::Error;
+#[cfg(feature = "wasm")]
+use wasm_bindgen::prelude::*;
 
 use super::date_parser::JunitDateParser;
 
@@ -30,10 +40,53 @@ pub mod extra_attrs {
     pub const ID: &str = "id";
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum JunitParseIssue {
+    SubOptimal(JunitParseIssueSubOptimal),
+    Invalid(JunitParseIssueInvalid),
+}
+
+impl Display for JunitParseIssue {
+    fn fmt(&self, f: &mut Formatter) -> Result {
+        match self {
+            JunitParseIssue::SubOptimal(so) => write!(f, "{}", so),
+            JunitParseIssue::Invalid(i) => write!(f, "{}", i),
+        }
+    }
+}
+
+#[cfg_attr(feature = "pyo3", gen_stub_pyclass_enum, pyclass(eq, eq_int))]
+#[cfg_attr(feature = "wasm", wasm_bindgen)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub enum JunitParseIssueLevel {
+    Valid = 0,
+    SubOptimal = 1,
+    Invalid = 2,
+}
+
+impl Default for JunitParseIssueLevel {
+    fn default() -> Self {
+        Self::Valid
+    }
+}
+
+impl From<&JunitParseIssue> for JunitParseIssueLevel {
+    fn from(value: &JunitParseIssue) -> Self {
+        match value {
+            JunitParseIssue::SubOptimal(..) => JunitParseIssueLevel::SubOptimal,
+            JunitParseIssue::Invalid(..) => JunitParseIssueLevel::Invalid,
+        }
+    }
+}
+
 #[derive(Error, Debug, Copy, Clone, PartialEq, Eq)]
-pub enum JunitParseError {
+pub enum JunitParseIssueSubOptimal {
     #[error("no reports found")]
     ReportNotFound,
+}
+
+#[derive(Error, Debug, Copy, Clone, PartialEq, Eq)]
+pub enum JunitParseIssueInvalid {
     #[error("multiple reports found")]
     ReportMultipleFound,
     #[error("report end tag found without start tag")]
@@ -54,6 +107,14 @@ pub enum JunitParseError {
     TestRerunTestCaseNotFound,
 }
 
+#[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass(get_all))]
+#[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct JunitParseFlatIssue {
+    pub level: JunitParseIssueLevel,
+    pub error_message: String,
+}
+
 #[derive(Debug, Clone)]
 enum Text {
     SystemOut(Option<String>),
@@ -71,7 +132,7 @@ enum CurrentReportState {
 #[derive(Debug, Clone)]
 pub struct JunitParser {
     date_parser: JunitDateParser,
-    errors: Vec<JunitParseError>,
+    issues: Vec<JunitParseIssue>,
     reports: Vec<Report>,
     current_report: Report,
     current_report_state: CurrentReportState,
@@ -82,11 +143,17 @@ pub struct JunitParser {
     current_text: Option<Text>,
 }
 
+impl Default for JunitParser {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl JunitParser {
     pub fn new() -> Self {
         Self {
             date_parser: Default::default(),
-            errors: Default::default(),
+            issues: Default::default(),
             reports: Default::default(),
             current_report: Report::new(""),
             current_report_state: CurrentReportState::Default,
@@ -98,8 +165,19 @@ impl JunitParser {
         }
     }
 
-    pub fn errors(&self) -> &Vec<JunitParseError> {
-        &self.errors
+    pub fn issues(&self) -> &Vec<JunitParseIssue> {
+        &self.issues
+    }
+
+    pub fn issues_flat(&self) -> Vec<JunitParseFlatIssue> {
+        return self
+            .issues()
+            .iter()
+            .map(|i| JunitParseFlatIssue {
+                level: JunitParseIssueLevel::from(i),
+                error_message: i.to_string(),
+            })
+            .collect();
     }
 
     pub fn reports(&self) -> &Vec<Report> {
@@ -126,11 +204,15 @@ impl JunitParser {
         }
 
         match self.reports.len() {
-            0 => self.errors.push(JunitParseError::ReportNotFound),
+            0 => self.issues.push(JunitParseIssue::SubOptimal(
+                JunitParseIssueSubOptimal::ReportNotFound,
+            )),
             1 => {
                 // There should only be 1 report per JUnit.xml file
             }
-            _ => self.errors.push(JunitParseError::ReportMultipleFound),
+            _ => self.issues.push(JunitParseIssue::Invalid(
+                JunitParseIssueInvalid::ReportMultipleFound,
+            )),
         };
 
         Ok(())
@@ -222,11 +304,11 @@ impl JunitParser {
 
     fn match_text(&mut self, e: &BytesText) {
         if self.current_text.is_some() {
-            self.set_text_value(&e);
+            self.set_text_value(e);
         } else if self.current_test_rerun.is_some() {
-            self.set_test_rerun_description(&e);
+            self.set_test_rerun_description(e);
         } else {
-            self.set_test_case_status_description(&e);
+            self.set_test_case_status_description(e);
         }
     }
 
@@ -260,7 +342,9 @@ impl JunitParser {
 
     fn close_report(&mut self) {
         if self.current_report_state != CurrentReportState::Opened {
-            self.errors.push(JunitParseError::ReportStartTagNotFound);
+            self.issues.push(JunitParseIssue::Invalid(
+                JunitParseIssueInvalid::ReportStartTagNotFound,
+            ));
             return;
         }
 
@@ -331,14 +415,18 @@ impl JunitParser {
             }
             self.current_report.add_test_suite(test_suite);
         } else {
-            self.errors.push(JunitParseError::TestSuiteStartTagNotFound);
+            self.issues.push(JunitParseIssue::Invalid(
+                JunitParseIssueInvalid::TestSuiteStartTagNotFound,
+            ));
         }
     }
 
     fn open_test_case(&mut self, e: &BytesStart) {
         let test_case_name = parse_attr::name(e).unwrap_or_default();
         if test_case_name.is_empty() {
-            self.errors.push(JunitParseError::TestCaseName);
+            self.issues.push(JunitParseIssue::Invalid(
+                JunitParseIssueInvalid::TestCaseName,
+            ));
         };
         let mut test_case = TestCase::new(test_case_name, TestCaseStatus::success());
 
@@ -388,10 +476,14 @@ impl JunitParser {
             if let Some(test_case) = self.current_test_case.take() {
                 test_suite.add_test_case(test_case);
             } else {
-                self.errors.push(JunitParseError::TestCaseStartTagNotFound);
+                self.issues.push(JunitParseIssue::Invalid(
+                    JunitParseIssueInvalid::TestCaseStartTagNotFound,
+                ));
             }
         } else {
-            self.errors.push(JunitParseError::TestCaseTestSuiteNotFound);
+            self.issues.push(JunitParseIssue::Invalid(
+                JunitParseIssueInvalid::TestCaseTestSuiteNotFound,
+            ));
         }
     }
 
@@ -422,8 +514,9 @@ impl JunitParser {
 
             test_case.status = test_case_status;
         } else {
-            self.errors
-                .push(JunitParseError::TestCaseStatusTestCaseNotFound);
+            self.issues.push(JunitParseIssue::Invalid(
+                JunitParseIssueInvalid::TestCaseStatusTestCaseNotFound,
+            ));
         }
     }
 
@@ -476,10 +569,14 @@ impl JunitParser {
             if let Some(test_rerun) = self.current_test_rerun.take() {
                 test_case.status.add_rerun(test_rerun);
             } else {
-                self.errors.push(JunitParseError::TestRerunStartTagNotFound);
+                self.issues.push(JunitParseIssue::Invalid(
+                    JunitParseIssueInvalid::TestRerunStartTagNotFound,
+                ));
             }
         } else {
-            self.errors.push(JunitParseError::TestRerunTestCaseNotFound);
+            self.issues.push(JunitParseIssue::Invalid(
+                JunitParseIssueInvalid::TestRerunTestCaseNotFound,
+            ));
         }
     }
 
@@ -634,7 +731,7 @@ mod unescape_and_truncate {
             .map(|b| safe_truncate_cow::<MAX_TEXT_FIELD_SIZE>(b))
     }
 
-    fn safe_truncate_cow<'a, const MAX_LEN: usize>(value: Cow<'a, str>) -> Cow<'a, str> {
+    fn safe_truncate_cow<const MAX_LEN: usize>(value: Cow<'_, str>) -> Cow<'_, str> {
         match value {
             Cow::Borrowed(b) => Cow::Borrowed(safe_truncate_str::<MAX_LEN>(b)),
             Cow::Owned(b) => Cow::Owned(String::from(safe_truncate_str::<MAX_LEN>(b.as_str()))),

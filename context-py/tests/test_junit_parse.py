@@ -1,9 +1,9 @@
 def test_junit_parse_valid():
-    import typing as PT
     from datetime import datetime, timezone
 
     from context_py import (
         BindingsNonSuccessKind,
+        BindingsParseResult,
         BindingsReport,
         BindingsTestCaseStatusStatus,
         junit_parse,
@@ -29,10 +29,11 @@ def test_junit_parse_valid():
     </testsuites>
    """
 
-    reports: PT.List[BindingsReport] = junit_parse(str.encode(valid_junit_xml))
+    parse_result: BindingsParseResult = junit_parse(str.encode(valid_junit_xml))
+    assert len(parse_result.issues) == 0
 
-    assert len(reports) == 1
-    report = reports[0]
+    report: BindingsReport | None = parse_result.report
+    assert report is not None
 
     assert len(report.test_suites) == 1
     test_suite = report.test_suites[0]
@@ -58,16 +59,17 @@ def test_junit_parse_valid():
     assert test_case.status.non_success.description == "FAILURE BODY"
 
 
-def test_junit_parse_non_xml():
-    from context_py import junit_parse
-    from pytest import raises
+def test_junit_parse_no_reports():
+    from context_py import JunitParseIssueLevel, junit_parse
 
     simple_string = "no reports here!"
 
-    with raises(Exception) as excinfo:
-        _ = junit_parse(str.encode(simple_string))
+    parse_result = junit_parse(str.encode(simple_string))
 
-    assert str(excinfo.value) == "no reports found"
+    assert parse_result.report is None
+    assert len(parse_result.issues) == 1
+    assert parse_result.issues[0].level == JunitParseIssueLevel.SubOptimal
+    assert parse_result.issues[0].error_message == "no reports found"
 
 
 def test_junit_parse_broken_xml():
@@ -86,10 +88,13 @@ def test_junit_parse_broken_xml():
 
 
 def test_junit_parse_nested_testsuites():
-    import typing as PT
     from datetime import datetime, timezone
 
-    from context_py import BindingsReport, BindingsTestCaseStatusStatus, junit_parse
+    from context_py import (
+        BindingsParseResult,
+        BindingsTestCaseStatusStatus,
+        junit_parse,
+    )
 
     valid_timestamp = datetime.now().astimezone(timezone.utc).isoformat()
 
@@ -106,10 +111,11 @@ def test_junit_parse_nested_testsuites():
     </testsuites>
     """
 
-    reports: PT.List[BindingsReport] = junit_parse(str.encode(nested_testsuites_xml))
+    parse_result: BindingsParseResult = junit_parse(str.encode(nested_testsuites_xml))
+    assert len(parse_result.issues) == 0
 
-    assert len(reports) == 1
-    report = reports[0]
+    report = parse_result.report
+    assert report is not None
 
     assert len(report.test_suites) == 1
     test_suite = report.test_suites[0]
