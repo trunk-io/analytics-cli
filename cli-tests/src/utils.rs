@@ -1,3 +1,9 @@
+use std::{
+    env, fs,
+    io::Write,
+    path::{Path, PathBuf},
+};
+
 use bazel_bep::types::build_event_stream::{
     build_event::Payload,
     build_event_id::{Id, TestResultId},
@@ -8,11 +14,6 @@ use chrono::{TimeDelta, Utc};
 use escargot::{CargoBuild, CargoRun};
 use junit_mock::JunitMock;
 use lazy_static::lazy_static;
-use std::{
-    env, fs,
-    io::Write,
-    path::{Path, PathBuf},
-};
 use test_utils::mock_git_repo::setup_repo_with_commit;
 
 lazy_static! {

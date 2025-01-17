@@ -1,11 +1,12 @@
+use assert_cmd::Command;
+use predicates::prelude::*;
+use tempfile::tempdir;
+
 use crate::utils::{
     generate_mock_codeowners, generate_mock_invalid_junit_xmls,
     generate_mock_missing_filepath_suboptimal_junit_xmls, generate_mock_suboptimal_junit_xmls,
     generate_mock_valid_junit_xmls, write_junit_xml_to_dir, CARGO_RUN,
 };
-use assert_cmd::Command;
-use predicates::prelude::*;
-use tempfile::tempdir;
 
 #[test]
 fn validate_success() {

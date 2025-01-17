@@ -7,9 +7,8 @@ use thiserror::Error;
 #[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::*;
 
-use crate::string_safety::{validate_field_len, FieldLen};
-
 use super::BundleRepo;
+use crate::string_safety::{validate_field_len, FieldLen};
 
 pub const MAX_BRANCH_NAME_LEN: usize = 36;
 pub const MAX_EMAIL_LEN: usize = 254;

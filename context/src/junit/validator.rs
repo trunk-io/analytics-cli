@@ -1,17 +1,17 @@
+use std::{cmp::Ordering, collections::HashSet};
+
 use chrono::{DateTime, FixedOffset, Utc};
 #[cfg(feature = "pyo3")]
 use pyo3::prelude::*;
 #[cfg(feature = "pyo3")]
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pyclass_enum, gen_stub_pymethods};
 use quick_junit::{Report, TestCase, TestSuite};
-use std::{cmp::Ordering, collections::HashSet};
 use thiserror::Error;
 #[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::*;
 
-use crate::string_safety::{validate_field_len, FieldLen};
-
 use super::parser::extra_attrs;
+use crate::string_safety::{validate_field_len, FieldLen};
 
 pub const MAX_FIELD_LEN: usize = 1_000;
 

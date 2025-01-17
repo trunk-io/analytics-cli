@@ -3,6 +3,8 @@
 //! - We read BundleMetaV_* (old versions), incrementally, during parsing on services side
 //!
 
+use std::collections::HashMap;
+
 use codeowners::CodeOwners;
 use context::repo::BundleRepo;
 #[cfg(feature = "pyo3")]
@@ -10,7 +12,6 @@ use pyo3::prelude::*;
 #[cfg(feature = "pyo3")]
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 #[cfg(feature = "wasm")]
 use tsify_next::Tsify;
 #[cfg(feature = "wasm")]

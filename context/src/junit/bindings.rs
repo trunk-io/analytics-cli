@@ -929,8 +929,9 @@ impl BindingsJunitReportValidation {
 #[cfg(feature = "bindings")]
 #[test]
 fn parse_test_report_to_bindings() {
-    use crate::junit::validator::validate;
     use prost_wkt_types::Timestamp;
+
+    use crate::junit::validator::validate;
     let test_started_at = Timestamp {
         seconds: 1000,
         nanos: 0,
