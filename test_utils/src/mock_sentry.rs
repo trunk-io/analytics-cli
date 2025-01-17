@@ -1,9 +1,10 @@
 use std::sync::{Arc, Mutex};
 
-use sentry::{protocol::Event, ClientInitGuard, Integration, Level};
+use sentry::{protocol::Event, ClientInitGuard, Hub, Integration, Level};
 
 struct MockSentryIntegration {
     events: Arc<Mutex<Vec<(Level, String)>>>,
+    hub_current: Arc<Hub>,
 }
 
 impl Integration for MockSentryIntegration {
@@ -12,11 +13,13 @@ impl Integration for MockSentryIntegration {
         event: Event<'static>,
         _: &sentry::ClientOptions,
     ) -> Option<Event<'static>> {
-        self.events
-            .lock()
-            .unwrap()
-            .push((event.level, event.message.unwrap_or_default()));
-        None
+        let same_thread = Arc::ptr_eq(&self.hub_current, &sentry::Hub::current());
+        if let (true, Ok(mut events)) = (same_thread, self.events.try_lock()) {
+            events.push((event.level, event.message.unwrap_or_default()));
+            None
+        } else {
+            Some(event)
+        }
     }
 }
 
@@ -29,6 +32,7 @@ pub fn mock_sentry() -> (Arc<Mutex<Vec<(Level, String)>>>, ClientInitGuard) {
     }
     .add_integration(MockSentryIntegration {
         events: events.clone(),
+        hub_current: Hub::current(),
     });
 
     let guard = sentry::init(("https://public@sentry.example.com/1", options));

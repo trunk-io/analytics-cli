@@ -9,6 +9,7 @@ use assert_cmd::Command;
 use assert_matches::assert_matches;
 use bundle::{BundleMeta, FileSetType};
 use codeowners::CodeOwners;
+use constants::{TRUNK_API_CLIENT_RETRY_COUNT_ENV, TRUNK_PUBLIC_API_ADDRESS_ENV};
 use context::{
     bazel_bep::parser::BazelBepParser, junit::parser::JunitParser, repo::RepoUrlParts as Repo,
 };
@@ -41,7 +42,8 @@ async fn upload_bundle() {
 
     let assert = Command::new(CARGO_RUN.path())
         .current_dir(&temp_dir)
-        .env("TRUNK_PUBLIC_API_ADDRESS", &state.host)
+        .env(TRUNK_PUBLIC_API_ADDRESS_ENV, &state.host)
+        .env(TRUNK_API_CLIENT_RETRY_COUNT_ENV, "0")
         .env("CI", "1")
         .env("GITHUB_JOB", "test-job")
         .args(args)
@@ -218,7 +220,8 @@ async fn upload_bundle_using_bep() {
 
     let assert = Command::new(CARGO_RUN.path())
         .current_dir(&temp_dir)
-        .env("TRUNK_PUBLIC_API_ADDRESS", &state.host)
+        .env(TRUNK_PUBLIC_API_ADDRESS_ENV, &state.host)
+        .env(TRUNK_API_CLIENT_RETRY_COUNT_ENV, "0")
         .env("CI", "1")
         .env("GITHUB_JOB", "test-job")
         .args(args)
@@ -286,7 +289,8 @@ async fn upload_bundle_success_status_code() {
     // so the upload command should have a successful exit code
     let assert = Command::new(CARGO_RUN.path())
         .current_dir(&temp_dir)
-        .env("TRUNK_PUBLIC_API_ADDRESS", &state.host)
+        .env(TRUNK_PUBLIC_API_ADDRESS_ENV, &state.host)
+        .env(TRUNK_API_CLIENT_RETRY_COUNT_ENV, "0")
         .env("CI", "1")
         .env("GITHUB_JOB", "test-job")
         .args(args)
@@ -339,7 +343,8 @@ async fn upload_bundle_success_timestamp_status_code() {
     // so the upload command should have a successful exit code
     let assert = Command::new(CARGO_RUN.path())
         .current_dir(&temp_dir)
-        .env("TRUNK_PUBLIC_API_ADDRESS", &state.host)
+        .env(TRUNK_PUBLIC_API_ADDRESS_ENV, &state.host)
+        .env(TRUNK_API_CLIENT_RETRY_COUNT_ENV, "0")
         .env("CI", "1")
         .env("GITHUB_JOB", "test-job")
         .args(args)
@@ -364,7 +369,8 @@ async fn upload_bundle_empty_junit_paths() {
 
     let assert = Command::new(CARGO_RUN.path())
         .current_dir(&temp_dir)
-        .env("TRUNK_PUBLIC_API_ADDRESS", &state.host)
+        .env(TRUNK_PUBLIC_API_ADDRESS_ENV, &state.host)
+        .env(TRUNK_API_CLIENT_RETRY_COUNT_ENV, "0")
         .env("CI", "1")
         .args(&[
             "upload",
@@ -451,7 +457,8 @@ async fn upload_bundle_no_files_allow_missing_junit_files() {
 
         let mut assert = Command::new(CARGO_RUN.path())
             .current_dir(&temp_dir)
-            .env("TRUNK_PUBLIC_API_ADDRESS", &state.host)
+            .env(TRUNK_PUBLIC_API_ADDRESS_ENV, &state.host)
+            .env(TRUNK_API_CLIENT_RETRY_COUNT_ENV, "0")
             .env("CI", "1")
             .args(&args)
             .assert();
@@ -488,7 +495,8 @@ async fn upload_bundle_valid_repo_root() {
 
     let assert = Command::new(CARGO_RUN.path())
         .current_dir(&temp_dir)
-        .env("TRUNK_PUBLIC_API_ADDRESS", &state.host)
+        .env(TRUNK_PUBLIC_API_ADDRESS_ENV, &state.host)
+        .env(TRUNK_API_CLIENT_RETRY_COUNT_ENV, "0")
         .env("CI", "1")
         .args(&[
             "upload",
@@ -528,7 +536,8 @@ async fn upload_bundle_when_server_down() {
 
     let assert = Command::new(CARGO_RUN.path())
         .current_dir(&temp_dir)
-        .env("TRUNK_PUBLIC_API_ADDRESS", "https://localhost:10")
+        .env(TRUNK_PUBLIC_API_ADDRESS_ENV, "https://localhost:10")
+        .env(TRUNK_API_CLIENT_RETRY_COUNT_ENV, "0")
         .env("CI", "1")
         .env("GITHUB_JOB", "test-job")
         .args(args)
@@ -547,7 +556,8 @@ async fn upload_bundle_with_no_junit_files_no_quarantine_successful_upload() {
 
     let assert = Command::new(CARGO_RUN.path())
         .current_dir(&temp_dir)
-        .env("TRUNK_PUBLIC_API_ADDRESS", &state.host)
+        .env(TRUNK_PUBLIC_API_ADDRESS_ENV, &state.host)
+        .env(TRUNK_API_CLIENT_RETRY_COUNT_ENV, "0")
         .env("CI", "1")
         .env("GITHUB_JOB", "test-job")
         .args([
