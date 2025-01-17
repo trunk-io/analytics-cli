@@ -19,6 +19,19 @@ runs:
       # NOTE: DO NOT BUILD WORKSPACE OTHERWISE THE CLI MAY BE LINKED TO UNNECESSARY LIBRARIES
       run: cargo build -q -p trunk-analytics-cli --profile=${{ inputs.profile }} --target=${{ inputs.target }}
 
+    # DO NOT LAND
+    - name: Build minimal CLI example for ${{ inputs.target }} target
+      shell: bash
+      # NOTE: DO NOT BUILD WORKSPACE OTHERWISE THE CLI MAY BE LINKED TO UNNECESSARY LIBRARIES
+      run: cargo build -q -p trunk-analytics-cli --example minimal --profile=${{ inputs.profile }} --target=${{ inputs.target }}
+
+    # DO NOT LAND
+    - name: Upload minimal CLI example
+      uses: actions/upload-artifact@v4
+      with:
+        name: minimal-cli-example-${{ inputs.target }}-${{ inputs.profile }}
+        path: ./target/${{ inputs.target }}/${{ inputs.profile }}/examples/minimal
+
     - name: Create binary with debug info
       shell: bash
       run: cp target/${{ inputs.target }}/${{ inputs.profile }}/trunk-analytics-cli target/${{ inputs.target }}/${{ inputs.profile }}/trunk-analytics-cli.debug
