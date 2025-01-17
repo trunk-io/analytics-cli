@@ -9,6 +9,7 @@ use api::{
 };
 use assert_cmd::Command;
 use axum::{extract::State, Json};
+use constants::{TRUNK_API_CLIENT_RETRY_COUNT_ENV, TRUNK_PUBLIC_API_ADDRESS_ENV};
 use lazy_static::lazy_static;
 use predicates::prelude::*;
 use tempfile::tempdir;
@@ -100,7 +101,8 @@ async fn quarantines_tests_regardless_of_upload() {
     let mut command = Command::new(CARGO_RUN.path());
     command
         .current_dir(&temp_dir)
-        .env("TRUNK_PUBLIC_API_ADDRESS", &state.host)
+        .env(TRUNK_PUBLIC_API_ADDRESS_ENV, &state.host)
+        .env(TRUNK_API_CLIENT_RETRY_COUNT_ENV, "0")
         .env("CI", "1")
         .env("GITHUB_JOB", "test-job")
         .args(args);

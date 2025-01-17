@@ -290,7 +290,7 @@ fn status_code_help<T: FnMut(&Response) -> String>(
 
 #[cfg(test)]
 mod tests {
-    use std::{env, time::Duration};
+    use std::time::Duration;
 
     use axum::{http::StatusCode, response::Response};
     use tempfile::NamedTempFile;
@@ -315,8 +315,8 @@ mod tests {
 
         let state = mock_server_builder.spawn_mock_server().await;
 
-        env::set_var("TRUNK_PUBLIC_API_ADDRESS", &state.host);
-        let api_client = ApiClient::new(String::from("mock-token")).unwrap();
+        let mut api_client = ApiClient::new(String::from("mock-token")).unwrap();
+        api_client.host.clone_from(&state.host);
 
         let bundle_file = NamedTempFile::new().unwrap();
         api_client
@@ -339,7 +339,7 @@ mod tests {
 
         guard.flush(None);
         assert_eq!(
-            *events.lock().unwrap(),
+            *events.try_lock().unwrap(),
             vec![(
                 sentry::Level::Error,
                 String::from("Uploading bundle to S3 is taking longer than 10 seconds"),
@@ -364,8 +364,8 @@ mod tests {
 
         let state = mock_server_builder.spawn_mock_server().await;
 
-        env::set_var("TRUNK_PUBLIC_API_ADDRESS", &state.host);
-        let api_client = ApiClient::new(String::from("mock-token")).unwrap();
+        let mut api_client = ApiClient::new(String::from("mock-token")).unwrap();
+        api_client.host.clone_from(&state.host);
 
         assert!(api_client
             .get_quarantining_config(&api::GetQuarantineBulkTestStatusRequest {

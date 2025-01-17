@@ -1,5 +1,6 @@
-use std::time::Duration;
+use std::{env, time::Duration};
 
+use constants::TRUNK_API_CLIENT_RETRY_COUNT_ENV;
 use tokio::time::{self, Instant};
 use tokio_retry::{strategy::ExponentialBackoff, Action, Retry};
 
@@ -7,7 +8,7 @@ use tokio_retry::{strategy::ExponentialBackoff, Action, Retry};
 // This will give us 8ms, 64ms, 512ms, 4096ms, 32768ms
 const RETRY_BASE_MS: u64 = 8;
 const RETRY_FACTOR: u64 = 1;
-const RETRY_COUNT: usize = 5;
+const RETRY_COUNT_DEFAULT: usize = 5;
 
 const CHECK_PROGRESS_INTERVAL_SECS: u64 = 2;
 const REPORT_SLOW_PROGRESS_TIMEOUT_SECS: u64 = enforce_increment_check_progress_interval_secs(10);
@@ -25,7 +26,12 @@ const fn enforce_increment_check_progress_interval_secs(
 fn default_delay() -> std::iter::Take<ExponentialBackoff> {
     ExponentialBackoff::from_millis(RETRY_BASE_MS)
         .factor(RETRY_FACTOR)
-        .take(RETRY_COUNT)
+        .take(
+            env::var(TRUNK_API_CLIENT_RETRY_COUNT_ENV)
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(RETRY_COUNT_DEFAULT),
+        )
 }
 
 pub struct CallApi<A, L, R>
@@ -96,7 +102,8 @@ mod tests {
     use tokio::time;
 
     use super::{
-        CallApi, CHECK_PROGRESS_INTERVAL_SECS, REPORT_SLOW_PROGRESS_TIMEOUT_SECS, RETRY_COUNT,
+        CallApi, CHECK_PROGRESS_INTERVAL_SECS, REPORT_SLOW_PROGRESS_TIMEOUT_SECS,
+        RETRY_COUNT_DEFAULT,
     };
 
     #[tokio::test(start_paused = true)]
@@ -215,6 +222,6 @@ mod tests {
         .call_api()
         .await;
 
-        assert_eq!(retry_count.into_inner(), RETRY_COUNT + 1);
+        assert_eq!(retry_count.into_inner(), RETRY_COUNT_DEFAULT + 1);
     }
 }
