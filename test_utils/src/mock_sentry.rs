@@ -1,6 +1,5 @@
-use std::sync::{Arc, Mutex};
-
 use sentry::{protocol::Event, ClientInitGuard, Integration, Level};
+use std::sync::{Arc, Mutex};
 
 struct MockSentryIntegration {
     events: Arc<Mutex<Vec<(Level, String)>>>,

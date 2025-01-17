@@ -1,3 +1,5 @@
+use super::BundleRepo;
+use crate::string_safety::{validate_field_len, FieldLen};
 use chrono::{DateTime, Utc};
 #[cfg(feature = "pyo3")]
 use pyo3::prelude::*;
@@ -6,10 +8,6 @@ use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pyclass_enum, gen_stub_py
 use thiserror::Error;
 #[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::*;
-
-use crate::string_safety::{validate_field_len, FieldLen};
-
-use super::BundleRepo;
 
 pub const MAX_BRANCH_NAME_LEN: usize = 36;
 pub const MAX_EMAIL_LEN: usize = 254;

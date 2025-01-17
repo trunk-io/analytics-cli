@@ -1,8 +1,6 @@
-use std::{env, io::Write};
-
 use clap::{Parser, Subcommand};
 use constants::SENTRY_DSN;
-
+use std::{env, io::Write};
 use trunk_analytics_cli::{
     quarantine_command::{run_quarantine, QuarantineArgs},
     test_command::{run_test, TestArgs},

@@ -1,13 +1,11 @@
-use std::{io::BufRead, mem};
-
+use super::date_parser::JunitDateParser;
 use quick_junit::{NonSuccessKind, Report, TestCase, TestCaseStatus, TestRerun, TestSuite};
 use quick_xml::{
     events::{BytesStart, BytesText, Event},
     Reader,
 };
+use std::{io::BufRead, mem};
 use thiserror::Error;
-
-use super::date_parser::JunitDateParser;
 
 const TAG_REPORT: &[u8] = b"testsuites";
 const TAG_TEST_SUITE: &[u8] = b"testsuite";
@@ -538,14 +536,11 @@ impl JunitParser {
 }
 
 mod parse_attr {
-    use std::{borrow::Cow, str::FromStr, time::Duration};
-
+    use super::{extra_attrs, unescape_and_truncate};
+    use crate::junit::date_parser::JunitDateParser;
     use chrono::{DateTime, FixedOffset};
     use quick_xml::events::BytesStart;
-
-    use crate::junit::date_parser::JunitDateParser;
-
-    use super::{extra_attrs, unescape_and_truncate};
+    use std::{borrow::Cow, str::FromStr, time::Duration};
 
     pub fn name<'a>(e: &'a BytesStart<'a>) -> Option<Cow<'a, str>> {
         parse_string_attr(e, "name")
@@ -614,11 +609,9 @@ mod parse_attr {
 }
 
 mod unescape_and_truncate {
-    use std::borrow::Cow;
-
-    use quick_xml::events::{attributes::Attribute, BytesText};
-
     use crate::string_safety::safe_truncate_str;
+    use quick_xml::events::{attributes::Attribute, BytesText};
+    use std::borrow::Cow;
 
     const MAX_TEXT_FIELD_SIZE: usize = 8_000;
 

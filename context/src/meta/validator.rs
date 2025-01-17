@@ -1,3 +1,7 @@
+use super::MetaContext;
+use crate::env::validator::{
+    validate as env_validate, EnvValidationIssue, EnvValidationIssueSubOptimal,
+};
 #[cfg(feature = "pyo3")]
 use pyo3::prelude::*;
 #[cfg(feature = "pyo3")]
@@ -5,12 +9,6 @@ use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pyclass_enum, gen_stub_py
 use thiserror::Error;
 #[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::*;
-
-use crate::env::validator::{
-    validate as env_validate, EnvValidationIssue, EnvValidationIssueSubOptimal,
-};
-
-use super::MetaContext;
 
 #[cfg_attr(feature = "pyo3", gen_stub_pyclass_enum, pyclass(eq, eq_int))]
 #[cfg_attr(feature = "wasm", wasm_bindgen)]

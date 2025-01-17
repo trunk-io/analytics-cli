@@ -1,10 +1,3 @@
-use std::{
-    fmt::Debug,
-    format,
-    path::{Path, PathBuf},
-    time::SystemTime,
-};
-
 use codeowners::{CodeOwners, Owners, OwnersOfPath};
 use constants::ALLOW_LIST;
 use context::junit::junit_path::{JunitReportFileWithStatus, JunitReportStatus};
@@ -15,6 +8,12 @@ use pyo3::prelude::*;
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pyclass_enum};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
+use std::{
+    fmt::Debug,
+    format,
+    path::{Path, PathBuf},
+    time::SystemTime,
+};
 #[cfg(feature = "wasm")]
 use tsify_next::Tsify;
 #[cfg(feature = "wasm")]

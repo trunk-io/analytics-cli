@@ -1,9 +1,3 @@
-use api::BundleUploadStatus;
-use bundle::{BundleMeta, BundlerUtil};
-use clap::{ArgAction, Args};
-use constants::EXIT_SUCCESS;
-use context::bazel_bep::parser::BepParseResult;
-
 use crate::{
     api_client::ApiClient,
     context::{
@@ -12,6 +6,11 @@ use crate::{
     },
     test_command::TestRunResult,
 };
+use api::BundleUploadStatus;
+use bundle::{BundleMeta, BundlerUtil};
+use clap::{ArgAction, Args};
+use constants::EXIT_SUCCESS;
+use context::bazel_bep::parser::BepParseResult;
 
 #[cfg(target_os = "macos")]
 const JUNIT_GLOB_REQUIRED_UNLESS_PRESENT_ARG: &str = "xcresult_path";

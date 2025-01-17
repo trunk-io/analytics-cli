@@ -89,9 +89,8 @@ pub struct CustomTag {
 
 #[cfg(test)]
 mod tests {
-    use context::repo::RepoUrlParts as Repo;
-
     use super::*;
+    use context::repo::RepoUrlParts as Repo;
 
     #[test]
     pub fn test_parse_good_custom_tags() {

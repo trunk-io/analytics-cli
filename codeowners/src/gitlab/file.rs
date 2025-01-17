@@ -1,12 +1,9 @@
-use std::{io::BufRead, path::PathBuf};
-
+use super::{Entry, Error, Section, SectionParser};
+use crate::gitlab::{ErrorType, ReferenceExtractor};
 use fancy_regex::Regex;
 use indexmap::IndexMap;
 use lazy_static::lazy_static;
-
-use crate::gitlab::{ErrorType, ReferenceExtractor};
-
-use super::{Entry, Error, Section, SectionParser};
+use std::{io::BufRead, path::PathBuf};
 
 pub type ParsedData = IndexMap<String, IndexMap<String, Entry>>;
 
@@ -245,11 +242,9 @@ impl File {
 /// Reference: https://gitlab.com/gitlab-org/gitlab/-/blob/master/ee/spec/lib/gitlab/code_owners/file_spec.rb
 #[cfg(test)]
 mod tests {
-    use std::path::PathBuf;
-
-    use lazy_static::lazy_static;
-
     use crate::gitlab::File;
+    use lazy_static::lazy_static;
+    use std::path::PathBuf;
 
     /// Reference: https://gitlab.com/gitlab-org/gitlab/-/blob/master/ee/spec/fixtures/codeowners_example
     const CODEOWNERS_EXAMPLE: &[u8] =
@@ -332,9 +327,8 @@ mod tests {
             };
 
             mod creates_expected_parsed_sectional_results {
-                use std::{collections::HashSet, iter::FromIterator};
-
                 use crate::gitlab::File;
+                use std::{collections::HashSet, iter::FromIterator};
 
                 pub fn shared_examples(file: &File) {
                     is_a_hash_sorted_by_sections_without_duplicates(file);
@@ -475,9 +469,8 @@ mod tests {
             }
 
             mod when_codeowners_file_contains_sections_at_the_middle_of_a_line {
-                use lazy_static::lazy_static;
-
                 use crate::gitlab::File;
+                use lazy_static::lazy_static;
 
                 const FILE_CONTENT: &str = r#"
                     [Required]
@@ -521,9 +514,8 @@ mod tests {
             }
 
             mod when_codeowners_file_contains_approvals_required {
-                use lazy_static::lazy_static;
-
                 use crate::gitlab::File;
+                use lazy_static::lazy_static;
 
                 const FILE_CONTENT: &str = r#"
                     [Required][2]
@@ -650,9 +642,8 @@ mod tests {
 
     mod sections {
         mod when_codeowners_file_contains_sections {
-            use lazy_static::lazy_static;
-
             use crate::gitlab::File;
+            use lazy_static::lazy_static;
 
             const FILE_CONTENT: &str = r#"
                 *.rb @ruby-owner
@@ -690,9 +681,8 @@ mod tests {
     }
 
     mod optional_section {
-        use lazy_static::lazy_static;
-
         use crate::gitlab::File;
+        use lazy_static::lazy_static;
 
         const FILE_CONTENT: &str = r#"
             *.rb @ruby-owner
@@ -750,9 +740,8 @@ mod tests {
             }
 
             mod for_a_path_without_matches {
-                use lazy_static::lazy_static;
-
                 use crate::gitlab::File;
+                use lazy_static::lazy_static;
 
                 const FILE_CONTENT: &str = r#"
                     # Simulating a CODOWNERS without entries
@@ -876,9 +865,8 @@ mod tests {
             }
 
             mod paths_with_whitespaces_and_username_lookalikes {
-                use lazy_static::lazy_static;
-
                 use crate::gitlab::File;
+                use lazy_static::lazy_static;
 
                 const FILE_CONTENT: &str = r#"
                     a/weird\ path\ with/\ @username\ /\ and-email@lookalikes.com\ / @user-1 email@gitlab.org @user-2
@@ -905,9 +893,8 @@ mod tests {
             }
 
             mod a_glob_on_the_root_directory {
-                use lazy_static::lazy_static;
-
                 use crate::gitlab::File;
+                use lazy_static::lazy_static;
 
                 const FILE_CONTENT: &str = r#"
                     /* @user-1 @user-2
@@ -934,9 +921,8 @@ mod tests {
                 }
 
                 pub mod partial_matches {
-                    use lazy_static::lazy_static;
-
                     use crate::gitlab::File;
+                    use lazy_static::lazy_static;
 
                     const FILE_CONTENT: &str = r#"
                         foo/* @user-1 @user-2
@@ -1000,11 +986,9 @@ mod tests {
         }
 
         mod when_codeowners_file_has_errors {
-            use std::path::PathBuf;
-
-            use lazy_static::lazy_static;
-
             use crate::gitlab::{Error, ErrorType, File};
+            use lazy_static::lazy_static;
+            use std::path::PathBuf;
 
             const FILE_CONTENT: &str = r#"
                 *.rb

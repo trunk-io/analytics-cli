@@ -1,11 +1,10 @@
-use std::path::Path;
-
 use anyhow::Context;
 use api;
 use call_api::CallApi;
 use constants::{DEFAULT_ORIGIN, TRUNK_PUBLIC_API_ADDRESS_ENV};
 use http::{header::HeaderMap, HeaderValue};
 use reqwest::{header, Client, Response, StatusCode};
+use std::path::Path;
 use tokio::fs;
 
 mod call_api;
@@ -290,16 +289,13 @@ fn status_code_help<T: FnMut(&Response) -> String>(
 
 #[cfg(test)]
 mod tests {
-    use std::{env, time::Duration};
-
+    use super::ApiClient;
     use axum::{http::StatusCode, response::Response};
+    use context;
+    use std::{env, time::Duration};
     use tempfile::NamedTempFile;
     use test_utils::{mock_logger, mock_sentry, mock_server::MockServerBuilder};
     use tokio::time;
-
-    use context;
-
-    use super::ApiClient;
 
     #[tokio::test(start_paused = true)]
     async fn logs_and_reports_for_slow_api_calls() {

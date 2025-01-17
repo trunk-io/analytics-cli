@@ -1,10 +1,9 @@
-use std::{env, fs, io::BufReader, thread};
-
 use assert_matches::assert_matches;
 use bundle::{BundleMeta, FileSetType};
 use prost::Message;
 use prost_wkt_types::Timestamp;
 use proto::test_context::test_run::TestCaseRunStatus;
+use std::{env, fs, io::BufReader, thread};
 use tempfile::tempdir;
 use test_report::report::{MutTestReport, Status};
 use test_utils::mock_git_repo::setup_repo_with_commit;

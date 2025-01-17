@@ -1,5 +1,4 @@
 use std::time::Duration;
-
 use tokio::time::{self, Instant};
 use tokio_retry::{strategy::ExponentialBackoff, Action, Retry};
 
@@ -84,6 +83,10 @@ where
 
 #[cfg(test)]
 mod tests {
+    use super::{
+        CallApi, CHECK_PROGRESS_INTERVAL_SECS, REPORT_SLOW_PROGRESS_TIMEOUT_SECS, RETRY_COUNT,
+    };
+    use lazy_static::lazy_static;
     use std::{
         sync::{
             atomic::{AtomicUsize, Ordering},
@@ -91,13 +94,7 @@ mod tests {
         },
         time::Duration,
     };
-
-    use lazy_static::lazy_static;
     use tokio::time;
-
-    use super::{
-        CallApi, CHECK_PROGRESS_INTERVAL_SECS, REPORT_SLOW_PROGRESS_TIMEOUT_SECS, RETRY_COUNT,
-    };
 
     #[tokio::test(start_paused = true)]
     async fn logs_progress_and_reports_slow_progress() {

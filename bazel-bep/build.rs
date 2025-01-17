@@ -1,6 +1,5 @@
-use std::{env, fs, io, path::PathBuf};
-
 use protox::prost::Message;
+use std::{env, fs, io, path::PathBuf};
 
 fn main() -> io::Result<()> {
     let protos = std::fs::read_dir("proto")?

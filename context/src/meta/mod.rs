@@ -1,14 +1,13 @@
+use crate::{
+    env::parser::{clean_branch, BranchClass, CIInfo},
+    repo::BundleRepo,
+};
 #[cfg(feature = "pyo3")]
 use pyo3::prelude::*;
 #[cfg(feature = "pyo3")]
 use pyo3_stub_gen::derive::gen_stub_pyclass;
 #[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::*;
-
-use crate::{
-    env::parser::{clean_branch, BranchClass, CIInfo},
-    repo::BundleRepo,
-};
 
 #[cfg(feature = "bindings")]
 pub mod bindings;

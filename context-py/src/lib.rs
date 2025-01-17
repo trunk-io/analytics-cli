@@ -1,5 +1,3 @@
-use std::{collections::HashMap, io::BufReader, sync::Arc};
-
 use bundle::{
     parse_meta as parse_meta_impl, parse_meta_from_tarball as parse_meta_from_tarball_impl,
     BindingsVersionedBundle,
@@ -11,6 +9,7 @@ use context::{env, junit, meta, repo};
 use prost::Message;
 use pyo3::{exceptions::PyTypeError, prelude::*};
 use pyo3_stub_gen::{define_stub_info_gatherer, derive::gen_stub_pyfunction};
+use std::{collections::HashMap, io::BufReader, sync::Arc};
 
 mod py_bytes_read;
 

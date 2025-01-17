@@ -1,22 +1,3 @@
-use std::{
-    fs::File,
-    path::{Path, PathBuf},
-    sync::Arc,
-};
-
-use anyhow::Result;
-use constants::CODEOWNERS_LOCATIONS;
-#[cfg(feature = "pyo3")]
-use pyo3::prelude::*;
-#[cfg(feature = "pyo3")]
-use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
-use serde::{Deserialize, Serialize};
-use tokio::task;
-#[cfg(feature = "wasm")]
-use tsify_next::Tsify;
-#[cfg(feature = "wasm")]
-use wasm_bindgen::prelude::*;
-
 #[cfg(feature = "pyo3")]
 use crate::{github::BindingsGitHubOwners, gitlab::BindingsGitLabOwners};
 use crate::{
@@ -24,6 +5,23 @@ use crate::{
     gitlab::GitLabOwners,
     traits::{FromReader, OwnersOfPath},
 };
+use anyhow::Result;
+use constants::CODEOWNERS_LOCATIONS;
+#[cfg(feature = "pyo3")]
+use pyo3::prelude::*;
+#[cfg(feature = "pyo3")]
+use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
+use serde::{Deserialize, Serialize};
+use std::{
+    fs::File,
+    path::{Path, PathBuf},
+    sync::Arc,
+};
+use tokio::task;
+#[cfg(feature = "wasm")]
+use tsify_next::Tsify;
+#[cfg(feature = "wasm")]
+use wasm_bindgen::prelude::*;
 
 // TODO(TRUNK-13628): Implement serializing and deserializing for CodeOwners
 #[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]

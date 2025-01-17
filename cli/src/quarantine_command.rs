@@ -1,6 +1,5 @@
-use clap::Args;
-
 use crate::upload_command::{run_upload, UploadArgs, UploadRunResult};
+use clap::Args;
 
 #[derive(Args, Clone, Debug)]
 pub struct QuarantineArgs {

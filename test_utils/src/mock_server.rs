@@ -1,10 +1,3 @@
-use std::{
-    fs,
-    io::Read,
-    path::PathBuf,
-    sync::{Arc, Mutex},
-};
-
 use api::{
     CreateBundleUploadRequest, CreateBundleUploadResponse, CreateRepoRequest,
     GetQuarantineBulkTestStatusRequest, QuarantineConfig, UpdateBundleUploadRequest,
@@ -17,6 +10,12 @@ use axum::{
     response::Response,
     routing::{any, patch, post, put, MethodRouter},
     Json, Router,
+};
+use std::{
+    fs,
+    io::Read,
+    path::PathBuf,
+    sync::{Arc, Mutex},
 };
 use tempfile::tempdir;
 use tokio::{net::TcpListener, spawn};

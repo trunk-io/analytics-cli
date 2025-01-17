@@ -1,14 +1,12 @@
-use std::{
-    process::{Command, Stdio},
-    time::SystemTime,
-};
-
-use clap::Args;
-use constants::EXIT_FAILURE;
-
 use crate::{
     context::gather_pre_test_context,
     upload_command::{run_upload, UploadArgs, UploadRunResult},
+};
+use clap::Args;
+use constants::EXIT_FAILURE;
+use std::{
+    process::{Command, Stdio},
+    time::SystemTime,
 };
 
 #[derive(Args, Clone, Debug)]

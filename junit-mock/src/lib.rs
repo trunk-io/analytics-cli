@@ -1,7 +1,3 @@
-use std::fs::File;
-use std::path::{Path, PathBuf};
-use std::time::Duration;
-
 use anyhow::Result;
 use chrono::{DateTime, FixedOffset};
 use clap::Parser;
@@ -11,6 +7,9 @@ use quick_xml::events::Event;
 use quick_xml::{Reader, Writer};
 use rand::prelude::*;
 use rand::rngs::StdRng;
+use std::fs::File;
+use std::path::{Path, PathBuf};
+use std::time::Duration;
 
 macro_rules! percentages_parser {
     ($func_name:ident, $num_percentages:literal) => {

@@ -1,3 +1,5 @@
+use super::parser::extra_attrs;
+use crate::string_safety::{validate_field_len, FieldLen};
 use chrono::{DateTime, FixedOffset, Utc};
 #[cfg(feature = "pyo3")]
 use pyo3::prelude::*;
@@ -8,10 +10,6 @@ use std::{cmp::Ordering, collections::HashSet};
 use thiserror::Error;
 #[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::*;
-
-use crate::string_safety::{validate_field_len, FieldLen};
-
-use super::parser::extra_attrs;
 
 pub const MAX_FIELD_LEN: usize = 1_000;
 

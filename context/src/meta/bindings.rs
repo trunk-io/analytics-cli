@@ -1,15 +1,13 @@
+use super::MetaContext;
+use crate::env::parser::CIInfo;
+#[cfg(feature = "pyo3")]
+use crate::repo::BundleRepo;
 #[cfg(feature = "pyo3")]
 use pyo3::prelude::*;
 #[cfg(feature = "pyo3")]
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 #[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::*;
-
-use crate::env::parser::CIInfo;
-#[cfg(feature = "pyo3")]
-use crate::repo::BundleRepo;
-
-use super::MetaContext;
 
 #[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass(get_all))]
 #[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]

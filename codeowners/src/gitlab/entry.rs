@@ -1,13 +1,11 @@
+use super::{ReferenceExtractor, Section};
+use anyhow::Result;
 use std::{
     collections::BTreeSet,
     hash::{Hash, Hasher},
     ops::Deref,
     sync::Arc,
 };
-
-use anyhow::Result;
-
-use super::{ReferenceExtractor, Section};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Data {
@@ -140,11 +138,9 @@ impl Hash for Entry {
 /// Reference: https://gitlab.com/gitlab-org/gitlab/-/blob/master/ee/spec/lib/gitlab/code_owners/entry_spec.rb
 #[cfg(test)]
 mod tests {
-    use std::{collections::BTreeSet, iter::FromIterator};
-
-    use lazy_static::lazy_static;
-
     use crate::gitlab::entry::Entry;
+    use lazy_static::lazy_static;
+    use std::{collections::BTreeSet, iter::FromIterator};
 
     lazy_static! {
         static ref ENTRY: Entry = Entry::new(
@@ -175,9 +171,8 @@ mod tests {
     }
 
     mod users {
-        use std::{collections::BTreeSet, iter::FromIterator};
-
         use crate::gitlab::entry::tests::ENTRY;
+        use std::{collections::BTreeSet, iter::FromIterator};
 
         #[test]
         fn raises_an_error_if_no_users_have_been_added() {
@@ -221,9 +216,8 @@ mod tests {
     }
 
     mod groups {
-        use std::{collections::BTreeSet, iter::FromIterator};
-
         use crate::gitlab::entry::tests::ENTRY;
+        use std::{collections::BTreeSet, iter::FromIterator};
 
         #[test]
         fn raises_an_error_if_no_groups_have_been_added() {
@@ -249,9 +243,8 @@ mod tests {
     }
 
     mod add_matching_groups_from {
-        use std::{collections::BTreeSet, iter::FromIterator};
-
         use crate::gitlab::entry::tests::ENTRY;
+        use std::{collections::BTreeSet, iter::FromIterator};
 
         #[test]
         fn returns_only_mentioned_groups_case_insensitively() {
@@ -270,9 +263,8 @@ mod tests {
     }
 
     mod add_matching_users_from {
-        use std::{collections::BTreeSet, iter::FromIterator};
-
         use crate::gitlab::entry::tests::ENTRY;
+        use std::{collections::BTreeSet, iter::FromIterator};
 
         #[test]
         fn does_not_add_the_same_user_twice() {

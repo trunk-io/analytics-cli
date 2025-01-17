@@ -1,11 +1,10 @@
+use bundle::{parse_meta_from_tarball as parse_tarball, VersionedBundle};
+use context::{env, junit, repo};
 use futures::{future::Either, io::BufReader as BufReaderAsync, stream::TryStreamExt};
 use js_sys::Uint8Array;
 use std::{collections::HashMap, io::BufReader};
 use wasm_bindgen::prelude::*;
 use wasm_streams::{readable::sys, readable::ReadableStream};
-
-use bundle::{parse_meta_from_tarball as parse_tarball, VersionedBundle};
-use context::{env, junit, repo};
 
 #[wasm_bindgen]
 pub fn env_parse(env_vars: js_sys::Object) -> Option<env::parser::CIInfo> {

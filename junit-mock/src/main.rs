@@ -1,8 +1,7 @@
-use std::path::PathBuf;
-
 use anyhow::Result;
 use clap::Parser;
 use junit_mock::JunitMock;
+use std::path::PathBuf;
 
 #[derive(Debug, Parser)]
 pub struct Cli {

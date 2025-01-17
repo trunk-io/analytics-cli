@@ -1,6 +1,5 @@
-use indexmap::IndexMap;
-
 use super::{Entry, ErrorType, ReferenceExtractor, Section};
+use indexmap::IndexMap;
 
 pub mod section_parser_regex {
     use fancy_regex::Regex;
@@ -130,9 +129,8 @@ impl<'a> SectionParser<'a> {
 /// Reference: https://gitlab.com/gitlab-org/gitlab/-/blob/master/ee/spec/lib/gitlab/code_owners/section_parser_spec.rb
 #[cfg(test)]
 mod tests {
-    use lazy_static::lazy_static;
-
     use super::{SectionParser, SectionalData};
+    use lazy_static::lazy_static;
 
     lazy_static! {
         static ref SECTION: SectionalData = SectionalData::new();
@@ -149,11 +147,9 @@ mod tests {
         }
 
         mod when_line_is_a_section_header {
-            use std::iter::FromIterator;
-
-            use assert_matches::assert_matches;
-
             use crate::gitlab::{ErrorType, SectionParser, SectionalData};
+            use assert_matches::assert_matches;
+            use std::iter::FromIterator;
 
             #[test]
             fn parses_all_section_properties() {

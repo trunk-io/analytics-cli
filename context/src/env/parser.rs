@@ -1,3 +1,5 @@
+use super::EnvVars;
+use crate::string_safety::safe_truncate_string;
 #[cfg(feature = "ruby")]
 use magnus::{value::ReprValue, Module, Object};
 #[cfg(feature = "pyo3")]
@@ -7,10 +9,6 @@ use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pyclass_enum};
 use thiserror::Error;
 #[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::*;
-
-use crate::string_safety::safe_truncate_string;
-
-use super::EnvVars;
 
 // TODO(TRUNK-12908): Switch to using a crate for parsing the CI platform and related env vars
 mod ci_platform_env_key {

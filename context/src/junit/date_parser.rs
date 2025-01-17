@@ -1,7 +1,6 @@
-use std::time::Duration;
-
 use chrono::{DateTime as ChronoDateTime, FixedOffset};
 use speedate::{Date as SpeedateDate, DateTime as SpeedateDateTime};
+use std::time::Duration;
 
 #[derive(Debug, Copy, Clone)]
 enum DateType {

@@ -1,5 +1,4 @@
-use std::{collections::BTreeMap, io::BufReader};
-
+use crate::print::print_bep_results;
 use bundle::{FileSet, FileSetBuilder};
 use clap::{arg, Args};
 use codeowners::CodeOwners;
@@ -19,8 +18,7 @@ use context::{
     },
 };
 use quick_junit::Report;
-
-use crate::print::print_bep_results;
+use std::{collections::BTreeMap, io::BufReader};
 
 #[derive(Args, Clone, Debug)]
 pub struct ValidateArgs {

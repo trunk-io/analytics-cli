@@ -1,10 +1,9 @@
 use std::{collections::BTreeSet, iter::FromIterator};
 
 pub mod reference_extractor_regex {
+    use crate::gitlab::user;
     use fancy_regex::Regex;
     use lazy_static::lazy_static;
-
-    use crate::gitlab::user;
 
     lazy_static! {
         pub static ref EMAIL_REGEXP: Regex =
@@ -68,9 +67,8 @@ struct ReferenceExtractorMatches {
 /// Reference: https://gitlab.com/gitlab-org/gitlab/-/blob/master/ee/spec/lib/gitlab/code_owners/reference_extractor_spec.rb
 #[cfg(test)]
 mod tests {
-    use lazy_static::lazy_static;
-
     use super::ReferenceExtractor;
+    use lazy_static::lazy_static;
 
     const TEXT: &str = r#"
         This is a long text that mentions some users.
@@ -85,9 +83,8 @@ mod tests {
     }
 
     mod emails {
-        use std::{collections::BTreeSet, iter::FromIterator};
-
         use crate::gitlab::reference_extractor::tests::EXTRACTOR;
+        use std::{collections::BTreeSet, iter::FromIterator};
 
         #[test]
         fn includes_all_mentioned_email_addresses() {
@@ -117,9 +114,8 @@ mod tests {
             }
 
             mod when_valid_email_length {
-                use std::{collections::BTreeSet, iter::FromIterator};
-
                 use crate::gitlab::ReferenceExtractor;
+                use std::{collections::BTreeSet, iter::FromIterator};
 
                 #[test]
                 fn includes_the_email() {
@@ -134,9 +130,8 @@ mod tests {
             }
 
             mod when_invalid_email_first_part_length {
-                use std::{collections::BTreeSet, iter::FromIterator};
-
                 use crate::gitlab::ReferenceExtractor;
+                use std::{collections::BTreeSet, iter::FromIterator};
 
                 #[test]
                 fn doesnt_include_the_email() {
@@ -151,9 +146,8 @@ mod tests {
             }
 
             mod when_invalid_email_second_part_length {
-                use std::{collections::BTreeSet, iter::FromIterator};
-
                 use crate::gitlab::ReferenceExtractor;
+                use std::{collections::BTreeSet, iter::FromIterator};
 
                 #[test]
                 fn doesnt_include_the_email() {
@@ -170,9 +164,8 @@ mod tests {
     }
 
     mod names {
-        use std::{collections::BTreeSet, iter::FromIterator};
-
         use crate::gitlab::reference_extractor::tests::EXTRACTOR;
+        use std::{collections::BTreeSet, iter::FromIterator};
 
         #[test]
         fn includes_all_mentioned_usernames_and_groupnames() {
@@ -193,9 +186,8 @@ mod tests {
     }
 
     mod references {
-        use std::{collections::BTreeSet, iter::FromIterator};
-
         use crate::gitlab::reference_extractor::tests::EXTRACTOR;
+        use std::{collections::BTreeSet, iter::FromIterator};
 
         #[test]
         fn includes_all_user_references_once() {

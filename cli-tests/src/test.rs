@@ -1,15 +1,13 @@
-use std::{fs, io::BufReader};
-
+use crate::utils::{
+    generate_mock_codeowners, generate_mock_git_repo, generate_mock_valid_junit_xmls, CARGO_RUN,
+};
 use assert_cmd::Command;
 use assert_matches::assert_matches;
 use bundle::BundleMeta;
 use predicates::prelude::*;
+use std::{fs, io::BufReader};
 use tempfile::tempdir;
 use test_utils::mock_server::{MockServerBuilder, RequestPayload};
-
-use crate::utils::{
-    generate_mock_codeowners, generate_mock_git_repo, generate_mock_valid_junit_xmls, CARGO_RUN,
-};
 
 // NOTE: must be multi threaded to start a mock server
 #[tokio::test(flavor = "multi_thread")]

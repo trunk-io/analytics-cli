@@ -1,10 +1,9 @@
-use std::{cell::RefCell, env, fs};
-
 use chrono::prelude::*;
 #[cfg(feature = "ruby")]
 use magnus::{value::ReprValue, Module, Object};
 use prost_wkt_types::Timestamp;
 use proto::test_context::test_run::{TestCaseRun, TestCaseRunStatus, TestResult, UploaderMetadata};
+use std::{cell::RefCell, env, fs};
 #[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::wasm_bindgen;
 

@@ -1,11 +1,10 @@
+use futures_io::{AsyncBufRead, AsyncRead};
+use pyo3::{exceptions::PyValueError, prelude::*, types::PyBytes};
 use std::{
     cmp, io,
     pin::Pin,
     task::{Context, Poll},
 };
-
-use futures_io::{AsyncBufRead, AsyncRead};
-use pyo3::{exceptions::PyValueError, prelude::*, types::PyBytes};
 
 pub struct PyBytesReader<'py> {
     inner: Bound<'py, PyAny>,

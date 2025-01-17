@@ -3,6 +3,7 @@
 //! - We read BundleMetaV_* (old versions), incrementally, during parsing on services side
 //!
 
+use crate::{files::FileSet, CustomTag, Test};
 use codeowners::CodeOwners;
 use context::repo::BundleRepo;
 #[cfg(feature = "pyo3")]
@@ -15,8 +16,6 @@ use std::collections::HashMap;
 use tsify_next::Tsify;
 #[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::*;
-
-use crate::{files::FileSet, CustomTag, Test};
 
 pub const META_VERSION: &str = "1";
 // 0.5.29 was first version to include bundle_upload_id and serves as the base

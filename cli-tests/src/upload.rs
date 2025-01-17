@@ -1,5 +1,3 @@
-use std::{fs, io::BufReader};
-
 use crate::utils::{
     generate_mock_bazel_bep, generate_mock_codeowners, generate_mock_git_repo,
     generate_mock_valid_junit_xmls, CARGO_RUN,
@@ -13,6 +11,7 @@ use context::{
     bazel_bep::parser::BazelBepParser, junit::parser::JunitParser, repo::RepoUrlParts as Repo,
 };
 use predicates::prelude::*;
+use std::{fs, io::BufReader};
 use tempfile::tempdir;
 use test_utils::{
     inputs::get_test_file_path,

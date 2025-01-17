@@ -1,13 +1,10 @@
-#[cfg(target_os = "macos")]
-use std::io::Write;
-use std::{
-    collections::HashMap,
-    env,
-    io::BufReader,
-    path::Path,
-    time::{SystemTime, UNIX_EPOCH},
+use crate::{
+    api_client::ApiClient,
+    context_quarantine::{gather_quarantine_context, FailedTestsExtractor, QuarantineContext},
+    print::print_bep_results,
+    test_command::TestRunResult,
+    upload_command::UploadArgs,
 };
-
 use api::CreateBundleUploadResponse;
 use bundle::{
     parse_custom_tags, BundleMeta, BundleMetaBaseProps, BundleMetaDebugProps, BundleMetaJunitProps,
@@ -21,17 +18,18 @@ use context::{
     junit::{junit_path::JunitReportFileWithStatus, parser::JunitParser},
     repo::BundleRepo,
 };
+#[cfg(target_os = "macos")]
+use std::io::Write;
+use std::{
+    collections::HashMap,
+    env,
+    io::BufReader,
+    path::Path,
+    time::{SystemTime, UNIX_EPOCH},
+};
 use tempfile::TempDir;
 #[cfg(target_os = "macos")]
 use xcresult::XCResult;
-
-use crate::{
-    api_client::ApiClient,
-    context_quarantine::{gather_quarantine_context, FailedTestsExtractor, QuarantineContext},
-    print::print_bep_results,
-    test_command::TestRunResult,
-    upload_command::UploadArgs,
-};
 
 pub struct PreTestContext {
     pub meta: BundleMeta,

@@ -1,9 +1,4 @@
-use std::{fs, io::BufReader, time::Duration};
-
 use chrono::{NaiveTime, TimeDelta, Utc};
-use junit_mock::JunitMock;
-use quick_junit::Report;
-
 use context::junit::{
     self,
     parser::extra_attrs,
@@ -15,6 +10,9 @@ use context::junit::{
         JunitValidationIssue, JunitValidationLevel,
     },
 };
+use junit_mock::JunitMock;
+use quick_junit::Report;
+use std::{fs, io::BufReader, time::Duration};
 use tempfile::TempDir;
 
 fn new_mock_junit_options(

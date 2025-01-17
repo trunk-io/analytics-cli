@@ -1,5 +1,10 @@
+use crate::{FromPath, FromReader, OwnersOfPath};
 use glob::Pattern;
 use lazy_static::lazy_static;
+#[cfg(feature = "pyo3")]
+use pyo3::prelude::*;
+#[cfg(feature = "pyo3")]
+use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 use regex::Regex;
 use std::{
     fmt,
@@ -8,13 +13,6 @@ use std::{
     path::Path,
     str::FromStr,
 };
-
-#[cfg(feature = "pyo3")]
-use pyo3::prelude::*;
-#[cfg(feature = "pyo3")]
-use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
-
-use crate::{FromPath, FromReader, OwnersOfPath};
 
 /// Various types of owners
 ///

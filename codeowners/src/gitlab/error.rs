@@ -1,5 +1,4 @@
 use std::{error, fmt, path::PathBuf};
-
 use thiserror::Error;
 
 /// Reference: https://gitlab.com/gitlab-org/gitlab/-/blob/master/ee/lib/gitlab/code_owners/error.rb
