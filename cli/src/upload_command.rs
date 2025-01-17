@@ -1,5 +1,4 @@
-use api::client::ApiClient;
-use api::message::BundleUploadStatus;
+use api::{client::ApiClient, message::BundleUploadStatus};
 use bundle::{BundleMeta, BundlerUtil};
 use clap::{ArgAction, Args};
 use constants::EXIT_SUCCESS;

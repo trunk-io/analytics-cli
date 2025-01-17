@@ -8,7 +8,7 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-use api::message::CreateBundleUploadResponse;
+use api::{client::ApiClient, message::CreateBundleUploadResponse};
 use bundle::{
     parse_custom_tags, BundleMeta, BundleMetaBaseProps, BundleMetaDebugProps, BundleMetaJunitProps,
     FileSet, FileSetBuilder, QuarantineBulkTestStatus, META_VERSION,
@@ -31,7 +31,6 @@ use crate::{
     test_command::TestRunResult,
     upload_command::UploadArgs,
 };
-use api::client::ApiClient;
 
 pub struct PreTestContext {
     pub meta: BundleMeta,

@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use api::client::ApiClient;
 use bundle::{FileSet, FileSetBuilder, QuarantineBulkTestStatus, Test};
 use constants::{EXIT_FAILURE, EXIT_SUCCESS};
 use context::{
@@ -7,8 +8,6 @@ use context::{
     repo::RepoUrlParts,
 };
 use quick_junit::TestCaseStatus;
-
-use api::client::ApiClient;
 
 #[derive(Debug, Default, Clone)]
 pub struct QuarantineContext {
