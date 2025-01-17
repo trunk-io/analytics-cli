@@ -8,7 +8,7 @@ use context::{
 };
 use quick_junit::TestCaseStatus;
 
-use crate::api_client::ApiClient;
+use api::client::ApiClient;
 
 #[derive(Debug, Default, Clone)]
 pub struct QuarantineContext {
@@ -155,7 +155,7 @@ impl FailedTestsExtractor {
 
 pub async fn gather_quarantine_context(
     api_client: &ApiClient,
-    request: &api::GetQuarantineBulkTestStatusRequest,
+    request: &api::message::GetQuarantineConfigRequest,
     file_set_builder: &FileSetBuilder,
     failed_tests_extractor: Option<FailedTestsExtractor>,
     test_run_exit_code: Option<i32>,
@@ -178,20 +178,19 @@ pub async fn gather_quarantine_context(
         };
     }
 
-    let quarantine_config: api::QuarantineConfig =
-        if !failed_tests_extractor.failed_tests().is_empty() {
-            log::info!("Checking if failed tests can be quarantined");
-            let result = api_client.get_quarantining_config(request).await;
+    let quarantine_config = if !failed_tests_extractor.failed_tests().is_empty() {
+        log::info!("Checking if failed tests can be quarantined");
+        let result = api_client.get_quarantining_config(request).await;
 
-            if let Err(ref err) = result {
-                log::error!("{}", err);
-            }
+        if let Err(ref err) = result {
+            log::error!("{}", err);
+        }
 
-            result.unwrap_or_default()
-        } else {
-            log::debug!("No failed tests to quarantine");
-            api::QuarantineConfig::default()
-        };
+        result.unwrap_or_default()
+    } else {
+        log::debug!("No failed tests to quarantine");
+        api::message::GetQuarantineConfigResponse::default()
+    };
 
     // if quarantining is not enabled, return exit code and empty quarantine status
     if quarantine_config.is_disabled {

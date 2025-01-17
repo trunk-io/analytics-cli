@@ -1,11 +1,11 @@
-use api::BundleUploadStatus;
+use api::client::ApiClient;
+use api::message::BundleUploadStatus;
 use bundle::{BundleMeta, BundlerUtil};
 use clap::{ArgAction, Args};
 use constants::EXIT_SUCCESS;
 use context::bazel_bep::parser::BepParseResult;
 
 use crate::{
-    api_client::ApiClient,
     context::{
         gather_exit_code_and_quarantined_tests_context, gather_post_test_context,
         gather_pre_test_context, gather_upload_id_context, PreTestContext,
@@ -200,7 +200,7 @@ async fn upload_bundle(
     exit_code: i32,
 ) -> anyhow::Result<()> {
     api_client
-        .create_trunk_repo(&api::CreateRepoRequest {
+        .create_repo(&api::message::CreateRepoRequest {
             repo: meta.base_props.repo.repo.clone(),
             org_url_slug: meta.base_props.org.clone(),
             remote_urls: vec![meta.base_props.repo.repo_url.clone()],
@@ -218,7 +218,7 @@ async fn upload_bundle(
 
     if no_upload {
         if let Err(e) = api_client
-            .update_bundle_upload_status(&api::UpdateBundleUploadRequest {
+            .update_bundle_upload(&api::message::UpdateBundleUploadRequest {
                 id: upload.id.clone(),
                 upload_status: BundleUploadStatus::DryRun,
             })
@@ -235,7 +235,7 @@ async fn upload_bundle(
             .await?;
 
         if let Err(e) = api_client
-            .update_bundle_upload_status(&api::UpdateBundleUploadRequest {
+            .update_bundle_upload(&api::message::UpdateBundleUploadRequest {
                 id: upload.id.clone(),
                 upload_status: BundleUploadStatus::UploadComplete,
             })

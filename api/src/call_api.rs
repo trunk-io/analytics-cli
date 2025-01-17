@@ -80,7 +80,7 @@ where
             }
         });
 
-        let result = Retry::spawn(default_delay(), || (&mut self.action).run()).await;
+        let result = Retry::spawn(default_delay(), || self.action.run()).await;
         report_slow_progress_handle.abort();
         check_progress_handle.abort();
 

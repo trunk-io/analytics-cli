@@ -4,7 +4,7 @@ use crate::utils::{
     generate_mock_bazel_bep, generate_mock_codeowners, generate_mock_git_repo,
     generate_mock_valid_junit_xmls, CARGO_RUN,
 };
-use api::{BundleUploadStatus, CreateRepoRequest, UpdateBundleUploadRequest};
+use api::message::{BundleUploadStatus, CreateRepoRequest, UpdateBundleUploadRequest};
 use assert_cmd::Command;
 use assert_matches::assert_matches;
 use bundle::{BundleMeta, FileSetType};

@@ -8,7 +8,7 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-use api::CreateBundleUploadResponse;
+use api::message::CreateBundleUploadResponse;
 use bundle::{
     parse_custom_tags, BundleMeta, BundleMetaBaseProps, BundleMetaDebugProps, BundleMetaJunitProps,
     FileSet, FileSetBuilder, QuarantineBulkTestStatus, META_VERSION,
@@ -26,12 +26,12 @@ use tempfile::TempDir;
 use xcresult::XCResult;
 
 use crate::{
-    api_client::ApiClient,
     context_quarantine::{gather_quarantine_context, FailedTestsExtractor, QuarantineContext},
     print::print_bep_results,
     test_command::TestRunResult,
     upload_command::UploadArgs,
 };
+use api::client::ApiClient;
 
 pub struct PreTestContext {
     pub meta: BundleMeta,
@@ -253,7 +253,7 @@ pub async fn gather_exit_code_and_quarantined_tests_context(
     } else {
         gather_quarantine_context(
             api_client,
-            &api::GetQuarantineBulkTestStatusRequest {
+            &api::message::GetQuarantineConfigRequest {
                 repo: meta.base_props.repo.repo.clone(),
                 org_url_slug: meta.base_props.org.clone(),
                 test_identifiers: failed_tests_extractor.failed_tests().to_vec(),
@@ -275,7 +275,7 @@ pub async fn gather_upload_id_context(
     api_client: &ApiClient,
 ) -> anyhow::Result<CreateBundleUploadResponse> {
     let upload = api_client
-        .create_bundle_upload_intent(&api::CreateBundleUploadRequest {
+        .create_bundle_upload(&api::message::CreateBundleUploadRequest {
             repo: meta.base_props.repo.repo.clone(),
             org_url_slug: meta.base_props.org.clone(),
             client_version: format!("trunk-analytics-cli {}", meta.base_props.cli_version),

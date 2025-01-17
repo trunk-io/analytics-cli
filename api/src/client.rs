@@ -1,14 +1,12 @@
 use std::path::Path;
 
+use crate::call_api::CallApi;
+use crate::message;
 use anyhow::Context;
-use api;
-use call_api::CallApi;
 use constants::{DEFAULT_ORIGIN, TRUNK_PUBLIC_API_ADDRESS_ENV};
 use http::{header::HeaderMap, HeaderValue};
 use reqwest::{header, Client, Response, StatusCode};
 use tokio::fs;
-
-mod call_api;
 
 pub struct ApiClient {
     host: String,
@@ -26,7 +24,7 @@ impl ApiClient {
         if api_token.trim().is_empty() {
             return Err(anyhow::anyhow!("Trunk API token is required."));
         }
-        let api_token_header_value = HeaderValue::from_str(&api_token)
+        let api_token_header_value = HeaderValue::from_str(api_token)
             .map_err(|_| anyhow::Error::msg("Trunk API token is not ASCII"))?;
 
         let host = std::env::var(TRUNK_PUBLIC_API_ADDRESS_ENV)
@@ -69,7 +67,10 @@ impl ApiClient {
         })
     }
 
-    pub async fn create_trunk_repo(&self, request: &api::CreateRepoRequest) -> anyhow::Result<()> {
+    pub async fn create_repo(
+        &self,
+        request: &message::CreateRepoRequest,
+    ) -> anyhow::Result<message::CreateRepoResponse> {
         CallApi {
             action: || async {
                 let response = self
@@ -83,8 +84,13 @@ impl ApiClient {
                     &response,
                     CheckUnauthorized::Check,
                     CheckNotFound::DoNotCheck,
-                    |_| format!("Failed to create repo."),
-                )
+                    |_| "Failed to create repo.".to_string(),
+                )?;
+
+                response
+                    .json::<message::CreateRepoResponse>()
+                    .await
+                    .context("Failed to get response body as json.")
             },
             log_progress_message: |time_elapsed, _| {
                 format!("Communicating with Trunk services is taking longer than expected. It has taken {} seconds so far.", time_elapsed.as_secs())
@@ -97,10 +103,10 @@ impl ApiClient {
         .await
     }
 
-    pub async fn create_bundle_upload_intent(
+    pub async fn create_bundle_upload(
         &self,
-        request: &api::CreateBundleUploadRequest,
-    ) -> anyhow::Result<api::CreateBundleUploadResponse> {
+        request: &message::CreateBundleUploadRequest,
+    ) -> anyhow::Result<message::CreateBundleUploadResponse> {
         CallApi {
             action: || async {
                 let response = self
@@ -118,7 +124,7 @@ impl ApiClient {
                 )?;
 
                 response
-                    .json::<api::CreateBundleUploadResponse>()
+                    .json::<message::CreateBundleUploadResponse>()
                     .await
                     .context("Failed to get response body as json.")
             },
@@ -135,8 +141,8 @@ impl ApiClient {
 
     pub async fn get_quarantining_config(
         &self,
-        request: &api::GetQuarantineBulkTestStatusRequest,
-    ) -> anyhow::Result<api::QuarantineConfig> {
+        request: &message::GetQuarantineConfigRequest,
+    ) -> anyhow::Result<message::GetQuarantineConfigResponse> {
         CallApi {
             action: || async {
                 let response = self
@@ -160,7 +166,7 @@ impl ApiClient {
                 )?;
 
                 response
-                    .json::<api::QuarantineConfig>()
+                    .json::<message::GetQuarantineConfigResponse>()
                     .await
                     .context("Failed to get response body as json.")
             },
@@ -211,10 +217,10 @@ impl ApiClient {
         .await
     }
 
-    pub async fn update_bundle_upload_status(
+    pub async fn update_bundle_upload(
         &self,
-        request: &api::UpdateBundleUploadRequest,
-    ) -> anyhow::Result<()> {
+        request: &message::UpdateBundleUploadRequest,
+    ) -> anyhow::Result<message::UpdateBundleUploadResponse> {
         CallApi {
             action: || async {
                 let response = self
@@ -234,7 +240,11 @@ impl ApiClient {
                             request.upload_status
                         )
                     },
-                )
+                )?;
+                response
+                    .json::<message::UpdateBundleUploadResponse>()
+                    .await
+                    .context("Failed to get response body as json.")
             },
             log_progress_message: |time_elapsed, _| {
                 format!("Communicating with Trunk services is taking longer than expected. It has taken {} seconds so far.", time_elapsed.as_secs())
@@ -292,6 +302,7 @@ fn status_code_help<T: FnMut(&Response) -> String>(
 mod tests {
     use std::time::Duration;
 
+    use crate::message;
     use axum::{http::StatusCode, response::Response};
     use tempfile::NamedTempFile;
     use test_utils::{mock_logger, mock_sentry, mock_server::MockServerBuilder};
@@ -329,8 +340,8 @@ mod tests {
             .unwrap()
             .iter()
             .filter(|(_, message)| message.starts_with("Uploading bundle to S3"))
-            .cloned()
             .take(2)
+            .cloned()
             .collect::<Vec<_>>();
         assert_eq!(first_two_slow_s3_upload_logs, vec![
             (log::Level::Info, String::from("Uploading bundle to S3 is taking longer than expected. It has taken 2 seconds so far.")),
@@ -368,7 +379,7 @@ mod tests {
         api_client.host.clone_from(&state.host);
 
         assert!(api_client
-            .get_quarantining_config(&api::GetQuarantineBulkTestStatusRequest {
+            .get_quarantining_config(&message::GetQuarantineConfigRequest {
                 repo: context::repo::RepoUrlParts {
                     host: String::from("host"),
                     owner: String::from("owner"),
