@@ -3,9 +3,9 @@ use std::sync::{Arc, Mutex};
 use crate::utils::{
     generate_mock_codeowners, generate_mock_git_repo, generate_mock_valid_junit_xmls, CARGO_RUN,
 };
-use api::{
-    CreateBundleUploadRequest, CreateBundleUploadResponse, GetQuarantineBulkTestStatusRequest,
-    QuarantineConfig,
+use api::message::{
+    CreateBundleUploadRequest, CreateBundleUploadResponse, GetQuarantineConfigRequest,
+    GetQuarantineConfigResponse,
 };
 use assert_cmd::Command;
 use axum::{extract::State, Json};
@@ -36,9 +36,7 @@ async fn quarantines_tests_regardless_of_upload() {
             Arc::new(Mutex::new(QuarantineConfigResponse::None));
     }
     mock_server_builder.set_get_quarantining_config_handler(
-        |Json(get_quarantine_bulk_test_status_request): Json<
-            GetQuarantineBulkTestStatusRequest,
-        >| {
+        |Json(get_quarantine_bulk_test_status_request): Json<GetQuarantineConfigRequest>| {
             let mut test_ids = get_quarantine_bulk_test_status_request
                 .test_identifiers
                 .into_iter()
@@ -51,7 +49,7 @@ async fn quarantines_tests_regardless_of_upload() {
                 QuarantineConfigResponse::All => test_ids,
             };
             async {
-                Json(QuarantineConfig {
+                Json(GetQuarantineConfigResponse {
                     is_disabled: false,
                     quarantined_tests,
                 })

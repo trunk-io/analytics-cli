@@ -5,9 +5,10 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use api::{
-    CreateBundleUploadRequest, CreateBundleUploadResponse, CreateRepoRequest,
-    GetQuarantineBulkTestStatusRequest, QuarantineConfig, UpdateBundleUploadRequest,
+use api::message::{
+    CreateBundleUploadRequest, CreateBundleUploadResponse, CreateRepoRequest, CreateRepoResponse,
+    GetQuarantineConfigRequest, GetQuarantineConfigResponse, UpdateBundleUploadRequest,
+    UpdateBundleUploadResponse,
 };
 use axum::{
     body::Bytes,
@@ -26,7 +27,7 @@ pub enum RequestPayload {
     CreateRepo(CreateRepoRequest),
     CreateBundleUpload(CreateBundleUploadRequest),
     UpdateBundleUpload(UpdateBundleUploadRequest),
-    GetQuarantineBulkTestStatus(GetQuarantineBulkTestStatusRequest),
+    GetQuarantineBulkTestStatus(GetQuarantineConfigRequest),
     S3Upload(PathBuf),
 }
 
@@ -151,13 +152,13 @@ pub type SharedMockServerState = Arc<MockServerState>;
 async fn repo_create_handler(
     State(state): State<SharedMockServerState>,
     Json(create_repo_request): Json<CreateRepoRequest>,
-) -> Response<String> {
+) -> Json<CreateRepoResponse> {
     state
         .requests
         .lock()
         .unwrap()
         .push(RequestPayload::CreateRepo(create_repo_request));
-    Response::new(String::from("OK"))
+    Json(CreateRepoResponse {})
 }
 
 #[axum::debug_handler]
@@ -185,7 +186,7 @@ pub async fn create_bundle_handler(
 pub async fn update_bundle_handler(
     State(state): State<SharedMockServerState>,
     Json(update_bundle_upload_request): Json<UpdateBundleUploadRequest>,
-) -> Response<String> {
+) -> Json<UpdateBundleUploadResponse> {
     state
         .requests
         .lock()
@@ -193,14 +194,14 @@ pub async fn update_bundle_handler(
         .push(RequestPayload::UpdateBundleUpload(
             update_bundle_upload_request,
         ));
-    Response::new(String::from("OK"))
+    Json(UpdateBundleUploadResponse {})
 }
 
 #[axum::debug_handler]
 pub async fn get_quarantining_config_handler(
     State(state): State<SharedMockServerState>,
-    Json(get_quarantine_bulk_test_status_request): Json<GetQuarantineBulkTestStatusRequest>,
-) -> Json<QuarantineConfig> {
+    Json(get_quarantine_bulk_test_status_request): Json<GetQuarantineConfigRequest>,
+) -> Json<GetQuarantineConfigResponse> {
     state
         .requests
         .lock()
@@ -208,7 +209,7 @@ pub async fn get_quarantining_config_handler(
         .push(RequestPayload::GetQuarantineBulkTestStatus(
             get_quarantine_bulk_test_status_request,
         ));
-    Json(QuarantineConfig {
+    Json(GetQuarantineConfigResponse {
         is_disabled: false,
         quarantined_tests: Vec::new(),
     })
