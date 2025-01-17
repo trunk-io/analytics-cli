@@ -72,7 +72,7 @@ fn parse_report<T: AsRef<[u8]>>(serialized_report: T) -> Report {
         .parse(BufReader::new(&serialized_report.as_ref()[..]))
         .unwrap();
 
-    assert_eq!(junit_parser.errors(), &[]);
+    assert_eq!(junit_parser.issues(), &[]);
 
     let mut parsed_reports = junit_parser.into_reports();
     assert_eq!(parsed_reports.len(), 1);

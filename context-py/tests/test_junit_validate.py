@@ -1,9 +1,8 @@
 def test_junit_validate_valid():
-    import typing as PT
     from datetime import datetime, timezone
 
     from context_py import (
-        BindingsReport,
+        BindingsParseResult,
         JunitValidationLevel,
         junit_parse,
         junit_validate,
@@ -26,10 +25,9 @@ def test_junit_validate_valid():
     </testsuites>
    """
 
-    reports: PT.List[BindingsReport] = junit_parse(str.encode(valid_junit_xml))
-
-    assert len(reports) == 1
-    report = reports[0]
+    parse_result: BindingsParseResult = junit_parse(str.encode(valid_junit_xml))
+    report = parse_result.report
+    assert report is not None
 
     junit_report_validation = junit_validate(report)
 
@@ -47,11 +45,10 @@ def test_junit_validate_valid():
 
 
 def test_junit_validate_suboptimal():
-    import typing as PT
     from datetime import datetime, timedelta, timezone
 
     from context_py import (
-        BindingsReport,
+        BindingsParseResult,
         JunitValidationLevel,
         JunitValidationType,
         junit_parse,
@@ -73,10 +70,9 @@ def test_junit_validate_suboptimal():
     </testsuites>
    """
 
-    reports: PT.List[BindingsReport] = junit_parse(str.encode(suboptimal_junit_xml))
-
-    assert len(reports) == 1
-    report = reports[0]
+    parse_result: BindingsParseResult = junit_parse(str.encode(suboptimal_junit_xml))
+    report = parse_result.report
+    assert report is not None
 
     junit_report_validation = junit_validate(report)
 

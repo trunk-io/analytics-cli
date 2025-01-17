@@ -12,10 +12,21 @@ use quick_junit::{
 #[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::*;
 
-use super::validator::{
-    JunitReportValidation, JunitReportValidationFlatIssue, JunitTestSuiteValidation,
-    JunitValidationLevel, JunitValidationType,
+use super::{
+    parser::JunitParseFlatIssue,
+    validator::{
+        JunitReportValidation, JunitReportValidationFlatIssue, JunitTestSuiteValidation,
+        JunitValidationLevel, JunitValidationType,
+    },
 };
+
+#[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass(get_all))]
+#[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
+#[derive(Clone, Debug)]
+pub struct BindingsParseResult {
+    pub report: Option<BindingsReport>,
+    pub issues: Vec<JunitParseFlatIssue>,
+}
 
 #[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass(get_all))]
 #[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]

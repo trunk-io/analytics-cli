@@ -93,6 +93,23 @@ fn validate_invalid_junits_no_codeowners() {
 }
 
 #[test]
+fn validate_empty_xml() {
+    let temp_dir = tempdir().unwrap();
+    let empty_xml = "";
+    write_junit_xml_to_dir(empty_xml, &temp_dir);
+
+    let assert = Command::new(CARGO_RUN.path())
+        .current_dir(&temp_dir)
+        .args(["validate", "--junit-paths", "./*"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("1 validation warning"))
+        .stdout(predicate::str::contains("OPTIONAL - no reports found"));
+
+    println!("{assert}");
+}
+
+#[test]
 fn validate_invalid_xml() {
     let temp_dir = tempdir().unwrap();
     let invalid_xml = "<bad<attrs<><><";
