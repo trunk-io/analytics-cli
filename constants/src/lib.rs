@@ -20,6 +20,7 @@ pub const CODEOWNERS_LOCATIONS: &[&str] = &[".github", ".bitbucket", ".", "docs"
 
 pub const DEFAULT_ORIGIN: &str = "https://api.trunk.io";
 pub const TRUNK_PUBLIC_API_ADDRESS_ENV: &str = "TRUNK_PUBLIC_API_ADDRESS";
+pub const TRUNK_API_CLIENT_RETRY_COUNT_ENV: &str = "TRUNK_API_CLIENT_RETRY_COUNT";
 pub const ENVS_TO_GET: &[&str] = &[
     "CI",
     "GIT_BRANCH",
