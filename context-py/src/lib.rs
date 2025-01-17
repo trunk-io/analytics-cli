@@ -66,17 +66,14 @@ fn junit_parse(xml: Vec<u8>) -> PyResult<junit::bindings::BindingsParseResult> {
     let issues_flat = junit_parser.issues_flat();
     let mut parsed_reports = junit_parser.into_reports();
 
-    if parsed_reports.len() != 1 {
-        return Ok(junit::bindings::BindingsParseResult {
-            report: None,
-            issues: issues_flat,
-        });
-    }
+    let report = if let (1, Some(parsed_report)) = (parsed_reports.len(), parsed_reports.pop()) {
+        Some(junit::bindings::BindingsReport::from(parsed_report))
+    } else {
+        None
+    };
 
     Ok(junit::bindings::BindingsParseResult {
-        report: Some(junit::bindings::BindingsReport::from(
-            parsed_reports.remove(0),
-        )),
+        report,
         issues: issues_flat,
     })
 }

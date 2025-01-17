@@ -30,7 +30,7 @@ pub struct ValidateArgs {
         conflicts_with = "bazel_bep_path",
         value_delimiter = ',',
         value_parser = clap::builder::NonEmptyStringValueParser::new(),
-        help = "Comma-separated list of glob paths to junit files."
+        help = "Comma-separated list of glob paths to junit files.",
     )]
     junit_paths: Vec<String>,
     #[arg(
@@ -39,6 +39,8 @@ pub struct ValidateArgs {
         help = "Path to bazel build event protocol JSON file."
     )]
     bazel_bep_path: Option<String>,
+    #[arg(long, help = "Show warning-level log messages in output.", hide = true)]
+    show_warnings: bool,
     #[arg(long, help = "Value to override CODEOWNERS file or directory path.")]
     pub codeowners_path: Option<String>,
 }
@@ -47,6 +49,7 @@ pub async fn run_validate(validate_args: ValidateArgs) -> anyhow::Result<i32> {
     let ValidateArgs {
         junit_paths,
         bazel_bep_path,
+        show_warnings: _,
         codeowners_path,
     } = validate_args;
 
@@ -212,32 +215,25 @@ fn print_parse_issues(parse_issues: &JunitFileToParseIssues) -> (usize, usize) {
             println!();
         }
 
-        let mut fatal_parse_error: Option<&anyhow::Error> = None;
-        let mut issues: &[JunitParseIssue] = &[];
-        let num_parse_errors: usize;
-        let mut num_parse_warnings: usize = 0;
-
-        match parse_result {
-            Ok(..) => {
-                issues = parse_issues;
-                num_parse_errors = issues
-                    .iter()
-                    .filter(|issue| {
-                        JunitParseIssueLevel::from(*issue) == JunitParseIssueLevel::Invalid
-                    })
-                    .count();
-                num_parse_warnings = issues
-                    .iter()
-                    .filter(|issue| {
-                        JunitParseIssueLevel::from(*issue) == JunitParseIssueLevel::SubOptimal
-                    })
-                    .count();
-            }
-            Err(e) => {
-                fatal_parse_error = Some(e);
-                num_parse_errors = 1;
-            }
-        }
+        let (fatal_parse_error, issues, num_parse_errors, num_parse_warnings) =
+            if let Err(e) = parse_result {
+                (Some(e), &Vec::new(), 1, 0)
+            } else {
+                let (num_parse_errors, num_parse_warnings) =
+                    parse_issues.iter().fold((0, 0), |mut acc, issue| {
+                        match JunitParseIssueLevel::from(issue) {
+                            JunitParseIssueLevel::Invalid => {
+                                acc.0 += 1;
+                            }
+                            JunitParseIssueLevel::SubOptimal => {
+                                acc.1 += 1;
+                            }
+                            _ => (),
+                        }
+                        acc
+                    });
+                (None, parse_issues, num_parse_errors, num_parse_warnings)
+            };
 
         let num_parse_errors_str = if num_parse_errors > 0 {
             num_parse_errors.to_string().red()
