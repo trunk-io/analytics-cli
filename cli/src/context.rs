@@ -242,12 +242,15 @@ pub async fn gather_exit_code_and_quarantined_tests_context(
                 ..
             },
     } = if !use_quarantining {
-        QuarantineContext {
-            exit_code: test_run_result
-                .as_ref()
-                .map(|t| t.exit_code)
-                .unwrap_or_else(|| failed_tests_extractor.exit_code()),
-            ..Default::default()
+        // use the exit code of the test run result if exists
+        if let Some(test_run_result) = test_run_result {
+            QuarantineContext {
+                exit_code: test_run_result.exit_code,
+                ..Default::default()
+            }
+        } else {
+            // default to success if no test run result (i.e. `upload`)
+            QuarantineContext::default()
         }
     } else {
         gather_quarantine_context(

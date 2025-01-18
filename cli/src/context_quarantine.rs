@@ -167,7 +167,7 @@ pub async fn gather_quarantine_context(
         )
     });
 
-    let exit_code = test_run_exit_code.unwrap_or_else(|| failed_tests_extractor.exit_code());
+    let mut exit_code = test_run_exit_code.unwrap_or(EXIT_SUCCESS);
 
     if file_set_builder.no_files_found() {
         log::info!("No JUnit files found, not quarantining any tests");
@@ -198,6 +198,9 @@ pub async fn gather_quarantine_context(
             exit_code,
             quarantine_status: QuarantineBulkTestStatus::default(),
         };
+    } else {
+        // quarantining is enabled, continue with quarantine process and update exit code
+        exit_code = test_run_exit_code.unwrap_or_else(|| failed_tests_extractor.exit_code());
     }
 
     // quarantine the failed tests
