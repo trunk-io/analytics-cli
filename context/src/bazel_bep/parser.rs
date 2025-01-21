@@ -1,10 +1,12 @@
-use crate::junit::junit_path::{JunitReportFileWithStatus, JunitReportStatus};
+use std::{collections::HashMap, path::PathBuf};
+
 use anyhow::Ok;
 use bazel_bep::types::build_event_stream::{
     build_event::Payload, build_event_id::Id, file::File::Uri, BuildEvent,
 };
 use serde_json::Deserializer;
-use std::{collections::HashMap, path::PathBuf};
+
+use crate::junit::junit_path::{JunitReportFileWithStatus, JunitReportStatus};
 
 #[derive(Debug, Clone, Default)]
 pub struct TestResult {
@@ -179,8 +181,9 @@ impl BazelBepParser {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use test_utils::inputs::get_test_file_path;
+
+    use super::*;
 
     const SIMPLE_EXAMPLE: &str = "test_fixtures/bep_example";
     const EMPTY_EXAMPLE: &str = "test_fixtures/bep_empty";

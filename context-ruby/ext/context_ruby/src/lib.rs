@@ -1,5 +1,6 @@
-use context::{env, repo};
 use std::collections::HashMap;
+
+use context::{env, repo};
 use test_report::report;
 
 pub fn env_parse(env_vars: magnus::RHash) -> Option<env::parser::CIInfo> {

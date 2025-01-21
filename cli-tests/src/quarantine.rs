@@ -1,8 +1,5 @@
 use std::sync::{Arc, Mutex};
 
-use crate::utils::{
-    generate_mock_codeowners, generate_mock_git_repo, generate_mock_valid_junit_xmls, CARGO_RUN,
-};
 use api::message::{
     CreateBundleUploadRequest, CreateBundleUploadResponse, GetQuarantineConfigRequest,
     GetQuarantineConfigResponse,
@@ -14,6 +11,10 @@ use lazy_static::lazy_static;
 use predicates::prelude::*;
 use tempfile::tempdir;
 use test_utils::mock_server::{MockServerBuilder, SharedMockServerState};
+
+use crate::utils::{
+    generate_mock_codeowners, generate_mock_git_repo, generate_mock_valid_junit_xmls, CARGO_RUN,
+};
 
 #[derive(Debug, Clone, Copy)]
 enum QuarantineConfigResponse {

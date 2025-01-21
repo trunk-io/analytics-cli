@@ -12,20 +12,18 @@ use std::{
     path::Path,
 };
 
+pub use entry::*;
+pub use error::*;
+pub use file::*;
 #[cfg(feature = "pyo3")]
 use pyo3::prelude::*;
 #[cfg(feature = "pyo3")]
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
-
-use crate::{FromPath, FromReader, OwnersOfPath};
-
-pub use entry::*;
-pub use error::*;
-pub use file::*;
-
 pub use reference_extractor::*;
 pub use section::*;
 pub use section_parser::*;
+
+use crate::{FromPath, FromReader, OwnersOfPath};
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum GitLabOwner {

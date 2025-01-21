@@ -640,9 +640,8 @@ mod parse_attr {
     use chrono::{DateTime, FixedOffset};
     use quick_xml::events::BytesStart;
 
-    use crate::junit::date_parser::JunitDateParser;
-
     use super::{extra_attrs, unescape_and_truncate};
+    use crate::junit::date_parser::JunitDateParser;
 
     pub fn name<'a>(e: &'a BytesStart<'a>) -> Option<Cow<'a, str>> {
         parse_string_attr(e, "name")
