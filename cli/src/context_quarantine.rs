@@ -258,9 +258,10 @@ pub async fn gather_quarantine_context(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use bundle::{BundledFile, FileSetType};
     use test_utils::inputs::get_test_file_path;
+
+    use super::*;
 
     /// Contains 1 failure at 1:00
     const JUNIT0_FAIL: &str = "test_fixtures/junit0_fail.xml";

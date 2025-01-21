@@ -1,12 +1,13 @@
 use std::path::Path;
 
-use crate::call_api::CallApi;
-use crate::message;
 use anyhow::Context;
 use constants::{DEFAULT_ORIGIN, TRUNK_PUBLIC_API_ADDRESS_ENV};
 use http::{header::HeaderMap, HeaderValue};
 use reqwest::{header, Client, Response, StatusCode};
 use tokio::fs;
+
+use crate::call_api::CallApi;
+use crate::message;
 
 pub struct ApiClient {
     host: String,
@@ -302,15 +303,14 @@ fn status_code_help<T: FnMut(&Response) -> String>(
 mod tests {
     use std::time::Duration;
 
-    use crate::message;
     use axum::{http::StatusCode, response::Response};
+    use context;
     use tempfile::NamedTempFile;
     use test_utils::{mock_logger, mock_sentry, mock_server::MockServerBuilder};
     use tokio::time;
 
-    use context;
-
     use super::ApiClient;
+    use crate::message;
 
     #[tokio::test(start_paused = true)]
     async fn logs_and_reports_for_slow_api_calls() {

@@ -4,9 +4,8 @@ use fancy_regex::Regex;
 use indexmap::IndexMap;
 use lazy_static::lazy_static;
 
-use crate::gitlab::{ErrorType, ReferenceExtractor};
-
 use super::{Entry, Error, Section, SectionParser};
+use crate::gitlab::{ErrorType, ReferenceExtractor};
 
 pub type ParsedData = IndexMap<String, IndexMap<String, Entry>>;
 

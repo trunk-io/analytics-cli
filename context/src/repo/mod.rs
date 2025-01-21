@@ -1,3 +1,7 @@
+use std::path::PathBuf;
+#[cfg(feature = "git-access")]
+use std::process::Command;
+
 use anyhow::Context;
 use lazy_static::lazy_static;
 #[cfg(feature = "pyo3")]
@@ -6,9 +10,6 @@ use pyo3::prelude::*;
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
-#[cfg(feature = "git-access")]
-use std::process::Command;
 #[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::*;
 

@@ -1,9 +1,10 @@
+use std::str;
+use std::{fs, process::Command};
+
 use context::repo::RepoUrlParts;
 use indexmap::indexmap;
 use lazy_static::lazy_static;
 use quick_junit::{NonSuccessKind, Report, TestCase, TestCaseStatus, TestSuite, XmlString};
-use std::str;
-use std::{fs, process::Command};
 
 const RESULTS_FIELD_VALUE: &str = "_value";
 const RESULTS_FIELD_VALUES: &str = "_values";

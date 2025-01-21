@@ -1,7 +1,8 @@
+use std::{fs::File, path::Path};
+
 use context::repo::RepoUrlParts;
 use flate2::read::GzDecoder;
 use lazy_static::lazy_static;
-use std::{fs::File, path::Path};
 use tar::Archive;
 use temp_testdir::TempDir;
 use xcresult::XCResult;

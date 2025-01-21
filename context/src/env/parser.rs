@@ -8,9 +8,8 @@ use thiserror::Error;
 #[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::*;
 
-use crate::string_safety::safe_truncate_string;
-
 use super::EnvVars;
+use crate::string_safety::safe_truncate_string;
 
 // TODO(TRUNK-12908): Switch to using a crate for parsing the CI platform and related env vars
 mod ci_platform_env_key {

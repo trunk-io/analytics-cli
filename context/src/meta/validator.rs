@@ -6,11 +6,10 @@ use thiserror::Error;
 #[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::*;
 
+use super::MetaContext;
 use crate::env::validator::{
     validate as env_validate, EnvValidationIssue, EnvValidationIssueSubOptimal,
 };
-
-use super::MetaContext;
 
 #[cfg_attr(feature = "pyo3", gen_stub_pyclass_enum, pyclass(eq, eq_int))]
 #[cfg_attr(feature = "wasm", wasm_bindgen)]

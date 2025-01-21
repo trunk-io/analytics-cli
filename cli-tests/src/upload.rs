@@ -1,10 +1,6 @@
 use std::sync::{Arc, Mutex};
 use std::{fs, io::BufReader};
 
-use crate::utils::{
-    generate_mock_bazel_bep, generate_mock_codeowners, generate_mock_git_repo,
-    generate_mock_valid_junit_xmls, CARGO_RUN,
-};
 use api::message::{
     BundleUploadStatus, CreateBundleUploadRequest, CreateBundleUploadResponse, CreateRepoRequest,
     GetQuarantineConfigRequest, GetQuarantineConfigResponse, UpdateBundleUploadRequest,
@@ -24,6 +20,11 @@ use tempfile::tempdir;
 use test_utils::{
     inputs::get_test_file_path,
     mock_server::{MockServerBuilder, RequestPayload, SharedMockServerState},
+};
+
+use crate::utils::{
+    generate_mock_bazel_bep, generate_mock_codeowners, generate_mock_git_repo,
+    generate_mock_valid_junit_xmls, CARGO_RUN,
 };
 
 // NOTE: must be multi threaded to start a mock server
