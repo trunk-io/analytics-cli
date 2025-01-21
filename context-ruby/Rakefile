@@ -1,8 +1,9 @@
 # frozen_string_literal: true
 
 require "rake/testtask"
+require "bundler"
 require "rake/extensiontask"
-require 'rspec/core/rake_task'
+#require 'rspec/core/rake_task'
 #require 'rake/release/task'
 require "rb_sys/extensiontask"
 
@@ -24,10 +25,10 @@ Rake::ExtensionTask.new("context_ruby", gemspec) do |c|
   end
 end
 
-RSpec::Core::RakeTask.new(:test) do |t|
-  Rake::Task['compile'].invoke
-  t.pattern = 'test/*_spec.rb'
-end
+#RSpec::Core::RakeTask.new(:test) do |t|
+#  Rake::Task['compile'].invoke
+#  t.pattern = 'test/*_spec.rb'
+#end
 
 """
 Rake::Release::Task.new do |spec|
