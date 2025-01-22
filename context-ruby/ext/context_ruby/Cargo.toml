@@ -24,5 +24,6 @@ reqwest = { version = "*", default-features = false, features = [
   "native-tls-vendored",
   "native-tls-alpn",
   "stream",
+  "http2",
 ] }
 home = "=0.5.9"
