@@ -3,14 +3,10 @@
 require "rake/testtask"
 require "bundler"
 require "rake/extensiontask"
-#require 'rspec/core/rake_task'
+require 'rspec/core/rake_task'
 #require 'rake/release/task'
 require "rb_sys/extensiontask"
 
-#RSpec::Core::RakeTask.new(:test) do |t|
-#  Rake::Task['compile'].invoke
-#  t.pattern = 'test/*_spec.rb'
-#end
 
 require "bundler/gem_tasks"
 require "rake/testtask"
@@ -27,15 +23,13 @@ RbSys::ExtensionTask.new("context_ruby", GEMSPEC) do |ext|
   ext.lib_dir = "lib/context_ruby"
 end
 
-Rake::TestTask.new do |t|
-  t.libs << "lib"
-  t.libs << "test"
-  t.test_files = FileList["test/*_test.rb"]
+RSpec::Core::RakeTask.new(:test) do |t|
+  Rake::Task['compile'].invoke
+  t.pattern = FileList["test/*_spec.rb"]
 end
 
-desc "Build native extension for a given platform (i.e. `rake 'native[x86_64-linux]'`)"
+desc "Build native extension for a provided platform"
 task :native, [:platform] do |_t, platform:|
-  # There's some strange magnus<->rb_sys crate dependency error that occurs when targeting Ruby 2.6
   Dir.chdir '..' do
     sh "rb-sys-dock", "--platform", platform, "--mount-toolchains", "--directory", "context-ruby", "--build", "--ruby-versions", "3.3"
   end
