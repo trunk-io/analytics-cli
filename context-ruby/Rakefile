@@ -1,26 +1,17 @@
 # frozen_string_literal: true
 
 require "rake/testtask"
-require "bundler"
 require "rake/extensiontask"
 require 'rspec/core/rake_task'
-#require 'rake/release/task'
 require "rb_sys/extensiontask"
-
-
 require "bundler/gem_tasks"
-require "rake/testtask"
-require "rake/extensiontask"
-require "rb_sys/extensiontask"
 
 GEMSPEC_PATH = "context_ruby.gemspec"
 GEMSPEC = Gem::Specification.load('context_ruby.gemspec') || abort('Could not load trunk_analytics.gemspec')
 
-
-task default: :test
-
 RbSys::ExtensionTask.new("context_ruby", GEMSPEC) do |ext|
   ext.lib_dir = "lib/context_ruby"
+  ext.cross_compile = true
 end
 
 RSpec::Core::RakeTask.new(:test) do |t|
@@ -36,3 +27,4 @@ task :native, [:platform] do |_t, platform:|
 end
 
 task build: :compile
+task default: :test

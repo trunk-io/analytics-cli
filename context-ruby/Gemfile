@@ -9,9 +9,4 @@ gem 'rake-compiler', '1.2.0'
 gem 'rspec'
 gem 'rspec-core'
 gem 'test-unit'
-
-# gem 'rake-release'
 gem 'rb_sys', '=0.9.98'
-
-# gem "rake-compiler-dock", "~> 1.8"
-# gem "libclang", "~> 14.0.6"
