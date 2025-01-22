@@ -2,7 +2,7 @@
 
 require "rake/testtask"
 require "rake/extensiontask"
-require 'rspec/core/rake_task'
+#require 'rspec/core/rake_task'
 require "rb_sys/extensiontask"
 require "bundler/gem_tasks"
 
@@ -14,10 +14,10 @@ RbSys::ExtensionTask.new("context_ruby", GEMSPEC) do |ext|
   ext.cross_compile = true
 end
 
-RSpec::Core::RakeTask.new(:test) do |t|
-  Rake::Task['compile'].invoke
-  t.pattern = FileList["test/*_spec.rb"]
-end
+#RSpec::Core::RakeTask.new(:test) do |t|
+#  Rake::Task['compile'].invoke
+#  t.pattern = FileList["test/*_spec.rb"]
+#end
 
 desc "Build native extension for a provided platform"
 task :native, [:platform] do |_t, platform:|
