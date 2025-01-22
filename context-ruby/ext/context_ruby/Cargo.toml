@@ -25,3 +25,4 @@ reqwest = { version = "*", default-features = false, features = [
   "native-tls-alpn",
   "stream",
 ] }
+home = "=0.5.9"

@@ -1,3 +1,11 @@
+PATH
+  remote: .
+  specs:
+    trunk_analytics (0.0.2)
+      rb_sys
+      rspec (~> 3.0)
+      rspec-core (~> 3.0)
+
 GEM
   remote: https://rubygems.org/
   specs:
@@ -36,6 +44,7 @@ DEPENDENCIES
   rspec
   rspec-core
   test-unit
+  trunk_analytics!
 
 BUNDLED WITH
    2.4.4

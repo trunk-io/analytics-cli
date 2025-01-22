@@ -7,30 +7,38 @@ require "rake/extensiontask"
 #require 'rake/release/task'
 require "rb_sys/extensiontask"
 
-platforms = [
-  "x86_64-linux",
-  "x86_64-darwin",
-  "arm64-darwin",
-  "arm64-darwin",
-]
-
-gemspec = Bundler.load_gemspec("trunk_analytics.gemspec")
-Rake::ExtensionTask.new("context_ruby", gemspec) do |c|
-  c.lib_dir = "lib/context_ruby"
-  c.cross_compile = true
-  c.cross_platform = platforms
-  c.cross_compiling do |spec|
-    spec.dependencies.reject! { |dep| dep.name == "rb_sys" }
-    spec.files.reject! { |file| File.fnmatch?("ext/*", file, File::FNM_EXTGLOB) }
-  end
-end
-
 #RSpec::Core::RakeTask.new(:test) do |t|
 #  Rake::Task['compile'].invoke
 #  t.pattern = 'test/*_spec.rb'
 #end
 
-"""
-Rake::Release::Task.new do |spec|
+require "bundler/gem_tasks"
+require "rake/testtask"
+require "rake/extensiontask"
+require "rb_sys/extensiontask"
+
+GEMSPEC_PATH = "context_ruby.gemspec"
+GEMSPEC = Gem::Specification.load('context_ruby.gemspec') || abort('Could not load trunk_analytics.gemspec')
+
+
+task default: :test
+
+RbSys::ExtensionTask.new("context_ruby", GEMSPEC) do |ext|
+  ext.lib_dir = "lib/context_ruby"
 end
-"""
+
+Rake::TestTask.new do |t|
+  t.libs << "lib"
+  t.libs << "test"
+  t.test_files = FileList["test/*_test.rb"]
+end
+
+desc "Build native extension for a given platform (i.e. `rake 'native[x86_64-linux]'`)"
+task :native, [:platform] do |_t, platform:|
+  # There's some strange magnus<->rb_sys crate dependency error that occurs when targeting Ruby 2.6
+  Dir.chdir '..' do
+    sh "rb-sys-dock", "--platform", platform, "--mount-toolchains", "--directory", "context-ruby", "--build", "--ruby-versions", "3.3"
+  end
+end
+
+task build: :compile

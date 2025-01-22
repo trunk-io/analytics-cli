@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 Gem::Specification.new do |s|
-  s.required_ruby_version = '>= 3.2'
+  s.required_ruby_version = '>= 3.1'
   s.name        = 'trunk_analytics'
   s.version     = '0.0.2'
   s.summary     = 'trunk analytics helper gem'
