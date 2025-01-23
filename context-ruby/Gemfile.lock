@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    trunk_analytics (0.0.4)
+    trunk_analytics (0.0.5)
       rb_sys
       rspec (~> 3.0)
       rspec-core (~> 3.0)

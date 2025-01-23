@@ -1,9 +1,9 @@
 # frozen_string_literal: true
 
 Gem::Specification.new do |s|
-  s.required_ruby_version = '>= 3.1'
+  s.required_ruby_version = '>= 3.0'
   s.name        = 'trunk_analytics'
-  s.version     = '0.0.4'
+  s.version     = '0.0.5'
   s.summary     = 'trunk analytics helper gem'
   s.authors     = ['Trunk Technologies, Inc.']
   s.email       = 'support@trunk.io'
@@ -15,6 +15,6 @@ Gem::Specification.new do |s|
   s.add_dependency 'rb_sys'
   s.bindir = 'exe'
   s.executables = []
-  s.require_paths = ["lib"]
+  s.require_paths = ['lib']
   s.extensions = ['ext/context_ruby/extconf.rb']
 end

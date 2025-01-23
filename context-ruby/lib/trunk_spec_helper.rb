@@ -86,7 +86,7 @@ class TrunkAnalyticsListener
   end
 
   def close(_notification)
-    @testreport.publish('..')
+    @testreport.publish(ENV['GIT_REPO_ROOT'] || '.')
   end
 
   def description_generated?(example)

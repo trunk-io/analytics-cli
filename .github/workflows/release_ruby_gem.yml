@@ -2,7 +2,7 @@
 name: Release Ruby Gem
 
 on:
-  push:
+  push: {}
 
 permissions:
   contents: read
@@ -29,6 +29,7 @@ jobs:
             exclude: [arm-linux]
           stable-ruby-versions: |
             exclude: [head]
+
   cross-gem:
     name: Compile native gem for ${{ matrix.platform }}
     runs-on: ubuntu-latest
@@ -43,29 +44,9 @@ jobs:
           - arm64-darwin
           - x86_64-darwin
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
-      - name: Vars
-        id: vars
-        run: |
-          if [[ "${{ inputs.rb-sys-branch }}" == "" ]]; then
-            echo "rb_sys_branch=main" >> $GITHUB_OUTPUT
-          else
-            echo "rb_sys_branch=${{ inputs.rb-sys-branch }}" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Patch rb-sys version
-        id: patch
-        if: ${{ inputs.rb-sys-branch }}
-        run: |
-          mkdir -p .cargo
-          echo "[patch.crates-io]" >> .cargo/config.toml
-          echo "rb-sys = { git = \"https://github.com/oxidize-rb/rb-sys\", branch = \"${{ inputs.rb-sys-branch }}\" }" >> .cargo/config.toml
-          echo "rb-sys-env = { git = \"https://github.com/oxidize-rb/rb-sys\", branch = \"${{ inputs.rb-sys-branch }}\" }" >> .cargo/config.toml
-          sed -i "s|gem 'rb_sys', '.*'|gem 'rb_sys', github: 'oxidize-rb/rb-sys', branch: '${{ inputs.rb-sys-branch }}'|g" Gemfile
-          cargo update -p rb-sys
-
-      - uses: "ruby/setup-ruby@v1"
+      - uses: ruby/setup-ruby@v1
         with:
           ruby-version: "3.1"
           bundler-cache: true
