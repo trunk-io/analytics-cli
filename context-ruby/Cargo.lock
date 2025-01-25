@@ -741,7 +741,6 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "context",
- "home",
  "magnus",
  "openssl",
  "openssl-src",
@@ -2882,9 +2881,9 @@ dependencies = [
 
 [[package]]
 name = "rb-sys"
-version = "0.9.108"
+version = "0.9.103"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1e955384e1a4dc64b71d1e4b39ed0edbd77c7bde4a10dfd5ad208e1160fddfa7"
+checksum = "91dbe37ab6ac2fba187480fb6544b92445e41e5c6f553bf0c33743f3c450a1df"
 dependencies = [
  "rb-sys-build",
 ]

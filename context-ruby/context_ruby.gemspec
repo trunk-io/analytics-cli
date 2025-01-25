@@ -3,7 +3,7 @@
 Gem::Specification.new do |s|
   s.required_ruby_version = '>= 3.1'
   s.name        = 'trunk_analytics'
-  s.version     = '0.0.4'
+  s.version     = '0.0.5'
   s.summary     = 'trunk analytics helper gem'
   s.authors     = ['Trunk Technologies, Inc.']
   s.email       = 'support@trunk.io'

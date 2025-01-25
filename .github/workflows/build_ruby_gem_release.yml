@@ -1,0 +1,65 @@
+---
+name: Release Ruby Gem
+
+on:
+  workflow: {}
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  ci-data:
+    runs-on: ubuntu-latest
+    outputs:
+      result: ${{ steps.fetch.outputs.result }}
+    steps:
+      - uses: oxidize-rb/actions/setup-ruby-and-rust@main
+        with:
+          rubygems: latest
+          ruby-version: "3.1"
+          bundler-cache: false
+          cargo-cache: false
+          cargo-vendor: false
+
+      - uses: oxidize-rb/actions/fetch-ci-data@v1
+        id: fetch
+        with:
+          supported-ruby-platforms: |
+            exclude: [arm-linux]
+          stable-ruby-versions: |
+            exclude: [head]
+  cross-gem:
+    name: Compile native gem for ${{ matrix.platform }}
+    runs-on: ubuntu-latest
+    needs: ci-data
+    strategy:
+      matrix:
+        platform:
+          - x86_64-linux-musl
+          - x86_64-linux
+          - aarch64-linux
+          - aarch64-linux-musl
+          #- arm64-darwin
+          #- x86_64-darwin
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: "ruby/setup-ruby@v1"
+        with:
+          ruby-version: "3.1"
+          bundler-cache: true
+          working-directory: context-ruby
+
+      - uses: oxidize-rb/actions/cross-gem@v1
+        with:
+          platform: ${{ matrix.platform }}
+          working-directory: context-ruby
+          ruby-versions: "3.1"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cross-gem-${{ matrix.platform }}
+          path: context-ruby/pkg/*.gem
+          if-no-files-found: error
+          retention-days: 1

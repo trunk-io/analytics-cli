@@ -8,7 +8,7 @@ create_rust_makefile('context_ruby/context_ruby') do |r|
   # This is a workaround to force the correct ranlib to be used.
   # https://github.com/cross-rs/cross/issues/1243#issuecomment-2102742482
   if RUBY_PLATFORM == 'arm64-darwin'
-    r.env = { 'RANLIB' => '/opt/osxcross/target/bin/arm64e-apple-darwin-ranlib' }
+    r.env = { 'RANLIB' => '/opt/osxcross/target/bin/arm64e-apple-darwin20.2-ranlib' }
   elsif RUBY_PLATFORM == 'x86_64-darwin'
     r.env = { 'RANLIB' => '/opt/osxcross/target/bin/x86_64-apple-darwin-ranlib' }
   end

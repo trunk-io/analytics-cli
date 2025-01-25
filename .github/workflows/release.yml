@@ -101,6 +101,10 @@ jobs:
           path: target/${{ matrix.target }}/release-with-debug/trunk-analytics-cli
           if-no-files-found: error
 
+  build_ruby_gem_release:
+    name: Build Ruby Gem
+    uses: ./.github/workflows/build_ruby_gem_release.yml
+
   perform_smoke_test:
     name: Smoke test ${{ github.event.inputs.release_tag }}
     runs-on: public-amd64-small
@@ -173,3 +177,27 @@ jobs:
         with:
           environment: production
           version: ${{ github.event.inputs.release_tag }}
+
+  publish_ruby_gem:
+    runs-on: ubuntu-latest
+    needs: cross-gem
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: rubygems/configure-rubygems-credentials@main
+        with:
+          role-to-assume: rg_oidc_akr_vxb9d9w6dob8q6sr6jz5
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: cross-gem-*
+          path: context-ruby/pkg/
+          merge-multiple: true
+
+      - working-directory: context-ruby
+        run: |
+          set -euxo pipefail
+          find pkg
+          for i in $(ls pkg/*.gem); do
+            gem push $i
+          done
