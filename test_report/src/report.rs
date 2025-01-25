@@ -1,6 +1,9 @@
+use std::io::Write;
 use std::{cell::RefCell, env, fs};
 
 use chrono::prelude::*;
+use env_logger;
+use log;
 #[cfg(feature = "ruby")]
 use magnus::{value::ReprValue, Module, Object};
 use prost_wkt_types::Timestamp;
@@ -80,6 +83,23 @@ pub struct MutTestReport(RefCell<TestReport>);
 #[cfg_attr(feature = "wasm", wasm_bindgen)]
 impl MutTestReport {
     pub fn new(origin: String) -> Self {
+        let target = Box::new(std::fs::File::create("/tmp/test.txt").expect("Can't create file"));
+
+        env_logger::Builder::new()
+            .format(|buf, record| {
+                writeln!(
+                    buf,
+                    "{}:{} {} [{}] - {}",
+                    record.file().unwrap_or("unknown"),
+                    record.line().unwrap_or(0),
+                    Local::now().format("%Y-%m-%dT%H:%M:%S%.3f"),
+                    record.level(),
+                    record.args()
+                )
+            })
+            .target(env_logger::Target::Pipe(target))
+            .filter(None, log::LevelFilter::Info)
+            .init();
         let mut test_result = TestResult::default();
         test_result.uploader_metadata = Some(UploaderMetadata {
             origin,
@@ -108,7 +128,7 @@ impl MutTestReport {
         let token = env::var("TRUNK_API_TOKEN").unwrap_or_default();
         let org_url_slug = env::var("TRUNK_ORG_URL_SLUG").unwrap_or_default();
         if token.is_empty() || org_url_slug.is_empty() {
-            println!("Token or org url slug not set");
+            log::info!("Token or org url slug not set");
             return false;
         }
         if let Some(uploader_metadata) = &mut self.0.borrow_mut().test_result.uploader_metadata {
@@ -135,7 +155,7 @@ impl MutTestReport {
             )) {
             Ok(_) => return true,
             Err(e) => {
-                println!("Error uploading: {:?}", e);
+                log::error!("Error uploading: {:?}", e);
                 return false;
             }
         }
