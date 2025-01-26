@@ -314,9 +314,7 @@ mod xcrun_cmd {
     pub fn xcresulttool_get_object_id<T: AsRef<OsStr>, U: AsRef<OsStr>>(
         path: T,
         id: U,
-    ) -> anyhow::Result<
-        fd_schema::ActionTestPlanRunSummaries, // ()
-    > {
+    ) -> anyhow::Result<fd_schema::ActionTestPlanRunSummaries> {
         let mut args: Vec<&OsStr> = vec![
             "xcresulttool".as_ref(),
             "get".as_ref(),
@@ -337,16 +335,6 @@ mod xcrun_cmd {
 
         serde_json::from_str::<fd_schema::ActionTestPlanRunSummaries>(&output)
             .map_err(|e| anyhow::anyhow!("failed to parse json from xcresulttool output: {}", e))
-
-        // dbg!(serde_json::from_str::<serde_json::Value>(&output));
-
-        // let blah = serde_json::from_str::<fd_schema::ActionTestPlanRunSummaries>(&output);
-
-        // if let Err(error) = dbg!(blah) {
-        //     dbg!(output.lines().skip(error.line() - 5).take(10).collect::<Vec<_>>());
-        // }
-
-        // Ok(())
     }
 
     const LEGACY_FLAG_MIN_VERSION: usize = 22608;
