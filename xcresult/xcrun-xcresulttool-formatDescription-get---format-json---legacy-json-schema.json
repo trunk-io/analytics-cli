@@ -1,0 +1,2236 @@
+{
+  "$defs": {
+    "ActionAbstractTestSummary": {
+      "type": "object",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/ActionTestSummaryIdentifiableObject"
+        },
+        {
+          "$ref": "#/$defs/ActionTestPlanRunSummary"
+        },
+        {
+          "$ref": "#/$defs/ActionTestableSummary"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "name": {
+              "$ref": "#/$defs/String"
+            }
+          }
+        }
+      ]
+    },
+    "ActionDeviceRecord": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/String"
+        },
+        "isConcreteDevice": {
+          "$ref": "#/$defs/Bool"
+        },
+        "operatingSystemVersion": {
+          "$ref": "#/$defs/String"
+        },
+        "operatingSystemVersionWithBuildNumber": {
+          "$ref": "#/$defs/String"
+        },
+        "nativeArchitecture": {
+          "$ref": "#/$defs/String"
+        },
+        "modelName": {
+          "$ref": "#/$defs/String"
+        },
+        "modelCode": {
+          "$ref": "#/$defs/String"
+        },
+        "modelUTI": {
+          "$ref": "#/$defs/String"
+        },
+        "identifier": {
+          "$ref": "#/$defs/String"
+        },
+        "isWireless": {
+          "$ref": "#/$defs/Bool"
+        },
+        "cpuKind": {
+          "$ref": "#/$defs/String"
+        },
+        "cpuCount": {
+          "$ref": "#/$defs/Int"
+        },
+        "cpuSpeedInMHz": {
+          "$ref": "#/$defs/Int"
+        },
+        "busSpeedInMHz": {
+          "$ref": "#/$defs/Int"
+        },
+        "ramSizeInMegabytes": {
+          "$ref": "#/$defs/Int"
+        },
+        "physicalCPUCoresPerPackage": {
+          "$ref": "#/$defs/Int"
+        },
+        "logicalCPUCoresPerPackage": {
+          "$ref": "#/$defs/Int"
+        },
+        "platformRecord": {
+          "$ref": "#/$defs/ActionPlatformRecord"
+        }
+      },
+      "required": ["platformRecord"]
+    },
+    "ActionPlatformRecord": {
+      "type": "object",
+      "properties": {
+        "identifier": {
+          "$ref": "#/$defs/String"
+        },
+        "userDescription": {
+          "$ref": "#/$defs/String"
+        }
+      }
+    },
+    "ActionRecord": {
+      "type": "object",
+      "properties": {
+        "schemeCommandName": {
+          "$ref": "#/$defs/String"
+        },
+        "schemeTaskName": {
+          "$ref": "#/$defs/String"
+        },
+        "title": {
+          "$ref": "#/$defs/String"
+        },
+        "startedTime": {
+          "$ref": "#/$defs/Date"
+        },
+        "endedTime": {
+          "$ref": "#/$defs/Date"
+        },
+        "runDestination": {
+          "$ref": "#/$defs/ActionRunDestinationRecord"
+        },
+        "buildResult": {
+          "$ref": "#/$defs/ActionResult"
+        },
+        "actionResult": {
+          "$ref": "#/$defs/ActionResult"
+        },
+        "testPlanName": {
+          "$ref": "#/$defs/String"
+        }
+      },
+      "required": ["buildResult", "runDestination", "actionResult"]
+    },
+    "ActionResult": {
+      "type": "object",
+      "properties": {
+        "resultName": {
+          "$ref": "#/$defs/String"
+        },
+        "status": {
+          "$ref": "#/$defs/String"
+        },
+        "metrics": {
+          "$ref": "#/$defs/ResultMetrics"
+        },
+        "issues": {
+          "$ref": "#/$defs/ResultIssueSummaries"
+        },
+        "coverage": {
+          "$ref": "#/$defs/CodeCoverageInfo"
+        },
+        "timelineRef": {
+          "$ref": "#/$defs/Reference"
+        },
+        "logRef": {
+          "$ref": "#/$defs/Reference"
+        },
+        "testsRef": {
+          "$ref": "#/$defs/Reference"
+        },
+        "diagnosticsRef": {
+          "$ref": "#/$defs/Reference"
+        },
+        "consoleLogRef": {
+          "$ref": "#/$defs/Reference"
+        }
+      },
+      "required": ["metrics", "issues", "coverage"]
+    },
+    "ActionRunDestinationRecord": {
+      "type": "object",
+      "properties": {
+        "displayName": {
+          "$ref": "#/$defs/String"
+        },
+        "targetArchitecture": {
+          "$ref": "#/$defs/String"
+        },
+        "targetDeviceRecord": {
+          "$ref": "#/$defs/ActionDeviceRecord"
+        },
+        "localComputerRecord": {
+          "$ref": "#/$defs/ActionDeviceRecord"
+        },
+        "targetSDKRecord": {
+          "$ref": "#/$defs/ActionSDKRecord"
+        }
+      },
+      "required": [
+        "targetDeviceRecord",
+        "targetSDKRecord",
+        "localComputerRecord"
+      ]
+    },
+    "ActionSDKRecord": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/String"
+        },
+        "identifier": {
+          "$ref": "#/$defs/String"
+        },
+        "operatingSystemVersion": {
+          "$ref": "#/$defs/String"
+        },
+        "isInternal": {
+          "$ref": "#/$defs/Bool"
+        }
+      }
+    },
+    "ActionTestActivitySummary": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "$ref": "#/$defs/String"
+        },
+        "activityType": {
+          "$ref": "#/$defs/String"
+        },
+        "uuid": {
+          "$ref": "#/$defs/String"
+        },
+        "start": {
+          "$ref": "#/$defs/Date"
+        },
+        "finish": {
+          "$ref": "#/$defs/Date"
+        },
+        "attachments": {
+          "type": "object",
+          "properties": {
+            "_values": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ActionTestAttachment"
+              }
+            }
+          },
+          "required": ["_values"]
+        },
+        "subactivities": {
+          "type": "object",
+          "properties": {
+            "_values": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ActionTestActivitySummary"
+              }
+            }
+          },
+          "required": ["_values"]
+        },
+        "failureSummaryIDs": {
+          "type": "object",
+          "properties": {
+            "_values": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/String"
+              }
+            }
+          },
+          "required": ["_values"]
+        },
+        "expectedFailureIDs": {
+          "type": "object",
+          "properties": {
+            "_values": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/String"
+              }
+            }
+          },
+          "required": ["_values"]
+        },
+        "warningSummaryIDs": {
+          "type": "object",
+          "properties": {
+            "_values": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/String"
+              }
+            }
+          },
+          "required": ["_values"]
+        }
+      }
+    },
+    "ActionTestAttachment": {
+      "type": "object",
+      "properties": {
+        "uniformTypeIdentifier": {
+          "$ref": "#/$defs/String"
+        },
+        "name": {
+          "$ref": "#/$defs/String"
+        },
+        "uuid": {
+          "$ref": "#/$defs/String"
+        },
+        "timestamp": {
+          "$ref": "#/$defs/Date"
+        },
+        "userInfo": {
+          "$ref": "#/$defs/SortedKeyValueArray"
+        },
+        "lifetime": {
+          "$ref": "#/$defs/String"
+        },
+        "inActivityIdentifier": {
+          "$ref": "#/$defs/Int"
+        },
+        "filename": {
+          "$ref": "#/$defs/String"
+        },
+        "payloadRef": {
+          "$ref": "#/$defs/Reference"
+        },
+        "payloadSize": {
+          "$ref": "#/$defs/Int"
+        }
+      }
+    },
+    "ActionTestConfiguration": {
+      "type": "object",
+      "properties": {
+        "values": {
+          "$ref": "#/$defs/SortedKeyValueArray"
+        }
+      },
+      "required": ["values"]
+    },
+    "ActionTestExpectedFailure": {
+      "type": "object",
+      "properties": {
+        "uuid": {
+          "$ref": "#/$defs/String"
+        },
+        "failureReason": {
+          "$ref": "#/$defs/String"
+        },
+        "failureSummary": {
+          "$ref": "#/$defs/ActionTestFailureSummary"
+        },
+        "isTopLevelFailure": {
+          "$ref": "#/$defs/Bool"
+        }
+      }
+    },
+    "ActionTestFailureSummary": {
+      "type": "object",
+      "properties": {
+        "message": {
+          "$ref": "#/$defs/String"
+        },
+        "fileName": {
+          "$ref": "#/$defs/String"
+        },
+        "lineNumber": {
+          "$ref": "#/$defs/Int"
+        },
+        "isPerformanceFailure": {
+          "$ref": "#/$defs/Bool"
+        },
+        "uuid": {
+          "$ref": "#/$defs/String"
+        },
+        "issueType": {
+          "$ref": "#/$defs/String"
+        },
+        "detailedDescription": {
+          "$ref": "#/$defs/String"
+        },
+        "attachments": {
+          "type": "object",
+          "properties": {
+            "_values": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ActionTestAttachment"
+              }
+            }
+          },
+          "required": ["_values"]
+        },
+        "associatedError": {
+          "$ref": "#/$defs/TestAssociatedError"
+        },
+        "sourceCodeContext": {
+          "$ref": "#/$defs/SourceCodeContext"
+        },
+        "timestamp": {
+          "$ref": "#/$defs/Date"
+        },
+        "isTopLevelFailure": {
+          "$ref": "#/$defs/Bool"
+        },
+        "expression": {
+          "$ref": "#/$defs/TestExpression"
+        }
+      }
+    },
+    "ActionTestIssueSummary": {
+      "type": "object",
+      "properties": {
+        "message": {
+          "$ref": "#/$defs/String"
+        },
+        "fileName": {
+          "$ref": "#/$defs/String"
+        },
+        "lineNumber": {
+          "$ref": "#/$defs/Int"
+        },
+        "uuid": {
+          "$ref": "#/$defs/String"
+        },
+        "issueType": {
+          "$ref": "#/$defs/String"
+        },
+        "detailedDescription": {
+          "$ref": "#/$defs/String"
+        },
+        "attachments": {
+          "type": "object",
+          "properties": {
+            "_values": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ActionTestAttachment"
+              }
+            }
+          },
+          "required": ["_values"]
+        },
+        "associatedError": {
+          "$ref": "#/$defs/TestAssociatedError"
+        },
+        "sourceCodeContext": {
+          "$ref": "#/$defs/SourceCodeContext"
+        },
+        "timestamp": {
+          "$ref": "#/$defs/Date"
+        }
+      }
+    },
+    "ActionTestMetadata": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/String"
+        },
+        "identifier": {
+          "$ref": "#/$defs/String"
+        },
+        "identifierURL": {
+          "$ref": "#/$defs/String"
+        },
+        "testStatus": {
+          "$ref": "#/$defs/String"
+        },
+        "duration": {
+          "$ref": "#/$defs/Double"
+        },
+        "summaryRef": {
+          "$ref": "#/$defs/Reference"
+        },
+        "performanceMetricsCount": {
+          "$ref": "#/$defs/Int"
+        },
+        "failureSummariesCount": {
+          "$ref": "#/$defs/Int"
+        },
+        "activitySummariesCount": {
+          "$ref": "#/$defs/Int"
+        }
+      }
+    },
+    "ActionTestNoticeSummary": {
+      "type": "object",
+      "properties": {
+        "message": {
+          "$ref": "#/$defs/String"
+        },
+        "fileName": {
+          "$ref": "#/$defs/String"
+        },
+        "lineNumber": {
+          "$ref": "#/$defs/Int"
+        },
+        "timestamp": {
+          "$ref": "#/$defs/Date"
+        }
+      }
+    },
+    "ActionTestPerformanceMetricSummary": {
+      "type": "object",
+      "properties": {
+        "displayName": {
+          "$ref": "#/$defs/String"
+        },
+        "unitOfMeasurement": {
+          "$ref": "#/$defs/String"
+        },
+        "measurements": {
+          "type": "object",
+          "properties": {
+            "_values": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/Double"
+              }
+            }
+          },
+          "required": ["_values"]
+        },
+        "identifier": {
+          "$ref": "#/$defs/String"
+        },
+        "baselineName": {
+          "$ref": "#/$defs/String"
+        },
+        "baselineAverage": {
+          "$ref": "#/$defs/Double"
+        },
+        "maxPercentRegression": {
+          "$ref": "#/$defs/Double"
+        },
+        "maxPercentRelativeStandardDeviation": {
+          "$ref": "#/$defs/Double"
+        },
+        "maxRegression": {
+          "$ref": "#/$defs/Double"
+        },
+        "maxStandardDeviation": {
+          "$ref": "#/$defs/Double"
+        },
+        "polarity": {
+          "$ref": "#/$defs/String"
+        }
+      }
+    },
+    "ActionTestPlanRunSummaries": {
+      "type": "object",
+      "properties": {
+        "summaries": {
+          "type": "object",
+          "properties": {
+            "_values": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ActionTestPlanRunSummary"
+              }
+            }
+          },
+          "required": ["_values"]
+        }
+      }
+    },
+    "ActionTestPlanRunSummary": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/String"
+        },
+        "testableSummaries": {
+          "type": "object",
+          "properties": {
+            "_values": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ActionTestableSummary"
+              }
+            }
+          },
+          "required": ["_values"]
+        }
+      }
+    },
+    "ActionTestRepetitionPolicySummary": {
+      "type": "object",
+      "properties": {
+        "iteration": {
+          "$ref": "#/$defs/Int"
+        },
+        "totalIterations": {
+          "$ref": "#/$defs/Int"
+        },
+        "repetitionMode": {
+          "$ref": "#/$defs/String"
+        }
+      }
+    },
+    "ActionTestSummary": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/String"
+        },
+        "identifier": {
+          "$ref": "#/$defs/String"
+        },
+        "identifierURL": {
+          "$ref": "#/$defs/String"
+        },
+        "testStatus": {
+          "$ref": "#/$defs/String"
+        },
+        "duration": {
+          "$ref": "#/$defs/Double"
+        },
+        "performanceMetrics": {
+          "type": "object",
+          "properties": {
+            "_values": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ActionTestPerformanceMetricSummary"
+              }
+            }
+          },
+          "required": ["_values"]
+        },
+        "failureSummaries": {
+          "type": "object",
+          "properties": {
+            "_values": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ActionTestFailureSummary"
+              }
+            }
+          },
+          "required": ["_values"]
+        },
+        "expectedFailures": {
+          "type": "object",
+          "properties": {
+            "_values": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ActionTestExpectedFailure"
+              }
+            }
+          },
+          "required": ["_values"]
+        },
+        "skipNoticeSummary": {
+          "$ref": "#/$defs/ActionTestNoticeSummary"
+        },
+        "activitySummaries": {
+          "type": "object",
+          "properties": {
+            "_values": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ActionTestActivitySummary"
+              }
+            }
+          },
+          "required": ["_values"]
+        },
+        "repetitionPolicySummary": {
+          "$ref": "#/$defs/ActionTestRepetitionPolicySummary"
+        },
+        "arguments": {
+          "type": "object",
+          "properties": {
+            "_values": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/TestArgument"
+              }
+            }
+          },
+          "required": ["_values"]
+        },
+        "configuration": {
+          "$ref": "#/$defs/ActionTestConfiguration"
+        },
+        "warningSummaries": {
+          "type": "object",
+          "properties": {
+            "_values": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ActionTestIssueSummary"
+              }
+            }
+          },
+          "required": ["_values"]
+        },
+        "summary": {
+          "$ref": "#/$defs/String"
+        },
+        "documentation": {
+          "type": "object",
+          "properties": {
+            "_values": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/TestDocumentation"
+              }
+            }
+          },
+          "required": ["_values"]
+        },
+        "trackedIssues": {
+          "type": "object",
+          "properties": {
+            "_values": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/IssueTrackingMetadata"
+              }
+            }
+          },
+          "required": ["_values"]
+        },
+        "tags": {
+          "type": "object",
+          "properties": {
+            "_values": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/TestTag"
+              }
+            }
+          },
+          "required": ["_values"]
+        }
+      }
+    },
+    "ActionTestSummaryGroup": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/String"
+        },
+        "identifier": {
+          "$ref": "#/$defs/String"
+        },
+        "identifierURL": {
+          "$ref": "#/$defs/String"
+        },
+        "duration": {
+          "$ref": "#/$defs/Double"
+        },
+        "subtests": {
+          "type": "object",
+          "properties": {
+            "_values": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ActionTestSummaryIdentifiableObject"
+              }
+            }
+          },
+          "required": ["_values"]
+        },
+        "skipNoticeSummary": {
+          "$ref": "#/$defs/ActionTestNoticeSummary"
+        },
+        "summary": {
+          "$ref": "#/$defs/String"
+        },
+        "documentation": {
+          "type": "object",
+          "properties": {
+            "_values": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/TestDocumentation"
+              }
+            }
+          },
+          "required": ["_values"]
+        },
+        "trackedIssues": {
+          "type": "object",
+          "properties": {
+            "_values": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/IssueTrackingMetadata"
+              }
+            }
+          },
+          "required": ["_values"]
+        },
+        "tags": {
+          "type": "object",
+          "properties": {
+            "_values": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/TestTag"
+              }
+            }
+          },
+          "required": ["_values"]
+        }
+      }
+    },
+    "ActionTestSummaryIdentifiableObject": {
+      "type": "object",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/ActionTestSummaryGroup"
+        },
+        {
+          "$ref": "#/$defs/ActionTestMetadata"
+        },
+        {
+          "$ref": "#/$defs/ActionTestSummary"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "name": {
+              "$ref": "#/$defs/String"
+            },
+            "identifier": {
+              "$ref": "#/$defs/String"
+            },
+            "identifierURL": {
+              "$ref": "#/$defs/String"
+            }
+          }
+        }
+      ]
+    },
+    "ActionTestableSummary": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/String"
+        },
+        "identifierURL": {
+          "$ref": "#/$defs/String"
+        },
+        "projectRelativePath": {
+          "$ref": "#/$defs/String"
+        },
+        "targetName": {
+          "$ref": "#/$defs/String"
+        },
+        "testKind": {
+          "$ref": "#/$defs/String"
+        },
+        "tests": {
+          "type": "object",
+          "properties": {
+            "_values": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ActionTestSummaryIdentifiableObject"
+              }
+            }
+          },
+          "required": ["_values"]
+        },
+        "diagnosticsDirectoryName": {
+          "$ref": "#/$defs/String"
+        },
+        "failureSummaries": {
+          "type": "object",
+          "properties": {
+            "_values": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ActionTestFailureSummary"
+              }
+            }
+          },
+          "required": ["_values"]
+        },
+        "testLanguage": {
+          "$ref": "#/$defs/String"
+        },
+        "testRegion": {
+          "$ref": "#/$defs/String"
+        }
+      }
+    },
+    "ActionsInvocationMetadata": {
+      "type": "object",
+      "properties": {
+        "creatingWorkspaceFilePath": {
+          "$ref": "#/$defs/String"
+        },
+        "uniqueIdentifier": {
+          "$ref": "#/$defs/String"
+        },
+        "schemeIdentifier": {
+          "$ref": "#/$defs/EntityIdentifier"
+        }
+      }
+    },
+    "ActionsInvocationRecord": {
+      "type": "object",
+      "properties": {
+        "metadataRef": {
+          "$ref": "#/$defs/Reference"
+        },
+        "metrics": {
+          "$ref": "#/$defs/ResultMetrics"
+        },
+        "issues": {
+          "$ref": "#/$defs/ResultIssueSummaries"
+        },
+        "actions": {
+          "type": "object",
+          "properties": {
+            "_values": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ActionRecord"
+              }
+            }
+          },
+          "required": ["_values"]
+        },
+        "archive": {
+          "$ref": "#/$defs/ArchiveInfo"
+        }
+      },
+      "required": ["metrics", "issues"]
+    },
+    "ActivityLogAnalyzerControlFlowStep": {
+      "type": "object",
+      "properties": {
+        "parentIndex": {
+          "$ref": "#/$defs/Int"
+        },
+        "title": {
+          "$ref": "#/$defs/String"
+        },
+        "startLocation": {
+          "$ref": "#/$defs/DocumentLocation"
+        },
+        "endLocation": {
+          "$ref": "#/$defs/DocumentLocation"
+        },
+        "edges": {
+          "type": "object",
+          "properties": {
+            "_values": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ActivityLogAnalyzerControlFlowStepEdge"
+              }
+            }
+          },
+          "required": ["_values"]
+        }
+      }
+    },
+    "ActivityLogAnalyzerControlFlowStepEdge": {
+      "type": "object",
+      "properties": {
+        "startLocation": {
+          "$ref": "#/$defs/DocumentLocation"
+        },
+        "endLocation": {
+          "$ref": "#/$defs/DocumentLocation"
+        }
+      }
+    },
+    "ActivityLogAnalyzerEventStep": {
+      "type": "object",
+      "properties": {
+        "parentIndex": {
+          "$ref": "#/$defs/Int"
+        },
+        "title": {
+          "$ref": "#/$defs/String"
+        },
+        "location": {
+          "$ref": "#/$defs/DocumentLocation"
+        },
+        "description": {
+          "$ref": "#/$defs/String"
+        },
+        "callDepth": {
+          "$ref": "#/$defs/Int"
+        }
+      }
+    },
+    "ActivityLogAnalyzerResultMessage": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "$ref": "#/$defs/String"
+        },
+        "title": {
+          "$ref": "#/$defs/String"
+        },
+        "shortTitle": {
+          "$ref": "#/$defs/String"
+        },
+        "category": {
+          "$ref": "#/$defs/String"
+        },
+        "location": {
+          "$ref": "#/$defs/DocumentLocation"
+        },
+        "annotations": {
+          "type": "object",
+          "properties": {
+            "_values": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ActivityLogMessageAnnotation"
+              }
+            }
+          },
+          "required": ["_values"]
+        },
+        "steps": {
+          "type": "object",
+          "properties": {
+            "_values": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ActivityLogAnalyzerStep"
+              }
+            }
+          },
+          "required": ["_values"]
+        },
+        "resultType": {
+          "$ref": "#/$defs/String"
+        },
+        "keyEventIndex": {
+          "$ref": "#/$defs/Int"
+        }
+      }
+    },
+    "ActivityLogAnalyzerStep": {
+      "type": "object",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/ActivityLogAnalyzerEventStep"
+        },
+        {
+          "$ref": "#/$defs/ActivityLogAnalyzerControlFlowStep"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "parentIndex": {
+              "$ref": "#/$defs/Int"
+            }
+          }
+        }
+      ]
+    },
+    "ActivityLogAnalyzerWarningMessage": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "$ref": "#/$defs/String"
+        },
+        "title": {
+          "$ref": "#/$defs/String"
+        },
+        "shortTitle": {
+          "$ref": "#/$defs/String"
+        },
+        "category": {
+          "$ref": "#/$defs/String"
+        },
+        "location": {
+          "$ref": "#/$defs/DocumentLocation"
+        },
+        "annotations": {
+          "type": "object",
+          "properties": {
+            "_values": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ActivityLogMessageAnnotation"
+              }
+            }
+          },
+          "required": ["_values"]
+        }
+      }
+    },
+    "ActivityLogCommandInvocationSection": {
+      "type": "object",
+      "properties": {
+        "domainType": {
+          "$ref": "#/$defs/String"
+        },
+        "title": {
+          "$ref": "#/$defs/String"
+        },
+        "startTime": {
+          "$ref": "#/$defs/Date"
+        },
+        "duration": {
+          "$ref": "#/$defs/Double"
+        },
+        "result": {
+          "$ref": "#/$defs/String"
+        },
+        "location": {
+          "$ref": "#/$defs/DocumentLocation"
+        },
+        "subsections": {
+          "type": "object",
+          "properties": {
+            "_values": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ActivityLogSection"
+              }
+            }
+          },
+          "required": ["_values"]
+        },
+        "messages": {
+          "type": "object",
+          "properties": {
+            "_values": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ActivityLogMessage"
+              }
+            }
+          },
+          "required": ["_values"]
+        },
+        "attachments": {
+          "type": "object",
+          "properties": {
+            "_values": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ActivityLogSectionAttachment"
+              }
+            }
+          },
+          "required": ["_values"]
+        },
+        "commandDetails": {
+          "$ref": "#/$defs/String"
+        },
+        "emittedOutput": {
+          "$ref": "#/$defs/String"
+        },
+        "exitCode": {
+          "$ref": "#/$defs/Int"
+        }
+      }
+    },
+    "ActivityLogMajorSection": {
+      "type": "object",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/ActivityLogTargetBuildSection"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "domainType": {
+              "$ref": "#/$defs/String"
+            },
+            "title": {
+              "$ref": "#/$defs/String"
+            },
+            "startTime": {
+              "$ref": "#/$defs/Date"
+            },
+            "duration": {
+              "$ref": "#/$defs/Double"
+            },
+            "result": {
+              "$ref": "#/$defs/String"
+            },
+            "location": {
+              "$ref": "#/$defs/DocumentLocation"
+            },
+            "subsections": {
+              "type": "object",
+              "properties": {
+                "_values": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/ActivityLogSection"
+                  }
+                }
+              },
+              "required": ["_values"]
+            },
+            "messages": {
+              "type": "object",
+              "properties": {
+                "_values": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/ActivityLogMessage"
+                  }
+                }
+              },
+              "required": ["_values"]
+            },
+            "attachments": {
+              "type": "object",
+              "properties": {
+                "_values": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/ActivityLogSectionAttachment"
+                  }
+                }
+              },
+              "required": ["_values"]
+            },
+            "subtitle": {
+              "$ref": "#/$defs/String"
+            }
+          }
+        }
+      ]
+    },
+    "ActivityLogMessage": {
+      "type": "object",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/ActivityLogAnalyzerResultMessage"
+        },
+        {
+          "$ref": "#/$defs/ActivityLogAnalyzerWarningMessage"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "$ref": "#/$defs/String"
+            },
+            "title": {
+              "$ref": "#/$defs/String"
+            },
+            "shortTitle": {
+              "$ref": "#/$defs/String"
+            },
+            "category": {
+              "$ref": "#/$defs/String"
+            },
+            "location": {
+              "$ref": "#/$defs/DocumentLocation"
+            },
+            "annotations": {
+              "type": "object",
+              "properties": {
+                "_values": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/ActivityLogMessageAnnotation"
+                  }
+                }
+              },
+              "required": ["_values"]
+            }
+          }
+        }
+      ]
+    },
+    "ActivityLogMessageAnnotation": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "$ref": "#/$defs/String"
+        },
+        "location": {
+          "$ref": "#/$defs/DocumentLocation"
+        }
+      }
+    },
+    "ActivityLogSection": {
+      "type": "object",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/ActivityLogUnitTestSection"
+        },
+        {
+          "$ref": "#/$defs/ActivityLogMajorSection"
+        },
+        {
+          "$ref": "#/$defs/ActivityLogCommandInvocationSection"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "domainType": {
+              "$ref": "#/$defs/String"
+            },
+            "title": {
+              "$ref": "#/$defs/String"
+            },
+            "startTime": {
+              "$ref": "#/$defs/Date"
+            },
+            "duration": {
+              "$ref": "#/$defs/Double"
+            },
+            "result": {
+              "$ref": "#/$defs/String"
+            },
+            "location": {
+              "$ref": "#/$defs/DocumentLocation"
+            },
+            "subsections": {
+              "type": "object",
+              "properties": {
+                "_values": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/ActivityLogSection"
+                  }
+                }
+              },
+              "required": ["_values"]
+            },
+            "messages": {
+              "type": "object",
+              "properties": {
+                "_values": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/ActivityLogMessage"
+                  }
+                }
+              },
+              "required": ["_values"]
+            },
+            "attachments": {
+              "type": "object",
+              "properties": {
+                "_values": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/ActivityLogSectionAttachment"
+                  }
+                }
+              },
+              "required": ["_values"]
+            }
+          }
+        }
+      ]
+    },
+    "ActivityLogSectionAttachment": {
+      "type": "object",
+      "properties": {
+        "identifier": {
+          "$ref": "#/$defs/String"
+        },
+        "majorVersion": {
+          "$ref": "#/$defs/UInt8"
+        },
+        "minorVersion": {
+          "$ref": "#/$defs/UInt8"
+        },
+        "data": {
+          "$ref": "#/$defs/Data"
+        }
+      }
+    },
+    "ActivityLogTargetBuildSection": {
+      "type": "object",
+      "properties": {
+        "domainType": {
+          "$ref": "#/$defs/String"
+        },
+        "title": {
+          "$ref": "#/$defs/String"
+        },
+        "startTime": {
+          "$ref": "#/$defs/Date"
+        },
+        "duration": {
+          "$ref": "#/$defs/Double"
+        },
+        "result": {
+          "$ref": "#/$defs/String"
+        },
+        "location": {
+          "$ref": "#/$defs/DocumentLocation"
+        },
+        "subsections": {
+          "type": "object",
+          "properties": {
+            "_values": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ActivityLogSection"
+              }
+            }
+          },
+          "required": ["_values"]
+        },
+        "messages": {
+          "type": "object",
+          "properties": {
+            "_values": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ActivityLogMessage"
+              }
+            }
+          },
+          "required": ["_values"]
+        },
+        "attachments": {
+          "type": "object",
+          "properties": {
+            "_values": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ActivityLogSectionAttachment"
+              }
+            }
+          },
+          "required": ["_values"]
+        },
+        "subtitle": {
+          "$ref": "#/$defs/String"
+        },
+        "productType": {
+          "$ref": "#/$defs/String"
+        }
+      }
+    },
+    "ActivityLogUnitTestSection": {
+      "type": "object",
+      "properties": {
+        "domainType": {
+          "$ref": "#/$defs/String"
+        },
+        "title": {
+          "$ref": "#/$defs/String"
+        },
+        "startTime": {
+          "$ref": "#/$defs/Date"
+        },
+        "duration": {
+          "$ref": "#/$defs/Double"
+        },
+        "result": {
+          "$ref": "#/$defs/String"
+        },
+        "location": {
+          "$ref": "#/$defs/DocumentLocation"
+        },
+        "subsections": {
+          "type": "object",
+          "properties": {
+            "_values": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ActivityLogSection"
+              }
+            }
+          },
+          "required": ["_values"]
+        },
+        "messages": {
+          "type": "object",
+          "properties": {
+            "_values": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ActivityLogMessage"
+              }
+            }
+          },
+          "required": ["_values"]
+        },
+        "attachments": {
+          "type": "object",
+          "properties": {
+            "_values": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ActivityLogSectionAttachment"
+              }
+            }
+          },
+          "required": ["_values"]
+        },
+        "testName": {
+          "$ref": "#/$defs/String"
+        },
+        "suiteName": {
+          "$ref": "#/$defs/String"
+        },
+        "summary": {
+          "$ref": "#/$defs/String"
+        },
+        "emittedOutput": {
+          "$ref": "#/$defs/String"
+        },
+        "performanceTestOutput": {
+          "$ref": "#/$defs/String"
+        },
+        "testsPassedString": {
+          "$ref": "#/$defs/String"
+        },
+        "wasSkipped": {
+          "$ref": "#/$defs/Bool"
+        },
+        "runnablePath": {
+          "$ref": "#/$defs/String"
+        },
+        "runnableUTI": {
+          "$ref": "#/$defs/String"
+        }
+      }
+    },
+    "ArchiveInfo": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "$ref": "#/$defs/String"
+        }
+      }
+    },
+    "Bool": {
+      "type": "object",
+      "properties": {
+        "_value": {
+          "type": "string"
+        }
+      },
+      "required": ["_value"]
+    },
+    "CodeCoverageInfo": {
+      "type": "object",
+      "properties": {
+        "hasCoverageData": {
+          "$ref": "#/$defs/Bool"
+        },
+        "reportRef": {
+          "$ref": "#/$defs/Reference"
+        },
+        "archiveRef": {
+          "$ref": "#/$defs/Reference"
+        }
+      }
+    },
+    "ConsoleLogItem": {
+      "type": "object",
+      "properties": {
+        "adaptorType": {
+          "$ref": "#/$defs/String"
+        },
+        "kind": {
+          "$ref": "#/$defs/String"
+        },
+        "timestamp": {
+          "$ref": "#/$defs/Double"
+        },
+        "content": {
+          "$ref": "#/$defs/String"
+        },
+        "logData": {
+          "$ref": "#/$defs/ConsoleLogItemLogData"
+        }
+      }
+    },
+    "ConsoleLogItemLogData": {
+      "type": "object",
+      "properties": {
+        "message": {
+          "$ref": "#/$defs/String"
+        },
+        "subsystem": {
+          "$ref": "#/$defs/String"
+        },
+        "category": {
+          "$ref": "#/$defs/String"
+        },
+        "library": {
+          "$ref": "#/$defs/String"
+        },
+        "format": {
+          "$ref": "#/$defs/String"
+        },
+        "backtrace": {
+          "$ref": "#/$defs/String"
+        },
+        "pid": {
+          "$ref": "#/$defs/Int32"
+        },
+        "processName": {
+          "$ref": "#/$defs/String"
+        },
+        "sessionUUID": {
+          "$ref": "#/$defs/String"
+        },
+        "tid": {
+          "$ref": "#/$defs/UInt64"
+        },
+        "messageType": {
+          "$ref": "#/$defs/UInt8"
+        },
+        "senderImagePath": {
+          "$ref": "#/$defs/String"
+        },
+        "senderImageUUID": {
+          "$ref": "#/$defs/String"
+        },
+        "senderImageOffset": {
+          "$ref": "#/$defs/UInt64"
+        },
+        "unixTimeInterval": {
+          "$ref": "#/$defs/Double"
+        },
+        "timeZone": {
+          "$ref": "#/$defs/String"
+        }
+      }
+    },
+    "ConsoleLogSection": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "$ref": "#/$defs/String"
+        },
+        "items": {
+          "type": "object",
+          "properties": {
+            "_values": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ConsoleLogItem"
+              }
+            }
+          },
+          "required": ["_values"]
+        }
+      }
+    },
+    "Data": {
+      "type": "object",
+      "properties": {
+        "_value": {
+          "type": "string"
+        }
+      },
+      "required": ["_value"]
+    },
+    "Date": {
+      "type": "object",
+      "properties": {
+        "_value": {
+          "type": "string"
+        }
+      },
+      "required": ["_value"]
+    },
+    "DocumentLocation": {
+      "type": "object",
+      "properties": {
+        "url": {
+          "$ref": "#/$defs/String"
+        },
+        "concreteTypeName": {
+          "$ref": "#/$defs/String"
+        }
+      }
+    },
+    "Double": {
+      "type": "object",
+      "properties": {
+        "_value": {
+          "type": "string"
+        }
+      },
+      "required": ["_value"]
+    },
+    "EntityIdentifier": {
+      "type": "object",
+      "properties": {
+        "entityName": {
+          "$ref": "#/$defs/String"
+        },
+        "containerName": {
+          "$ref": "#/$defs/String"
+        },
+        "entityType": {
+          "$ref": "#/$defs/String"
+        },
+        "sharedState": {
+          "$ref": "#/$defs/String"
+        }
+      }
+    },
+    "Int": {
+      "type": "object",
+      "properties": {
+        "_value": {
+          "type": "string"
+        }
+      },
+      "required": ["_value"]
+    },
+    "Int16": {
+      "type": "object",
+      "properties": {
+        "_value": {
+          "type": "string"
+        }
+      },
+      "required": ["_value"]
+    },
+    "Int32": {
+      "type": "object",
+      "properties": {
+        "_value": {
+          "type": "string"
+        }
+      },
+      "required": ["_value"]
+    },
+    "Int64": {
+      "type": "object",
+      "properties": {
+        "_value": {
+          "type": "string"
+        }
+      },
+      "required": ["_value"]
+    },
+    "Int8": {
+      "type": "object",
+      "properties": {
+        "_value": {
+          "type": "string"
+        }
+      },
+      "required": ["_value"]
+    },
+    "IssueSummary": {
+      "type": "object",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/TestFailureIssueSummary"
+        },
+        {
+          "$ref": "#/$defs/TestIssueSummary"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "issueType": {
+              "$ref": "#/$defs/String"
+            },
+            "message": {
+              "$ref": "#/$defs/String"
+            },
+            "producingTarget": {
+              "$ref": "#/$defs/String"
+            },
+            "documentLocationInCreatingWorkspace": {
+              "$ref": "#/$defs/DocumentLocation"
+            }
+          }
+        }
+      ]
+    },
+    "IssueTrackingMetadata": {
+      "type": "object",
+      "properties": {
+        "identifier": {
+          "$ref": "#/$defs/String"
+        },
+        "url": {
+          "$ref": "#/$defs/URL"
+        },
+        "comment": {
+          "$ref": "#/$defs/String"
+        },
+        "summary": {
+          "$ref": "#/$defs/String"
+        }
+      }
+    },
+    "ObjectID": {
+      "type": "object",
+      "properties": {
+        "hash": {
+          "$ref": "#/$defs/String"
+        }
+      }
+    },
+    "Reference": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/String"
+        },
+        "targetType": {
+          "$ref": "#/$defs/TypeDefinition"
+        }
+      }
+    },
+    "ResultIssueSummaries": {
+      "type": "object",
+      "properties": {
+        "analyzerWarningSummaries": {
+          "type": "object",
+          "properties": {
+            "_values": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/IssueSummary"
+              }
+            }
+          },
+          "required": ["_values"]
+        },
+        "errorSummaries": {
+          "type": "object",
+          "properties": {
+            "_values": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/IssueSummary"
+              }
+            }
+          },
+          "required": ["_values"]
+        },
+        "testFailureSummaries": {
+          "type": "object",
+          "properties": {
+            "_values": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/TestFailureIssueSummary"
+              }
+            }
+          },
+          "required": ["_values"]
+        },
+        "warningSummaries": {
+          "type": "object",
+          "properties": {
+            "_values": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/IssueSummary"
+              }
+            }
+          },
+          "required": ["_values"]
+        },
+        "testWarningSummaries": {
+          "type": "object",
+          "properties": {
+            "_values": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/TestIssueSummary"
+              }
+            }
+          },
+          "required": ["_values"]
+        }
+      }
+    },
+    "ResultMetrics": {
+      "type": "object",
+      "properties": {
+        "analyzerWarningCount": {
+          "$ref": "#/$defs/Int"
+        },
+        "errorCount": {
+          "$ref": "#/$defs/Int"
+        },
+        "testsCount": {
+          "$ref": "#/$defs/Int"
+        },
+        "testsFailedCount": {
+          "$ref": "#/$defs/Int"
+        },
+        "testsSkippedCount": {
+          "$ref": "#/$defs/Int"
+        },
+        "warningCount": {
+          "$ref": "#/$defs/Int"
+        },
+        "totalCoveragePercentage": {
+          "$ref": "#/$defs/Double"
+        }
+      }
+    },
+    "SortedKeyValueArray": {
+      "type": "object",
+      "properties": {
+        "storage": {
+          "type": "object",
+          "properties": {
+            "_values": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/SortedKeyValueArrayPair"
+              }
+            }
+          },
+          "required": ["_values"]
+        }
+      }
+    },
+    "SortedKeyValueArrayPair": {
+      "type": "object",
+      "properties": {
+        "key": {
+          "$ref": "#/$defs/String"
+        }
+      },
+      "required": ["value"]
+    },
+    "SourceCodeContext": {
+      "type": "object",
+      "properties": {
+        "location": {
+          "$ref": "#/$defs/SourceCodeLocation"
+        },
+        "callStack": {
+          "type": "object",
+          "properties": {
+            "_values": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/SourceCodeFrame"
+              }
+            }
+          },
+          "required": ["_values"]
+        }
+      }
+    },
+    "SourceCodeFrame": {
+      "type": "object",
+      "properties": {
+        "addressString": {
+          "$ref": "#/$defs/String"
+        },
+        "symbolInfo": {
+          "$ref": "#/$defs/SourceCodeSymbolInfo"
+        }
+      }
+    },
+    "SourceCodeLocation": {
+      "type": "object",
+      "properties": {
+        "filePath": {
+          "$ref": "#/$defs/String"
+        },
+        "lineNumber": {
+          "$ref": "#/$defs/Int"
+        }
+      }
+    },
+    "SourceCodeSymbolInfo": {
+      "type": "object",
+      "properties": {
+        "imageName": {
+          "$ref": "#/$defs/String"
+        },
+        "symbolName": {
+          "$ref": "#/$defs/String"
+        },
+        "location": {
+          "$ref": "#/$defs/SourceCodeLocation"
+        }
+      }
+    },
+    "String": {
+      "type": "object",
+      "properties": {
+        "_value": {
+          "type": "string"
+        }
+      },
+      "required": ["_value"]
+    },
+    "TestArgument": {
+      "type": "object",
+      "properties": {
+        "parameter": {
+          "$ref": "#/$defs/TestParameter"
+        },
+        "identifier": {
+          "$ref": "#/$defs/String"
+        },
+        "description": {
+          "$ref": "#/$defs/String"
+        },
+        "debugDescription": {
+          "$ref": "#/$defs/String"
+        },
+        "typeName": {
+          "$ref": "#/$defs/String"
+        },
+        "value": {
+          "$ref": "#/$defs/TestValue"
+        }
+      },
+      "required": ["value"]
+    },
+    "TestAssociatedError": {
+      "type": "object",
+      "properties": {
+        "domain": {
+          "$ref": "#/$defs/String"
+        },
+        "code": {
+          "$ref": "#/$defs/Int"
+        },
+        "userInfo": {
+          "$ref": "#/$defs/SortedKeyValueArray"
+        }
+      }
+    },
+    "TestDocumentation": {
+      "type": "object",
+      "properties": {
+        "content": {
+          "$ref": "#/$defs/String"
+        },
+        "format": {
+          "$ref": "#/$defs/String"
+        }
+      }
+    },
+    "TestExpression": {
+      "type": "object",
+      "properties": {
+        "sourceCode": {
+          "$ref": "#/$defs/String"
+        },
+        "value": {
+          "$ref": "#/$defs/TestValue"
+        },
+        "subexpressions": {
+          "type": "object",
+          "properties": {
+            "_values": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/TestExpression"
+              }
+            }
+          },
+          "required": ["_values"]
+        }
+      }
+    },
+    "TestFailureIssueSummary": {
+      "type": "object",
+      "properties": {
+        "issueType": {
+          "$ref": "#/$defs/String"
+        },
+        "message": {
+          "$ref": "#/$defs/String"
+        },
+        "producingTarget": {
+          "$ref": "#/$defs/String"
+        },
+        "documentLocationInCreatingWorkspace": {
+          "$ref": "#/$defs/DocumentLocation"
+        },
+        "testCaseName": {
+          "$ref": "#/$defs/String"
+        }
+      }
+    },
+    "TestIssueSummary": {
+      "type": "object",
+      "properties": {
+        "issueType": {
+          "$ref": "#/$defs/String"
+        },
+        "message": {
+          "$ref": "#/$defs/String"
+        },
+        "producingTarget": {
+          "$ref": "#/$defs/String"
+        },
+        "documentLocationInCreatingWorkspace": {
+          "$ref": "#/$defs/DocumentLocation"
+        },
+        "testCaseName": {
+          "$ref": "#/$defs/String"
+        }
+      }
+    },
+    "TestParameter": {
+      "type": "object",
+      "properties": {
+        "label": {
+          "$ref": "#/$defs/String"
+        },
+        "name": {
+          "$ref": "#/$defs/String"
+        },
+        "typeName": {
+          "$ref": "#/$defs/String"
+        },
+        "fullyQualifiedTypeName": {
+          "$ref": "#/$defs/String"
+        }
+      }
+    },
+    "TestTag": {
+      "type": "object",
+      "properties": {
+        "identifier": {
+          "$ref": "#/$defs/String"
+        },
+        "name": {
+          "$ref": "#/$defs/String"
+        },
+        "anchors": {
+          "type": "object",
+          "properties": {
+            "_values": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/String"
+              }
+            }
+          },
+          "required": ["_values"]
+        }
+      }
+    },
+    "TestValue": {
+      "type": "object",
+      "properties": {
+        "description": {
+          "$ref": "#/$defs/String"
+        },
+        "debugDescription": {
+          "$ref": "#/$defs/String"
+        },
+        "typeName": {
+          "$ref": "#/$defs/String"
+        },
+        "fullyQualifiedTypeName": {
+          "$ref": "#/$defs/String"
+        },
+        "label": {
+          "$ref": "#/$defs/String"
+        },
+        "isCollection": {
+          "$ref": "#/$defs/Bool"
+        },
+        "children": {
+          "type": "object",
+          "properties": {
+            "_values": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/TestValue"
+              }
+            }
+          },
+          "required": ["_values"]
+        }
+      }
+    },
+    "TypeDefinition": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/String"
+        },
+        "supertype": {
+          "$ref": "#/$defs/TypeDefinition"
+        }
+      }
+    },
+    "UInt16": {
+      "type": "object",
+      "properties": {
+        "_value": {
+          "type": "string"
+        }
+      },
+      "required": ["_value"]
+    },
+    "UInt32": {
+      "type": "object",
+      "properties": {
+        "_value": {
+          "type": "string"
+        }
+      },
+      "required": ["_value"]
+    },
+    "UInt64": {
+      "type": "object",
+      "properties": {
+        "_value": {
+          "type": "string"
+        }
+      },
+      "required": ["_value"]
+    },
+    "UInt8": {
+      "type": "object",
+      "properties": {
+        "_value": {
+          "type": "string"
+        }
+      },
+      "required": ["_value"]
+    },
+    "URL": {
+      "type": "object",
+      "properties": {
+        "_value": {
+          "type": "string"
+        }
+      },
+      "required": ["_value"]
+    }
+  }
+}
