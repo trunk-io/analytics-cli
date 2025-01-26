@@ -17,7 +17,6 @@ def main():
 
     json_schema["$defs"] = json_schema["schemas"]
     del json_schema["schemas"]
-    json_schema["$ref"] = "#/$defs/Tests"
 
     pathlib.Path(__file__).parent.resolve().joinpath(
         "./xcrun-xcresulttool-get-test-results-tests-json-schema.json"
