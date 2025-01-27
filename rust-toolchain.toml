@@ -1,3 +1,15 @@
 [toolchain]
 channel = "nightly-2024-05-01"
 components = ["clippy", "rustfmt", "rust-src"]
+# These targets are used for cross compilation within docker containers
+# They allow us to cross compile the ruby gem for different platforms
+targets = [
+  "aarch64-apple-darwin",
+  "x86_64-apple-darwin",
+  "x86_64-unknown-linux-gnu",
+  "aarch64-unknown-linux-gnu",
+  "x86_64-unknown-linux-musl",
+  "aarch64-unknown-linux-musl",
+  "arm-unknown-linux-gnueabihf",
+  "wasm32-unknown-unknown",
+]
