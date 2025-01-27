@@ -6,8 +6,9 @@ use context::bazel_bep::parser::BepParseResult;
 
 use crate::{
     context::{
-        gather_exit_code_and_quarantined_tests_context, gather_post_test_context,
-        gather_pre_test_context, gather_upload_id_context, PreTestContext,
+        gather_debug_props, gather_exit_code_and_quarantined_tests_context,
+        gather_post_test_context, gather_pre_test_context, gather_upload_id_context,
+        PreTestContext,
     },
     test_command::TestRunResult,
 };
@@ -133,6 +134,7 @@ pub async fn run_upload(
 ) -> anyhow::Result<UploadRunResult> {
     let api_client = ApiClient::new(&upload_args.token)?;
 
+    // TODO supply pre-test context
     let PreTestContext {
         mut meta,
         junit_path_wrappers,
@@ -142,7 +144,7 @@ pub async fn run_upload(
     } = if let Some(pre_test_context) = pre_test_context {
         pre_test_context
     } else {
-        gather_pre_test_context(upload_args.clone())?
+        gather_pre_test_context(upload_args.clone(), gather_debug_props(upload_args.token))?
     };
 
     let file_set_builder = gather_post_test_context(

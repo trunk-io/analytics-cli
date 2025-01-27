@@ -3566,6 +3566,7 @@ name = "test_report"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "bundle",
  "chrono",
  "env_logger",
  "log",

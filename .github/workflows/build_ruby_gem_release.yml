@@ -2,7 +2,7 @@
 name: Release Ruby Gem
 
 on:
-  workflow: {}
+  workflow_dispatch: {}
 
 permissions:
   contents: read
@@ -40,12 +40,12 @@ jobs:
           - x86_64-linux
           - aarch64-linux
           - aarch64-linux-musl
-          #- arm64-darwin
-          #- x86_64-darwin
+          - arm64-darwin
+          - x86_64-darwin
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
-      - uses: "ruby/setup-ruby@v1"
+      - uses: ruby/setup-ruby@v1
         with:
           ruby-version: "3.1"
           bundler-cache: true
@@ -63,3 +63,27 @@ jobs:
           path: context-ruby/pkg/*.gem
           if-no-files-found: error
           retention-days: 1
+
+  publish_ruby_gem:
+    runs-on: ubuntu-latest
+    needs: cross-gem
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: rubygems/configure-rubygems-credentials@main
+        with:
+          role-to-assume: rg_oidc_akr_vxb9d9w6dob8q6sr6jz5
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: cross-gem-*
+          path: context-ruby/pkg/
+          merge-multiple: true
+
+      - working-directory: context-ruby
+        run: |
+          set -euxo pipefail
+          find pkg
+          for i in $(ls pkg/*.gem); do
+            gem push $i
+          done

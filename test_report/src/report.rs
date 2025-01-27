@@ -1,6 +1,7 @@
 use std::io::Write;
 use std::{cell::RefCell, env, fs};
 
+use bundle::BundleMetaDebugProps;
 use chrono::prelude::*;
 use env_logger;
 use log;
@@ -8,12 +9,14 @@ use log;
 use magnus::{value::ReprValue, Module, Object};
 use prost_wkt_types::Timestamp;
 use proto::test_context::test_run::{TestCaseRun, TestCaseRunStatus, TestResult, UploaderMetadata};
+use trunk_analytics_cli::{context::gather_pre_test_context, upload_command::run_upload};
 #[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::wasm_bindgen;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct TestReport {
     test_result: TestResult,
+    command: String,
 }
 
 #[cfg_attr(feature = "wasm", wasm_bindgen)]
@@ -82,7 +85,7 @@ pub struct MutTestReport(RefCell<TestReport>);
 
 #[cfg_attr(feature = "wasm", wasm_bindgen)]
 impl MutTestReport {
-    pub fn new(origin: String) -> Self {
+    pub fn new(origin: String, command: String) -> Self {
         let target = Box::new(std::fs::File::create("/tmp/test.txt").expect("Can't create file"));
 
         env_logger::Builder::new()
@@ -102,11 +105,14 @@ impl MutTestReport {
             .init();
         let mut test_result = TestResult::default();
         test_result.uploader_metadata = Some(UploaderMetadata {
-            origin,
+            origin: origin.clone(),
             version: env!("CARGO_PKG_VERSION").to_string(),
             upload_time: None,
         });
-        Self(RefCell::new(TestReport { test_result }))
+        Self(RefCell::new(TestReport {
+            test_result,
+            command,
+        }))
     }
 
     fn serialize_test_result(&self) -> Vec<u8> {
@@ -144,20 +150,25 @@ impl MutTestReport {
             vec![resolved_path_str.into()],
             repo_root,
         );
-        match tokio::runtime::Builder::new_multi_thread()
-            .enable_all()
-            .build()
-            .unwrap()
-            .block_on(trunk_analytics_cli::upload_command::run_upload(
-                upload_args,
-                None,
-                None,
-            )) {
-            Ok(_) => return true,
-            Err(e) => {
-                log::error!("Error uploading: {:?}", e);
-                return false;
+        let debug_props = BundleMetaDebugProps {
+            command_line: self.0.borrow().command.clone(),
+        };
+        if let Ok(pre_test_context) = gather_pre_test_context(upload_args.clone(), debug_props) {
+            match tokio::runtime::Builder::new_multi_thread()
+                .enable_all()
+                .build()
+                .unwrap()
+                .block_on(run_upload(upload_args, Some(pre_test_context), None))
+            {
+                Ok(_) => return true,
+                Err(e) => {
+                    log::error!("Error uploading: {:?}", e);
+                    return false;
+                }
             }
+        } else {
+            log::error!("Error gathering pre test context");
+            false
         }
     }
 
@@ -240,7 +251,7 @@ pub fn ruby_init(ruby: &magnus::Ruby) -> Result<(), magnus::Error> {
     status.define_singleton_method("new", magnus::function!(Status::new, 1))?;
     status.define_method("to_s", magnus::method!(Status::to_string, 0))?;
     let test_report = ruby.define_class("TestReport", ruby.class_object())?;
-    test_report.define_singleton_method("new", magnus::function!(MutTestReport::new, 1))?;
+    test_report.define_singleton_method("new", magnus::function!(MutTestReport::new, 2))?;
     test_report.define_method("to_s", magnus::method!(MutTestReport::to_string, 0))?;
     test_report.define_method("publish", magnus::method!(MutTestReport::publish, 1))?;
     test_report.define_method("add_test", magnus::method!(MutTestReport::add_test, 11))?;

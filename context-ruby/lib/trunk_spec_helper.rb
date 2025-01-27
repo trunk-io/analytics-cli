@@ -2,7 +2,7 @@
 
 require 'rspec/core'
 require 'time'
-require 'context_ruby/context_ruby'
+require 'context_ruby'
 
 def escape(str)
   str.dump[1..-2]
@@ -78,7 +78,7 @@ end
 # it generates and submits the final test reports
 class TrunkAnalyticsListener
   def initialize
-    @testreport = TestReport.new('rspec')
+    @testreport = TestReport.new('rspec', "#{$PROGRAM_NAME} #{ARGV.join(' ')}")
   end
 
   def example_finished(notification)

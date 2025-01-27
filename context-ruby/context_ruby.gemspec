@@ -13,8 +13,7 @@ Gem::Specification.new do |s|
   s.homepage    = 'https://trunk.io'
   s.license     = 'MIT'
   s.add_dependency 'rb_sys'
-  s.bindir = 'exe'
   s.executables = []
-  s.require_paths = ["lib"]
+  s.require_paths = ['lib']
   s.extensions = ['ext/context_ruby/extconf.rb']
 end
