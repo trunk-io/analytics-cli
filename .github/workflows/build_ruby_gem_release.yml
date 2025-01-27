@@ -1,0 +1,102 @@
+---
+name: Release Ruby Gem
+on:
+  workflow_dispatch:
+    inputs:
+      # trunk-ignore(checkov/CKV_GHA_7)
+      release_tag:
+        type: string
+        description: Tag to create
+        required: True
+concurrency: ${{ github.workflow }}
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  ci-data:
+    runs-on: public-amd64-large
+    outputs:
+      result: ${{ steps.fetch.outputs.result }}
+    steps:
+      - uses: oxidize-rb/actions/setup-ruby-and-rust@main
+        with:
+          rubygems: latest
+          ruby-version: "3.1"
+          bundler-cache: false
+          cargo-cache: false
+          cargo-vendor: false
+
+      - uses: oxidize-rb/actions/fetch-ci-data@v1
+        id: fetch
+        with:
+          supported-ruby-platforms: |
+            exclude: [arm-linux]
+          stable-ruby-versions: |
+            exclude: [head]
+  cross-gem:
+    name: Compile native gem for ${{ matrix.platform }}
+    runs-on: ubuntu-latest
+    needs: ci-data
+    strategy:
+      matrix:
+        platform:
+          - x86_64-linux
+          - aarch64-linux
+          - arm64-darwin
+          - x86_64-darwin
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.1"
+          bundler-cache: true
+          working-directory: context-ruby
+
+      - name: Update version
+        uses: ./.github/actions/update_version
+        if: "!cancelled()"
+        with:
+          version: ${{ github.event.inputs.release_tag }}
+          file: context-ruby/context_ruby.gemspec
+
+      - uses: oxidize-rb/actions/cross-gem@v1
+        with:
+          platform: ${{ matrix.platform }}
+          working-directory: context-ruby
+          ruby-versions: 3.0,3.1,3.2,3.3,3.4
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cross-gem-${{ matrix.platform }}
+          path: context-ruby/pkg/*.gem
+          if-no-files-found: error
+          retention-days: 1
+
+  test-ruby-gem:
+    name: Test Ruby Gem
+    runs-on: ${{ matrix.platform.os }}
+    needs: [ci-data, cross-gem]
+    strategy:
+      matrix:
+        ruby-version: ["3.0", "3.1", "3.2", "3.3", "3.4"]
+        platform:
+          - name: x86_64-linux
+            os: public-amd64-small
+          - name: aarch64-linux
+            os: public-arm64-medium
+          - name: arm64-darwin
+            os: macos-latest
+          - name: x86_64-darwin
+            os: macos-13
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/test_ruby_gem_uploads
+        with:
+          ruby-version: ${{ matrix.ruby-version }}
+          trunk-token: ${{ secrets.TRUNK_STAGING_ORG_API_TOKEN }}
+          platform: ${{ matrix.platform.name }}
+          artifact-pattern: cross-gem-${{ matrix.platform.name }}

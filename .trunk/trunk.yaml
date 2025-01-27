@@ -81,6 +81,9 @@ lint:
         # Ignore generated files
         - target/**
         - "**/target/**"
+    - linters: [rubocop]
+      paths:
+        - .github/actions/test_ruby_gem_uploads/Gemfile
 actions:
   definitions:
     - id: generate-pyi
