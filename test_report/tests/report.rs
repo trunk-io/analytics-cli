@@ -25,7 +25,7 @@ async fn publish_test_report() {
     env::set_var("TRUNK_ORG_URL_SLUG", "test-org");
 
     let thread_join_handle = thread::spawn(|| {
-        let test_report = MutTestReport::new("test".into());
+        let test_report = MutTestReport::new("test".into(), "".into());
         test_report.add_test(
             Some("1".into()),
             "test-name".into(),
@@ -39,7 +39,7 @@ async fn publish_test_report() {
             1001,
             "test-message".into(),
         );
-        let result = test_report.publish(".".into());
+        let result = test_report.publish();
         assert_eq!(result, true);
     });
     thread_join_handle.join().unwrap();
