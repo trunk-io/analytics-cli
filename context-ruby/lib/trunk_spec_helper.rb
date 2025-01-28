@@ -2,7 +2,7 @@
 
 require 'rspec/core'
 require 'time'
-require 'context_ruby/context_ruby'
+require 'context_ruby'
 
 def escape(str)
   str.dump[1..-2]
