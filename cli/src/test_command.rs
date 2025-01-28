@@ -7,7 +7,7 @@ use clap::Args;
 use constants::EXIT_FAILURE;
 
 use crate::{
-    context::gather_pre_test_context,
+    context::{gather_debug_props, gather_pre_test_context},
     upload_command::{run_upload, UploadArgs, UploadRunResult},
 };
 
@@ -37,7 +37,8 @@ pub async fn run_test(
         command,
     }: TestArgs,
 ) -> anyhow::Result<i32> {
-    let pre_test_context = gather_pre_test_context(upload_args.clone())?;
+    let token = upload_args.token.clone();
+    let pre_test_context = gather_pre_test_context(upload_args.clone(), gather_debug_props(token))?;
 
     log::info!("running command: {:?}", command);
     let test_run_result = run_test_command(&command).await?;
