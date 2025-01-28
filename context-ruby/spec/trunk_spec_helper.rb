@@ -78,7 +78,7 @@ end
 # it generates and submits the final test reports
 class TrunkAnalyticsListener
   def initialize
-    @testreport = TestReport.new('rspec')
+    @testreport = TestReport.new('rspec', "#{$PROGRAM_NAME} #{ARGV.join(' ')}")
   end
 
   def example_finished(notification)
@@ -86,7 +86,7 @@ class TrunkAnalyticsListener
   end
 
   def close(_notification)
-    @testreport.publish('..')
+    @testreport.publish
   end
 
   def description_generated?(example)

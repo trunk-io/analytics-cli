@@ -39,14 +39,27 @@ pub struct PreTestContext {
     pub junit_path_wrappers_temp_dir: Option<TempDir>,
 }
 
-pub fn gather_pre_test_context(upload_args: UploadArgs) -> anyhow::Result<PreTestContext> {
+// This function is used to gather debug properties for the bundle meta.
+// It will trigger EXC_BAD_ACCESS on arm64-darwin builds when compiled under cdylib
+pub fn gather_debug_props(token: String) -> BundleMetaDebugProps {
+    BundleMetaDebugProps {
+        command_line: env::args()
+            .collect::<Vec<String>>()
+            .join(" ")
+            .replace(&token, "***"),
+    }
+}
+
+pub fn gather_pre_test_context(
+    upload_args: UploadArgs,
+    debug_props: BundleMetaDebugProps,
+) -> anyhow::Result<PreTestContext> {
     let UploadArgs {
         junit_paths,
         #[cfg(target_os = "macos")]
         xcresult_path,
         bazel_bep_path,
         org_url_slug,
-        token,
         repo_root,
         repo_url,
         repo_head_sha,
@@ -91,12 +104,7 @@ pub fn gather_pre_test_context(upload_args: UploadArgs) -> anyhow::Result<PreTes
 
     let meta = BundleMeta {
         junit_props: BundleMetaJunitProps::default(),
-        debug_props: BundleMetaDebugProps {
-            command_line: env::args()
-                .collect::<Vec<String>>()
-                .join(" ")
-                .replace(&token, "***"),
-        },
+        debug_props,
         bundle_upload_id_v2: String::with_capacity(0),
         base_props: BundleMetaBaseProps {
             version: META_VERSION.to_string(),
