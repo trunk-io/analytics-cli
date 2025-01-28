@@ -741,3 +741,55 @@ fn test_simple_gitlab_merge_branch() {
         ]
     );
 }
+
+#[test]
+fn test_custom_config() {
+    let job_url = String::from("https://example.com");
+    let job_name = String::from("CI Job");
+    let author_email = String::from("test_author@example.com");
+    let author_name = String::from("John TestUser");
+    let commit_branch = String::from("yvr-123-test-commit");
+    let commit_message = String::from("Fixes in test branch");
+    let pr_number = 123;
+    let pr_title = String::from("YVR-123 Test Commit");
+
+    let env_vars = EnvVars::from_iter(vec![
+        (String::from("CUSTOM"), String::from("true")),
+        (String::from("JOB_URL"), String::from(&job_url)),
+        (String::from("JOB_NAME"), String::from(&job_name)),
+        (String::from("AUTHOR_EMAIL"), String::from(&author_email)),
+        (String::from("AUTHOR_NAME"), String::from(&author_name)),
+        (String::from("COMMIT_BRANCH"), String::from(&commit_branch)),
+        (
+            String::from("COMMIT_MESSAGE"),
+            String::from(&commit_message),
+        ),
+        (String::from("PR_NUMBER"), pr_number.to_string()),
+        (String::from("PR_TITLE"), String::from(&pr_title)),
+    ]);
+
+    let mut env_parser = EnvParser::new();
+    env_parser.parse(&env_vars);
+
+    let ci_info = env_parser.into_ci_info_parser().unwrap().info_ci_info();
+
+    pretty_assertions::assert_eq!(
+        ci_info,
+        CIInfo {
+            platform: CIPlatform::Custom,
+            job_url: Some(job_url),
+            branch: Some(commit_branch),
+            branch_class: Some(BranchClass::PullRequest),
+            pr_number: Some(pr_number),
+            actor: Some(author_email.clone()),
+            committer_name: Some(author_name.clone()),
+            committer_email: Some(author_email.clone()),
+            author_name: Some(author_name),
+            author_email: Some(author_email),
+            commit_message: Some(commit_message),
+            title: Some(pr_title),
+            workflow: Some(job_name.clone()),
+            job: Some(job_name),
+        }
+    );
+}

@@ -37,6 +37,16 @@ mod ci_platform_env_key {
     pub const GITLAB_CI: &str = "GITLAB_CI";
     /// https://docs.drone.io/pipeline/environment/reference/drone/
     pub const DRONE: &str = "DRONE";
+    /// Custom environment allowing users to manually set upload metadata using these env vars, all of which are optional:
+    /// JOB_URL: Url for the ci job that was run
+    /// JOB_NAME: Name of the ci job that was run
+    /// AUTHOR_EMAIL: Email for the pr author
+    /// AUTHOR_NAME: Display name for the pr author
+    /// COMMIT_BRANCH: Branch for the pr run
+    /// COMMIT_MESSAGE: Message for the commit run
+    /// PR_NUMBER: Number for the pr (must actually be a number)
+    /// PR_TITLE: Title of the pr
+    pub const CUSTOM: &str = "CUSTOM";
 }
 
 #[cfg_attr(feature = "pyo3", gen_stub_pyclass_enum, pyclass(eq, eq_int))]
@@ -56,6 +66,7 @@ pub enum CIPlatform {
     AzurePipelines,
     GitLabCI,
     Drone,
+    Custom,
     Unknown,
 }
 
@@ -74,6 +85,7 @@ impl Into<&str> for CIPlatform {
             CIPlatform::AzurePipelines => ci_platform_env_key::AZURE_PIPELINES,
             CIPlatform::GitLabCI => ci_platform_env_key::GITLAB_CI,
             CIPlatform::Drone => ci_platform_env_key::DRONE,
+            CIPlatform::Custom => ci_platform_env_key::CUSTOM,
             CIPlatform::Unknown => "UNKNOWN",
         }
     }
@@ -109,6 +121,7 @@ impl magnus::TryConvert for CIPlatform {
             9 => Ok(CIPlatform::AzurePipelines),
             10 => Ok(CIPlatform::GitLabCI),
             11 => Ok(CIPlatform::Drone),
+            12 => Ok(CIPlatform::Custom),
             _ => Err(magnus::Error::new(
                 magnus::Ruby::get_with(val).exception_type_error(),
                 format!("invalid CIPlatform: {}", val),
@@ -132,6 +145,7 @@ impl From<&str> for CIPlatform {
             ci_platform_env_key::AZURE_PIPELINES => CIPlatform::AzurePipelines,
             ci_platform_env_key::GITLAB_CI => CIPlatform::GitLabCI,
             ci_platform_env_key::DRONE => CIPlatform::Drone,
+            ci_platform_env_key::CUSTOM => CIPlatform::Custom,
             _ => CIPlatform::Unknown,
         }
     }
@@ -190,6 +204,7 @@ impl<'a> CIInfoParser<'a> {
             CIPlatform::Semaphore => self.parse_semaphore(),
             CIPlatform::GitLabCI => self.parse_gitlab_ci(),
             CIPlatform::Drone => self.parse_drone(),
+            CIPlatform::Custom => self.parse_custom_info(),
             CIPlatform::CircleCI
             | CIPlatform::TravisCI
             | CIPlatform::Webappio
@@ -231,6 +246,25 @@ impl<'a> CIInfoParser<'a> {
                 merge_request_event_type,
             )));
         }
+    }
+
+    fn parse_custom_info(&mut self) {
+        self.ci_info.job_url = self.get_env_var("JOB_URL");
+        self.ci_info.workflow = self.get_env_var("JOB_NAME");
+        self.ci_info.job = self.get_env_var("JOB_NAME");
+
+        self.ci_info.actor = self.get_env_var("AUTHOR_EMAIL");
+        self.ci_info.committer_email = self.get_env_var("AUTHOR_EMAIL");
+        self.ci_info.author_email = self.get_env_var("AUTHOR_EMAIL");
+
+        self.ci_info.committer_name = self.get_env_var("AUTHOR_NAME");
+        self.ci_info.author_name = self.get_env_var("AUTHOR_NAME");
+
+        self.ci_info.branch = self.get_env_var("COMMIT_BRANCH");
+        self.ci_info.commit_message = self.get_env_var("COMMIT_MESSAGE");
+
+        self.ci_info.pr_number = Self::parse_pr_number(self.get_env_var("PR_NUMBER"));
+        self.ci_info.title = self.get_env_var("PR_TITLE");
     }
 
     fn parse_github_actions(&mut self) {
