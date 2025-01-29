@@ -10,6 +10,17 @@ inputs:
     default: cross-gem-*
     description: Artifact pattern to download
     required: false
+  trunk-token:
+    description: Trunk API token
+    required: true
+  trunk-public-api-address:
+    description: Trunk public API address
+    required: false
+    default: https://api.trunk-staging.io
+  trunk-org-slug:
+    description: The organization to upload the tests for
+    required: false
+    default: trunk-staging-org
 
 runs:
   using: composite
@@ -33,11 +44,11 @@ runs:
       shell: bash
       working-directory: ${{ github.action_path }}
       run: |
-        gem install pkg/rspec_trunk_flaky_tests-*.gem
+        gem install pkg/rspec_trunk_flaky_tests-*.gem --local
+        echo gem \'rspec_trunk_flaky_tests\' >> Gemfile
         bundle install --local
-        bundle info rspec_trunk_flaky_tests 
         bundle exec rspec spec/test_spec.rb
       env:
-        TRUNK_PUBLIC_API_ADDRESS: https://api.trunk-staging.io
-        TRUNK_ORG_URL_SLUG: trunk-staging-org
-        TRUNK_API_TOKEN: ${{ secrets.TRUNK_STAGING_ORG_API_TOKEN }}
+        TRUNK_PUBLIC_API_ADDRESS: ${{ inputs.trunk-public-api-address }}
+        TRUNK_ORG_URL_SLUG: ${{ inputs.trunk-org-slug }}
+        TRUNK_API_TOKEN: ${{ inputs.trunk-token }}

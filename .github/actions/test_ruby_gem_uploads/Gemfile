@@ -1,6 +1,5 @@
 # frozen_string_literal: true
 
-source "https://rubygems.org"
+source 'https://rubygems.org'
 
-gem "rspec_trunk_flaky_tests", gemfile: "rspec_trunk_flaky_tests*.gem"
-gem "rspec"
+gem 'rspec'

@@ -36,12 +36,7 @@ jobs:
     strategy:
       matrix:
         platform:
-          - x86_64-linux-musl
           - x86_64-linux
-          - aarch64-linux
-          - aarch64-linux-musl
-          - arm64-darwin
-          - x86_64-darwin
     steps:
       - uses: actions/checkout@v4
 
@@ -70,35 +65,12 @@ jobs:
     needs: [ci-data, cross-gem]
     strategy:
       matrix:
-        os: [ubuntu-latest, ubuntu-24.04-arm, macos-latest, macos-13]
-        ruby-version: ["3.0", "3.1", "3.2", "3.3", "3.4"]
+        os: [ubuntu-latest]
+        ruby-version: ["3.1"]
     steps:
       - uses: actions/checkout@v4
 
       - uses: ./.github/actions/test_ruby_gem_uploads
         with:
           ruby-version: ${{ matrix.ruby-version }}
-
-  publish-ruby-gem:
-    runs-on: ubuntu-latest
-    needs: test-ruby-gem
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: rubygems/configure-rubygems-credentials@main
-        with:
-          role-to-assume: rg_oidc_akr_vxb9d9w6dob8q6sr6jz5
-
-      - uses: actions/download-artifact@v4
-        with:
-          pattern: cross-gem-*
-          path: context-ruby/pkg/
-          merge-multiple: true
-
-      - working-directory: context-ruby
-        run: |
-          set -euxo pipefail
-          find pkg
-          for i in $(ls pkg/*.gem); do
-            gem push $i
-          done
+          trunk-token: ${{ secrets.TRUNK_STAGING_ORG_API_TOKEN }}
