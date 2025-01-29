@@ -1,19 +1,41 @@
 # frozen_string_literal: true
 
-require "rake/testtask"
-require "rake/extensiontask"
-require 'rspec/core/rake_task'
+require 'rake/testtask'
+require 'rake/extensiontask'
+require 'rb_sys/extensiontask'
+require 'bundler/gem_tasks'
 
-Rake::ExtensionTask.new("context_ruby") do |c|
-  c.lib_dir = "lib/context_ruby"
+GEMSPEC_PATH = 'context_ruby.gemspec'
+GEMSPEC = Gem::Specification.load('context_ruby.gemspec') || abort('Could not load gemspec')
+
+RbSys::ExtensionTask.new('context_ruby', GEMSPEC) do |ext|
+  ext.lib_dir = 'lib/context_ruby'
+  ext.cross_compile = true
 end
 
-task :dev do
-  ENV['RB_SYS_CARGO_PROFILE'] = 'dev'
+desc 'Build native extension for a provided platform'
+task :native, [:platform] do |_t, platform:|
+  Dir.chdir '..' do
+    if platform == 'x86_64-linux'
+      sh 'bundle', 'exec', 'rb-sys-dock', '--platform', platform, '--build', '--directory', 'context-ruby', '--ruby-versions', '3.0,3.1,3.2,3.3,3.4', '--', 'sudo yum install -y perl-IPC-Cmd' 
+    else
+      sh 'bundle', 'exec', 'rb-sys-dock', '--platform', platform, '--build', '--directory', 'context-ruby', '--ruby-versions', '3.0,3.1,3.2,3.3,3.4'
+    end
+  end
 end
 
-RSpec::Core::RakeTask.new(:test) do |t|
-  ENV['REPO_ROOT'] = '..'
-  Rake::Task['compile'].invoke
-  t.pattern = 'test/*_spec.rb'
+task build: :compile
+
+# for some reason I haven't been able to figure out, rspec is unable to be loaded in when running inside of a container
+begin
+  require 'rspec/core/rake_task'
+  RSpec::Core::RakeTask.new(:test) do |t|
+    ENV['REPO_ROOT'] = '..'
+    Rake::Task['compile'].invoke
+    t.pattern = FileList['test/*_spec.rb']
+  end
+  task default: :test
+rescue LoadError
+  warn 'RSpec not available. Skipping spec task.'
 end
+

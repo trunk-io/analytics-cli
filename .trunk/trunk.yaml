@@ -14,7 +14,7 @@ runtimes:
   enabled:
     - node@18.12.1
     - python@3.10.8
-    - ruby@3.1.0
+    - ruby@3.1.4
     - rust@2024-05-01
 # This is the section where you manage your linters. (https://docs.trunk.io/check/configuration)
 lint:
