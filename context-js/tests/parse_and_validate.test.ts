@@ -178,4 +178,21 @@ describe("context-js", () => {
 
     expect(parse_branch_class("")).toBe(BranchClass.None);
   });
+
+  it("validates stable branches", () => {
+    expect.hasAssertions();
+
+    expect(parse_branch_class("main")).toBe(BranchClass.ProtectedBranch);
+
+    expect(parse_branch_class("main", null, null, ["master"])).toBe(
+      BranchClass.None,
+    );
+
+    expect(
+      parse_branch_class("my-dev-branch", null, null, [
+        "another-stable-branch",
+        "my-dev-branch",
+      ]),
+    ).toBe(BranchClass.ProtectedBranch);
+  });
 });
