@@ -1,8 +1,14 @@
+PATH
+  remote: .
+  specs:
+    rspec_trunk_flaky_tests (0.0.0)
+      rb_sys
+      rspec-core (> 3.3)
+
 GEM
   remote: https://rubygems.org/
   specs:
     diff-lcs (1.5.1)
-    power_assert (2.0.4)
     rake (13.2.1)
     rake-compiler (1.2.0)
       rake
@@ -20,21 +26,20 @@ GEM
       diff-lcs (>= 1.2.0, < 2.0)
       rspec-support (~> 3.13.0)
     rspec-support (3.13.2)
-    test-unit (3.6.4)
-      power_assert
 
 PLATFORMS
-  darwin
-  linux
-  ruby
+  arm64-darwin
+  arm64-linux
+  x86_64-darwin
+  x86_64-linux
 
 DEPENDENCIES
   rake
   rake-compiler (= 1.2.0)
-  rb_sys (~> 0.9.103)
+  rb_sys (= 0.9.103)
   rspec
   rspec-core
-  test-unit
+  rspec_trunk_flaky_tests!
 
 BUNDLED WITH
    2.5.23
