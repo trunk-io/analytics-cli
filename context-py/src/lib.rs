@@ -20,9 +20,12 @@ define_stub_info_gatherer!(stub_info);
 
 #[gen_stub_pyfunction]
 #[pyfunction]
-fn env_parse(env_vars: HashMap<String, String>) -> Option<env::parser::CIInfo> {
+fn env_parse(
+    env_vars: HashMap<String, String>,
+    stable_branches: Option<Vec<String>>,
+) -> Option<env::parser::CIInfo> {
     let mut env_parser = env::parser::EnvParser::new();
-    env_parser.parse(&env_vars);
+    env_parser.parse(&env_vars, stable_branches);
 
     env_parser
         .into_ci_info_parser()

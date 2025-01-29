@@ -3,10 +3,13 @@ use std::collections::HashMap;
 use context::{env, repo};
 use test_report::report;
 
-pub fn env_parse(env_vars: magnus::RHash) -> Option<env::parser::CIInfo> {
+pub fn env_parse(
+    env_vars: magnus::RHash,
+    stable_branches: Option<Vec<String>>,
+) -> Option<env::parser::CIInfo> {
     let env_vars: HashMap<String, String> = env_vars.to_hash_map().unwrap_or_default();
     let mut env_parser = env::parser::EnvParser::new();
-    env_parser.parse(&env_vars);
+    env_parser.parse(&env_vars, stable_branches);
 
     env_parser
         .into_ci_info_parser()
