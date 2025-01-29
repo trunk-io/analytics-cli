@@ -8,7 +8,7 @@ def test_branch_supplied_by_env():
     )
 
     ci_info, bundle_repo = ci_info_and_bundle_repo()
-    meta_context = BindingsMetaContext(ci_info, bundle_repo)
+    meta_context = BindingsMetaContext(ci_info, bundle_repo, None)
     assert meta_context.ci_info.branch_class is not None
     assert branch_class_to_string(meta_context.ci_info.branch_class) == "NONE"
     meta_validation: MetaValidation = meta_validate(meta_context)
@@ -38,11 +38,11 @@ def test_branch_supplied_by_repo():
         "GITHUB_JOB": "test-job",
     }
 
-    ci_info = env_parse(env_vars)
+    ci_info = env_parse(env_vars, None)
     assert ci_info is not None
 
     _, bundle_repo = ci_info_and_bundle_repo()
-    meta_context = BindingsMetaContext(ci_info, bundle_repo)
+    meta_context = BindingsMetaContext(ci_info, bundle_repo, None)
     assert meta_context.ci_info.branch_class is not None
     assert branch_class_to_string(meta_context.ci_info.branch_class) == "PB"
     meta_validation: MetaValidation = meta_validate(meta_context)
@@ -74,7 +74,7 @@ def test_no_branch_supplied():
         "GITHUB_JOB": "test-job",
     }
 
-    ci_info = env_parse(env_vars)
+    ci_info = env_parse(env_vars, None)
     assert ci_info is not None
 
     bundle_repo = BundleRepo(
@@ -89,7 +89,7 @@ def test_no_branch_supplied():
         "Spikey",
         "spikey@trunk.io",
     )
-    meta_context = BindingsMetaContext(ci_info, bundle_repo)
+    meta_context = BindingsMetaContext(ci_info, bundle_repo, None)
     assert meta_context.ci_info.branch_class is not None
     assert branch_class_to_string(meta_context.ci_info.branch_class) == "NONE"
     meta_validation: MetaValidation = meta_validate(meta_context)
@@ -112,7 +112,7 @@ def ci_info_and_bundle_repo():
         "GITHUB_JOB": "test-job",
     }
 
-    ci_info = env_parse(env_vars)
+    ci_info = env_parse(env_vars, None)
     assert ci_info is not None
 
     bundle_repo = BundleRepo(

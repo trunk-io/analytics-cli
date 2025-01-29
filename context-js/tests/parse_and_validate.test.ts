@@ -37,7 +37,7 @@ describe("context-js", () => {
       GITHUB_JOB: "test-job",
     };
 
-    const ciInfo = env_parse(env_vars);
+    const ciInfo = env_parse(env_vars, null);
     // NOTE: Need to narrow type here
     // eslint-disable-next-line vitest/no-conditional-in-test
     if (!ciInfo) throw Error("ciInfo is undefined");

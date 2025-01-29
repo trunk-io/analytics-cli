@@ -15,7 +15,7 @@ describe 'context_ruby' do
       'GITHUB_WORKFLOW' => 'test-workflow',
       'GITHUB_JOB' => 'test-job'
     }
-    parsed = env_parse(env_vars)
+    parsed = env_parse(env_vars, nil)
     expect(parsed.platform.to_s).to eq('GITHUB_ACTIONS')
     expect(parsed.job_url).to eq('https://github.com/analytics-cli/actions/runs/12345')
     expect(parsed.branch).to eq('abc')
