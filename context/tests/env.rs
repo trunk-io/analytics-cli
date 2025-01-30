@@ -511,6 +511,56 @@ fn test_simple_github_graphite_merge_queue() {
 }
 
 #[test]
+fn test_simple_github_stable_branches() {
+    let run_id = String::from("42069");
+    let actor = String::from("username");
+    let repository = String::from("test/tester");
+    let branch = String::from("master");
+    let workflow = String::from("test-workflow");
+    let job = String::from("test-job");
+
+    let env_vars = EnvVars::from_iter(
+        vec![
+            (String::from("GITHUB_ACTIONS"), String::from("true")),
+            (String::from("GITHUB_RUN_ID"), String::from(&run_id)),
+            (String::from("GITHUB_ACTOR"), String::from(&actor)),
+            (String::from("GITHUB_REPOSITORY"), String::from(&repository)),
+            (String::from("GITHUB_REF"), String::from(&branch)),
+            (String::from("GITHUB_WORKFLOW"), String::from(&workflow)),
+            (String::from("GITHUB_JOB"), String::from(&job)),
+        ]
+        .into_iter(),
+    );
+
+    let mut env_parser = EnvParser::new();
+    env_parser.parse(&env_vars, None);
+
+    let ci_info = env_parser.into_ci_info_parser().unwrap().info_ci_info();
+
+    pretty_assertions::assert_eq!(
+        ci_info,
+        CIInfo {
+            platform: CIPlatform::GitHubActions,
+            job_url: Some(format!(
+                "https://github.com/{repository}/actions/runs/{run_id}"
+            )),
+            branch: Some(branch),
+            branch_class: Some(BranchClass::ProtectedBranch),
+            pr_number: None,
+            actor: Some(actor),
+            committer_name: None,
+            committer_email: None,
+            author_name: None,
+            author_email: None,
+            commit_message: None,
+            title: None,
+            workflow: Some(workflow),
+            job: Some(job),
+        }
+    );
+}
+
+#[test]
 fn test_simple_semaphore() {
     let job_id = String::from("42069");
     let project_id = String::from("12345");
@@ -791,5 +841,73 @@ fn test_custom_config() {
             workflow: Some(job_name.clone()),
             job: Some(job_name),
         }
+    );
+}
+
+#[test]
+fn test_simple_gitlab_stable_branches() {
+    let job_url = String::from("https://example.com");
+    let actor = String::from("username");
+    let email = String::from("username@example.com");
+    let commit_author = String::from("username <username@example.com>");
+    let branch = String::from("some-branch-name");
+    let workflow = String::from("test-job-name");
+    let job = String::from("test-job-stage");
+
+    let env_vars = EnvVars::from_iter(
+        vec![
+            (String::from("GITLAB_CI"), String::from("true")),
+            (String::from("CI_JOB_URL"), String::from(&job_url)),
+            (
+                String::from("CI_COMMIT_AUTHOR"),
+                String::from(&commit_author),
+            ),
+            (
+                String::from("CI_COMMIT_REF_NAME"),
+                format!("remotes/{branch}"),
+            ),
+            (String::from("CI_JOB_NAME"), String::from(&workflow)),
+            (String::from("CI_JOB_STAGE"), String::from(&job)),
+        ]
+        .into_iter(),
+    );
+
+    let mut env_parser = EnvParser::new();
+    env_parser.parse(&env_vars, Some(vec![String::from(&branch)]));
+
+    let ci_info = env_parser.into_ci_info_parser().unwrap().info_ci_info();
+
+    pretty_assertions::assert_eq!(
+        ci_info,
+        CIInfo {
+            platform: CIPlatform::GitLabCI,
+            job_url: Some(job_url),
+            branch: Some(branch),
+            branch_class: Some(BranchClass::ProtectedBranch),
+            pr_number: None,
+            actor: Some(actor.clone()),
+            committer_name: Some(actor.clone()),
+            committer_email: Some(email.clone()),
+            author_name: Some(actor),
+            author_email: Some(email),
+            commit_message: None,
+            title: None,
+            workflow: Some(workflow),
+            job: Some(job),
+        }
+    );
+
+    let env_validation = env::validator::validate(&ci_info);
+    assert_eq!(env_validation.max_level(), EnvValidationLevel::SubOptimal);
+    pretty_assertions::assert_eq!(
+        env_validation.issues(),
+        &[
+            EnvValidationIssue::SubOptimal(
+                EnvValidationIssueSubOptimal::CIInfoCommitMessageTooShort(String::from(""),),
+            ),
+            EnvValidationIssue::SubOptimal(EnvValidationIssueSubOptimal::CIInfoTitleTooShort(
+                String::from(""),
+            ),),
+        ]
     );
 }
