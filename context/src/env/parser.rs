@@ -503,6 +503,7 @@ impl
         } else if branch_name.starts_with("remotes/pull/") || branch_name.starts_with("pull/") {
             BranchClass::PullRequest
         } else if stable_branches
+            .filter(|branches| branches.len() > 0)
             .unwrap_or(vec![String::from("main"), String::from("master")])
             .iter()
             .any(|branch| branch == branch_name)
@@ -639,6 +640,8 @@ impl<'a> EnvParser<'a> {
 pub fn ruby_init(ruby: &magnus::Ruby) -> Result<(), magnus::Error> {
     let ci_platform = ruby.define_class("CIPlatform", ruby.class_object())?;
     ci_platform.define_method("to_s", magnus::method!(CIPlatform::to_string, 0))?;
+    let branch_class = ruby.define_class("BranchClass", ruby.class_object())?;
+    branch_class.define_method("to_s", magnus::method!(BranchClass::to_string, 0))?;
     let ci_info = ruby.define_class("CIInfo", ruby.class_object())?;
     ci_info.define_singleton_method("new", magnus::function!(CIInfo::new, 1))?;
     ci_info.define_method("platform", magnus::method!(CIInfo::platform, 0))?;
