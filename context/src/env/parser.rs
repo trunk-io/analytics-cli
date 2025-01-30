@@ -503,7 +503,7 @@ impl
         } else if branch_name.starts_with("remotes/pull/") || branch_name.starts_with("pull/") {
             BranchClass::PullRequest
         } else if stable_branches
-            .filter(|branches| branches.len() > 0)
+            .filter(|branches| !branches.is_empty())
             .unwrap_or(vec![String::from("main"), String::from("master")])
             .iter()
             .any(|branch| branch == branch_name)
@@ -630,7 +630,7 @@ impl<'a> EnvParser<'a> {
     fn parse_ci_platform(&mut self, env_vars: &'a EnvVars, stable_branches: Option<Vec<String>>) {
         self.ci_info_parser = Some(CIInfoParser::new(
             CIPlatform::from(env_vars),
-            &env_vars,
+            env_vars,
             stable_branches,
         ));
     }

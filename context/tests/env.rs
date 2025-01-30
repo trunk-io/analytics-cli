@@ -519,18 +519,15 @@ fn test_simple_github_stable_branches() {
     let workflow = String::from("test-workflow");
     let job = String::from("test-job");
 
-    let env_vars = EnvVars::from_iter(
-        vec![
-            (String::from("GITHUB_ACTIONS"), String::from("true")),
-            (String::from("GITHUB_RUN_ID"), String::from(&run_id)),
-            (String::from("GITHUB_ACTOR"), String::from(&actor)),
-            (String::from("GITHUB_REPOSITORY"), String::from(&repository)),
-            (String::from("GITHUB_REF"), String::from(&branch)),
-            (String::from("GITHUB_WORKFLOW"), String::from(&workflow)),
-            (String::from("GITHUB_JOB"), String::from(&job)),
-        ]
-        .into_iter(),
-    );
+    let env_vars = EnvVars::from_iter(vec![
+        (String::from("GITHUB_ACTIONS"), String::from("true")),
+        (String::from("GITHUB_RUN_ID"), String::from(&run_id)),
+        (String::from("GITHUB_ACTOR"), String::from(&actor)),
+        (String::from("GITHUB_REPOSITORY"), String::from(&repository)),
+        (String::from("GITHUB_REF"), String::from(&branch)),
+        (String::from("GITHUB_WORKFLOW"), String::from(&workflow)),
+        (String::from("GITHUB_JOB"), String::from(&job)),
+    ]);
 
     let mut env_parser = EnvParser::new();
     env_parser.parse(&env_vars, None);
@@ -854,23 +851,20 @@ fn test_simple_gitlab_stable_branches() {
     let workflow = String::from("test-job-name");
     let job = String::from("test-job-stage");
 
-    let env_vars = EnvVars::from_iter(
-        vec![
-            (String::from("GITLAB_CI"), String::from("true")),
-            (String::from("CI_JOB_URL"), String::from(&job_url)),
-            (
-                String::from("CI_COMMIT_AUTHOR"),
-                String::from(&commit_author),
-            ),
-            (
-                String::from("CI_COMMIT_REF_NAME"),
-                format!("remotes/{branch}"),
-            ),
-            (String::from("CI_JOB_NAME"), String::from(&workflow)),
-            (String::from("CI_JOB_STAGE"), String::from(&job)),
-        ]
-        .into_iter(),
-    );
+    let env_vars = EnvVars::from_iter(vec![
+        (String::from("GITLAB_CI"), String::from("true")),
+        (String::from("CI_JOB_URL"), String::from(&job_url)),
+        (
+            String::from("CI_COMMIT_AUTHOR"),
+            String::from(&commit_author),
+        ),
+        (
+            String::from("CI_COMMIT_REF_NAME"),
+            format!("remotes/{branch}"),
+        ),
+        (String::from("CI_JOB_NAME"), String::from(&workflow)),
+        (String::from("CI_JOB_STAGE"), String::from(&job)),
+    ]);
 
     let mut env_parser = EnvParser::new();
     env_parser.parse(&env_vars, Some(vec![String::from(&branch)]));
