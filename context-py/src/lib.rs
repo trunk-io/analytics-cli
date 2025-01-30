@@ -20,6 +20,7 @@ define_stub_info_gatherer!(stub_info);
 
 #[gen_stub_pyfunction]
 #[pyfunction]
+#[pyo3(signature = (env_vars, stable_branches))]
 fn env_parse(
     env_vars: HashMap<String, String>,
     stable_branches: Option<Vec<String>>,
