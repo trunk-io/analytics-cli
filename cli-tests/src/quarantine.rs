@@ -4,16 +4,15 @@ use api::message::{
     CreateBundleUploadRequest, CreateBundleUploadResponse, GetQuarantineConfigRequest,
     GetQuarantineConfigResponse,
 };
-use assert_cmd::Command;
 use axum::{extract::State, Json};
-use constants::{TRUNK_API_CLIENT_RETRY_COUNT_ENV, TRUNK_PUBLIC_API_ADDRESS_ENV};
 use lazy_static::lazy_static;
 use predicates::prelude::*;
 use tempfile::tempdir;
 use test_utils::mock_server::{MockServerBuilder, SharedMockServerState};
 
-use crate::utils::{
-    generate_mock_codeowners, generate_mock_git_repo, generate_mock_valid_junit_xmls, CARGO_RUN,
+use crate::{
+    command_builder::CommandBuilder,
+    utils::{generate_mock_codeowners, generate_mock_git_repo, generate_mock_valid_junit_xmls},
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -94,24 +93,7 @@ async fn quarantines_tests_regardless_of_upload() {
     );
     let state = mock_server_builder.spawn_mock_server().await;
 
-    let args = &[
-        "quarantine",
-        "--junit-paths",
-        "./*",
-        "--org-url-slug",
-        "test-org",
-        "--token",
-        "test-token",
-    ];
-
-    let mut command = Command::new(CARGO_RUN.path());
-    command
-        .current_dir(&temp_dir)
-        .env(TRUNK_PUBLIC_API_ADDRESS_ENV, &state.host)
-        .env(TRUNK_API_CLIENT_RETRY_COUNT_ENV, "0")
-        .env("CI", "1")
-        .env("GITHUB_JOB", "test-job")
-        .args(args);
+    let mut command = CommandBuilder::quarantine(temp_dir.path(), state.host.clone()).command();
 
     let upload_failure = predicate::str::contains("Error uploading test results");
 
@@ -208,25 +190,9 @@ async fn do_no_quarantines_tests_when_use_quarantined_disabled() {
     );
     let state = mock_server_builder.spawn_mock_server().await;
 
-    let args = &[
-        "quarantine",
-        "--junit-paths",
-        "./*",
-        "--org-url-slug",
-        "test-org",
-        "--token",
-        "test-token",
-        "--use-quarantining=false",
-    ];
-
-    let mut command = Command::new(CARGO_RUN.path());
-    command
-        .current_dir(&temp_dir)
-        .env(TRUNK_PUBLIC_API_ADDRESS_ENV, &state.host)
-        .env(TRUNK_API_CLIENT_RETRY_COUNT_ENV, "0")
-        .env("CI", "1")
-        .env("GITHUB_JOB", "test-job")
-        .args(args);
+    let mut command = CommandBuilder::quarantine(temp_dir.path(), state.host.clone())
+        .use_quarantining(false)
+        .command();
 
     let upload_failure = predicate::str::contains("Error uploading test results");
     // there is no provided exit code, so all of the options below will default to success.

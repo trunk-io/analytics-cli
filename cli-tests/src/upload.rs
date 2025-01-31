@@ -5,12 +5,10 @@ use api::message::{
     BundleUploadStatus, CreateBundleUploadRequest, CreateBundleUploadResponse, CreateRepoRequest,
     GetQuarantineConfigRequest, GetQuarantineConfigResponse, UpdateBundleUploadRequest,
 };
-use assert_cmd::Command;
 use assert_matches::assert_matches;
 use axum::{extract::State, Json};
 use bundle::{BundleMeta, FileSetType};
 use codeowners::CodeOwners;
-use constants::{TRUNK_API_CLIENT_RETRY_COUNT_ENV, TRUNK_PUBLIC_API_ADDRESS_ENV};
 use context::{
     bazel_bep::parser::BazelBepParser, junit::parser::JunitParser, repo::RepoUrlParts as Repo,
 };
@@ -22,9 +20,10 @@ use test_utils::{
     mock_server::{MockServerBuilder, RequestPayload, SharedMockServerState},
 };
 
+use crate::command_builder::CommandBuilder;
 use crate::utils::{
     generate_mock_bazel_bep, generate_mock_codeowners, generate_mock_git_repo,
-    generate_mock_valid_junit_xmls, CARGO_RUN,
+    generate_mock_valid_junit_xmls,
 };
 
 // NOTE: must be multi threaded to start a mock server
@@ -37,23 +36,10 @@ async fn upload_bundle() {
 
     let state = MockServerBuilder::new().spawn_mock_server().await;
 
-    let args = &[
-        "upload",
-        "--junit-paths",
-        "./*",
-        "--org-url-slug",
-        "test-org",
-        "--token",
-        "test-token",
-    ];
+    let command_builder = CommandBuilder::upload(temp_dir.path(), state.host.clone());
 
-    let assert = Command::new(CARGO_RUN.path())
-        .current_dir(&temp_dir)
-        .env(TRUNK_PUBLIC_API_ADDRESS_ENV, &state.host)
-        .env(TRUNK_API_CLIENT_RETRY_COUNT_ENV, "0")
-        .env("CI", "1")
-        .env("GITHUB_JOB", "test-job")
-        .args(args)
+    let assert = command_builder
+        .command()
         .assert()
         // should fail due to quarantine and succeed without quarantining
         .failure();
@@ -199,9 +185,12 @@ async fn upload_bundle() {
         }),
     );
 
-    assert!(debug_props
-        .command_line
-        .ends_with(&args.join(" ").replace("test-token", "***")));
+    assert!(debug_props.command_line.ends_with(
+        &command_builder
+            .build_args()
+            .join(" ")
+            .replace("test-token", "***")
+    ));
 
     // HINT: View CLI output with `cargo test -- --nocapture`
     println!("{assert}");
@@ -215,23 +204,9 @@ async fn upload_bundle_using_bep() {
 
     let state = MockServerBuilder::new().spawn_mock_server().await;
 
-    let args = &[
-        "upload",
-        "--bazel-bep-path",
-        "./bep.json",
-        "--org-url-slug",
-        "test-org",
-        "--token",
-        "test-token",
-    ];
-
-    let assert = Command::new(CARGO_RUN.path())
-        .current_dir(&temp_dir)
-        .env(TRUNK_PUBLIC_API_ADDRESS_ENV, &state.host)
-        .env(TRUNK_API_CLIENT_RETRY_COUNT_ENV, "0")
-        .env("CI", "1")
-        .env("GITHUB_JOB", "test-job")
-        .args(args)
+    let assert = CommandBuilder::upload(temp_dir.path(), state.host.clone())
+        .bazel_bep_path("./bep.json")
+        .command()
         .assert()
         .failure();
 
@@ -282,25 +257,10 @@ async fn upload_bundle_success_status_code() {
 
     let state = MockServerBuilder::new().spawn_mock_server().await;
 
-    let args = &[
-        "upload",
-        "--bazel-bep-path",
-        "./bep.json",
-        "--org-url-slug",
-        "test-org",
-        "--token",
-        "test-token",
-    ];
-
     // Even though the junits contain failures, they contain retries that succeeded,
     // so the upload command should have a successful exit code
-    let assert = Command::new(CARGO_RUN.path())
-        .current_dir(&temp_dir)
-        .env(TRUNK_PUBLIC_API_ADDRESS_ENV, &state.host)
-        .env(TRUNK_API_CLIENT_RETRY_COUNT_ENV, "0")
-        .env("CI", "1")
-        .env("GITHUB_JOB", "test-job")
-        .args(args)
+    let assert = CommandBuilder::upload(temp_dir.path(), state.host.clone())
+        .command()
         .assert()
         .code(0)
         .success();
@@ -336,25 +296,10 @@ async fn upload_bundle_success_timestamp_status_code() {
 
     let state = MockServerBuilder::new().spawn_mock_server().await;
 
-    let args = &[
-        "upload",
-        "--bazel-bep-path",
-        "./bep.json",
-        "--org-url-slug",
-        "test-org",
-        "--token",
-        "test-token",
-    ];
-
     // Even though the junits contain failures, they contain retries that succeeded,
     // so the upload command should have a successful exit code
-    let assert = Command::new(CARGO_RUN.path())
-        .current_dir(&temp_dir)
-        .env(TRUNK_PUBLIC_API_ADDRESS_ENV, &state.host)
-        .env(TRUNK_API_CLIENT_RETRY_COUNT_ENV, "0")
-        .env("CI", "1")
-        .env("GITHUB_JOB", "test-job")
-        .args(args)
+    let assert = CommandBuilder::upload(temp_dir.path(), state.host.clone())
+        .command()
         .assert()
         .code(0)
         .success();
@@ -374,20 +319,9 @@ async fn upload_bundle_empty_junit_paths() {
 
     let state = MockServerBuilder::new().spawn_mock_server().await;
 
-    let assert = Command::new(CARGO_RUN.path())
-        .current_dir(&temp_dir)
-        .env(TRUNK_PUBLIC_API_ADDRESS_ENV, &state.host)
-        .env(TRUNK_API_CLIENT_RETRY_COUNT_ENV, "0")
-        .env("CI", "1")
-        .args(&[
-            "upload",
-            "--junit-paths",
-            "",
-            "--org-url-slug",
-            "test-org",
-            "--token",
-            "test-token",
-        ])
+    let assert = CommandBuilder::upload(temp_dir.path(), state.host.clone())
+        .junit_paths("")
+        .command()
         .assert()
         .failure()
         .stderr(predicate::str::contains(
@@ -428,47 +362,41 @@ async fn upload_bundle_no_files_allow_missing_junit_files() {
 
         let state = MockServerBuilder::new().spawn_mock_server().await;
 
-        let mut args = vec![
-            "upload",
-            "--junit-paths",
-            "./*",
-            "--org-url-slug",
-            "test-org",
-            "--token",
-            "test-token",
-        ];
+        let mut command = CommandBuilder::upload(temp_dir.path(), state.host.clone())
+            .print_files(true)
+            .command();
 
         match flag {
-            Flag::Long => args.push("--allow-empty-test-results"),
-            Flag::LongWithEquals => args.push("--allow-empty-test-results=true"),
-            Flag::Alias => args.push("--allow-missing-junit-files"),
-            Flag::AliasWithEquals => args.push("--allow-missing-junit-files=true"),
-            Flag::Default => {}
+            Flag::Long => {
+                command.arg("--allow-empty-test-results");
+            }
+            Flag::LongWithEquals => {
+                command.arg("--allow-empty-test-results=true");
+            }
+            Flag::Alias => {
+                command.arg("--allow-missing-junit-files");
+            }
+            Flag::AliasWithEquals => {
+                command.arg("--allow-missing-junit-files=true");
+            }
+            Flag::Default => (),
             Flag::Off => {
-                args.push("--allow-empty-test-results");
-                args.push("false");
+                command.arg("--allow-empty-test-results");
+                command.arg("false");
             }
             Flag::OffWithEquals => {
-                args.push("--allow-empty-test-results=false");
+                command.arg("--allow-empty-test-results=false");
             }
             Flag::OffAlias => {
-                args.push("--allow-missing-junit-files");
-                args.push("false");
+                command.arg("--allow-missing-junit-files");
+                command.arg("false");
             }
             Flag::OffAliasWithEquals => {
-                args.push("--allow-missing-junit-files=false");
+                command.arg("--allow-missing-junit-files=false");
             }
         };
 
-        args.push("--print-files");
-
-        let mut assert = Command::new(CARGO_RUN.path())
-            .current_dir(&temp_dir)
-            .env(TRUNK_PUBLIC_API_ADDRESS_ENV, &state.host)
-            .env(TRUNK_API_CLIENT_RETRY_COUNT_ENV, "0")
-            .env("CI", "1")
-            .args(&args)
-            .assert();
+        let mut assert = command.assert();
 
         assert = if matches!(
             flag,
@@ -500,22 +428,9 @@ async fn upload_bundle_valid_repo_root() {
 
     let state = MockServerBuilder::new().spawn_mock_server().await;
 
-    let assert = Command::new(CARGO_RUN.path())
-        .current_dir(&temp_dir)
-        .env(TRUNK_PUBLIC_API_ADDRESS_ENV, &state.host)
-        .env(TRUNK_API_CLIENT_RETRY_COUNT_ENV, "0")
-        .env("CI", "1")
-        .args(&[
-            "upload",
-            "--junit-paths",
-            "./*",
-            "--org-url-slug",
-            "test-org",
-            "--repo-root",
-            "../",
-            "--token",
-            "test-token",
-        ])
+    let assert = CommandBuilder::upload(temp_dir.path(), state.host.clone())
+        .repo_root("../")
+        .command()
         .assert()
         .failure()
         .stderr(predicate::str::contains(
@@ -531,23 +446,8 @@ async fn upload_bundle_when_server_down() {
     let temp_dir = tempdir().unwrap();
     generate_mock_git_repo(&temp_dir);
 
-    let args = &[
-        "upload",
-        "--junit-paths",
-        "./*",
-        "--org-url-slug",
-        "test-org",
-        "--token",
-        "test-token",
-    ];
-
-    let assert = Command::new(CARGO_RUN.path())
-        .current_dir(&temp_dir)
-        .env(TRUNK_PUBLIC_API_ADDRESS_ENV, "https://localhost:10")
-        .env(TRUNK_API_CLIENT_RETRY_COUNT_ENV, "0")
-        .env("CI", "1")
-        .env("GITHUB_JOB", "test-job")
-        .args(args)
+    let assert = CommandBuilder::upload(temp_dir.path(), String::from("https://localhost:10"))
+        .command()
         .assert()
         .success();
 
@@ -561,21 +461,8 @@ async fn upload_bundle_with_no_junit_files_no_quarantine_successful_upload() {
 
     let state = MockServerBuilder::new().spawn_mock_server().await;
 
-    let assert = Command::new(CARGO_RUN.path())
-        .current_dir(&temp_dir)
-        .env(TRUNK_PUBLIC_API_ADDRESS_ENV, &state.host)
-        .env(TRUNK_API_CLIENT_RETRY_COUNT_ENV, "0")
-        .env("CI", "1")
-        .env("GITHUB_JOB", "test-job")
-        .args([
-            "upload",
-            "--junit-paths",
-            "./*",
-            "--org-url-slug",
-            "test-org",
-            "--token",
-            "test-token",
-        ])
+    let assert = CommandBuilder::upload(temp_dir.path(), state.host.clone())
+        .command()
         .assert()
         .code(0)
         .success()
@@ -662,24 +549,7 @@ async fn quarantines_tests_regardless_of_upload() {
     );
     let state = mock_server_builder.spawn_mock_server().await;
 
-    let args = &[
-        "upload",
-        "--junit-paths",
-        "./*",
-        "--org-url-slug",
-        "test-org",
-        "--token",
-        "test-token",
-    ];
-
-    let mut command = Command::new(CARGO_RUN.path());
-    command
-        .current_dir(&temp_dir)
-        .env(TRUNK_PUBLIC_API_ADDRESS_ENV, &state.host)
-        .env(TRUNK_API_CLIENT_RETRY_COUNT_ENV, "0")
-        .env("CI", "1")
-        .env("GITHUB_JOB", "test-job")
-        .args(args);
+    let mut command = CommandBuilder::upload(temp_dir.path(), state.host.clone()).command();
 
     // First run won't quarantine any tests
     *QUARANTINE_CONFIG_RESPONSE.lock().unwrap() = QuarantineConfigResponse::None;
