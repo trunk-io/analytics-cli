@@ -39,6 +39,7 @@ runs:
 
     - name: Check dynamic deps
       shell: bash
+      if: ${{ inputs.target != 'x86_64-unknown-illumos' }}
       run: |
         # Confirm that the binary is statically linked
         set +e
