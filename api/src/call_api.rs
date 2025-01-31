@@ -75,7 +75,7 @@ where
                 let instant = interval.tick().await;
                 let time_elapsed = instant.duration_since(check_progress_start);
                 let log_message = log_progress_message(time_elapsed, log_count);
-                log::info!("{}", log_message);
+                log::debug!("{}", log_message);
                 log_count += 1;
             }
         });

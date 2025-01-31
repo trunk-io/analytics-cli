@@ -1,6 +1,7 @@
 use std::{env, io::Write};
 
 use clap::{Parser, Subcommand};
+use clap_verbosity_flag::{log::LevelFilter, InfoLevel, Verbosity};
 use constants::SENTRY_DSN;
 use trunk_analytics_cli::{
     quarantine_command::{run_quarantine, QuarantineArgs},
@@ -19,6 +20,8 @@ use trunk_analytics_cli::{
 struct Cli {
     #[command(subcommand)]
     pub command: Commands,
+    #[command(flatten)]
+    pub verbose: Verbosity<InfoLevel>,
 }
 
 #[derive(Debug, Subcommand)]
@@ -50,8 +53,9 @@ fn main() -> anyhow::Result<()> {
         .enable_all()
         .build()?
         .block_on(async {
-            setup_logger()?;
             let cli = Cli::parse();
+            let log_level_filter = cli.verbose.log_level_filter();
+            setup_logger(log_level_filter)?;
             match run(cli).await {
                 Ok(exit_code) => std::process::exit(exit_code),
                 Err(e) => match (*(e.root_cause())).downcast_ref::<std::io::Error>() {
@@ -92,7 +96,7 @@ async fn run(cli: Cli) -> anyhow::Result<i32> {
     }
 }
 
-fn setup_logger() -> anyhow::Result<()> {
+fn setup_logger(log_level_filter: LevelFilter) -> anyhow::Result<()> {
     let mut builder = env_logger::Builder::new();
     builder
         .format(|buf, record| {
@@ -104,7 +108,7 @@ fn setup_logger() -> anyhow::Result<()> {
                 record.args()
             )
         })
-        .filter(None, log::LevelFilter::Info);
+        .filter_level(log_level_filter);
     if let Ok(log) = std::env::var("TRUNK_LOG") {
         builder.parse_filters(&log);
     }

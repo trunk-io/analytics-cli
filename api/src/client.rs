@@ -344,8 +344,8 @@ mod tests {
             .cloned()
             .collect::<Vec<_>>();
         assert_eq!(first_two_slow_s3_upload_logs, vec![
-            (log::Level::Info, String::from("Uploading bundle to S3 is taking longer than expected. It has taken 2 seconds so far.")),
-            (log::Level::Info, String::from("Uploading bundle to S3 is taking longer than expected. It has taken 4 seconds so far.")),
+            (log::Level::Debug, String::from("Uploading bundle to S3 is taking longer than expected. It has taken 2 seconds so far.")),
+            (log::Level::Debug, String::from("Uploading bundle to S3 is taking longer than expected. It has taken 4 seconds so far.")),
         ]);
 
         guard.flush(None);
