@@ -18,24 +18,29 @@ jobs:
             # cross-rs is unsupported on public-amd64-2xlarge
             runs-on: ubuntu-latest
             target: x86_64-unknown-linux-musl
+            artifact-name: x86_64-unknown-linux
 
           - os-name: linux-aarch64
             # cross-rs is unsupported on public-amd64-2xlarge
-            runs-on: ubuntu-latest
+            runs-on: ubuntu-24.04-arm
             target: aarch64-unknown-linux-musl
+            artifact-name: aarch64-unknown-linux
 
           - os-name: linux-86_64
             # cross-rs is unsupported on public-amd64-2xlarge
             runs-on: ubuntu-latest
             target: x86_64-unknown-illumos
+            artifact-name: x86_64-unknown-illumos
 
           - os-name: x86_64-darwin
             runs-on: macos-latest
             target: x86_64-apple-darwin
+            artifact-name: x86_64-apple-darwin
 
           - os-name: aarch64-darwin
             runs-on: macos-latest
             target: aarch64-apple-darwin
+            artifact-name: aarch64-apple-darwin
 
     runs-on: ${{ matrix.platform.runs-on }}
     steps:
@@ -58,15 +63,15 @@ jobs:
         uses: ./.github/actions/build_cli_macos_target
         if: "!cancelled() && contains(matrix.platform.os-name, 'darwin')"
         with:
-          target: ${{ matrix.platform.target }}-cross
-          profile: release
+          target: ${{ matrix.platform.target }}
+          profile: release-with-debug
 
       - name: Build unix target
         uses: ./.github/actions/build_cli_linux_target
         if: "!cancelled() && !contains(matrix.platform.os-name, 'darwin')"
         with:
           target: ${{ matrix.platform.target }}
-          profile: release
+          profile: release-with-debug
 
       - name: Upload debug info to Sentry
         uses: ./.github/actions/upload_sentry_debug_info
@@ -80,7 +85,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: "!cancelled()"
         with:
-          name: ${{ matrix.platform.target }}
+          name: ${{ matrix.platform.artifact-name }}
           path: target/${{ matrix.platform.target }}/release-with-debug/trunk-analytics-cli
           if-no-files-found: error
 
