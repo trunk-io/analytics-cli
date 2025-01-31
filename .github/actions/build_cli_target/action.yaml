@@ -6,18 +6,40 @@ inputs:
     description: Rust target triple, e.g. x86_64-apple-darwin
   profile:
     description: Rust profile to build, e.g. release-with-debug
+  toolchain:
+    description: Rust toolchain to use, e.g. nightly
+    default: nightly
 
 runs:
   using: composite
   steps:
     - name: Add target
       shell: bash
-      run: rustup target add ${{ inputs.target }}
+      run: rustup target add ${{ inputs.target }} --toolchain ${{ inputs.toolchain }}
+
+    - name: Install cross
+      shell: bash
+      run: cargo install cross --git https://github.com/cross-rs/cross
+
+    - name: Build CLI ${{ inputs.target }} target
+      uses: houseabsolute/actions-rust-cross@v1
+      # Cross-rs does not directly support cross compilation with macOS targets
+      if: ${{ !contains(inputs.target, 'darwin') }}
+      with:
+        command: build
+        target: ${{ inputs.target }}
+        toolchain: ${{ inputs.toolchain }}
+        # NOTE: DO NOT BUILD WORKSPACE OTHERWISE THE CLI MAY BE LINKED TO UNNECESSARY LIBRARIES
+        args: "-p trunk-analytics-cli --profile=${{ inputs.profile }} --target=${{ inputs.target }}"
+        strip: true
+        use-rust-cache: false
 
     - name: Build CLI ${{ inputs.target }} target
       shell: bash
+      if: ${{ contains(inputs.target, 'darwin') }}
       # NOTE: DO NOT BUILD WORKSPACE OTHERWISE THE CLI MAY BE LINKED TO UNNECESSARY LIBRARIES
-      run: cargo build -q -p trunk-analytics-cli --profile=${{ inputs.profile }} --target=${{ inputs.target }}
+      run: |
+        cargo build -p trunk-analytics-cli --profile=${{ inputs.profile }} --target=${{ inputs.target }}
 
     - name: Create binary with debug info
       shell: bash

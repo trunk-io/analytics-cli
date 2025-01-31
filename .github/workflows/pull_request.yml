@@ -18,12 +18,35 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  build_release_macos:
+  build_release:
+    name: Build CLI for ${{ matrix.platform.target }}
     strategy:
       matrix:
-        target: [x86_64-apple-darwin, aarch64-apple-darwin]
-    name: Build CLI for ${{ matrix.target }}
-    runs-on: macos-latest
+        platform:
+          - os-name: linux-x86_64
+            # cross-rs is unsupported on public-amd64-2xlarge
+            runs-on: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+
+          - os-name: linux-aarch64
+            # cross-rs is unsupported on public-amd64-2xlarge
+            runs-on: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-musl
+
+          - os-name: x86_64-linux
+            # cross-rs is unsupported on public-amd64-2xlarge
+            runs-on: ubuntu-latest
+            target: x86_64-unknown-illumos
+
+          - os-name: x86_64-darwin
+            runs-on: macos-latest
+            target: x86_64-apple-darwin
+
+          - os-name: aarch64-darwin
+            runs-on: macos-latest
+            target: aarch64-apple-darwin
+
+    runs-on: ${{ matrix.platform.runs-on }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -38,62 +61,28 @@ jobs:
         uses: ./.github/actions/run_tests
         if: "!cancelled()"
         with:
-          target: ${{ matrix.target }}
+          target: ${{ matrix.platform.target }}
 
-      - name: Build ${{ matrix.target }} target
+      - name: Build darwin target
         uses: ./.github/actions/build_cli_macos_target
-        if: "!cancelled()"
+        if: "!cancelled() && contains(matrix.platform.os-name, 'darwin')"
         with:
-          target: ${{ matrix.target }}
+          target: ${{ matrix.platform.target }}
           profile: release
 
-      - name: Upload results using action from ${{ matrix.target }}
-        uses: ./.github/actions/upload_test_results
-        if: "!cancelled()"
-        with:
-          workspace: ${{ github.workspace }}
-          target: ${{ matrix.target }}
-          trunk-staging-token: ${{ secrets.TRUNK_STAGING_ORG_API_TOKEN }}
-
-  build_release_linux:
-    strategy:
-      matrix:
-        include:
-          - target: x86_64-unknown-linux-musl
-            runs-on: public-amd64-2xlarge
-          - target: aarch64-unknown-linux-musl
-            runs-on: public-arm64-2xlarge
-    name: Build CLI for ${{ matrix.target }}
-    runs-on: ${{ matrix.runs-on }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          lfs: "true"
-
-      - name: Setup Rust & Cargo
-        uses: ./.github/actions/setup_rust_cargo
-        if: "!cancelled()"
-
-      - name: Run tests
-        uses: ./.github/actions/run_tests
-        if: "!cancelled()"
-        with:
-          target: ${{ matrix.target }}
-
-      - name: Build ${{ matrix.target }} target
+      - name: Build unix target
         uses: ./.github/actions/build_cli_linux_target
-        if: "!cancelled()"
+        if: "!cancelled() && !contains(matrix.platform.os-name, 'darwin')"
         with:
-          target: ${{ matrix.target }}
+          target: ${{ matrix.platform.target }}
           profile: release
 
-      - name: Upload results using action from ${{ matrix.target }}
+      - name: Upload results using action from ${{ matrix.platform.target }}
         uses: ./.github/actions/upload_test_results
-        if: "!cancelled()"
+        if: "!cancelled() && !contains(matrix.platform.target, 'illumos')"
         with:
           workspace: ${{ github.workspace }}
-          target: ${{ matrix.target }}
+          target: ${{ matrix.platform.target }}
           trunk-staging-token: ${{ secrets.TRUNK_STAGING_ORG_API_TOKEN }}
 
   trunk_check_runner:
