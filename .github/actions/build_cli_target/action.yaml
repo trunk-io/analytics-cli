@@ -31,7 +31,6 @@ runs:
         toolchain: ${{ inputs.toolchain }}
         # NOTE: DO NOT BUILD WORKSPACE OTHERWISE THE CLI MAY BE LINKED TO UNNECESSARY LIBRARIES
         args: "-p trunk-analytics-cli --profile=${{ inputs.profile }} --target=${{ inputs.target }}"
-        strip: true
         use-rust-cache: false
 
     - name: Build CLI ${{ inputs.target }} target
