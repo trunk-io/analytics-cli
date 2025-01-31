@@ -37,7 +37,7 @@ describe("context-js", () => {
       GITHUB_JOB: "test-job",
     };
 
-    const ciInfo = env_parse(env_vars);
+    const ciInfo = env_parse(env_vars, null);
     // NOTE: Need to narrow type here
     // eslint-disable-next-line vitest/no-conditional-in-test
     if (!ciInfo) throw Error("ciInfo is undefined");
@@ -177,5 +177,22 @@ describe("context-js", () => {
     ).toBe(BranchClass.Merge);
 
     expect(parse_branch_class("")).toBe(BranchClass.None);
+  });
+
+  it("validates stable branches", () => {
+    expect.hasAssertions();
+
+    expect(parse_branch_class("main")).toBe(BranchClass.ProtectedBranch);
+
+    expect(parse_branch_class("main", null, null, ["master"])).toBe(
+      BranchClass.None,
+    );
+
+    expect(
+      parse_branch_class("my-dev-branch", null, null, [
+        "another-stable-branch",
+        "my-dev-branch",
+      ]),
+    ).toBe(BranchClass.ProtectedBranch);
   });
 });

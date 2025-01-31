@@ -23,8 +23,9 @@ pub struct BindingsMetaContext {
 impl BindingsMetaContext {
     #[cfg(feature = "pyo3")]
     #[new]
-    pub fn new(ci_info: &CIInfo, repo: &BundleRepo) -> Self {
-        BindingsMetaContext::from(MetaContext::new(ci_info, repo))
+    #[pyo3(signature = (ci_info, repo, stable_branches))]
+    pub fn new(ci_info: &CIInfo, repo: &BundleRepo, stable_branches: Option<Vec<String>>) -> Self {
+        BindingsMetaContext::from(MetaContext::new(ci_info, repo, stable_branches))
     }
 }
 

@@ -8,7 +8,10 @@ use wasm_bindgen::prelude::*;
 use wasm_streams::{readable::sys, readable::ReadableStream};
 
 #[wasm_bindgen]
-pub fn env_parse(env_vars: js_sys::Object) -> Option<env::parser::CIInfo> {
+pub fn env_parse(
+    env_vars: js_sys::Object,
+    stable_branches: Option<Vec<String>>,
+) -> Option<env::parser::CIInfo> {
     let env_vars: HashMap<String, String> = js_sys::Object::entries(&env_vars)
         .iter()
         .filter_map(|entry| {
@@ -23,7 +26,7 @@ pub fn env_parse(env_vars: js_sys::Object) -> Option<env::parser::CIInfo> {
         })
         .collect();
     let mut env_parser = env::parser::EnvParser::new();
-    env_parser.parse(&env_vars);
+    env_parser.parse(&env_vars, stable_branches);
 
     env_parser
         .into_ci_info_parser()
@@ -35,8 +38,14 @@ pub fn parse_branch_class(
     value: &str,
     pr_number: Option<usize>,
     gitlab_merge_request_event_type: Option<env::parser::GitLabMergeRequestEventType>,
+    stable_branches: Option<Vec<String>>,
 ) -> env::parser::BranchClass {
-    env::parser::BranchClass::from((value, pr_number, gitlab_merge_request_event_type))
+    env::parser::BranchClass::from((
+        value,
+        pr_number,
+        gitlab_merge_request_event_type,
+        stable_branches,
+    ))
 }
 
 #[wasm_bindgen]

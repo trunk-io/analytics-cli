@@ -22,13 +22,17 @@ pub struct MetaContext {
 }
 
 impl MetaContext {
-    pub fn new(ci_info: &CIInfo, repo: &BundleRepo) -> Self {
+    pub fn new(ci_info: &CIInfo, repo: &BundleRepo, stable_branches: Option<Vec<String>>) -> Self {
         let mut enriched_ci_info = ci_info.clone();
 
         if enriched_ci_info.branch.is_none() {
             let new_branch = clean_branch(&repo.repo_head_branch);
-            let new_branch_class =
-                BranchClass::from((new_branch.as_str(), enriched_ci_info.pr_number, None));
+            let new_branch_class = BranchClass::from((
+                new_branch.as_str(),
+                enriched_ci_info.pr_number,
+                None,
+                stable_branches,
+            ));
             enriched_ci_info.branch = Some(new_branch);
             enriched_ci_info.branch_class = Some(new_branch_class);
         }
