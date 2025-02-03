@@ -7,8 +7,17 @@ on:
     - cron: 0 0/2 * * *
 jobs:
   build_cli:
-    name: Build cli from release
-    runs-on: public-amd64-2xlarge
+    name: Smoke test ${{ matrix.platform.name }} cli from release
+    runs-on: ${{ matrix.platform.os }}
+    strategy:
+      matrix:
+        platform:
+          - name: linux
+            os: public-amd64-2xlarge
+            target: x86_64-unknown-linux-musl
+          - name: darwin
+            os: macos-latest
+            target: aarch64-apple-darwin
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -16,16 +25,24 @@ jobs:
       - name: Setup Run Smoke Tests
         uses: ./.github/actions/setup_run_smoke_tests
 
-      - name: Build Cli
-        uses: ./.github/actions/build_cli_linux_target
+      - name: Build darwin target
+        uses: ./.github/actions/build_cli_macos_target
+        if: "!cancelled() && contains(matrix.platform.name, 'darwin')"
         with:
-          target: x86_64-unknown-linux-musl
+          target: ${{ matrix.platform.target }}
+          profile: release
+
+      - name: Build unix target
+        uses: ./.github/actions/build_cli_linux_target
+        if: "!cancelled() && !contains(matrix.platform.name, 'darwin')"
+        with:
+          target: ${{ matrix.platform.target }}
           profile: release
 
       - name: Run Smoke Tests
         uses: ./.github/actions/perform_smoke_test
         with:
-          cli-binary-location: target/x86_64-unknown-linux-musl/release/trunk-analytics-cli
+          cli-binary-location: target/${{matrix.platform.target}}/release/trunk-analytics-cli
           staging-api-token: ${{ secrets.TRUNK_STAGING_ORG_API_TOKEN }}
           production-api-token: ${{ secrets.TRUNK_PROD_ORG_API_TOKEN }}
 
@@ -34,7 +51,7 @@ jobs:
     name: Post Smoke Test Failure
     needs:
       - build_cli
-    runs-on: ubuntu-latest
+    runs-on: public-amd64-small
     permissions:
       actions: read
     env:
