@@ -1,0 +1,64 @@
+name: Test Ruby Gem Release
+description: Run stable tests for a Ruby gem release
+author: trunk.io
+
+inputs:
+  ruby-version:
+    description: Ruby versions to test
+    required: true
+  artifact-pattern:
+    default: cross-gem-*
+    description: Artifact pattern to download
+    required: false
+  trunk-token:
+    description: Trunk API token
+    required: true
+  trunk-public-api-address:
+    description: Trunk public API address
+    required: false
+    default: https://api.trunk-staging.io
+  trunk-org-slug:
+    description: The organization to upload the tests for
+    required: false
+    default: trunk-staging-org
+  platform:
+    description: The platform that the gem was built for
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/checkout@v4
+
+    - uses: ruby/setup-ruby@v1
+      with:
+        ruby-version: ${{ inputs.ruby-version }}
+        bundler-cache: true
+        working-directory: ${{ github.action_path }}
+
+    - uses: actions/download-artifact@v4
+      with:
+        pattern: ${{ inputs.artifact-pattern }}
+        path: ${{ github.action_path }}
+        merge-multiple: true
+
+    - name: Run tests
+      id: run-tests
+      shell: bash
+      working-directory: ${{ github.action_path }}
+      run: |
+        gem install rspec
+        gem install rspec_trunk_flaky_tests-*.gem --local
+        gem unpack rspec_trunk_flaky_tests* --spec --target=rspec_trunk_flaky_tests
+        gem unpack rspec_trunk_flaky_tests* --target=rspec_trunk_flaky_tests
+        mv rspec_trunk_flaky_tests/rspec_trunk_flaky_tests*/lib rspec_trunk_flaky_tests/lib
+        bundle install
+        bundle lock --remove-platform ruby || true
+        echo "gem 'rspec_trunk_flaky_tests', :path => './rspec_trunk_flaky_tests'" >> Gemfile
+        bundle install --gemfile Gemfile --local
+        bundle exec rspec spec/test_spec.rb
+      env:
+        TRUNK_PUBLIC_API_ADDRESS: ${{ inputs.trunk-public-api-address }}
+        TRUNK_ORG_URL_SLUG: ${{ inputs.trunk-org-slug }}
+        TRUNK_API_TOKEN: ${{ inputs.trunk-token }}
+        REPO_ROOT: ../../..

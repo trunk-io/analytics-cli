@@ -4,6 +4,9 @@ description: Update version
 inputs:
   version:
     description: Release version
+  file:
+    description: File to update
+    default: ./cli/Cargo.toml
 
 runs:
   using: composite
@@ -13,4 +16,4 @@ runs:
         VERSION: ${{ inputs.version }}
       shell: bash
       run: |
-        sed -i.bak "s/0.0.0/$VERSION/g" ./cli/Cargo.toml
+        sed -i.bak "s/0.0.0/$VERSION/g" ${{ inputs.file }}
