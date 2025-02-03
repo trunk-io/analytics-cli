@@ -22,7 +22,7 @@ pub struct MetaContext {
 }
 
 impl MetaContext {
-    pub fn new(ci_info: &CIInfo, repo: &BundleRepo, stable_branches: Option<Vec<String>>) -> Self {
+    pub fn new(ci_info: &CIInfo, repo: &BundleRepo, stable_branches: &[&str]) -> Self {
         let mut enriched_ci_info = ci_info.clone();
 
         if enriched_ci_info.branch.is_none() {

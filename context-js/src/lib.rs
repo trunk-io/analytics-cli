@@ -25,8 +25,15 @@ pub fn env_parse(
             }
         })
         .collect();
+
+    let stable_branches_unwrapped = stable_branches.unwrap_or_default();
+    let stable_branches_ref: &[&str] = &stable_branches_unwrapped
+        .iter()
+        .map(String::as_str)
+        .collect::<Vec<&str>>();
+
     let mut env_parser = env::parser::EnvParser::new();
-    env_parser.parse(&env_vars, stable_branches);
+    env_parser.parse(&env_vars, stable_branches_ref);
 
     env_parser
         .into_ci_info_parser()
@@ -40,11 +47,17 @@ pub fn parse_branch_class(
     gitlab_merge_request_event_type: Option<env::parser::GitLabMergeRequestEventType>,
     stable_branches: Option<Vec<String>>,
 ) -> env::parser::BranchClass {
+    let stable_branches_unwrapped = stable_branches.unwrap_or_default();
+    let stable_branches_ref: &[&str] = &stable_branches_unwrapped
+        .iter()
+        .map(String::as_str)
+        .collect::<Vec<&str>>();
+
     env::parser::BranchClass::from((
         value,
         pr_number,
         gitlab_merge_request_event_type,
-        stable_branches,
+        stable_branches_ref,
     ))
 }
 

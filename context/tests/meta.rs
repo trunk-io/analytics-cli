@@ -16,7 +16,7 @@ use context::{
 fn test_branch_supplied_by_env() {
     let (ci_info, bundle_repo) = valid_ci_info_and_bundle_repo();
 
-    let meta_context = MetaContext::new(&ci_info, &bundle_repo, None);
+    let meta_context = MetaContext::new(&ci_info, &bundle_repo, &[]);
     let meta_validation = validate(&meta_context);
 
     assert_eq!(meta_validation.max_level(), MetaValidationLevel::Valid);
@@ -28,7 +28,7 @@ fn test_branch_supplied_by_repo() {
     let (mut ci_info, bundle_repo) = valid_ci_info_and_bundle_repo();
     ci_info.branch = None;
 
-    let meta_context = MetaContext::new(&ci_info, &bundle_repo, None);
+    let meta_context = MetaContext::new(&ci_info, &bundle_repo, &[]);
     let meta_validation = validate(&meta_context);
 
     assert_eq!(meta_validation.max_level(), MetaValidationLevel::Valid);
@@ -41,7 +41,7 @@ fn test_no_branch_supplied() {
     ci_info.branch = None;
     bundle_repo.repo_head_branch = String::from("");
 
-    let meta_context = MetaContext::new(&ci_info, &bundle_repo, None);
+    let meta_context = MetaContext::new(&ci_info, &bundle_repo, &[]);
     let meta_validation = validate(&meta_context);
 
     assert_eq!(meta_validation.max_level(), MetaValidationLevel::Invalid);
@@ -74,7 +74,7 @@ fn valid_ci_info_and_bundle_repo() -> (CIInfo, BundleRepo) {
     );
 
     let mut env_parser = EnvParser::new();
-    env_parser.parse(&env_vars, None);
+    env_parser.parse(&env_vars, &[]);
 
     let ci_info = env_parser.into_ci_info_parser().unwrap().info_ci_info();
     let bundle_repo = BundleRepo {

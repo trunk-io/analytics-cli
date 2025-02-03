@@ -27,7 +27,7 @@ fn test_simple_buildkite() {
     );
 
     let mut env_parser = EnvParser::new();
-    env_parser.parse(&env_vars, None);
+    env_parser.parse(&env_vars, &[]);
 
     let ci_info = env_parser.into_ci_info_parser().unwrap().info_ci_info();
 
@@ -114,7 +114,7 @@ fn test_simple_drone() {
     );
 
     let mut env_parser = EnvParser::new();
-    env_parser.parse(&env_vars, None);
+    env_parser.parse(&env_vars, &[]);
 
     let ci_info = env_parser.into_ci_info_parser().unwrap().info_ci_info();
 
@@ -175,7 +175,7 @@ fn test_simple_github() {
     );
 
     let mut env_parser = EnvParser::new();
-    env_parser.parse(&env_vars, None);
+    env_parser.parse(&env_vars, &[]);
 
     let ci_info = env_parser.into_ci_info_parser().unwrap().info_ci_info();
 
@@ -260,7 +260,7 @@ fn test_simple_github_pr() {
     );
 
     let mut env_parser = EnvParser::new();
-    env_parser.parse(&env_vars, None);
+    env_parser.parse(&env_vars, &[]);
 
     let ci_info = env_parser.into_ci_info_parser().unwrap().info_ci_info();
 
@@ -343,7 +343,7 @@ fn test_simple_github_merge_queue() {
     );
 
     let mut env_parser = EnvParser::new();
-    env_parser.parse(&env_vars, None);
+    env_parser.parse(&env_vars, &[]);
 
     let ci_info = env_parser.into_ci_info_parser().unwrap().info_ci_info();
 
@@ -426,7 +426,7 @@ fn test_simple_github_trunk_merge_queue() {
     );
 
     let mut env_parser = EnvParser::new();
-    env_parser.parse(&env_vars, None);
+    env_parser.parse(&env_vars, &[]);
 
     let ci_info = env_parser.into_ci_info_parser().unwrap().info_ci_info();
 
@@ -483,7 +483,7 @@ fn test_simple_github_graphite_merge_queue() {
     );
 
     let mut env_parser = EnvParser::new();
-    env_parser.parse(&env_vars, None);
+    env_parser.parse(&env_vars, &[]);
 
     let ci_info = env_parser.into_ci_info_parser().unwrap().info_ci_info();
 
@@ -530,7 +530,7 @@ fn test_simple_github_stable_branches() {
     ]);
 
     let mut env_parser = EnvParser::new();
-    env_parser.parse(&env_vars, None);
+    env_parser.parse(&env_vars, &[]);
 
     let ci_info = env_parser.into_ci_info_parser().unwrap().info_ci_info();
 
@@ -597,7 +597,7 @@ fn test_simple_semaphore() {
     );
 
     let mut env_parser = EnvParser::new();
-    env_parser.parse(&env_vars, None);
+    env_parser.parse(&env_vars, &[]);
 
     let ci_info = env_parser.into_ci_info_parser().unwrap().info_ci_info();
 
@@ -676,7 +676,7 @@ fn test_simple_gitlab_pr() {
     );
 
     let mut env_parser = EnvParser::new();
-    env_parser.parse(&env_vars, None);
+    env_parser.parse(&env_vars, &[]);
 
     let ci_info = env_parser.into_ci_info_parser().unwrap().info_ci_info();
 
@@ -750,7 +750,7 @@ fn test_simple_gitlab_merge_branch() {
     );
 
     let mut env_parser = EnvParser::new();
-    env_parser.parse(&env_vars, None);
+    env_parser.parse(&env_vars, &[]);
 
     let ci_info = env_parser.into_ci_info_parser().unwrap().info_ci_info();
 
@@ -816,7 +816,7 @@ fn test_custom_config() {
     ]);
 
     let mut env_parser = EnvParser::new();
-    env_parser.parse(&env_vars, None);
+    env_parser.parse(&env_vars, &[]);
 
     let ci_info = env_parser.into_ci_info_parser().unwrap().info_ci_info();
 
@@ -867,7 +867,8 @@ fn test_simple_gitlab_stable_branches() {
     ]);
 
     let mut env_parser = EnvParser::new();
-    env_parser.parse(&env_vars, Some(vec![String::from(&branch)]));
+    let stable_branches = [branch.as_str()];
+    env_parser.parse(&env_vars, &stable_branches);
 
     let ci_info = env_parser.into_ci_info_parser().unwrap().info_ci_info();
 

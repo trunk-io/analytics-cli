@@ -177,14 +177,14 @@ pub struct CIInfoParser<'a> {
     errors: Vec<CIInfoParseError>,
     ci_info: CIInfo,
     env_vars: &'a EnvVars,
-    stable_branches: Option<Vec<String>>,
+    stable_branches: &'a [&'a str],
 }
 
 impl<'a> CIInfoParser<'a> {
     pub fn new(
         platform: CIPlatform,
         env_vars: &'a EnvVars,
-        stable_branches: Option<Vec<String>>,
+        stable_branches: &'a [&'a str],
     ) -> Self {
         Self {
             errors: Vec::new(),
@@ -250,7 +250,7 @@ impl<'a> CIInfoParser<'a> {
                 branch.as_str(),
                 self.ci_info.pr_number,
                 merge_request_event_type,
-                self.stable_branches.clone(),
+                self.stable_branches,
             )));
         }
     }
@@ -472,12 +472,14 @@ pub enum BranchClass {
     None,
 }
 
+const DEFAULT_STABLE_BRANCHES: &[&str] = &["master", "main"];
+
 impl
     From<(
         &str,
         Option<usize>,
         Option<GitLabMergeRequestEventType>,
-        Option<Vec<String>>,
+        &[&str],
     )> for BranchClass
 {
     fn from(
@@ -485,7 +487,7 @@ impl
             &str,
             Option<usize>,
             Option<GitLabMergeRequestEventType>,
-            Option<Vec<String>>,
+            &[&str],
         ),
     ) -> Self {
         let (branch_name, pr_number, merge_request_event_type, stable_branches) = value;
@@ -502,11 +504,8 @@ impl
             BranchClass::PullRequest
         } else if branch_name.starts_with("remotes/pull/") || branch_name.starts_with("pull/") {
             BranchClass::PullRequest
-        } else if stable_branches
-            .filter(|branches| !branches.is_empty())
-            .unwrap_or(vec![String::from("main"), String::from("master")])
-            .iter()
-            .any(|branch| branch == branch_name)
+        } else if stable_branches.contains(&branch_name)
+            || (stable_branches.is_empty() && DEFAULT_STABLE_BRANCHES.contains(&branch_name))
         {
             BranchClass::ProtectedBranch
         } else {
@@ -620,14 +619,14 @@ impl<'a> EnvParser<'a> {
         self.ci_info_parser
     }
 
-    pub fn parse(&mut self, env_vars: &'a EnvVars, stable_branches: Option<Vec<String>>) {
+    pub fn parse(&mut self, env_vars: &'a EnvVars, stable_branches: &'a [&str]) {
         self.parse_ci_platform(env_vars, stable_branches);
         if let Some(ci_info) = &mut self.ci_info_parser {
             ci_info.parse();
         }
     }
 
-    fn parse_ci_platform(&mut self, env_vars: &'a EnvVars, stable_branches: Option<Vec<String>>) {
+    fn parse_ci_platform(&mut self, env_vars: &'a EnvVars, stable_branches: &'a [&str]) {
         self.ci_info_parser = Some(CIInfoParser::new(
             CIPlatform::from(env_vars),
             env_vars,

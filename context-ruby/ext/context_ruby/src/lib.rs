@@ -8,8 +8,14 @@ pub fn env_parse(
     stable_branches: Option<Vec<String>>,
 ) -> Option<env::parser::CIInfo> {
     let env_vars: HashMap<String, String> = env_vars.to_hash_map().unwrap_or_default();
+    let stable_branches_unwrapped = stable_branches.unwrap_or_default();
+    let stable_branches_ref: &[&str] = &stable_branches_unwrapped
+        .iter()
+        .map(String::as_str)
+        .collect::<Vec<&str>>();
+
     let mut env_parser = env::parser::EnvParser::new();
-    env_parser.parse(&env_vars, stable_branches);
+    env_parser.parse(&env_vars, stable_branches_ref);
 
     env_parser
         .into_ci_info_parser()

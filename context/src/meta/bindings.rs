@@ -25,7 +25,12 @@ impl BindingsMetaContext {
     #[new]
     #[pyo3(signature = (ci_info, repo, stable_branches))]
     pub fn new(ci_info: &CIInfo, repo: &BundleRepo, stable_branches: Option<Vec<String>>) -> Self {
-        BindingsMetaContext::from(MetaContext::new(ci_info, repo, stable_branches))
+        let stable_branches_unwrapped = stable_branches.unwrap_or_default();
+        let stable_branches_ref: &[&str] = &stable_branches_unwrapped
+            .iter()
+            .map(String::as_str)
+            .collect::<Vec<&str>>();
+        BindingsMetaContext::from(MetaContext::new(ci_info, repo, stable_branches_ref))
     }
 }
 
