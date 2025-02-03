@@ -13,7 +13,7 @@ runs:
       uses: taiki-e/install-action@nextest
 
     - name: Install nextest (linux x86)
-      if: inputs.target == 'x86_64-unknown-linux-musl'
+      if: inputs.target == 'x86_64-unknown-linux-musl' || inputs.target == 'x86_64-unknown-illumos'
       shell: bash
       run: curl -LsSf https://get.nexte.st/latest/linux | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin
 

@@ -9,21 +9,45 @@ on:
 concurrency: ${{ github.workflow }}
 
 jobs:
-  build_linux:
-    name: Build ${{ matrix.target }}
+  build_release:
+    name: Build Release - ${{ matrix.platform.target }}
     strategy:
       matrix:
-        include:
-          - target: x86_64-unknown-linux-musl
+        platform:
+          - os-name: linux-x86_64
+            # cross-rs is unsupported on public-amd64-2xlarge
+            runs-on: ubuntu-latest
+            target: x86_64-unknown-linux-musl
             artifact-name: x86_64-unknown-linux
-            runs-on: public-amd64-2xlarge
-          - target: aarch64-unknown-linux-musl
+
+          - os-name: linux-aarch64
+            # cross-rs is unsupported on public-amd64-2xlarge
+            runs-on: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-musl
             artifact-name: aarch64-unknown-linux
-            runs-on: public-arm64-2xlarge
-    runs-on: ${{ matrix.runs-on }}
+
+          - os-name: linux-86_64
+            # cross-rs is unsupported on public-amd64-2xlarge
+            runs-on: ubuntu-latest
+            target: x86_64-unknown-illumos
+            artifact-name: x86_64-unknown-illumos
+
+          - os-name: x86_64-darwin
+            runs-on: macos-latest
+            target: x86_64-apple-darwin
+            artifact-name: x86_64-apple-darwin
+
+          - os-name: aarch64-darwin
+            runs-on: macos-latest
+            target: aarch64-apple-darwin
+            artifact-name: aarch64-apple-darwin
+
+    runs-on: ${{ matrix.platform.runs-on }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          lfs: "true"
 
       - name: Setup Rust & Cargo
         uses: ./.github/actions/setup_rust_cargo
@@ -35,61 +59,25 @@ jobs:
         with:
           version: ${{ github.event.inputs.release_tag }}
 
-      - name: Build ${{ matrix.target }} target
-        uses: ./.github/actions/build_cli_linux_target
-        if: "!cancelled()"
-        with:
-          target: ${{ matrix.target }}
-          profile: release-with-debug
-
-      - name: Upload debug info to Sentry
-        uses: ./.github/actions/upload_sentry_debug_info
-        if: "!cancelled()"
-        with:
-          target: ${{ matrix.target }}
-          sentry-org: ${{ secrets.SENTRY_ORG }}
-          sentry-project: ${{ secrets.SENTRY_PROJECT }}
-          sentry-auth-token: ${{ secrets.SENTRY_AUTH_TOKEN }}
-
-      - uses: actions/upload-artifact@v4
-        if: "!cancelled()"
-        with:
-          name: ${{ matrix.artifact-name }}
-          path: target/${{ matrix.target }}/release-with-debug/trunk-analytics-cli
-          if-no-files-found: error
-
-  build_macos:
-    name: Build ${{ matrix.target }}
-    strategy:
-      matrix:
-        target: [x86_64-apple-darwin, aarch64-apple-darwin]
-    runs-on: [macos-latest]
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Rust & Cargo
-        uses: ./.github/actions/setup_rust_cargo
-        if: "!cancelled()"
-
-      - name: Update version
-        uses: ./.github/actions/update_version
-        if: "!cancelled()"
-        with:
-          version: ${{ github.event.inputs.release_tag }}
-
-      - name: Build ${{ matrix.target }} target
+      - name: Build darwin target
         uses: ./.github/actions/build_cli_macos_target
-        if: "!cancelled()"
+        if: "!cancelled() && contains(matrix.platform.os-name, 'darwin')"
         with:
-          target: ${{ matrix.target }}
+          target: ${{ matrix.platform.target }}
+          profile: release-with-debug
+
+      - name: Build unix target
+        uses: ./.github/actions/build_cli_linux_target
+        if: "!cancelled() && !contains(matrix.platform.os-name, 'darwin')"
+        with:
+          target: ${{ matrix.platform.target }}
           profile: release-with-debug
 
       - name: Upload debug info to Sentry
         uses: ./.github/actions/upload_sentry_debug_info
         if: "!cancelled()"
         with:
-          target: ${{ matrix.target }}
+          target: ${{ matrix.platform.target }}
           sentry-org: ${{ secrets.SENTRY_ORG }}
           sentry-project: ${{ secrets.SENTRY_PROJECT }}
           sentry-auth-token: ${{ secrets.SENTRY_AUTH_TOKEN }}
@@ -97,15 +85,15 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: "!cancelled()"
         with:
-          name: ${{ matrix.target }}
-          path: target/${{ matrix.target }}/release-with-debug/trunk-analytics-cli
+          name: ${{ matrix.platform.artifact-name }}
+          path: target/${{ matrix.platform.target }}/release-with-debug/trunk-analytics-cli
           if-no-files-found: error
 
   perform_smoke_test:
     name: Smoke test ${{ github.event.inputs.release_tag }}
     runs-on: public-amd64-small
     needs:
-      - build_linux
+      - build_release
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -129,7 +117,7 @@ jobs:
   tag_and_release:
     name: Tag and Release [ ${{ github.event.inputs.release_tag }} ]
     runs-on: public-amd64-small
-    needs: [build_linux, build_macos, perform_smoke_test]
+    needs: [build_release, perform_smoke_test]
     if: needs.perform_smoke_test.result == 'success'
 
     steps:
