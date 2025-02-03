@@ -68,7 +68,7 @@ fn serialize_report(report: &Report) -> Vec<u8> {
 fn parse_report<T: AsRef<[u8]>>(serialized_report: T) -> Report {
     let mut junit_parser = JunitParser::new();
     junit_parser
-        .parse(BufReader::new(&serialized_report.as_ref()[..]))
+        .parse(BufReader::new(serialized_report.as_ref()))
         .unwrap();
 
     assert_eq!(junit_parser.issues(), &[]);

@@ -43,9 +43,9 @@ impl Status {
     }
 }
 
-impl Into<&str> for Status {
-    fn into(self) -> &'static str {
-        match self {
+impl From<Status> for &str {
+    fn from(val: Status) -> Self {
+        match val {
             Status::Success => SUCCESS,
             Status::Failure => FAILURE,
             Status::Skipped => SKIPPED,
@@ -141,10 +141,10 @@ impl MutTestReport {
                 .unwrap()
                 .block_on(run_upload(upload_args, Some(pre_test_context), None))
             {
-                Ok(_) => return true,
+                Ok(_) => true,
                 Err(e) => {
                     println!("Error uploading: {:?}", e);
-                    return false;
+                    false
                 }
             }
         } else {
@@ -220,9 +220,9 @@ impl MutTestReport {
     }
 }
 
-impl Into<String> for MutTestReport {
-    fn into(self) -> String {
-        serde_json::to_string(&self.0.borrow().test_result).unwrap_or_default()
+impl From<MutTestReport> for String {
+    fn from(val: MutTestReport) -> Self {
+        serde_json::to_string(&val.0.borrow().test_result).unwrap_or_default()
     }
 }
 

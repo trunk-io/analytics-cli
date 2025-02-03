@@ -56,22 +56,19 @@ fn test_no_branch_supplied() {
 fn valid_ci_info_and_bundle_repo() -> (CIInfo, BundleRepo) {
     let job_url = String::from("https://buildkite.com/test/builds/123");
     let branch = String::from("some-branch-name");
-    let env_vars = EnvVars::from_iter(
-        vec![
-            (
-                String::from("BUILDKITE_PULL_REQUEST"),
-                String::from("false"),
-            ),
-            (String::from("BUILDKITE_BRANCH"), String::from(&branch)),
-            (String::from("BUILDKITE_BUILD_URL"), String::from(&job_url)),
-            (
-                String::from("BUILDKITE_BUILD_AUTHOR_EMAIL"),
-                String::from(""),
-            ),
-            (String::from("BUILDKITE"), String::from("true")),
-        ]
-        .into_iter(),
-    );
+    let env_vars = EnvVars::from_iter(vec![
+        (
+            String::from("BUILDKITE_PULL_REQUEST"),
+            String::from("false"),
+        ),
+        (String::from("BUILDKITE_BRANCH"), String::from(&branch)),
+        (String::from("BUILDKITE_BUILD_URL"), String::from(&job_url)),
+        (
+            String::from("BUILDKITE_BUILD_AUTHOR_EMAIL"),
+            String::from(""),
+        ),
+        (String::from("BUILDKITE"), String::from("true")),
+    ]);
 
     let mut env_parser = EnvParser::new();
     env_parser.parse(&env_vars);

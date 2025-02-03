@@ -1,8 +1,8 @@
-pub fn safe_truncate_string<'a, const MAX_LEN: usize, T: AsRef<str>>(value: &'a T) -> &'a str {
+pub fn safe_truncate_string<const MAX_LEN: usize, T: AsRef<str>>(value: &T) -> &str {
     safe_truncate_str::<MAX_LEN>(value.as_ref())
 }
 
-pub fn safe_truncate_str<'a, const MAX_LEN: usize>(value: &'a str) -> &'a str {
+pub fn safe_truncate_str<const MAX_LEN: usize>(value: &str) -> &str {
     &value.trim()[..value.trim().floor_char_boundary(MAX_LEN)]
 }
 

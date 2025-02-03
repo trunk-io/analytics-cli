@@ -114,7 +114,7 @@ fn validate_empty_xml() {
 fn validate_invalid_xml() {
     let temp_dir = tempdir().unwrap();
     let invalid_xml = "<bad<attrs<><><";
-    write_junit_xml_to_dir(&invalid_xml, &temp_dir);
+    write_junit_xml_to_dir(invalid_xml, &temp_dir);
 
     let assert = CommandBuilder::validate(temp_dir.path())
         .command()

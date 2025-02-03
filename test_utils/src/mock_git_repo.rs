@@ -10,7 +10,7 @@ pub fn setup_repo_with_commit<T: AsRef<Path>>(root: T) -> anyhow::Result<()> {
     repo.remote_set_url("origin", TEST_ORIGIN)?;
 
     let file_path = std::path::Path::new(&repo.workdir().unwrap()).join(TEST_FILE);
-    let mut file = std::fs::File::create(&file_path).expect("Could not create file");
+    let mut file = std::fs::File::create(file_path).expect("Could not create file");
     writeln!(file, "test content").expect("Could not write to file");
 
     // Add the new file to the index
@@ -33,7 +33,7 @@ pub fn setup_repo_with_commit<T: AsRef<Path>>(root: T) -> anyhow::Result<()> {
 
     // Create and checkout a new branch
     let obj = repo.revparse_single("HEAD")?;
-    repo.branch(TEST_BRANCH, &obj.as_commit().unwrap(), false)?;
+    repo.branch(TEST_BRANCH, obj.as_commit().unwrap(), false)?;
     repo.set_head(format!("refs/heads/{}", TEST_BRANCH).as_str())?;
     repo.checkout_head(Some(git2::build::CheckoutBuilder::new().force()))?;
 

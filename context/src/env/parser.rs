@@ -70,9 +70,9 @@ pub enum CIPlatform {
     Unknown,
 }
 
-impl Into<&str> for CIPlatform {
-    fn into(self) -> &'static str {
-        match self {
+impl From<CIPlatform> for &str {
+    fn from(val: CIPlatform) -> Self {
+        match val {
             CIPlatform::GitHubActions => ci_platform_env_key::GITHUB_ACTIONS,
             CIPlatform::JenkinsPipeline => ci_platform_env_key::JENKINS_PIPELINE,
             CIPlatform::CircleCI => ci_platform_env_key::CIRCLECI,
@@ -273,7 +273,7 @@ impl<'a> CIInfoParser<'a> {
                 let stripped_ref = gh_ref
                     .strip_suffix("/merge")
                     .unwrap_or(gh_ref.as_str())
-                    .splitn(3, "/")
+                    .splitn(3, '/')
                     .last();
                 self.ci_info.pr_number = Self::parse_pr_number(stripped_ref);
             }
@@ -602,7 +602,7 @@ impl<'a> EnvParser<'a> {
     }
 
     fn parse_ci_platform(&mut self, env_vars: &'a EnvVars) {
-        self.ci_info_parser = Some(CIInfoParser::new(CIPlatform::from(env_vars), &env_vars));
+        self.ci_info_parser = Some(CIInfoParser::new(CIPlatform::from(env_vars), env_vars));
     }
 }
 

@@ -160,12 +160,12 @@ async fn upload_bundle() {
         })
     );
 
-    let file_set = base_props.file_sets.get(0).unwrap();
+    let file_set = base_props.file_sets.first().unwrap();
     assert_eq!(file_set.file_set_type, FileSetType::Junit);
     assert_eq!(file_set.glob, "./*");
     assert_eq!(file_set.files.len(), 1);
 
-    let bundled_file = file_set.files.get(0).unwrap();
+    let bundled_file = file_set.files.first().unwrap();
     assert_eq!(bundled_file.path, "junit/0");
     assert!(
         fs::File::open(tar_extract_directory.join(&bundled_file.path))
