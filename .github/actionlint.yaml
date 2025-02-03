@@ -4,3 +4,4 @@ self-hosted-runner:
     - public-arm64-2xlarge
     - public-amd64-large
     - public-amd64-small
+    - public-arm64-medium
