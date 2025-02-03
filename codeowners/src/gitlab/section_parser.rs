@@ -326,9 +326,9 @@ mod tests {
                     assert_eq!(section.approvals, approvals);
                     assert_eq!(section.default_owners, default_owners);
                     if errors.is_empty() {
-                        assert_eq!(parser.valid(), true);
+                        assert!(parser.valid());
                     } else {
-                        assert_eq!(parser.valid(), false);
+                        assert!(!parser.valid());
                         assert_eq!(parser.errors, errors);
                     }
                 }

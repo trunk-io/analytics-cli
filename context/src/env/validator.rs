@@ -318,6 +318,6 @@ impl EnvValidation {
     }
 }
 
-fn optional_string_to_empty_str<'a>(optional_string: &'a Option<String>) -> &'a str {
-    optional_string.as_ref().map_or("", |s| &s)
+fn optional_string_to_empty_str(optional_string: &Option<String>) -> &str {
+    optional_string.as_ref().map_or("", |s| s)
 }

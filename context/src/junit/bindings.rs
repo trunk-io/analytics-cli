@@ -69,7 +69,7 @@ impl From<TestResult> for BindingsReport {
             test_cases.iter().fold(HashMap::new(), |mut acc, testcase| {
                 if let Some(parent_name) = testcase.extra.get("parent_name") {
                     acc.entry(parent_name.clone())
-                        .or_insert_with(Vec::new)
+                        .or_default()
                         .push(testcase.to_owned());
                 }
                 acc
@@ -255,9 +255,9 @@ impl From<Report> for BindingsReport {
     }
 }
 
-impl Into<Report> for BindingsReport {
-    fn into(self) -> Report {
-        let Self {
+impl From<BindingsReport> for Report {
+    fn from(val: BindingsReport) -> Self {
+        let BindingsReport {
             name,
             uuid,
             timestamp: _,
@@ -267,7 +267,7 @@ impl Into<Report> for BindingsReport {
             failures,
             errors,
             test_suites,
-        } = self;
+        } = val;
         // NOTE: Cannot make a UUID without a `&'static str`
         let _ = uuid;
         Report {
@@ -282,7 +282,7 @@ impl Into<Report> for BindingsReport {
                     )
                 })
                 .map(|dt| dt.fixed_offset()),
-            time: time.map(|secs| Duration::from_secs_f64(secs)),
+            time: time.map(Duration::from_secs_f64),
             tests,
             failures,
             errors,
@@ -382,9 +382,9 @@ impl From<TestSuite> for BindingsTestSuite {
     }
 }
 
-impl Into<TestSuite> for BindingsTestSuite {
-    fn into(self) -> TestSuite {
-        let Self {
+impl From<BindingsTestSuite> for TestSuite {
+    fn from(val: BindingsTestSuite) -> Self {
+        let BindingsTestSuite {
             name,
             tests,
             disabled,
@@ -398,7 +398,7 @@ impl Into<TestSuite> for BindingsTestSuite {
             system_out,
             system_err,
             extra,
-        } = self;
+        } = val;
         let mut test_suite = TestSuite::new(name);
         test_suite.tests = tests;
         test_suite.disabled = disabled;
@@ -413,7 +413,7 @@ impl Into<TestSuite> for BindingsTestSuite {
                 )
             })
             .map(|dt| dt.fixed_offset());
-        test_suite.time = time.map(|secs| Duration::from_secs_f64(secs));
+        test_suite.time = time.map(Duration::from_secs_f64);
         test_suite.test_cases = test_cases
             .into_iter()
             .map(BindingsTestCase::try_into)
@@ -450,9 +450,9 @@ impl From<Property> for BindingsProperty {
     }
 }
 
-impl Into<Property> for BindingsProperty {
-    fn into(self) -> Property {
-        let Self { name, value } = self;
+impl From<BindingsProperty> for Property {
+    fn from(val: BindingsProperty) -> Self {
+        let BindingsProperty { name, value } = val;
         Property {
             name: name.into(),
             value: value.into(),
@@ -571,7 +571,7 @@ impl TryInto<TestCase> for BindingsTestCase {
                 )
             })
             .map(|dt| dt.fixed_offset());
-        test_case.time = time.map(|secs| Duration::from_secs_f64(secs));
+        test_case.time = time.map(Duration::from_secs_f64);
         test_case.system_out = system_out.map(|s| s.into());
         test_case.system_err = system_err.map(|s| s.into());
         test_case.extra = extra
@@ -685,9 +685,9 @@ pub struct BindingsTestCaseStatusSuccess {
     pub flaky_runs: Vec<BindingsTestRerun>,
 }
 
-impl Into<TestCaseStatus> for BindingsTestCaseStatusSuccess {
-    fn into(self) -> TestCaseStatus {
-        let Self { flaky_runs } = self;
+impl From<BindingsTestCaseStatusSuccess> for TestCaseStatus {
+    fn from(val: BindingsTestCaseStatusSuccess) -> Self {
+        let BindingsTestCaseStatusSuccess { flaky_runs } = val;
         TestCaseStatus::Success {
             flaky_runs: flaky_runs
                 .into_iter()
@@ -708,15 +708,15 @@ pub struct BindingsTestCaseStatusNonSuccess {
     pub reruns: Vec<BindingsTestRerun>,
 }
 
-impl Into<TestCaseStatus> for BindingsTestCaseStatusNonSuccess {
-    fn into(self) -> TestCaseStatus {
-        let Self {
+impl From<BindingsTestCaseStatusNonSuccess> for TestCaseStatus {
+    fn from(val: BindingsTestCaseStatusNonSuccess) -> Self {
+        let BindingsTestCaseStatusNonSuccess {
             kind,
             message,
             ty,
             description,
             reruns,
-        } = self;
+        } = val;
         TestCaseStatus::NonSuccess {
             kind: kind.into(),
             message: message.map(|m| m.into()),
@@ -736,13 +736,13 @@ pub struct BindingsTestCaseStatusSkipped {
     pub description: Option<String>,
 }
 
-impl Into<TestCaseStatus> for BindingsTestCaseStatusSkipped {
-    fn into(self) -> TestCaseStatus {
-        let Self {
+impl From<BindingsTestCaseStatusSkipped> for TestCaseStatus {
+    fn from(val: BindingsTestCaseStatusSkipped) -> Self {
+        let BindingsTestCaseStatusSkipped {
             message,
             ty,
             description,
-        } = self;
+        } = val;
         TestCaseStatus::Skipped {
             message: message.map(|m| m.into()),
             ty: ty.map(|t| t.into()),
@@ -796,9 +796,9 @@ impl From<TestRerun> for BindingsTestRerun {
     }
 }
 
-impl Into<TestRerun> for BindingsTestRerun {
-    fn into(self) -> TestRerun {
-        let Self {
+impl From<BindingsTestRerun> for TestRerun {
+    fn from(val: BindingsTestRerun) -> Self {
+        let BindingsTestRerun {
             kind,
             timestamp: _,
             timestamp_micros,
@@ -809,7 +809,7 @@ impl Into<TestRerun> for BindingsTestRerun {
             system_out,
             system_err,
             description,
-        } = self;
+        } = val;
         TestRerun {
             kind: kind.into(),
             timestamp: timestamp_micros
@@ -821,7 +821,7 @@ impl Into<TestRerun> for BindingsTestRerun {
                     )
                 })
                 .map(|dt| dt.fixed_offset()),
-            time: time.map(|secs| Duration::from_secs_f64(secs)),
+            time: time.map(Duration::from_secs_f64),
             message: message.map(|m| m.into()),
             ty: ty.map(|t| t.into()),
             stack_trace: stack_trace.map(|st| st.into()),
@@ -849,9 +849,9 @@ impl From<NonSuccessKind> for BindingsNonSuccessKind {
     }
 }
 
-impl Into<NonSuccessKind> for BindingsNonSuccessKind {
-    fn into(self) -> NonSuccessKind {
-        match self {
+impl From<BindingsNonSuccessKind> for NonSuccessKind {
+    fn from(val: BindingsNonSuccessKind) -> Self {
+        match val {
             BindingsNonSuccessKind::Failure => NonSuccessKind::Failure,
             BindingsNonSuccessKind::Error => NonSuccessKind::Error,
         }

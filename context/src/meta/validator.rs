@@ -80,7 +80,7 @@ pub fn validate(meta_context: &MetaContext) -> MetaValidation {
     let env_validation = env_validate(&meta_context.ci_info);
     let meta_validation = env_validation
         .issues()
-        .into_iter()
+        .iter()
         .filter_map(|issue| match issue {
             EnvValidationIssue::SubOptimal(
                 EnvValidationIssueSubOptimal::CIInfoBranchNameTooShort(branch_name),

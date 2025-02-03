@@ -123,7 +123,7 @@ mod tests {
 
                 #[test]
                 fn includes_the_email() {
-                    let email = String::from(super::generate_email(100, 255));
+                    let email = super::generate_email(100, 255);
                     let extractor = ReferenceExtractor::new(email.clone());
 
                     assert_eq!(
@@ -140,7 +140,7 @@ mod tests {
 
                 #[test]
                 fn doesnt_include_the_email() {
-                    let email = String::from(super::generate_email(101, 255));
+                    let email = super::generate_email(101, 255);
                     let extractor = ReferenceExtractor::new(email.clone());
 
                     assert_ne!(
@@ -157,7 +157,7 @@ mod tests {
 
                 #[test]
                 fn doesnt_include_the_email() {
-                    let email = String::from(super::generate_email(100, 256));
+                    let email = super::generate_email(100, 256);
                     let extractor = ReferenceExtractor::new(email.clone());
 
                     assert_ne!(
