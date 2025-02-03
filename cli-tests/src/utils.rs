@@ -74,7 +74,7 @@ pub fn generate_mock_bazel_bep<T: AsRef<Path>>(directory: T) {
         .map(|be| serde_json::to_string(be).unwrap())
         .collect::<Vec<String>>()
         .join("\n");
-    let mut file = fs::File::create(&directory.as_ref().join("bep.json")).unwrap();
+    let mut file = fs::File::create(directory.as_ref().join("bep.json")).unwrap();
     file.write_all(outputs_contents.as_bytes()).unwrap();
 }
 
@@ -126,6 +126,6 @@ pub fn generate_mock_codeowners<T: AsRef<Path>>(directory: T) {
 
 pub fn write_junit_xml_to_dir<T: AsRef<Path>>(xml: &str, directory: T) {
     let path = directory.as_ref().join("junit-0.xml");
-    let mut file = fs::File::create(&path).unwrap();
+    let mut file = fs::File::create(path).unwrap();
     file.write_all(xml.as_bytes()).unwrap();
 }

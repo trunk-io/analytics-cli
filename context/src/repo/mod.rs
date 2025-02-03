@@ -62,7 +62,7 @@ impl BundleRepo {
         let mut bundle_repo_options = BundleRepoOptions {
             repo_root: repo_root
                 .as_ref()
-                .map(|repo_root| PathBuf::from(repo_root))
+                .map(PathBuf::from)
                 .or_else(|| std::env::current_dir().ok()),
             repo_url,
             repo_head_sha,
@@ -247,7 +247,7 @@ impl BundleRepo {
             );
         }
 
-        return current_commit;
+        current_commit
     }
 }
 

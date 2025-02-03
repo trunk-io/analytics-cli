@@ -231,7 +231,7 @@ impl BundledFile {
             .to_string();
         let original_path_rel = path
             .strip_prefix(repo_root)
-            .unwrap_or(&path)
+            .unwrap_or(path)
             .to_str()
             .ok_or_else(|| anyhow::Error::msg("failed to convert path to string"))?
             .to_string();

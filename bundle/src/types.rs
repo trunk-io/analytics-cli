@@ -159,7 +159,7 @@ mod tests {
         ];
 
         for (tags_str, expected) in good_tags {
-            let actual: Vec<CustomTag> = crate::custom_tag::parse_custom_tags(&tags_str).unwrap();
+            let actual: Vec<CustomTag> = crate::custom_tag::parse_custom_tags(tags_str).unwrap();
             assert_eq!(actual, *expected);
         }
     }

@@ -380,7 +380,7 @@ impl JunitReportValidation {
 
         self.level = report_level_issues
             .iter()
-            .map(|report_level_issue| JunitValidationLevel::from(report_level_issue))
+            .map(JunitValidationLevel::from)
             .max()
             .map_or(self.level, |l| l.max(self.level));
 

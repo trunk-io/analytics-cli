@@ -34,9 +34,9 @@ impl From<MetaContext> for BindingsMetaContext {
     }
 }
 
-impl Into<MetaContext> for BindingsMetaContext {
-    fn into(self) -> MetaContext {
-        let Self { ci_info } = self;
+impl From<BindingsMetaContext> for MetaContext {
+    fn from(val: BindingsMetaContext) -> Self {
+        let BindingsMetaContext { ci_info } = val;
         MetaContext { ci_info }
     }
 }

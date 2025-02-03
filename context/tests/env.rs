@@ -9,22 +9,19 @@ use context::env::{
 fn test_simple_buildkite() {
     let job_url = String::from("https://buildkite.com/test/builds/123");
     let branch = String::from("some-branch-name");
-    let env_vars = EnvVars::from_iter(
-        vec![
-            (
-                String::from("BUILDKITE_PULL_REQUEST"),
-                String::from("false"),
-            ),
-            (String::from("BUILDKITE_BRANCH"), String::from(&branch)),
-            (String::from("BUILDKITE_BUILD_URL"), String::from(&job_url)),
-            (
-                String::from("BUILDKITE_BUILD_AUTHOR_EMAIL"),
-                String::from(""),
-            ),
-            (String::from("BUILDKITE"), String::from("true")),
-        ]
-        .into_iter(),
-    );
+    let env_vars = EnvVars::from_iter(vec![
+        (
+            String::from("BUILDKITE_PULL_REQUEST"),
+            String::from("false"),
+        ),
+        (String::from("BUILDKITE_BRANCH"), String::from(&branch)),
+        (String::from("BUILDKITE_BUILD_URL"), String::from(&job_url)),
+        (
+            String::from("BUILDKITE_BUILD_AUTHOR_EMAIL"),
+            String::from(""),
+        ),
+        (String::from("BUILDKITE"), String::from("true")),
+    ]);
 
     let mut env_parser = EnvParser::new();
     env_parser.parse(&env_vars);
@@ -90,28 +87,25 @@ fn test_simple_drone() {
     let actor = String::from("username");
     let name = String::from("firstname lastname");
     let email = String::from("user@example.com");
-    let env_vars = EnvVars::from_iter(
-        vec![
-            (String::from("DRONE_BUILD_LINK"), String::from(&job_url)),
-            (String::from("DRONE_SOURCE_BRANCH"), String::from(&branch)),
-            (String::from("DRONE_PULL_REQUEST"), pr_number.to_string()),
-            (
-                String::from("DRONE_PULL_REQUEST_TITLE"),
-                String::from(&title),
-            ),
-            (String::from("DRONE_COMMIT_AUTHOR"), String::from(&actor)),
-            (
-                String::from("DRONE_COMMIT_AUTHOR_NAME"),
-                String::from(&name),
-            ),
-            (
-                String::from("DRONE_COMMIT_AUTHOR_EMAIL"),
-                String::from(&email),
-            ),
-            (String::from("DRONE"), String::from("true")),
-        ]
-        .into_iter(),
-    );
+    let env_vars = EnvVars::from_iter(vec![
+        (String::from("DRONE_BUILD_LINK"), String::from(&job_url)),
+        (String::from("DRONE_SOURCE_BRANCH"), String::from(&branch)),
+        (String::from("DRONE_PULL_REQUEST"), pr_number.to_string()),
+        (
+            String::from("DRONE_PULL_REQUEST_TITLE"),
+            String::from(&title),
+        ),
+        (String::from("DRONE_COMMIT_AUTHOR"), String::from(&actor)),
+        (
+            String::from("DRONE_COMMIT_AUTHOR_NAME"),
+            String::from(&name),
+        ),
+        (
+            String::from("DRONE_COMMIT_AUTHOR_EMAIL"),
+            String::from(&email),
+        ),
+        (String::from("DRONE"), String::from("true")),
+    ]);
 
     let mut env_parser = EnvParser::new();
     env_parser.parse(&env_vars);
@@ -157,22 +151,19 @@ fn test_simple_github() {
     let workflow = String::from("test-workflow");
     let job = String::from("test-job");
 
-    let env_vars = EnvVars::from_iter(
-        vec![
-            (String::from("GITHUB_ACTIONS"), String::from("true")),
-            (String::from("GITHUB_EVENT_NAME"), String::from("schedule")),
-            (String::from("GITHUB_RUN_ID"), String::from(&run_id)),
-            (String::from("GITHUB_ACTOR"), String::from(&actor)),
-            (String::from("GITHUB_REPOSITORY"), String::from(&repository)),
-            (
-                String::from("GITHUB_REF"),
-                format!("refs/heads/origin/{branch}"),
-            ),
-            (String::from("GITHUB_WORKFLOW"), String::from(&workflow)),
-            (String::from("GITHUB_JOB"), String::from(&job)),
-        ]
-        .into_iter(),
-    );
+    let env_vars = EnvVars::from_iter(vec![
+        (String::from("GITHUB_ACTIONS"), String::from("true")),
+        (String::from("GITHUB_EVENT_NAME"), String::from("schedule")),
+        (String::from("GITHUB_RUN_ID"), String::from(&run_id)),
+        (String::from("GITHUB_ACTOR"), String::from(&actor)),
+        (String::from("GITHUB_REPOSITORY"), String::from(&repository)),
+        (
+            String::from("GITHUB_REF"),
+            format!("refs/heads/origin/{branch}"),
+        ),
+        (String::from("GITHUB_WORKFLOW"), String::from(&workflow)),
+        (String::from("GITHUB_JOB"), String::from(&job)),
+    ]);
 
     let mut env_parser = EnvParser::new();
     env_parser.parse(&env_vars);
@@ -238,26 +229,23 @@ fn test_simple_github_pr() {
     let workflow = String::from("Pull Request");
     let job = String::from("test-job");
 
-    let env_vars = EnvVars::from_iter(
-        vec![
-            (String::from("GITHUB_ACTIONS"), String::from("true")),
-            (
-                String::from("GITHUB_EVENT_NAME"),
-                String::from("pull_request"),
-            ),
-            (String::from("GITHUB_RUN_ID"), String::from(&run_id)),
-            (String::from("GITHUB_ACTOR"), String::from(&actor)),
-            (String::from("GITHUB_REPOSITORY"), String::from(&repository)),
-            (String::from("GITHUB_HEAD_REF"), String::from(&branch)),
-            (
-                String::from("GITHUB_REF"),
-                format!("refs/pull/{pr_number}/merge"),
-            ),
-            (String::from("GITHUB_WORKFLOW"), String::from(&workflow)),
-            (String::from("GITHUB_JOB"), String::from(&job)),
-        ]
-        .into_iter(),
-    );
+    let env_vars = EnvVars::from_iter(vec![
+        (String::from("GITHUB_ACTIONS"), String::from("true")),
+        (
+            String::from("GITHUB_EVENT_NAME"),
+            String::from("pull_request"),
+        ),
+        (String::from("GITHUB_RUN_ID"), String::from(&run_id)),
+        (String::from("GITHUB_ACTOR"), String::from(&actor)),
+        (String::from("GITHUB_REPOSITORY"), String::from(&repository)),
+        (String::from("GITHUB_HEAD_REF"), String::from(&branch)),
+        (
+            String::from("GITHUB_REF"),
+            format!("refs/pull/{pr_number}/merge"),
+        ),
+        (String::from("GITHUB_WORKFLOW"), String::from(&workflow)),
+        (String::from("GITHUB_JOB"), String::from(&job)),
+    ]);
 
     let mut env_parser = EnvParser::new();
     env_parser.parse(&env_vars);
@@ -322,25 +310,22 @@ fn test_simple_github_merge_queue() {
     let workflow = String::from("Pull Request");
     let job = String::from("test-job");
 
-    let env_vars = EnvVars::from_iter(
-        vec![
-            (String::from("GITHUB_ACTIONS"), String::from("true")),
-            (
-                String::from("GITHUB_EVENT_NAME"),
-                String::from("pull_request"),
-            ),
-            (String::from("GITHUB_RUN_ID"), String::from(&run_id)),
-            (String::from("GITHUB_ACTOR"), String::from(&actor)),
-            (String::from("GITHUB_REPOSITORY"), String::from(&repository)),
-            (
-                String::from("GITHUB_REF"),
-                String::from("refs/gh-readonly-queue/some-branch-name"),
-            ),
-            (String::from("GITHUB_WORKFLOW"), String::from(&workflow)),
-            (String::from("GITHUB_JOB"), String::from(&job)),
-        ]
-        .into_iter(),
-    );
+    let env_vars = EnvVars::from_iter(vec![
+        (String::from("GITHUB_ACTIONS"), String::from("true")),
+        (
+            String::from("GITHUB_EVENT_NAME"),
+            String::from("pull_request"),
+        ),
+        (String::from("GITHUB_RUN_ID"), String::from(&run_id)),
+        (String::from("GITHUB_ACTOR"), String::from(&actor)),
+        (String::from("GITHUB_REPOSITORY"), String::from(&repository)),
+        (
+            String::from("GITHUB_REF"),
+            String::from("refs/gh-readonly-queue/some-branch-name"),
+        ),
+        (String::from("GITHUB_WORKFLOW"), String::from(&workflow)),
+        (String::from("GITHUB_JOB"), String::from(&job)),
+    ]);
 
     let mut env_parser = EnvParser::new();
     env_parser.parse(&env_vars);
@@ -405,25 +390,22 @@ fn test_simple_github_trunk_merge_queue() {
     let workflow = String::from("Pull Request");
     let job = String::from("test-job");
 
-    let env_vars = EnvVars::from_iter(
-        vec![
-            (String::from("GITHUB_ACTIONS"), String::from("true")),
-            (
-                String::from("GITHUB_EVENT_NAME"),
-                String::from("pull_request"),
-            ),
-            (String::from("GITHUB_RUN_ID"), String::from(&run_id)),
-            (String::from("GITHUB_ACTOR"), String::from(&actor)),
-            (String::from("GITHUB_REPOSITORY"), String::from(&repository)),
-            (
-                String::from("GITHUB_REF"),
-                String::from("refs/trunk-merge/some-branch-name"),
-            ),
-            (String::from("GITHUB_WORKFLOW"), String::from(&workflow)),
-            (String::from("GITHUB_JOB"), String::from(&job)),
-        ]
-        .into_iter(),
-    );
+    let env_vars = EnvVars::from_iter(vec![
+        (String::from("GITHUB_ACTIONS"), String::from("true")),
+        (
+            String::from("GITHUB_EVENT_NAME"),
+            String::from("pull_request"),
+        ),
+        (String::from("GITHUB_RUN_ID"), String::from(&run_id)),
+        (String::from("GITHUB_ACTOR"), String::from(&actor)),
+        (String::from("GITHUB_REPOSITORY"), String::from(&repository)),
+        (
+            String::from("GITHUB_REF"),
+            String::from("refs/trunk-merge/some-branch-name"),
+        ),
+        (String::from("GITHUB_WORKFLOW"), String::from(&workflow)),
+        (String::from("GITHUB_JOB"), String::from(&job)),
+    ]);
 
     let mut env_parser = EnvParser::new();
     env_parser.parse(&env_vars);
@@ -462,25 +444,22 @@ fn test_simple_github_graphite_merge_queue() {
     let workflow = String::from("Pull Request");
     let job = String::from("test-job");
 
-    let env_vars = EnvVars::from_iter(
-        vec![
-            (String::from("GITHUB_ACTIONS"), String::from("true")),
-            (
-                String::from("GITHUB_EVENT_NAME"),
-                String::from("pull_request"),
-            ),
-            (String::from("GITHUB_RUN_ID"), String::from(&run_id)),
-            (String::from("GITHUB_ACTOR"), String::from(&actor)),
-            (String::from("GITHUB_REPOSITORY"), String::from(&repository)),
-            (
-                String::from("GITHUB_REF"),
-                String::from("refs/gtmq_some-branch-name"),
-            ),
-            (String::from("GITHUB_WORKFLOW"), String::from(&workflow)),
-            (String::from("GITHUB_JOB"), String::from(&job)),
-        ]
-        .into_iter(),
-    );
+    let env_vars = EnvVars::from_iter(vec![
+        (String::from("GITHUB_ACTIONS"), String::from("true")),
+        (
+            String::from("GITHUB_EVENT_NAME"),
+            String::from("pull_request"),
+        ),
+        (String::from("GITHUB_RUN_ID"), String::from(&run_id)),
+        (String::from("GITHUB_ACTOR"), String::from(&actor)),
+        (String::from("GITHUB_REPOSITORY"), String::from(&repository)),
+        (
+            String::from("GITHUB_REF"),
+            String::from("refs/gtmq_some-branch-name"),
+        ),
+        (String::from("GITHUB_WORKFLOW"), String::from(&workflow)),
+        (String::from("GITHUB_JOB"), String::from(&job)),
+    ]);
 
     let mut env_parser = EnvParser::new();
     env_parser.parse(&env_vars);
@@ -520,34 +499,31 @@ fn test_simple_semaphore() {
     let workflow = String::from("test-workflow");
     let job = String::from("test-job");
 
-    let env_vars = EnvVars::from_iter(
-        vec![
-            (String::from("SEMAPHORE"), String::from("true")),
-            (
-                String::from("SEMAPHORE_ORGANIZATION_URL"),
-                String::from(&org_url),
-            ),
-            (String::from("SEMAPHORE_JOB_ID"), String::from(&job_id)),
-            (
-                String::from("SEMAPHORE_PROJECT_ID"),
-                String::from(&project_id),
-            ),
-            (
-                String::from("SEMAPHORE_GIT_COMMIT_AUTHOR"),
-                String::from(&actor),
-            ),
-            (
-                String::from("SEMAPHORE_GIT_BRANCH"),
-                format!("refs/heads/origin/{branch}"),
-            ),
-            (
-                String::from("SEMAPHORE_PROJECT_NAME"),
-                String::from(&workflow),
-            ),
-            (String::from("SEMAPHORE_JOB_NAME"), String::from(&job)),
-        ]
-        .into_iter(),
-    );
+    let env_vars = EnvVars::from_iter(vec![
+        (String::from("SEMAPHORE"), String::from("true")),
+        (
+            String::from("SEMAPHORE_ORGANIZATION_URL"),
+            String::from(&org_url),
+        ),
+        (String::from("SEMAPHORE_JOB_ID"), String::from(&job_id)),
+        (
+            String::from("SEMAPHORE_PROJECT_ID"),
+            String::from(&project_id),
+        ),
+        (
+            String::from("SEMAPHORE_GIT_COMMIT_AUTHOR"),
+            String::from(&actor),
+        ),
+        (
+            String::from("SEMAPHORE_GIT_BRANCH"),
+            format!("refs/heads/origin/{branch}"),
+        ),
+        (
+            String::from("SEMAPHORE_PROJECT_NAME"),
+            String::from(&workflow),
+        ),
+        (String::from("SEMAPHORE_JOB_NAME"), String::from(&job)),
+    ]);
 
     let mut env_parser = EnvParser::new();
     env_parser.parse(&env_vars);
@@ -609,24 +585,21 @@ fn test_simple_gitlab_pr() {
     let workflow = String::from("test-job-name");
     let job = String::from("test-job-stage");
 
-    let env_vars = EnvVars::from_iter(
-        vec![
-            (String::from("GITLAB_CI"), String::from("true")),
-            (String::from("CI_JOB_URL"), String::from(&job_url)),
-            (String::from("CI_MERGE_REQUEST_IID"), pr_number.to_string()),
-            (
-                String::from("CI_COMMIT_AUTHOR"),
-                String::from(&commit_author),
-            ),
-            (
-                String::from("CI_COMMIT_REF_NAME"),
-                format!("remotes/{branch}"),
-            ),
-            (String::from("CI_JOB_NAME"), String::from(&workflow)),
-            (String::from("CI_JOB_STAGE"), String::from(&job)),
-        ]
-        .into_iter(),
-    );
+    let env_vars = EnvVars::from_iter(vec![
+        (String::from("GITLAB_CI"), String::from("true")),
+        (String::from("CI_JOB_URL"), String::from(&job_url)),
+        (String::from("CI_MERGE_REQUEST_IID"), pr_number.to_string()),
+        (
+            String::from("CI_COMMIT_AUTHOR"),
+            String::from(&commit_author),
+        ),
+        (
+            String::from("CI_COMMIT_REF_NAME"),
+            format!("remotes/{branch}"),
+        ),
+        (String::from("CI_JOB_NAME"), String::from(&workflow)),
+        (String::from("CI_JOB_STAGE"), String::from(&job)),
+    ]);
 
     let mut env_parser = EnvParser::new();
     env_parser.parse(&env_vars);
@@ -679,28 +652,25 @@ fn test_simple_gitlab_merge_branch() {
     let workflow = String::from("test-job-name");
     let job = String::from("test-job-stage");
 
-    let env_vars = EnvVars::from_iter(
-        vec![
-            (String::from("GITLAB_CI"), String::from("true")),
-            (String::from("CI_JOB_URL"), String::from(&job_url)),
-            (String::from("CI_MERGE_REQUEST_IID"), pr_number.to_string()),
-            (
-                String::from("CI_COMMIT_AUTHOR"),
-                String::from(&commit_author),
-            ),
-            (
-                String::from("CI_COMMIT_REF_NAME"),
-                format!("remotes/{branch}"),
-            ),
-            (String::from("CI_JOB_NAME"), String::from(&workflow)),
-            (String::from("CI_JOB_STAGE"), String::from(&job)),
-            (
-                String::from("CI_MERGE_REQUEST_EVENT_TYPE"),
-                String::from("merge_train"),
-            ),
-        ]
-        .into_iter(),
-    );
+    let env_vars = EnvVars::from_iter(vec![
+        (String::from("GITLAB_CI"), String::from("true")),
+        (String::from("CI_JOB_URL"), String::from(&job_url)),
+        (String::from("CI_MERGE_REQUEST_IID"), pr_number.to_string()),
+        (
+            String::from("CI_COMMIT_AUTHOR"),
+            String::from(&commit_author),
+        ),
+        (
+            String::from("CI_COMMIT_REF_NAME"),
+            format!("remotes/{branch}"),
+        ),
+        (String::from("CI_JOB_NAME"), String::from(&workflow)),
+        (String::from("CI_JOB_STAGE"), String::from(&job)),
+        (
+            String::from("CI_MERGE_REQUEST_EVENT_TYPE"),
+            String::from("merge_train"),
+        ),
+    ]);
 
     let mut env_parser = EnvParser::new();
     env_parser.parse(&env_vars);

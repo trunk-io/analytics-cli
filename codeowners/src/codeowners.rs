@@ -130,17 +130,13 @@ pub struct BindingsOwners(pub Owners);
 impl BindingsOwners {
     pub fn get_github_owners(&self) -> Option<BindingsGitHubOwners> {
         match &self.0 {
-            Owners::GitHubOwners(owners) => {
-                Some(BindingsGitHubOwners(GitHubOwners::from(owners.clone())))
-            }
+            Owners::GitHubOwners(owners) => Some(BindingsGitHubOwners(owners.clone())),
             _ => None,
         }
     }
     pub fn get_gitlab_owners(&self) -> Option<BindingsGitLabOwners> {
         match &self.0 {
-            Owners::GitLabOwners(owners) => {
-                Some(BindingsGitLabOwners(GitLabOwners::from(owners.clone())))
-            }
+            Owners::GitLabOwners(owners) => Some(BindingsGitLabOwners(owners.clone())),
             _ => None,
         }
     }
