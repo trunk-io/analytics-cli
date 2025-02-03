@@ -1,3 +1,6 @@
+import typing as PT
+
+
 def test_branch_supplied_by_env():
     from context_py import (
         BindingsMetaContext,
@@ -29,7 +32,7 @@ def test_branch_supplied_by_env_stable_branches():
         meta_validate,
     )
 
-    stables_branches = ["abc", "def"]
+    stables_branches: PT.Sequence[str] = ["abc", "def"]
     env_vars = {
         "GITHUB_ACTIONS": "true",
         "GITHUB_REF": stables_branches[0],
