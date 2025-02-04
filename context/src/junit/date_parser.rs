@@ -44,10 +44,10 @@ impl JunitDateParser {
             .ok()
             .map(|dt| {
                 self.date_type = Some(DateType::DateTime);
-                return TimestampAndOffset {
+                TimestampAndOffset {
                     timestamp_secs_micros: Some((dt.timestamp(), dt.time.microsecond)),
                     offset_secs: dt.time.tz_offset,
-                };
+                }
             })
     }
 
@@ -75,7 +75,7 @@ impl JunitDateParser {
                     duration.as_nanos().try_into().unwrap_or_default(),
                 )
             }),
-            offset_secs.and_then(|secs| FixedOffset::east_opt(secs)),
+            offset_secs.and_then(FixedOffset::east_opt),
         ) {
             (Some(chrono_date_time), Some(fixed_offset)) => {
                 Some(chrono_date_time.with_timezone(&fixed_offset))

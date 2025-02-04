@@ -40,7 +40,7 @@ async fn publish_test_report() {
             "test-message".into(),
         );
         let result = test_report.publish();
-        assert_eq!(result, true);
+        assert!(result);
     });
     thread_join_handle.join().unwrap();
 
@@ -85,7 +85,7 @@ async fn publish_test_report() {
     assert!(base_props.os_info.is_some());
     assert!(base_props.quarantined_tests.is_empty());
 
-    let file_set = base_props.file_sets.get(0).unwrap();
+    let file_set = base_props.file_sets.first().unwrap();
     assert_eq!(file_set.file_set_type, FileSetType::Junit);
     assert!(file_set.glob.ends_with(".bin"));
     assert_eq!(file_set.files.len(), 1);
@@ -94,7 +94,7 @@ async fn publish_test_report() {
     assert_eq!(junit_props.num_files, 1);
     assert_eq!(junit_props.num_tests, 0);
 
-    let bundled_file = file_set.files.get(0).unwrap();
+    let bundled_file = file_set.files.first().unwrap();
     assert_eq!(bundled_file.path, "internal/0");
     assert_eq!(bundled_file.owners.len(), 0);
     assert_eq!(bundled_file.team, None);

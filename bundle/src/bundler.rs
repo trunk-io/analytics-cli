@@ -26,7 +26,7 @@ pub struct BundlerUtil {
     bep_result: Option<BepParseResult>,
 }
 
-const META_FILENAME: &'static str = "meta.json";
+const META_FILENAME: &str = "meta.json";
 
 impl BundlerUtil {
     const ZSTD_COMPRESSION_LEVEL: i32 = 15; // This gives roughly 10x compression for text, 22 gives 11x.
@@ -155,5 +155,5 @@ pub fn parse_meta(meta_bytes: Vec<u8>) -> anyhow::Result<VersionedBundle> {
     }
 
     let base_bundle = serde_json::from_slice(&meta_bytes)?;
-    return Ok(VersionedBundle::V0_5_29(base_bundle));
+    Ok(VersionedBundle::V0_5_29(base_bundle))
 }
