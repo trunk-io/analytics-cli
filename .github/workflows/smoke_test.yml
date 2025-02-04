@@ -9,22 +9,33 @@ env:
   RELEASE: 0.6.11
 jobs:
   build_cli:
-    name: Build cli from release
-    runs-on: public-amd64-2xlarge
+    name: Smoke test ${{ matrix.platform.name }} cli from release
+    runs-on: ${{ matrix.platform.os }}
+    strategy:
+      matrix:
+        platform:
+          - name: linux
+            os: public-amd64-2xlarge
+            target: x86_64-unknown-linux-musl
+            download-target: x86_64-unknown-linux
+          - name: macos
+            os: macos-latest
+            target: arm64-apple-darwin
+            download-target: aarch64-apple-darwin
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Get Release
         run: |
-          curl -fsSLO --retry 3 https://github.com/trunk-io/analytics-cli/releases/download/${{ env.RELEASE }}/trunk-analytics-cli-x86_64-unknown-linux.tar.gz
-          tar -zxf trunk-analytics-cli-x86_64-unknown-linux.tar.gz
+          curl -fsSLO --retry 3 https://github.com/trunk-io/analytics-cli/releases/download/${{ env.RELEASE }}/trunk-analytics-cli-${{ matrix.platform.download-target }}.tar.gz
+          tar -zxf trunk-analytics-cli-${{ matrix.platform.download-target }}.tar.gz
           chmod +x trunk-analytics-cli
 
-      - name: Setup Run Smoke Tests
+      - name: Setup Run Smoke Tests - ${{ matrix.platform.name }}
         uses: ./.github/actions/setup_run_smoke_tests
 
-      - name: Run Smoke Tests
+      - name: Run Smoke Tests - ${{ matrix.platform.name }}
         uses: ./.github/actions/perform_smoke_test
         with:
           cli-binary-location: trunk-analytics-cli
