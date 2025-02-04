@@ -90,8 +90,17 @@ jobs:
           if-no-files-found: error
 
   perform_smoke_test:
-    name: Smoke test ${{ github.event.inputs.release_tag }}
-    runs-on: public-amd64-small
+    name: Smoke test ${{ github.event.inputs.release_tag }} - ${{ matrix.type.name }}
+    runs-on: ${{ matrix.type.os }}
+    strategy:
+      matrix:
+        type:
+          - name: linux
+            os: public-amd64-small
+            target: x86_64-unknown-linux-musl
+          - name: macos
+            os: macos-latest
+            target: aarch64-apple-darwin
     needs:
       - build_release
     steps:
@@ -101,7 +110,7 @@ jobs:
       - name: Get Release Candidate
         uses: actions/download-artifact@v4
         with:
-          name: x86_64-unknown-linux
+          name: ${{ matrix.type.target }}
           path: ./trunk-analytics-cli
 
       - name: Setup Run Smoke Tests
