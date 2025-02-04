@@ -109,13 +109,13 @@ impl UploadArgs {
         token: String,
         org_url_slug: String,
         junit_paths: Vec<String>,
-        repo_root: String,
+        repo_root: Option<String>,
     ) -> Self {
         Self {
             junit_paths,
             org_url_slug,
             token,
-            repo_root: Some(repo_root),
+            repo_root,
             allow_empty_test_results: true,
             ..Default::default()
         }

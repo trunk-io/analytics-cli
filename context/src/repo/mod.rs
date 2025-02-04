@@ -58,12 +58,13 @@ impl BundleRepo {
         repo_head_branch: Option<String>,
         repo_head_commit_epoch: Option<String>,
     ) -> anyhow::Result<BundleRepo> {
+        let current_dir = std::env::current_dir().context("failed to get current directory")?;
         #[allow(unused_mut)]
         let mut bundle_repo_options = BundleRepoOptions {
             repo_root: repo_root
                 .as_ref()
                 .map(PathBuf::from)
-                .or_else(|| std::env::current_dir().ok()),
+                .or_else(|| Some(current_dir.clone())),
             repo_url,
             repo_head_sha,
             repo_head_branch,
@@ -76,10 +77,10 @@ impl BundleRepo {
 
         #[cfg(feature = "git-access")]
         {
-            let git_repo = bundle_repo_options
-                .repo_root
-                .as_ref()
-                .and_then(|dir| gix::open(dir).ok())
+            let git_repo = repo_root
+                // if a repo root is provided then use that
+                // otherwise try to discover the repo root
+                .map_or(gix::discover(current_dir).ok(), |dir| gix::open(dir).ok())
                 .context(format!(
                     "Failed to open git repository at {:?}",
                     bundle_repo_options

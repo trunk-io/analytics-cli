@@ -876,3 +876,100 @@ fn test_simple_gitlab_stable_branches() {
         ]
     );
 }
+
+#[test]
+fn does_not_cross_contaminate() {
+    let pr_number = 123;
+    let job_url = String::from("https://example.com");
+    let actor = String::from("username");
+    let email = String::from("username@example.com");
+    let commit_author = String::from("username <username@example.com>");
+    let branch = String::from("some-branch-name");
+    let workflow = String::from("test-job-name");
+    let job = String::from("test-job-stage");
+
+    let env_vars = EnvVars::from_iter(vec![
+        (String::from("GITLAB_CI"), String::from("true")),
+        (String::from("CI_JOB_URL"), String::from(&job_url)),
+    let custom_branch = String::from("custom_branch");
+    let custom_commit_message = String::from("custom_commit_message");
+    let custom_pr_number = 456;
+    let custom_pr_title = String::from("custom_pr_title");
+
+    // Contains both a full set of custom and gitlab vars, but we only choose one set to parse
+    let env_vars = EnvVars::from_iter(vec![
+        (String::from("CUSTOM"), String::from("true")),
+        (String::from("JOB_URL"), String::from(&custom_job_url)),
+        (String::from("JOB_NAME"), String::from(&custom_job_name)),
+        (String::from("AUTHOR_EMAIL"), String::from(&custom_email)),
+        (String::from("AUTHOR_NAME"), String::from(&custom_name)),
+        (String::from("COMMIT_BRANCH"), String::from(&custom_branch)),
+        (
+            String::from("COMMIT_MESSAGE"),
+            String::from(&custom_commit_message),
+        ),
+        (String::from("PR_NUMBER"), custom_pr_number.to_string()),
+        (String::from("PR_TITLE"), String::from(&custom_pr_title)),
+        (String::from("GITLAB_CI"), String::from("true")),
+        (String::from("CI_JOB_URL"), String::from(&job_url)),
+        (String::from("CI_MERGE_REQUEST_IID"), pr_number.to_string()),
+        (
+            String::from("CI_COMMIT_AUTHOR"),
+            String::from(&commit_author),
+        ),
+        (
+            String::from("CI_COMMIT_REF_NAME"),
+            format!("remotes/{branch}"),
+        ),
+        (String::from("CI_JOB_NAME"), String::from(&workflow)),
+        (String::from("CI_JOB_STAGE"), String::from(&job)),
+        (
+            String::from("CI_MERGE_REQUEST_EVENT_TYPE"),
+            String::from("merge_train"),
+        ),
+    ]);
+
+    let mut env_parser = EnvParser::new();
+    env_parser.parse(&env_vars);
+
+    let ci_info = env_parser.into_ci_info_parser().unwrap().info_ci_info();
+
+    let gitlab_info = CIInfo {
+        platform: CIPlatform::GitLabCI,
+        job_url: Some(job_url),
+        branch: Some(branch),
+        branch_class: Some(BranchClass::Merge),
+        pr_number: Some(pr_number),
+        actor: Some(actor.clone()),
+        committer_name: Some(actor.clone()),
+        committer_email: Some(email.clone()),
+        author_name: Some(actor),
+        author_email: Some(email),
+        commit_message: None,
+        title: None,
+        workflow: Some(workflow),
+        job: Some(job),
+    };
+
+    let custom_info = CIInfo {
+        platform: CIPlatform::Custom,
+        job_url: Some(custom_job_url),
+        branch: Some(custom_branch),
+        branch_class: Some(BranchClass::Merge),
+        pr_number: Some(custom_pr_number),
+        actor: Some(custom_email.clone()),
+        committer_name: Some(custom_name.clone()),
+        committer_email: Some(custom_email.clone()),
+        author_name: Some(custom_name),
+        author_email: Some(custom_email),
+        commit_message: Some(custom_commit_message),
+        title: Some(custom_pr_title),
+        workflow: Some(custom_job_name.clone()),
+        job: Some(custom_job_name),
+    };
+
+    assert!(
+        ci_info == gitlab_info || ci_info == custom_info,
+        "Actual ci_info {ci_info:#?} should match either gitlab expectation {gitlab_info:#?} or custom expectation {custom_info:#?}",
+    );
+}
