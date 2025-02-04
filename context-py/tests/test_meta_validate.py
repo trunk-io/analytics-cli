@@ -20,12 +20,12 @@ def test_branch_supplied_by_env():
 
 
 def test_branch_supplied_by_env_stable_branches():
-    from context_py import env_parse  # trunk-ignore(pyright/reportUnknownVariableType)
     from context_py import (
         BindingsMetaContext,
         MetaValidation,
         MetaValidationLevel,
         branch_class_to_string,
+        env_parse,
         meta_validate,
     )
 
@@ -75,7 +75,7 @@ def test_branch_supplied_by_repo():
         "GITHUB_JOB": "test-job",
     }
 
-    ci_info = env_parse(env_vars, None)
+    ci_info = env_parse(env_vars, ["main", "master"])
     assert ci_info is not None
 
     _, bundle_repo = ci_info_and_bundle_repo()
@@ -162,7 +162,7 @@ def test_no_branch_supplied():
         "GITHUB_JOB": "test-job",
     }
 
-    ci_info = env_parse(env_vars, None)
+    ci_info = env_parse(env_vars, ["main", "master"])
     assert ci_info is not None
 
     bundle_repo = BundleRepo(
@@ -200,7 +200,7 @@ def ci_info_and_bundle_repo():
         "GITHUB_JOB": "test-job",
     }
 
-    ci_info = env_parse(env_vars, None)
+    ci_info = env_parse(env_vars, ["main", "master"])
     assert ci_info is not None
 
     bundle_repo = BundleRepo(

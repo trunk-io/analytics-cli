@@ -888,9 +888,10 @@ fn does_not_cross_contaminate() {
     let workflow = String::from("test-job-name");
     let job = String::from("test-job-stage");
 
-    let env_vars = EnvVars::from_iter(vec![
-        (String::from("GITLAB_CI"), String::from("true")),
-        (String::from("CI_JOB_URL"), String::from(&job_url)),
+    let custom_job_url = String::from("custom_job_url");
+    let custom_job_name = String::from("custom_job_name");
+    let custom_email = String::from("custom_email");
+    let custom_name = String::from("custom_name");
     let custom_branch = String::from("custom_branch");
     let custom_commit_message = String::from("custom_commit_message");
     let custom_pr_number = 456;
@@ -930,7 +931,7 @@ fn does_not_cross_contaminate() {
     ]);
 
     let mut env_parser = EnvParser::new();
-    env_parser.parse(&env_vars);
+    env_parser.parse(&env_vars, &[]);
 
     let ci_info = env_parser.into_ci_info_parser().unwrap().info_ci_info();
 

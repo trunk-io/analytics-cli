@@ -5,11 +5,10 @@ use test_report::report;
 
 pub fn env_parse(
     env_vars: magnus::RHash,
-    stable_branches: Option<Vec<String>>,
+    stable_branches: Vec<String>,
 ) -> Option<env::parser::CIInfo> {
     let env_vars: HashMap<String, String> = env_vars.to_hash_map().unwrap_or_default();
-    let stable_branches_unwrapped = stable_branches.unwrap_or_default();
-    let stable_branches_ref: &[&str] = &stable_branches_unwrapped
+    let stable_branches_ref: &[&str] = &stable_branches
         .iter()
         .map(String::as_str)
         .collect::<Vec<&str>>();

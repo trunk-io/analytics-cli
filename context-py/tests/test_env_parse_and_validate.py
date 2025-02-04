@@ -17,7 +17,7 @@ def test_env_parse_and_validate():
         "GITHUB_JOB": "test-job",
     }
 
-    ci_info = env_parse(env_vars, None)
+    ci_info = env_parse(env_vars, ["main", "master"])
     assert ci_info is not None
     env_validation = env_validate(ci_info)
 

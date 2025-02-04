@@ -10,7 +10,7 @@ use wasm_streams::{readable::sys, readable::ReadableStream};
 #[wasm_bindgen]
 pub fn env_parse(
     env_vars: js_sys::Object,
-    stable_branches: Option<Vec<String>>,
+    stable_branches: Vec<String>,
 ) -> Option<env::parser::CIInfo> {
     let env_vars: HashMap<String, String> = js_sys::Object::entries(&env_vars)
         .iter()
@@ -26,8 +26,7 @@ pub fn env_parse(
         })
         .collect();
 
-    let stable_branches_unwrapped = stable_branches.unwrap_or_default();
-    let stable_branches_ref: &[&str] = &stable_branches_unwrapped
+    let stable_branches_ref: &[&str] = &stable_branches
         .iter()
         .map(String::as_str)
         .collect::<Vec<&str>>();
@@ -43,12 +42,11 @@ pub fn env_parse(
 #[wasm_bindgen]
 pub fn parse_branch_class(
     value: &str,
+    stable_branches: Vec<String>,
     pr_number: Option<usize>,
     gitlab_merge_request_event_type: Option<env::parser::GitLabMergeRequestEventType>,
-    stable_branches: Option<Vec<String>>,
 ) -> env::parser::BranchClass {
-    let stable_branches_unwrapped = stable_branches.unwrap_or_default();
-    let stable_branches_ref: &[&str] = &stable_branches_unwrapped
+    let stable_branches_ref: &[&str] = &stable_branches
         .iter()
         .map(String::as_str)
         .collect::<Vec<&str>>();

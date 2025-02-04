@@ -472,8 +472,6 @@ pub enum BranchClass {
     None,
 }
 
-const DEFAULT_STABLE_BRANCHES: &[&str] = &["master", "main"];
-
 impl
     From<(
         &str,
@@ -504,9 +502,7 @@ impl
             BranchClass::PullRequest
         } else if branch_name.starts_with("remotes/pull/") || branch_name.starts_with("pull/") {
             BranchClass::PullRequest
-        } else if stable_branches.contains(&branch_name)
-            || (stable_branches.is_empty() && DEFAULT_STABLE_BRANCHES.contains(&branch_name))
-        {
+        } else if stable_branches.contains(&branch_name) {
             BranchClass::ProtectedBranch
         } else {
             BranchClass::None

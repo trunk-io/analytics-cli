@@ -20,13 +20,11 @@ define_stub_info_gatherer!(stub_info);
 
 #[gen_stub_pyfunction]
 #[pyfunction]
-#[pyo3(signature = (env_vars, stable_branches))]
 fn env_parse(
     env_vars: HashMap<String, String>,
-    stable_branches: Option<Vec<String>>,
+    stable_branches: Vec<String>,
 ) -> Option<env::parser::CIInfo> {
-    let stable_branches_unwrapped = stable_branches.unwrap_or_default();
-    let stable_branches_ref: &[&str] = &stable_branches_unwrapped
+    let stable_branches_ref: &[&str] = &stable_branches
         .iter()
         .map(String::as_str)
         .collect::<Vec<&str>>();
