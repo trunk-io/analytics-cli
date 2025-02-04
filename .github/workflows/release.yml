@@ -91,28 +91,7 @@ jobs:
 
   perform_smoke_test:
     name: Smoke test ${{ github.event.inputs.release_tag }}
-    runs-on: public-amd64-small
-    needs:
-      - build_release
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Get Release Candidate
-        uses: actions/download-artifact@v4
-        with:
-          name: x86_64-unknown-linux
-          path: ./trunk-analytics-cli
-
-      - name: Setup Run Smoke Tests
-        uses: ./.github/actions/setup_run_smoke_tests
-
-      - name: Run Smoke Tests
-        uses: ./.github/actions/perform_smoke_test
-        with:
-          cli-binary-location: trunk-analytics-cli/trunk-analytics-cli
-          staging-api-token: ${{ secrets.TRUNK_STAGING_ORG_API_TOKEN }}
-          production-api-token: ${{ secrets.TRUNK_PROD_ORG_API_TOKEN }}
+    uses: ./.github/workflows/smoke_test_main.yml
 
   tag_and_release:
     name: Tag and Release [ ${{ github.event.inputs.release_tag }} ]
