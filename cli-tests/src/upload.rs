@@ -422,7 +422,7 @@ async fn upload_bundle_no_files_allow_missing_junit_files() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn upload_bundle_valid_repo_root() {
+async fn upload_bundle_invalid_repo_root() {
     let temp_dir = tempdir().unwrap();
     generate_mock_git_repo(&temp_dir);
 
@@ -436,6 +436,48 @@ async fn upload_bundle_valid_repo_root() {
         .stderr(predicate::str::contains(
             "Error: Failed to open git repository at \"../\"",
         ));
+
+    // HINT: View CLI output with `cargo test -- --nocapture`
+    println!("{assert}");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn upload_bundle_invalid_repo_root_explicit() {
+    let temp_dir = tempdir().unwrap();
+    generate_mock_git_repo(&temp_dir);
+
+    let state = MockServerBuilder::new().spawn_mock_server().await;
+    // make a child directory to upload from
+    let child_path = temp_dir.path().join("child_dir");
+    fs::create_dir(&child_path).unwrap();
+
+    let assert = CommandBuilder::upload(&child_path, state.host.clone())
+        .repo_root(child_path.to_str().unwrap())
+        .command()
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains(
+            "Error: Failed to open git repository at",
+        ));
+
+    // HINT: View CLI output with `cargo test -- --nocapture`
+    println!("{assert}");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn upload_bundle_valid_repo_root_implicit() {
+    let temp_dir = tempdir().unwrap();
+    generate_mock_git_repo(&temp_dir);
+
+    let state = MockServerBuilder::new().spawn_mock_server().await;
+    // make a child directory to upload from
+    let child_path = temp_dir.path().join("child_dir");
+    fs::create_dir(&child_path).unwrap();
+
+    let assert = CommandBuilder::upload(&child_path, state.host.clone())
+        .command()
+        .assert()
+        .success();
 
     // HINT: View CLI output with `cargo test -- --nocapture`
     println!("{assert}");
