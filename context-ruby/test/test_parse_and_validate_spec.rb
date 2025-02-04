@@ -50,7 +50,7 @@ describe 'context_ruby' do
       'GITHUB_WORKFLOW' => 'test-workflow',
       'GITHUB_JOB' => 'test-job'
     }
-    parsed = env_parse(env_vars, ['main', 'master'])
+    parsed = env_parse(env_vars, ['master'])
     expect(parsed.branch).to eq('master')
     expect(parsed.branch_class.to_s).to eq('PB')
   end
