@@ -509,7 +509,7 @@ fn test_simple_github_stable_branches() {
     ]);
 
     let mut env_parser = EnvParser::new();
-    env_parser.parse(&env_vars, &[]);
+    env_parser.parse(&env_vars, &["main", "master"]);
 
     let ci_info = env_parser.into_ci_info_parser().unwrap().info_ci_info();
 
