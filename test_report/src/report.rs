@@ -113,7 +113,10 @@ impl MutTestReport {
         let resolved_path_str = resolved_path.path().to_str().unwrap_or_default();
         let token = env::var("TRUNK_API_TOKEN").unwrap_or_default();
         let org_url_slug = env::var("TRUNK_ORG_URL_SLUG").unwrap_or_default();
-        let repo_root = env::var("REPO_ROOT").unwrap_or(".".to_string());
+        let repo_root = match env::var("REPO_ROOT") {
+            Ok(val) => Some(val),
+            Err(_) => None,
+        };
         if token.is_empty() || org_url_slug.is_empty() {
             println!("Token or org url slug not set");
             return false;

@@ -30,7 +30,6 @@ task build: :compile
 begin
   require 'rspec/core/rake_task'
   RSpec::Core::RakeTask.new(:test) do |t|
-    ENV['REPO_ROOT'] = '..'
     Rake::Task['compile'].invoke
     t.pattern = FileList['test/*_spec.rb']
   end
