@@ -61,4 +61,3 @@ runs:
         TRUNK_PUBLIC_API_ADDRESS: ${{ inputs.trunk-public-api-address }}
         TRUNK_ORG_URL_SLUG: ${{ inputs.trunk-org-slug }}
         TRUNK_API_TOKEN: ${{ inputs.trunk-token }}
-        REPO_ROOT: ../../..
