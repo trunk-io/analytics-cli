@@ -831,7 +831,7 @@ fn does_not_cross_contaminate() {
         actor: Some(actor.clone()),
         committer_name: Some(actor.clone()),
         committer_email: Some(email.clone()),
-        author_name: Some(actor.clone()),
+        author_name: Some(actor),
         author_email: Some(email),
         commit_message: None,
         title: None,
@@ -845,15 +845,15 @@ fn does_not_cross_contaminate() {
         branch: Some(custom_branch),
         branch_class: Some(BranchClass::Merge),
         pr_number: Some(custom_pr_number),
-        actor: Some(actor.clone()),
+        actor: Some(custom_email.clone()),
         committer_name: Some(custom_name.clone()),
-        committer_email: Some(custom_name.clone()),
+        committer_email: Some(custom_email.clone()),
         author_name: Some(custom_name),
         author_email: Some(custom_email),
         commit_message: Some(custom_commit_message),
         title: Some(custom_pr_title),
-        workflow: None,
-        job: None,
+        workflow: Some(custom_job_name.clone()),
+        job: Some(custom_job_name),
     };
 
     assert!(
