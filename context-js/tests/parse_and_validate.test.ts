@@ -37,7 +37,7 @@ describe("context-js", () => {
       GITHUB_JOB: "test-job",
     };
 
-    const ciInfo = env_parse(env_vars);
+    const ciInfo = env_parse(env_vars, ["main", "master"]);
     // NOTE: Need to narrow type here
     // eslint-disable-next-line vitest/no-conditional-in-test
     if (!ciInfo) throw Error("ciInfo is undefined");
@@ -154,28 +154,50 @@ describe("context-js", () => {
   it("validates branch class", () => {
     expect.hasAssertions();
 
-    expect(parse_branch_class("main")).toBe(BranchClass.ProtectedBranch);
-
-    expect(parse_branch_class("testOwner/testFeature", 123)).toBe(
-      BranchClass.PullRequest,
+    expect(parse_branch_class("main", ["main", "master"])).toBe(
+      BranchClass.ProtectedBranch,
     );
 
-    expect(parse_branch_class("")).toBe(BranchClass.None);
+    expect(
+      parse_branch_class("testOwner/testFeature", ["main", "master"], 123),
+    ).toBe(BranchClass.PullRequest);
+
+    expect(parse_branch_class("", [])).toBe(BranchClass.None);
   });
 
   it("validates merge branches", () => {
     expect.hasAssertions();
 
-    expect(parse_branch_class("main")).toBe(BranchClass.ProtectedBranch);
+    expect(parse_branch_class("main", ["main", "master"])).toBe(
+      BranchClass.ProtectedBranch,
+    );
 
     expect(
       parse_branch_class(
         "testOwner/testFeature",
+        ["main", "master"],
         123,
         GitLabMergeRequestEventType.MergeTrain,
       ),
     ).toBe(BranchClass.Merge);
 
-    expect(parse_branch_class("")).toBe(BranchClass.None);
+    expect(parse_branch_class("", [])).toBe(BranchClass.None);
+  });
+
+  it("validates stable branches", () => {
+    expect.hasAssertions();
+
+    expect(parse_branch_class("main", ["main", "master"])).toBe(
+      BranchClass.ProtectedBranch,
+    );
+
+    expect(parse_branch_class("main", ["master"])).toBe(BranchClass.None);
+
+    expect(
+      parse_branch_class("my-dev-branch", [
+        "another-stable-branch",
+        "my-dev-branch",
+      ]),
+    ).toBe(BranchClass.ProtectedBranch);
   });
 });
