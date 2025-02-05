@@ -3,9 +3,20 @@ use std::{fs, path::Path, time::Duration};
 use quick_junit::{NonSuccessKind, Report, TestCase, TestCaseStatus, TestRerun, TestSuite};
 use schema::TestNode;
 
-#[allow(clippy::all)]
-mod schema {
-    include!(concat!(env!("OUT_DIR"), "/codegen.rs"));
+#[allow(dead_code, clippy::all)]
+pub mod schema {
+    include!(concat!(
+        env!("OUT_DIR"),
+        "/xcrun-xcresulttool-get-test-results-tests-json-schema.rs"
+    ));
+}
+
+#[allow(dead_code, clippy::all)]
+pub mod fd_schema {
+    include!(concat!(
+        env!("OUT_DIR"),
+        "/xcrun-xcresulttool-formatDescription-get---format-json---legacy-json-schema.rs"
+    ));
 }
 
 #[derive(Debug, Clone)]
@@ -251,17 +262,17 @@ impl XCResult {
     }
 }
 
-mod xcrun_cmd {
+pub mod xcrun_cmd {
     use std::{ffi::OsStr, process::Command};
 
     use lazy_static::lazy_static;
 
-    use crate::schema;
+    use crate::{fd_schema, schema};
 
     pub fn xcresulttool_get_test_results_tests<T: AsRef<OsStr>>(
         path: T,
     ) -> anyhow::Result<schema::Tests> {
-        xcrun_version_check()?;
+        xcresulttool_min_version_check()?;
 
         let output = xcrun(&[
             "xcresulttool".as_ref(),
@@ -273,15 +284,64 @@ mod xcrun_cmd {
         ])?;
 
         serde_json::from_str::<schema::Tests>(&output)
-            .map_err(|e| anyhow::anyhow!("failed to parse json from xcrun output: {}", e))
+            .map_err(|e| anyhow::anyhow!("failed to parse json from xcresulttool output: {}", e))
     }
 
-    const LEGACY_FLAG_MIN_VERSION: usize = 70;
-    fn xcrun_version_check() -> anyhow::Result<()> {
-        let version = xcrun_version()?;
-        if version < LEGACY_FLAG_MIN_VERSION {
+    pub fn xcresulttool_get_object<T: AsRef<OsStr>>(
+        path: T,
+    ) -> anyhow::Result<fd_schema::ActionsInvocationRecord> {
+        let mut args: Vec<&OsStr> = vec![
+            "xcresulttool".as_ref(),
+            "get".as_ref(),
+            "object".as_ref(),
+            "--format".as_ref(),
+            "json".as_ref(),
+            "--path".as_ref(),
+            path.as_ref(),
+        ];
+
+        if xcresulttool_min_version_check().is_ok() {
+            args.push("--legacy".as_ref());
+        }
+
+        let output = xcrun(&args)?;
+
+        serde_json::from_str::<fd_schema::ActionsInvocationRecord>(&output)
+            .map_err(|e| anyhow::anyhow!("failed to parse json from xcresulttool output: {}", e))
+    }
+
+    pub fn xcresulttool_get_object_id<T: AsRef<OsStr>, U: AsRef<OsStr>>(
+        path: T,
+        id: U,
+    ) -> anyhow::Result<fd_schema::ActionTestPlanRunSummaries> {
+        let mut args: Vec<&OsStr> = vec![
+            "xcresulttool".as_ref(),
+            "get".as_ref(),
+            "object".as_ref(),
+            "--format".as_ref(),
+            "json".as_ref(),
+            "--id".as_ref(),
+            id.as_ref(),
+            "--path".as_ref(),
+            path.as_ref(),
+        ];
+
+        if xcresulttool_min_version_check().is_ok() {
+            args.push("--legacy".as_ref());
+        }
+
+        let output = xcrun(&args)?;
+
+        serde_json::from_str::<fd_schema::ActionTestPlanRunSummaries>(&output)
+            .map_err(|e| anyhow::anyhow!("failed to parse json from xcresulttool output: {}", e))
+    }
+
+    const LEGACY_FLAG_MIN_VERSION: usize = 22608;
+    fn xcresulttool_min_version_check() -> anyhow::Result<()> {
+        let version = xcresulttool_version()?;
+        if version <= LEGACY_FLAG_MIN_VERSION {
             return Err(anyhow::anyhow!(
-                "xcrun version {} is not supported, please upgrade to version {} or higher",
+                "xcresulttool version {} is not supported, please upgrade to version {} or higher",
                 version,
                 LEGACY_FLAG_MIN_VERSION
             ));
@@ -289,12 +349,12 @@ mod xcrun_cmd {
         Ok(())
     }
 
-    fn xcrun_version() -> anyhow::Result<usize> {
-        let version_raw = xcrun(&["--version"])?;
+    fn xcresulttool_version() -> anyhow::Result<usize> {
+        let version_raw = xcrun(&["xcresulttool", "version"])?;
 
         lazy_static! {
-            // regex to match version where the output looks like xcrun version 70.
-            static ref RE: regex::Regex = regex::Regex::new(r"xcrun version (\d+)").unwrap();
+            // regex to match version where the output looks like "xcresulttool version 22608, format version 3.49 (current)"
+            static ref RE: regex::Regex = regex::Regex::new(r"xcresulttool version (\d+)").unwrap();
         }
         let version_parsed = RE
             .captures(&version_raw)
@@ -304,7 +364,7 @@ mod xcrun_cmd {
         if let Some(version) = version_parsed {
             Ok(version)
         } else {
-            Err(anyhow::anyhow!("failed to parse xcrun version"))
+            Err(anyhow::anyhow!("failed to parse xcresulttool version"))
         }
     }
 
@@ -313,7 +373,12 @@ mod xcrun_cmd {
             return Err(anyhow::anyhow!("xcrun is only available on macOS"));
         }
         let output = Command::new("xcrun").args(args).output()?;
-        let result = String::from_utf8(output.stdout)?;
+        let data = if output.status.code() == Some(0) {
+            output.stdout
+        } else {
+            output.stderr
+        };
+        let result = String::from_utf8(data)?;
         Ok(result)
     }
 }
