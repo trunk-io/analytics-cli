@@ -1,4 +1,4 @@
-use std::{cell::RefCell, env, fs};
+use std::{cell::RefCell, env, fs, time::SystemTime};
 
 use bundle::BundleMetaDebugProps;
 use chrono::prelude::*;
@@ -14,6 +14,7 @@ use wasm_bindgen::prelude::wasm_bindgen;
 pub struct TestReport {
     test_result: TestResult,
     command: String,
+    started_at: SystemTime,
 }
 
 #[cfg_attr(feature = "wasm", wasm_bindgen)]
@@ -83,6 +84,7 @@ pub struct MutTestReport(RefCell<TestReport>);
 #[cfg_attr(feature = "wasm", wasm_bindgen)]
 impl MutTestReport {
     pub fn new(origin: String, command: String) -> Self {
+        let started_at = SystemTime::now();
         let mut test_result = TestResult::default();
         test_result.uploader_metadata = Some(UploaderMetadata {
             origin: origin.clone(),
@@ -92,6 +94,7 @@ impl MutTestReport {
         Self(RefCell::new(TestReport {
             test_result,
             command,
+            started_at,
         }))
     }
 
@@ -101,10 +104,6 @@ impl MutTestReport {
 
     // sends out to the trunk api
     pub fn publish(&self) -> bool {
-        let path = self.save();
-        if path.is_err() {
-            return false;
-        }
         let resolved_path = if let Ok(path) = self.save() {
             path
         } else {
@@ -124,23 +123,32 @@ impl MutTestReport {
                 nanos: Utc::now().timestamp_subsec_nanos() as i32,
             });
         }
-        // TODO - handle finding the repo root automatically
         let upload_args = trunk_analytics_cli::upload_command::UploadArgs::new(
             token,
             org_url_slug,
             vec![resolved_path_str.into()],
             repo_root,
+            false,
         );
         let debug_props = BundleMetaDebugProps {
             command_line: self.0.borrow().command.clone(),
+        };
+        let test_run_result = trunk_analytics_cli::test_command::TestRunResult {
+            command: self.0.borrow().command.clone(),
+            exec_start: self.0.borrow().started_at,
+            exit_code: 0,
+            num_tests: Some(self.0.borrow().test_result.test_case_runs.len()),
         };
         if let Ok(pre_test_context) = gather_pre_test_context(upload_args.clone(), debug_props) {
             match tokio::runtime::Builder::new_multi_thread()
                 .enable_all()
                 .build()
                 .unwrap()
-                .block_on(run_upload(upload_args, Some(pre_test_context), None))
-            {
+                .block_on(run_upload(
+                    upload_args,
+                    Some(pre_test_context),
+                    Some(test_run_result),
+                )) {
                 Ok(_) => true,
                 Err(e) => {
                     println!("Error uploading: {:?}", e);
@@ -157,7 +165,12 @@ impl MutTestReport {
     fn save(&self) -> Result<tempfile::NamedTempFile, anyhow::Error> {
         let buf = self.serialize_test_result();
         let named_temp_file = tempfile::Builder::new().suffix(".bin").tempfile()?;
-        fs::write(&named_temp_file, buf).unwrap_or_default();
+        fs::write(&named_temp_file, buf)?;
+        // file modification uses filetime which is less precise than systemTime
+        // we need to update it to the current time to avoid race conditions later down the line
+        // when the start time ends up being after the file modification time
+        let file = fs::File::open(&named_temp_file).unwrap();
+        file.set_modified(SystemTime::now())?;
         Ok(named_temp_file)
     }
 

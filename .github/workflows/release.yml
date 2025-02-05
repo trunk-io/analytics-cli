@@ -53,11 +53,12 @@ jobs:
         uses: ./.github/actions/setup_rust_cargo
         if: "!cancelled()"
 
-      - name: Update version
+      - name: Update CLI version
         uses: ./.github/actions/update_version
         if: "!cancelled()"
         with:
           version: ${{ github.event.inputs.release_tag }}
+          file: ./cli/Cargo.toml
 
       - name: Build darwin target
         uses: ./.github/actions/build_cli_macos_target

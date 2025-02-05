@@ -110,6 +110,7 @@ impl UploadArgs {
         org_url_slug: String,
         junit_paths: Vec<String>,
         repo_root: Option<String>,
+        use_quarantining: bool,
     ) -> Self {
         Self {
             junit_paths,
@@ -117,6 +118,7 @@ impl UploadArgs {
             token,
             repo_root,
             allow_empty_test_results: true,
+            use_quarantining,
             ..Default::default()
         }
     }
@@ -154,6 +156,9 @@ pub async fn run_upload(
         upload_args.allow_empty_test_results,
         &test_run_result,
     )?;
+    if let Some(num_tests) = test_run_result.clone().and_then(|r| r.num_tests) {
+        meta.junit_props.num_tests = num_tests;
+    }
 
     if upload_args.print_files {
         println!("Files to upload:");
