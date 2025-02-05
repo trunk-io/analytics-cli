@@ -55,7 +55,14 @@ jobs:
           bundler-cache: true
           working-directory: context-ruby
 
-      - name: Update version
+      - name: Update CLI version
+        uses: ./.github/actions/update_version
+        if: "!cancelled()"
+        with:
+          version: ${{ github.event.inputs.release_tag }}
+          file: ./cli/Cargo.toml
+
+      - name: Update Gem version
         uses: ./.github/actions/update_version
         if: "!cancelled()"
         with:

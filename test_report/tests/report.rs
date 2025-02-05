@@ -92,7 +92,7 @@ async fn publish_test_report() {
 
     let junit_props = bundle_meta.junit_props;
     assert_eq!(junit_props.num_files, 1);
-    assert_eq!(junit_props.num_tests, 0);
+    assert_eq!(junit_props.num_tests, 1);
 
     let bundled_file = file_set.files.first().unwrap();
     assert_eq!(bundled_file.path, "internal/0");

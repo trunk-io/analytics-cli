@@ -124,12 +124,12 @@ impl MutTestReport {
                 nanos: Utc::now().timestamp_subsec_nanos() as i32,
             });
         }
-        // TODO - handle finding the repo root automatically
         let upload_args = trunk_analytics_cli::upload_command::UploadArgs::new(
             token,
             org_url_slug,
             vec![resolved_path_str.into()],
             repo_root,
+            Some(self.0.borrow().test_result.test_case_runs.len()),
         );
         let debug_props = BundleMetaDebugProps {
             command_line: self.0.borrow().command.clone(),

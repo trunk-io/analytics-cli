@@ -6,7 +6,7 @@ inputs:
     description: Release version
   file:
     description: File to update
-    default: ./cli/Cargo.toml
+    required: true
 
 runs:
   using: composite
