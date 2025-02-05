@@ -354,6 +354,10 @@ fn parse_num_tests(file_sets: &[FileSet]) -> usize {
         .filter_map(|(file, bundled_file)| {
             let file_buf_reader = BufReader::new(file);
             let mut junit_parser = JunitParser::new();
+            // skip .bin files
+            if !bundled_file.original_path.ends_with(".xml") {
+                return None;
+            }
             if let Err(e) = junit_parser.parse(file_buf_reader) {
                 log::warn!(
                     "Encountered error while parsing file {}: {}",
