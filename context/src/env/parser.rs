@@ -177,14 +177,20 @@ pub struct CIInfoParser<'a> {
     errors: Vec<CIInfoParseError>,
     ci_info: CIInfo,
     env_vars: &'a EnvVars,
+    stable_branches: &'a [&'a str],
 }
 
 impl<'a> CIInfoParser<'a> {
-    pub fn new(platform: CIPlatform, env_vars: &'a EnvVars) -> Self {
+    pub fn new(
+        platform: CIPlatform,
+        env_vars: &'a EnvVars,
+        stable_branches: &'a [&'a str],
+    ) -> Self {
         Self {
             errors: Vec::new(),
             ci_info: CIInfo::new(platform),
             env_vars,
+            stable_branches,
         }
     }
 
@@ -244,6 +250,7 @@ impl<'a> CIInfoParser<'a> {
                 branch.as_str(),
                 self.ci_info.pr_number,
                 merge_request_event_type,
+                self.stable_branches,
             )));
         }
     }
@@ -465,9 +472,23 @@ pub enum BranchClass {
     None,
 }
 
-impl From<(&str, Option<usize>, Option<GitLabMergeRequestEventType>)> for BranchClass {
-    fn from(value: (&str, Option<usize>, Option<GitLabMergeRequestEventType>)) -> Self {
-        let (branch_name, pr_number, merge_request_event_type) = value;
+impl
+    From<(
+        &str,
+        Option<usize>,
+        Option<GitLabMergeRequestEventType>,
+        &[&str],
+    )> for BranchClass
+{
+    fn from(
+        value: (
+            &str,
+            Option<usize>,
+            Option<GitLabMergeRequestEventType>,
+            &[&str],
+        ),
+    ) -> Self {
+        let (branch_name, pr_number, merge_request_event_type, stable_branches) = value;
         if branch_name.contains("trunk-merge/")
             || branch_name.contains("gh-readonly-queue/")
             || branch_name.contains("/gtmq_")
@@ -481,7 +502,7 @@ impl From<(&str, Option<usize>, Option<GitLabMergeRequestEventType>)> for Branch
             BranchClass::PullRequest
         } else if branch_name.starts_with("remotes/pull/") || branch_name.starts_with("pull/") {
             BranchClass::PullRequest
-        } else if matches!(branch_name, "master" | "main") {
+        } else if stable_branches.contains(&branch_name) {
             BranchClass::ProtectedBranch
         } else {
             BranchClass::None
@@ -594,15 +615,19 @@ impl<'a> EnvParser<'a> {
         self.ci_info_parser
     }
 
-    pub fn parse(&mut self, env_vars: &'a EnvVars) {
-        self.parse_ci_platform(env_vars);
+    pub fn parse(&mut self, env_vars: &'a EnvVars, stable_branches: &'a [&str]) {
+        self.parse_ci_platform(env_vars, stable_branches);
         if let Some(ci_info) = &mut self.ci_info_parser {
             ci_info.parse();
         }
     }
 
-    fn parse_ci_platform(&mut self, env_vars: &'a EnvVars) {
-        self.ci_info_parser = Some(CIInfoParser::new(CIPlatform::from(env_vars), env_vars));
+    fn parse_ci_platform(&mut self, env_vars: &'a EnvVars, stable_branches: &'a [&str]) {
+        self.ci_info_parser = Some(CIInfoParser::new(
+            CIPlatform::from(env_vars),
+            env_vars,
+            stable_branches,
+        ));
     }
 }
 
@@ -610,6 +635,8 @@ impl<'a> EnvParser<'a> {
 pub fn ruby_init(ruby: &magnus::Ruby) -> Result<(), magnus::Error> {
     let ci_platform = ruby.define_class("CIPlatform", ruby.class_object())?;
     ci_platform.define_method("to_s", magnus::method!(CIPlatform::to_string, 0))?;
+    let branch_class = ruby.define_class("BranchClass", ruby.class_object())?;
+    branch_class.define_method("to_s", magnus::method!(BranchClass::to_string, 0))?;
     let ci_info = ruby.define_class("CIInfo", ruby.class_object())?;
     ci_info.define_singleton_method("new", magnus::function!(CIInfo::new, 1))?;
     ci_info.define_method("platform", magnus::method!(CIInfo::platform, 0))?;
