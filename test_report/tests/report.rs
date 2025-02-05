@@ -25,7 +25,7 @@ async fn publish_test_report() {
     env::set_var("TRUNK_ORG_URL_SLUG", "test-org");
 
     let thread_join_handle = thread::spawn(|| {
-        let test_report = MutTestReport::new("test".into(), "".into());
+        let test_report = MutTestReport::new("test".into(), "test-command 123".into());
         test_report.add_test(
             Some("1".into()),
             "test-name".into(),
@@ -81,7 +81,7 @@ async fn publish_test_report() {
     let time_since_upload = chrono::Utc::now()
         - chrono::DateTime::from_timestamp(base_props.upload_time_epoch as i64, 0).unwrap();
     more_asserts::assert_lt!(time_since_upload.num_minutes(), 5);
-    assert_eq!(base_props.test_command, None);
+    assert_eq!(base_props.test_command, Some("test-command 123".into()));
     assert!(base_props.os_info.is_some());
     assert!(base_props.quarantined_tests.is_empty());
 

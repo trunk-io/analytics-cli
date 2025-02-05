@@ -102,7 +102,6 @@ pub struct UploadArgs {
         default_missing_value = "true",
     )]
     pub allow_empty_test_results: bool,
-    pub num_tests: Option<usize>,
 }
 
 impl UploadArgs {
@@ -111,7 +110,7 @@ impl UploadArgs {
         org_url_slug: String,
         junit_paths: Vec<String>,
         repo_root: Option<String>,
-        num_tests: Option<usize>,
+        use_quarantining: bool,
     ) -> Self {
         Self {
             junit_paths,
@@ -119,7 +118,7 @@ impl UploadArgs {
             token,
             repo_root,
             allow_empty_test_results: true,
-            num_tests,
+            use_quarantining,
             ..Default::default()
         }
     }
@@ -157,7 +156,7 @@ pub async fn run_upload(
         upload_args.allow_empty_test_results,
         &test_run_result,
     )?;
-    if let Some(num_tests) = upload_args.num_tests {
+    if let Some(num_tests) = test_run_result.clone().and_then(|r| r.num_tests) {
         meta.junit_props.num_tests = num_tests;
     }
 
