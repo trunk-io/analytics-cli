@@ -260,18 +260,28 @@ impl ApiClient {
 }
 
 #[derive(Debug, Clone, Copy)]
-enum CheckUnauthorized {
+pub(crate) enum CheckUnauthorized {
     Check,
     DoNotCheck,
 }
 
 #[derive(Debug, Clone, Copy)]
-enum CheckNotFound {
+pub(crate) enum CheckNotFound {
     Check,
     DoNotCheck,
 }
 
-fn status_code_help<T: FnMut(&Response) -> String>(
+pub(crate) const UNAUTHORIZED_CONTEXT: &str = concat!(
+    "Your Trunk token may be incorrect - find it on the Trunk app ",
+    "(Settings -> Manage Organization -> Organization API Token -> View).",
+);
+
+pub(crate) const NOT_FOUND_CONTEXT: &str = concat!(
+    "Your Trunk organization URL slug may be incorrect - find it on the Trunk app ",
+    "(Settings -> Manage Organization -> Organization Slug).",
+);
+
+pub(crate) fn status_code_help<T: FnMut(&Response) -> String>(
     response: &Response,
     check_unauthorized: CheckUnauthorized,
     check_not_found: CheckNotFound,
@@ -282,14 +292,8 @@ fn status_code_help<T: FnMut(&Response) -> String>(
     }
 
     let error_message = match (response.status(), check_unauthorized, check_not_found) {
-        (StatusCode::UNAUTHORIZED, CheckUnauthorized::Check, _) => concat!(
-            "Your Trunk token may be incorrect - find it on the Trunk app ",
-            "(Settings -> Manage Organization -> Organization API Token -> View).",
-        ),
-        (StatusCode::NOT_FOUND, _, CheckNotFound::Check) => concat!(
-            "Your Trunk organization URL slug may be incorrect - find it on the Trunk app ",
-            "(Settings -> Manage Organization -> Organization Slug).",
-        ),
+        (StatusCode::UNAUTHORIZED, CheckUnauthorized::Check, _) => UNAUTHORIZED_CONTEXT,
+        (StatusCode::NOT_FOUND, _, CheckNotFound::Check) => NOT_FOUND_CONTEXT,
         _ => &create_error_message(response),
     };
 
