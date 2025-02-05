@@ -36,10 +36,24 @@ class FdWrapperType(Enum):
     OPTIONAL = "Optional"
 
 
+BAD_FD_TYPES = [
+    # NOTE: These types are problematic to codegen for because they have a property `type` that
+    # conflicts with another property `_type`.
+    #
+    # https://github.com/oxidecomputer/typify/issues/638
+    "ActivityLogMessage",
+    "ActivityLogAnalyzerWarningMessage",
+    "ActivityLogAnalyzerResultMessage",
+    # NOTE: This type isn't given in the format description. Seems to be a bug in Apple's schema.
+    "SchemaSerializable",
+]
+
+
 def convert_fd_value_to_json_schema_format() -> Dict[str, Any]:
     return {
         "type": "object",
         "properties": {
+            "_type": {"type": "object"},
             "_value": {
                 "type": "string",
             },
@@ -54,6 +68,7 @@ def convert_fd_array_to_json_schema_format(
     return {
         "type": "object",
         "properties": {
+            "_type": {"type": "object"},
             "_values": {
                 "type": "array",
                 "items": items_json_schema_object,
@@ -68,7 +83,9 @@ def convert_fd_array_to_json_schema_format(
 def convert_fd_object_to_json_schema_format(
     fd_type: Any, fd_types: Any, fd_types_inheritance_hierarchy: Dict[str, set[str]]
 ) -> Dict[str, Any]:
-    json_schema_object_properties: Dict[str, Any] = {}
+    json_schema_object_properties: Dict[str, Any] = {
+        "_type": {"type": "object"},
+    }
     json_schema_object_required_properties: Set[str] = set()
 
     if "supertype" in fd_type["type"]:
@@ -109,8 +126,7 @@ def convert_fd_object_to_json_schema_format(
         if is_required:
             json_schema_object_required_properties.add(fd_property_name)
 
-        # NOTE: This type isn't given in the format description. Seems to be a bug in Apple's schema.
-        if fd_property_type == "SchemaSerializable":
+        if fd_property_type in BAD_FD_TYPES:
             continue
 
         json_schema_object: Dict[str, Any] = {"$ref": f"#/$defs/{fd_property_type}"}
@@ -125,6 +141,7 @@ def convert_fd_object_to_json_schema_format(
     json_schema_def: Dict[str, Any] = {
         "type": "object",
         "properties": json_schema_object_properties,
+        "additionalProperties": False,
     }
     if len(json_schema_object_required_properties) > 0:
         json_schema_def["required"] = list(json_schema_object_required_properties)
@@ -162,7 +179,9 @@ def convert_fd_type_to_json_schema_format(
 
 
 def traverse_fd_types_inheritance_hierarchy(
-    fd_type: Any, fd_types: Any, fd_types_inheritance_hierarchy: Dict[str, set[str]]
+    fd_type: Any,
+    fd_types: Any,
+    fd_types_inheritance_hierarchy: Dict[str, Dict[str, int]],
 ) -> Optional[set[str]]:
     if "supertype" not in fd_type["type"]:
         return
@@ -178,10 +197,34 @@ def traverse_fd_types_inheritance_hierarchy(
     )
 
     if fd_type_supertype_name not in fd_types_inheritance_hierarchy:
-        fd_types_inheritance_hierarchy[fd_type_supertype_name] = set()
-    fd_types_inheritance_hierarchy[fd_type_supertype_name].add(fd_type_name)
+        fd_types_inheritance_hierarchy[fd_type_supertype_name] = {}
+    fd_types_inheritance_hierarchy[fd_type_supertype_name][fd_type_name] = len(
+        fd_type["properties"]
+    )
 
     return node
+
+
+def order_fd_types_by_inheritance_hierarchy_by_number_of_properties(
+    fd_types_inheritance_hierarchy: Dict[str, Dict[str, int]]
+) -> Dict[str, set[str]]:
+    fd_types_inheritance_hierarchy_orderd_by_number_of_properties: Dict[
+        str, set[str]
+    ] = {}
+    for (
+        fd_supertype_name,
+        fd_subtype_name_and_property_count,
+    ) in fd_types_inheritance_hierarchy.items():
+        fd_types_inheritance_hierarchy_orderd_by_number_of_properties[
+            fd_supertype_name
+        ] = set()
+        for fd_subtype_name, _ in sorted(
+            fd_subtype_name_and_property_count.items(), key=lambda item: item[1]
+        ):
+            fd_types_inheritance_hierarchy_orderd_by_number_of_properties[
+                fd_supertype_name
+            ].add(fd_subtype_name)
+    return fd_types_inheritance_hierarchy_orderd_by_number_of_properties
 
 
 def main():
@@ -202,15 +245,26 @@ def main():
     format_description = json.loads(result.stdout)
 
     json_schema_defs: Dict[str, Any] = {}
-    fd_types = format_description["types"]
-    fd_types_inheritance_hierarchy: Dict[str, set[str]] = {}
+    fd_types = [
+        fd_type
+        for fd_type in format_description["types"]
+        if fd_type["type"]["name"] not in BAD_FD_TYPES
+    ]
+    fd_types_inheritance_hierarchy: Dict[str, Dict[str, int]] = {}
     for fd_type in fd_types:
         traverse_fd_types_inheritance_hierarchy(
             fd_type, fd_types, fd_types_inheritance_hierarchy
         )
+    fd_types_inheritance_hierarchy_orderd_by_number_of_properties: Dict[
+        str, set[str]
+    ] = order_fd_types_by_inheritance_hierarchy_by_number_of_properties(
+        fd_types_inheritance_hierarchy
+    )
     for fd_type in fd_types:
         json_schema_object = convert_fd_type_to_json_schema_format(
-            fd_type, fd_types, fd_types_inheritance_hierarchy
+            fd_type,
+            fd_types,
+            fd_types_inheritance_hierarchy_orderd_by_number_of_properties,
         )
         if json_schema_object:
             fd_type_name = fd_type["type"]["name"]

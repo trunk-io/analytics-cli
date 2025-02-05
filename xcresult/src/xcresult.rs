@@ -5,7 +5,7 @@ use quick_junit::{NonSuccessKind, Report, TestCase, TestCaseStatus, TestRerun, T
 use schema::TestNode;
 
 #[allow(dead_code, clippy::all)]
-mod schema {
+pub mod schema {
     include!(concat!(
         env!("OUT_DIR"),
         "/xcrun-xcresulttool-get-test-results-tests-json-schema.rs"
@@ -13,7 +13,7 @@ mod schema {
 }
 
 #[allow(dead_code, clippy::all)]
-mod fd_schema {
+pub mod fd_schema {
     include!(concat!(
         env!("OUT_DIR"),
         "/xcrun-xcresulttool-formatDescription-get---format-json---legacy-json-schema.rs"
@@ -263,7 +263,7 @@ impl XCResult {
     }
 }
 
-mod xcrun_cmd {
+pub mod xcrun_cmd {
     use std::{ffi::OsStr, process::Command};
 
     use lazy_static::lazy_static;

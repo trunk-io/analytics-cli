@@ -7,24 +7,31 @@
           "$ref": "#/$defs/ActionTestSummaryIdentifiableObject"
         },
         {
-          "$ref": "#/$defs/ActionTestPlanRunSummary"
+          "$ref": "#/$defs/ActionTestableSummary"
         },
         {
-          "$ref": "#/$defs/ActionTestableSummary"
+          "$ref": "#/$defs/ActionTestPlanRunSummary"
         },
         {
           "type": "object",
           "properties": {
+            "_type": {
+              "type": "object"
+            },
             "name": {
               "$ref": "#/$defs/String"
             }
-          }
+          },
+          "additionalProperties": false
         }
       ]
     },
     "ActionDeviceRecord": {
       "type": "object",
       "properties": {
+        "_type": {
+          "type": "object"
+        },
         "name": {
           "$ref": "#/$defs/String"
         },
@@ -80,22 +87,30 @@
           "$ref": "#/$defs/ActionPlatformRecord"
         }
       },
+      "additionalProperties": false,
       "required": ["platformRecord"]
     },
     "ActionPlatformRecord": {
       "type": "object",
       "properties": {
+        "_type": {
+          "type": "object"
+        },
         "identifier": {
           "$ref": "#/$defs/String"
         },
         "userDescription": {
           "$ref": "#/$defs/String"
         }
-      }
+      },
+      "additionalProperties": false
     },
     "ActionRecord": {
       "type": "object",
       "properties": {
+        "_type": {
+          "type": "object"
+        },
         "schemeCommandName": {
           "$ref": "#/$defs/String"
         },
@@ -124,11 +139,15 @@
           "$ref": "#/$defs/String"
         }
       },
-      "required": ["buildResult", "runDestination", "actionResult"]
+      "additionalProperties": false,
+      "required": ["actionResult", "buildResult", "runDestination"]
     },
     "ActionResult": {
       "type": "object",
       "properties": {
+        "_type": {
+          "type": "object"
+        },
         "resultName": {
           "$ref": "#/$defs/String"
         },
@@ -160,11 +179,15 @@
           "$ref": "#/$defs/Reference"
         }
       },
-      "required": ["metrics", "issues", "coverage"]
+      "additionalProperties": false,
+      "required": ["issues", "metrics", "coverage"]
     },
     "ActionRunDestinationRecord": {
       "type": "object",
       "properties": {
+        "_type": {
+          "type": "object"
+        },
         "displayName": {
           "$ref": "#/$defs/String"
         },
@@ -181,15 +204,19 @@
           "$ref": "#/$defs/ActionSDKRecord"
         }
       },
+      "additionalProperties": false,
       "required": [
-        "targetDeviceRecord",
         "targetSDKRecord",
-        "localComputerRecord"
+        "localComputerRecord",
+        "targetDeviceRecord"
       ]
     },
     "ActionSDKRecord": {
       "type": "object",
       "properties": {
+        "_type": {
+          "type": "object"
+        },
         "name": {
           "$ref": "#/$defs/String"
         },
@@ -202,11 +229,15 @@
         "isInternal": {
           "$ref": "#/$defs/Bool"
         }
-      }
+      },
+      "additionalProperties": false
     },
     "ActionTestActivitySummary": {
       "type": "object",
       "properties": {
+        "_type": {
+          "type": "object"
+        },
         "title": {
           "$ref": "#/$defs/String"
         },
@@ -225,6 +256,9 @@
         "attachments": {
           "type": "object",
           "properties": {
+            "_type": {
+              "type": "object"
+            },
             "_values": {
               "type": "array",
               "items": {
@@ -237,6 +271,9 @@
         "subactivities": {
           "type": "object",
           "properties": {
+            "_type": {
+              "type": "object"
+            },
             "_values": {
               "type": "array",
               "items": {
@@ -249,6 +286,9 @@
         "failureSummaryIDs": {
           "type": "object",
           "properties": {
+            "_type": {
+              "type": "object"
+            },
             "_values": {
               "type": "array",
               "items": {
@@ -261,6 +301,9 @@
         "expectedFailureIDs": {
           "type": "object",
           "properties": {
+            "_type": {
+              "type": "object"
+            },
             "_values": {
               "type": "array",
               "items": {
@@ -273,6 +316,9 @@
         "warningSummaryIDs": {
           "type": "object",
           "properties": {
+            "_type": {
+              "type": "object"
+            },
             "_values": {
               "type": "array",
               "items": {
@@ -282,11 +328,15 @@
           },
           "required": ["_values"]
         }
-      }
+      },
+      "additionalProperties": false
     },
     "ActionTestAttachment": {
       "type": "object",
       "properties": {
+        "_type": {
+          "type": "object"
+        },
         "uniformTypeIdentifier": {
           "$ref": "#/$defs/String"
         },
@@ -317,20 +367,28 @@
         "payloadSize": {
           "$ref": "#/$defs/Int"
         }
-      }
+      },
+      "additionalProperties": false
     },
     "ActionTestConfiguration": {
       "type": "object",
       "properties": {
+        "_type": {
+          "type": "object"
+        },
         "values": {
           "$ref": "#/$defs/SortedKeyValueArray"
         }
       },
+      "additionalProperties": false,
       "required": ["values"]
     },
     "ActionTestExpectedFailure": {
       "type": "object",
       "properties": {
+        "_type": {
+          "type": "object"
+        },
         "uuid": {
           "$ref": "#/$defs/String"
         },
@@ -343,11 +401,15 @@
         "isTopLevelFailure": {
           "$ref": "#/$defs/Bool"
         }
-      }
+      },
+      "additionalProperties": false
     },
     "ActionTestFailureSummary": {
       "type": "object",
       "properties": {
+        "_type": {
+          "type": "object"
+        },
         "message": {
           "$ref": "#/$defs/String"
         },
@@ -372,6 +434,9 @@
         "attachments": {
           "type": "object",
           "properties": {
+            "_type": {
+              "type": "object"
+            },
             "_values": {
               "type": "array",
               "items": {
@@ -396,11 +461,15 @@
         "expression": {
           "$ref": "#/$defs/TestExpression"
         }
-      }
+      },
+      "additionalProperties": false
     },
     "ActionTestIssueSummary": {
       "type": "object",
       "properties": {
+        "_type": {
+          "type": "object"
+        },
         "message": {
           "$ref": "#/$defs/String"
         },
@@ -422,6 +491,9 @@
         "attachments": {
           "type": "object",
           "properties": {
+            "_type": {
+              "type": "object"
+            },
             "_values": {
               "type": "array",
               "items": {
@@ -440,11 +512,15 @@
         "timestamp": {
           "$ref": "#/$defs/Date"
         }
-      }
+      },
+      "additionalProperties": false
     },
     "ActionTestMetadata": {
       "type": "object",
       "properties": {
+        "_type": {
+          "type": "object"
+        },
         "name": {
           "$ref": "#/$defs/String"
         },
@@ -472,11 +548,15 @@
         "activitySummariesCount": {
           "$ref": "#/$defs/Int"
         }
-      }
+      },
+      "additionalProperties": false
     },
     "ActionTestNoticeSummary": {
       "type": "object",
       "properties": {
+        "_type": {
+          "type": "object"
+        },
         "message": {
           "$ref": "#/$defs/String"
         },
@@ -489,11 +569,15 @@
         "timestamp": {
           "$ref": "#/$defs/Date"
         }
-      }
+      },
+      "additionalProperties": false
     },
     "ActionTestPerformanceMetricSummary": {
       "type": "object",
       "properties": {
+        "_type": {
+          "type": "object"
+        },
         "displayName": {
           "$ref": "#/$defs/String"
         },
@@ -503,6 +587,9 @@
         "measurements": {
           "type": "object",
           "properties": {
+            "_type": {
+              "type": "object"
+            },
             "_values": {
               "type": "array",
               "items": {
@@ -536,14 +623,21 @@
         "polarity": {
           "$ref": "#/$defs/String"
         }
-      }
+      },
+      "additionalProperties": false
     },
     "ActionTestPlanRunSummaries": {
       "type": "object",
       "properties": {
+        "_type": {
+          "type": "object"
+        },
         "summaries": {
           "type": "object",
           "properties": {
+            "_type": {
+              "type": "object"
+            },
             "_values": {
               "type": "array",
               "items": {
@@ -553,17 +647,24 @@
           },
           "required": ["_values"]
         }
-      }
+      },
+      "additionalProperties": false
     },
     "ActionTestPlanRunSummary": {
       "type": "object",
       "properties": {
+        "_type": {
+          "type": "object"
+        },
         "name": {
           "$ref": "#/$defs/String"
         },
         "testableSummaries": {
           "type": "object",
           "properties": {
+            "_type": {
+              "type": "object"
+            },
             "_values": {
               "type": "array",
               "items": {
@@ -573,11 +674,15 @@
           },
           "required": ["_values"]
         }
-      }
+      },
+      "additionalProperties": false
     },
     "ActionTestRepetitionPolicySummary": {
       "type": "object",
       "properties": {
+        "_type": {
+          "type": "object"
+        },
         "iteration": {
           "$ref": "#/$defs/Int"
         },
@@ -587,11 +692,15 @@
         "repetitionMode": {
           "$ref": "#/$defs/String"
         }
-      }
+      },
+      "additionalProperties": false
     },
     "ActionTestSummary": {
       "type": "object",
       "properties": {
+        "_type": {
+          "type": "object"
+        },
         "name": {
           "$ref": "#/$defs/String"
         },
@@ -610,6 +719,9 @@
         "performanceMetrics": {
           "type": "object",
           "properties": {
+            "_type": {
+              "type": "object"
+            },
             "_values": {
               "type": "array",
               "items": {
@@ -622,6 +734,9 @@
         "failureSummaries": {
           "type": "object",
           "properties": {
+            "_type": {
+              "type": "object"
+            },
             "_values": {
               "type": "array",
               "items": {
@@ -634,6 +749,9 @@
         "expectedFailures": {
           "type": "object",
           "properties": {
+            "_type": {
+              "type": "object"
+            },
             "_values": {
               "type": "array",
               "items": {
@@ -649,6 +767,9 @@
         "activitySummaries": {
           "type": "object",
           "properties": {
+            "_type": {
+              "type": "object"
+            },
             "_values": {
               "type": "array",
               "items": {
@@ -664,6 +785,9 @@
         "arguments": {
           "type": "object",
           "properties": {
+            "_type": {
+              "type": "object"
+            },
             "_values": {
               "type": "array",
               "items": {
@@ -679,6 +803,9 @@
         "warningSummaries": {
           "type": "object",
           "properties": {
+            "_type": {
+              "type": "object"
+            },
             "_values": {
               "type": "array",
               "items": {
@@ -694,6 +821,9 @@
         "documentation": {
           "type": "object",
           "properties": {
+            "_type": {
+              "type": "object"
+            },
             "_values": {
               "type": "array",
               "items": {
@@ -706,6 +836,9 @@
         "trackedIssues": {
           "type": "object",
           "properties": {
+            "_type": {
+              "type": "object"
+            },
             "_values": {
               "type": "array",
               "items": {
@@ -718,6 +851,9 @@
         "tags": {
           "type": "object",
           "properties": {
+            "_type": {
+              "type": "object"
+            },
             "_values": {
               "type": "array",
               "items": {
@@ -727,11 +863,15 @@
           },
           "required": ["_values"]
         }
-      }
+      },
+      "additionalProperties": false
     },
     "ActionTestSummaryGroup": {
       "type": "object",
       "properties": {
+        "_type": {
+          "type": "object"
+        },
         "name": {
           "$ref": "#/$defs/String"
         },
@@ -747,6 +887,9 @@
         "subtests": {
           "type": "object",
           "properties": {
+            "_type": {
+              "type": "object"
+            },
             "_values": {
               "type": "array",
               "items": {
@@ -765,6 +908,9 @@
         "documentation": {
           "type": "object",
           "properties": {
+            "_type": {
+              "type": "object"
+            },
             "_values": {
               "type": "array",
               "items": {
@@ -777,6 +923,9 @@
         "trackedIssues": {
           "type": "object",
           "properties": {
+            "_type": {
+              "type": "object"
+            },
             "_values": {
               "type": "array",
               "items": {
@@ -789,6 +938,9 @@
         "tags": {
           "type": "object",
           "properties": {
+            "_type": {
+              "type": "object"
+            },
             "_values": {
               "type": "array",
               "items": {
@@ -798,23 +950,27 @@
           },
           "required": ["_values"]
         }
-      }
+      },
+      "additionalProperties": false
     },
     "ActionTestSummaryIdentifiableObject": {
       "type": "object",
       "oneOf": [
         {
-          "$ref": "#/$defs/ActionTestSummaryGroup"
+          "$ref": "#/$defs/ActionTestSummary"
         },
         {
           "$ref": "#/$defs/ActionTestMetadata"
         },
         {
-          "$ref": "#/$defs/ActionTestSummary"
+          "$ref": "#/$defs/ActionTestSummaryGroup"
         },
         {
           "type": "object",
           "properties": {
+            "_type": {
+              "type": "object"
+            },
             "name": {
               "$ref": "#/$defs/String"
             },
@@ -824,13 +980,17 @@
             "identifierURL": {
               "$ref": "#/$defs/String"
             }
-          }
+          },
+          "additionalProperties": false
         }
       ]
     },
     "ActionTestableSummary": {
       "type": "object",
       "properties": {
+        "_type": {
+          "type": "object"
+        },
         "name": {
           "$ref": "#/$defs/String"
         },
@@ -849,6 +1009,9 @@
         "tests": {
           "type": "object",
           "properties": {
+            "_type": {
+              "type": "object"
+            },
             "_values": {
               "type": "array",
               "items": {
@@ -864,6 +1027,9 @@
         "failureSummaries": {
           "type": "object",
           "properties": {
+            "_type": {
+              "type": "object"
+            },
             "_values": {
               "type": "array",
               "items": {
@@ -879,11 +1045,15 @@
         "testRegion": {
           "$ref": "#/$defs/String"
         }
-      }
+      },
+      "additionalProperties": false
     },
     "ActionsInvocationMetadata": {
       "type": "object",
       "properties": {
+        "_type": {
+          "type": "object"
+        },
         "creatingWorkspaceFilePath": {
           "$ref": "#/$defs/String"
         },
@@ -893,11 +1063,15 @@
         "schemeIdentifier": {
           "$ref": "#/$defs/EntityIdentifier"
         }
-      }
+      },
+      "additionalProperties": false
     },
     "ActionsInvocationRecord": {
       "type": "object",
       "properties": {
+        "_type": {
+          "type": "object"
+        },
         "metadataRef": {
           "$ref": "#/$defs/Reference"
         },
@@ -910,6 +1084,9 @@
         "actions": {
           "type": "object",
           "properties": {
+            "_type": {
+              "type": "object"
+            },
             "_values": {
               "type": "array",
               "items": {
@@ -923,11 +1100,15 @@
           "$ref": "#/$defs/ArchiveInfo"
         }
       },
-      "required": ["metrics", "issues"]
+      "additionalProperties": false,
+      "required": ["issues", "metrics"]
     },
     "ActivityLogAnalyzerControlFlowStep": {
       "type": "object",
       "properties": {
+        "_type": {
+          "type": "object"
+        },
         "parentIndex": {
           "$ref": "#/$defs/Int"
         },
@@ -943,6 +1124,9 @@
         "edges": {
           "type": "object",
           "properties": {
+            "_type": {
+              "type": "object"
+            },
             "_values": {
               "type": "array",
               "items": {
@@ -952,22 +1136,30 @@
           },
           "required": ["_values"]
         }
-      }
+      },
+      "additionalProperties": false
     },
     "ActivityLogAnalyzerControlFlowStepEdge": {
       "type": "object",
       "properties": {
+        "_type": {
+          "type": "object"
+        },
         "startLocation": {
           "$ref": "#/$defs/DocumentLocation"
         },
         "endLocation": {
           "$ref": "#/$defs/DocumentLocation"
         }
-      }
+      },
+      "additionalProperties": false
     },
     "ActivityLogAnalyzerEventStep": {
       "type": "object",
       "properties": {
+        "_type": {
+          "type": "object"
+        },
         "parentIndex": {
           "$ref": "#/$defs/Int"
         },
@@ -983,57 +1175,8 @@
         "callDepth": {
           "$ref": "#/$defs/Int"
         }
-      }
-    },
-    "ActivityLogAnalyzerResultMessage": {
-      "type": "object",
-      "properties": {
-        "type": {
-          "$ref": "#/$defs/String"
-        },
-        "title": {
-          "$ref": "#/$defs/String"
-        },
-        "shortTitle": {
-          "$ref": "#/$defs/String"
-        },
-        "category": {
-          "$ref": "#/$defs/String"
-        },
-        "location": {
-          "$ref": "#/$defs/DocumentLocation"
-        },
-        "annotations": {
-          "type": "object",
-          "properties": {
-            "_values": {
-              "type": "array",
-              "items": {
-                "$ref": "#/$defs/ActivityLogMessageAnnotation"
-              }
-            }
-          },
-          "required": ["_values"]
-        },
-        "steps": {
-          "type": "object",
-          "properties": {
-            "_values": {
-              "type": "array",
-              "items": {
-                "$ref": "#/$defs/ActivityLogAnalyzerStep"
-              }
-            }
-          },
-          "required": ["_values"]
-        },
-        "resultType": {
-          "$ref": "#/$defs/String"
-        },
-        "keyEventIndex": {
-          "$ref": "#/$defs/Int"
-        }
-      }
+      },
+      "additionalProperties": false
     },
     "ActivityLogAnalyzerStep": {
       "type": "object",
@@ -1047,48 +1190,23 @@
         {
           "type": "object",
           "properties": {
+            "_type": {
+              "type": "object"
+            },
             "parentIndex": {
               "$ref": "#/$defs/Int"
             }
-          }
+          },
+          "additionalProperties": false
         }
       ]
-    },
-    "ActivityLogAnalyzerWarningMessage": {
-      "type": "object",
-      "properties": {
-        "type": {
-          "$ref": "#/$defs/String"
-        },
-        "title": {
-          "$ref": "#/$defs/String"
-        },
-        "shortTitle": {
-          "$ref": "#/$defs/String"
-        },
-        "category": {
-          "$ref": "#/$defs/String"
-        },
-        "location": {
-          "$ref": "#/$defs/DocumentLocation"
-        },
-        "annotations": {
-          "type": "object",
-          "properties": {
-            "_values": {
-              "type": "array",
-              "items": {
-                "$ref": "#/$defs/ActivityLogMessageAnnotation"
-              }
-            }
-          },
-          "required": ["_values"]
-        }
-      }
     },
     "ActivityLogCommandInvocationSection": {
       "type": "object",
       "properties": {
+        "_type": {
+          "type": "object"
+        },
         "domainType": {
           "$ref": "#/$defs/String"
         },
@@ -1110,6 +1228,9 @@
         "subsections": {
           "type": "object",
           "properties": {
+            "_type": {
+              "type": "object"
+            },
             "_values": {
               "type": "array",
               "items": {
@@ -1119,21 +1240,12 @@
           },
           "required": ["_values"]
         },
-        "messages": {
-          "type": "object",
-          "properties": {
-            "_values": {
-              "type": "array",
-              "items": {
-                "$ref": "#/$defs/ActivityLogMessage"
-              }
-            }
-          },
-          "required": ["_values"]
-        },
         "attachments": {
           "type": "object",
           "properties": {
+            "_type": {
+              "type": "object"
+            },
             "_values": {
               "type": "array",
               "items": {
@@ -1152,7 +1264,8 @@
         "exitCode": {
           "$ref": "#/$defs/Int"
         }
-      }
+      },
+      "additionalProperties": false
     },
     "ActivityLogMajorSection": {
       "type": "object",
@@ -1163,6 +1276,9 @@
         {
           "type": "object",
           "properties": {
+            "_type": {
+              "type": "object"
+            },
             "domainType": {
               "$ref": "#/$defs/String"
             },
@@ -1184,6 +1300,9 @@
             "subsections": {
               "type": "object",
               "properties": {
+                "_type": {
+                  "type": "object"
+                },
                 "_values": {
                   "type": "array",
                   "items": {
@@ -1193,21 +1312,12 @@
               },
               "required": ["_values"]
             },
-            "messages": {
-              "type": "object",
-              "properties": {
-                "_values": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/$defs/ActivityLogMessage"
-                  }
-                }
-              },
-              "required": ["_values"]
-            },
             "attachments": {
               "type": "object",
               "properties": {
+                "_type": {
+                  "type": "object"
+                },
                 "_values": {
                   "type": "array",
                   "items": {
@@ -1220,79 +1330,44 @@
             "subtitle": {
               "$ref": "#/$defs/String"
             }
-          }
-        }
-      ]
-    },
-    "ActivityLogMessage": {
-      "type": "object",
-      "oneOf": [
-        {
-          "$ref": "#/$defs/ActivityLogAnalyzerResultMessage"
-        },
-        {
-          "$ref": "#/$defs/ActivityLogAnalyzerWarningMessage"
-        },
-        {
-          "type": "object",
-          "properties": {
-            "type": {
-              "$ref": "#/$defs/String"
-            },
-            "title": {
-              "$ref": "#/$defs/String"
-            },
-            "shortTitle": {
-              "$ref": "#/$defs/String"
-            },
-            "category": {
-              "$ref": "#/$defs/String"
-            },
-            "location": {
-              "$ref": "#/$defs/DocumentLocation"
-            },
-            "annotations": {
-              "type": "object",
-              "properties": {
-                "_values": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/$defs/ActivityLogMessageAnnotation"
-                  }
-                }
-              },
-              "required": ["_values"]
-            }
-          }
+          },
+          "additionalProperties": false
         }
       ]
     },
     "ActivityLogMessageAnnotation": {
       "type": "object",
       "properties": {
+        "_type": {
+          "type": "object"
+        },
         "title": {
           "$ref": "#/$defs/String"
         },
         "location": {
           "$ref": "#/$defs/DocumentLocation"
         }
-      }
+      },
+      "additionalProperties": false
     },
     "ActivityLogSection": {
       "type": "object",
       "oneOf": [
         {
-          "$ref": "#/$defs/ActivityLogUnitTestSection"
+          "$ref": "#/$defs/ActivityLogCommandInvocationSection"
         },
         {
           "$ref": "#/$defs/ActivityLogMajorSection"
         },
         {
-          "$ref": "#/$defs/ActivityLogCommandInvocationSection"
+          "$ref": "#/$defs/ActivityLogUnitTestSection"
         },
         {
           "type": "object",
           "properties": {
+            "_type": {
+              "type": "object"
+            },
             "domainType": {
               "$ref": "#/$defs/String"
             },
@@ -1314,6 +1389,9 @@
             "subsections": {
               "type": "object",
               "properties": {
+                "_type": {
+                  "type": "object"
+                },
                 "_values": {
                   "type": "array",
                   "items": {
@@ -1323,21 +1401,12 @@
               },
               "required": ["_values"]
             },
-            "messages": {
-              "type": "object",
-              "properties": {
-                "_values": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/$defs/ActivityLogMessage"
-                  }
-                }
-              },
-              "required": ["_values"]
-            },
             "attachments": {
               "type": "object",
               "properties": {
+                "_type": {
+                  "type": "object"
+                },
                 "_values": {
                   "type": "array",
                   "items": {
@@ -1347,13 +1416,17 @@
               },
               "required": ["_values"]
             }
-          }
+          },
+          "additionalProperties": false
         }
       ]
     },
     "ActivityLogSectionAttachment": {
       "type": "object",
       "properties": {
+        "_type": {
+          "type": "object"
+        },
         "identifier": {
           "$ref": "#/$defs/String"
         },
@@ -1366,11 +1439,15 @@
         "data": {
           "$ref": "#/$defs/Data"
         }
-      }
+      },
+      "additionalProperties": false
     },
     "ActivityLogTargetBuildSection": {
       "type": "object",
       "properties": {
+        "_type": {
+          "type": "object"
+        },
         "domainType": {
           "$ref": "#/$defs/String"
         },
@@ -1392,6 +1469,9 @@
         "subsections": {
           "type": "object",
           "properties": {
+            "_type": {
+              "type": "object"
+            },
             "_values": {
               "type": "array",
               "items": {
@@ -1401,21 +1481,12 @@
           },
           "required": ["_values"]
         },
-        "messages": {
-          "type": "object",
-          "properties": {
-            "_values": {
-              "type": "array",
-              "items": {
-                "$ref": "#/$defs/ActivityLogMessage"
-              }
-            }
-          },
-          "required": ["_values"]
-        },
         "attachments": {
           "type": "object",
           "properties": {
+            "_type": {
+              "type": "object"
+            },
             "_values": {
               "type": "array",
               "items": {
@@ -1431,11 +1502,15 @@
         "productType": {
           "$ref": "#/$defs/String"
         }
-      }
+      },
+      "additionalProperties": false
     },
     "ActivityLogUnitTestSection": {
       "type": "object",
       "properties": {
+        "_type": {
+          "type": "object"
+        },
         "domainType": {
           "$ref": "#/$defs/String"
         },
@@ -1457,6 +1532,9 @@
         "subsections": {
           "type": "object",
           "properties": {
+            "_type": {
+              "type": "object"
+            },
             "_values": {
               "type": "array",
               "items": {
@@ -1466,21 +1544,12 @@
           },
           "required": ["_values"]
         },
-        "messages": {
-          "type": "object",
-          "properties": {
-            "_values": {
-              "type": "array",
-              "items": {
-                "$ref": "#/$defs/ActivityLogMessage"
-              }
-            }
-          },
-          "required": ["_values"]
-        },
         "attachments": {
           "type": "object",
           "properties": {
+            "_type": {
+              "type": "object"
+            },
             "_values": {
               "type": "array",
               "items": {
@@ -1517,19 +1586,27 @@
         "runnableUTI": {
           "$ref": "#/$defs/String"
         }
-      }
+      },
+      "additionalProperties": false
     },
     "ArchiveInfo": {
       "type": "object",
       "properties": {
+        "_type": {
+          "type": "object"
+        },
         "path": {
           "$ref": "#/$defs/String"
         }
-      }
+      },
+      "additionalProperties": false
     },
     "Bool": {
       "type": "object",
       "properties": {
+        "_type": {
+          "type": "object"
+        },
         "_value": {
           "type": "string"
         }
@@ -1539,6 +1616,9 @@
     "CodeCoverageInfo": {
       "type": "object",
       "properties": {
+        "_type": {
+          "type": "object"
+        },
         "hasCoverageData": {
           "$ref": "#/$defs/Bool"
         },
@@ -1548,11 +1628,15 @@
         "archiveRef": {
           "$ref": "#/$defs/Reference"
         }
-      }
+      },
+      "additionalProperties": false
     },
     "ConsoleLogItem": {
       "type": "object",
       "properties": {
+        "_type": {
+          "type": "object"
+        },
         "adaptorType": {
           "$ref": "#/$defs/String"
         },
@@ -1568,11 +1652,15 @@
         "logData": {
           "$ref": "#/$defs/ConsoleLogItemLogData"
         }
-      }
+      },
+      "additionalProperties": false
     },
     "ConsoleLogItemLogData": {
       "type": "object",
       "properties": {
+        "_type": {
+          "type": "object"
+        },
         "message": {
           "$ref": "#/$defs/String"
         },
@@ -1621,17 +1709,24 @@
         "timeZone": {
           "$ref": "#/$defs/String"
         }
-      }
+      },
+      "additionalProperties": false
     },
     "ConsoleLogSection": {
       "type": "object",
       "properties": {
+        "_type": {
+          "type": "object"
+        },
         "title": {
           "$ref": "#/$defs/String"
         },
         "items": {
           "type": "object",
           "properties": {
+            "_type": {
+              "type": "object"
+            },
             "_values": {
               "type": "array",
               "items": {
@@ -1641,11 +1736,15 @@
           },
           "required": ["_values"]
         }
-      }
+      },
+      "additionalProperties": false
     },
     "Data": {
       "type": "object",
       "properties": {
+        "_type": {
+          "type": "object"
+        },
         "_value": {
           "type": "string"
         }
@@ -1655,6 +1754,9 @@
     "Date": {
       "type": "object",
       "properties": {
+        "_type": {
+          "type": "object"
+        },
         "_value": {
           "type": "string"
         }
@@ -1664,17 +1766,24 @@
     "DocumentLocation": {
       "type": "object",
       "properties": {
+        "_type": {
+          "type": "object"
+        },
         "url": {
           "$ref": "#/$defs/String"
         },
         "concreteTypeName": {
           "$ref": "#/$defs/String"
         }
-      }
+      },
+      "additionalProperties": false
     },
     "Double": {
       "type": "object",
       "properties": {
+        "_type": {
+          "type": "object"
+        },
         "_value": {
           "type": "string"
         }
@@ -1684,6 +1793,9 @@
     "EntityIdentifier": {
       "type": "object",
       "properties": {
+        "_type": {
+          "type": "object"
+        },
         "entityName": {
           "$ref": "#/$defs/String"
         },
@@ -1696,11 +1808,15 @@
         "sharedState": {
           "$ref": "#/$defs/String"
         }
-      }
+      },
+      "additionalProperties": false
     },
     "Int": {
       "type": "object",
       "properties": {
+        "_type": {
+          "type": "object"
+        },
         "_value": {
           "type": "string"
         }
@@ -1710,6 +1826,9 @@
     "Int16": {
       "type": "object",
       "properties": {
+        "_type": {
+          "type": "object"
+        },
         "_value": {
           "type": "string"
         }
@@ -1719,6 +1838,9 @@
     "Int32": {
       "type": "object",
       "properties": {
+        "_type": {
+          "type": "object"
+        },
         "_value": {
           "type": "string"
         }
@@ -1728,6 +1850,9 @@
     "Int64": {
       "type": "object",
       "properties": {
+        "_type": {
+          "type": "object"
+        },
         "_value": {
           "type": "string"
         }
@@ -1737,6 +1862,9 @@
     "Int8": {
       "type": "object",
       "properties": {
+        "_type": {
+          "type": "object"
+        },
         "_value": {
           "type": "string"
         }
@@ -1747,14 +1875,17 @@
       "type": "object",
       "oneOf": [
         {
-          "$ref": "#/$defs/TestFailureIssueSummary"
+          "$ref": "#/$defs/TestIssueSummary"
         },
         {
-          "$ref": "#/$defs/TestIssueSummary"
+          "$ref": "#/$defs/TestFailureIssueSummary"
         },
         {
           "type": "object",
           "properties": {
+            "_type": {
+              "type": "object"
+            },
             "issueType": {
               "$ref": "#/$defs/String"
             },
@@ -1767,13 +1898,17 @@
             "documentLocationInCreatingWorkspace": {
               "$ref": "#/$defs/DocumentLocation"
             }
-          }
+          },
+          "additionalProperties": false
         }
       ]
     },
     "IssueTrackingMetadata": {
       "type": "object",
       "properties": {
+        "_type": {
+          "type": "object"
+        },
         "identifier": {
           "$ref": "#/$defs/String"
         },
@@ -1786,33 +1921,48 @@
         "summary": {
           "$ref": "#/$defs/String"
         }
-      }
+      },
+      "additionalProperties": false
     },
     "ObjectID": {
       "type": "object",
       "properties": {
+        "_type": {
+          "type": "object"
+        },
         "hash": {
           "$ref": "#/$defs/String"
         }
-      }
+      },
+      "additionalProperties": false
     },
     "Reference": {
       "type": "object",
       "properties": {
+        "_type": {
+          "type": "object"
+        },
         "id": {
           "$ref": "#/$defs/String"
         },
         "targetType": {
           "$ref": "#/$defs/TypeDefinition"
         }
-      }
+      },
+      "additionalProperties": false
     },
     "ResultIssueSummaries": {
       "type": "object",
       "properties": {
+        "_type": {
+          "type": "object"
+        },
         "analyzerWarningSummaries": {
           "type": "object",
           "properties": {
+            "_type": {
+              "type": "object"
+            },
             "_values": {
               "type": "array",
               "items": {
@@ -1825,6 +1975,9 @@
         "errorSummaries": {
           "type": "object",
           "properties": {
+            "_type": {
+              "type": "object"
+            },
             "_values": {
               "type": "array",
               "items": {
@@ -1837,6 +1990,9 @@
         "testFailureSummaries": {
           "type": "object",
           "properties": {
+            "_type": {
+              "type": "object"
+            },
             "_values": {
               "type": "array",
               "items": {
@@ -1849,6 +2005,9 @@
         "warningSummaries": {
           "type": "object",
           "properties": {
+            "_type": {
+              "type": "object"
+            },
             "_values": {
               "type": "array",
               "items": {
@@ -1861,6 +2020,9 @@
         "testWarningSummaries": {
           "type": "object",
           "properties": {
+            "_type": {
+              "type": "object"
+            },
             "_values": {
               "type": "array",
               "items": {
@@ -1870,11 +2032,15 @@
           },
           "required": ["_values"]
         }
-      }
+      },
+      "additionalProperties": false
     },
     "ResultMetrics": {
       "type": "object",
       "properties": {
+        "_type": {
+          "type": "object"
+        },
         "analyzerWarningCount": {
           "$ref": "#/$defs/Int"
         },
@@ -1896,14 +2062,21 @@
         "totalCoveragePercentage": {
           "$ref": "#/$defs/Double"
         }
-      }
+      },
+      "additionalProperties": false
     },
     "SortedKeyValueArray": {
       "type": "object",
       "properties": {
+        "_type": {
+          "type": "object"
+        },
         "storage": {
           "type": "object",
           "properties": {
+            "_type": {
+              "type": "object"
+            },
             "_values": {
               "type": "array",
               "items": {
@@ -1913,26 +2086,37 @@
           },
           "required": ["_values"]
         }
-      }
+      },
+      "additionalProperties": false
     },
     "SortedKeyValueArrayPair": {
       "type": "object",
       "properties": {
+        "_type": {
+          "type": "object"
+        },
         "key": {
           "$ref": "#/$defs/String"
         }
       },
+      "additionalProperties": false,
       "required": ["value"]
     },
     "SourceCodeContext": {
       "type": "object",
       "properties": {
+        "_type": {
+          "type": "object"
+        },
         "location": {
           "$ref": "#/$defs/SourceCodeLocation"
         },
         "callStack": {
           "type": "object",
           "properties": {
+            "_type": {
+              "type": "object"
+            },
             "_values": {
               "type": "array",
               "items": {
@@ -1942,33 +2126,45 @@
           },
           "required": ["_values"]
         }
-      }
+      },
+      "additionalProperties": false
     },
     "SourceCodeFrame": {
       "type": "object",
       "properties": {
+        "_type": {
+          "type": "object"
+        },
         "addressString": {
           "$ref": "#/$defs/String"
         },
         "symbolInfo": {
           "$ref": "#/$defs/SourceCodeSymbolInfo"
         }
-      }
+      },
+      "additionalProperties": false
     },
     "SourceCodeLocation": {
       "type": "object",
       "properties": {
+        "_type": {
+          "type": "object"
+        },
         "filePath": {
           "$ref": "#/$defs/String"
         },
         "lineNumber": {
           "$ref": "#/$defs/Int"
         }
-      }
+      },
+      "additionalProperties": false
     },
     "SourceCodeSymbolInfo": {
       "type": "object",
       "properties": {
+        "_type": {
+          "type": "object"
+        },
         "imageName": {
           "$ref": "#/$defs/String"
         },
@@ -1978,11 +2174,15 @@
         "location": {
           "$ref": "#/$defs/SourceCodeLocation"
         }
-      }
+      },
+      "additionalProperties": false
     },
     "String": {
       "type": "object",
       "properties": {
+        "_type": {
+          "type": "object"
+        },
         "_value": {
           "type": "string"
         }
@@ -1992,6 +2192,9 @@
     "TestArgument": {
       "type": "object",
       "properties": {
+        "_type": {
+          "type": "object"
+        },
         "parameter": {
           "$ref": "#/$defs/TestParameter"
         },
@@ -2011,11 +2214,15 @@
           "$ref": "#/$defs/TestValue"
         }
       },
+      "additionalProperties": false,
       "required": ["value"]
     },
     "TestAssociatedError": {
       "type": "object",
       "properties": {
+        "_type": {
+          "type": "object"
+        },
         "domain": {
           "$ref": "#/$defs/String"
         },
@@ -2025,22 +2232,30 @@
         "userInfo": {
           "$ref": "#/$defs/SortedKeyValueArray"
         }
-      }
+      },
+      "additionalProperties": false
     },
     "TestDocumentation": {
       "type": "object",
       "properties": {
+        "_type": {
+          "type": "object"
+        },
         "content": {
           "$ref": "#/$defs/String"
         },
         "format": {
           "$ref": "#/$defs/String"
         }
-      }
+      },
+      "additionalProperties": false
     },
     "TestExpression": {
       "type": "object",
       "properties": {
+        "_type": {
+          "type": "object"
+        },
         "sourceCode": {
           "$ref": "#/$defs/String"
         },
@@ -2050,6 +2265,9 @@
         "subexpressions": {
           "type": "object",
           "properties": {
+            "_type": {
+              "type": "object"
+            },
             "_values": {
               "type": "array",
               "items": {
@@ -2059,11 +2277,15 @@
           },
           "required": ["_values"]
         }
-      }
+      },
+      "additionalProperties": false
     },
     "TestFailureIssueSummary": {
       "type": "object",
       "properties": {
+        "_type": {
+          "type": "object"
+        },
         "issueType": {
           "$ref": "#/$defs/String"
         },
@@ -2079,11 +2301,15 @@
         "testCaseName": {
           "$ref": "#/$defs/String"
         }
-      }
+      },
+      "additionalProperties": false
     },
     "TestIssueSummary": {
       "type": "object",
       "properties": {
+        "_type": {
+          "type": "object"
+        },
         "issueType": {
           "$ref": "#/$defs/String"
         },
@@ -2099,11 +2325,15 @@
         "testCaseName": {
           "$ref": "#/$defs/String"
         }
-      }
+      },
+      "additionalProperties": false
     },
     "TestParameter": {
       "type": "object",
       "properties": {
+        "_type": {
+          "type": "object"
+        },
         "label": {
           "$ref": "#/$defs/String"
         },
@@ -2116,11 +2346,15 @@
         "fullyQualifiedTypeName": {
           "$ref": "#/$defs/String"
         }
-      }
+      },
+      "additionalProperties": false
     },
     "TestTag": {
       "type": "object",
       "properties": {
+        "_type": {
+          "type": "object"
+        },
         "identifier": {
           "$ref": "#/$defs/String"
         },
@@ -2130,6 +2364,9 @@
         "anchors": {
           "type": "object",
           "properties": {
+            "_type": {
+              "type": "object"
+            },
             "_values": {
               "type": "array",
               "items": {
@@ -2139,11 +2376,15 @@
           },
           "required": ["_values"]
         }
-      }
+      },
+      "additionalProperties": false
     },
     "TestValue": {
       "type": "object",
       "properties": {
+        "_type": {
+          "type": "object"
+        },
         "description": {
           "$ref": "#/$defs/String"
         },
@@ -2165,6 +2406,9 @@
         "children": {
           "type": "object",
           "properties": {
+            "_type": {
+              "type": "object"
+            },
             "_values": {
               "type": "array",
               "items": {
@@ -2174,22 +2418,30 @@
           },
           "required": ["_values"]
         }
-      }
+      },
+      "additionalProperties": false
     },
     "TypeDefinition": {
       "type": "object",
       "properties": {
+        "_type": {
+          "type": "object"
+        },
         "name": {
           "$ref": "#/$defs/String"
         },
         "supertype": {
           "$ref": "#/$defs/TypeDefinition"
         }
-      }
+      },
+      "additionalProperties": false
     },
     "UInt16": {
       "type": "object",
       "properties": {
+        "_type": {
+          "type": "object"
+        },
         "_value": {
           "type": "string"
         }
@@ -2199,6 +2451,9 @@
     "UInt32": {
       "type": "object",
       "properties": {
+        "_type": {
+          "type": "object"
+        },
         "_value": {
           "type": "string"
         }
@@ -2208,6 +2463,9 @@
     "UInt64": {
       "type": "object",
       "properties": {
+        "_type": {
+          "type": "object"
+        },
         "_value": {
           "type": "string"
         }
@@ -2217,6 +2475,9 @@
     "UInt8": {
       "type": "object",
       "properties": {
+        "_type": {
+          "type": "object"
+        },
         "_value": {
           "type": "string"
         }
@@ -2226,6 +2487,9 @@
     "URL": {
       "type": "object",
       "properties": {
+        "_type": {
+          "type": "object"
+        },
         "_value": {
           "type": "string"
         }
