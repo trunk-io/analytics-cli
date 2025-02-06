@@ -84,7 +84,7 @@ fn validate_invalid_junits_no_codeowners() {
         .failure()
         .stdout(predicate::str::contains("1 validation error"))
         .stdout(predicate::str::contains(
-            "INVALID - test suite name too short",
+            "INVALID - test suite names are missing",
         ))
         .stdout(predicate::str::contains("Checking for codeowners file..."))
         .stdout(predicate::str::contains(

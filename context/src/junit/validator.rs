@@ -523,7 +523,7 @@ pub enum JunitTestSuiteValidationIssueSubOptimal {
 
 #[derive(Error, Debug, Clone, PartialEq, Eq)]
 pub enum JunitTestSuiteValidationIssueInvalid {
-    #[error("test suite name too short")]
+    #[error("test suite names are missing")]
     TestSuiteNameTooShort(String),
 }
 
