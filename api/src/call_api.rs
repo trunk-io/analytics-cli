@@ -339,7 +339,7 @@ mod tests {
                 let http_response = http::Response::builder().status(404).body("body").unwrap();
                 let response = Response::from(http_response);
                 status_code_help(
-                    &response,
+                    response,
                     CheckUnauthorized::DoNotCheck,
                     CheckNotFound::Check,
                     |_e| String::from("Test message"),
