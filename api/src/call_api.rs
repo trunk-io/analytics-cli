@@ -43,10 +43,8 @@ pub trait AbortableRetry {
 
 impl AbortableRetry for anyhow::Error {
     fn should_retry(&self) -> bool {
-        println!("Should retrying anyhow error {:#?}", self);
         let self_text = format!("{self}");
-        println!("it had text {:#?}", self_text);
-        let x = !self_text.contains(UNAUTHORIZED_CONTEXT)
+        !self_text.contains(UNAUTHORIZED_CONTEXT)
             && !self_text.contains(NOT_FOUND_CONTEXT)
             && self.chain().fold(true, |acc: bool, cause| {
                 let cause_should_retry =
@@ -56,16 +54,13 @@ impl AbortableRetry for anyhow::Error {
                         true
                     };
                 acc && cause_should_retry
-            });
-        println!("anyhow result was {:#?}", x);
-        x
+            })
     }
 }
 
 impl AbortableRetry for reqwest::Error {
     fn should_retry(&self) -> bool {
-        println!("Should retrying reqwest error {:#?}", self);
-        let x = !(self.is_decode()
+        !(self.is_decode()
             || self.status().map_or(false, |status: StatusCode| {
                 // List of codes for which we do not retry
                 match status {
@@ -106,9 +101,7 @@ impl AbortableRetry for reqwest::Error {
 
                     _ => false,
                 }
-            }));
-        println!("reqwest Result was {:#?}", x);
-        x
+            }))
     }
 }
 
