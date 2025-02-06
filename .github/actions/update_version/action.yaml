@@ -6,6 +6,7 @@ inputs:
     description: Release version
   file:
     description: File to update
+    default: 0.0.0
     required: true
 
 runs:
