@@ -58,7 +58,8 @@ jobs:
 
       - name: Update CLI version
         uses: ./.github/actions/update_version
-        if: "!cancelled()"
+        # only empty during testing
+        if: "!cancelled() && github.event.inputs.release_tag != ''"
         with:
           version: ${{ github.event.inputs.release_tag }}
           file: ./cli/Cargo.toml
@@ -79,7 +80,8 @@ jobs:
 
       - name: Upload debug info to Sentry
         uses: ./.github/actions/upload_sentry_debug_info
-        if: "!cancelled()"
+        # only empty during testing
+        if: "!cancelled() && github.event.inputs.release_tag != ''"
         with:
           target: ${{ matrix.platform.target }}
           sentry-org: ${{ secrets.SENTRY_ORG }}
@@ -131,8 +133,8 @@ jobs:
     name: Tag and Release [ ${{ github.event.inputs.release_tag }} ]
     runs-on: public-amd64-small
     needs: [build_release, perform_smoke_test]
+    # only empty during testing
     if: needs.perform_smoke_test.result == 'success' && github.event.inputs.release_tag != ''
-
     steps:
       - uses: actions/checkout@v4
 
