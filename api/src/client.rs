@@ -81,8 +81,8 @@ impl ApiClient {
                     .send()
                     .await?;
 
-                status_code_help(
-                    &response,
+                let response = status_code_help(
+                    response,
                     CheckUnauthorized::Check,
                     CheckNotFound::DoNotCheck,
                     |_| "Failed to create repo.".to_string(),
@@ -117,8 +117,8 @@ impl ApiClient {
                     .send()
                     .await?;
 
-                status_code_help(
-                    &response,
+                let response = status_code_help(
+                    response,
                     CheckUnauthorized::Check,
                     CheckNotFound::Check,
                     |_| String::from("Failed to create bundle upload."),
@@ -153,8 +153,8 @@ impl ApiClient {
                     .send()
                     .await?;
 
-                status_code_help(
-                    &response,
+                let response = status_code_help(
+                    response,
                     CheckUnauthorized::Check,
                     CheckNotFound::DoNotCheck,
                     |response| -> String {
@@ -186,7 +186,7 @@ impl ApiClient {
         &self,
         url: U,
         bundle_path: B,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<Response> {
         CallApi {
             action: || async {
                 let file = fs::File::open(bundle_path.as_ref()).await?;
@@ -201,7 +201,7 @@ impl ApiClient {
                     .await?;
 
                 status_code_help(
-                    &response,
+                    response,
                     CheckUnauthorized::DoNotCheck,
                     CheckNotFound::DoNotCheck,
                     |_| String::from("Failed to upload bundle to S3."),
@@ -231,8 +231,8 @@ impl ApiClient {
                     .send()
                     .await?;
 
-                status_code_help(
-                    &response,
+                let response = status_code_help(
+                    response,
                     CheckUnauthorized::Check,
                     CheckNotFound::Check,
                     |_| {
@@ -242,6 +242,7 @@ impl ApiClient {
                         )
                     },
                 )?;
+
                 response
                     .json::<message::UpdateBundleUploadResponse>()
                     .await
@@ -282,25 +283,28 @@ pub(crate) const NOT_FOUND_CONTEXT: &str = concat!(
 );
 
 pub(crate) fn status_code_help<T: FnMut(&Response) -> String>(
-    response: &Response,
+    response: Response,
     check_unauthorized: CheckUnauthorized,
     check_not_found: CheckNotFound,
     mut create_error_message: T,
-) -> anyhow::Result<()> {
+) -> anyhow::Result<Response> {
     if !response.status().is_client_error() {
-        return Ok(());
+        return Ok(response);
     }
 
     let error_message = match (response.status(), check_unauthorized, check_not_found) {
         (StatusCode::UNAUTHORIZED, CheckUnauthorized::Check, _) => UNAUTHORIZED_CONTEXT,
         (StatusCode::NOT_FOUND, _, CheckNotFound::Check) => NOT_FOUND_CONTEXT,
-        _ => &create_error_message(response),
+        _ => &create_error_message(&response),
     };
 
     let error_message_with_help =
         format!("{error_message}\n\nFor more help, contact us at https://slack.trunk.io/");
 
-    Err(anyhow::Error::msg(error_message_with_help))
+    match response.error_for_status() {
+        Ok(..) => Err(anyhow::Error::msg(error_message_with_help)),
+        Err(error) => Err(anyhow::Error::from(error).context(error_message_with_help)),
+    }
 }
 
 #[cfg(test)]
