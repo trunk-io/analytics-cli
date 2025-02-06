@@ -354,6 +354,15 @@ pub const ENVS_TO_GET: &[&str] = &[
     "DRONE_TAG",
     "DRONE_TARGET_BRANCH",
     "DRONE_WORKSPACE",
+    // Custom setting
+    "JOB_URL",
+    "JOB_NAME",
+    "AUTHOR_EMAIL",
+    "AUTHOR_NAME",
+    "COMMIT_BRANCH",
+    "COMMIT_MESSAGE",
+    "PR_NUMBER",
+    "PR_TITLE",
 ];
 
 pub const SENTRY_DSN: &str =
