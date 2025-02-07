@@ -13,6 +13,7 @@ members = [
   "test_utils",
   "xcresult",
   "test_report",
+  "third-party",
 ]
 exclude = ["context-ruby/ext/context_ruby"]
 resolver = "2"
