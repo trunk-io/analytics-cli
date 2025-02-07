@@ -55,31 +55,30 @@ jobs:
 
       - name: Setup Rust & Cargo
         uses: ./.github/actions/setup_rust_cargo
-        if: "!cancelled()"
 
       - name: Run tests
         uses: ./.github/actions/run_tests
-        if: "!cancelled()"
+        continue-on-error: true
         with:
           target: ${{ matrix.platform.target }}
 
       - name: Build darwin target
         uses: ./.github/actions/build_cli_macos_target
-        if: "!cancelled() && contains(matrix.platform.os-name, 'darwin')"
+        if: contains(matrix.platform.os-name, 'darwin')
         with:
           target: ${{ matrix.platform.target }}
           profile: release
 
       - name: Build unix target
         uses: ./.github/actions/build_cli_linux_target
-        if: "!cancelled() && !contains(matrix.platform.os-name, 'darwin')"
+        if: "!contains(matrix.platform.os-name, 'darwin')"
         with:
           target: ${{ matrix.platform.target }}
           profile: release
 
       - name: Upload results using action from ${{ matrix.platform.target }}
         uses: ./.github/actions/upload_test_results
-        if: "!cancelled() && !contains(matrix.platform.target, 'illumos')"
+        if: "!contains(matrix.platform.target, 'illumos') && always()"
         with:
           workspace: ${{ github.workspace }}
           target: ${{ matrix.platform.target }}
