@@ -30,6 +30,7 @@ task build: :compile
 begin
   require 'rspec/core/rake_task'
   RSpec::Core::RakeTask.new(:test) do |t|
+    ENV["RB_SYS_CARGO_PROFILE"] = 'dev'
     Rake::Task['compile'].invoke
     t.pattern = FileList['test/*_spec.rb']
   end

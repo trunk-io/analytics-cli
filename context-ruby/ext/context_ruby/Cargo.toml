@@ -17,6 +17,8 @@ rb-sys = { version = "=0.9.103", features = [
   "bindgen-deprecated-types",
   "stable-api-compiled-fallback",
 ] }
+sentry = { version = "=0.36.0", features = ["debug-images"] }
+sentry-log = "=0.36.0"
 
 [dev-dependencies.magnus]
 version = "0.7.1"

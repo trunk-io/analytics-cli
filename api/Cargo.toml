@@ -8,7 +8,6 @@ context = { path = "../context" }
 serde = { version = "1.0.215", default-features = false, features = ["derive"] }
 serde_json = "1.0.133"
 bundle = { path = "../bundle" }
-sentry = { version = "0.34.0", features = ["debug-images"] }
 tokio = { version = "*", default-features = false, features = [
   "rt-multi-thread",
   "macros",
@@ -23,6 +22,7 @@ log = "0.4.14"
 http = "1.1.0"
 tokio-retry = { version = "0.3", default-features = false }
 constants = { version = "0.0.0", path = "../constants" }
+sentry = { version = "=0.36.0", features = ["debug-images"] }
 
 [dev-dependencies]
 axum = { version = "0.7.5", features = ["macros"] }
