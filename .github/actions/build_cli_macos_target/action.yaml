@@ -6,6 +6,9 @@ inputs:
     description: Rust target triple, e.g. x86_64-apple-darwin
   profile:
     description: Rust profile to build, e.g. release-with-debug
+  force-sentry-dev:
+    description: Force sentry to use a devenv (set to true for testing, but not for releases)
+    default: false
 
 runs:
   using: composite
@@ -15,6 +18,7 @@ runs:
       with:
         target: ${{ inputs.target }}
         profile: ${{ inputs.profile }}
+        force-sentry-dev: ${{ inputs.force-sentry-dev }}
 
     - name: Strip debug info
       shell: bash
