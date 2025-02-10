@@ -149,7 +149,7 @@ pub fn gather_post_test_context<U: AsRef<Path>>(
         &junit_path_wrappers,
         team,
         codeowners_path,
-        test_run_result.as_ref().map(|r| r.exec_start),
+        test_run_result.as_ref().and_then(|r| r.exec_start),
     )?;
 
     if !allow_empty_test_results && file_set_builder.no_files_found() {

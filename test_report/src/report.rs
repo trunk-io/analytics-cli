@@ -158,7 +158,7 @@ impl MutTestReport {
         };
         let test_run_result = trunk_analytics_cli::test_command::TestRunResult {
             command: self.0.borrow().command.clone(),
-            exec_start: self.0.borrow().started_at,
+            exec_start: Some(self.0.borrow().started_at),
             exit_code: 0,
             num_tests: Some(self.0.borrow().test_result.test_case_runs.len()),
         };
