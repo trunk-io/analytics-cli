@@ -2,8 +2,8 @@ use std::{env, io::Write};
 
 use clap::{Parser, Subcommand};
 use clap_verbosity_flag::{log::LevelFilter, InfoLevel, Verbosity};
-use tracing_subscriber::prelude::*;
 use third_party::sentry;
+use tracing_subscriber::prelude::*;
 use trunk_analytics_cli::{
     quarantine_command::{run_quarantine, QuarantineArgs},
     test_command::{run_test, TestArgs},
