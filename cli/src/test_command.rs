@@ -44,6 +44,8 @@ pub async fn run_test(
     log::info!("running command: {:?}", command);
     let mut test_run_result = run_test_command(&command).await?;
     let test_run_result_exit_code = test_run_result.exit_code;
+    // remove exec start because it filters out test files and we want to
+    // trust bazel-bep to provide the required test files
     if upload_args.bazel_bep_path.is_some() {
         test_run_result.exec_start = None;
     }
