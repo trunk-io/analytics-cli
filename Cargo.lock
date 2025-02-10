@@ -124,7 +124,7 @@ dependencies = [
  "lazy_static",
  "log",
  "reqwest",
- "sentry",
+ "sentry 0.36.0",
  "serde",
  "serde_json",
  "tempfile",
@@ -3981,12 +3981,31 @@ dependencies = [
  "httpdate",
  "native-tls",
  "reqwest",
- "sentry-backtrace",
- "sentry-contexts",
+ "sentry-backtrace 0.34.0",
+ "sentry-contexts 0.34.0",
  "sentry-core 0.34.0",
- "sentry-debug-images",
- "sentry-panic",
+ "sentry-debug-images 0.34.0",
+ "sentry-panic 0.34.0",
  "sentry-tracing 0.34.0",
+ "tokio",
+ "ureq",
+]
+
+[[package]]
+name = "sentry"
+version = "0.36.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3a7332159e544e34db06b251b1eda5e546bd90285c3f58d9c8ff8450b484e0da"
+dependencies = [
+ "httpdate",
+ "native-tls",
+ "reqwest",
+ "sentry-backtrace 0.36.0",
+ "sentry-contexts 0.36.0",
+ "sentry-core 0.36.0",
+ "sentry-debug-images 0.36.0",
+ "sentry-panic 0.36.0",
+ "sentry-tracing 0.36.0",
  "tokio",
  "ureq",
 ]
@@ -4004,6 +4023,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "sentry-backtrace"
+version = "0.36.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "565ec31ad37bab8e6d9f289f34913ed8768347b133706192f10606dabd5c6bc4"
+dependencies = [
+ "backtrace",
+ "once_cell",
+ "regex",
+ "sentry-core 0.36.0",
+]
+
+[[package]]
 name = "sentry-contexts"
 version = "0.34.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4014,6 +4045,20 @@ dependencies = [
  "os_info",
  "rustc_version",
  "sentry-core 0.34.0",
+ "uname",
+]
+
+[[package]]
+name = "sentry-contexts"
+version = "0.36.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e860275f25f27e8c0c7726ce116c7d5c928c5bba2ee73306e52b20a752298ea6"
+dependencies = [
+ "hostname",
+ "libc",
+ "os_info",
+ "rustc_version",
+ "sentry-core 0.36.0",
  "uname",
 ]
 
@@ -4055,13 +4100,44 @@ dependencies = [
 ]
 
 [[package]]
+name = "sentry-debug-images"
+version = "0.36.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2a60bc2154e6df59beed0ac13d58f8dfaf5ad20a88548a53e29e4d92e8e835c2"
+dependencies = [
+ "findshlibs",
+ "once_cell",
+ "sentry-core 0.36.0",
+]
+
+[[package]]
+name = "sentry-log"
+version = "0.36.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1c96d796cba1b3a0793e7f53edc420c61f9419fba8fb34ad5519f5c7d01af6b2"
+dependencies = [
+ "log",
+ "sentry-core 0.36.0",
+]
+
+[[package]]
 name = "sentry-panic"
 version = "0.34.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bc74f229c7186dd971a9491ffcbe7883544aa064d1589bd30b83fb856cd22d63"
 dependencies = [
- "sentry-backtrace",
+ "sentry-backtrace 0.34.0",
  "sentry-core 0.34.0",
+]
+
+[[package]]
+name = "sentry-panic"
+version = "0.36.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "105e3a956c8aa9dab1e4087b1657b03271bfc49d838c6ae9bfc7c58c802fd0ef"
+dependencies = [
+ "sentry-backtrace 0.36.0",
+ "sentry-core 0.36.0",
 ]
 
 [[package]]
@@ -4070,7 +4146,7 @@ version = "0.34.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cd3c5faf2103cd01eeda779ea439b68c4ee15adcdb16600836e97feafab362ec"
 dependencies = [
- "sentry-backtrace",
+ "sentry-backtrace 0.34.0",
  "sentry-core 0.34.0",
  "tracing-core",
  "tracing-subscriber",
@@ -4082,6 +4158,7 @@ version = "0.36.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "64e75c831b4d8b34a5aec1f65f67c5d46a26c7c5d3c7abd8b5ef430796900cf8"
 dependencies = [
+ "sentry-backtrace 0.36.0",
  "sentry-core 0.36.0",
  "tracing-core",
  "tracing-subscriber",
@@ -4443,7 +4520,9 @@ dependencies = [
  "assert_matches",
  "bundle",
  "chrono",
+ "env_logger",
  "js-sys",
+ "log",
  "magnus",
  "more-asserts",
  "prost",
@@ -4452,6 +4531,7 @@ dependencies = [
  "serde_json",
  "tempfile",
  "test_utils",
+ "third-party",
  "tokio",
  "trunk-analytics-cli",
  "wasm-bindgen",
@@ -4468,12 +4548,23 @@ dependencies = [
  "junit-mock",
  "lazy_static",
  "log",
- "sentry",
+ "sentry 0.36.0",
  "tar",
  "tempfile",
  "tokio",
  "tracing",
  "zstd",
+]
+
+[[package]]
+name = "third-party"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "env_logger",
+ "log",
+ "sentry 0.36.0",
+ "sentry-log",
 ]
 
 [[package]]
@@ -4880,11 +4971,12 @@ dependencies = [
  "openssl-src",
  "quick-junit",
  "reqwest",
- "sentry",
+ "sentry 0.34.0",
  "sentry-tracing 0.36.0",
  "serde_json",
  "tempfile",
  "test_utils",
+ "third-party",
  "tokio",
  "tokio-retry",
  "tracing",
