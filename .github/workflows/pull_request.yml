@@ -68,6 +68,7 @@ jobs:
         with:
           target: ${{ matrix.platform.target }}
           profile: release
+          force-sentry-dev: true
 
       - name: Build unix target
         uses: ./.github/actions/build_cli_linux_target
@@ -75,6 +76,7 @@ jobs:
         with:
           target: ${{ matrix.platform.target }}
           profile: release
+          force-sentry-dev: true
 
       - name: Upload results using action from ${{ matrix.platform.target }}
         uses: ./.github/actions/upload_test_results
