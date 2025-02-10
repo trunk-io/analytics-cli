@@ -39,7 +39,7 @@ mod tests {
     fn captures_logs() {
         let logs = mock_logger(None);
         const TEST_MESSAGE: &str = "test";
-        log::error!("{}", TEST_MESSAGE);
+        tracing::warn!("{}", TEST_MESSAGE);
         assert_eq!(
             *logs.lock().unwrap(),
             [(log::Level::Error, String::from(TEST_MESSAGE))]

@@ -219,7 +219,7 @@ async fn upload_bundle(
         // directory is removed on drop
         _bundle_temp_dir,
     ) = BundlerUtil::new(meta, bep_result).make_tarball_in_temp_dir()?;
-    log::info!("Flushed temporary tarball to {:?}", bundle_temp_file);
+    tracing::info!("Flushed temporary tarball to {:?}", bundle_temp_file);
 
     if no_upload {
         if let Err(e) = api_client
@@ -229,11 +229,11 @@ async fn upload_bundle(
             })
             .await
         {
-            log::warn!("{}", e);
+            tracing::warn!("{}", e);
         } else {
-            log::debug!("Updated bundle upload status to DRY_RUN");
+            tracing::debug!("Updated bundle upload status to DRY_RUN");
         }
-        log::info!("Skipping upload.");
+        tracing::info!("Skipping upload.");
     } else {
         api_client
             .put_bundle_to_s3(&upload.url, &bundle_temp_file)
@@ -246,18 +246,18 @@ async fn upload_bundle(
             })
             .await
         {
-            log::warn!("{}", e)
+            tracing::warn!("{}", e)
         } else {
-            log::debug!(
+            tracing::debug!(
                 "Updated bundle upload status to {:#?}",
                 BundleUploadStatus::UploadComplete
             )
         }
 
         if exit_code == EXIT_SUCCESS {
-            log::info!("Done");
+            tracing::info!("Done");
         } else {
-            log::info!(
+            tracing::info!(
                 "Upload successful; returning unsuccessful exit code of test run: {}",
                 exit_code
             )

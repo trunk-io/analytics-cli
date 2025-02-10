@@ -359,10 +359,10 @@ mod tests {
         guard.flush(None);
         assert_eq!(
             *events.try_lock().unwrap(),
-            vec![(
-                sentry::Level::Error,
-                String::from("Uploading bundle to S3 is taking longer than 10 seconds"),
-            ),]
+            [(
+                sentry::Level::Warning,
+                String::from("Uploading bundle to S3 is taking longer than 10 seconds")
+            )],
         );
     }
 

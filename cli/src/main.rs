@@ -3,6 +3,7 @@ use std::{env, io::Write};
 use clap::{Parser, Subcommand};
 use clap_verbosity_flag::{log::LevelFilter, InfoLevel, Verbosity};
 use constants::SENTRY_DSN;
+use tracing_subscriber::prelude::*;
 use trunk_analytics_cli::{
     quarantine_command::{run_quarantine, QuarantineArgs},
     test_command::{run_test, TestArgs},
@@ -36,6 +37,17 @@ enum Commands {
     Validate(ValidateArgs),
 }
 
+impl Commands {
+    pub fn command_name(&self) -> &str {
+        match self {
+            Commands::Quarantine(..) => "quarantine",
+            Commands::Test(..) => "test",
+            Commands::Upload(..) => "upload",
+            Commands::Validate(..) => "validate",
+        }
+    }
+}
+
 // "the Sentry client must be initialized before starting an async runtime or spawning threads"
 // https://docs.sentry.io/platforms/rust/#async-main-function
 fn main() -> anyhow::Result<()> {
@@ -56,15 +68,16 @@ fn main() -> anyhow::Result<()> {
             let cli = Cli::parse();
             let log_level_filter = cli.verbose.log_level_filter();
             setup_logger(log_level_filter)?;
+            tracing::info_span!("Running command", command = cli.command.command_name());
             match run(cli).await {
                 Ok(exit_code) => std::process::exit(exit_code),
                 Err(e) => match (*(e.root_cause())).downcast_ref::<std::io::Error>() {
                     Some(io_error) if io_error.kind() == std::io::ErrorKind::ConnectionRefused => {
-                        log::warn!("Could not connect to trunk's server: {:?}", e);
+                        tracing::warn!("Could not connect to trunk's server: {:?}", e);
                         std::process::exit(exitcode::OK);
                     }
                     _ => {
-                        log::error!("Error: {:?}", e);
+                        tracing::warn!("Error: {:?}", e);
                         std::process::exit(exitcode::SOFTWARE);
                     }
                 },
@@ -73,7 +86,7 @@ fn main() -> anyhow::Result<()> {
 }
 
 async fn run(cli: Cli) -> anyhow::Result<i32> {
-    log::info!(
+    tracing::info!(
         "Starting trunk flakytests {} (git={}) rustc={}",
         env!("CARGO_PKG_VERSION"),
         env!("VERGEN_GIT_SHA"),
@@ -96,6 +109,17 @@ async fn run(cli: Cli) -> anyhow::Result<i32> {
     }
 }
 
+fn to_trace_filter(filter: log::LevelFilter) -> tracing::level_filters::LevelFilter {
+    match filter {
+        log::LevelFilter::Debug => tracing::level_filters::LevelFilter::DEBUG,
+        log::LevelFilter::Error => tracing::level_filters::LevelFilter::ERROR,
+        log::LevelFilter::Info => tracing::level_filters::LevelFilter::INFO,
+        log::LevelFilter::Off => tracing::level_filters::LevelFilter::OFF,
+        log::LevelFilter::Trace => tracing::level_filters::LevelFilter::TRACE,
+        log::LevelFilter::Warn => tracing::level_filters::LevelFilter::WARN,
+    }
+}
+
 fn setup_logger(log_level_filter: LevelFilter) -> anyhow::Result<()> {
     let mut builder = env_logger::Builder::new();
     builder
@@ -113,5 +137,11 @@ fn setup_logger(log_level_filter: LevelFilter) -> anyhow::Result<()> {
         builder.parse_filters(&log);
     }
     builder.init();
+
+    tracing_subscriber::registry()
+        .with(tracing_subscriber::fmt::layer())
+        .with(sentry_tracing::layer())
+        .with(to_trace_filter(log_level_filter))
+        .init();
     Ok(())
 }

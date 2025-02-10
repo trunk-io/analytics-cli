@@ -67,7 +67,7 @@ impl FailedTestsExtractor {
                 let file = match std::fs::File::open(&file.original_path) {
                     Ok(file) => file,
                     Err(e) => {
-                        log::warn!("Error opening file: {}", e);
+                        tracing::warn!("Error opening file: {}", e);
                         continue;
                     }
                 };
@@ -76,7 +76,7 @@ impl FailedTestsExtractor {
                 match junitxml.parse(reader) {
                     Ok(junitxml) => junitxml,
                     Err(e) => {
-                        log::warn!("Error parsing junitxml: {}", e);
+                        tracing::warn!("Error parsing junitxml: {}", e);
                         continue;
                     }
                 };
@@ -170,7 +170,7 @@ pub async fn gather_quarantine_context(
     let mut exit_code = test_run_exit_code.unwrap_or(EXIT_SUCCESS);
 
     if file_set_builder.no_files_found() {
-        log::info!("No JUnit files found, not quarantining any tests");
+        tracing::info!("No JUnit files found, not quarantining any tests");
         return QuarantineContext {
             exit_code,
             ..Default::default()
@@ -178,22 +178,22 @@ pub async fn gather_quarantine_context(
     }
 
     let quarantine_config = if !failed_tests_extractor.failed_tests().is_empty() {
-        log::info!("Checking if failed tests can be quarantined");
+        tracing::info!("Checking if failed tests can be quarantined");
         let result = api_client.get_quarantining_config(request).await;
 
         if let Err(ref err) = result {
-            log::error!("{}", err);
+            tracing::warn!("{}", err);
         }
 
         result.unwrap_or_default()
     } else {
-        log::debug!("No failed tests to quarantine");
+        tracing::debug!("No failed tests to quarantine");
         api::message::GetQuarantineConfigResponse::default()
     };
 
     // if quarantining is not enabled, return exit code and empty quarantine status
     if quarantine_config.is_disabled {
-        log::info!("Quarantining is not enabled, not quarantining any tests");
+        tracing::info!("Quarantining is not enabled, not quarantining any tests");
         return QuarantineContext {
             exit_code,
             quarantine_status: QuarantineBulkTestStatus::default(),
@@ -214,7 +214,7 @@ pub async fn gather_quarantine_context(
         .cloned()
         .filter_map(|failure| {
             let quarantine_failure = quarantined.contains(&failure.id);
-            log::info!(
+            tracing::info!(
                 "{} -> {}{}(id: {})",
                 failure.parent_name,
                 failure.name,
@@ -238,13 +238,15 @@ pub async fn gather_quarantine_context(
     // use the exit code from the command if the group is not quarantined
     // override exit code to be exit_success if the group is quarantined
     let exit_code = if total_failures == 0 {
-        log::info!("No failed tests to quarantine, returning exit code from command.");
+        tracing::info!("No failed tests to quarantine, returning exit code from command.");
         exit_code
     } else if !quarantine_results.group_is_quarantined {
-        log::info!("Not all test failures were quarantined, returning exit code from command.");
+        tracing::info!("Not all test failures were quarantined, returning exit code from command.");
         exit_code
     } else if exit_code != EXIT_SUCCESS {
-        log::info!("All test failures were quarantined, overriding exit code to be exit_success");
+        tracing::info!(
+            "All test failures were quarantined, overriding exit code to be exit_success"
+        );
         EXIT_SUCCESS
     } else {
         exit_code

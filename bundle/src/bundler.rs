@@ -83,7 +83,7 @@ impl BundlerUtil {
                     .iter()
                     .fold(tempfile::tempfile()?, |f, event| {
                         if let Err(e) = serde_json::to_writer(&f, event) {
-                            log::error!("Failed to write BEP event: {}", e);
+                            tracing::warn!("Failed to write BEP event: {}", e);
                         }
                         f
                     });
@@ -99,7 +99,7 @@ impl BundlerUtil {
         let total_bytes_out = std::fs::metadata(bundle_path)?.len();
         let size_reduction = 1.0 - total_bytes_out as f64 / total_bytes_in as f64;
 
-        log::info!(
+        tracing::info!(
             "Total bytes in: {}, total bytes out: {} (size reduction: {:.2}%)",
             total_bytes_in,
             total_bytes_out,
