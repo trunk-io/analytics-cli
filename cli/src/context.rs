@@ -144,12 +144,17 @@ pub fn gather_post_test_context<U: AsRef<Path>>(
     allow_empty_test_results: bool,
     test_run_result: &Option<TestRunResult>,
 ) -> anyhow::Result<FileSetBuilder> {
+    let exec_start = if let Some(test_run_result) = test_run_result {
+        test_run_result.exec_start
+    } else {
+        None
+    };
     let mut file_set_builder = FileSetBuilder::build_file_sets(
         &meta.base_props.repo.repo_root,
         &junit_path_wrappers,
         team,
         codeowners_path,
-        test_run_result.as_ref().map(|r| r.exec_start),
+        exec_start,
     )?;
 
     if !allow_empty_test_results && file_set_builder.no_files_found() {
