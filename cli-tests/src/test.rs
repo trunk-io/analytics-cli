@@ -2,13 +2,17 @@ use std::{fs, io::BufReader};
 
 use assert_matches::assert_matches;
 use bundle::BundleMeta;
+use context::{bazel_bep::parser::BazelBepParser, junit::parser::JunitParser};
 use predicates::prelude::*;
 use tempfile::tempdir;
 use test_utils::mock_server::{MockServerBuilder, RequestPayload};
 
 use crate::{
     command_builder::CommandBuilder,
-    utils::{generate_mock_codeowners, generate_mock_git_repo, generate_mock_valid_junit_xmls},
+    utils::{
+        generate_mock_bazel_bep, generate_mock_codeowners, generate_mock_git_repo,
+        generate_mock_valid_junit_xmls,
+    },
 };
 
 // NOTE: must be multi threaded to start a mock server
@@ -162,4 +166,48 @@ async fn test_command_fails_with_upload_not_connected() {
     .assert()
     .failure()
     .code(1);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn test_command_succeeds_with_bundle_using_bep() {
+    let temp_dir = tempdir().unwrap();
+    generate_mock_git_repo(&temp_dir);
+    generate_mock_bazel_bep(&temp_dir);
+
+    let state = MockServerBuilder::new().spawn_mock_server().await;
+
+    let assert = CommandBuilder::test(
+        temp_dir.path(),
+        state.host.clone(),
+        vec![
+            String::from("bash"),
+            String::from("-c"),
+            String::from("exit 1"),
+        ],
+    )
+    .bazel_bep_path("./bep.json")
+    .command()
+    .assert()
+    .failure();
+
+    let requests = state.requests.lock().unwrap().clone();
+    assert_eq!(requests.len(), 5);
+
+    let tar_extract_directory = assert_matches!(&requests[3], RequestPayload::S3Upload(d) => d);
+
+    let junit_file = fs::File::open(tar_extract_directory.join("junit/0")).unwrap();
+    let junit_reader = BufReader::new(junit_file);
+
+    // Uploaded file is a junit, even when using BEP
+    let mut junit_parser = JunitParser::new();
+    assert!(junit_parser.parse(junit_reader).is_ok());
+    assert!(junit_parser.issues().is_empty());
+
+    let mut bazel_bep_parser = BazelBepParser::new(tar_extract_directory.join("bazel_bep.json"));
+    let parse_result = bazel_bep_parser.parse().ok().unwrap();
+    assert!(parse_result.errors.is_empty());
+    assert_eq!(parse_result.xml_file_counts(), (1, 0));
+
+    // HINT: View CLI output with `cargo test -- --nocapture`
+    println!("{assert}");
 }
