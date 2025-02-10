@@ -33,7 +33,7 @@ runs:
         target: ${{ inputs.target }}
         toolchain: ${{ inputs.toolchain }}
         # NOTE: DO NOT BUILD WORKSPACE OTHERWISE THE CLI MAY BE LINKED TO UNNECESSARY LIBRARIES
-        args: "-p trunk-analytics-cli --profile=${{ inputs.profile }} --target=${{ inputs.target }} ${{ (inputs.force-sentry-dev == 'true' && '--features force-sentry-env-dev') || '' }}"
+        args: "-p trunk-analytics-cli --profile=${{ inputs.profile }} --target=${{ inputs.target }} ${{ (inputs.force-sentry-dev == true && '--features force-sentry-env-dev') || '' }}"
         use-rust-cache: false
 
     - name: Build CLI ${{ inputs.target }} target
@@ -41,7 +41,7 @@ runs:
       if: ${{ contains(inputs.target, 'darwin') }}
       # NOTE: DO NOT BUILD WORKSPACE OTHERWISE THE CLI MAY BE LINKED TO UNNECESSARY LIBRARIES
       run: |
-        cargo build -p trunk-analytics-cli --profile=${{ inputs.profile }} --target=${{ inputs.target }} ${{ (inputs.force-sentry-dev == 'true' && '--features force-sentry-env-dev') || '' }}
+        cargo build -p trunk-analytics-cli --profile=${{ inputs.profile }} --target=${{ inputs.target }} ${{ (inputs.force-sentry-dev == true && '--features force-sentry-env-dev') || '' }}
 
     - name: Create binary with debug info
       shell: bash
