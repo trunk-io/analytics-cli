@@ -27,7 +27,7 @@ pub struct TestArgs {
 #[derive(Debug, Clone)]
 pub struct TestRunResult {
     pub command: String,
-    pub exec_start: SystemTime,
+    pub exec_start: Option<SystemTime>,
     pub exit_code: i32,
     pub num_tests: Option<usize>,
 }
@@ -42,8 +42,13 @@ pub async fn run_test(
     let pre_test_context = gather_pre_test_context(upload_args.clone(), gather_debug_props(token))?;
 
     log::info!("running command: {:?}", command);
-    let test_run_result = run_test_command(&command).await?;
+    let mut test_run_result = run_test_command(&command).await?;
     let test_run_result_exit_code = test_run_result.exit_code;
+    // remove exec start because it filters out test files and we want to
+    // trust bazel-bep to provide the required test files
+    if upload_args.bazel_bep_path.is_some() {
+        test_run_result.exec_start = None;
+    }
 
     let upload_run_result =
         run_upload(upload_args, Some(pre_test_context), Some(test_run_result)).await;
@@ -93,7 +98,7 @@ pub async fn run_test_command<T: AsRef<str>>(command: &[T]) -> anyhow::Result<Te
 
     Ok(TestRunResult {
         exit_code,
-        exec_start,
+        exec_start: Some(exec_start),
         num_tests: None,
         command: command
             .iter()
