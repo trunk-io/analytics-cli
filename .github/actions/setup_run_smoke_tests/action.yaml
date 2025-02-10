@@ -10,4 +10,4 @@ runs:
     - name: Install Nextest
       shell: bash
       run: |
-        cargo install --version 0.9.85 cargo-nextest --locked
+        cargo install --version 0.9.85 cargo-nextest --force --locked
