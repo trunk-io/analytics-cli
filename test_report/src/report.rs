@@ -1,4 +1,4 @@
-use std::{cell::RefCell, env, fs, time::SystemTime};
+use std::{cell::RefCell, env, fs, io::Write, time::SystemTime};
 
 use bundle::BundleMetaDebugProps;
 use chrono::prelude::*;
@@ -6,6 +6,7 @@ use chrono::prelude::*;
 use magnus::{value::ReprValue, Module, Object};
 use prost_wkt_types::Timestamp;
 use proto::test_context::test_run::{TestCaseRun, TestCaseRunStatus, TestResult, UploaderMetadata};
+use third_party::sentry;
 use trunk_analytics_cli::{context::gather_pre_test_context, upload_command::run_upload};
 #[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::wasm_bindgen;
@@ -102,8 +103,26 @@ impl MutTestReport {
         prost::Message::encode_to_vec(&self.0.borrow().test_result)
     }
 
+    fn setup_logger() -> anyhow::Result<()> {
+        let mut builder = env_logger::Builder::new();
+        builder
+            .format(|buf, record| {
+                writeln!(
+                    buf,
+                    "{} [{}] - {}",
+                    chrono::Local::now().format("%Y-%m-%dT%H:%M:%S"),
+                    record.level(),
+                    record.args()
+                )
+            })
+            .filter_level(log::LevelFilter::Info);
+        sentry::logger(builder, log::LevelFilter::Info)
+    }
+
     // sends out to the trunk api
     pub fn publish(&self) -> bool {
+        let _guard = sentry::init(None);
+        let _logger_setup_res = MutTestReport::setup_logger();
         let resolved_path = if let Ok(path) = self.save() {
             path
         } else {
@@ -113,8 +132,12 @@ impl MutTestReport {
         let token = env::var("TRUNK_API_TOKEN").unwrap_or_default();
         let org_url_slug = env::var("TRUNK_ORG_URL_SLUG").unwrap_or_default();
         let repo_root = env::var("REPO_ROOT").ok();
-        if token.is_empty() || org_url_slug.is_empty() {
-            println!("Token or org url slug not set");
+        if token.is_empty() {
+            log::warn!("Not publishing results because TRUNK_API_TOKEN is empty");
+            return false;
+        }
+        if org_url_slug.is_empty() {
+            log::warn!("Not publishing results because TRUNK_ORG_URL_SLUG is empty");
             return false;
         }
         if let Some(uploader_metadata) = &mut self.0.borrow_mut().test_result.uploader_metadata {
@@ -151,12 +174,12 @@ impl MutTestReport {
                 )) {
                 Ok(_) => true,
                 Err(e) => {
-                    println!("Error uploading: {:?}", e);
+                    log::error!("Error uploading: {:?}", e);
                     false
                 }
             }
         } else {
-            println!("Error gathering pre test context");
+            log::error!("Error gathering pre test context");
             false
         }
     }

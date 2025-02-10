@@ -2,7 +2,7 @@ use std::{env, io::Write};
 
 use clap::{Parser, Subcommand};
 use clap_verbosity_flag::{log::LevelFilter, InfoLevel, Verbosity};
-use constants::SENTRY_DSN;
+use third_party::sentry;
 use trunk_analytics_cli::{
     quarantine_command::{run_quarantine, QuarantineArgs},
     test_command::{run_test, TestArgs},
@@ -39,15 +39,7 @@ enum Commands {
 // "the Sentry client must be initialized before starting an async runtime or spawning threads"
 // https://docs.sentry.io/platforms/rust/#async-main-function
 fn main() -> anyhow::Result<()> {
-    let mut options = sentry::ClientOptions::default();
-    options.release = sentry::release_name!();
-
-    #[cfg(feature = "force-sentry-env-dev")]
-    {
-        options.environment = Some("development".into())
-    }
-
-    let _guard = sentry::init((SENTRY_DSN, options));
+    let _guard = sentry::init(None);
 
     tokio::runtime::Builder::new_multi_thread()
         .enable_all()
@@ -112,6 +104,6 @@ fn setup_logger(log_level_filter: LevelFilter) -> anyhow::Result<()> {
     if let Ok(log) = std::env::var("TRUNK_LOG") {
         builder.parse_filters(&log);
     }
-    builder.init();
+    sentry::logger(builder, log_level_filter)?;
     Ok(())
 }

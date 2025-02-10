@@ -7,6 +7,8 @@ create_rust_makefile('context_ruby/context_ruby') do |r|
   # For darwin multiple ranlibs are being packaged and the container chooses the wrong one.
   # This is a workaround to force the correct ranlib to be used.
   # https://github.com/cross-rs/cross/issues/1243#issuecomment-2102742482
+  r.profile = ENV.fetch('RB_SYS_CARGO_PROFILE', :dev).to_sym
+  puts "Using profile: #{r.profile}"
   case RUBY_PLATFORM
   when 'arm64-darwin'
     r.env = { 'RANLIB' => '/opt/osxcross/target/bin/arm64e-apple-darwin-ranlib' }
