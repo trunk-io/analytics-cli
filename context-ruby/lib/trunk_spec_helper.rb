@@ -45,7 +45,11 @@ module RSpec
   class Trunk
     def self.setup
       RSpec.configure do |config|
-        config.around(:each, &:run_with_trunk)
+        if ENV['DISABLE_RSPEC_TRUNK_FLAKY_TESTS'] == 'true'
+          config.around(:each, &:run)
+        else
+          config.around(:each, &:run_with_trunk)
+        end
       end
     end
 
@@ -141,6 +145,8 @@ class TrunkAnalyticsListener
 end
 
 RSpec.configure do |c|
+  next if ENV['DISABLE_RSPEC_TRUNK_FLAKY_TESTS'] == 'true'
+
   c.reporter.register_listener TrunkAnalyticsListener.new, :example_finished, :close
 end
 
