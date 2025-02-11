@@ -18,9 +18,9 @@ runs:
       run: echo "Nope"
 
     - name: Test conditional
-      if: ${{inputs.force-sentry-dev}} == "true"
+      if: ${{inputs.force-sentry-dev}} == 'true'
       shell: bash
-      run: echo "It works!"
+      run: echo "${{ (inputs.force-sentry-dev == 'true' && '--features force-sentry-env-dev') || 'failure' }}"
 
     - name: Build CLI ${{ inputs.target }} target
       uses: ./.github/actions/build_cli_target
