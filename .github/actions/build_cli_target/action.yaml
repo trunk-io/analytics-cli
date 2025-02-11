@@ -20,8 +20,12 @@ runs:
       shell: bash
       run: rustup target add ${{ inputs.target }} --toolchain ${{ inputs.toolchain }}
 
+    - name: Prove echo
+      shell: bash
+      run: echo "Nope"
+
     - name: Test conditional
-      if: ${{inputs.force-sentry-dev == true}}
+      if: ${{inputs.force-sentry-dev == "true"}}
       shell: bash
       run: echo "It works!"
 #    - name: Install cross
