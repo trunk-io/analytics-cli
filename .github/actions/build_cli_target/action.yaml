@@ -20,29 +20,33 @@ runs:
       shell: bash
       run: rustup target add ${{ inputs.target }} --toolchain ${{ inputs.toolchain }}
 
-    - name: Install cross
+    - name: Test conditional
+      if: ${{inputs.force-sentry-dev == true}}
       shell: bash
-      run: cargo install cross --git https://github.com/cross-rs/cross --force
-
-    - name: Build CLI ${{ inputs.target }} target
-      uses: houseabsolute/actions-rust-cross@v1
-      # Cross-rs does not directly support cross compilation with macOS targets
-      if: ${{ !contains(inputs.target, 'darwin') }}
-      with:
-        command: build
-        target: ${{ inputs.target }}
-        toolchain: ${{ inputs.toolchain }}
-        # NOTE: DO NOT BUILD WORKSPACE OTHERWISE THE CLI MAY BE LINKED TO UNNECESSARY LIBRARIES
-        args: "-p trunk-analytics-cli --profile=${{ inputs.profile }} --target=${{ inputs.target }} ${{ (inputs.force-sentry-dev == true && '--features force-sentry-env-dev') || '' }}"
-        use-rust-cache: false
-
-    - name: Build CLI ${{ inputs.target }} target
-      shell: bash
-      if: ${{ contains(inputs.target, 'darwin') }}
-      # NOTE: DO NOT BUILD WORKSPACE OTHERWISE THE CLI MAY BE LINKED TO UNNECESSARY LIBRARIES
-      run: |
-        cargo build -p trunk-analytics-cli --profile=${{ inputs.profile }} --target=${{ inputs.target }} ${{ (inputs.force-sentry-dev == true && '--features force-sentry-env-dev') || '' }}
-
-    - name: Create binary with debug info
-      shell: bash
-      run: cp target/${{ inputs.target }}/${{ inputs.profile }}/trunk-analytics-cli target/${{ inputs.target }}/${{ inputs.profile }}/trunk-analytics-cli.debug
+      run: echo "It works!"
+#    - name: Install cross
+#      shell: bash
+#      run: cargo install cross --git https://github.com/cross-rs/cross --force
+#
+#    - name: Build CLI ${{ inputs.target }} target
+#      uses: houseabsolute/actions-rust-cross@v1
+#      # Cross-rs does not directly support cross compilation with macOS targets
+#      if: ${{ !contains(inputs.target, 'darwin') }}
+#      with:
+#        command: build
+#        target: ${{ inputs.target }}
+#        toolchain: ${{ inputs.toolchain }}
+#        # NOTE: DO NOT BUILD WORKSPACE OTHERWISE THE CLI MAY BE LINKED TO UNNECESSARY LIBRARIES
+#        args: "-p trunk-analytics-cli --profile=${{ inputs.profile }} --target=${{ inputs.target }} ${{ (inputs.force-sentry-dev == true && '--features force-sentry-env-dev') || '' }}"
+#        use-rust-cache: false
+#
+#    - name: Build CLI ${{ inputs.target }} target
+#      shell: bash
+#      if: ${{ contains(inputs.target, 'darwin') }}
+#      # NOTE: DO NOT BUILD WORKSPACE OTHERWISE THE CLI MAY BE LINKED TO UNNECESSARY LIBRARIES
+#      run: |
+#        cargo build -p trunk-analytics-cli --profile=${{ inputs.profile }} --target=${{ inputs.target }} ${{ (inputs.force-sentry-dev == true && '--features force-sentry-env-dev') || '' }}
+#
+#    - name: Create binary with debug info
+#      shell: bash
+#      run: cp target/${{ inputs.target }}/${{ inputs.profile }}/trunk-analytics-cli target/${{ inputs.target }}/${{ inputs.profile }}/trunk-analytics-cli.debug
