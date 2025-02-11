@@ -91,7 +91,6 @@ impl AbortableRetry for reqwest::Error {
 
                     // 500
                     StatusCode::NOT_IMPLEMENTED => true,
-                    StatusCode::SERVICE_UNAVAILABLE => true,
                     StatusCode::HTTP_VERSION_NOT_SUPPORTED => true,
                     StatusCode::VARIANT_ALSO_NEGOTIATES => true,
                     StatusCode::INSUFFICIENT_STORAGE => true,
