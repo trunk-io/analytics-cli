@@ -25,7 +25,7 @@ runs:
       run: echo "Nope"
 
     - name: Test conditional
-      if: ${{inputs.force-sentry-dev == "true"}}
+      if: ${{inputs.force-sentry-dev}} == "true"
       shell: bash
       run: echo "It works!"
 #    - name: Install cross
