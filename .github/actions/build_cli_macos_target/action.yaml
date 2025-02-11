@@ -13,6 +13,15 @@ inputs:
 runs:
   using: composite
   steps:
+    - name: Prove echo
+      shell: bash
+      run: echo "Nope"
+
+    - name: Test conditional
+      if: ${{inputs.force-sentry-dev}} == "true"
+      shell: bash
+      run: echo "It works!"
+
     - name: Build CLI ${{ inputs.target }} target
       uses: ./.github/actions/build_cli_target
       with:
