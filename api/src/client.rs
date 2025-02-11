@@ -282,43 +282,140 @@ pub(crate) const NOT_FOUND_CONTEXT: &str = concat!(
     "(Settings -> Manage Organization -> Organization Slug).",
 );
 
+const HELP_TEXT: &str = "\n\nFor more help, contact us at https://slack.trunk.io/";
+
 pub(crate) fn status_code_help<T: FnMut(&Response) -> String>(
     response: Response,
     check_unauthorized: CheckUnauthorized,
     check_not_found: CheckNotFound,
     mut create_error_message: T,
 ) -> anyhow::Result<Response> {
+    let base_error_message = &create_error_message(&response);
+
     if !response.status().is_client_error() {
-        return Ok(response);
-    }
+        response.error_for_status().map_err(|reqwest_error| {
+            let error_message = format!("{base_error_message}{HELP_TEXT}");
+            anyhow::Error::from(reqwest_error).context(error_message)
+        })
+    } else {
+        let error_message = match (response.status(), check_unauthorized, check_not_found) {
+            (StatusCode::UNAUTHORIZED, CheckUnauthorized::Check, _) => UNAUTHORIZED_CONTEXT,
+            (StatusCode::NOT_FOUND, _, CheckNotFound::Check) => NOT_FOUND_CONTEXT,
+            _ => base_error_message,
+        };
 
-    let error_message = match (response.status(), check_unauthorized, check_not_found) {
-        (StatusCode::UNAUTHORIZED, CheckUnauthorized::Check, _) => UNAUTHORIZED_CONTEXT,
-        (StatusCode::NOT_FOUND, _, CheckNotFound::Check) => NOT_FOUND_CONTEXT,
-        _ => &create_error_message(&response),
-    };
+        let error_message_with_help = format!("{error_message}{HELP_TEXT}");
 
-    let error_message_with_help =
-        format!("{error_message}\n\nFor more help, contact us at https://slack.trunk.io/");
-
-    match response.error_for_status() {
-        Ok(..) => Err(anyhow::Error::msg(error_message_with_help)),
-        Err(error) => Err(anyhow::Error::from(error).context(error_message_with_help)),
+        match response.error_for_status() {
+            Ok(..) => Err(anyhow::Error::msg(error_message_with_help)),
+            Err(error) => Err(anyhow::Error::from(error).context(error_message_with_help)),
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use std::time::Duration;
+    use std::{
+        sync::{
+            atomic::{AtomicUsize, Ordering},
+            Arc,
+        },
+        time::Duration,
+    };
 
     use axum::{http::StatusCode, response::Response};
     use context;
+    use lazy_static::lazy_static;
     use tempfile::NamedTempFile;
     use test_utils::{mock_logger, mock_sentry, mock_server::MockServerBuilder};
     use tokio::time;
 
     use super::ApiClient;
     use crate::message;
+
+    #[tokio::test(start_paused = true)]
+    async fn does_not_retry_on_ok_501() {
+        let mut mock_server_builder = MockServerBuilder::new();
+
+        lazy_static! {
+            static ref CALL_COUNT: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
+        }
+
+        let quarantining_config_handler = move || async {
+            CALL_COUNT.fetch_add(1, Ordering::Relaxed);
+            Response::builder()
+                .status(StatusCode::NOT_IMPLEMENTED)
+                .body(String::from(
+                    r#"{ "status_code": 501, "error": "we broke" }"#,
+                ))
+                .unwrap()
+        };
+
+        mock_server_builder.set_get_quarantining_config_handler(quarantining_config_handler);
+
+        let state = mock_server_builder.spawn_mock_server().await;
+
+        let mut api_client = ApiClient::new(String::from("mock-token")).unwrap();
+        api_client.host.clone_from(&state.host);
+
+        assert!(api_client
+            .get_quarantining_config(&message::GetQuarantineConfigRequest {
+                repo: context::repo::RepoUrlParts {
+                    host: String::from("host"),
+                    owner: String::from("owner"),
+                    name: String::from("name"),
+                },
+                org_url_slug: String::from("org_url_slug"),
+                test_identifiers: vec![],
+            })
+            .await
+            .unwrap_err()
+            .to_string()
+            .contains("Failed to get quarantine bulk test."));
+        assert_eq!(CALL_COUNT.load(Ordering::Relaxed), 1);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn retries_on_ok_500() {
+        let mut mock_server_builder = MockServerBuilder::new();
+
+        lazy_static! {
+            static ref CALL_COUNT: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
+        }
+
+        let quarantining_config_handler = move || async {
+            CALL_COUNT.fetch_add(1, Ordering::Relaxed);
+            Response::builder()
+                .status(StatusCode::INTERNAL_SERVER_ERROR)
+                .body(String::from(
+                    r#"{ "status_code": 500, "error": "we broke" }"#,
+                ))
+                .unwrap()
+        };
+
+        mock_server_builder.set_get_quarantining_config_handler(quarantining_config_handler);
+
+        let state = mock_server_builder.spawn_mock_server().await;
+
+        let mut api_client = ApiClient::new(String::from("mock-token")).unwrap();
+        api_client.host.clone_from(&state.host);
+
+        assert!(api_client
+            .get_quarantining_config(&message::GetQuarantineConfigRequest {
+                repo: context::repo::RepoUrlParts {
+                    host: String::from("host"),
+                    owner: String::from("owner"),
+                    name: String::from("name"),
+                },
+                org_url_slug: String::from("org_url_slug"),
+                test_identifiers: vec![],
+            })
+            .await
+            .unwrap_err()
+            .to_string()
+            .contains("Failed to get quarantine bulk test."));
+        assert_eq!(CALL_COUNT.load(Ordering::Relaxed), 6);
+    }
 
     #[tokio::test(start_paused = true)]
     async fn logs_and_reports_for_slow_api_calls() {
