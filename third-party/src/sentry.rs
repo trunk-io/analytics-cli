@@ -1,17 +1,25 @@
+use std::borrow::Cow;
+
 pub const SENTRY_DSN: &str =
     "https://4814eaf1df0e8a1e3303bb7e2f89095a@o681886.ingest.us.sentry.io/4507772986982400";
 
-pub fn init(options: Option<sentry::ClientOptions>) -> sentry::ClientInitGuard {
+pub fn init(
+    release_name: Cow<'static, str>,
+    options: Option<sentry::ClientOptions>,
+) -> sentry::ClientInitGuard {
     let mut opts;
     if options.is_none() {
         opts = sentry::ClientOptions::default();
-        opts.release = sentry::release_name!();
         #[cfg(feature = "force-sentry-env-dev")]
         {
             opts.environment = Some("development".into());
         }
     } else {
         opts = options.unwrap_or_default();
+    }
+    opts.release = Some(release_name);
+    if std::env::var("DISABLE_SENTRY").is_ok() {
+        opts.sample_rate = 0.0;
     }
 
     sentry::init((SENTRY_DSN, opts))
