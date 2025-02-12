@@ -1,4 +1,4 @@
-pub const SENTRY_DNS: &str =
+pub const SENTRY_DSN: &str =
     "https://4814eaf1df0e8a1e3303bb7e2f89095a@o681886.ingest.us.sentry.io/4507772986982400";
 
 pub fn init(options: Option<sentry::ClientOptions>) -> sentry::ClientInitGuard {
@@ -14,7 +14,7 @@ pub fn init(options: Option<sentry::ClientOptions>) -> sentry::ClientInitGuard {
         opts = options.unwrap_or_default();
     }
 
-    sentry::init((SENTRY_DNS, opts))
+    sentry::init((SENTRY_DSN, opts))
 }
 
 pub fn logger(mut builder: env_logger::Builder, log_level: log::LevelFilter) -> anyhow::Result<()> {
