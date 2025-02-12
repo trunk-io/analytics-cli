@@ -4533,6 +4533,7 @@ dependencies = [
  "test_utils",
  "third-party",
  "tokio",
+ "tracing",
  "trunk-analytics-cli",
  "wasm-bindgen",
 ]

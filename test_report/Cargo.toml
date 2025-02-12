@@ -20,6 +20,7 @@ js-sys = { version = "0.3.70", optional = true }
 tokio = "1.42.0"
 anyhow = "1.0.94"
 bundle = { path = "../bundle" }
+tracing = "0.1.41"
 
 [dev-dependencies]
 assert_matches = "1.5.0"
