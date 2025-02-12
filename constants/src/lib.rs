@@ -364,5 +364,5 @@ pub const ENVS_TO_GET: &[&str] = &[
     "PR_NUMBER",
     "PR_TITLE",
 ];
-pub const SENTRY_DNS: &str =
+pub const SENTRY_DSN: &str =
     "https://4814eaf1df0e8a1e3303bb7e2f89095a@o681886.ingest.us.sentry.io/4507772986982400";
