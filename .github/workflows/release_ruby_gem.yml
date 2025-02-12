@@ -62,6 +62,13 @@ jobs:
           version: ${{ github.event.inputs.release_tag }}
           file: ./cli/Cargo.toml
 
+      - name: Update Test Report version
+        uses: ./.github/actions/update_version
+        if: "!cancelled()"
+        with:
+          version: ${{ github.event.inputs.release_tag }}
+          file: ./test_report/Cargo.toml
+
       - name: Update Gem version
         uses: ./.github/actions/update_version
         if: "!cancelled()"

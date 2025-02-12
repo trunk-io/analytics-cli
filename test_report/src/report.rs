@@ -121,7 +121,8 @@ impl MutTestReport {
 
     // sends out to the trunk api
     pub fn publish(&self) -> bool {
-        let _guard = sentry::init(None);
+        let release_name = env!("CARGO_PKG_VERSION");
+        let _guard = sentry::init(release_name.into(), None);
         let _logger_setup_res = MutTestReport::setup_logger();
         let resolved_path = if let Ok(path) = self.save() {
             path
