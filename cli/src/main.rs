@@ -114,7 +114,7 @@ fn to_trace_filter(filter: log::LevelFilter) -> tracing::level_filters::LevelFil
 
 fn setup_logger(log_level_filter: LevelFilter) -> anyhow::Result<()> {
     tracing_subscriber::registry()
-        .with(tracing_subscriber::fmt::layer())
+        .with(tracing_subscriber::fmt::layer().with_target(false))
         .with(sentry_tracing::layer())
         .with(to_trace_filter(log_level_filter))
         .init();
