@@ -51,7 +51,8 @@ impl Commands {
 // "the Sentry client must be initialized before starting an async runtime or spawning threads"
 // https://docs.sentry.io/platforms/rust/#async-main-function
 fn main() -> anyhow::Result<()> {
-    let _guard = sentry::init(None);
+    let release_name = env!("CARGO_PKG_VERSION");
+    let _guard = sentry::init(release_name.into(), None);
 
     tokio::runtime::Builder::new_multi_thread()
         .enable_all()
