@@ -1,3 +1,4 @@
+use sentry::IntoDsn;
 use std::borrow::Cow;
 
 pub const SENTRY_DSN: &str =
@@ -22,7 +23,16 @@ pub fn init(
         opts.sample_rate = 0.0;
     }
 
-    sentry::init((SENTRY_DSN, opts))
+    opts.dsn = match SENTRY_DSN.into_dsn() {
+        Ok(dsn) => dsn,
+        Err(_) => {
+            // Logging is not set up at this point, but this is a pure code error
+            // that can only be caused by bad formatting of the dsn const.
+            None
+        }
+    };
+
+    sentry::init(opts)
 }
 
 pub fn logger(mut builder: env_logger::Builder, log_level: log::LevelFilter) -> anyhow::Result<()> {

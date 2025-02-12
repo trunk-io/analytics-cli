@@ -118,7 +118,7 @@ impl XCResult {
             .and_then(|r| r.as_str())
             .map_or_else(
                 || {
-                    log::debug!("failed to get name of testcase: {:?}", testcase);
+                    tracing::debug!("failed to get name of testcase: {:?}", testcase);
                     Err(anyhow::anyhow!("failed to get name of testcase"))
                 },
                 Ok,
@@ -130,7 +130,7 @@ impl XCResult {
         {
             Some(val) => val,
             None => {
-                log::debug!("failed to get status of testcase: {:?}", testcase);
+                tracing::debug!("failed to get status of testcase: {:?}", testcase);
                 return Err(anyhow::anyhow!("failed to get status of testcase"));
             }
         };
@@ -152,7 +152,7 @@ impl XCResult {
             {
                 Some(val) => val.iter(),
                 None => {
-                    log::debug!("failed to get failures of testcase: {:?}", testcase);
+                    tracing::debug!("failed to get failures of testcase: {:?}", testcase);
                     return Err(anyhow::anyhow!("failed to get failures of testcase"));
                 }
             };
@@ -227,7 +227,7 @@ impl XCResult {
             .and_then(|r| r.get(RESULTS_FIELD_VALUE))
             .and_then(|r| r.as_str());
         if testsuite_name.is_none() {
-            log::debug!("failed to get name of testsuite: {:?}", testsuite);
+            tracing::debug!("failed to get name of testsuite: {:?}", testsuite);
             return Err(anyhow::anyhow!("failed to get name of testsuite"));
         }
         let mut testsuite_junit = TestSuite::new(testsuite_name.unwrap_or_default());
@@ -278,7 +278,7 @@ impl XCResult {
             .and_then(|r| r.get(RESULTS_FIELD_VALUE))
             .and_then(|r| r.as_str());
         if raw_id.is_none() {
-            log::debug!("no test id found for action: {:?}", action);
+            tracing::debug!("no test id found for action: {:?}", action);
             return Ok(testsuites_junit);
         }
         let id = raw_id.unwrap_or_default();

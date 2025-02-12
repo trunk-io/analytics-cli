@@ -156,9 +156,9 @@ pub fn gather_post_test_context<U: AsRef<Path>>(
         return Err(anyhow::anyhow!("No JUnit files found to upload."));
     }
 
-    log::info!("Total files pack and upload: {}", file_set_builder.count());
+    tracing::info!("Total files pack and upload: {}", file_set_builder.count());
     if file_set_builder.no_files_found() {
-        log::warn!(
+        tracing::warn!(
             "No JUnit files found to pack and upload using globs: {:?}",
             junit_path_wrappers
                 .iter()
@@ -213,7 +213,7 @@ fn coalesce_junit_path_wrappers(
         junit_path_wrappers = [junit_path_wrappers.as_slice(), temp_paths.as_slice()].concat();
         if junit_path_wrappers.is_empty() {
             if allow_empty_test_results {
-                log::warn!("No tests found in the provided XCResult path.");
+                tracing::warn!("No tests found in the provided XCResult path.");
             } else {
                 return Err(anyhow::anyhow!(
                     "No tests found in the provided XCResult path."
@@ -343,7 +343,7 @@ fn parse_num_tests(file_sets: &[FileSet]) -> usize {
             let path = std::path::Path::new(&bundled_file.original_path);
             let file = std::fs::File::open(path);
             if let Err(ref e) = file {
-                log::warn!(
+                tracing::warn!(
                     "Could not open file {}: {}",
                     bundled_file.get_print_path(),
                     e
@@ -359,7 +359,7 @@ fn parse_num_tests(file_sets: &[FileSet]) -> usize {
                 return None;
             }
             if let Err(e) = junit_parser.parse(file_buf_reader) {
-                log::warn!(
+                tracing::warn!(
                     "Encountered error while parsing file {}: {}",
                     bundled_file.get_print_path(),
                     e

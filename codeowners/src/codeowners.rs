@@ -63,7 +63,7 @@ impl CodeOwners {
                 });
 
             if let Err(ref err) = owners_result {
-                log::error!(
+                tracing::warn!(
                     "Found CODEOWNERS file `{}`, but couldn't parse it: {}",
                     path.to_string_lossy(),
                     err

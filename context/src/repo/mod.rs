@@ -190,12 +190,12 @@ impl BundleRepo {
         if GH_MERGE_BRANCH_REGEX.is_match(&repo_head_branch)
             && current_commit.parent_ids().count() == 2
         {
-            log::info!("Detected merge commit");
+            tracing::info!("Detected merge commit");
 
             // attempt to grab PR commit if fetch --depth=2 was done upstream
             if let Some(pr_head_id) = current_commit.parent_ids().last() {
                 if let Ok(pr_head_commit) = git_repo.find_commit(pr_head_id) {
-                    log::info!(
+                    tracing::info!(
                         "Found PR branch HEAD commit with SHA {}, using this as commit",
                         pr_head_commit.id().to_string()
                     );
@@ -203,7 +203,7 @@ impl BundleRepo {
                 }
             }
 
-            log::info!("PR branch HEAD commit not found, fetching remote with --depth=2...");
+            tracing::info!("PR branch HEAD commit not found, fetching remote with --depth=2...");
             let branch_to_fetch = repo_head_branch.replace("remotes/", "");
             match Command::new("git")
                 .arg("fetch")
@@ -214,7 +214,7 @@ impl BundleRepo {
             {
                 Ok(fetch_output) => {
                     if !fetch_output.status.success() {
-                        log::info!(
+                        tracing::info!(
                             "Received unsuccessful status after fetch: {}. Defaulting to merge commit with SHA {}",
                             fetch_output.status,
                             current_commit.id().to_string(),
@@ -223,7 +223,7 @@ impl BundleRepo {
                     }
                 }
                 Err(e) => {
-                    log::info!(
+                    tracing::info!(
                         "Encountered error during fetch: {}. Defaulting to merge commit with SHA {}",
                         e,
                         current_commit.id().to_string(),
@@ -234,7 +234,7 @@ impl BundleRepo {
 
             if let Some(pr_head_id) = current_commit.parent_ids().last() {
                 if let Ok(pr_head_commit) = git_repo.find_commit(pr_head_id) {
-                    log::info!(
+                    tracing::info!(
                         "Found PR branch HEAD commit with SHA {}, using this as commit",
                         pr_head_commit.id().to_string()
                     );
@@ -242,7 +242,7 @@ impl BundleRepo {
                 }
             }
 
-            log::info!(
+            tracing::info!(
                 "PR branch HEAD commit not found. Defaulting to merge commit with SHA {}",
                 current_commit.id().to_string()
             );
