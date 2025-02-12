@@ -1,4 +1,4 @@
-use std::{env, io::Write};
+use std::env;
 
 use clap::{Parser, Subcommand};
 use clap_verbosity_flag::{log::LevelFilter, InfoLevel, Verbosity};
@@ -113,23 +113,6 @@ fn to_trace_filter(filter: log::LevelFilter) -> tracing::level_filters::LevelFil
 }
 
 fn setup_logger(log_level_filter: LevelFilter) -> anyhow::Result<()> {
-    let mut builder = env_logger::Builder::new();
-    builder
-        .format(|buf, record| {
-            writeln!(
-                buf,
-                "{} [{}] - {}",
-                chrono::Local::now().format("%Y-%m-%dT%H:%M:%S"),
-                record.level(),
-                record.args()
-            )
-        })
-        .filter_level(log_level_filter);
-    if let Ok(log) = std::env::var("TRUNK_LOG") {
-        builder.parse_filters(&log);
-    }
-    sentry::logger(builder, log_level_filter)?;
-
     tracing_subscriber::registry()
         .with(tracing_subscriber::fmt::layer())
         .with(sentry_tracing::layer())

@@ -133,11 +133,11 @@ impl MutTestReport {
         let org_url_slug = env::var("TRUNK_ORG_URL_SLUG").unwrap_or_default();
         let repo_root = env::var("REPO_ROOT").ok();
         if token.is_empty() {
-            log::warn!("Not publishing results because TRUNK_API_TOKEN is empty");
+            tracing::warn!("Not publishing results because TRUNK_API_TOKEN is empty");
             return false;
         }
         if org_url_slug.is_empty() {
-            log::warn!("Not publishing results because TRUNK_ORG_URL_SLUG is empty");
+            tracing::warn!("Not publishing results because TRUNK_ORG_URL_SLUG is empty");
             return false;
         }
         if let Some(uploader_metadata) = &mut self.0.borrow_mut().test_result.uploader_metadata {
@@ -174,12 +174,12 @@ impl MutTestReport {
                 )) {
                 Ok(_) => true,
                 Err(e) => {
-                    log::error!("Error uploading: {:?}", e);
+                    tracing::warn!("Error uploading: {:?}", e);
                     false
                 }
             }
         } else {
-            log::error!("Error gathering pre test context");
+            tracing::warn!("Error gathering pre test context");
             false
         }
     }
