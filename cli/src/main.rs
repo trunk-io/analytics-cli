@@ -5,6 +5,7 @@ use clap_verbosity_flag::{log::LevelFilter, InfoLevel, Verbosity};
 use third_party::sentry;
 use tracing_subscriber::prelude::*;
 use trunk_analytics_cli::{
+    context::gather_debug_props,
     quarantine_command::{run_quarantine, QuarantineArgs},
     test_command::{run_test, TestArgs},
     upload_command::{run_upload, UploadArgs, UploadRunResult},
@@ -26,13 +27,18 @@ struct Cli {
 }
 
 impl Cli {
-    pub fn description(&self) -> String {
-        match &self.command {
-            Commands::Quarantine(args) => format!("quarantine {}", args.description()),
-            Commands::Test(args) => format!("test {}", args.description()),
-            Commands::Upload(args) => format!("upload {}", args.description()),
-            Commands::Validate(..) => String::from("validate"),
-        }
+    pub fn debug_props(&self) -> String {
+        let token = match &self.command {
+            Commands::Quarantine(args) => Some(args.token()),
+            Commands::Test(args) => Some(args.token()),
+            Commands::Upload(args) => Some(args.token.clone()),
+            Commands::Validate(..) => None,
+        };
+
+        token.map_or(
+            format!("{:#?}", env::args().collect::<Vec<String>>()),
+            |token| gather_debug_props(token).command_line,
+        )
     }
 }
 
@@ -61,7 +67,7 @@ fn main() -> anyhow::Result<()> {
             let cli = Cli::parse();
             let log_level_filter = cli.verbose.log_level_filter();
             setup_logger(log_level_filter)?;
-            tracing::info!(command = cli.description(), "Running command");
+            tracing::info!(command = cli.debug_props(), "Running command");
             match run(cli).await {
                 Ok(exit_code) => std::process::exit(exit_code),
                 Err(e) => match (*(e.root_cause())).downcast_ref::<std::io::Error>() {

@@ -9,8 +9,8 @@ pub struct QuarantineArgs {
 }
 
 impl QuarantineArgs {
-    pub fn description(&self) -> String {
-        self.upload_args.description()
+    pub fn token(&self) -> String {
+        self.upload_args.token.clone()
     }
 }
 

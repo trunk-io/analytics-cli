@@ -25,8 +25,8 @@ pub struct TestArgs {
 }
 
 impl TestArgs {
-    pub fn description(&self) -> String {
-        self.upload_args.description()
+    pub fn token(&self) -> String {
+        self.upload_args.token.clone()
     }
 }
 
