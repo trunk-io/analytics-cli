@@ -52,7 +52,7 @@ fn validate_no_junits() {
         .command()
         .assert()
         .failure()
-        .stderr(predicate::str::contains("No JUnit files found to validate"));
+        .stdout(predicate::str::contains("No JUnit files found to validate"));
 
     println!("{assert}");
 }

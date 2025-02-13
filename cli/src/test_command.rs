@@ -24,6 +24,12 @@ pub struct TestArgs {
     command: Vec<String>,
 }
 
+impl TestArgs {
+    pub fn description(&self) -> String {
+        self.upload_args.description()
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct TestRunResult {
     pub command: String,

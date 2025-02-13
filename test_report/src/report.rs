@@ -1,4 +1,4 @@
-use std::{cell::RefCell, env, fs, io::Write, time::SystemTime};
+use std::{cell::RefCell, env, fs, time::SystemTime};
 
 use bundle::BundleMetaDebugProps;
 use chrono::prelude::*;
@@ -7,6 +7,7 @@ use magnus::{value::ReprValue, Module, Object};
 use prost_wkt_types::Timestamp;
 use proto::test_context::test_run::{TestCaseRun, TestCaseRunStatus, TestResult, UploaderMetadata};
 use third_party::sentry;
+use tracing_subscriber::prelude::*;
 use trunk_analytics_cli::{context::gather_pre_test_context, upload_command::run_upload};
 #[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::wasm_bindgen;
@@ -104,19 +105,12 @@ impl MutTestReport {
     }
 
     fn setup_logger() -> anyhow::Result<()> {
-        let mut builder = env_logger::Builder::new();
-        builder
-            .format(|buf, record| {
-                writeln!(
-                    buf,
-                    "{} [{}] - {}",
-                    chrono::Local::now().format("%Y-%m-%dT%H:%M:%S"),
-                    record.level(),
-                    record.args()
-                )
-            })
-            .filter_level(log::LevelFilter::Info);
-        sentry::logger(builder, log::LevelFilter::Info)
+        tracing_subscriber::registry()
+            .with(tracing_subscriber::fmt::layer().with_target(false))
+            .with(sentry_tracing::layer())
+            .with(tracing::level_filters::LevelFilter::INFO)
+            .init();
+        Ok(())
     }
 
     // sends out to the trunk api

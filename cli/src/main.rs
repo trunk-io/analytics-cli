@@ -25,6 +25,17 @@ struct Cli {
     pub verbose: Verbosity<InfoLevel>,
 }
 
+impl Cli {
+    pub fn description(&self) -> String {
+        match &self.command {
+            Commands::Quarantine(args) => format!("quarantine {}", args.description()),
+            Commands::Test(args) => format!("test {}", args.description()),
+            Commands::Upload(args) => format!("upload {}", args.description()),
+            Commands::Validate(..) => String::from("validate"),
+        }
+    }
+}
+
 #[derive(Debug, Subcommand)]
 enum Commands {
     /// Quarantine flaky tests and upload data to Trunk Flaky Tests
@@ -35,17 +46,6 @@ enum Commands {
     Upload(UploadArgs),
     /// Validate that your test runner output is suitable for Trunk Flaky Tests
     Validate(ValidateArgs),
-}
-
-impl Commands {
-    pub fn command_name(&self) -> &str {
-        match self {
-            Commands::Quarantine(..) => "quarantine",
-            Commands::Test(..) => "test",
-            Commands::Upload(..) => "upload",
-            Commands::Validate(..) => "validate",
-        }
-    }
 }
 
 // "the Sentry client must be initialized before starting an async runtime or spawning threads"
@@ -61,7 +61,7 @@ fn main() -> anyhow::Result<()> {
             let cli = Cli::parse();
             let log_level_filter = cli.verbose.log_level_filter();
             setup_logger(log_level_filter)?;
-            tracing::info_span!("Running command", command = cli.command.command_name());
+            tracing::info!(command = cli.description(), "Running command");
             match run(cli).await {
                 Ok(exit_code) => std::process::exit(exit_code),
                 Err(e) => match (*(e.root_cause())).downcast_ref::<std::io::Error>() {

@@ -88,6 +88,7 @@ impl BundleRepo {
                         .clone()
                         .unwrap_or(PathBuf::from(""))
                 ))?;
+            tracing::info!("Using repo root at {:?}", git_repo.git_dir());
 
             bundle_repo_options.repo_url = bundle_repo_options.repo_url.or_else(|| {
                 git_repo

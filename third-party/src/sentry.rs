@@ -1,5 +1,6 @@
-use sentry::IntoDsn;
 use std::borrow::Cow;
+
+use sentry::IntoDsn;
 
 pub const SENTRY_DSN: &str =
     "https://4814eaf1df0e8a1e3303bb7e2f89095a@o681886.ingest.us.sentry.io/4507772986982400";

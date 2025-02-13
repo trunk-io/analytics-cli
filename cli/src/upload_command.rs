@@ -122,6 +122,10 @@ impl UploadArgs {
             ..Default::default()
         }
     }
+
+    pub fn description(&self) -> String {
+        format!("org_url_slug: {}", self.org_url_slug)
+    }
 }
 
 pub struct UploadRunResult {
