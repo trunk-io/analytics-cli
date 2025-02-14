@@ -169,7 +169,7 @@ impl MutTestReport {
                 )) {
                 Ok(_) => true,
                 Err(e) => {
-                    tracing::warn!("Error uploading: {:?}", e);
+                    tracing::error!("Error uploading: {:?}", e);
                     false
                 }
             }

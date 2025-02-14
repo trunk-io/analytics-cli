@@ -72,7 +72,7 @@ pub async fn run_test(
             },
         )
         .or_else(|e| {
-            tracing::warn!("Error uploading test results: {:?}", e);
+            tracing::error!("Error uploading test results: {:?}", e);
             Ok(test_run_result_exit_code)
         })
 }
