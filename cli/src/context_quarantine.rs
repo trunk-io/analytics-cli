@@ -232,7 +232,7 @@ pub async fn gather_quarantine_context(
                     &request.repo,
                     &failure,
                 ) {
-                    tracing::info!("Test page: {}", url);
+                    tracing::info!("Learn more > {}", url);
                 }
             }
             if quarantine_failure {
