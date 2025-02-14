@@ -182,7 +182,7 @@ pub async fn gather_quarantine_context(
         let result = api_client.get_quarantining_config(request).await;
 
         if let Err(ref err) = result {
-            tracing::warn!("{}", err);
+            tracing::error!("{}", err);
         }
 
         result.unwrap_or_default()
