@@ -53,6 +53,12 @@ jobs:
         with:
           lfs: "true"
 
+      - name: Setup Xcode 16
+        if: contains(matrix.platform.os-name, 'darwin')
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: 16
+
       - name: Setup Rust & Cargo
         uses: ./.github/actions/setup_rust_cargo
 
