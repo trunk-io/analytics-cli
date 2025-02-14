@@ -3,7 +3,7 @@ use context::repo::RepoUrlParts;
 use url::{form_urlencoded, ParseError, Url};
 
 pub fn url_for_test_case(
-    public_api_address: &String,
+    public_api_address: &str,
     org_url_slug: &String,
     repo: &RepoUrlParts,
     test_case: &Test,
