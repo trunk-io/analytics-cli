@@ -10,7 +10,7 @@ use crate::call_api::CallApi;
 use crate::message;
 
 pub struct ApiClient {
-    host: String,
+    pub host: String,
     s3_client: Client,
     trunk_client: Client,
     version_path_prefix: String,

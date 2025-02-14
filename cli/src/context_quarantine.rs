@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use api::client::ApiClient;
+use api::{client::ApiClient, urls::url_for_test_case};
 use bundle::{FileSet, FileSetBuilder, QuarantineBulkTestStatus, Test};
 use constants::{EXIT_FAILURE, EXIT_SUCCESS};
 use context::{
@@ -225,6 +225,16 @@ pub async fn gather_quarantine_context(
                 },
                 failure.id
             );
+            if quarantine_failure {
+                if let Ok(url) = url_for_test_case(
+                    &api_client.host,
+                    &request.org_url_slug,
+                    &request.repo,
+                    &failure,
+                ) {
+                    tracing::info!("Test page: {}", url);
+                }
+            }
             if quarantine_failure {
                 Some(failure)
             } else {
