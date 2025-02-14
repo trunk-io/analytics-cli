@@ -129,10 +129,8 @@ where
             let duration = Duration::from_secs(REPORT_SLOW_PROGRESS_TIMEOUT_SECS);
             time::sleep(duration).await;
             let time_elapsed = Instant::now().duration_since(report_slow_progress_start);
-            sentry::capture_message(
-                report_slow_progress_message(time_elapsed).as_ref(),
-                sentry::Level::Error,
-            );
+            let message = report_slow_progress_message(time_elapsed);
+            tracing::warn!("{:?}", message);
         });
 
         let check_progress_start = time::Instant::now();
@@ -146,7 +144,7 @@ where
                 let instant = interval.tick().await;
                 let time_elapsed = instant.duration_since(check_progress_start);
                 let log_message = log_progress_message(time_elapsed, log_count);
-                log::debug!("{}", log_message);
+                tracing::debug!("{}", log_message);
                 log_count += 1;
             }
         });

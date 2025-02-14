@@ -100,17 +100,17 @@ async fn quarantines_tests_regardless_of_upload() {
     // First run won't quarantine any tests
     *QUARANTINE_CONFIG_RESPONSE.lock().unwrap() = QuarantineConfigResponse::None;
     *CREATE_BUNDLE_RESPONSE.lock().unwrap() = CreateBundleResponse::Error;
-    command.assert().failure().stderr(upload_failure.clone());
+    command.assert().failure().stdout(upload_failure.clone());
 
     // Second run quarantines all, but 1 test
     *QUARANTINE_CONFIG_RESPONSE.lock().unwrap() = QuarantineConfigResponse::Some;
     *CREATE_BUNDLE_RESPONSE.lock().unwrap() = CreateBundleResponse::Error;
-    command.assert().failure().stderr(upload_failure.clone());
+    command.assert().failure().stdout(upload_failure.clone());
 
     // Third run will quarantine all tests
     *QUARANTINE_CONFIG_RESPONSE.lock().unwrap() = QuarantineConfigResponse::All;
     *CREATE_BUNDLE_RESPONSE.lock().unwrap() = CreateBundleResponse::Error;
-    command.assert().success().stderr(upload_failure.clone());
+    command.assert().success().stdout(upload_failure.clone());
 
     // Fourth run will quarantine all tests, and upload them
     *QUARANTINE_CONFIG_RESPONSE.lock().unwrap() = QuarantineConfigResponse::All;
@@ -118,13 +118,13 @@ async fn quarantines_tests_regardless_of_upload() {
     command
         .assert()
         .success()
-        .stderr(upload_failure.clone().not());
+        .stdout(upload_failure.clone().not());
 
     // Fifth run will run with quarantining disabled, but will log upload failure
     // there is no provided exit code, so it will default to success.
     *QUARANTINE_CONFIG_RESPONSE.lock().unwrap() = QuarantineConfigResponse::Disabled;
     *CREATE_BUNDLE_RESPONSE.lock().unwrap() = CreateBundleResponse::Error;
-    command.assert().success().stderr(upload_failure.clone());
+    command.assert().success().stdout(upload_failure.clone());
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -200,17 +200,17 @@ async fn do_no_quarantines_tests_when_use_quarantined_disabled() {
     // First run won't quarantine any tests
     *QUARANTINE_CONFIG_RESPONSE.lock().unwrap() = QuarantineConfigResponse::None;
     *CREATE_BUNDLE_RESPONSE.lock().unwrap() = CreateBundleResponse::Error;
-    command.assert().success().stderr(upload_failure.clone());
+    command.assert().success().stdout(upload_failure.clone());
 
     // Second run won't quarantine even when config generates 1 quarantined test
     *QUARANTINE_CONFIG_RESPONSE.lock().unwrap() = QuarantineConfigResponse::Some;
     *CREATE_BUNDLE_RESPONSE.lock().unwrap() = CreateBundleResponse::Error;
-    command.assert().success().stderr(upload_failure.clone());
+    command.assert().success().stdout(upload_failure.clone());
 
     // Third run won't quarantine even when config generates all tests quarantined
     *QUARANTINE_CONFIG_RESPONSE.lock().unwrap() = QuarantineConfigResponse::All;
     *CREATE_BUNDLE_RESPONSE.lock().unwrap() = CreateBundleResponse::Error;
-    command.assert().success().stderr(upload_failure.clone());
+    command.assert().success().stdout(upload_failure.clone());
 
     // Fourth run won't quarantine tests even when config generates all tests quarantined and upload is successful
     *QUARANTINE_CONFIG_RESPONSE.lock().unwrap() = QuarantineConfigResponse::All;
@@ -218,10 +218,10 @@ async fn do_no_quarantines_tests_when_use_quarantined_disabled() {
     command
         .assert()
         .success()
-        .stderr(upload_failure.clone().not());
+        .stdout(upload_failure.clone().not());
 
     // Fifth run will run with quarantining disabled, but will log upload failure
     *QUARANTINE_CONFIG_RESPONSE.lock().unwrap() = QuarantineConfigResponse::Disabled;
     *CREATE_BUNDLE_RESPONSE.lock().unwrap() = CreateBundleResponse::Error;
-    command.assert().success().stderr(upload_failure.clone());
+    command.assert().success().stdout(upload_failure.clone());
 }

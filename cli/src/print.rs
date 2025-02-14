@@ -2,11 +2,11 @@ use context::bazel_bep::parser::BepParseResult;
 
 pub fn print_bep_results(bep_result: &BepParseResult) {
     if !bep_result.errors.is_empty() {
-        log::warn!("Errors parsing BEP file: {:?}", &bep_result.errors);
+        tracing::warn!("Errors parsing BEP file: {:?}", &bep_result.errors);
     }
 
     let (xml_count, cached_xml_count) = bep_result.xml_file_counts();
-    log::info!(
+    tracing::info!(
         "Parsed {} ({} cached) test results from BEP file",
         xml_count,
         cached_xml_count

@@ -18,4 +18,5 @@ tokio = { version = "*", default-features = false, features = [
   "rt-multi-thread",
   "macros",
 ] }
+tracing = "0.1.41"
 zstd = { version = "0.13.0", default-features = false }
