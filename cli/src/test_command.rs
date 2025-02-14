@@ -24,6 +24,12 @@ pub struct TestArgs {
     command: Vec<String>,
 }
 
+impl TestArgs {
+    pub fn token(&self) -> String {
+        self.upload_args.token.clone()
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct TestRunResult {
     pub command: String,
@@ -41,7 +47,7 @@ pub async fn run_test(
     let token = upload_args.token.clone();
     let pre_test_context = gather_pre_test_context(upload_args.clone(), gather_debug_props(token))?;
 
-    log::info!("running command: {:?}", command);
+    tracing::info!("running command: {:?}", command);
     let mut test_run_result = run_test_command(&command).await?;
     let test_run_result_exit_code = test_run_result.exit_code;
     // remove exec start because it filters out test files and we want to
@@ -66,7 +72,7 @@ pub async fn run_test(
             },
         )
         .or_else(|e| {
-            log::error!("Error uploading test results: {:?}", e);
+            tracing::warn!("Error uploading test results: {:?}", e);
             Ok(test_run_result_exit_code)
         })
 }
@@ -88,13 +94,13 @@ pub async fn run_test_command<T: AsRef<str>>(command: &[T]) -> anyhow::Result<Te
         .wait()
         .map_or_else(
             |e| {
-                log::error!("Error waiting for execution: {}", e);
+                tracing::warn!("Error waiting for execution: {}", e);
                 None
             },
             |exit_status| exit_status.code(),
         )
         .unwrap_or(EXIT_FAILURE);
-    log::info!("Command exit code: {}", exit_code);
+    tracing::info!("Command exit code: {}", exit_code);
 
     Ok(TestRunResult {
         exit_code,

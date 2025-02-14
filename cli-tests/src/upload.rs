@@ -433,7 +433,7 @@ async fn upload_bundle_invalid_repo_root() {
         .command()
         .assert()
         .failure()
-        .stderr(predicate::str::contains(
+        .stdout(predicate::str::contains(
             "Error: Failed to open git repository at \"../\"",
         ));
 
@@ -456,7 +456,7 @@ async fn upload_bundle_invalid_repo_root_explicit() {
         .command()
         .assert()
         .failure()
-        .stderr(predicate::str::contains(
+        .stdout(predicate::str::contains(
             "Error: Failed to open git repository at",
         ));
 
@@ -508,7 +508,7 @@ async fn upload_bundle_with_no_junit_files_no_quarantine_successful_upload() {
         .assert()
         .code(0)
         .success()
-        .stderr(predicate::str::contains(
+        .stdout(predicate::str::contains(
             "No JUnit files found, not quarantining any tests",
         ));
 

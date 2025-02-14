@@ -245,7 +245,7 @@ impl BundledFile {
             }
         }
         if !is_allowed {
-            log::warn!("File {:?} from glob {:?} is not allowed", path, glob_path);
+            tracing::warn!("File {:?} from glob {:?} is not allowed", path, glob_path);
             return Ok(None);
         }
 
@@ -253,7 +253,7 @@ impl BundledFile {
         if let Some(start) = start {
             let modified = path.metadata()?.modified()?;
             if modified < start {
-                log::warn!("File {:?} from glob {:?} is stale", path, glob_path);
+                tracing::warn!("File {:?} from glob {:?} is stale", path, glob_path);
                 return Ok(None);
             }
         }

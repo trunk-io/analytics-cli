@@ -1,9 +1,11 @@
-use std::{env, io::Write};
+use std::env;
 
 use clap::{Parser, Subcommand};
 use clap_verbosity_flag::{log::LevelFilter, InfoLevel, Verbosity};
 use third_party::sentry;
+use tracing_subscriber::prelude::*;
 use trunk_analytics_cli::{
+    context::gather_debug_props,
     quarantine_command::{run_quarantine, QuarantineArgs},
     test_command::{run_test, TestArgs},
     upload_command::{run_upload, UploadArgs, UploadRunResult},
@@ -22,6 +24,22 @@ struct Cli {
     pub command: Commands,
     #[command(flatten)]
     pub verbose: Verbosity<InfoLevel>,
+}
+
+impl Cli {
+    pub fn debug_props(&self) -> String {
+        let token = match &self.command {
+            Commands::Quarantine(args) => Some(args.token()),
+            Commands::Test(args) => Some(args.token()),
+            Commands::Upload(args) => Some(args.token.clone()),
+            Commands::Validate(..) => None,
+        };
+
+        token.map_or(
+            format!("{:#?}", env::args().collect::<Vec<String>>()),
+            |token| gather_debug_props(token).command_line,
+        )
+    }
 }
 
 #[derive(Debug, Subcommand)]
@@ -49,15 +67,16 @@ fn main() -> anyhow::Result<()> {
             let cli = Cli::parse();
             let log_level_filter = cli.verbose.log_level_filter();
             setup_logger(log_level_filter)?;
+            tracing::info!(command = cli.debug_props(), "Running command");
             match run(cli).await {
                 Ok(exit_code) => std::process::exit(exit_code),
                 Err(e) => match (*(e.root_cause())).downcast_ref::<std::io::Error>() {
                     Some(io_error) if io_error.kind() == std::io::ErrorKind::ConnectionRefused => {
-                        log::warn!("Could not connect to trunk's server: {:?}", e);
+                        tracing::warn!("Could not connect to trunk's server: {:?}", e);
                         std::process::exit(exitcode::OK);
                     }
                     _ => {
-                        log::error!("Error: {:?}", e);
+                        tracing::warn!("Error: {:?}", e);
                         std::process::exit(exitcode::SOFTWARE);
                     }
                 },
@@ -66,7 +85,7 @@ fn main() -> anyhow::Result<()> {
 }
 
 async fn run(cli: Cli) -> anyhow::Result<i32> {
-    log::info!(
+    tracing::info!(
         "Starting trunk flakytests {} (git={}) rustc={}",
         env!("CARGO_PKG_VERSION"),
         env!("VERGEN_GIT_SHA"),
@@ -89,22 +108,22 @@ async fn run(cli: Cli) -> anyhow::Result<i32> {
     }
 }
 
-fn setup_logger(log_level_filter: LevelFilter) -> anyhow::Result<()> {
-    let mut builder = env_logger::Builder::new();
-    builder
-        .format(|buf, record| {
-            writeln!(
-                buf,
-                "{} [{}] - {}",
-                chrono::Local::now().format("%Y-%m-%dT%H:%M:%S"),
-                record.level(),
-                record.args()
-            )
-        })
-        .filter_level(log_level_filter);
-    if let Ok(log) = std::env::var("TRUNK_LOG") {
-        builder.parse_filters(&log);
+fn to_trace_filter(filter: log::LevelFilter) -> tracing::level_filters::LevelFilter {
+    match filter {
+        log::LevelFilter::Debug => tracing::level_filters::LevelFilter::DEBUG,
+        log::LevelFilter::Error => tracing::level_filters::LevelFilter::ERROR,
+        log::LevelFilter::Info => tracing::level_filters::LevelFilter::INFO,
+        log::LevelFilter::Off => tracing::level_filters::LevelFilter::OFF,
+        log::LevelFilter::Trace => tracing::level_filters::LevelFilter::TRACE,
+        log::LevelFilter::Warn => tracing::level_filters::LevelFilter::WARN,
     }
-    sentry::logger(builder, log_level_filter)?;
+}
+
+fn setup_logger(log_level_filter: LevelFilter) -> anyhow::Result<()> {
+    tracing_subscriber::registry()
+        .with(tracing_subscriber::fmt::layer().with_target(false))
+        .with(sentry_tracing::layer())
+        .with(to_trace_filter(log_level_filter))
+        .init();
     Ok(())
 }

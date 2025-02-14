@@ -8,6 +8,12 @@ pub struct QuarantineArgs {
     upload_args: UploadArgs,
 }
 
+impl QuarantineArgs {
+    pub fn token(&self) -> String {
+        self.upload_args.token.clone()
+    }
+}
+
 // This is an alias to `run_upload`, but does not exit on upload failure
 pub async fn run_quarantine(QuarantineArgs { upload_args }: QuarantineArgs) -> anyhow::Result<i32> {
     let upload_run_result = run_upload(upload_args, None, None).await;
@@ -17,7 +23,7 @@ pub async fn run_quarantine(QuarantineArgs { upload_args }: QuarantineArgs) -> a
              upload_bundle_error,
          }| {
             if let Some(e) = upload_bundle_error {
-                log::error!("Error uploading test results: {:?}", e);
+                tracing::warn!("Error uploading test results: {:?}", e);
             }
             exit_code
         },
