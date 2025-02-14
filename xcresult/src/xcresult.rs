@@ -1,374 +1,717 @@
 use std::str;
-use std::{fs, process::Command};
+use std::{
+    collections::HashMap,
+    ffi::OsStr,
+    ops::{Deref, DerefMut},
+};
+use std::{fs, path::Path, time::Duration};
 
-use context::repo::RepoUrlParts;
-use indexmap::indexmap;
-use lazy_static::lazy_static;
-use quick_junit::{NonSuccessKind, Report, TestCase, TestCaseStatus, TestSuite, XmlString};
+use petgraph::{
+    graph::{DiGraph, NodeIndex},
+    Direction::Incoming,
+};
+use quick_junit::{NonSuccessKind, Report, TestCase, TestCaseStatus, TestRerun, TestSuite};
+use schema::TestNode;
 
-const RESULTS_FIELD_VALUE: &str = "_value";
-const RESULTS_FIELD_VALUES: &str = "_values";
+#[allow(dead_code, clippy::all)]
+pub mod schema {
+    include!(concat!(
+        env!("OUT_DIR"),
+        "/xcrun-xcresulttool-get-test-results-tests-json-schema.rs"
+    ));
+}
+
+#[allow(dead_code, clippy::all)]
+pub mod fd_schema {
+    include!(concat!(
+        env!("OUT_DIR"),
+        "/xcrun-xcresulttool-formatDescription-get---format-json---legacy-json-schema.rs"
+    ));
+}
 
 #[derive(Debug, Clone)]
 pub struct XCResult {
-    pub path: String,
-    results_obj: serde_json::Value,
-    pub repo_url_parts: RepoUrlParts,
-    pub org_url_slug: String,
-}
-
-const LEGACY_FLAG_MIN_VERSION: i32 = 70;
-
-fn xcrun<T: AsRef<str>>(args: &[T]) -> anyhow::Result<String> {
-    if !cfg!(target_os = "macos") {
-        return Err(anyhow::anyhow!("xcrun is only available on macOS"));
-    }
-    let mut cmd = Command::new("xcrun");
-    let bin = cmd.args(args.iter().map(|arg| arg.as_ref()));
-    let output = bin.output().map_err(|_| {
-        anyhow::anyhow!("failed to run xcrun -- please make sure you have xcode installed")
-    })?;
-    let result = String::from_utf8(output.stdout)
-        .map_err(|_| anyhow::anyhow!("got non UTF-8 data from xcrun output"))?;
-    Ok(result)
-}
-
-fn xcrun_version() -> anyhow::Result<i32> {
-    let version_raw = xcrun(&["--version"])?;
-    lazy_static! {
-        // regex to match version where the output looks like xcrun version 70.
-        static ref RE: regex::Regex = regex::Regex::new(r"xcrun version (\d+)").unwrap();
-    }
-    RE.captures(&version_raw)
-        .and_then(|capture_group| capture_group.get(1))
-        .map(|version| Ok(version.as_str().parse::<i32>().ok().unwrap_or_default()))
-        .unwrap_or_else(|| Err(anyhow::anyhow!("failed to parse xcrun version")))
-}
-
-fn xcresulttool<T: AsRef<str>>(
-    path: T,
-    options: Option<&[T]>,
-) -> anyhow::Result<serde_json::Value> {
-    let mut base_args = vec![
-        "xcresulttool",
-        "get",
-        "--path",
-        path.as_ref(),
-        "--format",
-        "json",
-    ];
-    let version = xcrun_version()?;
-    if version >= LEGACY_FLAG_MIN_VERSION {
-        base_args.push("--legacy");
-    }
-    if let Some(val) = options {
-        base_args.extend(val.iter().map(|arg| arg.as_ref()));
-    }
-    let output = xcrun(&base_args)?;
-    serde_json::from_str(&output)
-        .map_err(|_| anyhow::anyhow!("failed to parse json from xcrun output"))
+    tests: schema::Tests,
+    org_url_slug: String,
+    repo_full_name: String,
+    xcresult_tests: HashMap<String, XCResultTest>,
 }
 
 impl XCResult {
-    pub fn new<T: AsRef<str>, S: AsRef<str>>(
+    pub fn new<T: AsRef<Path>>(
         path: T,
-        repo_url_parts: &RepoUrlParts,
-        org_url_slug: S,
+        org_url_slug: String,
+        repo_full_name: String,
     ) -> anyhow::Result<XCResult> {
-        let binding = fs::canonicalize(path.as_ref())
-            .map_err(|_| anyhow::anyhow!("failed to get absolute path -- is the path correct?"))?;
-        let absolute_path = binding.to_str().unwrap_or_default();
-        let results_obj = xcresulttool(absolute_path, None)?;
+        let absolute_path = fs::canonicalize(path.as_ref()).map_err(|e| {
+            anyhow::anyhow!(
+                "failed to get absolute path for {}: {}",
+                path.as_ref().display(),
+                e
+            )
+        })?;
+        // TODO
+        let xcresult_tests = XCResultTest::generate_from_object(&absolute_path).unwrap_or_default();
         Ok(XCResult {
-            path: absolute_path.to_string(),
-            repo_url_parts: repo_url_parts.clone(),
-            org_url_slug: org_url_slug.as_ref().to_string(),
-            results_obj,
+            tests: xcrun_cmd::xcresulttool_get_test_results_tests(&absolute_path)?,
+            xcresult_tests,
+            org_url_slug,
+            repo_full_name,
         })
     }
 
-    fn find_tests<T: AsRef<str>>(&self, id: T) -> anyhow::Result<serde_json::Value> {
-        xcresulttool(self.path.as_str(), Some(&["--id", id.as_ref()]))
+    pub fn generate_junits(&self) -> Vec<Report> {
+        self.xcresult_test_plans_to_junit_reports(self.tests.test_nodes.as_slice())
     }
 
-    fn generate_id(&self, raw_id: &str) -> String {
+    fn xcresult_test_plans_to_junit_reports(&self, test_nodes: &[schema::TestNode]) -> Vec<Report> {
+        test_nodes
+            .iter()
+            .filter(|tn| matches!(tn.node_type, schema::TestNodeType::TestPlan))
+            .map(|test_plan| {
+                let mut report = Report::new(format!("xcresult: {}", test_plan.name));
+                report.add_test_suites(self.xcresult_test_bundles_and_suites_to_junit_test_suites(
+                    test_plan.children.as_slice(),
+                ));
+                report
+            })
+            .collect()
+    }
+
+    fn xcresult_test_bundles_and_suites_to_junit_test_suites(
+        &self,
+        test_nodes: &[schema::TestNode],
+    ) -> Vec<TestSuite> {
+        test_nodes
+            .iter()
+            .filter(|tn| {
+                matches!(
+                    tn.node_type,
+                    schema::TestNodeType::UnitTestBundle
+                        | schema::TestNodeType::UiTestBundle
+                        | schema::TestNodeType::TestSuite
+                )
+            })
+            .flat_map(|test_bundle_or_test_suite| {
+                if matches!(
+                    test_bundle_or_test_suite.node_type,
+                    schema::TestNodeType::UnitTestBundle | schema::TestNodeType::UiTestBundle
+                ) {
+                    let test_bundle = test_bundle_or_test_suite;
+                    self.xcresult_test_suites_to_junit_test_suites(
+                        test_bundle.children.as_slice(),
+                        Some(&test_bundle.name),
+                    )
+                } else {
+                    let test_suite = test_bundle_or_test_suite;
+                    vec![self
+                        .xcresult_test_suite_to_junit_test_suite(test_suite, Option::<&str>::None)]
+                }
+            })
+            .collect()
+    }
+
+    fn xcresult_test_suites_to_junit_test_suites<T: AsRef<str>>(
+        &self,
+        test_nodes: &[schema::TestNode],
+        bundle_name: Option<T>,
+    ) -> Vec<TestSuite> {
+        test_nodes
+            .iter()
+            .filter(|tn| matches!(tn.node_type, schema::TestNodeType::TestSuite))
+            .map(|test_suite| {
+                self.xcresult_test_suite_to_junit_test_suite(test_suite, bundle_name.as_ref())
+            })
+            .collect()
+    }
+
+    fn xcresult_test_suite_to_junit_test_suite<T: AsRef<str>>(
+        &self,
+        xcresult_test_suite: &schema::TestNode,
+        bundle_name: Option<T>,
+    ) -> TestSuite {
+        let name = bundle_name
+            .as_ref()
+            .map(|bn| format!("{}.{}", bn.as_ref(), xcresult_test_suite.name))
+            .unwrap_or_else(|| String::from(&xcresult_test_suite.name));
+        let mut test_suite = TestSuite::new(name);
+        test_suite.add_test_cases(
+            self.xcresult_test_cases_to_junit_test_cases(xcresult_test_suite.children.as_slice()),
+        );
+        test_suite
+    }
+
+    fn xcresult_test_cases_to_junit_test_cases(
+        &self,
+        test_nodes: &[schema::TestNode],
+    ) -> Vec<TestCase> {
+        test_nodes
+            .iter()
+            .filter(|tn| matches!(tn.node_type, schema::TestNodeType::TestCase))
+            .filter_map(|tn| tn.result.as_ref().map(|result| (tn, *result)))
+            .filter_map(|(xcresult_test_case, test_result)| {
+                let status = match test_result {
+                    schema::TestResult::Passed | schema::TestResult::ExpectedFailure => {
+                        TestCaseStatus::success()
+                    }
+                    schema::TestResult::Failed => {
+                        TestCaseStatus::non_success(NonSuccessKind::Failure)
+                    }
+                    schema::TestResult::Skipped => TestCaseStatus::skipped(),
+                    schema::TestResult::Unknown => {
+                        // TODO: Add a warning
+                        return None;
+                    }
+                };
+                let mut test_case = TestCase::new(String::from(&xcresult_test_case.name), status);
+
+                let failure_messages = Self::xcresult_failure_messages_to_strings(
+                    xcresult_test_case.children.as_slice(),
+                );
+                if !failure_messages.is_empty() {
+                    if let TestCaseStatus::NonSuccess {
+                        ref mut message, ..
+                    } = test_case.status
+                    {
+                        *message = Some(failure_messages.join("\n").into())
+                    }
+                }
+
+                let test_reruns = Self::xcresult_repetitions_to_junit_test_reruns(
+                    xcresult_test_case.children.as_slice(),
+                );
+                if !test_reruns.is_empty() {
+                    match test_case.status {
+                        TestCaseStatus::Success {
+                            ref mut flaky_runs, ..
+                        } => {
+                            *flaky_runs = test_reruns;
+                        }
+                        TestCaseStatus::NonSuccess { ref mut reruns, .. } => {
+                            *reruns = test_reruns;
+                        }
+                        _ => {}
+                    }
+                }
+
+                if let Some(duration) = Self::xcresult_test_node_to_duration(xcresult_test_case) {
+                    test_case.set_time(duration);
+                }
+
+                if let Some(node_identifier) = &xcresult_test_case.node_identifier {
+                    let id = self.generate_id(node_identifier);
+                    test_case.extra.insert("id".into(), id.into());
+                }
+
+                Some(test_case)
+            })
+            .collect()
+    }
+
+    fn xcresult_repetitions_to_junit_test_reruns(
+        test_nodes: &[schema::TestNode],
+    ) -> Vec<TestRerun> {
+        test_nodes
+            .iter()
+            .filter(|tn| matches!(tn.node_type, schema::TestNodeType::Repetition))
+            .filter_map(|tn| tn.result.as_ref().map(|result| (tn, *result)))
+            .filter_map(|(repetition, test_result)| {
+                let status = match test_result {
+                    schema::TestResult::Passed | schema::TestResult::ExpectedFailure => {
+                        // A successful repetition isn't relevant to JUnit test reruns
+                        return None;
+                    }
+                    schema::TestResult::Failed => NonSuccessKind::Failure,
+                    schema::TestResult::Skipped | schema::TestResult::Unknown => {
+                        // TODO: Add a warning
+                        return None;
+                    }
+                };
+                let mut test_rerun = TestRerun::new(status);
+
+                let failure_messages =
+                    Self::xcresult_failure_messages_to_strings(repetition.children.as_slice());
+                if !failure_messages.is_empty() {
+                    test_rerun.set_message(failure_messages.join("\n"));
+                }
+
+                if let Some(duration) = Self::xcresult_test_node_to_duration(repetition) {
+                    test_rerun.set_time(duration);
+                }
+
+                Some(test_rerun)
+            })
+            .collect()
+    }
+
+    fn xcresult_failure_messages_to_strings(test_nodes: &[schema::TestNode]) -> Vec<String> {
+        test_nodes
+            .iter()
+            .filter(|tn| matches!(tn.node_type, schema::TestNodeType::FailureMessage))
+            .map(|failure_message| String::from(&failure_message.name))
+            .collect()
+    }
+
+    fn xcresult_test_node_to_duration(test_node: &TestNode) -> Option<Duration> {
+        test_node
+            .duration
+            .as_ref()
+            .and_then(|secs| secs.replace('s', "").parse::<f64>().ok())
+            .and_then(|secs| Duration::try_from_secs_f64(secs).ok())
+    }
+
+    fn generate_id<T: AsRef<str>>(&self, raw_id: T) -> String {
+        let identifier_url = self
+            .xcresult_tests
+            .get(raw_id.as_ref())
+            .map(|test| &test.identifier_url);
         // join the org and repo name to the raw id and generate uuid v5 from it
-        return uuid::Uuid::new_v5(
+        uuid::Uuid::new_v5(
             &uuid::Uuid::NAMESPACE_URL,
             format!(
                 "{}#{}#{}",
-                self.org_url_slug,
-                &self.repo_url_parts.repo_full_name(),
-                raw_id
+                &self.org_url_slug,
+                &self.repo_full_name,
+                identifier_url
+                    .map(|s| s.as_str())
+                    .unwrap_or(raw_id.as_ref())
             )
             .as_bytes(),
         )
-        .to_string();
+        .to_string()
+    }
+}
+
+pub mod xcrun_cmd {
+    use std::{ffi::OsStr, process::Command};
+
+    use lazy_static::lazy_static;
+
+    use crate::{fd_schema, schema};
+
+    pub fn xcresulttool_get_test_results_tests<T: AsRef<OsStr>>(
+        path: T,
+    ) -> anyhow::Result<schema::Tests> {
+        xcresulttool_min_version_check()?;
+
+        let output = xcrun(&[
+            "xcresulttool".as_ref(),
+            "get".as_ref(),
+            "test-results".as_ref(),
+            "tests".as_ref(),
+            "--path".as_ref(),
+            path.as_ref(),
+        ])?;
+
+        serde_json::from_str::<schema::Tests>(&output)
+            .map_err(|e| anyhow::anyhow!("failed to parse json from xcresulttool output: {}", e))
     }
 
-    fn junit_testcase(
-        &self,
-        action: &serde_json::Value,
-        testcase: &serde_json::Value,
-        testcase_group: &serde_json::Value,
-    ) -> anyhow::Result<TestCase> {
-        let name = testcase
-            .get("name")
-            .and_then(|r| r.get(RESULTS_FIELD_VALUE))
-            .and_then(|r| r.as_str())
-            .map_or_else(
-                || {
-                    log::debug!("failed to get name of testcase: {:?}", testcase);
-                    Err(anyhow::anyhow!("failed to get name of testcase"))
+    pub fn xcresulttool_get_object<T: AsRef<OsStr>>(
+        path: T,
+    ) -> anyhow::Result<fd_schema::ActionsInvocationRecord> {
+        let mut args: Vec<&OsStr> = vec![
+            "xcresulttool".as_ref(),
+            "get".as_ref(),
+            "object".as_ref(),
+            "--format".as_ref(),
+            "json".as_ref(),
+            "--path".as_ref(),
+            path.as_ref(),
+        ];
+
+        if xcresulttool_min_version_check().is_ok() {
+            args.push("--legacy".as_ref());
+        }
+
+        let output = xcrun(&args)?;
+
+        serde_json::from_str::<fd_schema::ActionsInvocationRecord>(&output)
+            .map_err(|e| anyhow::anyhow!("failed to parse json from xcresulttool output: {}", e))
+    }
+
+    pub fn xcresulttool_get_object_id<T: AsRef<OsStr>, U: AsRef<OsStr>>(
+        path: T,
+        id: U,
+    ) -> anyhow::Result<fd_schema::ActionTestPlanRunSummaries> {
+        let mut args: Vec<&OsStr> = vec![
+            "xcresulttool".as_ref(),
+            "get".as_ref(),
+            "object".as_ref(),
+            "--format".as_ref(),
+            "json".as_ref(),
+            "--id".as_ref(),
+            id.as_ref(),
+            "--path".as_ref(),
+            path.as_ref(),
+        ];
+
+        if xcresulttool_min_version_check().is_ok() {
+            args.push("--legacy".as_ref());
+        }
+
+        let output = xcrun(&args)?;
+
+        serde_json::from_str::<fd_schema::ActionTestPlanRunSummaries>(&output)
+            .map_err(|e| anyhow::anyhow!("failed to parse json from xcresulttool output: {}", e))
+    }
+
+    const LEGACY_FLAG_MIN_VERSION: usize = 22608;
+    fn xcresulttool_min_version_check() -> anyhow::Result<()> {
+        let version = xcresulttool_version()?;
+        if version <= LEGACY_FLAG_MIN_VERSION {
+            return Err(anyhow::anyhow!(
+                "xcresulttool version {} is not supported, please upgrade to version {} or higher",
+                version,
+                LEGACY_FLAG_MIN_VERSION
+            ));
+        }
+        Ok(())
+    }
+
+    fn xcresulttool_version() -> anyhow::Result<usize> {
+        let version_raw = xcrun(&["xcresulttool", "version"])?;
+
+        lazy_static! {
+            // regex to match version where the output looks like "xcresulttool version 22608, format version 3.49 (current)"
+            static ref RE: regex::Regex = regex::Regex::new(r"xcresulttool version (\d+)").unwrap();
+        }
+        let version_parsed = RE
+            .captures(&version_raw)
+            .and_then(|capture_group| capture_group.get(1))
+            .and_then(|version| version.as_str().parse::<usize>().ok());
+
+        if let Some(version) = version_parsed {
+            Ok(version)
+        } else {
+            Err(anyhow::anyhow!("failed to parse xcresulttool version"))
+        }
+    }
+
+    fn xcrun<T: AsRef<OsStr>>(args: &[T]) -> anyhow::Result<String> {
+        if !cfg!(target_os = "macos") {
+            return Err(anyhow::anyhow!("xcrun is only available on macOS"));
+        }
+        let output = Command::new("xcrun").args(args).output()?;
+        let data = if output.status.code() == Some(0) {
+            output.stdout
+        } else {
+            output.stderr
+        };
+        let result = String::from_utf8(data)?;
+        Ok(result)
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct XCResultTest {
+    pub test_plan_name: String,
+    pub test_bundle_name: String,
+    pub test_suite_name: String,
+    pub test_case_name: String,
+    pub identifier_url: String,
+    pub identifier: String,
+}
+
+// TODO (log and cleanup)
+impl XCResultTest {
+    pub fn generate_from_object<T: AsRef<OsStr>>(path: T) -> anyhow::Result<HashMap<String, Self>> {
+        let actions_invocation_record = xcrun_cmd::xcresulttool_get_object(path.as_ref())?;
+        let test_plans = actions_invocation_record
+            .actions
+            .as_ref()
+            .map(|arr| arr.values.iter())
+            .unwrap_or_default()
+            .filter_map(|action_record| {
+                if let fd_schema::ActionRecord {
+                    test_plan_name:
+                        Some(fd_schema::String {
+                            value: test_plan_name,
+                            ..
+                        }),
+                    action_result:
+                        fd_schema::ActionResult {
+                            tests_ref:
+                                Some(fd_schema::Reference {
+                                    id: Some(fd_schema::String { value: id, .. }),
+                                    ..
+                                }),
+                            ..
+                        },
+                    ..
+                } = action_record
+                {
+                    Some((test_plan_name, id))
+                } else {
+                    None
+                }
+            })
+            .flat_map(|(test_plan_name, id)| {
+                xcrun_cmd::xcresulttool_get_object_id(&path, id).ok().map(
+                    |action_test_plan_run_summaries| {
+                        (test_plan_name, action_test_plan_run_summaries)
+                    },
+                )
+            })
+            .collect::<Vec<_>>();
+
+        Ok(test_plans
+            .iter()
+            .filter_map(|(test_plan_name, action_test_plan_run_summaries)| {
+                action_test_plan_run_summaries.summaries.as_ref().map(
+                    |action_test_plan_run_summaries_summaries| {
+                        (test_plan_name, action_test_plan_run_summaries_summaries)
+                    },
+                )
+            })
+            .flat_map(
+                |(test_plan_name, action_test_plan_run_summaries_summaries)| {
+                    action_test_plan_run_summaries_summaries.values.iter().map(
+                        move |action_test_plan_run_summary| {
+                            (test_plan_name, action_test_plan_run_summary)
+                        },
+                    )
                 },
-                Ok,
-            )?;
-        let status = match testcase
-            .get("testStatus")
-            .and_then(|r| r.get(RESULTS_FIELD_VALUE))
-            .and_then(|r| r.as_str())
-        {
-            Some(val) => val,
-            None => {
-                log::debug!("failed to get status of testcase: {:?}", testcase);
-                return Err(anyhow::anyhow!("failed to get status of testcase"));
-            }
-        };
-        let mut testcase_status = match status {
-            "Error" => TestCaseStatus::non_success(NonSuccessKind::Error),
-            "Failure" => TestCaseStatus::non_success(NonSuccessKind::Failure),
-            "Skipped" => TestCaseStatus::skipped(),
-            "Success" | "Expected Failure" => TestCaseStatus::success(),
-            _ => TestCaseStatus::non_success(NonSuccessKind::Error),
-        };
-        let mut uri = String::new();
-        if status == "Failure" {
-            let mut failures = match action
-                .get("actionResult")
-                .and_then(|r| r.get("issues"))
-                .and_then(|r| r.get("testFailureSummaries"))
-                .and_then(|r| r.get(RESULTS_FIELD_VALUES))
-                .and_then(|r| r.as_array())
-            {
-                Some(val) => val.iter(),
-                None => {
-                    log::debug!("failed to get failures of testcase: {:?}", testcase);
-                    return Err(anyhow::anyhow!("failed to get failures of testcase"));
-                }
-            };
-            let testcase_identifier = testcase
-                .get("identifier")
-                .and_then(|r| r.get(RESULTS_FIELD_VALUE))
-                .and_then(|r| r.as_str());
-            if let Some(testcase_identifer) = testcase_identifier {
-                let testcase_identifer_updated = testcase_identifer.replace('/', ".");
-                let testcase_identifer_updated_str = Some(testcase_identifer_updated.as_str());
-                let failure = failures.find(|f| {
-                    f.get("testCaseName")
-                        .and_then(|r| r.get(RESULTS_FIELD_VALUE))
-                        .and_then(|r| r.as_str())
-                        == testcase_identifer_updated_str
-                });
-                if let Some(failure) = failure {
-                    let failure_message = failure
-                        .get("message")
-                        .and_then(|r| r.get(RESULTS_FIELD_VALUE))
-                        .and_then(|r| r.as_str());
-                    let failure_uri = failure
-                        .get("documentLocationInCreatingWorkspace")
-                        .and_then(|r| r.get("url"))
-                        .and_then(|r| r.get(RESULTS_FIELD_VALUE))
-                        .and_then(|r| r.as_str());
-                    testcase_status.set_message(failure_message.unwrap_or_default());
-                    uri = failure_uri.unwrap_or_default().replace("file://", "");
-                }
-            }
-        }
-        let mut testcase_junit = TestCase::new(name, testcase_status);
-        let id = testcase
-            .get("identifierURL")
-            .and_then(|r| r.get(RESULTS_FIELD_VALUE))
-            .and_then(|r| r.as_str())
-            .map(|r| self.generate_id(r))
-            .unwrap_or_default();
-        testcase_junit.extra.insert("id".into(), id.into());
-        let file_components = uri.split('#').collect::<Vec<&str>>();
-        if file_components.len() == 2 {
-            testcase_junit
-                .extra
-                .insert("file".into(), file_components[0].into());
-        }
-        if let Some(classname) = testcase_group
-            .get("name")
-            .and_then(|r| r.get(RESULTS_FIELD_VALUE))
-            .and_then(|r| r.as_str())
-        {
-            testcase_junit.set_classname(classname);
-        }
-
-        if let Some(duration) = testcase
-            .get("duration")
-            .and_then(|r| r.get(RESULTS_FIELD_VALUE))
-            .and_then(|r| r.as_str())
-            .and_then(|r| r.parse::<f32>().ok())
-        {
-            testcase_junit.set_time(std::time::Duration::from_secs_f32(duration));
-        }
-        Ok(testcase_junit)
-    }
-
-    fn junit_testsuite(
-        &self,
-        action: &serde_json::Value,
-        testsuite: &serde_json::Value,
-    ) -> anyhow::Result<TestSuite> {
-        let testsuite_name = testsuite
-            .get("name")
-            .and_then(|r| r.get(RESULTS_FIELD_VALUE))
-            .and_then(|r| r.as_str());
-        if testsuite_name.is_none() {
-            log::debug!("failed to get name of testsuite: {:?}", testsuite);
-            return Err(anyhow::anyhow!("failed to get name of testsuite"));
-        }
-        let mut testsuite_junit = TestSuite::new(testsuite_name.unwrap_or_default());
-        if let Some(identifier) = testsuite
-            .get("identifierURL")
-            .and_then(|r| r.get(RESULTS_FIELD_VALUE))
-            .and_then(|r| r.as_str())
-        {
-            testsuite_junit.extra.append(&mut indexmap! {
-                XmlString::new("id") => XmlString::new(self.generate_id(identifier)),
-            });
-        }
-        if let Some(duration) = testsuite
-            .get("duration")
-            .and_then(|r| r.get(RESULTS_FIELD_VALUE))
-            .and_then(|r| r.as_str())
-            .and_then(|r| r.parse::<f32>().ok())
-        {
-            testsuite_junit.set_time(std::time::Duration::from_secs_f32(duration));
-        }
-        if let Some(testcase_groups) = testsuite
-            .get("subtests")
-            .and_then(|t| t.get(RESULTS_FIELD_VALUES))
-            .and_then(|r| r.as_array())
-        {
-            for testcase_group in testcase_groups {
-                if let Some(testcases) = testcase_group
-                    .get("subtests")
-                    .and_then(|t| t.get(RESULTS_FIELD_VALUES))
-                    .and_then(|r| r.as_array())
+            )
+            .filter_map(|(test_plan_name, action_test_plan_run_summary)| {
+                action_test_plan_run_summary
+                    .testable_summaries
+                    .as_ref()
+                    .map(|action_test_plan_run_summary_testable_summaries| {
+                        (
+                            test_plan_name,
+                            action_test_plan_run_summary_testable_summaries,
+                        )
+                    })
+            })
+            .flat_map(
+                |(test_plan_name, action_test_plan_run_summary_testable_summaries)| {
+                    action_test_plan_run_summary_testable_summaries
+                        .values
+                        .iter()
+                        .map(move |action_testable_summary| {
+                            (test_plan_name, action_testable_summary)
+                        })
+                },
+            )
+            .filter_map(|(test_plan_name, action_testable_summary)| {
+                if let fd_schema::ActionTestableSummary {
+                    name:
+                        Some(fd_schema::String {
+                            value: action_testable_summary_name,
+                            ..
+                        }),
+                    tests:
+                        Some(fd_schema::ActionTestableSummaryTests {
+                            values: action_test_summary_identifiable_objects,
+                            ..
+                        }),
+                    ..
+                } = &action_testable_summary
                 {
-                    for testcase in testcases {
-                        let testcase_xml = self.junit_testcase(action, testcase, testcase_group)?;
-                        testsuite_junit.add_test_case(testcase_xml);
-                    }
+                    Some((
+                        test_plan_name,
+                        action_testable_summary_name,
+                        action_test_summary_identifiable_objects,
+                    ))
+                } else {
+                    None
                 }
-            }
-        };
-        Ok(testsuite_junit)
-    }
+            })
+            .flat_map(
+                |(
+                    test_plan_name,
+                    action_testable_summary_name,
+                    action_test_summary_identifiable_objects,
+                )| {
+                    let mut xc_result_test_node_tree = XCResultTestNodeTree::default();
+                    xc_result_test_node_tree
+                        .traverse(action_test_summary_identifiable_objects, None);
 
-    fn junit_report(&self, action: &serde_json::Value) -> anyhow::Result<Report> {
-        let mut testsuites_junit = Report::new("xcresult");
-        let raw_id = action
-            .get("actionResult")
-            .and_then(|r| r.get("testsRef"))
-            .and_then(|r| r.get("id"))
-            .and_then(|r| r.get(RESULTS_FIELD_VALUE))
-            .and_then(|r| r.as_str());
-        if raw_id.is_none() {
-            log::debug!("no test id found for action: {:?}", action);
-            return Ok(testsuites_junit);
-        }
-        let id = raw_id.unwrap_or_default();
-        const DATE_FORMAT: &str = "%Y-%m-%dT%H:%M:%S%.f%z";
-        if let (Some(ended_time), Some(started_time)) = (
-            action
-                .get("endedTime")
-                .and_then(|r| r.get(RESULTS_FIELD_VALUE))
-                .and_then(|r| r.as_str()),
-            action
-                .get("startedTime")
-                .and_then(|r| r.get(RESULTS_FIELD_VALUE))
-                .and_then(|r| r.as_str()),
-        ) {
-            let ended_time_parsed = chrono::DateTime::parse_from_str(ended_time, DATE_FORMAT)?;
-            let started_time_parsed = chrono::DateTime::parse_from_str(started_time, DATE_FORMAT)?;
-            let duration = (ended_time_parsed.timestamp_millis()
-                - started_time_parsed.timestamp_millis()) as u64;
-            testsuites_junit.set_time(std::time::Duration::from_millis(duration));
-        }
-        let found_tests = self.find_tests(id)?;
-        let test_summaries = match found_tests
-            .get("summaries")
-            .and_then(|r| r.get(RESULTS_FIELD_VALUES))
-        {
-            Some(val) => val.as_array(),
-            None => return Ok(testsuites_junit),
-        };
-        if let Some(test_summaries) = test_summaries {
-            for test_summary in test_summaries {
-                let testable_summaries = match test_summary
-                    .get("testableSummaries")
-                    .and_then(|t| t.get(RESULTS_FIELD_VALUES))
-                    .and_then(|r| r.as_array())
-                {
-                    Some(val) => val,
-                    None => {
-                        return Ok(testsuites_junit);
-                    }
-                };
-                for testable_summary in testable_summaries {
-                    let top_level_tests = match testable_summary
-                        .get("tests")
-                        .and_then(|t| t.get(RESULTS_FIELD_VALUES))
-                        .and_then(|r| r.as_array())
-                    {
-                        Some(val) => val,
-                        None => {
-                            return Ok(testsuites_junit);
-                        }
-                    };
-                    for top_level_test in top_level_tests {
-                        let testsuites = match top_level_test
-                            .get("subtests")
-                            .and_then(|t| t.get(RESULTS_FIELD_VALUES))
-                            .and_then(|r| r.as_array())
-                        {
-                            Some(val) => val,
-                            None => {
-                                return Ok(testsuites_junit);
+                    let leafs = xc_result_test_node_tree.externals(petgraph::Direction::Outgoing);
+                    let raw_nodes = xc_result_test_node_tree.raw_nodes();
+                    let raw_edges = xc_result_test_node_tree.raw_edges();
+                    // dbg!(&leafs);
+                    leafs
+                        .filter_map(|leaf| {
+                            // filter out any dangling leafs
+                            if leaf.index() >= raw_nodes.len() {
+                                return None;
                             }
-                        };
-                        for testsuite in testsuites {
-                            let testsuite_junit = self.junit_testsuite(action, testsuite)?;
-                            testsuites_junit.add_test_suite(testsuite_junit);
-                        }
+                            let node = &raw_nodes[leaf.index()];
+                            let next_idx = node.next_edge(Incoming).index();
+                            if next_idx >= raw_edges.len() {
+                                return None;
+                            }
+                            let edge = &raw_edges[next_idx];
+                            if edge.source().index() >= raw_nodes.len() {
+                                return None;
+                            }
+                            let parent_node = &raw_nodes[edge.source().index()];
+
+                            let test_suite_name = parent_node.weight.name;
+                            let test_case_name = node.weight.name;
+
+                            Some(Self {
+                                test_plan_name: String::from(*test_plan_name),
+                                test_bundle_name: String::from(action_testable_summary_name),
+                                test_suite_name: String::from(test_suite_name),
+                                test_case_name: String::from(test_case_name),
+                                identifier_url: String::from(node.weight.identifier_url),
+                                identifier: String::from(node.weight.identifier),
+                            })
+                        })
+                        .collect::<Vec<_>>()
+                },
+            )
+            .map(|test| (test.identifier.clone(), test))
+            .collect::<HashMap<_, _>>())
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, PartialOrd, Eq, Ord, Hash)]
+struct XCResultTestNodeRef<'a> {
+    name: &'a str,
+    identifier: &'a str,
+    identifier_url: &'a str,
+}
+
+#[derive(Debug, Clone, Default)]
+struct XCResultTestNodeTree<'a>(DiGraph<XCResultTestNodeRef<'a>, ()>);
+
+impl<'a> Deref for XCResultTestNodeTree<'a> {
+    type Target = DiGraph<XCResultTestNodeRef<'a>, ()>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl<'a> DerefMut for XCResultTestNodeTree<'a> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+impl<'a> XCResultTestNodeTree<'a> {
+    fn traverse(
+        &mut self,
+        action_test_summary_identifiable_objects: &'a [fd_schema::ActionTestSummaryIdentifiableObject],
+        parent_node: Option<NodeIndex>,
+    ) {
+        for action_test_summary_identifiable_object in
+            action_test_summary_identifiable_objects.as_ref().iter()
+        {
+            match action_test_summary_identifiable_object {
+                fd_schema::ActionTestSummaryIdentifiableObject::Variant0(
+                    fd_schema::ActionTestSummary {
+                        name: Some(fd_schema::String { value: name, .. }),
+                        identifier:
+                            Some(fd_schema::String {
+                                value: identifier, ..
+                            }),
+                        identifier_url:
+                            Some(fd_schema::String {
+                                value: identifier_url,
+                                ..
+                            }),
+                        ..
+                    },
+                ) => {
+                    let test_node = XCResultTestNodeRef {
+                        name,
+                        identifier,
+                        identifier_url,
+                    };
+                    let node_index = self.add_node(test_node);
+                    if let Some(parent_node) = parent_node {
+                        self.add_edge(parent_node, node_index, ());
                     }
                 }
-            }
-        }
-        Ok(testsuites_junit)
-    }
-
-    pub fn generate_junits(&self) -> anyhow::Result<Vec<Report>> {
-        let mut report_junits: Vec<Report> = Vec::new();
-        if let Some(actions) = self
-            .results_obj
-            .get("actions")
-            .and_then(|a| a.get(RESULTS_FIELD_VALUES))
-            .and_then(|r| r.as_array())
-        {
-            for action in actions {
-                let report_junit = self.junit_report(action)?;
-                // only add the report if it has test suites
-                // xcresult stores build actions
-                if !report_junit.test_suites.is_empty() {
-                    report_junits.push(report_junit);
+                fd_schema::ActionTestSummaryIdentifiableObject::Variant1(
+                    fd_schema::ActionTestMetadata {
+                        name: Some(fd_schema::String { value: name, .. }),
+                        identifier:
+                            Some(fd_schema::String {
+                                value: identifier, ..
+                            }),
+                        identifier_url:
+                            Some(fd_schema::String {
+                                value: identifier_url,
+                                ..
+                            }),
+                        ..
+                    },
+                ) => {
+                    let test_node = XCResultTestNodeRef {
+                        name,
+                        identifier,
+                        identifier_url,
+                    };
+                    let node_index = self.add_node(test_node);
+                    if let Some(parent_node) = parent_node {
+                        self.add_edge(parent_node, node_index, ());
+                    }
+                }
+                fd_schema::ActionTestSummaryIdentifiableObject::Variant2(
+                    fd_schema::ActionTestSummaryGroup {
+                        name: Some(fd_schema::String { value: name, .. }),
+                        identifier:
+                            Some(fd_schema::String {
+                                value: identifier, ..
+                            }),
+                        identifier_url:
+                            Some(fd_schema::String {
+                                value: identifier_url,
+                                ..
+                            }),
+                        subtests,
+                        ..
+                    },
+                ) => {
+                    let test_node = XCResultTestNodeRef {
+                        name,
+                        identifier,
+                        identifier_url,
+                    };
+                    let node_index = self.add_node(test_node);
+                    if let Some(ref subtests) = subtests {
+                        self.traverse(&subtests.values, Some(node_index));
+                    }
+                    if let Some(parent_node) = parent_node {
+                        self.add_edge(parent_node, node_index, ());
+                    }
+                }
+                fd_schema::ActionTestSummaryIdentifiableObject::Variant3 {
+                    identifier_url:
+                        Some(fd_schema::String {
+                            value: identifier_url,
+                            ..
+                        }),
+                    identifier:
+                        Some(fd_schema::String {
+                            value: identifier, ..
+                        }),
+                    name: Some(fd_schema::String { value: name, .. }),
+                    ..
+                } => {
+                    let test_node = XCResultTestNodeRef {
+                        name,
+                        identifier,
+                        identifier_url,
+                    };
+                    let node_index = self.add_node(test_node);
+                    if let Some(parent_node) = parent_node {
+                        self.add_edge(parent_node, node_index, ());
+                    }
+                }
+                fd_schema::ActionTestSummaryIdentifiableObject::Variant0(..)
+                | fd_schema::ActionTestSummaryIdentifiableObject::Variant1(..)
+                | fd_schema::ActionTestSummaryIdentifiableObject::Variant2(..)
+                | fd_schema::ActionTestSummaryIdentifiableObject::Variant3 { .. } => {
+                    // do nothing
                 }
             }
         }
-        Ok(report_junits)
     }
 }
