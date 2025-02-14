@@ -23,7 +23,7 @@ pub async fn run_quarantine(QuarantineArgs { upload_args }: QuarantineArgs) -> a
              upload_bundle_error,
          }| {
             if let Some(e) = upload_bundle_error {
-                tracing::warn!("Error uploading test results: {:?}", e);
+                tracing::error!("Error uploading test results: {:?}", e);
             }
             exit_code
         },

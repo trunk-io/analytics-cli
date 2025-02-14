@@ -67,7 +67,7 @@ impl FailedTestsExtractor {
                 let file = match std::fs::File::open(&file.original_path) {
                     Ok(file) => file,
                     Err(e) => {
-                        tracing::warn!("Error opening file: {}", e);
+                        tracing::error!("Error opening file: {}", e);
                         continue;
                     }
                 };

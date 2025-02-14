@@ -76,7 +76,7 @@ fn main() -> anyhow::Result<()> {
                         std::process::exit(exitcode::OK);
                     }
                     _ => {
-                        tracing::warn!("Error: {:?}", e);
+                        tracing::error!("Error: {:?}", e);
                         std::process::exit(exitcode::SOFTWARE);
                     }
                 },

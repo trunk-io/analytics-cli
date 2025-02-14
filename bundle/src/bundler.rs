@@ -83,7 +83,7 @@ impl BundlerUtil {
                     .iter()
                     .fold(tempfile::tempfile()?, |f, event| {
                         if let Err(e) = serde_json::to_writer(&f, event) {
-                            tracing::warn!("Failed to write BEP event: {}", e);
+                            tracing::error!("Failed to write BEP event: {}", e);
                         }
                         f
                     });
