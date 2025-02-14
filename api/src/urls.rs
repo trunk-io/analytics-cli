@@ -8,13 +8,13 @@ pub fn url_for_test_case(
     repo: &RepoUrlParts,
     test_case: &Test,
 ) -> Result<String, ParseError> {
-    let mut url = Url::parse(convert_to_app(public_api_address).as_str())?;
+    let mut url = Url::parse(convert_to_app_url(public_api_address).as_str())?;
     url.set_path(test_path(org_url_slug, test_case).as_str());
     url.set_query(Some(repo_query(repo).as_str()));
     Ok(url.to_string())
 }
 
-fn convert_to_app(public_api_address: &String) -> String {
+fn convert_to_app_url(public_api_address: &str) -> String {
     public_api_address.replace("https://api.", "https://app.")
 }
 
