@@ -1,1115 +1,1115 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <testsuites name="xcresult: UpcomingMovies" tests="452" failures="1" errors="0">
     <testsuite name="CoreDataInfrastructure-Unit-CoreDataInfrastructureTests.CDUserStoreTests" tests="1" disabled="0" errors="0" failures="0">
-        <testcase name="testSaveUser()" time="0.009" id="dcd5f355-e027-5776-a728-607c05bb0dbe">
+        <testcase name="testSaveUser()" classname="CDUserStoreTests" time="0.009" id="dcd5f355-e027-5776-a728-607c05bb0dbe">
         </testcase>
     </testsuite>
     <testsuite name="CoreDataInfrastructure-Unit-CoreDataInfrastructureTests.CDMovieSearchStoreTests" tests="1" disabled="0" errors="0" failures="0">
-        <testcase name="testSaveMovieSearch()" time="0.001" id="aab1aa42-8b03-5e13-88b7-1891a30c9fb3">
+        <testcase name="testSaveMovieSearch()" classname="CDMovieSearchStoreTests" time="0.001" id="aab1aa42-8b03-5e13-88b7-1891a30c9fb3">
         </testcase>
     </testsuite>
     <testsuite name="CoreDataInfrastructure-Unit-CoreDataInfrastructureTests.CDMovieVisitStoreTests" tests="2" disabled="0" errors="0" failures="0">
-        <testcase name="testSaveMovieVisitError()" time="0.001" id="b0b3b64d-719e-50aa-9a25-ebe1067aa9b8">
+        <testcase name="testSaveMovieVisitError()" classname="CDMovieVisitStoreTests" time="0.001" id="b0b3b64d-719e-50aa-9a25-ebe1067aa9b8">
         </testcase>
-        <testcase name="testSaveMovieVisitSuccess()" time="0.001" id="c4ebf66f-5c5f-5066-8c56-3621d237c502">
+        <testcase name="testSaveMovieVisitSuccess()" classname="CDMovieVisitStoreTests" time="0.001" id="c4ebf66f-5c5f-5066-8c56-3621d237c502">
         </testcase>
     </testsuite>
     <testsuite name="CoreDataInfrastructure-Unit-CoreDataInfrastructureTests.CDGenreStoreTests" tests="2" disabled="0" errors="0" failures="0">
-        <testcase name="testFindAllGenres()" time="0.016" id="b7404b44-a5ae-572d-b1a6-db963cbaea65">
+        <testcase name="testFindAllGenres()" classname="CDGenreStoreTests" time="0.016" id="b7404b44-a5ae-572d-b1a6-db963cbaea65">
         </testcase>
-        <testcase name="testSaveGenre()" time="0.001" id="d916163a-2a9a-5261-b5a5-30c9238e9f1c">
+        <testcase name="testSaveGenre()" classname="CDGenreStoreTests" time="0.001" id="d916163a-2a9a-5261-b5a5-30c9238e9f1c">
         </testcase>
     </testsuite>
     <testsuite name="NetworkInfrastructure-Unit-NetworkInfrastructureTests.MarkAsFavoriteTests" tests="4" disabled="0" errors="0" failures="0">
-        <testcase name="testStatusMessageFromResponse()" time="0.005" id="c6e60272-851b-58c5-b3d8-5e5de4802f26">
+        <testcase name="testStatusMessageFromResponse()" classname="MarkAsFavoriteTests" time="0.005" id="c6e60272-851b-58c5-b3d8-5e5de4802f26">
         </testcase>
-        <testcase name="testMissingStatusCodeFromResponse()" time="0.001" id="56b02c77-2543-5930-831e-137769343433">
+        <testcase name="testMissingStatusCodeFromResponse()" classname="MarkAsFavoriteTests" time="0.001" id="56b02c77-2543-5930-831e-137769343433">
         </testcase>
-        <testcase name="testStatusCodeFromResponse()" time="0.000" id="f814fc7d-fd25-59e3-872a-d7af2a592e3a">
+        <testcase name="testStatusCodeFromResponse()" classname="MarkAsFavoriteTests" time="0.000" id="f814fc7d-fd25-59e3-872a-d7af2a592e3a">
         </testcase>
-        <testcase name="testMissingStatusMessageFromResponse()" time="0.000" id="34457d7b-f397-5d9a-a621-73a71ae6d073">
+        <testcase name="testMissingStatusMessageFromResponse()" classname="MarkAsFavoriteTests" time="0.000" id="34457d7b-f397-5d9a-a621-73a71ae6d073">
         </testcase>
     </testsuite>
     <testsuite name="NetworkInfrastructure-Unit-NetworkInfrastructureTests.MovieCreditsTests" tests="12" disabled="0" errors="0" failures="0">
-        <testcase name="testMissingIdFromCastResponse()" time="0.002" id="8b6e101d-3a39-5f6d-b478-1fa1d08a4158">
+        <testcase name="testMissingIdFromCastResponse()" classname="MovieCreditsTests" time="0.002" id="8b6e101d-3a39-5f6d-b478-1fa1d08a4158">
         </testcase>
-        <testcase name="testMissingCharacterFromCastResponse()" time="0.002" id="a9405ea4-2718-5335-aaa8-2857f34e0599">
+        <testcase name="testMissingCharacterFromCastResponse()" classname="MovieCreditsTests" time="0.002" id="a9405ea4-2718-5335-aaa8-2857f34e0599">
         </testcase>
-        <testcase name="testMissingNameFromCrewResponse()" time="0.001" id="c70f0d98-e74c-53d1-af68-f5bfdbc72c7f">
+        <testcase name="testMissingNameFromCrewResponse()" classname="MovieCreditsTests" time="0.001" id="c70f0d98-e74c-53d1-af68-f5bfdbc72c7f">
         </testcase>
-        <testcase name="testIdFromCrewResponse()" time="0.000" id="498133d4-e31c-5cb1-922b-9d9fb96fa00c">
+        <testcase name="testIdFromCrewResponse()" classname="MovieCreditsTests" time="0.000" id="498133d4-e31c-5cb1-922b-9d9fb96fa00c">
         </testcase>
-        <testcase name="testJobFromCrewResponse()" time="0.000" id="51f2754b-aaf1-5891-9117-56b826c0fdc0">
+        <testcase name="testJobFromCrewResponse()" classname="MovieCreditsTests" time="0.000" id="51f2754b-aaf1-5891-9117-56b826c0fdc0">
         </testcase>
-        <testcase name="testNameFromCastResponse()" time="0.000" id="e6fd823e-d849-5450-a9d3-2bcd491b18cf">
+        <testcase name="testNameFromCastResponse()" classname="MovieCreditsTests" time="0.000" id="e6fd823e-d849-5450-a9d3-2bcd491b18cf">
         </testcase>
-        <testcase name="testMissingJobFromCrewResponse()" time="0.001" id="b053a041-0722-576a-874a-caf38b849050">
+        <testcase name="testMissingJobFromCrewResponse()" classname="MovieCreditsTests" time="0.001" id="b053a041-0722-576a-874a-caf38b849050">
         </testcase>
-        <testcase name="testMissingIdFromCrewResponse()" time="0.000" id="4fc2fd81-9bb4-5eb4-bd4b-f628ca6cde41">
+        <testcase name="testMissingIdFromCrewResponse()" classname="MovieCreditsTests" time="0.000" id="4fc2fd81-9bb4-5eb4-bd4b-f628ca6cde41">
         </testcase>
-        <testcase name="testMissingNameFromCastResponse()" time="0.000" id="b1ff9de3-e70c-53ff-9940-9829e1314dd9">
+        <testcase name="testMissingNameFromCastResponse()" classname="MovieCreditsTests" time="0.000" id="b1ff9de3-e70c-53ff-9940-9829e1314dd9">
         </testcase>
-        <testcase name="testIdFromCastResponse()" time="0.000" id="1accb97c-d8b4-5f3a-8016-e79f82b05c89">
+        <testcase name="testIdFromCastResponse()" classname="MovieCreditsTests" time="0.000" id="1accb97c-d8b4-5f3a-8016-e79f82b05c89">
         </testcase>
-        <testcase name="testCharacterFromCastResponse()" time="0.000" id="dd9b6664-6f31-52c9-aefb-493ec432cff6">
+        <testcase name="testCharacterFromCastResponse()" classname="MovieCreditsTests" time="0.000" id="dd9b6664-6f31-52c9-aefb-493ec432cff6">
         </testcase>
-        <testcase name="testNameFromCrewResponse()" time="0.000" id="ea84339d-c567-5b0d-a1c4-8ceb68f352ec">
+        <testcase name="testNameFromCrewResponse()" classname="MovieCreditsTests" time="0.000" id="ea84339d-c567-5b0d-a1c4-8ceb68f352ec">
         </testcase>
     </testsuite>
     <testsuite name="NetworkInfrastructure-Unit-NetworkInfrastructureTests.URLGenerationTests" tests="5" disabled="0" errors="0" failures="0">
-        <testcase name="testURLRequestSetJsonContentTypeNil()" time="0.001" id="f474fc15-ad9f-5590-95ea-fffc4a2cd22a">
+        <testcase name="testURLRequestSetJsonContentTypeNil()" classname="URLGenerationTests" time="0.001" id="f474fc15-ad9f-5590-95ea-fffc4a2cd22a">
         </testcase>
-        <testcase name="testPercentEscapedEmptyParamters()" time="0.001" id="eaebf9df-f1a6-5f57-b630-2aa6af5d94a8">
+        <testcase name="testPercentEscapedEmptyParamters()" classname="URLGenerationTests" time="0.001" id="eaebf9df-f1a6-5f57-b630-2aa6af5d94a8">
         </testcase>
-        <testcase name="testURLRequestSetJsonContentType()" time="0.001" id="1621f824-d779-527d-a135-02d9369a63e4">
+        <testcase name="testURLRequestSetJsonContentType()" classname="URLGenerationTests" time="0.001" id="1621f824-d779-527d-a135-02d9369a63e4">
         </testcase>
-        <testcase name="testPercentEscapedSingleParameters()" time="0.001" id="be64e3d9-5389-5648-b82f-84475d16b011">
+        <testcase name="testPercentEscapedSingleParameters()" classname="URLGenerationTests" time="0.001" id="be64e3d9-5389-5648-b82f-84475d16b011">
         </testcase>
-        <testcase name="testPercentEscapedMultipleParameters()" time="0.000" id="defb07a3-5dbb-5728-82a6-d4e5f509954c">
+        <testcase name="testPercentEscapedMultipleParameters()" classname="URLGenerationTests" time="0.000" id="defb07a3-5dbb-5728-82a6-d4e5f509954c">
         </testcase>
     </testsuite>
     <testsuite name="NetworkInfrastructure-Unit-NetworkInfrastructureTests.MovieImagesConfigurationTests" tests="4" disabled="0" errors="0" failures="0">
-        <testcase name="testBaseURLStringFromResponse()" time="0.002" id="b5adc832-a9d4-5aa1-ba83-9a585518f82f">
+        <testcase name="testBaseURLStringFromResponse()" classname="MovieImagesConfigurationTests" time="0.002" id="b5adc832-a9d4-5aa1-ba83-9a585518f82f">
         </testcase>
-        <testcase name="testMissingBaseURLStringFromResponse()" time="0.000" id="987e3dd1-07a3-5670-9734-e884491fb1fb">
+        <testcase name="testMissingBaseURLStringFromResponse()" classname="MovieImagesConfigurationTests" time="0.000" id="987e3dd1-07a3-5670-9734-e884491fb1fb">
         </testcase>
-        <testcase name="testMissingBackdropSizesFromResponse()" time="0.000" id="cef95711-91d4-58ab-ae7f-ff26a1ee74c5">
+        <testcase name="testMissingBackdropSizesFromResponse()" classname="MovieImagesConfigurationTests" time="0.000" id="cef95711-91d4-58ab-ae7f-ff26a1ee74c5">
         </testcase>
-        <testcase name="testMissingPosterSizesFromResponse()" time="0.000" id="d30ab3d0-ff5e-52f5-acc3-64f877b012ee">
+        <testcase name="testMissingPosterSizesFromResponse()" classname="MovieImagesConfigurationTests" time="0.000" id="d30ab3d0-ff5e-52f5-acc3-64f877b012ee">
         </testcase>
     </testsuite>
     <testsuite name="NetworkInfrastructure-Unit-NetworkInfrastructureTests.VideosTests" tests="8" disabled="0" errors="0" failures="0">
-        <testcase name="testSiteFromResponse()" time="0.001" id="9deb3f68-54b8-50dd-b113-c276063b4cce">
+        <testcase name="testSiteFromResponse()" classname="VideosTests" time="0.001" id="9deb3f68-54b8-50dd-b113-c276063b4cce">
         </testcase>
-        <testcase name="testKeyFromResponse()" time="0.000" id="a2ef082d-d88a-590d-a311-003e75d229f8">
+        <testcase name="testKeyFromResponse()" classname="VideosTests" time="0.000" id="a2ef082d-d88a-590d-a311-003e75d229f8">
         </testcase>
-        <testcase name="testIdFromResponse()" time="0.000" id="0d0c1d33-dab6-57cc-a5e4-356cf2b2844d">
+        <testcase name="testIdFromResponse()" classname="VideosTests" time="0.000" id="0d0c1d33-dab6-57cc-a5e4-356cf2b2844d">
         </testcase>
-        <testcase name="testNameFromResponse()" time="0.002" id="b38284e1-44da-562a-8b07-182c744716b9">
+        <testcase name="testNameFromResponse()" classname="VideosTests" time="0.002" id="b38284e1-44da-562a-8b07-182c744716b9">
         </testcase>
-        <testcase name="testMissingIdFromResponse()" time="0.000" id="1a033f3c-8e09-5b88-8f67-b65a1e7017bd">
+        <testcase name="testMissingIdFromResponse()" classname="VideosTests" time="0.000" id="1a033f3c-8e09-5b88-8f67-b65a1e7017bd">
         </testcase>
-        <testcase name="testMissingKeyFromResponse()" time="0.000" id="a494e17c-ab58-597f-b08b-56d8f24cc4bb">
+        <testcase name="testMissingKeyFromResponse()" classname="VideosTests" time="0.000" id="a494e17c-ab58-597f-b08b-56d8f24cc4bb">
         </testcase>
-        <testcase name="testMissingSiteFromResponse()" time="0.000" id="3f86bd62-9add-5f9f-b943-fed56b4f3a3a">
+        <testcase name="testMissingSiteFromResponse()" classname="VideosTests" time="0.000" id="3f86bd62-9add-5f9f-b943-fed56b4f3a3a">
         </testcase>
-        <testcase name="testMissingNameFromResponse()" time="0.000" id="72605748-89d0-5736-bf88-78e106ef5b9b">
+        <testcase name="testMissingNameFromResponse()" classname="VideosTests" time="0.000" id="72605748-89d0-5736-bf88-78e106ef5b9b">
         </testcase>
     </testsuite>
     <testsuite name="NetworkInfrastructure-Unit-NetworkInfrastructureTests.MovieReviewTests" tests="6" disabled="0" errors="0" failures="0">
-        <testcase name="testContentFromResponse()" time="0.001" id="11b5bb53-936f-536b-8b62-5547333dec5a">
+        <testcase name="testContentFromResponse()" classname="MovieReviewTests" time="0.001" id="11b5bb53-936f-536b-8b62-5547333dec5a">
         </testcase>
-        <testcase name="testMissingAuthorFromResponse()" time="0.001" id="68ef0684-b4f8-5df2-99cb-ce0ba30d2ed6">
+        <testcase name="testMissingAuthorFromResponse()" classname="MovieReviewTests" time="0.001" id="68ef0684-b4f8-5df2-99cb-ce0ba30d2ed6">
         </testcase>
-        <testcase name="testMissingContentFromResponse()" time="0.001" id="5b054a0e-0e9c-5e96-8cbf-c4179b89cf07">
+        <testcase name="testMissingContentFromResponse()" classname="MovieReviewTests" time="0.001" id="5b054a0e-0e9c-5e96-8cbf-c4179b89cf07">
         </testcase>
-        <testcase name="testIdFromResponse()" time="0.004" id="aa77f8b8-7dcc-5e12-a3af-dabbdc4b55bf">
+        <testcase name="testIdFromResponse()" classname="MovieReviewTests" time="0.004" id="aa77f8b8-7dcc-5e12-a3af-dabbdc4b55bf">
         </testcase>
-        <testcase name="testAuthorFromResponse()" time="0.000" id="07518b36-74a0-534a-ab2b-4d1c83a5110b">
+        <testcase name="testAuthorFromResponse()" classname="MovieReviewTests" time="0.000" id="07518b36-74a0-534a-ab2b-4d1c83a5110b">
         </testcase>
-        <testcase name="testMissingIdFromResponse()" time="0.001" id="c6cf89d4-7d0b-52df-97ff-2dc07d09a202">
+        <testcase name="testMissingIdFromResponse()" classname="MovieReviewTests" time="0.001" id="c6cf89d4-7d0b-52df-97ff-2dc07d09a202">
         </testcase>
     </testsuite>
     <testsuite name="NetworkInfrastructure-Unit-NetworkInfrastructureTests.RequestTokenTests" tests="4" disabled="0" errors="0" failures="0">
-        <testcase name="testMissingSuccessFromResponse()" time="0.003" id="e6246498-3437-5db3-b92e-c8fc50d19e14">
+        <testcase name="testMissingSuccessFromResponse()" classname="RequestTokenTests" time="0.003" id="e6246498-3437-5db3-b92e-c8fc50d19e14">
         </testcase>
-        <testcase name="testTokenFromResponse()" time="0.000" id="9938843e-4867-5c98-ae48-c2fad160d317">
+        <testcase name="testTokenFromResponse()" classname="RequestTokenTests" time="0.000" id="9938843e-4867-5c98-ae48-c2fad160d317">
         </testcase>
-        <testcase name="testSuccessFromResponse()" time="0.001" id="7f96daa6-a5d5-5698-8dea-0552395ff36e">
+        <testcase name="testSuccessFromResponse()" classname="RequestTokenTests" time="0.001" id="7f96daa6-a5d5-5698-8dea-0552395ff36e">
         </testcase>
-        <testcase name="testMissingTokenFromDResponse()" time="0.000" id="f9931b34-a85c-528b-b0c5-54ccf07c9346">
+        <testcase name="testMissingTokenFromDResponse()" classname="RequestTokenTests" time="0.000" id="f9931b34-a85c-528b-b0c5-54ccf07c9346">
         </testcase>
     </testsuite>
     <testsuite name="NetworkInfrastructure-Unit-NetworkInfrastructureTests.RateMovieTests" tests="4" disabled="0" errors="0" failures="0">
-        <testcase name="testStatusCodeFromResponse()" time="0.001" id="77f81560-a39a-5e62-bf1d-9a60f9f1da93">
+        <testcase name="testStatusCodeFromResponse()" classname="RateMovieTests" time="0.001" id="77f81560-a39a-5e62-bf1d-9a60f9f1da93">
         </testcase>
-        <testcase name="testMissingStatusMessageFromResponse()" time="0.001" id="03ef663b-39a0-5bf2-88cc-c35670d6bfa8">
+        <testcase name="testMissingStatusMessageFromResponse()" classname="RateMovieTests" time="0.001" id="03ef663b-39a0-5bf2-88cc-c35670d6bfa8">
         </testcase>
-        <testcase name="testStatusMessageFromResponse()" time="0.000" id="62a2916e-b33b-56ae-8140-64fdbfec4793">
+        <testcase name="testStatusMessageFromResponse()" classname="RateMovieTests" time="0.000" id="62a2916e-b33b-56ae-8140-64fdbfec4793">
         </testcase>
-        <testcase name="testMissingStatusCodeFromResponse()" time="0.000" id="08bc8fd4-70f3-5514-904f-c334d716445b">
+        <testcase name="testMissingStatusCodeFromResponse()" classname="RateMovieTests" time="0.000" id="08bc8fd4-70f3-5514-904f-c334d716445b">
         </testcase>
     </testsuite>
     <testsuite name="NetworkInfrastructure-Unit-NetworkInfrastructureTests.AuthClientTests" tests="6" disabled="0" errors="0" failures="0">
-        <testcase name="testCreateSessionIdError()" time="0.004" id="c820dfbd-5033-5302-887c-8583d12b58ee">
+        <testcase name="testCreateSessionIdError()" classname="AuthClientTests" time="0.004" id="c820dfbd-5033-5302-887c-8583d12b58ee">
         </testcase>
-        <testcase name="testGetRequestTokenSuccess()" time="0.001" id="cfeae5e5-7f56-5913-acd2-33e0ccdf069f">
+        <testcase name="testGetRequestTokenSuccess()" classname="AuthClientTests" time="0.001" id="cfeae5e5-7f56-5913-acd2-33e0ccdf069f">
         </testcase>
-        <testcase name="testCreateSessionIdSuccess()" time="0.001" id="77fe82ee-9af5-5e1e-9c78-9c1b9bbabb6d">
+        <testcase name="testCreateSessionIdSuccess()" classname="AuthClientTests" time="0.001" id="77fe82ee-9af5-5e1e-9c78-9c1b9bbabb6d">
         </testcase>
-        <testcase name="testGetAccessTokenError()" time="0.001" id="247826b4-b692-5a35-83b2-19c9f12847c2">
+        <testcase name="testGetAccessTokenError()" classname="AuthClientTests" time="0.001" id="247826b4-b692-5a35-83b2-19c9f12847c2">
         </testcase>
-        <testcase name="testGetRequestTokenError()" time="0.001" id="a352850e-0f49-5d4a-93f3-4c1e3a191eca">
+        <testcase name="testGetRequestTokenError()" classname="AuthClientTests" time="0.001" id="a352850e-0f49-5d4a-93f3-4c1e3a191eca">
         </testcase>
-        <testcase name="testGetAccessTokenSuccess()" time="0.001" id="aab57119-26aa-5416-8b07-6d47bacb71a5">
+        <testcase name="testGetAccessTokenSuccess()" classname="AuthClientTests" time="0.001" id="aab57119-26aa-5416-8b07-6d47bacb71a5">
         </testcase>
     </testsuite>
     <testsuite name="NetworkInfrastructure-Unit-NetworkInfrastructureTests.MovieClientTests" tests="24" disabled="0" errors="0" failures="0">
-        <testcase name="testGetPopularMoviesSuccess()" time="0.003" id="11146056-5b24-5f94-b249-31aa74325be5">
+        <testcase name="testGetPopularMoviesSuccess()" classname="MovieClientTests" time="0.003" id="11146056-5b24-5f94-b249-31aa74325be5">
         </testcase>
-        <testcase name="testGetMovieReviewsSuccess()" time="0.001" id="b9b00b44-cbc0-5ed1-8361-2d3653767063">
+        <testcase name="testGetMovieReviewsSuccess()" classname="MovieClientTests" time="0.001" id="b9b00b44-cbc0-5ed1-8361-2d3653767063">
         </testcase>
-        <testcase name="testGetMovieVideosSuccess()" time="0.001" id="24e322f0-e62a-5e68-9794-dc663ad07e43">
+        <testcase name="testGetMovieVideosSuccess()" classname="MovieClientTests" time="0.001" id="24e322f0-e62a-5e68-9794-dc663ad07e43">
         </testcase>
-        <testcase name="testGetSimilarMoviesError()" time="0.000" id="702b83e9-2196-538d-a087-00ef4c256215">
+        <testcase name="testGetSimilarMoviesError()" classname="MovieClientTests" time="0.000" id="702b83e9-2196-538d-a087-00ef4c256215">
         </testcase>
-        <testcase name="testGetMovieCreditsError()" time="0.000" id="839fdde9-659b-51c2-88aa-0e524cc17ee3">
+        <testcase name="testGetMovieCreditsError()" classname="MovieClientTests" time="0.000" id="839fdde9-659b-51c2-88aa-0e524cc17ee3">
         </testcase>
-        <testcase name="testGetSimilarMoviesSuccess()" time="0.002" id="4f7e822f-c3a3-5907-b4fa-d11ffa8cd1cd">
+        <testcase name="testGetSimilarMoviesSuccess()" classname="MovieClientTests" time="0.002" id="4f7e822f-c3a3-5907-b4fa-d11ffa8cd1cd">
         </testcase>
-        <testcase name="testGetUpcomingMoviesError()" time="0.001" id="7cf62e39-6cc5-5454-a065-8e3ade1afa91">
+        <testcase name="testGetUpcomingMoviesError()" classname="MovieClientTests" time="0.001" id="7cf62e39-6cc5-5454-a065-8e3ade1afa91">
         </testcase>
-        <testcase name="testRateMovieError()" time="0.001" id="6c489de7-4534-52ef-9e0a-e2d90606601d">
+        <testcase name="testRateMovieError()" classname="MovieClientTests" time="0.001" id="6c489de7-4534-52ef-9e0a-e2d90606601d">
         </testcase>
-        <testcase name="testGetMoviesByGenreSuccess()" time="0.001" id="c2b643b3-1214-560a-a7bf-af7d36d4238b">
+        <testcase name="testGetMoviesByGenreSuccess()" classname="MovieClientTests" time="0.001" id="c2b643b3-1214-560a-a7bf-af7d36d4238b">
         </testcase>
-        <testcase name="testGetMovieReviewsError()" time="0.001" id="88a3fc82-c38b-5638-8f9d-650f8d46bb2e">
+        <testcase name="testGetMovieReviewsError()" classname="MovieClientTests" time="0.001" id="88a3fc82-c38b-5638-8f9d-650f8d46bb2e">
         </testcase>
-        <testcase name="testGetUpcomingMoviesSuccess()" time="0.001" id="ef9c4a5c-8343-5905-9c72-61ae7dbb2d36">
+        <testcase name="testGetUpcomingMoviesSuccess()" classname="MovieClientTests" time="0.001" id="ef9c4a5c-8343-5905-9c72-61ae7dbb2d36">
         </testcase>
-        <testcase name="testGetMovieAccountStateSuccess()" time="0.002" id="df6b3dcc-ea9d-5b17-beb1-7bd81943f2e9">
+        <testcase name="testGetMovieAccountStateSuccess()" classname="MovieClientTests" time="0.002" id="df6b3dcc-ea9d-5b17-beb1-7bd81943f2e9">
         </testcase>
-        <testcase name="testGetMovieDetailSuccess()" time="0.002" id="bc2d2d38-e7ad-52aa-b9e3-8ccf19965d92">
+        <testcase name="testGetMovieDetailSuccess()" classname="MovieClientTests" time="0.002" id="bc2d2d38-e7ad-52aa-b9e3-8ccf19965d92">
         </testcase>
-        <testcase name="testGetMovieCreditsSuccess()" time="0.005" id="7585f2d5-ef73-54b9-9000-a37985ad789c">
+        <testcase name="testGetMovieCreditsSuccess()" classname="MovieClientTests" time="0.005" id="7585f2d5-ef73-54b9-9000-a37985ad789c">
         </testcase>
-        <testcase name="testGetMovieVideosError()" time="0.001" id="d5ff7ad8-aa33-52fa-af78-3fccd8b03698">
+        <testcase name="testGetMovieVideosError()" classname="MovieClientTests" time="0.001" id="d5ff7ad8-aa33-52fa-af78-3fccd8b03698">
         </testcase>
-        <testcase name="testGetMoviesByGenreError()" time="0.001" id="2161d923-5554-506d-a14d-caf2d9b2996b">
+        <testcase name="testGetMoviesByGenreError()" classname="MovieClientTests" time="0.001" id="2161d923-5554-506d-a14d-caf2d9b2996b">
         </testcase>
-        <testcase name="testGetMovieAccountStateError()" time="0.001" id="485a4f3e-b26d-57ae-aad2-c98a92de4480">
+        <testcase name="testGetMovieAccountStateError()" classname="MovieClientTests" time="0.001" id="485a4f3e-b26d-57ae-aad2-c98a92de4480">
         </testcase>
-        <testcase name="testGetPopularMoviesError()" time="0.002" id="edc0d37a-85fa-5dd3-b08e-5b13ab144b99">
+        <testcase name="testGetPopularMoviesError()" classname="MovieClientTests" time="0.002" id="edc0d37a-85fa-5dd3-b08e-5b13ab144b99">
         </testcase>
-        <testcase name="testGetMovieDetailError()" time="0.001" id="8aafde02-2c1e-53cb-b0a0-f1667edb8a9d">
+        <testcase name="testGetMovieDetailError()" classname="MovieClientTests" time="0.001" id="8aafde02-2c1e-53cb-b0a0-f1667edb8a9d">
         </testcase>
-        <testcase name="testGetTopRatedMoviesSuccess()" time="0.001" id="eda06602-128f-565a-b168-dc01d24d2916">
+        <testcase name="testGetTopRatedMoviesSuccess()" classname="MovieClientTests" time="0.001" id="eda06602-128f-565a-b168-dc01d24d2916">
         </testcase>
-        <testcase name="testSearchMoviesError()" time="0.002" id="19ae6cc7-5e61-58c9-8e6c-73ff61edc7b3">
+        <testcase name="testSearchMoviesError()" classname="MovieClientTests" time="0.002" id="19ae6cc7-5e61-58c9-8e6c-73ff61edc7b3">
         </testcase>
-        <testcase name="testGetTopRatedMoviesError()" time="0.004" id="ed2a2319-159f-5197-b3be-3ac3d69614ea">
+        <testcase name="testGetTopRatedMoviesError()" classname="MovieClientTests" time="0.004" id="ed2a2319-159f-5197-b3be-3ac3d69614ea">
         </testcase>
-        <testcase name="testRateMovieSuccess()" time="0.001" id="b5c6c7d4-7faa-525c-b383-17559a871717">
+        <testcase name="testRateMovieSuccess()" classname="MovieClientTests" time="0.001" id="b5c6c7d4-7faa-525c-b383-17559a871717">
         </testcase>
-        <testcase name="testSearchMoviesSuccess()" time="0.002" id="9590b1e4-e135-5b04-af1d-8822d79403e6">
+        <testcase name="testSearchMoviesSuccess()" classname="MovieClientTests" time="0.002" id="9590b1e4-e135-5b04-af1d-8822d79403e6">
         </testcase>
     </testsuite>
     <testsuite name="NetworkInfrastructure-Unit-NetworkInfrastructureTests.AuthRemoteDataSourceTests" tests="8" disabled="0" errors="0" failures="0">
-        <testcase name="testCurrentUserId()" time="0.001" id="9513bfa7-ee47-5005-9d6d-4035535d6dd7">
+        <testcase name="testCurrentUserId()" classname="AuthRemoteDataSourceTests" time="0.001" id="9513bfa7-ee47-5005-9d6d-4035535d6dd7">
         </testcase>
-        <testcase name="testGetAuthURLFailure()" time="0.001" id="1fc24ba0-1169-5709-9a77-b9bd6ab683f0">
+        <testcase name="testGetAuthURLFailure()" classname="AuthRemoteDataSourceTests" time="0.001" id="1fc24ba0-1169-5709-9a77-b9bd6ab683f0">
         </testcase>
-        <testcase name="testSignInUserFailureInGetAccountDetails()" time="0.004" id="4e974d43-dfd5-5dcb-bf0f-dd63e84d2abd">
+        <testcase name="testSignInUserFailureInGetAccountDetails()" classname="AuthRemoteDataSourceTests" time="0.004" id="4e974d43-dfd5-5dcb-bf0f-dd63e84d2abd">
         </testcase>
-        <testcase name="testSignInUserFailureInGetAccessToken()" time="0.001" id="a8a93623-ba8a-5527-85df-64ae2c6f1185">
+        <testcase name="testSignInUserFailureInGetAccessToken()" classname="AuthRemoteDataSourceTests" time="0.001" id="a8a93623-ba8a-5527-85df-64ae2c6f1185">
         </testcase>
-        <testcase name="testSignOutUser()" time="0.001" id="c39853b6-fdd4-5789-ad07-c51ed2dfae59">
+        <testcase name="testSignOutUser()" classname="AuthRemoteDataSourceTests" time="0.001" id="c39853b6-fdd4-5789-ad07-c51ed2dfae59">
         </testcase>
-        <testcase name="testSignInUserFailureInCreateSessionId()" time="0.001" id="37d06844-528a-5531-95ff-386ca553d115">
+        <testcase name="testSignInUserFailureInCreateSessionId()" classname="AuthRemoteDataSourceTests" time="0.001" id="37d06844-528a-5531-95ff-386ca553d115">
         </testcase>
-        <testcase name="testSignInUserSuccess()" time="0.001" id="940ba766-82bd-554a-ba46-d8aa3a7ae29b">
+        <testcase name="testSignInUserSuccess()" classname="AuthRemoteDataSourceTests" time="0.001" id="940ba766-82bd-554a-ba46-d8aa3a7ae29b">
         </testcase>
-        <testcase name="testGetAuthURLSuccess()" time="0.001" id="20959c4a-941f-52a9-86b1-0375fea1df4d">
+        <testcase name="testGetAuthURLSuccess()" classname="AuthRemoteDataSourceTests" time="0.001" id="20959c4a-941f-52a9-86b1-0375fea1df4d">
         </testcase>
     </testsuite>
     <testsuite name="NetworkInfrastructure-Unit-NetworkInfrastructureTests.MovieResultPaginationTests" tests="3" disabled="0" errors="0" failures="0">
-        <testcase name="testMovieResultNextPage()" time="0.001" id="73026b31-212b-5d0d-8535-bb3f4a6e5a84">
+        <testcase name="testMovieResultNextPage()" classname="MovieResultPaginationTests" time="0.001" id="73026b31-212b-5d0d-8535-bb3f4a6e5a84">
         </testcase>
-        <testcase name="testMovieResultHasMorePagesFalse()" time="0.001" id="42d1c5ec-ac75-558c-942b-7e9a5a62f8d5">
+        <testcase name="testMovieResultHasMorePagesFalse()" classname="MovieResultPaginationTests" time="0.001" id="42d1c5ec-ac75-558c-942b-7e9a5a62f8d5">
         </testcase>
-        <testcase name="testMovieResultHasMorePagesTrue()" time="0.000" id="af9539dd-237d-5862-8b66-66c5569ff224">
+        <testcase name="testMovieResultHasMorePagesTrue()" classname="MovieResultPaginationTests" time="0.000" id="af9539dd-237d-5862-8b66-66c5569ff224">
         </testcase>
     </testsuite>
     <testsuite name="NetworkInfrastructure-Unit-NetworkInfrastructureTests.MovieGenreTests" tests="4" disabled="0" errors="0" failures="0">
-        <testcase name="testIdFromResponse()" time="0.001" id="57044db7-6b1b-5059-a23a-6da8e545ae60">
+        <testcase name="testIdFromResponse()" classname="MovieGenreTests" time="0.001" id="57044db7-6b1b-5059-a23a-6da8e545ae60">
         </testcase>
-        <testcase name="testNameFromResponse()" time="0.001" id="ef0956a8-cabb-5110-bfd6-d200ddd8af9e">
+        <testcase name="testNameFromResponse()" classname="MovieGenreTests" time="0.001" id="ef0956a8-cabb-5110-bfd6-d200ddd8af9e">
         </testcase>
-        <testcase name="testMissingIdFromResponse()" time="0.000" id="05f0dc31-4d4d-5a69-af7d-c37e9105a640">
+        <testcase name="testMissingIdFromResponse()" classname="MovieGenreTests" time="0.000" id="05f0dc31-4d4d-5a69-af7d-c37e9105a640">
         </testcase>
-        <testcase name="testMissingNameFromResponse()" time="0.000" id="58dd5eb9-ed3f-50ea-97a5-2a6f36a0157a">
+        <testcase name="testMissingNameFromResponse()" classname="MovieGenreTests" time="0.000" id="58dd5eb9-ed3f-50ea-97a5-2a6f36a0157a">
         </testcase>
     </testsuite>
     <testsuite name="NetworkInfrastructure-Unit-NetworkInfrastructureTests.AccountRemoteDataSourceTests" tests="27" disabled="0" errors="0" failures="0">
-        <testcase name="testGetCustomListMoviesSuccess()" time="0.002" id="0c310c44-c89c-5d13-b8b7-cc223df8c773">
+        <testcase name="testGetCustomListMoviesSuccess()" classname="AccountRemoteDataSourceTests" time="0.002" id="0c310c44-c89c-5d13-b8b7-cc223df8c773">
         </testcase>
-        <testcase name="testGetCustomListMoviesNilAccessToken()" time="0.001" id="5eb1815d-42e0-5a70-ac78-bc6f854afc71">
+        <testcase name="testGetCustomListMoviesNilAccessToken()" classname="AccountRemoteDataSourceTests" time="0.001" id="5eb1815d-42e0-5a70-ac78-bc6f854afc71">
         </testcase>
-        <testcase name="testGetRecommendedListSuccess()" time="0.001" id="d4a989ea-833d-55d4-a812-797cf8d2331e">
+        <testcase name="testGetRecommendedListSuccess()" classname="AccountRemoteDataSourceTests" time="0.001" id="d4a989ea-833d-55d4-a812-797cf8d2331e">
         </testcase>
-        <testcase name="testGetFavoriteListNilUserAccount()" time="0.001" id="5d8f7de2-37f0-5d59-90c6-85598405a0bc">
+        <testcase name="testGetFavoriteListNilUserAccount()" classname="AccountRemoteDataSourceTests" time="0.001" id="5d8f7de2-37f0-5d59-90c6-85598405a0bc">
         </testcase>
-        <testcase name="testAddToWatchlistNilUserAccount()" time="0.001" id="49e06e7a-3a00-5a14-9042-ffdfe5bbf5bc">
+        <testcase name="testAddToWatchlistNilUserAccount()" classname="AccountRemoteDataSourceTests" time="0.001" id="49e06e7a-3a00-5a14-9042-ffdfe5bbf5bc">
         </testcase>
-        <testcase name="testGetRecommendedListFailure()" time="0.001" id="c892a74a-ceaf-5f66-a2dd-4ad81a5c3fe2">
+        <testcase name="testGetRecommendedListFailure()" classname="AccountRemoteDataSourceTests" time="0.001" id="c892a74a-ceaf-5f66-a2dd-4ad81a5c3fe2">
         </testcase>
-        <testcase name="testGetFavoriteListFailure()" time="0.001" id="a4f1c6ed-272c-597b-a837-354b8f0cde4c">
+        <testcase name="testGetFavoriteListFailure()" classname="AccountRemoteDataSourceTests" time="0.001" id="a4f1c6ed-272c-597b-a837-354b8f0cde4c">
         </testcase>
-        <testcase name="testAddToWatchlistFailure()" time="0.001" id="e5e5640d-8646-56e9-89d1-084f227e4a8c">
+        <testcase name="testAddToWatchlistFailure()" classname="AccountRemoteDataSourceTests" time="0.001" id="e5e5640d-8646-56e9-89d1-084f227e4a8c">
         </testcase>
-        <testcase name="testGetFavoriteListSuccess()" time="0.001" id="cbed16bd-b77b-5d3d-94c7-d5393081b22d">
+        <testcase name="testGetFavoriteListSuccess()" classname="AccountRemoteDataSourceTests" time="0.001" id="cbed16bd-b77b-5d3d-94c7-d5393081b22d">
         </testcase>
-        <testcase name="testGetAccountDetailNilUserAccount()" time="0.000" id="aa0cdbdc-594b-5c08-b0e1-780f8e7dd6f7">
+        <testcase name="testGetAccountDetailNilUserAccount()" classname="AccountRemoteDataSourceTests" time="0.000" id="aa0cdbdc-594b-5c08-b0e1-780f8e7dd6f7">
         </testcase>
-        <testcase name="testMarkMovieAsFavoriteNilUserAccount()" time="0.000" id="cf0cd0fa-97b9-5362-b6a1-ee61798c01e4">
+        <testcase name="testMarkMovieAsFavoriteNilUserAccount()" classname="AccountRemoteDataSourceTests" time="0.000" id="cf0cd0fa-97b9-5362-b6a1-ee61798c01e4">
         </testcase>
-        <testcase name="testGetCustomListMoviesNilListResult()" time="0.000" id="9af0c915-77c6-507e-a118-82c28bc10256">
+        <testcase name="testGetCustomListMoviesNilListResult()" classname="AccountRemoteDataSourceTests" time="0.000" id="9af0c915-77c6-507e-a118-82c28bc10256">
         </testcase>
-        <testcase name="testMarkMovieAsFavoriteSuccess()" time="0.001" id="387d5bd0-d744-57de-9fa2-e3d5a00bada7">
+        <testcase name="testMarkMovieAsFavoriteSuccess()" classname="AccountRemoteDataSourceTests" time="0.001" id="387d5bd0-d744-57de-9fa2-e3d5a00bada7">
         </testcase>
-        <testcase name="testGetAccountDetailSuccess()" time="0.000" id="4f205dcb-25c4-560a-aa8f-31bb661031d6">
+        <testcase name="testGetAccountDetailSuccess()" classname="AccountRemoteDataSourceTests" time="0.000" id="4f205dcb-25c4-560a-aa8f-31bb661031d6">
         </testcase>
-        <testcase name="testGetCustomListsSuccess()" time="0.001" id="011c1b77-5f30-58bc-8705-996ec69eb658">
+        <testcase name="testGetCustomListsSuccess()" classname="AccountRemoteDataSourceTests" time="0.001" id="011c1b77-5f30-58bc-8705-996ec69eb658">
         </testcase>
-        <testcase name="testGetCustomListMoviesFailure()" time="0.004" id="131375b2-8b54-5a2b-b6ba-e657b58906ab">
+        <testcase name="testGetCustomListMoviesFailure()" classname="AccountRemoteDataSourceTests" time="0.004" id="131375b2-8b54-5a2b-b6ba-e657b58906ab">
         </testcase>
-        <testcase name="testGetAccountDetailFailure()" time="0.001" id="f9b83d93-6751-59c1-bf22-55965f1722e5">
+        <testcase name="testGetAccountDetailFailure()" classname="AccountRemoteDataSourceTests" time="0.001" id="f9b83d93-6751-59c1-bf22-55965f1722e5">
         </testcase>
-        <testcase name="testGetWatchlistFailure()" time="0.001" id="ef3272bb-afbc-5b18-b84b-1b733edf56c9">
+        <testcase name="testGetWatchlistFailure()" classname="AccountRemoteDataSourceTests" time="0.001" id="ef3272bb-afbc-5b18-b84b-1b733edf56c9">
         </testcase>
-        <testcase name="testMarkMovieAsFavoriteFailure()" time="0.001" id="c5d755da-428b-5fdf-8280-4b0246edf825">
+        <testcase name="testMarkMovieAsFavoriteFailure()" classname="AccountRemoteDataSourceTests" time="0.001" id="c5d755da-428b-5fdf-8280-4b0246edf825">
         </testcase>
-        <testcase name="testGetWatchlistNilUserAccount()" time="0.000" id="5f281e03-b291-50fd-bc78-1a6b61934916">
+        <testcase name="testGetWatchlistNilUserAccount()" classname="AccountRemoteDataSourceTests" time="0.000" id="5f281e03-b291-50fd-bc78-1a6b61934916">
         </testcase>
-        <testcase name="testAddToWatchlistSuccess()" time="0.000" id="6204388e-d826-5640-ae93-979e85bacc0a">
+        <testcase name="testAddToWatchlistSuccess()" classname="AccountRemoteDataSourceTests" time="0.000" id="6204388e-d826-5640-ae93-979e85bacc0a">
         </testcase>
-        <testcase name="testGetCustomListFailure()" time="0.001" id="9e82147b-c0f1-5a59-b482-37d7976367d3">
+        <testcase name="testGetCustomListFailure()" classname="AccountRemoteDataSourceTests" time="0.001" id="9e82147b-c0f1-5a59-b482-37d7976367d3">
         </testcase>
-        <testcase name="testGetRecommendedListNilAccountIdAndToken()" time="0.000" id="492f3211-56cd-5601-8fd8-58ff7c53d617">
+        <testcase name="testGetRecommendedListNilAccountIdAndToken()" classname="AccountRemoteDataSourceTests" time="0.000" id="492f3211-56cd-5601-8fd8-58ff7c53d617">
         </testcase>
-        <testcase name="testGetCustomListNilAccountIdAndToken()" time="0.001" id="3cfdad98-008f-577d-af4e-d62a34d50515">
+        <testcase name="testGetCustomListNilAccountIdAndToken()" classname="AccountRemoteDataSourceTests" time="0.001" id="3cfdad98-008f-577d-af4e-d62a34d50515">
         </testcase>
-        <testcase name="testGetCustomListNilListResult()" time="0.000" id="e74824c3-1cdc-51a5-9799-a77a45bdbe26">
+        <testcase name="testGetCustomListNilListResult()" classname="AccountRemoteDataSourceTests" time="0.000" id="e74824c3-1cdc-51a5-9799-a77a45bdbe26">
         </testcase>
-        <testcase name="testGetWatchlistSuccess()" time="0.001" id="f536dd44-1bc6-579a-b622-bdf0511cc312">
+        <testcase name="testGetWatchlistSuccess()" classname="AccountRemoteDataSourceTests" time="0.001" id="f536dd44-1bc6-579a-b622-bdf0511cc312">
         </testcase>
-        <testcase name="testGetRecommendedListNilListResult()" time="0.003" id="487dc9ef-854d-5cf5-b125-13ed722a897b">
+        <testcase name="testGetRecommendedListNilListResult()" classname="AccountRemoteDataSourceTests" time="0.003" id="487dc9ef-854d-5cf5-b125-13ed722a897b">
         </testcase>
     </testsuite>
     <testsuite name="NetworkInfrastructure-Unit-NetworkInfrastructureTests.SessionTests" tests="4" disabled="0" errors="0" failures="0">
-        <testcase name="testMissingSessionIdFromDResponse()" time="0.000" id="b527e659-a784-5285-8478-718af3cae8de">
+        <testcase name="testMissingSessionIdFromDResponse()" classname="SessionTests" time="0.000" id="b527e659-a784-5285-8478-718af3cae8de">
         </testcase>
-        <testcase name="testMissingSuccessFromResponse()" time="0.001" id="eb4cec91-c3b6-5978-ab63-b5e3cc51bf5f">
+        <testcase name="testMissingSuccessFromResponse()" classname="SessionTests" time="0.001" id="eb4cec91-c3b6-5978-ab63-b5e3cc51bf5f">
         </testcase>
-        <testcase name="testSuccessFromResponse()" time="0.000" id="23554e4d-a8fb-5bf1-a44d-773e5d8e9787">
+        <testcase name="testSuccessFromResponse()" classname="SessionTests" time="0.000" id="23554e4d-a8fb-5bf1-a44d-773e5d8e9787">
         </testcase>
-        <testcase name="testSessionIdFromResponse()" time="0.001" id="48fa912a-4ed5-53a6-82c5-1994a6400a73">
+        <testcase name="testSessionIdFromResponse()" classname="SessionTests" time="0.001" id="48fa912a-4ed5-53a6-82c5-1994a6400a73">
         </testcase>
     </testsuite>
     <testsuite name="NetworkInfrastructure-Unit-NetworkInfrastructureTests.MovieSortTypeTests" tests="4" disabled="0" errors="0" failures="0">
-        <testcase name="testWatchlistSortTypeCallAsFunctionCreatedAtDesc()" time="0.001" id="d8196834-3bce-5ee5-9ffc-08ec619e92b9">
+        <testcase name="testWatchlistSortTypeCallAsFunctionCreatedAtDesc()" classname="MovieSortTypeTests" time="0.001" id="d8196834-3bce-5ee5-9ffc-08ec619e92b9">
         </testcase>
-        <testcase name="testWatchlistSortTypeCallAsFunctionCreatedAtAsc()" time="0.001" id="d994d02a-0f46-56cc-8116-626ce0410049">
+        <testcase name="testWatchlistSortTypeCallAsFunctionCreatedAtAsc()" classname="MovieSortTypeTests" time="0.001" id="d994d02a-0f46-56cc-8116-626ce0410049">
         </testcase>
-        <testcase name="testFavoriteSortTypeCallAsFunctionCreatedAtDesc()" time="0.001" id="a73c005b-53c1-57b8-8414-bd68691178b7">
+        <testcase name="testFavoriteSortTypeCallAsFunctionCreatedAtDesc()" classname="MovieSortTypeTests" time="0.001" id="a73c005b-53c1-57b8-8414-bd68691178b7">
         </testcase>
-        <testcase name="testFavoriteSortTypeCallAsFunctionCreatedAtAsc()" time="0.000" id="2cd55943-5691-5318-9223-b9b9191e7b00">
+        <testcase name="testFavoriteSortTypeCallAsFunctionCreatedAtAsc()" classname="MovieSortTypeTests" time="0.000" id="2cd55943-5691-5318-9223-b9b9191e7b00">
         </testcase>
     </testsuite>
     <testsuite name="NetworkInfrastructure-Unit-NetworkInfrastructureTests.AddToWatchlistTests" tests="4" disabled="0" errors="0" failures="0">
-        <testcase name="testMissingStatusMessageFromResponse()" time="0.001" id="ba57e39c-4d4c-5026-a714-ebd247c07e96">
+        <testcase name="testMissingStatusMessageFromResponse()" classname="AddToWatchlistTests" time="0.001" id="ba57e39c-4d4c-5026-a714-ebd247c07e96">
         </testcase>
-        <testcase name="testStatusCodeFromResponse()" time="0.000" id="56a7b217-1f36-552d-bbd4-4683ccdc1cfe">
+        <testcase name="testStatusCodeFromResponse()" classname="AddToWatchlistTests" time="0.000" id="56a7b217-1f36-552d-bbd4-4683ccdc1cfe">
         </testcase>
-        <testcase name="testStatusMessageFromResponse()" time="0.000" id="1d8e68f1-77d0-55e2-9fd0-9113aeb5f84a">
+        <testcase name="testStatusMessageFromResponse()" classname="AddToWatchlistTests" time="0.000" id="1d8e68f1-77d0-55e2-9fd0-9113aeb5f84a">
         </testcase>
-        <testcase name="testMissingStatusCodeFromResponse()" time="0.000" id="6e1ccee4-592d-5ae8-ae94-4dde1771a57a">
+        <testcase name="testMissingStatusCodeFromResponse()" classname="AddToWatchlistTests" time="0.000" id="6e1ccee4-592d-5ae8-ae94-4dde1771a57a">
         </testcase>
     </testsuite>
     <testsuite name="NetworkInfrastructure-Unit-NetworkInfrastructureTests.AccessTokenTests" tests="4" disabled="0" errors="0" failures="0">
-        <testcase name="testMissingAccounIdFromResponse()" time="0.000" id="c5ad0a28-968f-5e82-b3a7-35ccdb9b5e50">
+        <testcase name="testMissingAccounIdFromResponse()" classname="AccessTokenTests" time="0.000" id="c5ad0a28-968f-5e82-b3a7-35ccdb9b5e50">
         </testcase>
-        <testcase name="testMissingTokenFromResponse()" time="0.001" id="b1702c3b-ed4e-50a1-99dd-1ad1ea9e1bf6">
+        <testcase name="testMissingTokenFromResponse()" classname="AccessTokenTests" time="0.001" id="b1702c3b-ed4e-50a1-99dd-1ad1ea9e1bf6">
         </testcase>
-        <testcase name="testAccounIdFromResponse()" time="0.001" id="f18d75fd-2b2b-53d4-8935-2f03a927bb0c">
+        <testcase name="testAccounIdFromResponse()" classname="AccessTokenTests" time="0.001" id="f18d75fd-2b2b-53d4-8935-2f03a927bb0c">
         </testcase>
-        <testcase name="testTokenFromResponse()" time="0.000" id="2d545b14-ecc1-5ebc-afce-464fe05eb771">
+        <testcase name="testTokenFromResponse()" classname="AccessTokenTests" time="0.000" id="2d545b14-ecc1-5ebc-afce-464fe05eb771">
         </testcase>
     </testsuite>
     <testsuite name="NetworkInfrastructure-Unit-NetworkInfrastructureTests.AccountClientTests" tests="16" disabled="0" errors="0" failures="0">
-        <testcase name="testGetWatchlistError()" time="0.001" id="0160e8b4-6293-512b-8e24-93a76b640dfc">
+        <testcase name="testGetWatchlistError()" classname="AccountClientTests" time="0.001" id="0160e8b4-6293-512b-8e24-93a76b640dfc">
         </testcase>
-        <testcase name="testGetWatchlistSuccess()" time="0.001" id="2dacca8f-c181-5d8a-9325-00bf9791eeb6">
+        <testcase name="testGetWatchlistSuccess()" classname="AccountClientTests" time="0.001" id="2dacca8f-c181-5d8a-9325-00bf9791eeb6">
         </testcase>
-        <testcase name="testGetCustomListMoviesError()" time="0.005" id="0885d727-388b-5bfc-a433-5531ff6707d2">
+        <testcase name="testGetCustomListMoviesError()" classname="AccountClientTests" time="0.005" id="0885d727-388b-5bfc-a433-5531ff6707d2">
         </testcase>
-        <testcase name="testGetCustomListMoviesSuccess()" time="0.001" id="faaca6c8-c0ea-59e2-a232-543c0b817749">
+        <testcase name="testGetCustomListMoviesSuccess()" classname="AccountClientTests" time="0.001" id="faaca6c8-c0ea-59e2-a232-543c0b817749">
         </testcase>
-        <testcase name="testGetCustomListsError()" time="0.001" id="e18b3bee-3689-5a42-b72b-0d00feee50fb">
+        <testcase name="testGetCustomListsError()" classname="AccountClientTests" time="0.001" id="e18b3bee-3689-5a42-b72b-0d00feee50fb">
         </testcase>
-        <testcase name="testAddToWatchlistError()" time="0.001" id="3ea1f771-88af-52ab-96c8-5200006f12ca">
+        <testcase name="testAddToWatchlistError()" classname="AccountClientTests" time="0.001" id="3ea1f771-88af-52ab-96c8-5200006f12ca">
         </testcase>
-        <testcase name="testGetCustomListsSuccess()" time="0.004" id="cf84391f-2782-508b-a3b4-33459ecb4128">
+        <testcase name="testGetCustomListsSuccess()" classname="AccountClientTests" time="0.004" id="cf84391f-2782-508b-a3b4-33459ecb4128">
         </testcase>
-        <testcase name="testMarkAsFavoriteError()" time="0.001" id="864c4119-c27c-5961-a4b6-458d7e764f7b">
+        <testcase name="testMarkAsFavoriteError()" classname="AccountClientTests" time="0.001" id="864c4119-c27c-5961-a4b6-458d7e764f7b">
         </testcase>
-        <testcase name="testGetAccountDetailSuccess()" time="0.001" id="ad2f0561-9bf3-5447-931f-248e7e16b4be">
+        <testcase name="testGetAccountDetailSuccess()" classname="AccountClientTests" time="0.001" id="ad2f0561-9bf3-5447-931f-248e7e16b4be">
         </testcase>
-        <testcase name="testGetFavoriteListSuccess()" time="0.001" id="19ba369f-082c-5995-8212-35f55fcc2317">
+        <testcase name="testGetFavoriteListSuccess()" classname="AccountClientTests" time="0.001" id="19ba369f-082c-5995-8212-35f55fcc2317">
         </testcase>
-        <testcase name="testGetFavoriteListError()" time="0.002" id="30c04794-f2ca-560a-8255-0f067ea481af">
+        <testcase name="testGetFavoriteListError()" classname="AccountClientTests" time="0.002" id="30c04794-f2ca-560a-8255-0f067ea481af">
         </testcase>
-        <testcase name="testGetAccountDetailError()" time="0.001" id="0735f573-891e-50b9-9614-c7da995fe97d">
+        <testcase name="testGetAccountDetailError()" classname="AccountClientTests" time="0.001" id="0735f573-891e-50b9-9614-c7da995fe97d">
         </testcase>
-        <testcase name="testAddToWatchlistSuccess()" time="0.001" id="86219717-9729-540f-8bdb-30d0f50e7b59">
+        <testcase name="testAddToWatchlistSuccess()" classname="AccountClientTests" time="0.001" id="86219717-9729-540f-8bdb-30d0f50e7b59">
         </testcase>
-        <testcase name="testMarkAsFavoriteSuccess()" time="0.001" id="4daccc28-a053-533d-b3e9-17a0b5070a97">
+        <testcase name="testMarkAsFavoriteSuccess()" classname="AccountClientTests" time="0.001" id="4daccc28-a053-533d-b3e9-17a0b5070a97">
         </testcase>
-        <testcase name="testGetRecommendedListSuccess()" time="0.001" id="c16f2e03-f0c6-56f6-8d5e-cd2f7cda92e3">
+        <testcase name="testGetRecommendedListSuccess()" classname="AccountClientTests" time="0.001" id="c16f2e03-f0c6-56f6-8d5e-cd2f7cda92e3">
         </testcase>
-        <testcase name="testGetRecommendedListError()" time="0.001" id="6313da0f-7f37-50cc-8ff4-1266809253b2">
+        <testcase name="testGetRecommendedListError()" classname="AccountClientTests" time="0.001" id="6313da0f-7f37-50cc-8ff4-1266809253b2">
         </testcase>
     </testsuite>
     <testsuite name="UpcomingMoviesData-Unit-UpcomingMoviesDataTests.MovieVisitRepositoryTests" tests="2" disabled="0" errors="0" failures="0">
-        <testcase name="testSaveMovieVisits()" time="0.002" id="50b67368-e964-5dd1-9448-622dc3468926">
+        <testcase name="testSaveMovieVisits()" classname="MovieVisitRepositoryTests" time="0.002" id="50b67368-e964-5dd1-9448-622dc3468926">
         </testcase>
-        <testcase name="testGetMovieVisits()" time="0.001" id="41cb78ab-2b55-5b8d-8c78-2089cc103f7c">
+        <testcase name="testGetMovieVisits()" classname="MovieVisitRepositoryTests" time="0.001" id="41cb78ab-2b55-5b8d-8c78-2089cc103f7c">
         </testcase>
     </testsuite>
     <testsuite name="UpcomingMoviesData-Unit-UpcomingMoviesDataTests.ConfigurationRepositoryTests" tests="1" disabled="0" errors="0" failures="0">
-        <testcase name="testGetConfiguration()" time="0.001" id="668ed7af-7def-5695-93a6-17932aa628b3">
+        <testcase name="testGetConfiguration()" classname="ConfigurationRepositoryTests" time="0.001" id="668ed7af-7def-5695-93a6-17932aa628b3">
         </testcase>
     </testsuite>
     <testsuite name="UpcomingMoviesData-Unit-UpcomingMoviesDataTests.MovieSearchRepositoryTests" tests="2" disabled="0" errors="0" failures="0">
-        <testcase name="testSaveSearchTextCalled()" time="0.000" id="14d9f222-a291-5dd6-9d50-81401f0fccc7">
+        <testcase name="testSaveSearchTextCalled()" classname="MovieSearchRepositoryTests" time="0.000" id="14d9f222-a291-5dd6-9d50-81401f0fccc7">
         </testcase>
-        <testcase name="testGetMovieSearches()" time="0.000" id="1ebf7d13-fb91-577f-9ebf-57ea5e4eb422">
+        <testcase name="testGetMovieSearches()" classname="MovieSearchRepositoryTests" time="0.000" id="1ebf7d13-fb91-577f-9ebf-57ea5e4eb422">
         </testcase>
     </testsuite>
     <testsuite name="UpcomingMoviesData-Unit-UpcomingMoviesDataTests.UserRepositoryTests" tests="2" disabled="0" errors="0" failures="0">
-        <testcase name="testFindUserCalled()" time="0.000" id="99ab90d4-92d3-5873-84f0-0284ac0b9acc">
+        <testcase name="testFindUserCalled()" classname="UserRepositoryTests" time="0.000" id="99ab90d4-92d3-5873-84f0-0284ac0b9acc">
         </testcase>
-        <testcase name="testSaveUserCalled()" time="0.000" id="268f649a-50c3-5f58-91d6-d4f03d32339b">
+        <testcase name="testSaveUserCalled()" classname="UserRepositoryTests" time="0.000" id="268f649a-50c3-5f58-91d6-d4f03d32339b">
         </testcase>
     </testsuite>
     <testsuite name="UpcomingMoviesDomain-Unit-UpcomingMoviesDomainTests.UpcomingMoviesDomainTests" tests="2" disabled="0" errors="0" failures="0">
-        <testcase name="testPerformanceExample()" time="0.400" id="f7060135-bb4e-5891-9609-97494a20421a">
+        <testcase name="testPerformanceExample()" classname="UpcomingMoviesDomainTests" time="0.400" id="f7060135-bb4e-5891-9609-97494a20421a">
         </testcase>
-        <testcase name="testExample()" time="0.000" id="1af5a4e6-29a0-5f73-9ddc-0803c0341ba1">
+        <testcase name="testExample()" classname="UpcomingMoviesDomainTests" time="0.000" id="1af5a4e6-29a0-5f73-9ddc-0803c0341ba1">
         </testcase>
     </testsuite>
     <testsuite name="UpcomingMoviesTests.CastModelTests" tests="1" disabled="1" errors="0" failures="0">
-        <testcase name="testInitWithCast()" time="0.003" id="310d1f9a-3a73-515f-9737-4bffd0474da7">
+        <testcase name="testInitWithCast()" classname="CastModelTests" time="0.003" id="310d1f9a-3a73-515f-9737-4bffd0474da7">
             <skipped/>
         </testcase>
     </testsuite>
     <testsuite name="UpcomingMoviesTests.SavedMovieCellViewModelTests" tests="2" disabled="0" errors="0" failures="0">
-        <testcase name="testBackdropURL()" time="0.001" id="9c409fe5-78a5-5a4c-85a6-4a30a2278291">
+        <testcase name="testBackdropURL()" classname="SavedMovieCellViewModelTests" time="0.001" id="9c409fe5-78a5-5a4c-85a6-4a30a2278291">
         </testcase>
-        <testcase name="testTitle()" time="0.000" id="7196da40-d6f2-5ac1-a1de-80f0efb13b3e">
+        <testcase name="testTitle()" classname="SavedMovieCellViewModelTests" time="0.000" id="7196da40-d6f2-5ac1-a1de-80f0efb13b3e">
         </testcase>
     </testsuite>
     <testsuite name="UpcomingMoviesTests.ProfileInteractorTests" tests="3" disabled="0" errors="0" failures="0">
-        <testcase name="testGetAccountDetailError()" time="0.000" id="ce9b3727-e252-53a0-bd74-f38aaecf83da">
+        <testcase name="testGetAccountDetailError()" classname="ProfileInteractorTests" time="0.000" id="ce9b3727-e252-53a0-bd74-f38aaecf83da">
         </testcase>
-        <testcase name="testGetAccountDetailSuccess()" time="0.000" id="9a3221eb-7867-5159-9f49-1649a354cee8">
+        <testcase name="testGetAccountDetailSuccess()" classname="ProfileInteractorTests" time="0.000" id="9a3221eb-7867-5159-9f49-1649a354cee8">
         </testcase>
-        <testcase name="testSignOutUser()" time="0.000" id="a50e9ab5-c80e-55d1-b528-a6c533f85f45">
+        <testcase name="testSignOutUser()" classname="ProfileInteractorTests" time="0.000" id="a50e9ab5-c80e-55d1-b528-a6c533f85f45">
         </testcase>
     </testsuite>
     <testsuite name="UpcomingMoviesTests.AuthPermissionCoordinatorTests" tests="2" disabled="0" errors="0" failures="0">
-        <testcase name="testDidDismiss()" time="0.001" id="3b1ae076-02b7-5a27-8492-917f0ea092fb">
+        <testcase name="testDidDismiss()" classname="AuthPermissionCoordinatorTests" time="0.001" id="3b1ae076-02b7-5a27-8492-917f0ea092fb">
         </testcase>
-        <testcase name="testBuild()" time="0.004" id="54d1d975-52f8-5c99-97b1-6e1c3c0dd469">
+        <testcase name="testBuild()" classname="AuthPermissionCoordinatorTests" time="0.004" id="54d1d975-52f8-5c99-97b1-6e1c3c0dd469">
         </testcase>
     </testsuite>
     <testsuite name="UpcomingMoviesTests.SearchMoviesResultViewModelTests" tests="2" disabled="0" errors="0" failures="0">
-        <testcase name="testShareTitle()" time="0.000" id="df3b493c-0290-5ebf-9074-462f9481595a">
+        <testcase name="testShareTitle()" classname="SearchMoviesResultViewModelTests" time="0.000" id="df3b493c-0290-5ebf-9074-462f9481595a">
         </testcase>
-        <testcase name="testEmptySearchResultsTitle()" time="0.000" id="428d634e-60f5-51ff-8801-d761dbb051cd">
+        <testcase name="testEmptySearchResultsTitle()" classname="SearchMoviesResultViewModelTests" time="0.000" id="428d634e-60f5-51ff-8801-d761dbb051cd">
         </testcase>
     </testsuite>
     <testsuite name="UpcomingMoviesTests.ProfileViewControllerTests" tests="12" disabled="0" errors="0" failures="0">
-        <testcase name="testDidSelectRowAtRecommendedSection()" time="0.005" id="7e94a997-d7a3-5ca2-9607-7da79b5119e2">
+        <testcase name="testDidSelectRowAtRecommendedSection()" classname="ProfileViewControllerTests" time="0.005" id="7e94a997-d7a3-5ca2-9607-7da79b5119e2">
         </testcase>
-        <testcase name="testHeightForRowAtCollectionsSection()" time="0.002" id="327c77e7-0444-5dce-aa32-e71e1208d43c">
+        <testcase name="testHeightForRowAtCollectionsSection()" classname="ProfileViewControllerTests" time="0.002" id="327c77e7-0444-5dce-aa32-e71e1208d43c">
         </testcase>
-        <testcase name="testDidSelectRowAtCustomListsSection()" time="0.001" id="b11ab8a8-117b-501c-bacb-8f7e516b164a">
+        <testcase name="testDidSelectRowAtCustomListsSection()" classname="ProfileViewControllerTests" time="0.001" id="b11ab8a8-117b-501c-bacb-8f7e516b164a">
         </testcase>
-        <testcase name="testHeightForRowWithoutViewModel()" time="0.001" id="abc30473-ffbe-52ea-8ed4-ac2a08c165bc">
+        <testcase name="testHeightForRowWithoutViewModel()" classname="ProfileViewControllerTests" time="0.001" id="abc30473-ffbe-52ea-8ed4-ac2a08c165bc">
         </testcase>
-        <testcase name="testHeightForRowAtCustomListsSection()" time="0.001" id="d80c96e8-803c-5a57-be03-629e288fcca8">
+        <testcase name="testHeightForRowAtCustomListsSection()" classname="ProfileViewControllerTests" time="0.001" id="d80c96e8-803c-5a57-be03-629e288fcca8">
         </testcase>
-        <testcase name="testDidUpdateAuthenticationState()" time="1.000" id="0f646d8e-db08-5f47-b8cb-0579008864e0">
+        <testcase name="testDidUpdateAuthenticationState()" classname="ProfileViewControllerTests" time="1.000" id="0f646d8e-db08-5f47-b8cb-0579008864e0">
         </testcase>
-        <testcase name="testDidSelectRowAtSignOutSection()" time="0.004" id="4a3550e8-7736-5439-ada4-b0347d560f3a">
+        <testcase name="testDidSelectRowAtSignOutSection()" classname="ProfileViewControllerTests" time="0.004" id="4a3550e8-7736-5439-ada4-b0347d560f3a">
         </testcase>
-        <testcase name="testDidSelectRowAtCollectionsSection()" time="0.002" id="1dc3a540-4e85-5a44-a4d7-c23d92bc976d">
+        <testcase name="testDidSelectRowAtCollectionsSection()" classname="ProfileViewControllerTests" time="0.002" id="1dc3a540-4e85-5a44-a4d7-c23d92bc976d">
         </testcase>
-        <testcase name="testHeightForRowAtRecommendedSection()" time="0.001" id="58cdfad0-c524-5ef8-9b7e-5da74cc82ae0">
+        <testcase name="testHeightForRowAtRecommendedSection()" classname="ProfileViewControllerTests" time="0.001" id="58cdfad0-c524-5ef8-9b7e-5da74cc82ae0">
         </testcase>
-        <testcase name="testHeightForRowAtSignOutSection()" time="0.001" id="99470aa4-c199-5f57-87fc-41afcf44a6d7">
+        <testcase name="testHeightForRowAtSignOutSection()" classname="ProfileViewControllerTests" time="0.001" id="99470aa4-c199-5f57-87fc-41afcf44a6d7">
         </testcase>
-        <testcase name="testDidSelectRowAtAccountInfoSection()" time="0.001" id="ce69f663-d668-568d-9f64-0ab98f41d08a">
+        <testcase name="testDidSelectRowAtAccountInfoSection()" classname="ProfileViewControllerTests" time="0.001" id="ce69f663-d668-568d-9f64-0ab98f41d08a">
         </testcase>
-        <testcase name="testHeightForRowAtAccountInfoSection()" time="0.001" id="4e89c93b-d4f9-50cf-98da-ead55e69a96d">
+        <testcase name="testHeightForRowAtAccountInfoSection()" classname="ProfileViewControllerTests" time="0.001" id="4e89c93b-d4f9-50cf-98da-ead55e69a96d">
         </testcase>
     </testsuite>
     <testsuite name="UpcomingMoviesTests.MovieDetailTitleRenderContentTests" tests="4" disabled="0" errors="0" failures="0">
-        <testcase name="testReleaseDate()" time="0.000" id="9b5dd4ef-ee8c-58a8-b677-e7ea9591111d">
+        <testcase name="testReleaseDate()" classname="MovieDetailTitleRenderContentTests" time="0.000" id="9b5dd4ef-ee8c-58a8-b677-e7ea9591111d">
         </testcase>
-        <testcase name="testTitle()" time="0.000" id="a359ccf0-7d96-5c6f-8a9a-063e7d1e8646">
+        <testcase name="testTitle()" classname="MovieDetailTitleRenderContentTests" time="0.000" id="a359ccf0-7d96-5c6f-8a9a-063e7d1e8646">
         </testcase>
-        <testcase name="testVoteAverage()" time="0.000" id="f70d5d9a-ae1c-5510-a4b0-e3b1616c2c06">
+        <testcase name="testVoteAverage()" classname="MovieDetailTitleRenderContentTests" time="0.000" id="f70d5d9a-ae1c-5510-a4b0-e3b1616c2c06">
         </testcase>
-        <testcase name="testGenreIds()" time="0.000" id="39d5c9fa-deb4-5571-b917-43729e3a794a">
+        <testcase name="testGenreIds()" classname="MovieDetailTitleRenderContentTests" time="0.000" id="39d5c9fa-deb4-5571-b917-43729e3a794a">
         </testcase>
     </testsuite>
     <testsuite name="UpcomingMoviesTests.FavoritesSavedMoviesInteractorTests" tests="1" disabled="0" errors="0" failures="0">
-        <testcase name="testGetFavoriteListCalled()" time="0.001" id="3d9b7d90-d52c-503b-96d6-7ebfd2c03fe3">
+        <testcase name="testGetFavoriteListCalled()" classname="FavoritesSavedMoviesInteractorTests" time="0.001" id="3d9b7d90-d52c-503b-96d6-7ebfd2c03fe3">
         </testcase>
     </testsuite>
     <testsuite name="UpcomingMoviesTests.RecommendedMoviesCoordinatorTests" tests="1" disabled="0" errors="0" failures="0">
-        <testcase name="testBuild()" time="0.004" id="4a4180ab-cf44-58d8-8126-ca091a3ab348">
+        <testcase name="testBuild()" classname="RecommendedMoviesCoordinatorTests" time="0.004" id="4a4180ab-cf44-58d8-8126-ca091a3ab348">
         </testcase>
     </testsuite>
     <testsuite name="UpcomingMoviesTests.MovieCreditsCoordinatorTests" tests="1" disabled="0" errors="0" failures="0">
-        <testcase name="testBuild()" time="0.003" id="eb8b05de-cb35-5c43-bc4a-0ef03c175bd3">
+        <testcase name="testBuild()" classname="MovieCreditsCoordinatorTests" time="0.003" id="eb8b05de-cb35-5c43-bc4a-0ef03c175bd3">
         </testcase>
     </testsuite>
     <testsuite name="UpcomingMoviesTests.MovieSearchModelTests" tests="1" disabled="0" errors="0" failures="1">
-        <testcase name="testInitWithMovieSearch()" time="0.011" id="6a0ee60a-0a5e-5050-83ac-3eb22a6cb142" file="/Users/work/src/iOS-example/UpcomingMoviesTests/MovieSearchModelTests.swift">
+        <testcase name="testInitWithMovieSearch()" classname="MovieSearchModelTests" time="0.011" id="6a0ee60a-0a5e-5050-83ac-3eb22a6cb142" file="/Users/work/src/iOS-example/UpcomingMoviesTests/MovieSearchModelTests.swift">
             <failure message="MovieSearchModelTests.swift:21: XCTAssertEqual failed: (&quot;12345&quot;) is not equal to (&quot;12346&quot;)"/>
         </testcase>
     </testsuite>
     <testsuite name="UpcomingMoviesTests.PopularMoviesCoordinatorTests" tests="1" disabled="0" errors="0" failures="0">
-        <testcase name="testBuild()" time="0.002" id="19472e1a-4bf6-58ef-91b6-9dfc35e63f97">
+        <testcase name="testBuild()" classname="PopularMoviesCoordinatorTests" time="0.002" id="19472e1a-4bf6-58ef-91b6-9dfc35e63f97">
         </testcase>
     </testsuite>
     <testsuite name="UpcomingMoviesTests.MovieDetailPosterCoordinatorTests" tests="1" disabled="0" errors="0" failures="0">
-        <testcase name="testBuild()" time="0.003" id="81d490cd-949f-5461-b66f-d8d7697ad024">
+        <testcase name="testBuild()" classname="MovieDetailPosterCoordinatorTests" time="0.003" id="81d490cd-949f-5461-b66f-d8d7697ad024">
         </testcase>
     </testsuite>
     <testsuite name="UpcomingMoviesTests.CustomListDetailViewControllerTests" tests="3" disabled="0" errors="0" failures="0">
-        <testcase name="testViewWillAppear()" time="0.004" id="26ba4e28-a0de-5e06-8564-14fa88e3ec6d">
+        <testcase name="testViewWillAppear()" classname="CustomListDetailViewControllerTests" time="0.004" id="26ba4e28-a0de-5e06-8564-14fa88e3ec6d">
         </testcase>
-        <testcase name="testHeightForHeaderInSection()" time="0.001" id="cca4a2d7-c446-5c70-9a0f-a90f1cb804fb">
+        <testcase name="testHeightForHeaderInSection()" classname="CustomListDetailViewControllerTests" time="0.001" id="cca4a2d7-c446-5c70-9a0f-a90f1cb804fb">
         </testcase>
-        <testcase name="testViewForHeaderInSection()" time="0.003" id="2274a9c2-ef70-5273-a2f4-1c3ccd800c40">
+        <testcase name="testViewForHeaderInSection()" classname="CustomListDetailViewControllerTests" time="0.003" id="2274a9c2-ef70-5273-a2f4-1c3ccd800c40">
         </testcase>
     </testsuite>
     <testsuite name="UpcomingMoviesTests.SavedMoviesViewModelTests" tests="9" disabled="0" errors="0" failures="0">
-        <testcase name="testEmptyMovieResultsTitle()" time="0.000" id="0de82ef9-4917-51a0-b9c7-7920134ab580">
+        <testcase name="testEmptyMovieResultsTitle()" classname="SavedMoviesViewModelTests" time="0.000" id="0de82ef9-4917-51a0-b9c7-7920134ab580">
         </testcase>
-        <testcase name="testMovieCellsZeroCount()" time="0.000" id="2cc94b7c-aac6-5371-a499-fd3ac0efde46">
+        <testcase name="testMovieCellsZeroCount()" classname="SavedMoviesViewModelTests" time="0.000" id="2cc94b7c-aac6-5371-a499-fd3ac0efde46">
         </testcase>
-        <testcase name="testMovieCellsCount()" time="0.001" id="3af3f9e0-2afa-5bfd-8fbf-e2f966274124">
+        <testcase name="testMovieCellsCount()" classname="SavedMoviesViewModelTests" time="0.001" id="3af3f9e0-2afa-5bfd-8fbf-e2f966274124">
         </testcase>
-        <testcase name="testGetCollectionListEmpty()" time="0.000" id="bdee12e3-e215-5385-a451-52bd36fa6b4f">
+        <testcase name="testGetCollectionListEmpty()" classname="SavedMoviesViewModelTests" time="0.000" id="bdee12e3-e215-5385-a451-52bd36fa6b4f">
         </testcase>
-        <testcase name="testMovieIndex()" time="0.001" id="aa22ea45-fb63-54de-850e-c470523f4e2e">
+        <testcase name="testMovieIndex()" classname="SavedMoviesViewModelTests" time="0.001" id="aa22ea45-fb63-54de-850e-c470523f4e2e">
         </testcase>
-        <testcase name="testGetCollectionListError()" time="0.000" id="5136648a-1d6c-578c-a86a-5637a0500486">
+        <testcase name="testGetCollectionListError()" classname="SavedMoviesViewModelTests" time="0.000" id="5136648a-1d6c-578c-a86a-5637a0500486">
         </testcase>
-        <testcase name="testGetCollectionListPopulated()" time="0.000" id="2facecaa-2cad-54be-b5c7-d702cba19138">
+        <testcase name="testGetCollectionListPopulated()" classname="SavedMoviesViewModelTests" time="0.000" id="2facecaa-2cad-54be-b5c7-d702cba19138">
         </testcase>
-        <testcase name="testGetCollectionListPaging()" time="0.000" id="5e04f457-0aa6-59db-9da1-7a98ff5f9500">
+        <testcase name="testGetCollectionListPaging()" classname="SavedMoviesViewModelTests" time="0.000" id="5e04f457-0aa6-59db-9da1-7a98ff5f9500">
         </testcase>
-        <testcase name="testSavedMoviesTitle()" time="0.000" id="9b718269-e83b-5ba8-89f3-74c01e3b6996">
+        <testcase name="testSavedMoviesTitle()" classname="SavedMoviesViewModelTests" time="0.000" id="9b718269-e83b-5ba8-89f3-74c01e3b6996">
         </testcase>
     </testsuite>
     <testsuite name="UpcomingMoviesTests.MovieDetailTitleViewModelTests" tests="4" disabled="0" errors="0" failures="0">
-        <testcase name="testMovieDetailSubtitle()" time="0.000" id="7a799614-1354-5feb-8def-403c39a25d26">
+        <testcase name="testMovieDetailSubtitle()" classname="MovieDetailTitleViewModelTests" time="0.000" id="7a799614-1354-5feb-8def-403c39a25d26">
         </testcase>
-        <testcase name="testMovieDetailVoteAverage()" time="0.002" id="b63d11c0-5c67-5374-9d57-0250b3c3885d">
+        <testcase name="testMovieDetailVoteAverage()" classname="MovieDetailTitleViewModelTests" time="0.002" id="b63d11c0-5c67-5374-9d57-0250b3c3885d">
         </testcase>
-        <testcase name="testMovieDetailGenreIds()" time="0.000" id="04258567-93d0-5095-943c-451daefba9d7">
+        <testcase name="testMovieDetailGenreIds()" classname="MovieDetailTitleViewModelTests" time="0.000" id="04258567-93d0-5095-943c-451daefba9d7">
         </testcase>
-        <testcase name="testMovieDetailTitle()" time="0.000" id="54c49cf3-33e7-5513-bc60-03376c3e14cd">
+        <testcase name="testMovieDetailTitle()" classname="MovieDetailTitleViewModelTests" time="0.000" id="54c49cf3-33e7-5513-bc60-03376c3e14cd">
         </testcase>
     </testsuite>
     <testsuite name="UpcomingMoviesTests.SignInViewModelTests" tests="5" disabled="0" errors="0" failures="0">
-        <testcase name="testSignInUserError()" time="0.001" id="d3d75832-accb-50ef-ac51-b54a136d4663">
+        <testcase name="testSignInUserError()" classname="SignInViewModelTests" time="0.001" id="d3d75832-accb-50ef-ac51-b54a136d4663">
         </testcase>
-        <testcase name="testAuthorizationProcessSuccess()" time="0.004" id="7b1420d4-2aaa-51a0-9b52-eb8c691a61f4">
+        <testcase name="testAuthorizationProcessSuccess()" classname="SignInViewModelTests" time="0.004" id="7b1420d4-2aaa-51a0-9b52-eb8c691a61f4">
         </testcase>
-        <testcase name="testSignInUserSuccess()" time="0.001" id="f5ad1577-d1c0-557d-8d8b-b1eb9227586b">
+        <testcase name="testSignInUserSuccess()" classname="SignInViewModelTests" time="0.001" id="f5ad1577-d1c0-557d-8d8b-b1eb9227586b">
         </testcase>
-        <testcase name="testAuthorizationProcessError()" time="0.000" id="1ef6e81d-2401-5632-9f52-447327851f6c">
+        <testcase name="testAuthorizationProcessError()" classname="SignInViewModelTests" time="0.000" id="1ef6e81d-2401-5632-9f52-447327851f6c">
         </testcase>
-        <testcase name="testSignInButtonTitle()" time="0.000" id="3b579abd-fa1b-570a-8542-299938c90f87">
+        <testcase name="testSignInButtonTitle()" classname="SignInViewModelTests" time="0.000" id="3b579abd-fa1b-570a-8542-299938c90f87">
         </testcase>
     </testsuite>
     <testsuite name="UpcomingMoviesTests.MovieVisitModelTests" tests="1" disabled="0" errors="0" failures="0">
-        <testcase name="testInitWithMovieVisit()" time="0.002" id="fa1d7170-0df2-59eb-95dd-6b5ebfa1fb24">
+        <testcase name="testInitWithMovieVisit()" classname="MovieVisitModelTests" time="0.002" id="fa1d7170-0df2-59eb-95dd-6b5ebfa1fb24">
         </testcase>
     </testsuite>
     <testsuite name="UpcomingMoviesTests.UpcomingMovieCellViewModelTests" tests="2" disabled="0" errors="0" failures="0">
-        <testcase name="testUpcomingMovieCellBackdropURL()" time="0.000" id="a8e29229-0ffd-5d55-82c5-5cf8547f0eb5">
+        <testcase name="testUpcomingMovieCellBackdropURL()" classname="UpcomingMovieCellViewModelTests" time="0.000" id="a8e29229-0ffd-5d55-82c5-5cf8547f0eb5">
         </testcase>
-        <testcase name="testUpcomingMovieCellPosterURL()" time="0.000" id="623de759-42a5-5b7f-a384-5965966d7839">
+        <testcase name="testUpcomingMovieCellPosterURL()" classname="UpcomingMovieCellViewModelTests" time="0.000" id="623de759-42a5-5b7f-a384-5965966d7839">
         </testcase>
     </testsuite>
     <testsuite name="UpcomingMoviesTests.MovieReviewDetailCoordinatorTests" tests="1" disabled="0" errors="0" failures="0">
-        <testcase name="testBuild()" time="0.003" id="30257115-f1fa-5e29-a90f-fd89e438931f">
+        <testcase name="testBuild()" classname="MovieReviewDetailCoordinatorTests" time="0.003" id="30257115-f1fa-5e29-a90f-fd89e438931f">
         </testcase>
     </testsuite>
     <testsuite name="UpcomingMoviesTests.UpcomingMoviesCoordinatorTests" tests="4" disabled="0" errors="0" failures="0">
-        <testcase name="testSetupNavigationControllerDelegate()" time="0.000" id="cd2b2d45-dd0c-5c3e-a0bd-ad03dd89ec93">
+        <testcase name="testSetupNavigationControllerDelegate()" classname="UpcomingMoviesCoordinatorTests" time="0.000" id="cd2b2d45-dd0c-5c3e-a0bd-ad03dd89ec93">
         </testcase>
-        <testcase name="testBuild()" time="0.003" id="d19ad16c-2553-5b4c-875c-02ef5dce5ae6">
+        <testcase name="testBuild()" classname="UpcomingMoviesCoordinatorTests" time="0.003" id="d19ad16c-2553-5b4c-875c-02ef5dce5ae6">
         </testcase>
-        <testcase name="testShowMovieDetail()" time="0.017" id="a87e2fc8-505b-5bab-8f8a-e348ed884676">
+        <testcase name="testShowMovieDetail()" classname="UpcomingMoviesCoordinatorTests" time="0.017" id="a87e2fc8-505b-5bab-8f8a-e348ed884676">
         </testcase>
-        <testcase name="testRootIdentifier()" time="0.000" id="575bd48b-1999-5675-8649-dd51b21b3950">
+        <testcase name="testRootIdentifier()" classname="UpcomingMoviesCoordinatorTests" time="0.000" id="575bd48b-1999-5675-8649-dd51b21b3950">
         </testcase>
     </testsuite>
     <testsuite name="UpcomingMoviesTests.MovieVideosInteractorTests" tests="1" disabled="0" errors="0" failures="0">
-        <testcase name="testGetMovieVideosCalled()" time="0.000" id="a3a14d4f-03f8-5637-93b1-88614498e865">
+        <testcase name="testGetMovieVideosCalled()" classname="MovieVideosInteractorTests" time="0.000" id="a3a14d4f-03f8-5637-93b1-88614498e865">
         </testcase>
     </testsuite>
     <testsuite name="UpcomingMoviesTests.ProfileAccountInfoCellViewModelTests" tests="2" disabled="0" errors="0" failures="0">
-        <testcase name="testUsername()" time="0.000" id="f2180ff2-98b2-53bd-811c-3af3fa329040">
+        <testcase name="testUsername()" classname="ProfileAccountInfoCellViewModelTests" time="0.000" id="f2180ff2-98b2-53bd-811c-3af3fa329040">
         </testcase>
-        <testcase name="testName()" time="0.000" id="439b8d8d-d562-5ecd-888f-243de3fc6d9c">
+        <testcase name="testName()" classname="ProfileAccountInfoCellViewModelTests" time="0.000" id="439b8d8d-d562-5ecd-888f-243de3fc6d9c">
         </testcase>
     </testsuite>
     <testsuite name="UpcomingMoviesTests.AuthPermissionViewControllerTests" tests="2" disabled="0" errors="0" failures="0">
-        <testcase name="testCloseBarButtonAction()" time="0.089" id="a964bec5-ba20-5f70-b1fd-d446b5fdd638">
+        <testcase name="testCloseBarButtonAction()" classname="AuthPermissionViewControllerTests" time="0.089" id="a964bec5-ba20-5f70-b1fd-d446b5fdd638">
         </testcase>
-        <testcase name="testPresentationControllerDidDismiss()" time="0.005" id="cd633f40-5aa0-5e69-a98e-776d5d98e1bc">
+        <testcase name="testPresentationControllerDidDismiss()" classname="AuthPermissionViewControllerTests" time="0.005" id="cd633f40-5aa0-5e69-a98e-776d5d98e1bc">
         </testcase>
     </testsuite>
     <testsuite name="UpcomingMoviesTests.MovieDetailPosterRenderContentTests" tests="2" disabled="0" errors="0" failures="0">
-        <testcase name="testPosterURL()" time="0.000" id="b236d70a-6e2e-5bf2-a86e-635fe513279a">
+        <testcase name="testPosterURL()" classname="MovieDetailPosterRenderContentTests" time="0.000" id="b236d70a-6e2e-5bf2-a86e-635fe513279a">
         </testcase>
-        <testcase name="testBackdropURL()" time="0.000" id="e4725d1c-9538-5e06-96d5-300d17255942">
+        <testcase name="testBackdropURL()" classname="MovieDetailPosterRenderContentTests" time="0.000" id="e4725d1c-9538-5e06-96d5-300d17255942">
         </testcase>
     </testsuite>
     <testsuite name="UpcomingMoviesTests.MovieReviewsCoordinatorTests" tests="3" disabled="0" errors="0" failures="0">
-        <testcase name="testShowReviewDetailWithoutTopViewController()" time="0.000" id="3971f116-a3b7-5b37-8b4a-f4c1c47846dd">
+        <testcase name="testShowReviewDetailWithoutTopViewController()" classname="MovieReviewsCoordinatorTests" time="0.000" id="3971f116-a3b7-5b37-8b4a-f4c1c47846dd">
         </testcase>
-        <testcase name="testShowReviewDetail()" time="0.003" id="57fc96da-6b0f-517a-89f5-9d510e99afcd">
+        <testcase name="testShowReviewDetail()" classname="MovieReviewsCoordinatorTests" time="0.003" id="57fc96da-6b0f-517a-89f5-9d510e99afcd">
         </testcase>
-        <testcase name="testBuild()" time="0.004" id="21de6cf1-b5d0-5848-bbff-d281a55230a8">
+        <testcase name="testBuild()" classname="MovieReviewsCoordinatorTests" time="0.004" id="21de6cf1-b5d0-5848-bbff-d281a55230a8">
         </testcase>
     </testsuite>
     <testsuite name="UpcomingMoviesTests.SplashBuilderTests" tests="1" disabled="0" errors="0" failures="0">
-        <testcase name="testBuildViewController()" time="0.005" id="6d3adf6a-9dac-577f-a3b3-d86553054070">
+        <testcase name="testBuildViewController()" classname="SplashBuilderTests" time="0.005" id="6d3adf6a-9dac-577f-a3b3-d86553054070">
         </testcase>
     </testsuite>
     <testsuite name="UpcomingMoviesTests.UpcomingMoviesViewModelTests" tests="6" disabled="0" errors="0" failures="0">
-        <testcase name="testGetMoviesPopulated()" time="0.001" id="c8da6876-d82e-575e-b3f9-e43bb44b801b">
+        <testcase name="testGetMoviesPopulated()" classname="UpcomingMoviesViewModelTests" time="0.001" id="c8da6876-d82e-575e-b3f9-e43bb44b801b">
         </testcase>
-        <testcase name="testGetMoviesError()" time="0.001" id="2abdf599-9224-5d98-930a-a530ae6c3dae">
+        <testcase name="testGetMoviesError()" classname="UpcomingMoviesViewModelTests" time="0.001" id="2abdf599-9224-5d98-930a-a530ae6c3dae">
         </testcase>
-        <testcase name="testGetMoviesEmpty()" time="0.001" id="87412e8d-15ba-5684-84ac-c0d42355787d">
+        <testcase name="testGetMoviesEmpty()" classname="UpcomingMoviesViewModelTests" time="0.001" id="87412e8d-15ba-5684-84ac-c0d42355787d">
         </testcase>
-        <testcase name="testUpcomingMovieCellBackdropURL()" time="0.000" id="d78a1bfc-cbf5-5e8a-bb7a-a5a35e1d2073">
+        <testcase name="testUpcomingMovieCellBackdropURL()" classname="UpcomingMoviesViewModelTests" time="0.000" id="d78a1bfc-cbf5-5e8a-bb7a-a5a35e1d2073">
         </testcase>
-        <testcase name="testUpcomingMovieCellPosterURL()" time="0.000" id="43a2b833-8027-5ef0-844d-6b89b4bd3978">
+        <testcase name="testUpcomingMovieCellPosterURL()" classname="UpcomingMoviesViewModelTests" time="0.000" id="43a2b833-8027-5ef0-844d-6b89b4bd3978">
         </testcase>
-        <testcase name="testGetMoviesPaging()" time="0.000" id="638323eb-4181-5b78-9049-0968806ba593">
+        <testcase name="testGetMoviesPaging()" classname="UpcomingMoviesViewModelTests" time="0.000" id="638323eb-4181-5b78-9049-0968806ba593">
         </testcase>
     </testsuite>
     <testsuite name="UpcomingMoviesTests.MovieDetailOptionViewTests" tests="2" disabled="0" errors="0" failures="0">
-        <testcase name="testAccessibility()" time="0.001" id="53d103f9-8db6-59d7-8b8e-b9b41b38adf1">
+        <testcase name="testAccessibility()" classname="MovieDetailOptionViewTests" time="0.001" id="53d103f9-8db6-59d7-8b8e-b9b41b38adf1">
         </testcase>
-        <testcase name="testOption()" time="0.001" id="71dc80f2-9c20-5db0-9b65-ee1de3575a59">
+        <testcase name="testOption()" classname="MovieDetailOptionViewTests" time="0.001" id="71dc80f2-9c20-5db0-9b65-ee1de3575a59">
         </testcase>
     </testsuite>
     <testsuite name="UpcomingMoviesTests.SearchOptionsDataSourceTests" tests="11" disabled="0" errors="0" failures="0">
-        <testcase name="testCellForRowRecentlyVisited()" time="0.005" id="5f78e5cf-5960-5655-ba5f-baea9da6271d">
+        <testcase name="testCellForRowRecentlyVisited()" classname="SearchOptionsDataSourceTests" time="0.005" id="5f78e5cf-5960-5655-ba5f-baea9da6271d">
         </testcase>
-        <testcase name="testNumberOfRowsInSectionRecentlyVisited()" time="0.001" id="713e1c2f-cc24-5999-bdd1-abfc82090eb6">
+        <testcase name="testNumberOfRowsInSectionRecentlyVisited()" classname="SearchOptionsDataSourceTests" time="0.001" id="713e1c2f-cc24-5999-bdd1-abfc82090eb6">
         </testcase>
-        <testcase name="testDidSelectMovie()" time="0.000" id="53591e72-323d-5aea-87b2-2296b097c0b7">
+        <testcase name="testDidSelectMovie()" classname="SearchOptionsDataSourceTests" time="0.000" id="53591e72-323d-5aea-87b2-2296b097c0b7">
         </testcase>
-        <testcase name="testNumberOfRowsInSectionGenres()" time="0.001" id="1b1ff04f-cee1-5afa-9b86-d28a26037e83">
+        <testcase name="testNumberOfRowsInSectionGenres()" classname="SearchOptionsDataSourceTests" time="0.001" id="1b1ff04f-cee1-5afa-9b86-d28a26037e83">
         </testcase>
-        <testcase name="testTitleForHeaderInSectionEmptyState()" time="0.001" id="6ff2348f-d49c-58ec-b3df-a37a2c5659ad">
+        <testcase name="testTitleForHeaderInSectionEmptyState()" classname="SearchOptionsDataSourceTests" time="0.001" id="6ff2348f-d49c-58ec-b3df-a37a2c5659ad">
         </testcase>
-        <testcase name="testNumberOfSectionsEmptyState()" time="0.000" id="15bd4b18-9a90-57be-9ff0-7918517580ab">
+        <testcase name="testNumberOfSectionsEmptyState()" classname="SearchOptionsDataSourceTests" time="0.000" id="15bd4b18-9a90-57be-9ff0-7918517580ab">
         </testcase>
-        <testcase name="testCellForRowDefaultSearches()" time="0.002" id="92eab07d-6b5f-5408-95c8-dde6f158a104">
+        <testcase name="testCellForRowDefaultSearches()" classname="SearchOptionsDataSourceTests" time="0.002" id="92eab07d-6b5f-5408-95c8-dde6f158a104">
         </testcase>
-        <testcase name="testTitleForHeaderInSectionPopulatedState()" time="0.001" id="86b605ea-e039-53ef-b2aa-0b19148b6abf">
+        <testcase name="testTitleForHeaderInSectionPopulatedState()" classname="SearchOptionsDataSourceTests" time="0.001" id="86b605ea-e039-53ef-b2aa-0b19148b6abf">
         </testcase>
-        <testcase name="testNumberOfSectionsPopulatedState()" time="0.000" id="f7c65c0c-cc41-5f67-9716-7f3aea0f6ed8">
+        <testcase name="testNumberOfSectionsPopulatedState()" classname="SearchOptionsDataSourceTests" time="0.000" id="f7c65c0c-cc41-5f67-9716-7f3aea0f6ed8">
         </testcase>
-        <testcase name="testNumberOfRowsInSectionDefaultSearches()" time="0.001" id="8a0abe2c-331f-5603-aaa2-fc8d1e852dbd">
+        <testcase name="testNumberOfRowsInSectionDefaultSearches()" classname="SearchOptionsDataSourceTests" time="0.001" id="8a0abe2c-331f-5603-aaa2-fc8d1e852dbd">
         </testcase>
-        <testcase name="testCellForRowGenres()" time="0.003" id="75bf2288-111c-572a-bffe-41d574561e0e">
+        <testcase name="testCellForRowGenres()" classname="SearchOptionsDataSourceTests" time="0.003" id="75bf2288-111c-572a-bffe-41d574561e0e">
         </testcase>
     </testsuite>
     <testsuite name="UpcomingMoviesTests.DefaultSearchOptionTests" tests="6" disabled="0" errors="0" failures="0">
-        <testcase name="testTopRatedSubtitle()" time="0.001" id="9b59ef18-30cf-5098-ad88-932c5b7fcab9">
+        <testcase name="testTopRatedSubtitle()" classname="DefaultSearchOptionTests" time="0.001" id="9b59ef18-30cf-5098-ad88-932c5b7fcab9">
         </testcase>
-        <testcase name="testPopularSubtitle()" time="0.000" id="529a6423-1ecb-561b-b167-83d8206b0c5b">
+        <testcase name="testPopularSubtitle()" classname="DefaultSearchOptionTests" time="0.000" id="529a6423-1ecb-561b-b167-83d8206b0c5b">
         </testcase>
-        <testcase name="testTopRatedTitle()" time="0.000" id="5a9ab95b-4c6d-58d2-a209-370de3f46a42">
+        <testcase name="testTopRatedTitle()" classname="DefaultSearchOptionTests" time="0.000" id="5a9ab95b-4c6d-58d2-a209-370de3f46a42">
         </testcase>
-        <testcase name="testPopularTitle()" time="0.003" id="e64e1b8c-27d8-5f78-9d8f-9a50c55d29e6">
+        <testcase name="testPopularTitle()" classname="DefaultSearchOptionTests" time="0.003" id="e64e1b8c-27d8-5f78-9d8f-9a50c55d29e6">
         </testcase>
-        <testcase name="testTopRatedIcon()" time="0.000" id="4cab3ffb-37be-5853-9d1c-e784da78a763">
+        <testcase name="testTopRatedIcon()" classname="DefaultSearchOptionTests" time="0.000" id="4cab3ffb-37be-5853-9d1c-e784da78a763">
         </testcase>
-        <testcase name="testPopularIcon()" time="0.000" id="01c5327f-2097-5507-864e-f9ed9859e30d">
+        <testcase name="testPopularIcon()" classname="DefaultSearchOptionTests" time="0.000" id="01c5327f-2097-5507-864e-f9ed9859e30d">
         </testcase>
     </testsuite>
     <testsuite name="UpcomingMoviesTests.ProfileCoordinatorTests" tests="1" disabled="0" errors="0" failures="0">
-        <testcase name="testBuild()" time="0.003" id="f9140ea1-1bc8-54e7-a19a-64ffa564a54a">
+        <testcase name="testBuild()" classname="ProfileCoordinatorTests" time="0.003" id="f9140ea1-1bc8-54e7-a19a-64ffa564a54a">
         </testcase>
     </testsuite>
     <testsuite name="UpcomingMoviesTests.ProfileFactoryTests" tests="6" disabled="0" errors="0" failures="0">
-        <testcase name="testSections()" time="0.001" id="50274a04-7281-59b6-8cdc-35bc87d579ec">
+        <testcase name="testSections()" classname="ProfileFactoryTests" time="0.001" id="50274a04-7281-59b6-8cdc-35bc87d579ec">
         </testcase>
-        <testcase name="testProfileOptionForAccountInfoSection()" time="0.000" id="ab92d4ba-df9c-53d4-b3a7-4836fb8c8f19">
+        <testcase name="testProfileOptionForAccountInfoSection()" classname="ProfileFactoryTests" time="0.000" id="ab92d4ba-df9c-53d4-b3a7-4836fb8c8f19">
         </testcase>
-        <testcase name="testProfileOptionForSignOutSection()" time="0.000" id="99bb25d0-e755-5757-a68b-e5a556762612">
+        <testcase name="testProfileOptionForSignOutSection()" classname="ProfileFactoryTests" time="0.000" id="99bb25d0-e755-5757-a68b-e5a556762612">
         </testcase>
-        <testcase name="testProfileOptionForRecommendedSection()" time="0.000" id="4d58fd0d-2daf-58d7-a50a-9fd035d28b9c">
+        <testcase name="testProfileOptionForRecommendedSection()" classname="ProfileFactoryTests" time="0.000" id="4d58fd0d-2daf-58d7-a50a-9fd035d28b9c">
         </testcase>
-        <testcase name="testProfileOptionForCollectionsSection()" time="0.000" id="e2d12836-770e-5739-aa01-765a696b9211">
+        <testcase name="testProfileOptionForCollectionsSection()" classname="ProfileFactoryTests" time="0.000" id="e2d12836-770e-5739-aa01-765a696b9211">
         </testcase>
-        <testcase name="testProfileOptionForCustomListsSection()" time="0.001" id="714b0464-a88c-587b-ab2f-b60a2ff62daa">
+        <testcase name="testProfileOptionForCustomListsSection()" classname="ProfileFactoryTests" time="0.001" id="714b0464-a88c-587b-ab2f-b60a2ff62daa">
         </testcase>
     </testsuite>
     <testsuite name="UpcomingMoviesTests.AccountInteractorTests" tests="2" disabled="0" errors="0" failures="0">
-        <testcase name="testPerformanceExample()" time="0.260" id="e9fbb7ab-1291-5b29-99ca-dec374a977ce">
+        <testcase name="testPerformanceExample()" classname="AccountInteractorTests" time="0.260" id="e9fbb7ab-1291-5b29-99ca-dec374a977ce">
         </testcase>
-        <testcase name="testExample()" time="0.000" id="7d62e9d4-f624-54c0-95b9-4165de264c59">
+        <testcase name="testExample()" classname="AccountInteractorTests" time="0.000" id="7d62e9d4-f624-54c0-95b9-4165de264c59">
         </testcase>
     </testsuite>
     <testsuite name="UpcomingMoviesTests.SignInCoordinatorTests" tests="3" disabled="0" errors="0" failures="0">
-        <testcase name="testShowAuthPermission()" time="0.002" id="8720dc78-1243-58b1-bdd9-fcc222779c6d">
+        <testcase name="testShowAuthPermission()" classname="SignInCoordinatorTests" time="0.002" id="8720dc78-1243-58b1-bdd9-fcc222779c6d">
         </testcase>
-        <testcase name="testShowAuthPermissionWithoutTopViewController()" time="0.000" id="810ac1bd-5163-5d9f-ac77-84e974feef93">
+        <testcase name="testShowAuthPermissionWithoutTopViewController()" classname="SignInCoordinatorTests" time="0.000" id="810ac1bd-5163-5d9f-ac77-84e974feef93">
         </testcase>
-        <testcase name="testBuild()" time="0.003" id="d3fb49fe-1b91-5938-b99a-663d4998a95b">
+        <testcase name="testBuild()" classname="SignInCoordinatorTests" time="0.003" id="d3fb49fe-1b91-5938-b99a-663d4998a95b">
         </testcase>
     </testsuite>
     <testsuite name="UpcomingMoviesTests.MovieCreditsModelTests" tests="1" disabled="0" errors="0" failures="0">
-        <testcase name="testInitWithMovieCredits()" time="0.000" id="52607206-b462-5895-9542-32b6bbfd4cfc">
+        <testcase name="testInitWithMovieCredits()" classname="MovieCreditsModelTests" time="0.000" id="52607206-b462-5895-9542-32b6bbfd4cfc">
         </testcase>
     </testsuite>
     <testsuite name="UpcomingMoviesTests.ReviewModelTests" tests="1" disabled="0" errors="0" failures="0">
-        <testcase name="testInitWithReview()" time="0.000" id="1dc75ab9-ba4a-5a83-a112-07c04769e8a8">
+        <testcase name="testInitWithReview()" classname="ReviewModelTests" time="0.000" id="1dc75ab9-ba4a-5a83-a112-07c04769e8a8">
         </testcase>
     </testsuite>
     <testsuite name="UpcomingMoviesTests.MovieReviewsInteractorTests" tests="1" disabled="0" errors="0" failures="0">
-        <testcase name="testGetMovieReviewsCalled()" time="0.001" id="da84258d-93fc-53de-b095-556873359806">
+        <testcase name="testGetMovieReviewsCalled()" classname="MovieReviewsInteractorTests" time="0.001" id="da84258d-93fc-53de-b095-556873359806">
         </testcase>
     </testsuite>
     <testsuite name="UpcomingMoviesTests.MovieReviewsViewModelTests" tests="7" disabled="0" errors="0" failures="0">
-        <testcase name="testMovieReviewsTitle()" time="0.000" id="fd707fc0-579a-5db4-b836-d09a5e4916f1">
+        <testcase name="testMovieReviewsTitle()" classname="MovieReviewsViewModelTests" time="0.000" id="fd707fc0-579a-5db4-b836-d09a5e4916f1">
         </testcase>
-        <testcase name="testGetReviewsError()" time="0.000" id="61741674-4b54-5597-af35-da00e7f13c17">
+        <testcase name="testGetReviewsError()" classname="MovieReviewsViewModelTests" time="0.000" id="61741674-4b54-5597-af35-da00e7f13c17">
         </testcase>
-        <testcase name="testEmptyReviewResultsTitle()" time="0.000" id="669083c7-dfd0-54a1-b5ed-5fafa7c9caf2">
+        <testcase name="testEmptyReviewResultsTitle()" classname="MovieReviewsViewModelTests" time="0.000" id="669083c7-dfd0-54a1-b5ed-5fafa7c9caf2">
         </testcase>
-        <testcase name="testRefreshReviews()" time="0.009" id="03eaf541-ee28-5937-a4b0-53e87ffb5237">
+        <testcase name="testRefreshReviews()" classname="MovieReviewsViewModelTests" time="0.009" id="03eaf541-ee28-5937-a4b0-53e87ffb5237">
         </testcase>
-        <testcase name="testGetReviewsEmpty()" time="0.000" id="93a89b14-ef4c-5bc1-8f13-fe6c1a33da2b">
+        <testcase name="testGetReviewsEmpty()" classname="MovieReviewsViewModelTests" time="0.000" id="93a89b14-ef4c-5bc1-8f13-fe6c1a33da2b">
         </testcase>
-        <testcase name="testGetReviewsPopulated()" time="0.001" id="bc02ed75-8f35-57b2-ab95-00d01ee5e96e">
+        <testcase name="testGetReviewsPopulated()" classname="MovieReviewsViewModelTests" time="0.001" id="bc02ed75-8f35-57b2-ab95-00d01ee5e96e">
         </testcase>
-        <testcase name="testGetReviewsPaging()" time="0.001" id="90ed6608-0b1f-5e60-a03a-828360a0c322">
+        <testcase name="testGetReviewsPaging()" classname="MovieReviewsViewModelTests" time="0.001" id="90ed6608-0b1f-5e60-a03a-828360a0c322">
         </testcase>
     </testsuite>
     <testsuite name="UpcomingMoviesTests.VideoModelTests" tests="1" disabled="0" errors="0" failures="0">
-        <testcase name="testInitWithVideo()" time="0.000" id="2714cff0-a290-5c1f-8173-ea46fea9c2d7">
+        <testcase name="testInitWithVideo()" classname="VideoModelTests" time="0.000" id="2714cff0-a290-5c1f-8173-ea46fea9c2d7">
         </testcase>
     </testsuite>
     <testsuite name="UpcomingMoviesTests.MovieDetailOptionsViewModelTests" tests="1" disabled="0" errors="0" failures="0">
-        <testcase name="testMovieDetailOptions()" time="0.000" id="555311ce-8e58-5c33-8d00-f4040ec2f369">
+        <testcase name="testMovieDetailOptions()" classname="MovieDetailOptionsViewModelTests" time="0.000" id="555311ce-8e58-5c33-8d00-f4040ec2f369">
         </testcase>
     </testsuite>
     <testsuite name="UpcomingMoviesTests.AccountViewModelTests" tests="6" disabled="0" errors="0" failures="0">
-        <testcase name="testCurrentUserNil()" time="0.000" id="cdcc2c25-af6e-5694-af37-51db5aacc2ed">
+        <testcase name="testCurrentUserNil()" classname="AccountViewModelTests" time="0.000" id="cdcc2c25-af6e-5694-af37-51db5aacc2ed">
         </testcase>
-        <testcase name="testIsUserSignedInFalse()" time="0.000" id="8a3c6fee-363e-5e88-8880-0f1796764bdf">
+        <testcase name="testIsUserSignedInFalse()" classname="AccountViewModelTests" time="0.000" id="8a3c6fee-363e-5e88-8880-0f1796764bdf">
         </testcase>
-        <testcase name="testNavigationItemTitle()" time="0.004" id="3e03fbe0-4fe7-5548-8115-3e8544de3b7c">
+        <testcase name="testNavigationItemTitle()" classname="AccountViewModelTests" time="0.004" id="3e03fbe0-4fe7-5548-8115-3e8544de3b7c">
         </testcase>
-        <testcase name="testTitle()" time="0.000" id="876ee967-b6ab-547e-a0de-206d35cafc46">
+        <testcase name="testTitle()" classname="AccountViewModelTests" time="0.000" id="876ee967-b6ab-547e-a0de-206d35cafc46">
         </testcase>
-        <testcase name="testCurrentUserNotNil()" time="0.001" id="2caf4412-85ff-5f54-957c-4cb1be933e59">
+        <testcase name="testCurrentUserNotNil()" classname="AccountViewModelTests" time="0.001" id="2caf4412-85ff-5f54-957c-4cb1be933e59">
         </testcase>
-        <testcase name="testIsUserSignedInTrue()" time="0.000" id="f9e47d52-8b82-56b9-8988-7996f5c0abcd">
+        <testcase name="testIsUserSignedInTrue()" classname="AccountViewModelTests" time="0.000" id="f9e47d52-8b82-56b9-8988-7996f5c0abcd">
         </testcase>
     </testsuite>
     <testsuite name="UpcomingMoviesTests.TopRatedMoviesCoordinatorTests" tests="1" disabled="0" errors="0" failures="0">
-        <testcase name="testBuild()" time="0.004" id="85d59946-9217-5075-a7f8-05e741de1823">
+        <testcase name="testBuild()" classname="TopRatedMoviesCoordinatorTests" time="0.004" id="85d59946-9217-5075-a7f8-05e741de1823">
         </testcase>
     </testsuite>
     <testsuite name="UpcomingMoviesTests.MovieDetailOptionsViewControllerTests" tests="2" disabled="0" errors="0" failures="0">
-        <testcase name="testOptionAction()" time="0.001" id="1aec6b5f-b179-5813-ad47-0a7d38aed479">
+        <testcase name="testOptionAction()" classname="MovieDetailOptionsViewControllerTests" time="0.001" id="1aec6b5f-b179-5813-ad47-0a7d38aed479">
         </testcase>
-        <testcase name="testOptionActionInvalidTapGesture()" time="0.001" id="a37fb3e0-6bb6-5b3e-84da-067e9f496900">
+        <testcase name="testOptionActionInvalidTapGesture()" classname="MovieDetailOptionsViewControllerTests" time="0.001" id="a37fb3e0-6bb6-5b3e-84da-067e9f496900">
         </testcase>
     </testsuite>
     <testsuite name="UpcomingMoviesTests.MovieVideosViewModelTests" tests="5" disabled="0" errors="0" failures="0">
-        <testcase name="testGetVideosEmpty()" time="0.001" id="a5de3f16-b03d-5425-9c27-fd67abed05c4">
+        <testcase name="testGetVideosEmpty()" classname="MovieVideosViewModelTests" time="0.001" id="a5de3f16-b03d-5425-9c27-fd67abed05c4">
         </testcase>
-        <testcase name="testMovieVideosTitle()" time="0.000" id="fc9eb7e7-68a9-5d36-a43d-a6963a42b2db">
+        <testcase name="testMovieVideosTitle()" classname="MovieVideosViewModelTests" time="0.000" id="fc9eb7e7-68a9-5d36-a43d-a6963a42b2db">
         </testcase>
-        <testcase name="testGetVideosPopulated()" time="0.001" id="e2fd6f03-49d8-5f7b-bd29-6768069e465d">
+        <testcase name="testGetVideosPopulated()" classname="MovieVideosViewModelTests" time="0.001" id="e2fd6f03-49d8-5f7b-bd29-6768069e465d">
         </testcase>
-        <testcase name="testEmptyVideoResultsTitle()" time="0.000" id="dae31760-8d55-5399-928f-4aabcfe5a467">
+        <testcase name="testEmptyVideoResultsTitle()" classname="MovieVideosViewModelTests" time="0.000" id="dae31760-8d55-5399-928f-4aabcfe5a467">
         </testcase>
-        <testcase name="testGetVideosError()" time="0.000" id="19985ee6-7018-5f63-817b-79e67fd2f320">
+        <testcase name="testGetVideosError()" classname="MovieVideosViewModelTests" time="0.000" id="19985ee6-7018-5f63-817b-79e67fd2f320">
         </testcase>
     </testsuite>
     <testsuite name="UpcomingMoviesTests.CrewModelTests" tests="1" disabled="0" errors="0" failures="0">
-        <testcase name="testInitWithCrew()" time="0.000" id="99293cde-3ea1-5ece-9745-da4698cd91cc">
+        <testcase name="testInitWithCrew()" classname="CrewModelTests" time="0.000" id="99293cde-3ea1-5ece-9745-da4698cd91cc">
         </testcase>
     </testsuite>
     <testsuite name="UpcomingMoviesTests.SearchOptionsViewModelTests" tests="3" disabled="0" errors="0" failures="0">
-        <testcase name="testLoadVisitedMoviesFirstLoad()" time="0.001" id="ba95067e-cde7-5bb2-8c39-f0e45cd6db2a">
+        <testcase name="testLoadVisitedMoviesFirstLoad()" classname="SearchOptionsViewModelTests" time="0.001" id="ba95067e-cde7-5bb2-8c39-f0e45cd6db2a">
         </testcase>
-        <testcase name="testLoadGenres()" time="0.001" id="0f096556-ca74-5d07-b95c-6554d0cf3b5d">
+        <testcase name="testLoadGenres()" classname="SearchOptionsViewModelTests" time="0.001" id="0f096556-ca74-5d07-b95c-6554d0cf3b5d">
         </testcase>
-        <testcase name="testLoadVisitedMoviesUpdate()" time="0.001" id="bae292a9-e604-5114-a2ba-3f88e93230dd">
+        <testcase name="testLoadVisitedMoviesUpdate()" classname="SearchOptionsViewModelTests" time="0.001" id="bae292a9-e604-5114-a2ba-3f88e93230dd">
         </testcase>
     </testsuite>
     <testsuite name="UpcomingMoviesTests.ProfileViewModelTests" tests="9" disabled="0" errors="0" failures="0">
-        <testcase name="testGetAccountDetailSuccessInfoNotReloaded()" time="1.000" id="c5bfca43-6b2c-5b29-a1ca-31308c558096">
+        <testcase name="testGetAccountDetailSuccessInfoNotReloaded()" classname="ProfileViewModelTests" time="1.000" id="c5bfca43-6b2c-5b29-a1ca-31308c558096">
         </testcase>
-        <testcase name="testSectionIndex()" time="0.001" id="cba1f9de-2d8e-5a40-af74-838426dc9ca0">
+        <testcase name="testSectionIndex()" classname="ProfileViewModelTests" time="0.001" id="cba1f9de-2d8e-5a40-af74-838426dc9ca0">
         </testcase>
-        <testcase name="testCustomListsOptionIndex()" time="0.001" id="ffc22d8d-4a81-5459-a593-fd9b42949c83">
+        <testcase name="testCustomListsOptionIndex()" classname="ProfileViewModelTests" time="0.001" id="ffc22d8d-4a81-5459-a593-fd9b42949c83">
         </testcase>
-        <testcase name="testSignOutUserSuccess()" time="0.001" id="40872050-059b-510d-97e2-cb857b617463">
+        <testcase name="testSignOutUserSuccess()" classname="ProfileViewModelTests" time="0.001" id="40872050-059b-510d-97e2-cb857b617463">
         </testcase>
-        <testcase name="testSignOutUserError()" time="0.001" id="b80f7391-482f-5c6d-a968-822cb24efe73">
+        <testcase name="testSignOutUserError()" classname="ProfileViewModelTests" time="0.001" id="b80f7391-482f-5c6d-a968-822cb24efe73">
         </testcase>
-        <testcase name="testNumberOfSections()" time="0.001" id="35f2d4f8-1c45-5206-a932-1db88477898f">
+        <testcase name="testNumberOfSections()" classname="ProfileViewModelTests" time="0.001" id="35f2d4f8-1c45-5206-a932-1db88477898f">
         </testcase>
-        <testcase name="testGetAccountDetailError()" time="1.000" id="93ed8050-799f-5590-8994-f37b30a61b2e">
+        <testcase name="testGetAccountDetailError()" classname="ProfileViewModelTests" time="1.000" id="93ed8050-799f-5590-8994-f37b30a61b2e">
         </testcase>
-        <testcase name="testGetAccountDetailSuccessInfoReloaded()" time="0.002" id="a9c46fda-11eb-5b06-a2c4-e3113193cdb7">
+        <testcase name="testGetAccountDetailSuccessInfoReloaded()" classname="ProfileViewModelTests" time="0.002" id="a9c46fda-11eb-5b06-a2c4-e3113193cdb7">
         </testcase>
-        <testcase name="testCollectionOptionIndex()" time="0.002" id="531c3afe-b7d0-5359-a392-6f97dce1caaf">
+        <testcase name="testCollectionOptionIndex()" classname="ProfileViewModelTests" time="0.002" id="531c3afe-b7d0-5359-a392-6f97dce1caaf">
         </testcase>
     </testsuite>
     <testsuite name="UpcomingMoviesTests.SearchOptionsViewControllerTests" tests="6" disabled="0" errors="0" failures="0">
-        <testcase name="testDidSelectRowDefaultSearchesSection()" time="0.005" id="29759691-dbf6-5212-8d7e-2816c25b7f56">
+        <testcase name="testDidSelectRowDefaultSearchesSection()" classname="SearchOptionsViewControllerTests" time="0.005" id="29759691-dbf6-5212-8d7e-2816c25b7f56">
         </testcase>
-        <testcase name="testDidSelectRowRecentlyVisitedSection()" time="0.003" id="b0723afd-ee02-59ba-8412-4c215c41f78e">
+        <testcase name="testDidSelectRowRecentlyVisitedSection()" classname="SearchOptionsViewControllerTests" time="0.003" id="b0723afd-ee02-59ba-8412-4c215c41f78e">
         </testcase>
-        <testcase name="testHeightForRowRecentlyVisitedSection()" time="0.003" id="bddb73d1-2fd5-5b52-b2cc-4e33c935d578">
+        <testcase name="testHeightForRowRecentlyVisitedSection()" classname="SearchOptionsViewControllerTests" time="0.003" id="bddb73d1-2fd5-5b52-b2cc-4e33c935d578">
         </testcase>
-        <testcase name="testDidSelectRowGenresSection()" time="0.001" id="f0a715c4-2e0b-5f0b-bba7-153984313799">
+        <testcase name="testDidSelectRowGenresSection()" classname="SearchOptionsViewControllerTests" time="0.001" id="f0a715c4-2e0b-5f0b-bba7-153984313799">
         </testcase>
-        <testcase name="testHeightForRowDefaultSearchesSection()" time="0.001" id="1860334f-de49-592e-a166-dfc53b5ab68c">
+        <testcase name="testHeightForRowDefaultSearchesSection()" classname="SearchOptionsViewControllerTests" time="0.001" id="1860334f-de49-592e-a166-dfc53b5ab68c">
         </testcase>
-        <testcase name="testHeightForRowGenresSection()" time="0.001" id="964f8454-a244-51c8-a487-707b5cc1ef32">
+        <testcase name="testHeightForRowGenresSection()" classname="SearchOptionsViewControllerTests" time="0.001" id="964f8454-a244-51c8-a487-707b5cc1ef32">
         </testcase>
     </testsuite>
     <testsuite name="UpcomingMoviesTests.MainTabBarBuilderTests" tests="3" disabled="0" errors="0" failures="0">
-        <testcase name="testCreateNavigationController()" time="0.000" id="7cb1cebe-97cf-58e7-babb-3aa0f0f9a318">
+        <testcase name="testCreateNavigationController()" classname="MainTabBarBuilderTests" time="0.000" id="7cb1cebe-97cf-58e7-babb-3aa0f0f9a318">
         </testcase>
-        <testcase name="testRootCoordinatorIdentifier()" time="0.000" id="75a221da-4659-5dad-b868-362f4a461473">
+        <testcase name="testRootCoordinatorIdentifier()" classname="MainTabBarBuilderTests" time="0.000" id="75a221da-4659-5dad-b868-362f4a461473">
         </testcase>
-        <testcase name="testBuildViewCoordinators()" time="0.006" id="c4bffbe6-6ab3-5ae6-b2ce-1898925f66cb">
+        <testcase name="testBuildViewCoordinators()" classname="MainTabBarBuilderTests" time="0.006" id="c4bffbe6-6ab3-5ae6-b2ce-1898925f66cb">
         </testcase>
     </testsuite>
     <testsuite name="UpcomingMoviesTests.MovieCreditsViewModelTests" tests="10" disabled="0" errors="0" failures="0">
-        <testcase name="testNumberOfSections()" time="0.000" id="41f3a88e-4ea2-521b-a4aa-dd3f19994180">
+        <testcase name="testNumberOfSections()" classname="MovieCreditsViewModelTests" time="0.000" id="41f3a88e-4ea2-521b-a4aa-dd3f19994180">
         </testcase>
-        <testcase name="testEmptyCreditResultsTitle()" time="0.000" id="297fc03c-798a-5d49-9bc0-fae033c3e916">
+        <testcase name="testEmptyCreditResultsTitle()" classname="MovieCreditsViewModelTests" time="0.000" id="297fc03c-798a-5d49-9bc0-fae033c3e916">
         </testcase>
-        <testcase name="testToggleOpenedSection()" time="0.001" id="62d16e64-6b28-5142-a87b-d70fdd3de4f2">
+        <testcase name="testToggleOpenedSection()" classname="MovieCreditsViewModelTests" time="0.001" id="62d16e64-6b28-5142-a87b-d70fdd3de4f2">
         </testcase>
-        <testcase name="testNumberOfItemsCrewSection()" time="0.001" id="6e2504f7-f688-5575-bfbe-7f7f14019719">
+        <testcase name="testNumberOfItemsCrewSection()" classname="MovieCreditsViewModelTests" time="0.001" id="6e2504f7-f688-5575-bfbe-7f7f14019719">
         </testcase>
-        <testcase name="testNumberOfItemsCastSection()" time="0.000" id="571a1e7c-dd1a-561a-924f-901417ad7754">
+        <testcase name="testNumberOfItemsCastSection()" classname="MovieCreditsViewModelTests" time="0.000" id="571a1e7c-dd1a-561a-924f-901417ad7754">
         </testcase>
-        <testcase name="testMovieCreditsTitle()" time="0.000" id="6d229110-5088-5a45-a5ed-bd2c310f6ca6">
+        <testcase name="testMovieCreditsTitle()" classname="MovieCreditsViewModelTests" time="0.000" id="6d229110-5088-5a45-a5ed-bd2c310f6ca6">
         </testcase>
-        <testcase name="testGetMovieCreditsPopulated()" time="0.001" id="f78dadc7-865e-57df-a083-5eec3e5c78f2">
+        <testcase name="testGetMovieCreditsPopulated()" classname="MovieCreditsViewModelTests" time="0.001" id="f78dadc7-865e-57df-a083-5eec3e5c78f2">
         </testcase>
-        <testcase name="testGetMovieCreditsEmpty()" time="0.000" id="850f089e-c786-5805-ad7f-f97969220f1f">
+        <testcase name="testGetMovieCreditsEmpty()" classname="MovieCreditsViewModelTests" time="0.000" id="850f089e-c786-5805-ad7f-f97969220f1f">
         </testcase>
-        <testcase name="testGetMovieCreditsError()" time="0.000" id="dba3f60e-480d-502f-b95e-f5d37bfe2b2f">
+        <testcase name="testGetMovieCreditsError()" classname="MovieCreditsViewModelTests" time="0.000" id="dba3f60e-480d-502f-b95e-f5d37bfe2b2f">
         </testcase>
-        <testcase name="testToggleClosedSection()" time="0.000" id="4d137363-d3d9-5726-89ca-d088426cfdd5">
+        <testcase name="testToggleClosedSection()" classname="MovieCreditsViewModelTests" time="0.000" id="4d137363-d3d9-5726-89ca-d088426cfdd5">
         </testcase>
     </testsuite>
     <testsuite name="UpcomingMoviesTests.MovieDetailPosterViewModelTests" tests="2" disabled="0" errors="0" failures="0">
-        <testcase name="testMovieDetailBackdropURL()" time="0.000" id="4f50ce1d-7d04-5b98-951e-eabcc32bdfe4">
+        <testcase name="testMovieDetailBackdropURL()" classname="MovieDetailPosterViewModelTests" time="0.000" id="4f50ce1d-7d04-5b98-951e-eabcc32bdfe4">
         </testcase>
-        <testcase name="testMovieDetailPosterURL()" time="0.000" id="9d8d1d5d-bef8-5391-ade3-69b048d8b88c">
+        <testcase name="testMovieDetailPosterURL()" classname="MovieDetailPosterViewModelTests" time="0.000" id="9d8d1d5d-bef8-5391-ade3-69b048d8b88c">
         </testcase>
     </testsuite>
     <testsuite name="UpcomingMoviesTests.MovieDetailCoordinatorTests" tests="17" disabled="0" errors="0" failures="0">
-        <testcase name="testShowSharingOptions()" time="0.002" id="13f01c86-9fc0-587c-aada-0077b4d38c49">
+        <testcase name="testShowSharingOptions()" classname="MovieDetailCoordinatorTests" time="0.002" id="13f01c86-9fc0-587c-aada-0077b4d38c49">
         </testcase>
-        <testcase name="testMultipleEmbedMovieDetailPosterShouldNotAddMoreThanOneChild()" time="0.005" id="91b0b4b9-c9de-5fab-887c-60bb7c607914">
+        <testcase name="testMultipleEmbedMovieDetailPosterShouldNotAddMoreThanOneChild()" classname="MovieDetailCoordinatorTests" time="0.005" id="91b0b4b9-c9de-5fab-887c-60bb7c607914">
         </testcase>
-        <testcase name="testEmbedMovieDetailOptionsWithRenderContent()" time="0.002" id="485b1532-07f0-522e-adfc-3a70e0fce34a">
+        <testcase name="testEmbedMovieDetailOptionsWithRenderContent()" classname="MovieDetailCoordinatorTests" time="0.002" id="485b1532-07f0-522e-adfc-3a70e0fce34a">
         </testcase>
-        <testcase name="testBuildWithPartialMovieInfo()" time="0.004" id="98deac05-0b74-518a-9876-41686f751183">
+        <testcase name="testBuildWithPartialMovieInfo()" classname="MovieDetailCoordinatorTests" time="0.004" id="98deac05-0b74-518a-9876-41686f751183">
         </testcase>
-        <testcase name="testShowVideosMovieOptions()" time="0.002" id="a6ad771d-6470-5d5c-aad9-0e8976f429e9">
+        <testcase name="testShowVideosMovieOptions()" classname="MovieDetailCoordinatorTests" time="0.002" id="a6ad771d-6470-5d5c-aad9-0e8976f429e9">
         </testcase>
-        <testcase name="testMultipleEmbedMovieDetailTitleShouldNotAddMoreThanOneChild()" time="0.005" id="6aa027ba-713a-5080-92d4-cfed01ebfc9d">
+        <testcase name="testMultipleEmbedMovieDetailTitleShouldNotAddMoreThanOneChild()" classname="MovieDetailCoordinatorTests" time="0.005" id="6aa027ba-713a-5080-92d4-cfed01ebfc9d">
         </testcase>
-        <testcase name="testShowCreditsMovieOptions()" time="0.002" id="1eaf299e-26fe-5e35-ba19-e9c31dc68574">
+        <testcase name="testShowCreditsMovieOptions()" classname="MovieDetailCoordinatorTests" time="0.002" id="1eaf299e-26fe-5e35-ba19-e9c31dc68574">
         </testcase>
-        <testcase name="testEmbedMovieDetailPoster()" time="0.001" id="6e35867c-67ee-55c1-b4c2-9c826482307a">
+        <testcase name="testEmbedMovieDetailPoster()" classname="MovieDetailCoordinatorTests" time="0.001" id="6e35867c-67ee-55c1-b4c2-9c826482307a">
         </testcase>
-        <testcase name="testEmbedMovieDetailPosterWithRenderContent()" time="0.001" id="6729ef4c-2235-5123-843a-824177bf950d">
+        <testcase name="testEmbedMovieDetailPosterWithRenderContent()" classname="MovieDetailCoordinatorTests" time="0.001" id="6729ef4c-2235-5123-843a-824177bf950d">
         </testcase>
-        <testcase name="testEmbedMovieDetailOptions()" time="0.001" id="e68eb89c-b65d-5d5a-91b0-2302e8653356">
+        <testcase name="testEmbedMovieDetailOptions()" classname="MovieDetailCoordinatorTests" time="0.001" id="e68eb89c-b65d-5d5a-91b0-2302e8653356">
         </testcase>
-        <testcase name="testBuildWithCompleteMovieInfo()" time="0.001" id="a66cbbd2-533a-5c0c-bf4f-0bc23dbd10a1">
+        <testcase name="testBuildWithCompleteMovieInfo()" classname="MovieDetailCoordinatorTests" time="0.001" id="a66cbbd2-533a-5c0c-bf4f-0bc23dbd10a1">
         </testcase>
-        <testcase name="testEmbedMovieDetailTitle()" time="0.002" id="ae1400b7-b046-5d26-9136-260940cba51b">
+        <testcase name="testEmbedMovieDetailTitle()" classname="MovieDetailCoordinatorTests" time="0.002" id="ae1400b7-b046-5d26-9136-260940cba51b">
         </testcase>
-        <testcase name="testShowSimilarMoviesMovieOptions()" time="0.001" id="8dafb0f2-76d2-5e8e-8701-b5c7a7174856">
+        <testcase name="testShowSimilarMoviesMovieOptions()" classname="MovieDetailCoordinatorTests" time="0.001" id="8dafb0f2-76d2-5e8e-8701-b5c7a7174856">
         </testcase>
-        <testcase name="testShowReviewsMovieOptions()" time="0.001" id="b8058d11-d040-5c2b-aee5-5c5ccffb5c8d">
+        <testcase name="testShowReviewsMovieOptions()" classname="MovieDetailCoordinatorTests" time="0.001" id="b8058d11-d040-5c2b-aee5-5c5ccffb5c8d">
         </testcase>
-        <testcase name="testMultipleEmbedMovieDetailOptionsShouldNotAddMoreThanOneChild()" time="0.002" id="e37be967-8b28-5420-931d-d89ab6941362">
+        <testcase name="testMultipleEmbedMovieDetailOptionsShouldNotAddMoreThanOneChild()" classname="MovieDetailCoordinatorTests" time="0.002" id="e37be967-8b28-5420-931d-d89ab6941362">
         </testcase>
-        <testcase name="testEmbedMovieDetailTitleWithRenderContent()" time="0.001" id="c1986927-932e-5f1c-99bf-7aa352a0fe41">
+        <testcase name="testEmbedMovieDetailTitleWithRenderContent()" classname="MovieDetailCoordinatorTests" time="0.001" id="c1986927-932e-5f1c-99bf-7aa352a0fe41">
         </testcase>
-        <testcase name="testShowActionSheet()" time="0.001" id="ce5a196a-8066-5073-ac99-a2c02bacc8d0">
+        <testcase name="testShowActionSheet()" classname="MovieDetailCoordinatorTests" time="0.001" id="ce5a196a-8066-5073-ac99-a2c02bacc8d0">
         </testcase>
     </testsuite>
     <testsuite name="UpcomingMoviesTests.CustomListDetailViewModelTests" tests="2" disabled="0" errors="0" failures="0">
-        <testcase name="testListName()" time="0.000" id="a3bece8d-c92a-5189-88d1-f5894d4cc3cb">
+        <testcase name="testListName()" classname="CustomListDetailViewModelTests" time="0.000" id="a3bece8d-c92a-5189-88d1-f5894d4cc3cb">
         </testcase>
-        <testcase name="testEmptyMovieResultsTitle()" time="0.000" id="fe94bbc8-e21d-54f5-8a48-b819a9082cbe">
+        <testcase name="testEmptyMovieResultsTitle()" classname="CustomListDetailViewModelTests" time="0.000" id="fe94bbc8-e21d-54f5-8a48-b819a9082cbe">
         </testcase>
     </testsuite>
     <testsuite name="UpcomingMoviesTests.MovieListCellViewModelTests" tests="5" disabled="0" errors="0" failures="0">
-        <testcase name="testGenreName()" time="0.000" id="2ccd100b-8f9a-5493-a4fd-14ec0b01dd5c">
+        <testcase name="testGenreName()" classname="MovieListCellViewModelTests" time="0.000" id="2ccd100b-8f9a-5493-a4fd-14ec0b01dd5c">
         </testcase>
-        <testcase name="testPosterURL()" time="0.000" id="1fbce9cb-fe6b-5ccd-9bf6-1347efbe61e3">
+        <testcase name="testPosterURL()" classname="MovieListCellViewModelTests" time="0.000" id="1fbce9cb-fe6b-5ccd-9bf6-1347efbe61e3">
         </testcase>
-        <testcase name="testReleaseDate()" time="0.000" id="e1c76623-603a-5cf1-b120-e9c4d92fc242">
+        <testcase name="testReleaseDate()" classname="MovieListCellViewModelTests" time="0.000" id="e1c76623-603a-5cf1-b120-e9c4d92fc242">
         </testcase>
-        <testcase name="testVoteAverage()" time="0.000" id="8866dc21-5607-5b85-8b8f-e3f9815f76ff">
+        <testcase name="testVoteAverage()" classname="MovieListCellViewModelTests" time="0.000" id="8866dc21-5607-5b85-8b8f-e3f9815f76ff">
         </testcase>
-        <testcase name="testName()" time="0.000" id="71dc9036-e17e-57b6-bc75-75aa76960cfb">
+        <testcase name="testName()" classname="MovieListCellViewModelTests" time="0.000" id="71dc9036-e17e-57b6-bc75-75aa76960cfb">
         </testcase>
     </testsuite>
     <testsuite name="UpcomingMoviesTests.CustomListsViewModelTests" tests="5" disabled="0" errors="0" failures="0">
-        <testcase name="testGetCustomListsEmpty()" time="0.001" id="2a8bcef9-0542-53ab-b72d-45239670800e">
+        <testcase name="testGetCustomListsEmpty()" classname="CustomListsViewModelTests" time="0.001" id="2a8bcef9-0542-53ab-b72d-45239670800e">
         </testcase>
-        <testcase name="testGetCustomListsPopulated()" time="0.001" id="04eebb19-98a8-55a7-9e0e-f8397a7d8696">
+        <testcase name="testGetCustomListsPopulated()" classname="CustomListsViewModelTests" time="0.001" id="04eebb19-98a8-55a7-9e0e-f8397a7d8696">
         </testcase>
-        <testcase name="testGetCustomListsPaging()" time="0.000" id="be09bdee-3fdb-539f-8c5c-08598c42ea3a">
+        <testcase name="testGetCustomListsPaging()" classname="CustomListsViewModelTests" time="0.000" id="be09bdee-3fdb-539f-8c5c-08598c42ea3a">
         </testcase>
-        <testcase name="testTitle()" time="0.000" id="b4608911-8a73-5fe9-958b-94975683b6c0">
+        <testcase name="testTitle()" classname="CustomListsViewModelTests" time="0.000" id="b4608911-8a73-5fe9-958b-94975683b6c0">
         </testcase>
-        <testcase name="testGetCustomListsError()" time="0.000" id="c74fe452-181b-5485-883d-b6b7da272380">
+        <testcase name="testGetCustomListsError()" classname="CustomListsViewModelTests" time="0.000" id="c74fe452-181b-5485-883d-b6b7da272380">
         </testcase>
     </testsuite>
     <testsuite name="UpcomingMoviesTests.SimilarMoviesCoordinatorTests" tests="1" disabled="0" errors="0" failures="0">
-        <testcase name="testBuild()" time="0.001" id="3b44c63e-f5b9-5a4c-9665-2e4d386f5f52">
+        <testcase name="testBuild()" classname="SimilarMoviesCoordinatorTests" time="0.001" id="3b44c63e-f5b9-5a4c-9665-2e4d386f5f52">
         </testcase>
     </testsuite>
     <testsuite name="UpcomingMoviesTests.MovieDetailOptionTests" tests="4" disabled="0" errors="0" failures="0">
-        <testcase name="testMovieDetailOptionsReviews()" time="0.000" id="45323688-f5eb-5ffc-ba76-7fbcd5503c7b">
+        <testcase name="testMovieDetailOptionsReviews()" classname="MovieDetailOptionTests" time="0.000" id="45323688-f5eb-5ffc-ba76-7fbcd5503c7b">
         </testcase>
-        <testcase name="testMovieDetailOptionsCredits()" time="0.000" id="aefd7af5-51f8-55c5-95ed-58e9270254ad">
+        <testcase name="testMovieDetailOptionsCredits()" classname="MovieDetailOptionTests" time="0.000" id="aefd7af5-51f8-55c5-95ed-58e9270254ad">
         </testcase>
-        <testcase name="testMovieDetailOptionsSimilarMovies()" time="0.000" id="5bfd928d-cc41-5792-8e15-423a373f2dee">
+        <testcase name="testMovieDetailOptionsSimilarMovies()" classname="MovieDetailOptionTests" time="0.000" id="5bfd928d-cc41-5792-8e15-423a373f2dee">
         </testcase>
-        <testcase name="testMovieDetailOptionsTrailers()" time="0.000" id="ba044eee-581c-574f-b0fb-11fcfc1dec12">
+        <testcase name="testMovieDetailOptionsTrailers()" classname="MovieDetailOptionTests" time="0.000" id="ba044eee-581c-574f-b0fb-11fcfc1dec12">
         </testcase>
     </testsuite>
     <testsuite name="UpcomingMoviesTests.MovieDetailOptionsCoordinatorTests" tests="1" disabled="0" errors="0" failures="0">
-        <testcase name="testBuild()" time="0.002" id="10bc29a6-f81c-5fb7-8482-55831d77f7ac">
+        <testcase name="testBuild()" classname="MovieDetailOptionsCoordinatorTests" time="0.002" id="10bc29a6-f81c-5fb7-8482-55831d77f7ac">
         </testcase>
     </testsuite>
     <testsuite name="UpcomingMoviesTests.SignInViewControllerTests" tests="5" disabled="0" errors="0" failures="0">
-        <testcase name="testDidUpdateAuthenticationState()" time="1.000" id="d3539d1f-61ef-5713-a0a1-74f3a2a790c9">
+        <testcase name="testDidUpdateAuthenticationState()" classname="SignInViewControllerTests" time="1.000" id="d3539d1f-61ef-5713-a0a1-74f3a2a790c9">
         </testcase>
-        <testcase name="testDidReceiveAuthorizationTrue()" time="0.008" id="9ec863ad-9863-5f5d-b90b-f5b7f9a649f9">
+        <testcase name="testDidReceiveAuthorizationTrue()" classname="SignInViewControllerTests" time="0.008" id="9ec863ad-9863-5f5d-b90b-f5b7f9a649f9">
         </testcase>
-        <testcase name="testShowAuthPermission()" time="1.000" id="24e67076-f144-5b5e-9385-715fbb46527a">
+        <testcase name="testShowAuthPermission()" classname="SignInViewControllerTests" time="1.000" id="24e67076-f144-5b5e-9385-715fbb46527a">
         </testcase>
-        <testcase name="testCloseBarButtonAction()" time="0.003" id="30bff2f4-e790-59b6-829d-f6ff6b1bfded">
+        <testcase name="testCloseBarButtonAction()" classname="SignInViewControllerTests" time="0.003" id="30bff2f4-e790-59b6-829d-f6ff6b1bfded">
         </testcase>
-        <testcase name="testDidReceiveAuthorizationFalse()" time="0.003" id="0d9a576b-429f-5f72-bba2-02272763d96b">
+        <testcase name="testDidReceiveAuthorizationFalse()" classname="SignInViewControllerTests" time="0.003" id="0d9a576b-429f-5f72-bba2-02272763d96b">
         </testcase>
     </testsuite>
     <testsuite name="UpcomingMoviesTests.MoviesByGenreCoordinatorTests" tests="1" disabled="0" errors="0" failures="0">
-        <testcase name="testBuild()" time="0.010" id="a434482a-8a4c-5123-9331-5d50e9804965">
+        <testcase name="testBuild()" classname="MoviesByGenreCoordinatorTests" time="0.010" id="a434482a-8a4c-5123-9331-5d50e9804965">
         </testcase>
     </testsuite>
     <testsuite name="UpcomingMoviesTests.CustomListDetailSectionViewModelTests" tests="6" disabled="0" errors="0" failures="0">
-        <testcase name="testRatingText()" time="0.001" id="71241a99-03c6-5069-bd60-74b8b6228df7">
+        <testcase name="testRatingText()" classname="CustomListDetailSectionViewModelTests" time="0.001" id="71241a99-03c6-5069-bd60-74b8b6228df7">
         </testcase>
-        <testcase name="testMovieRevenueTextHundredValue()" time="0.001" id="2d640263-56a8-5404-8302-3494eacfbe63">
+        <testcase name="testMovieRevenueTextHundredValue()" classname="CustomListDetailSectionViewModelTests" time="0.001" id="2d640263-56a8-5404-8302-3494eacfbe63">
         </testcase>
-        <testcase name="testMovieRevenueTextMillionValue()" time="0.000" id="b88f9705-7547-59a8-8206-b9efdfd63340">
+        <testcase name="testMovieRevenueTextMillionValue()" classname="CustomListDetailSectionViewModelTests" time="0.000" id="b88f9705-7547-59a8-8206-b9efdfd63340">
         </testcase>
-        <testcase name="testMovieCountText()" time="0.000" id="0e3fdb37-3967-5f4c-b6c7-30cbf58516af">
+        <testcase name="testMovieCountText()" classname="CustomListDetailSectionViewModelTests" time="0.000" id="0e3fdb37-3967-5f4c-b6c7-30cbf58516af">
         </testcase>
-        <testcase name="testMovieRuntimeText()" time="0.000" id="fff816bb-32c7-52dd-b7ea-d05c96815cc8">
+        <testcase name="testMovieRuntimeText()" classname="CustomListDetailSectionViewModelTests" time="0.000" id="fff816bb-32c7-52dd-b7ea-d05c96815cc8">
         </testcase>
-        <testcase name="testMovieRevenueTextThousandValue()" time="0.000" id="d6632d58-63f3-5d61-a376-626be76dd8a7">
+        <testcase name="testMovieRevenueTextThousandValue()" classname="CustomListDetailSectionViewModelTests" time="0.000" id="d6632d58-63f3-5d61-a376-626be76dd8a7">
         </testcase>
     </testsuite>
     <testsuite name="UpcomingMoviesTests.MovieCreditsFactoryTests" tests="2" disabled="0" errors="0" failures="0">
-        <testcase name="testCrewSection()" time="0.000" id="46f8b4da-8431-5a78-87e4-e21b35c21d6c">
+        <testcase name="testCrewSection()" classname="MovieCreditsFactoryTests" time="0.000" id="46f8b4da-8431-5a78-87e4-e21b35c21d6c">
         </testcase>
-        <testcase name="testCastSection()" time="0.000" id="51c81277-9c3e-5a30-8429-8daac4240c0e">
+        <testcase name="testCastSection()" classname="MovieCreditsFactoryTests" time="0.000" id="51c81277-9c3e-5a30-8429-8daac4240c0e">
         </testcase>
     </testsuite>
     <testsuite name="UpcomingMoviesTests.GenreModelTests" tests="1" disabled="0" errors="0" failures="0">
-        <testcase name="testInitWithGenre()" time="0.001" id="ef80a6c7-283d-5c2a-813f-944ce3e2f368">
+        <testcase name="testInitWithGenre()" classname="GenreModelTests" time="0.001" id="ef80a6c7-283d-5c2a-813f-944ce3e2f368">
         </testcase>
     </testsuite>
     <testsuite name="UpcomingMoviesTests.MovieVideosCoordinatorTests" tests="1" disabled="0" errors="0" failures="0">
-        <testcase name="testBuild()" time="0.003" id="49f0fb99-6071-5089-8542-d20ea1a78504">
+        <testcase name="testBuild()" classname="MovieVideosCoordinatorTests" time="0.003" id="49f0fb99-6071-5089-8542-d20ea1a78504">
         </testcase>
     </testsuite>
     <testsuite name="UpcomingMoviesTests.SearchMoviesCoordinatorTests" tests="8" disabled="0" errors="0" failures="0">
-        <testcase name="testEmbedSearchController()" time="0.009" id="f1c3ab11-0203-5beb-acf4-5fc0798611df">
+        <testcase name="testEmbedSearchController()" classname="SearchMoviesCoordinatorTests" time="0.009" id="f1c3ab11-0203-5beb-acf4-5fc0798611df">
         </testcase>
-        <testcase name="testBuild()" time="0.002" id="98dd4057-d34f-5c25-a9c5-9e48dc268c03">
+        <testcase name="testBuild()" classname="SearchMoviesCoordinatorTests" time="0.002" id="98dd4057-d34f-5c25-a9c5-9e48dc268c03">
         </testcase>
-        <testcase name="testShowTopRatedMovies()" time="0.002" id="9da4c804-7000-5f74-b745-91002f2c65f1">
+        <testcase name="testShowTopRatedMovies()" classname="SearchMoviesCoordinatorTests" time="0.002" id="9da4c804-7000-5f74-b745-91002f2c65f1">
         </testcase>
-        <testcase name="testShowMovieDetail()" time="0.003" id="b30cbf91-da2d-5fe1-b07b-06f568f54b1a">
+        <testcase name="testShowMovieDetail()" classname="SearchMoviesCoordinatorTests" time="0.003" id="b30cbf91-da2d-5fe1-b07b-06f568f54b1a">
         </testcase>
-        <testcase name="testRootIdentifier()" time="0.001" id="c0eb90cc-33ad-5c91-b888-01750f1ea747">
+        <testcase name="testRootIdentifier()" classname="SearchMoviesCoordinatorTests" time="0.001" id="c0eb90cc-33ad-5c91-b888-01750f1ea747">
         </testcase>
-        <testcase name="testEmbedSearchOptions()" time="0.005" id="0a4bfec0-139f-5aa4-9add-0584f8fc06f0">
+        <testcase name="testEmbedSearchOptions()" classname="SearchMoviesCoordinatorTests" time="0.005" id="0a4bfec0-139f-5aa4-9add-0584f8fc06f0">
         </testcase>
-        <testcase name="testShowMoviesByGenre()" time="0.001" id="24873378-fbe4-51b4-91ec-9e136b0235cd">
+        <testcase name="testShowMoviesByGenre()" classname="SearchMoviesCoordinatorTests" time="0.001" id="24873378-fbe4-51b4-91ec-9e136b0235cd">
         </testcase>
-        <testcase name="testShowPopularMovies()" time="0.001" id="0e41ba57-5ed8-56d3-aff2-ba0b05fd5bb8">
+        <testcase name="testShowPopularMovies()" classname="SearchMoviesCoordinatorTests" time="0.001" id="0e41ba57-5ed8-56d3-aff2-ba0b05fd5bb8">
         </testcase>
     </testsuite>
     <testsuite name="UpcomingMoviesTests.MovieCreditCellViewModelTests" tests="6" disabled="0" errors="0" failures="0">
-        <testcase name="testProfileURLForCreditModelCreatedWithCrew()" time="0.001" id="47ffc60f-078c-5a8a-b45c-70916a0dbd52">
+        <testcase name="testProfileURLForCreditModelCreatedWithCrew()" classname="MovieCreditCellViewModelTests" time="0.001" id="47ffc60f-078c-5a8a-b45c-70916a0dbd52">
         </testcase>
-        <testcase name="testNameForCreditModelCreatedWithCrew()" time="0.000" id="2140b812-c17d-55d8-91f8-58da63b7ce75">
+        <testcase name="testNameForCreditModelCreatedWithCrew()" classname="MovieCreditCellViewModelTests" time="0.000" id="2140b812-c17d-55d8-91f8-58da63b7ce75">
         </testcase>
-        <testcase name="testNameForCreditModelCreatedWithCast()" time="0.001" id="a104a599-d72d-5376-aa92-1bda40bf6001">
+        <testcase name="testNameForCreditModelCreatedWithCast()" classname="MovieCreditCellViewModelTests" time="0.001" id="a104a599-d72d-5376-aa92-1bda40bf6001">
         </testcase>
-        <testcase name="testRoleForCreditModelCreatedWithCrew()" time="0.000" id="a584828c-72c7-5cb1-8c5e-4507a7c99100">
+        <testcase name="testRoleForCreditModelCreatedWithCrew()" classname="MovieCreditCellViewModelTests" time="0.000" id="a584828c-72c7-5cb1-8c5e-4507a7c99100">
         </testcase>
-        <testcase name="testProfileURLForCreditModelCreatedWithCast()" time="0.001" id="5630513e-5b42-5cfc-8b82-825c2a47a53d">
+        <testcase name="testProfileURLForCreditModelCreatedWithCast()" classname="MovieCreditCellViewModelTests" time="0.001" id="5630513e-5b42-5cfc-8b82-825c2a47a53d">
         </testcase>
-        <testcase name="testRoleForCreditModelCreatedWithCast()" time="0.000" id="17a5a6b0-ddd1-5b24-84e4-fc78ce2635a1">
+        <testcase name="testRoleForCreditModelCreatedWithCast()" classname="MovieCreditCellViewModelTests" time="0.000" id="17a5a6b0-ddd1-5b24-84e4-fc78ce2635a1">
         </testcase>
     </testsuite>
     <testsuite name="UpcomingMoviesTests.MovieDetailTitleCoordinatorTests" tests="1" disabled="0" errors="0" failures="0">
-        <testcase name="testBuild()" time="0.003" id="a3ac9630-6103-5ed6-829c-d723015647fa">
+        <testcase name="testBuild()" classname="MovieDetailTitleCoordinatorTests" time="0.003" id="a3ac9630-6103-5ed6-829c-d723015647fa">
         </testcase>
     </testsuite>
     <testsuite name="UpcomingMoviesTests.MovieVideoCellViewModelTests" tests="2" disabled="0" errors="0" failures="0">
-        <testcase name="testNameForVideoModel()" time="0.000" id="9f84462f-581a-597b-8c49-d692c7a209bb">
+        <testcase name="testNameForVideoModel()" classname="MovieVideoCellViewModelTests" time="0.000" id="9f84462f-581a-597b-8c49-d692c7a209bb">
         </testcase>
-        <testcase name="testThumbnailURLForVideoModel()" time="0.000" id="d627d5b0-abfe-5718-8782-526211835a44">
+        <testcase name="testThumbnailURLForVideoModel()" classname="MovieVideoCellViewModelTests" time="0.000" id="d627d5b0-abfe-5718-8782-526211835a44">
         </testcase>
     </testsuite>
     <testsuite name="UpcomingMoviesTests.MovieDetailViewModelTests" tests="29" disabled="0" errors="0" failures="0">
-        <testcase name="testMovieDetailOverview()" time="0.000" id="d9adda4f-76df-5d1d-9863-b89bdc3bc61e">
+        <testcase name="testMovieDetailOverview()" classname="MovieDetailViewModelTests" time="0.000" id="d9adda4f-76df-5d1d-9863-b89bdc3bc61e">
         </testcase>
-        <testcase name="testSaveVisitedMovie()" time="0.001" id="7eb58a3f-275d-5f58-8b28-8a0b59daff63">
+        <testcase name="testSaveVisitedMovie()" classname="MovieDetailViewModelTests" time="0.001" id="7eb58a3f-275d-5f58-8b28-8a0b59daff63">
         </testcase>
-        <testcase name="testRemoveFromWatchlistAlertActionSuccess()" time="0.001" id="b69de258-3738-5f22-9cf0-7abca3c1e50c">
+        <testcase name="testRemoveFromWatchlistAlertActionSuccess()" classname="MovieDetailViewModelTests" time="0.001" id="b69de258-3738-5f22-9cf0-7abca3c1e50c">
         </testcase>
-        <testcase name="testScreenTitle()" time="0.000" id="a0642dc0-19f2-51ef-ae17-6425cab464a9">
+        <testcase name="testScreenTitle()" classname="MovieDetailViewModelTests" time="0.000" id="a0642dc0-19f2-51ef-ae17-6425cab464a9">
         </testcase>
-        <testcase name="testDidSetupMovieDetailNeedsFetchFalse()" time="0.000" id="b5405d6d-861b-5d95-8637-894efbb09e6e">
+        <testcase name="testDidSetupMovieDetailNeedsFetchFalse()" classname="MovieDetailViewModelTests" time="0.000" id="b5405d6d-861b-5d95-8637-894efbb09e6e">
         </testcase>
-        <testcase name="testCheckMovieAccountStateSuccess()" time="0.001" id="196ef6cd-8fb9-5ed2-9b91-e0aec640a581">
+        <testcase name="testCheckMovieAccountStateSuccess()" classname="MovieDetailViewModelTests" time="0.001" id="196ef6cd-8fb9-5ed2-9b91-e0aec640a581">
         </testcase>
-        <testcase name="testGetMovieGenreNameNil()" time="0.000" id="393ddefc-b190-5ad8-a784-d9f422e7850b">
+        <testcase name="testGetMovieGenreNameNil()" classname="MovieDetailViewModelTests" time="0.000" id="393ddefc-b190-5ad8-a784-d9f422e7850b">
         </testcase>
-        <testcase name="testCheckMovieAccountStateIsUserSignedInFalse()" time="0.000" id="df539b46-34e4-5b91-ad00-4522dd89f530">
+        <testcase name="testCheckMovieAccountStateIsUserSignedInFalse()" classname="MovieDetailViewModelTests" time="0.000" id="df539b46-34e4-5b91-ad00-4522dd89f530">
         </testcase>
-        <testcase name="testShowErrorRetryView()" time="0.000" id="851c964b-084f-5d5e-836e-fb4aff6e1792">
+        <testcase name="testShowErrorRetryView()" classname="MovieDetailViewModelTests" time="0.000" id="851c964b-084f-5d5e-836e-fb4aff6e1792">
         </testcase>
-        <testcase name="testGetMovieGenreNameWihtoutId()" time="0.000" id="c87efaf7-92fa-571c-91a9-e652a45731c6">
+        <testcase name="testGetMovieGenreNameWihtoutId()" classname="MovieDetailViewModelTests" time="0.000" id="c87efaf7-92fa-571c-91a9-e652a45731c6">
         </testcase>
-        <testcase name="testHandleFavoriteMovieIsFavoriteFalseSuccessResponse()" time="0.001" id="54b4973b-9e9b-5e33-946f-6fc62e12104d">
+        <testcase name="testHandleFavoriteMovieIsFavoriteFalseSuccessResponse()" classname="MovieDetailViewModelTests" time="0.001" id="54b4973b-9e9b-5e33-946f-6fc62e12104d">
         </testcase>
-        <testcase name="testAddToWatchlistAlertActionSuccess()" time="0.001" id="e77786d3-3b48-5135-aa7a-d573e1c14543">
+        <testcase name="testAddToWatchlistAlertActionSuccess()" classname="MovieDetailViewModelTests" time="0.001" id="e77786d3-3b48-5135-aa7a-d573e1c14543">
         </testcase>
-        <testcase name="testShareAlertAction()" time="0.001" id="dcd8f092-d865-550c-8768-a3db3be717ce">
+        <testcase name="testShareAlertAction()" classname="MovieDetailViewModelTests" time="0.001" id="dcd8f092-d865-550c-8768-a3db3be717ce">
         </testcase>
-        <testcase name="testHandleFavoriteMovieIsFavoriteNilValue()" time="0.000" id="6ad05357-08e5-5d0f-b415-83aad44658e7">
+        <testcase name="testHandleFavoriteMovieIsFavoriteNilValue()" classname="MovieDetailViewModelTests" time="0.000" id="6ad05357-08e5-5d0f-b415-83aad44658e7">
         </testcase>
-        <testcase name="testGetAvailableAlertActionsWithNoAccountState()" time="0.000" id="25053558-c951-5a0e-bd3c-f8070ddb6c9a">
+        <testcase name="testGetAvailableAlertActionsWithNoAccountState()" classname="MovieDetailViewModelTests" time="0.000" id="25053558-c951-5a0e-bd3c-f8070ddb6c9a">
         </testcase>
-        <testcase name="testCheckMovieAccountStateError()" time="0.001" id="bf9ba2ab-2a4d-510f-baf3-8d2224b06422">
+        <testcase name="testCheckMovieAccountStateError()" classname="MovieDetailViewModelTests" time="0.001" id="bf9ba2ab-2a4d-510f-baf3-8d2224b06422">
         </testcase>
-        <testcase name="testShareTitle()" time="0.001" id="68bc8218-65b8-5c6c-a200-4c9fbbd11f7e">
+        <testcase name="testShareTitle()" classname="MovieDetailViewModelTests" time="0.001" id="68bc8218-65b8-5c6c-a200-4c9fbbd11f7e">
         </testcase>
-        <testcase name="testGetMovieGenreName()" time="0.001" id="46769f11-d71c-53ff-8e3c-51cc9a1a3209">
+        <testcase name="testGetMovieGenreName()" classname="MovieDetailViewModelTests" time="0.001" id="46769f11-d71c-53ff-8e3c-51cc9a1a3209">
         </testcase>
-        <testcase name="testGetAvailableAlertActionsWithAccountStateWatchlistTrue()" time="0.000" id="be9e088f-f40d-54ac-a89a-47f0034bad36">
+        <testcase name="testGetAvailableAlertActionsWithAccountStateWatchlistTrue()" classname="MovieDetailViewModelTests" time="0.000" id="be9e088f-f40d-54ac-a89a-47f0034bad36">
         </testcase>
-        <testcase name="testMovieDetailTitle()" time="0.000" id="3c005af8-99ac-5270-8150-eec6ff6c2b05">
+        <testcase name="testMovieDetailTitle()" classname="MovieDetailViewModelTests" time="0.000" id="3c005af8-99ac-5270-8150-eec6ff6c2b05">
         </testcase>
-        <testcase name="testRemoveFromWatchlistAlertActionError()" time="0.006" id="4d68ee7f-052d-5483-878c-e126856e03fc">
+        <testcase name="testRemoveFromWatchlistAlertActionError()" classname="MovieDetailViewModelTests" time="0.006" id="4d68ee7f-052d-5483-878c-e126856e03fc">
         </testcase>
-        <testcase name="testHandleFavoriteMovieIsFavoriteFalseErrorResponse()" time="0.001" id="f6ee5ee8-9faa-55cc-a50d-d74e1032e8ff">
+        <testcase name="testHandleFavoriteMovieIsFavoriteFalseErrorResponse()" classname="MovieDetailViewModelTests" time="0.001" id="f6ee5ee8-9faa-55cc-a50d-d74e1032e8ff">
         </testcase>
-        <testcase name="testMovieDetailReleaseDate()" time="0.000" id="f0d02c52-b43a-576d-b428-4b6ef2e661b3">
+        <testcase name="testMovieDetailReleaseDate()" classname="MovieDetailViewModelTests" time="0.000" id="f0d02c52-b43a-576d-b428-4b6ef2e661b3">
         </testcase>
-        <testcase name="testGetAvailableAlertActionsWithAccountStateWatchlistFalse()" time="0.000" id="cc6b1389-6b67-52f0-909c-56ae188a0c85">
+        <testcase name="testGetAvailableAlertActionsWithAccountStateWatchlistFalse()" classname="MovieDetailViewModelTests" time="0.000" id="cc6b1389-6b67-52f0-909c-56ae188a0c85">
         </testcase>
-        <testcase name="testAddToWatchlistAlertActionError()" time="0.000" id="c3d2b7d2-75e1-577e-a710-201f3c8fe6c2">
+        <testcase name="testAddToWatchlistAlertActionError()" classname="MovieDetailViewModelTests" time="0.000" id="c3d2b7d2-75e1-577e-a710-201f3c8fe6c2">
         </testcase>
-        <testcase name="testCancelTitle()" time="0.000" id="9454fa3e-8aaa-5494-a03c-c0361880985d">
+        <testcase name="testCancelTitle()" classname="MovieDetailViewModelTests" time="0.000" id="9454fa3e-8aaa-5494-a03c-c0361880985d">
         </testcase>
-        <testcase name="testHandleFavoriteMovieIsFavoriteTrueErrorResponse()" time="0.001" id="6ac24ac9-3d57-5084-9bab-aed7577fb520">
+        <testcase name="testHandleFavoriteMovieIsFavoriteTrueErrorResponse()" classname="MovieDetailViewModelTests" time="0.001" id="6ac24ac9-3d57-5084-9bab-aed7577fb520">
         </testcase>
-        <testcase name="testHandleFavoriteMovieIsFavoriteTrueSuccessResponse()" time="0.001" id="4d5dc393-68bb-5f69-942e-3feeebe83895">
+        <testcase name="testHandleFavoriteMovieIsFavoriteTrueSuccessResponse()" classname="MovieDetailViewModelTests" time="0.001" id="4d5dc393-68bb-5f69-942e-3feeebe83895">
         </testcase>
-        <testcase name="testDidSetupMovieDetail()" time="0.000" id="5c68026f-50b5-5429-ab1e-29517ac352f9">
+        <testcase name="testDidSetupMovieDetail()" classname="MovieDetailViewModelTests" time="0.000" id="5c68026f-50b5-5429-ab1e-29517ac352f9">
         </testcase>
     </testsuite>
     <testsuite name="UpcomingMoviesTests.BaseCoordinatorTests" tests="13" disabled="0" errors="0" failures="0">
-        <testcase name="testSetupNavigationControllerDelegateExistingDelegateShouldOverride()" time="0.001" id="35de0c4d-c207-5122-9b6a-a55dabec03e6">
+        <testcase name="testSetupNavigationControllerDelegateExistingDelegateShouldOverride()" classname="BaseCoordinatorTests" time="0.001" id="35de0c4d-c207-5122-9b6a-a55dabec03e6">
         </testcase>
-        <testcase name="testDismissEmbedWithoutContainerViewCoordinatorMode()" time="0.001" id="7e86e4aa-2827-54f6-8ad2-79b726b8626d">
+        <testcase name="testDismissEmbedWithoutContainerViewCoordinatorMode()" classname="BaseCoordinatorTests" time="0.001" id="7e86e4aa-2827-54f6-8ad2-79b726b8626d">
         </testcase>
-        <testcase name="testDismissPushCoordinatorMode()" time="0.000" id="c306029a-b747-53e5-aa03-04772577ea5b">
+        <testcase name="testDismissPushCoordinatorMode()" classname="BaseCoordinatorTests" time="0.000" id="c306029a-b747-53e5-aa03-04772577ea5b">
         </testcase>
-        <testcase name="testDismissPresentCoordinatorMode()" time="0.000" id="23bfb2d3-43de-59de-bdc3-722ab0bf6bb5">
+        <testcase name="testDismissPresentCoordinatorMode()" classname="BaseCoordinatorTests" time="0.000" id="23bfb2d3-43de-59de-bdc3-722ab0bf6bb5">
         </testcase>
-        <testcase name="testStartEmbedWithContainerViewCoordinatorMode()" time="0.001" id="a0e1deb6-3a4d-527c-8626-37a0a9380372">
+        <testcase name="testStartEmbedWithContainerViewCoordinatorMode()" classname="BaseCoordinatorTests" time="0.001" id="a0e1deb6-3a4d-527c-8626-37a0a9380372">
         </testcase>
-        <testcase name="testNavigationControllerDidShowViewControllerContainedInStack()" time="0.005" id="0420e5e6-8c65-5f13-9ce8-0a38ad4391bd">
+        <testcase name="testNavigationControllerDidShowViewControllerContainedInStack()" classname="BaseCoordinatorTests" time="0.005" id="0420e5e6-8c65-5f13-9ce8-0a38ad4391bd">
         </testcase>
-        <testcase name="testStartPushCoordinatorMode()" time="0.000" id="9eebad0b-52bf-543d-9c20-af9b7eea4524">
+        <testcase name="testStartPushCoordinatorMode()" classname="BaseCoordinatorTests" time="0.000" id="9eebad0b-52bf-543d-9c20-af9b7eea4524">
         </testcase>
-        <testcase name="testNavigationControllerDidShowViewControllerIsBeingPresentedTrue()" time="0.000" id="a172aa54-5123-51e1-9c46-1c668c7168aa">
+        <testcase name="testNavigationControllerDidShowViewControllerIsBeingPresentedTrue()" classname="BaseCoordinatorTests" time="0.000" id="a172aa54-5123-51e1-9c46-1c668c7168aa">
         </testcase>
-        <testcase name="testSetupNavigationControllerDelegateExistingDelegateShouldNotOverride()" time="0.000" id="ad5d801d-f146-5d7f-89d5-dfe05d0046e2">
+        <testcase name="testSetupNavigationControllerDelegateExistingDelegateShouldNotOverride()" classname="BaseCoordinatorTests" time="0.000" id="ad5d801d-f146-5d7f-89d5-dfe05d0046e2">
         </testcase>
-        <testcase name="testNavigationControllerDidShow()" time="0.000" id="98b52fde-4d3d-5d10-b1b6-6aa62a7bc131">
+        <testcase name="testNavigationControllerDidShow()" classname="BaseCoordinatorTests" time="0.000" id="98b52fde-4d3d-5d10-b1b6-6aa62a7bc131">
         </testcase>
-        <testcase name="testSetupNavigationControllerDelegate()" time="0.001" id="f5c15aff-dc9a-5743-96aa-41194f83e878">
+        <testcase name="testSetupNavigationControllerDelegate()" classname="BaseCoordinatorTests" time="0.001" id="f5c15aff-dc9a-5743-96aa-41194f83e878">
         </testcase>
-        <testcase name="testStartPresentCoordinatorMode()" time="0.000" id="9a62fe6a-6d9a-53c6-b2df-8abe5bc166c7">
+        <testcase name="testStartPresentCoordinatorMode()" classname="BaseCoordinatorTests" time="0.000" id="9a62fe6a-6d9a-53c6-b2df-8abe5bc166c7">
         </testcase>
-        <testcase name="testStartEmbedWithoutContainerViewCoordinatorMode()" time="0.000" id="d5790ef0-f8f6-5a5e-9f2d-fba88665fd38">
+        <testcase name="testStartEmbedWithoutContainerViewCoordinatorMode()" classname="BaseCoordinatorTests" time="0.000" id="d5790ef0-f8f6-5a5e-9f2d-fba88665fd38">
         </testcase>
     </testsuite>
     <testsuite name="UpcomingMoviesTests.MovieCreditsInteractorTests" tests="1" disabled="0" errors="0" failures="0">
-        <testcase name="testGetMovieCreditsCalled()" time="0.000" id="cdbb4763-16a2-5b9f-a966-2751fc10fbb6">
+        <testcase name="testGetMovieCreditsCalled()" classname="MovieCreditsInteractorTests" time="0.000" id="cdbb4763-16a2-5b9f-a966-2751fc10fbb6">
         </testcase>
     </testsuite>
     <testsuite name="UpcomingMoviesTests.WatchlistSavedMoviesInteractorTests" tests="1" disabled="0" errors="0" failures="0">
-        <testcase name="testGetWatchlistCalled()" time="0.001" id="d44c8c83-e982-5b29-b12b-92c71851eba7">
+        <testcase name="testGetWatchlistCalled()" classname="WatchlistSavedMoviesInteractorTests" time="0.001" id="d44c8c83-e982-5b29-b12b-92c71851eba7">
         </testcase>
     </testsuite>
     <testsuite name="UpcomingMoviesTests.SignInInteractorTests" tests="3" disabled="0" errors="0" failures="0">
-        <testcase name="testSignInUserError()" time="0.000" id="7a8f90a3-0c7d-5212-b4ac-f13465628cd7">
+        <testcase name="testSignInUserError()" classname="SignInInteractorTests" time="0.000" id="7a8f90a3-0c7d-5212-b4ac-f13465628cd7">
         </testcase>
-        <testcase name="testGetAuthPermissionURL()" time="0.000" id="786f8513-2214-5f57-8b49-7d7942dfa060">
+        <testcase name="testGetAuthPermissionURL()" classname="SignInInteractorTests" time="0.000" id="786f8513-2214-5f57-8b49-7d7942dfa060">
         </testcase>
-        <testcase name="testSignInUserSuccess()" time="0.000" id="a46b8fcc-ee3e-524f-9b67-1339925a5077">
+        <testcase name="testSignInUserSuccess()" classname="SignInInteractorTests" time="0.000" id="a46b8fcc-ee3e-524f-9b67-1339925a5077">
         </testcase>
     </testsuite>
     <testsuite name="UpcomingMoviesTests.MovieReviewCellViewModelTests" tests="2" disabled="0" errors="0" failures="0">
-        <testcase name="testMovieReviewCellAuthorName()" time="0.000" id="1353fbfd-7e42-5124-aa07-3b7aa5eff29f">
+        <testcase name="testMovieReviewCellAuthorName()" classname="MovieReviewCellViewModelTests" time="0.000" id="1353fbfd-7e42-5124-aa07-3b7aa5eff29f">
         </testcase>
-        <testcase name="testMovieReviewCellContent()" time="0.000" id="467e2d00-8765-5447-944c-5b1e98b9b010">
+        <testcase name="testMovieReviewCellContent()" classname="MovieReviewCellViewModelTests" time="0.000" id="467e2d00-8765-5447-944c-5b1e98b9b010">
         </testcase>
     </testsuite>
 </testsuites>

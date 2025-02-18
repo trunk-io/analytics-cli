@@ -32,7 +32,8 @@ impl XCResult {
         let legacy_xcresult_tests = match XCResultTest::generate_from_object(&absolute_path) {
             Ok(tests) => tests,
             Err(e) => {
-                tracing::warn!("failed to generate legacy XCResultTest objects: {}", e);
+                tracing::warn!("Failed to generate legacy XCResultTest objects: {}", e);
+                tracing::warn!("Attempting to continue without legacy XCResultTest objects");
                 HashMap::new()
             }
         };
@@ -136,7 +137,7 @@ impl XCResult {
                     TestResult::Failed => TestCaseStatus::non_success(NonSuccessKind::Failure),
                     TestResult::Skipped => TestCaseStatus::skipped(),
                     TestResult::Unknown => {
-                        tracing::warn!(
+                        tracing::debug!(
                             "unknown test result for test case: {}",
                             xcresult_test_case.name
                         );
@@ -144,6 +145,14 @@ impl XCResult {
                     }
                 };
                 let mut test_case = TestCase::new(String::from(&xcresult_test_case.name), status);
+                let classname = xcresult_test_case
+                    .node_identifier
+                    .as_ref()
+                    .map(|node_identifier| node_identifier.rsplit('/').next_back())
+                    .flatten();
+                if let Some(classname) = classname {
+                    test_case.set_classname(classname);
+                }
 
                 let failure_messages = Self::xcresult_failure_messages_to_strings(
                     xcresult_test_case.children.as_slice(),
@@ -205,7 +214,7 @@ impl XCResult {
                     }
                     TestResult::Failed => NonSuccessKind::Failure,
                     TestResult::Skipped | TestResult::Unknown => {
-                        tracing::warn!(
+                        tracing::debug!(
                             "unexpected test result for repetition: {}",
                             repetition.name
                         );

@@ -1,140 +1,140 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <testsuites name="xcresult: Test Plan" tests="52" failures="25" errors="0">
     <testsuite name="AtomicBoyTests.AtomicBoyTests" tests="2" disabled="0" errors="0" failures="1">
-        <testcase name="testExample" time="0.019" id="f3c6a49d-9fc4-553e-9a6e-ff1173356ef9" file="/Users/lyndsey/repos/fastlane-plugin-test_center/AtomicBoy/AtomicBoyTests/AtomicBoyTests.m">
+        <testcase name="testExample" classname="AtomicBoyTests" time="0.019" id="f3c6a49d-9fc4-553e-9a6e-ff1173356ef9" file="/Users/lyndsey/repos/fastlane-plugin-test_center/AtomicBoy/AtomicBoyTests/AtomicBoyTests.m">
             <failure message="AtomicBoyTests.m:32: ((false) is true) failed"/>
         </testcase>
-        <testcase name="testPerformanceExample" time="0.270" id="60b936c4-e160-5f02-938f-005b9e710a46" file="/Users/lyndsey/repos/fastlane-plugin-test_center/AtomicBoy/AtomicBoyTests/AtomicBoyTests.m">
+        <testcase name="testPerformanceExample" classname="AtomicBoyTests" time="0.270" id="60b936c4-e160-5f02-938f-005b9e710a46" file="/Users/lyndsey/repos/fastlane-plugin-test_center/AtomicBoy/AtomicBoyTests/AtomicBoyTests.m">
         </testcase>
     </testsuite>
     <testsuite name="AtomicBoyUITests.AtomicBoyUITests" tests="48" disabled="0" errors="0" failures="24">
-        <testcase name="testExample" time="3.000" id="d783b0f0-6ecd-5a1b-9903-5e925a92b208" file="/Users/lyndsey/repos/fastlane-plugin-test_center/AtomicBoy/AtomicBoyUITests/AtomicBoyUITests.m">
+        <testcase name="testExample" classname="AtomicBoyUITests" time="3.000" id="d783b0f0-6ecd-5a1b-9903-5e925a92b208" file="/Users/lyndsey/repos/fastlane-plugin-test_center/AtomicBoy/AtomicBoyUITests/AtomicBoyUITests.m">
             <failure message="AtomicBoyUITests.m:40: ((false) is true) failed"/>
         </testcase>
-        <testcase name="testExample10" time="4.000" id="fb99da41-c379-53e8-a836-87db18e3a9e1" file="/Users/lyndsey/repos/fastlane-plugin-test_center/AtomicBoy/AtomicBoyUITests/AtomicBoyUITests.m">
+        <testcase name="testExample10" classname="AtomicBoyUITests" time="4.000" id="fb99da41-c379-53e8-a836-87db18e3a9e1" file="/Users/lyndsey/repos/fastlane-plugin-test_center/AtomicBoy/AtomicBoyUITests/AtomicBoyUITests.m">
         </testcase>
-        <testcase name="testExample11" time="4.000" id="3896eff0-c0fd-5b34-ad4f-34b9d4837387" file="/Users/lyndsey/repos/fastlane-plugin-test_center/AtomicBoy/AtomicBoyUITests/AtomicBoyUITests.m">
+        <testcase name="testExample11" classname="AtomicBoyUITests" time="4.000" id="3896eff0-c0fd-5b34-ad4f-34b9d4837387" file="/Users/lyndsey/repos/fastlane-plugin-test_center/AtomicBoy/AtomicBoyUITests/AtomicBoyUITests.m">
             <failure message="AtomicBoyUITests.m:120: ((false) is true) failed"/>
         </testcase>
-        <testcase name="testExample12" time="4.000" id="6ad18147-0e71-570d-b4b8-486cfe62557f" file="/Users/lyndsey/repos/fastlane-plugin-test_center/AtomicBoy/AtomicBoyUITests/AtomicBoyUITests.m">
+        <testcase name="testExample12" classname="AtomicBoyUITests" time="4.000" id="6ad18147-0e71-570d-b4b8-486cfe62557f" file="/Users/lyndsey/repos/fastlane-plugin-test_center/AtomicBoy/AtomicBoyUITests/AtomicBoyUITests.m">
             <failure message="AtomicBoyUITests.m:128: ((false) is true) failed"/>
         </testcase>
-        <testcase name="testExample13" time="4.000" id="9ce8640a-ba66-5cc4-9595-51d8d3161382" file="/Users/lyndsey/repos/fastlane-plugin-test_center/AtomicBoy/AtomicBoyUITests/AtomicBoyUITests.m">
+        <testcase name="testExample13" classname="AtomicBoyUITests" time="4.000" id="9ce8640a-ba66-5cc4-9595-51d8d3161382" file="/Users/lyndsey/repos/fastlane-plugin-test_center/AtomicBoy/AtomicBoyUITests/AtomicBoyUITests.m">
             <failure message="AtomicBoyUITests.m:136: ((false) is true) failed"/>
         </testcase>
-        <testcase name="testExample14" time="4.000" id="2b6484f2-97e0-5d7a-8d84-8627a5200972" file="/Users/lyndsey/repos/fastlane-plugin-test_center/AtomicBoy/AtomicBoyUITests/AtomicBoyUITests.m">
+        <testcase name="testExample14" classname="AtomicBoyUITests" time="4.000" id="2b6484f2-97e0-5d7a-8d84-8627a5200972" file="/Users/lyndsey/repos/fastlane-plugin-test_center/AtomicBoy/AtomicBoyUITests/AtomicBoyUITests.m">
             <failure message="AtomicBoyUITests.m:144: ((false) is true) failed"/>
         </testcase>
-        <testcase name="testExample15" time="4.000" id="9e67048d-4288-52f9-9436-28c74fe54a02" file="/Users/lyndsey/repos/fastlane-plugin-test_center/AtomicBoy/AtomicBoyUITests/AtomicBoyUITests.m">
+        <testcase name="testExample15" classname="AtomicBoyUITests" time="4.000" id="9e67048d-4288-52f9-9436-28c74fe54a02" file="/Users/lyndsey/repos/fastlane-plugin-test_center/AtomicBoy/AtomicBoyUITests/AtomicBoyUITests.m">
             <failure message="AtomicBoyUITests.m:152: ((false) is true) failed"/>
         </testcase>
-        <testcase name="testExample16" time="4.000" id="fd99a621-4b56-5a0c-b71b-2bd007eee9bf" file="/Users/lyndsey/repos/fastlane-plugin-test_center/AtomicBoy/AtomicBoyUITests/AtomicBoyUITests.m">
+        <testcase name="testExample16" classname="AtomicBoyUITests" time="4.000" id="fd99a621-4b56-5a0c-b71b-2bd007eee9bf" file="/Users/lyndsey/repos/fastlane-plugin-test_center/AtomicBoy/AtomicBoyUITests/AtomicBoyUITests.m">
             <failure message="AtomicBoyUITests.m:160: ((false) is true) failed"/>
         </testcase>
-        <testcase name="testExample17" time="4.000" id="6964be8e-a09c-5da2-b6fc-383322e43d7d" file="/Users/lyndsey/repos/fastlane-plugin-test_center/AtomicBoy/AtomicBoyUITests/AtomicBoyUITests.m">
+        <testcase name="testExample17" classname="AtomicBoyUITests" time="4.000" id="6964be8e-a09c-5da2-b6fc-383322e43d7d" file="/Users/lyndsey/repos/fastlane-plugin-test_center/AtomicBoy/AtomicBoyUITests/AtomicBoyUITests.m">
         </testcase>
-        <testcase name="testExample18" time="4.000" id="2e8c7854-1640-5344-94e1-a7deb802741d" file="/Users/lyndsey/repos/fastlane-plugin-test_center/AtomicBoy/AtomicBoyUITests/AtomicBoyUITests.m">
+        <testcase name="testExample18" classname="AtomicBoyUITests" time="4.000" id="2e8c7854-1640-5344-94e1-a7deb802741d" file="/Users/lyndsey/repos/fastlane-plugin-test_center/AtomicBoy/AtomicBoyUITests/AtomicBoyUITests.m">
         </testcase>
-        <testcase name="testExample19" time="4.000" id="e08852b8-65b1-58b4-bdb2-1301075956b2" file="/Users/lyndsey/repos/fastlane-plugin-test_center/AtomicBoy/AtomicBoyUITests/AtomicBoyUITests.m">
+        <testcase name="testExample19" classname="AtomicBoyUITests" time="4.000" id="e08852b8-65b1-58b4-bdb2-1301075956b2" file="/Users/lyndsey/repos/fastlane-plugin-test_center/AtomicBoy/AtomicBoyUITests/AtomicBoyUITests.m">
             <failure message="AtomicBoyUITests.m:184: ((false) is true) failed"/>
         </testcase>
-        <testcase name="testExample2" time="4.000" id="5e65f2c2-0c7e-5002-8b96-d1e64c0152ff" file="/Users/lyndsey/repos/fastlane-plugin-test_center/AtomicBoy/AtomicBoyUITests/AtomicBoyUITests.m">
+        <testcase name="testExample2" classname="AtomicBoyUITests" time="4.000" id="5e65f2c2-0c7e-5002-8b96-d1e64c0152ff" file="/Users/lyndsey/repos/fastlane-plugin-test_center/AtomicBoy/AtomicBoyUITests/AtomicBoyUITests.m">
             <failure message="AtomicBoyUITests.m:48: ((false) is true) failed"/>
         </testcase>
-        <testcase name="testExample20" time="5.000" id="66012218-9934-5fab-9538-e0d17a992857" file="/Users/lyndsey/repos/fastlane-plugin-test_center/AtomicBoy/AtomicBoyUITests/AtomicBoyUITests.m">
+        <testcase name="testExample20" classname="AtomicBoyUITests" time="5.000" id="66012218-9934-5fab-9538-e0d17a992857" file="/Users/lyndsey/repos/fastlane-plugin-test_center/AtomicBoy/AtomicBoyUITests/AtomicBoyUITests.m">
         </testcase>
-        <testcase name="testExample21" time="4.000" id="0201ae82-874c-5382-a5f0-e979784ee0f7" file="/Users/lyndsey/repos/fastlane-plugin-test_center/AtomicBoy/AtomicBoyUITests/AtomicBoyUITests.m">
+        <testcase name="testExample21" classname="AtomicBoyUITests" time="4.000" id="0201ae82-874c-5382-a5f0-e979784ee0f7" file="/Users/lyndsey/repos/fastlane-plugin-test_center/AtomicBoy/AtomicBoyUITests/AtomicBoyUITests.m">
             <failure message="AtomicBoyUITests.m:200: ((false) is true) failed"/>
         </testcase>
-        <testcase name="testExample22" time="4.000" id="cc5a84dc-40ec-5d38-892b-75e4b670b696" file="/Users/lyndsey/repos/fastlane-plugin-test_center/AtomicBoy/AtomicBoyUITests/AtomicBoyUITests.m">
+        <testcase name="testExample22" classname="AtomicBoyUITests" time="4.000" id="cc5a84dc-40ec-5d38-892b-75e4b670b696" file="/Users/lyndsey/repos/fastlane-plugin-test_center/AtomicBoy/AtomicBoyUITests/AtomicBoyUITests.m">
             <failure message="AtomicBoyUITests.m:208: ((false) is true) failed"/>
         </testcase>
-        <testcase name="testExample23" time="4.000" id="f591f46d-6e94-5dc3-af05-e2e77a13cb69" file="/Users/lyndsey/repos/fastlane-plugin-test_center/AtomicBoy/AtomicBoyUITests/AtomicBoyUITests.m">
+        <testcase name="testExample23" classname="AtomicBoyUITests" time="4.000" id="f591f46d-6e94-5dc3-af05-e2e77a13cb69" file="/Users/lyndsey/repos/fastlane-plugin-test_center/AtomicBoy/AtomicBoyUITests/AtomicBoyUITests.m">
             <failure message="AtomicBoyUITests.m:216: ((false) is true) failed"/>
         </testcase>
-        <testcase name="testExample24" time="4.000" id="58be5c15-1ad7-515e-840e-2040bc1c2548" file="/Users/lyndsey/repos/fastlane-plugin-test_center/AtomicBoy/AtomicBoyUITests/AtomicBoyUITests.m">
+        <testcase name="testExample24" classname="AtomicBoyUITests" time="4.000" id="58be5c15-1ad7-515e-840e-2040bc1c2548" file="/Users/lyndsey/repos/fastlane-plugin-test_center/AtomicBoy/AtomicBoyUITests/AtomicBoyUITests.m">
             <failure message="AtomicBoyUITests.m:224: ((false) is true) failed"/>
         </testcase>
-        <testcase name="testExample25" time="4.000" id="7cf6ccf9-19aa-5056-a39b-80d36539ecda" file="/Users/lyndsey/repos/fastlane-plugin-test_center/AtomicBoy/AtomicBoyUITests/AtomicBoyUITests.m">
+        <testcase name="testExample25" classname="AtomicBoyUITests" time="4.000" id="7cf6ccf9-19aa-5056-a39b-80d36539ecda" file="/Users/lyndsey/repos/fastlane-plugin-test_center/AtomicBoy/AtomicBoyUITests/AtomicBoyUITests.m">
         </testcase>
-        <testcase name="testExample26" time="4.000" id="46fdfeaf-e3ea-5798-b179-c3a4c4017728" file="/Users/lyndsey/repos/fastlane-plugin-test_center/AtomicBoy/AtomicBoyUITests/AtomicBoyUITests.m">
+        <testcase name="testExample26" classname="AtomicBoyUITests" time="4.000" id="46fdfeaf-e3ea-5798-b179-c3a4c4017728" file="/Users/lyndsey/repos/fastlane-plugin-test_center/AtomicBoy/AtomicBoyUITests/AtomicBoyUITests.m">
         </testcase>
-        <testcase name="testExample27" time="4.000" id="c44bd583-6845-5a8e-b3ef-2e0adeee98c1" file="/Users/lyndsey/repos/fastlane-plugin-test_center/AtomicBoy/AtomicBoyUITests/AtomicBoyUITests.m">
+        <testcase name="testExample27" classname="AtomicBoyUITests" time="4.000" id="c44bd583-6845-5a8e-b3ef-2e0adeee98c1" file="/Users/lyndsey/repos/fastlane-plugin-test_center/AtomicBoy/AtomicBoyUITests/AtomicBoyUITests.m">
             <failure message="AtomicBoyUITests.m:248: ((false) is true) failed"/>
         </testcase>
-        <testcase name="testExample28" time="4.000" id="a0eee77e-99eb-5d5f-b31d-7980556af034" file="/Users/lyndsey/repos/fastlane-plugin-test_center/AtomicBoy/AtomicBoyUITests/AtomicBoyUITests.m">
+        <testcase name="testExample28" classname="AtomicBoyUITests" time="4.000" id="a0eee77e-99eb-5d5f-b31d-7980556af034" file="/Users/lyndsey/repos/fastlane-plugin-test_center/AtomicBoy/AtomicBoyUITests/AtomicBoyUITests.m">
             <failure message="AtomicBoyUITests.m:256: ((false) is true) failed"/>
         </testcase>
-        <testcase name="testExample29" time="5.000" id="39decc16-5d3a-51b1-8a21-6281e1c9a13c" file="/Users/lyndsey/repos/fastlane-plugin-test_center/AtomicBoy/AtomicBoyUITests/AtomicBoyUITests.m">
+        <testcase name="testExample29" classname="AtomicBoyUITests" time="5.000" id="39decc16-5d3a-51b1-8a21-6281e1c9a13c" file="/Users/lyndsey/repos/fastlane-plugin-test_center/AtomicBoy/AtomicBoyUITests/AtomicBoyUITests.m">
             <failure message="AtomicBoyUITests.m:264: ((false) is true) failed"/>
         </testcase>
-        <testcase name="testExample3" time="4.000" id="b7dfa4a2-4d6a-5efa-b80b-2e8a5ba7542b" file="/Users/lyndsey/repos/fastlane-plugin-test_center/AtomicBoy/AtomicBoyUITests/AtomicBoyUITests.m">
+        <testcase name="testExample3" classname="AtomicBoyUITests" time="4.000" id="b7dfa4a2-4d6a-5efa-b80b-2e8a5ba7542b" file="/Users/lyndsey/repos/fastlane-plugin-test_center/AtomicBoy/AtomicBoyUITests/AtomicBoyUITests.m">
         </testcase>
-        <testcase name="testExample30" time="4.000" id="86a6d280-4c48-5ffa-9bb9-b002946314f7" file="/Users/lyndsey/repos/fastlane-plugin-test_center/AtomicBoy/AtomicBoyUITests/AtomicBoyUITests.m">
+        <testcase name="testExample30" classname="AtomicBoyUITests" time="4.000" id="86a6d280-4c48-5ffa-9bb9-b002946314f7" file="/Users/lyndsey/repos/fastlane-plugin-test_center/AtomicBoy/AtomicBoyUITests/AtomicBoyUITests.m">
             <failure message="AtomicBoyUITests.m:272: ((false) is true) failed"/>
         </testcase>
-        <testcase name="testExample31" time="4.000" id="9789a1fb-1e74-5705-91ab-82b96038c769" file="/Users/lyndsey/repos/fastlane-plugin-test_center/AtomicBoy/AtomicBoyUITests/AtomicBoyUITests.m">
+        <testcase name="testExample31" classname="AtomicBoyUITests" time="4.000" id="9789a1fb-1e74-5705-91ab-82b96038c769" file="/Users/lyndsey/repos/fastlane-plugin-test_center/AtomicBoy/AtomicBoyUITests/AtomicBoyUITests.m">
         </testcase>
-        <testcase name="testExample32" time="4.000" id="d593fbc6-6f81-5742-876d-b1357b4c5f16" file="/Users/lyndsey/repos/fastlane-plugin-test_center/AtomicBoy/AtomicBoyUITests/AtomicBoyUITests.m">
+        <testcase name="testExample32" classname="AtomicBoyUITests" time="4.000" id="d593fbc6-6f81-5742-876d-b1357b4c5f16" file="/Users/lyndsey/repos/fastlane-plugin-test_center/AtomicBoy/AtomicBoyUITests/AtomicBoyUITests.m">
         </testcase>
-        <testcase name="testExample33" time="4.000" id="67510001-ae30-5300-9a9c-7c435d77f977" file="/Users/lyndsey/repos/fastlane-plugin-test_center/AtomicBoy/AtomicBoyUITests/AtomicBoyUITests.m">
+        <testcase name="testExample33" classname="AtomicBoyUITests" time="4.000" id="67510001-ae30-5300-9a9c-7c435d77f977" file="/Users/lyndsey/repos/fastlane-plugin-test_center/AtomicBoy/AtomicBoyUITests/AtomicBoyUITests.m">
         </testcase>
-        <testcase name="testExample34" time="4.000" id="fe2be23d-c239-56d9-81b2-c155c983bc3a" file="/Users/lyndsey/repos/fastlane-plugin-test_center/AtomicBoy/AtomicBoyUITests/AtomicBoyUITests.m">
+        <testcase name="testExample34" classname="AtomicBoyUITests" time="4.000" id="fe2be23d-c239-56d9-81b2-c155c983bc3a" file="/Users/lyndsey/repos/fastlane-plugin-test_center/AtomicBoy/AtomicBoyUITests/AtomicBoyUITests.m">
         </testcase>
-        <testcase name="testExample35" time="4.000" id="1deffb9f-4a23-5795-a771-bebbb30c130e" file="/Users/lyndsey/repos/fastlane-plugin-test_center/AtomicBoy/AtomicBoyUITests/AtomicBoyUITests.m">
+        <testcase name="testExample35" classname="AtomicBoyUITests" time="4.000" id="1deffb9f-4a23-5795-a771-bebbb30c130e" file="/Users/lyndsey/repos/fastlane-plugin-test_center/AtomicBoy/AtomicBoyUITests/AtomicBoyUITests.m">
             <failure message="AtomicBoyUITests.m:312: ((false) is true) failed"/>
         </testcase>
-        <testcase name="testExample36" time="4.000" id="a1b54dc5-7bbd-5463-9579-cd240f626872" file="/Users/lyndsey/repos/fastlane-plugin-test_center/AtomicBoy/AtomicBoyUITests/AtomicBoyUITests.m">
+        <testcase name="testExample36" classname="AtomicBoyUITests" time="4.000" id="a1b54dc5-7bbd-5463-9579-cd240f626872" file="/Users/lyndsey/repos/fastlane-plugin-test_center/AtomicBoy/AtomicBoyUITests/AtomicBoyUITests.m">
         </testcase>
-        <testcase name="testExample37" time="5.000" id="15372cb0-d79d-5f01-9d35-b434e93c681f" file="/Users/lyndsey/repos/fastlane-plugin-test_center/AtomicBoy/AtomicBoyUITests/AtomicBoyUITests.m">
+        <testcase name="testExample37" classname="AtomicBoyUITests" time="5.000" id="15372cb0-d79d-5f01-9d35-b434e93c681f" file="/Users/lyndsey/repos/fastlane-plugin-test_center/AtomicBoy/AtomicBoyUITests/AtomicBoyUITests.m">
             <failure message="AtomicBoyUITests.m:328: ((false) is true) failed"/>
         </testcase>
-        <testcase name="testExample38" time="4.000" id="b2a0347a-8618-57ad-857a-401059bef837" file="/Users/lyndsey/repos/fastlane-plugin-test_center/AtomicBoy/AtomicBoyUITests/AtomicBoyUITests.m">
+        <testcase name="testExample38" classname="AtomicBoyUITests" time="4.000" id="b2a0347a-8618-57ad-857a-401059bef837" file="/Users/lyndsey/repos/fastlane-plugin-test_center/AtomicBoy/AtomicBoyUITests/AtomicBoyUITests.m">
             <failure message="AtomicBoyUITests.m:336: ((false) is true) failed"/>
         </testcase>
-        <testcase name="testExample39" time="4.000" id="1f7dbb08-9f2d-5cad-883d-d31818823a3f" file="/Users/lyndsey/repos/fastlane-plugin-test_center/AtomicBoy/AtomicBoyUITests/AtomicBoyUITests.m">
+        <testcase name="testExample39" classname="AtomicBoyUITests" time="4.000" id="1f7dbb08-9f2d-5cad-883d-d31818823a3f" file="/Users/lyndsey/repos/fastlane-plugin-test_center/AtomicBoy/AtomicBoyUITests/AtomicBoyUITests.m">
         </testcase>
-        <testcase name="testExample4" time="4.000" id="bb2af780-222c-5d2c-8958-76e88e64fbb8" file="/Users/lyndsey/repos/fastlane-plugin-test_center/AtomicBoy/AtomicBoyUITests/AtomicBoyUITests.m">
+        <testcase name="testExample4" classname="AtomicBoyUITests" time="4.000" id="bb2af780-222c-5d2c-8958-76e88e64fbb8" file="/Users/lyndsey/repos/fastlane-plugin-test_center/AtomicBoy/AtomicBoyUITests/AtomicBoyUITests.m">
         </testcase>
-        <testcase name="testExample40" time="4.000" id="c30a43e9-0e94-5271-937f-78b6a0ad0bb5" file="/Users/lyndsey/repos/fastlane-plugin-test_center/AtomicBoy/AtomicBoyUITests/AtomicBoyUITests.m">
+        <testcase name="testExample40" classname="AtomicBoyUITests" time="4.000" id="c30a43e9-0e94-5271-937f-78b6a0ad0bb5" file="/Users/lyndsey/repos/fastlane-plugin-test_center/AtomicBoy/AtomicBoyUITests/AtomicBoyUITests.m">
             <failure message="AtomicBoyUITests.m:352: ((false) is true) failed"/>
         </testcase>
-        <testcase name="testExample41" time="4.000" id="c58e441b-336d-5633-a150-2e8e44aafdaa" file="/Users/lyndsey/repos/fastlane-plugin-test_center/AtomicBoy/AtomicBoyUITests/AtomicBoyUITests.m">
+        <testcase name="testExample41" classname="AtomicBoyUITests" time="4.000" id="c58e441b-336d-5633-a150-2e8e44aafdaa" file="/Users/lyndsey/repos/fastlane-plugin-test_center/AtomicBoy/AtomicBoyUITests/AtomicBoyUITests.m">
         </testcase>
-        <testcase name="testExample42" time="4.000" id="aed472b8-b558-5291-83ea-08c8b2d0f487" file="/Users/lyndsey/repos/fastlane-plugin-test_center/AtomicBoy/AtomicBoyUITests/AtomicBoyUITests.m">
+        <testcase name="testExample42" classname="AtomicBoyUITests" time="4.000" id="aed472b8-b558-5291-83ea-08c8b2d0f487" file="/Users/lyndsey/repos/fastlane-plugin-test_center/AtomicBoy/AtomicBoyUITests/AtomicBoyUITests.m">
         </testcase>
-        <testcase name="testExample43" time="4.000" id="6bf75b33-47b4-5a9a-8467-1c45814fbec8" file="/Users/lyndsey/repos/fastlane-plugin-test_center/AtomicBoy/AtomicBoyUITests/AtomicBoyUITests.m">
+        <testcase name="testExample43" classname="AtomicBoyUITests" time="4.000" id="6bf75b33-47b4-5a9a-8467-1c45814fbec8" file="/Users/lyndsey/repos/fastlane-plugin-test_center/AtomicBoy/AtomicBoyUITests/AtomicBoyUITests.m">
         </testcase>
-        <testcase name="testExample44" time="4.000" id="5135a656-02a1-56a7-a7b0-62e792938828" file="/Users/lyndsey/repos/fastlane-plugin-test_center/AtomicBoy/AtomicBoyUITests/AtomicBoyUITests.m">
+        <testcase name="testExample44" classname="AtomicBoyUITests" time="4.000" id="5135a656-02a1-56a7-a7b0-62e792938828" file="/Users/lyndsey/repos/fastlane-plugin-test_center/AtomicBoy/AtomicBoyUITests/AtomicBoyUITests.m">
         </testcase>
-        <testcase name="testExample45" time="4.000" id="45d8885e-f401-5964-b949-ed73cb4e0c77" file="/Users/lyndsey/repos/fastlane-plugin-test_center/AtomicBoy/AtomicBoyUITests/AtomicBoyUITests.m">
+        <testcase name="testExample45" classname="AtomicBoyUITests" time="4.000" id="45d8885e-f401-5964-b949-ed73cb4e0c77" file="/Users/lyndsey/repos/fastlane-plugin-test_center/AtomicBoy/AtomicBoyUITests/AtomicBoyUITests.m">
         </testcase>
-        <testcase name="testExample46" time="4.000" id="a909baac-3962-5bbe-a1df-622d236fba9c" file="/Users/lyndsey/repos/fastlane-plugin-test_center/AtomicBoy/AtomicBoyUITests/AtomicBoyUITests.m">
+        <testcase name="testExample46" classname="AtomicBoyUITests" time="4.000" id="a909baac-3962-5bbe-a1df-622d236fba9c" file="/Users/lyndsey/repos/fastlane-plugin-test_center/AtomicBoy/AtomicBoyUITests/AtomicBoyUITests.m">
         </testcase>
-        <testcase name="testExample47" time="4.000" id="0a9a7d35-feef-5447-a983-2d26aadaa71f" file="/Users/lyndsey/repos/fastlane-plugin-test_center/AtomicBoy/AtomicBoyUITests/AtomicBoyUITests.m">
+        <testcase name="testExample47" classname="AtomicBoyUITests" time="4.000" id="0a9a7d35-feef-5447-a983-2d26aadaa71f" file="/Users/lyndsey/repos/fastlane-plugin-test_center/AtomicBoy/AtomicBoyUITests/AtomicBoyUITests.m">
         </testcase>
-        <testcase name="testExample48" time="5.000" id="2ed094dd-7b01-520f-922a-0d580e515fec" file="/Users/lyndsey/repos/fastlane-plugin-test_center/AtomicBoy/AtomicBoyUITests/AtomicBoyUITests.m">
+        <testcase name="testExample48" classname="AtomicBoyUITests" time="5.000" id="2ed094dd-7b01-520f-922a-0d580e515fec" file="/Users/lyndsey/repos/fastlane-plugin-test_center/AtomicBoy/AtomicBoyUITests/AtomicBoyUITests.m">
             <failure message="AtomicBoyUITests.m:416: ((false) is true) failed"/>
         </testcase>
-        <testcase name="testExample5" time="4.000" id="b4747c60-0af2-5f66-913a-186fa0d3a36d" file="/Users/lyndsey/repos/fastlane-plugin-test_center/AtomicBoy/AtomicBoyUITests/AtomicBoyUITests.m">
+        <testcase name="testExample5" classname="AtomicBoyUITests" time="4.000" id="b4747c60-0af2-5f66-913a-186fa0d3a36d" file="/Users/lyndsey/repos/fastlane-plugin-test_center/AtomicBoy/AtomicBoyUITests/AtomicBoyUITests.m">
             <failure message="AtomicBoyUITests.m:72: ((false) is true) failed"/>
         </testcase>
-        <testcase name="testExample6" time="4.000" id="2203f4dc-3f7b-5c0e-a3df-3b821bd2c078" file="/Users/lyndsey/repos/fastlane-plugin-test_center/AtomicBoy/AtomicBoyUITests/AtomicBoyUITests.m">
+        <testcase name="testExample6" classname="AtomicBoyUITests" time="4.000" id="2203f4dc-3f7b-5c0e-a3df-3b821bd2c078" file="/Users/lyndsey/repos/fastlane-plugin-test_center/AtomicBoy/AtomicBoyUITests/AtomicBoyUITests.m">
         </testcase>
-        <testcase name="testExample7" time="4.000" id="cbdf63a0-ce3e-588b-ab0f-fff1d71510c7" file="/Users/lyndsey/repos/fastlane-plugin-test_center/AtomicBoy/AtomicBoyUITests/AtomicBoyUITests.m">
+        <testcase name="testExample7" classname="AtomicBoyUITests" time="4.000" id="cbdf63a0-ce3e-588b-ab0f-fff1d71510c7" file="/Users/lyndsey/repos/fastlane-plugin-test_center/AtomicBoy/AtomicBoyUITests/AtomicBoyUITests.m">
         </testcase>
-        <testcase name="testExample8" time="4.000" id="71c9f4f6-8f13-5cfa-b4c3-2036c58bb0b6" file="/Users/lyndsey/repos/fastlane-plugin-test_center/AtomicBoy/AtomicBoyUITests/AtomicBoyUITests.m">
+        <testcase name="testExample8" classname="AtomicBoyUITests" time="4.000" id="71c9f4f6-8f13-5cfa-b4c3-2036c58bb0b6" file="/Users/lyndsey/repos/fastlane-plugin-test_center/AtomicBoy/AtomicBoyUITests/AtomicBoyUITests.m">
         </testcase>
-        <testcase name="testExample9" time="4.000" id="0a0a59ce-9435-5311-a6a9-adf5ae8f3563" file="/Users/lyndsey/repos/fastlane-plugin-test_center/AtomicBoy/AtomicBoyUITests/AtomicBoyUITests.m">
+        <testcase name="testExample9" classname="AtomicBoyUITests" time="4.000" id="0a0a59ce-9435-5311-a6a9-adf5ae8f3563" file="/Users/lyndsey/repos/fastlane-plugin-test_center/AtomicBoy/AtomicBoyUITests/AtomicBoyUITests.m">
             <failure message="AtomicBoyUITests.m:104: ((false) is true) failed"/>
         </testcase>
     </testsuite>
     <testsuite name="AtomicBoyUITests.CobaltDog" tests="1" disabled="0" errors="0" failures="0">
-        <testcase name="testExample()" time="4.000" id="bfc3435b-d86d-5a31-83e6-8122341befcc">
+        <testcase name="testExample()" classname="CobaltDog" time="4.000" id="bfc3435b-d86d-5a31-83e6-8122341befcc">
         </testcase>
     </testsuite>
     <testsuite name="AtomicBoyUITests.SwiftAtomicBoyUITests" tests="1" disabled="0" errors="0" failures="0">
-        <testcase name="testExample()" time="0.017" id="0475623c-64a2-5805-b3ec-f1cbdc675753">
+        <testcase name="testExample()" classname="SwiftAtomicBoyUITests" time="0.017" id="0475623c-64a2-5805-b3ec-f1cbdc675753">
         </testcase>
     </testsuite>
 </testsuites>
