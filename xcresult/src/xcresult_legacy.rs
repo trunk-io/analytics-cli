@@ -167,6 +167,40 @@ impl XCResultTest {
                     let leafs = xc_result_test_node_tree.externals(petgraph::Direction::Outgoing);
                     let raw_nodes = xc_result_test_node_tree.raw_nodes();
                     let raw_edges = xc_result_test_node_tree.raw_edges();
+                    let files = failure_summaries.as_ref().map(|failure_summaries| {
+                        failure_summaries
+                            .values
+                            .iter()
+                            .flat_map(|failure_summary| {
+                                failure_summary
+                                    .document_location_in_creating_workspace
+                                    .as_ref()
+                                    .and_then(|document_location_in_creating_workspace| {
+                                        document_location_in_creating_workspace.url.as_ref()
+                                    })
+                                    .map(|file| {
+                                        let mut file = file.value.clone();
+                                        file = file
+                                            .replace("file://", "")
+                                            .split('#')
+                                            .collect::<Vec<&str>>()[0]
+                                            .into();
+                                        let producing_target = failure_summary
+                                            .producing_target
+                                            .as_ref()
+                                            .map(|x| x.value.as_ref());
+                                        if producing_target.is_some() {
+                                            return (producing_target, file);
+                                        }
+                                        let test_case_name = failure_summary
+                                            .test_case_name
+                                            .as_ref()
+                                            .map(|x| x.value.as_ref());
+                                        (test_case_name, file)
+                                    })
+                            })
+                            .collect::<HashMap<_, _>>()
+                    });
                     leafs
                         .filter_map(|leaf| {
                             // filter out any dangling leafs
@@ -186,41 +220,14 @@ impl XCResultTest {
 
                             let test_suite_name = parent_node.weight.name;
                             let test_case_name = node.weight.name;
-                            let file = failure_summaries
-                                .as_ref()
-                                .and_then(|failure_summaries| {
-                                    failure_summaries
-                                        .values
-                                        .iter()
-                                        .find(|failure_summary| {
-                                            let producing_target = failure_summary
-                                                .producing_target
-                                                .as_ref()
-                                                .map(|x| x.value.as_ref());
-                                            let inner_test_case_name = failure_summary
-                                                .test_case_name
-                                                .as_ref()
-                                                .map(|x| x.value.as_ref());
-                                            let formatted_test_case_name =
-                                                format!("{}.{}", test_suite_name, test_case_name);
-                                            return producing_target == Some(test_suite_name)
-                                                || inner_test_case_name
-                                                    == Some(formatted_test_case_name.as_str());
-                                        })
-                                        .and_then(|failure_summary| {
-                                            failure_summary
-                                                .document_location_in_creating_workspace
-                                                .as_ref()
-                                        })
-                                })
-                                .and_then(|document_location_in_creating_workspace| {
-                                    document_location_in_creating_workspace.url.as_ref()
-                                })
-                                .map(|file| file.value.clone())
-                                .map(|file| {
-                                    let file = file.replace("file://", "");
-                                    file.split('#').collect::<Vec<&str>>()[0].into()
-                                });
+                            let formatted_test_case_name =
+                                format!("{}.{}", test_suite_name, test_case_name);
+                            let file = files.as_ref().and_then(|files| {
+                                files
+                                    .get(&Some(test_suite_name))
+                                    .or_else(|| files.get(&Some(&formatted_test_case_name)))
+                                    .cloned()
+                            });
 
                             Some(Self {
                                 test_plan_name: String::from(*test_plan_name),
