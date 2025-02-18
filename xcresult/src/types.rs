@@ -13,3 +13,5 @@ pub mod legacy_schema {
         "/xcrun-xcresulttool-formatDescription-get---format-json---legacy-json-schema.rs"
     ));
 }
+
+pub const SWIFT_DEFAULT_TEST_SUITE_NAME: &str = "swift";

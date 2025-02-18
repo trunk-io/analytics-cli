@@ -9,7 +9,7 @@ use petgraph::{
     Direction::Incoming,
 };
 
-use crate::types::legacy_schema;
+use crate::types::{legacy_schema, SWIFT_DEFAULT_TEST_SUITE_NAME};
 use crate::xcrun::{xcresulttool_get_object, xcresulttool_get_object_id};
 
 #[derive(Debug, Clone, Default)]
@@ -209,22 +209,32 @@ impl XCResultTest {
                             }
                             let node = &raw_nodes[leaf.index()];
                             let next_idx = node.next_edge(Incoming).index();
-                            if next_idx >= raw_edges.len() {
-                                return None;
-                            }
-                            let edge = &raw_edges[next_idx];
-                            if edge.source().index() >= raw_nodes.len() {
-                                return None;
-                            }
-                            let parent_node = &raw_nodes[edge.source().index()];
+                            let edge = if next_idx < raw_edges.len() {
+                                Some(&raw_edges[next_idx])
+                            } else {
+                                None
+                            };
+                            let parent_node = if let Some(edge) = edge {
+                                if edge.source().index() < raw_nodes.len() {
+                                    Some(&raw_nodes[edge.source().index()])
+                                } else {
+                                    None
+                                }
+                            } else {
+                                None
+                            };
 
-                            let test_suite_name = parent_node.weight.name;
+                            let test_suite_name = parent_node.map(|node| node.weight.name);
                             let test_case_name = node.weight.name;
                             let formatted_test_case_name =
-                                format!("{}.{}", test_suite_name, test_case_name);
+                                if let Some(test_suite_name) = test_suite_name {
+                                    format!("{}.{}", test_suite_name, test_case_name)
+                                } else {
+                                    test_case_name.to_string()
+                                };
                             let file = files.as_ref().and_then(|files| {
                                 files
-                                    .get(&Some(test_suite_name))
+                                    .get(&test_suite_name)
                                     .or_else(|| files.get(&Some(&formatted_test_case_name)))
                                     .cloned()
                             });
@@ -232,7 +242,9 @@ impl XCResultTest {
                             Some(Self {
                                 test_plan_name: String::from(*test_plan_name),
                                 test_bundle_name: String::from(action_testable_summary_name),
-                                test_suite_name: String::from(test_suite_name),
+                                test_suite_name: String::from(
+                                    test_suite_name.unwrap_or(SWIFT_DEFAULT_TEST_SUITE_NAME),
+                                ),
                                 test_case_name: String::from(test_case_name),
                                 identifier_url: String::from(node.weight.identifier_url),
                                 identifier: String::from(node.weight.identifier),

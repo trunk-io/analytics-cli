@@ -4,7 +4,10 @@ use std::{fs, path::Path, time::Duration};
 
 use quick_junit::{NonSuccessKind, Report, TestCase, TestCaseStatus, TestRerun, TestSuite};
 
-use crate::types::schema::{TestNode, TestNodeType, TestResult, Tests};
+use crate::types::{
+    schema::{TestNode, TestNodeType, TestResult, Tests},
+    SWIFT_DEFAULT_TEST_SUITE_NAME,
+};
 use crate::xcresult_legacy::XCResultTest;
 use crate::xcrun::xcresulttool_get_test_results_tests;
 
@@ -118,7 +121,7 @@ impl XCResult {
                 bundle_name
                     .as_ref()
                     .map(|bn| bn.as_ref())
-                    .unwrap_or("swift"),
+                    .unwrap_or(SWIFT_DEFAULT_TEST_SUITE_NAME),
             );
             test_suite.add_test_cases(self.xcresult_test_cases_to_junit_test_cases(test_nodes));
             test_suites.push(test_suite);
