@@ -286,25 +286,9 @@ impl<'a> XCResultTestNodeTree<'a> {
                                 value: identifier_url,
                                 ..
                             }),
-                        expected_failures,
-                        failure_summaries,
                         ..
                     },
                 ) => {
-                    let blah1 = expected_failures
-                        .as_ref()
-                        .map(|x| x.values.as_slice())
-                        .unwrap_or_default();
-                    let blah2 = failure_summaries
-                        .as_ref()
-                        .map(|x| x.values.as_slice())
-                        .unwrap_or_default();
-                    let blah3 = blah1
-                        .iter()
-                        .filter_map(|expected_failure| expected_failure.failure_summary.as_ref())
-                        .chain(blah2.iter());
-                    let blah4 = blah3.collect::<Vec<_>>();
-                    tracing::info!("{:?}", blah4);
                     let test_node = XCResultTestNodeRef {
                         name,
                         identifier,
