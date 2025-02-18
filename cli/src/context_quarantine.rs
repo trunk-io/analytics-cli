@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use api::client::ApiClient;
+use api::{client::ApiClient, urls::url_for_test_case};
 use bundle::{FileSet, FileSetBuilder, QuarantineBulkTestStatus, Test};
 use constants::{EXIT_FAILURE, EXIT_SUCCESS};
 use context::{
@@ -214,8 +214,17 @@ pub async fn gather_quarantine_context(
         .cloned()
         .filter_map(|failure| {
             let quarantine_failure = quarantined.contains(&failure.id);
+            let url = match url_for_test_case(
+                &api_client.host,
+                &request.org_url_slug,
+                &request.repo,
+                &failure,
+            ) {
+                Ok(url) => format!("Learn more > {}", url),
+                Err(_) => String::from(""),
+            };
             tracing::info!(
-                "{} -> {}{}(id: {})",
+                "{} -> {}{} {}",
                 failure.parent_name,
                 failure.name,
                 if quarantine_failure {
@@ -223,7 +232,7 @@ pub async fn gather_quarantine_context(
                 } else {
                     " "
                 },
-                failure.id
+                url,
             );
             if quarantine_failure {
                 Some(failure)

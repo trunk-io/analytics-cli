@@ -67,7 +67,11 @@ fn main() -> anyhow::Result<()> {
             let cli = Cli::parse();
             let log_level_filter = cli.verbose.log_level_filter();
             setup_logger(log_level_filter)?;
-            tracing::info!(command = cli.debug_props(), "Running command");
+            tracing::info!("{}", TITLE_CARD);
+            tracing::info!(
+                command = cli.debug_props(),
+                "Trunk Flaky Test running command"
+            );
             match run(cli).await {
                 Ok(exit_code) => std::process::exit(exit_code),
                 Err(e) => match (*(e.root_cause())).downcast_ref::<std::io::Error>() {
@@ -121,9 +125,28 @@ fn to_trace_filter(filter: log::LevelFilter) -> tracing::level_filters::LevelFil
 
 fn setup_logger(log_level_filter: LevelFilter) -> anyhow::Result<()> {
     tracing_subscriber::registry()
-        .with(tracing_subscriber::fmt::layer().with_target(false))
+        .with(
+            tracing_subscriber::fmt::layer()
+                .with_target(false)
+                .without_time(),
+        )
         .with(sentry_tracing::layer())
         .with(to_trace_filter(log_level_filter))
         .init();
     Ok(())
 }
+
+// Uses a raw string to avoid needing to escape quotes in the title card. This is mostly just so you can see
+// what it looks like in code rather than needing to print.
+const TITLE_CARD: &str = r#"
+88888888888  88              88                        888888888888                                        
+88           88              88                             88                           ,d                
+88           88              88                             88                           88                
+88aaaaa      88  ,adPPYYba,  88   ,d8  8b       d8          88   ,adPPYba,  ,adPPYba,  MM88MMM  ,adPPYba,  
+88"""""      88  ""     `Y8  88 ,a8"   `8b     d8'          88  a8P_____88  I8[    ""    88     I8[    ""  
+88           88  ,adPPPPP88  8888[      `8b   d8'           88  8PP"""""""   `"Y8ba,     88      `"Y8ba,   
+88           88  88,    ,88  88`"Yba,    `8b,d8'            88  "8b,   ,aa  aa    ]8I    88,    aa    ]8I  
+88           88  `"8bbdP"Y8  88   `Y8a     Y88'             88   `"Ybbd8"'  `"YbbdP"'    "Y888  `"YbbdP"'  
+                                           d8'                                                             
+                                          d8'                                                              
+"#;

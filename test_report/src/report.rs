@@ -106,7 +106,11 @@ impl MutTestReport {
 
     fn setup_logger() -> anyhow::Result<()> {
         tracing_subscriber::registry()
-            .with(tracing_subscriber::fmt::layer().with_target(false))
+            .with(
+                tracing_subscriber::fmt::layer()
+                    .with_target(false)
+                    .without_time(),
+            )
             .with(sentry_tracing::layer())
             .with(tracing::level_filters::LevelFilter::INFO)
             .init();
