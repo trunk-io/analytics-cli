@@ -46,7 +46,9 @@ pub fn gather_debug_props(token: String) -> BundleMetaDebugProps {
         command_line: env::args()
             .collect::<Vec<String>>()
             .join(" ")
-            .replace(&token, "***"),
+            .replace(&token, "***")
+            .replace("--token=", "")
+            .replace("--token", ""),
     }
 }
 

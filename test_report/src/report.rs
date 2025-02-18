@@ -119,7 +119,7 @@ impl MutTestReport {
 
     // sends out to the trunk api
     pub fn publish(&self) -> bool {
-        let release_name = env!("CARGO_PKG_VERSION");
+        let release_name = format!("rspec-flaky-tests@{}", env!("CARGO_PKG_VERSION"));
         let _guard = sentry::init(release_name.into(), None);
         let _logger_setup_res = MutTestReport::setup_logger();
         let resolved_path = if let Ok(path) = self.save() {
