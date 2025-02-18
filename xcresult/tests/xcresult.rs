@@ -27,6 +27,10 @@ lazy_static! {
         unpack_archive_to_temp_dir("tests/data/test4.xcresult.tar.gz");
     static ref TEMP_DIR_TEST_EXPECTED_FAILURES: TempDir =
         unpack_archive_to_temp_dir("tests/data/test-ExpectedFailures.xcresult.tar.gz");
+    static ref TEMP_DIR_TEST_SWIFT_WITHOUT_TEST_SUITES: TempDir =
+        unpack_archive_to_temp_dir("tests/data/test-swift-without-test-suites.xcresult.tar.gz");
+    static ref TEMP_DIR_TEST_SWIFT_MIX: TempDir =
+        unpack_archive_to_temp_dir("tests/data/test-swift-mix.xcresult.tar.gz");
     static ref ORG_URL_SLUG: String = String::from("trunk");
     static ref REPO_FULL_NAME: String = RepoUrlParts {
         host: "github.com".to_string(),
@@ -100,6 +104,48 @@ fn test_complex_xcresult_with_valid_path() {
     pretty_assertions::assert_eq!(
         String::from_utf8(junit_writer).unwrap(),
         include_str!("data/test4.junit.xml")
+    );
+}
+
+#[cfg(target_os = "macos")]
+#[test]
+fn test_swift_without_test_suites() {
+    let path = TEMP_DIR_TEST_SWIFT_WITHOUT_TEST_SUITES
+        .as_ref()
+        .join("test-swift-without-test-suites.xcresult");
+    let path_str = path.to_str().unwrap();
+    let xcresult = XCResult::new(path_str, ORG_URL_SLUG.clone(), REPO_FULL_NAME.clone());
+    assert!(xcresult.is_ok());
+
+    let mut junits = xcresult.unwrap().generate_junits();
+    assert_eq!(junits.len(), 1);
+    let junit = junits.pop().unwrap();
+    let mut junit_writer: Vec<u8> = Vec::new();
+    junit.serialize(&mut junit_writer).unwrap();
+    pretty_assertions::assert_eq!(
+        String::from_utf8(junit_writer).unwrap(),
+        include_str!("data/test-swift-without-test-suites.junit.xml")
+    );
+}
+
+#[cfg(target_os = "macos")]
+#[test]
+fn test_swift_mix() {
+    let path = TEMP_DIR_TEST_SWIFT_MIX
+        .as_ref()
+        .join("test-swift-mix.xcresult");
+    let path_str = path.to_str().unwrap();
+    let xcresult = XCResult::new(path_str, ORG_URL_SLUG.clone(), REPO_FULL_NAME.clone());
+    assert!(xcresult.is_ok());
+
+    let mut junits = xcresult.unwrap().generate_junits();
+    assert_eq!(junits.len(), 1);
+    let junit = junits.pop().unwrap();
+    let mut junit_writer: Vec<u8> = Vec::new();
+    junit.serialize(&mut junit_writer).unwrap();
+    pretty_assertions::assert_eq!(
+        String::from_utf8(junit_writer).unwrap(),
+        include_str!("data/test-swift-mix.junit.xml")
     );
 }
 

@@ -101,13 +101,29 @@ impl XCResult {
         test_nodes: &[TestNode],
         bundle_name: Option<T>,
     ) -> Vec<TestSuite> {
-        test_nodes
+        let mut test_suites = test_nodes
             .iter()
             .filter(|tn| matches!(tn.node_type, TestNodeType::TestSuite))
             .map(|test_suite| {
                 self.xcresult_test_suite_to_junit_test_suite(test_suite, bundle_name.as_ref())
             })
-            .collect()
+            .collect::<Vec<_>>();
+        // test cases can be at the top level
+        let dangling_test_cases = test_nodes
+            .iter()
+            .filter(|tn| matches!(tn.node_type, TestNodeType::TestCase))
+            .collect::<Vec<_>>();
+        if !dangling_test_cases.is_empty() {
+            let mut test_suite = TestSuite::new(
+                bundle_name
+                    .as_ref()
+                    .map(|bn| bn.as_ref())
+                    .unwrap_or("swift"),
+            );
+            test_suite.add_test_cases(self.xcresult_test_cases_to_junit_test_cases(test_nodes));
+            test_suites.push(test_suite);
+        }
+        test_suites
     }
 
     fn xcresult_test_suite_to_junit_test_suite<T: AsRef<str>>(
@@ -148,8 +164,7 @@ impl XCResult {
                 let classname = xcresult_test_case
                     .node_identifier
                     .as_ref()
-                    .map(|node_identifier| node_identifier.rsplit('/').next_back())
-                    .flatten();
+                    .and_then(|node_identifier| node_identifier.rsplit('/').next_back());
                 if let Some(classname) = classname {
                     test_case.set_classname(classname);
                 }

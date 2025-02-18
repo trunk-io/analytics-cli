@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites name="xcresult: swift testing example" tests="2" failures="1" errors="0">
+    <testsuite name="swift testing exampleTests" tests="2" disabled="0" errors="0" failures="1">
+        <testcase name="helloWorld()" classname="helloWorld()" time="0.000" id="5b6adc8c-ce61-5cb7-a8a6-00ea16d251d8">
+        </testcase>
+        <testcase name="helloWorldInvalid()" classname="helloWorldInvalid()" time="0.001" id="7de84ff8-17ae-550c-8390-6f4661b9e8d0">
+            <failure message="swift_testing_exampleTests.swift:19: Expectation failed: (greeting → &quot;Hello, world!&quot;) == &quot;Hello&quot;"/>
+        </testcase>
+    </testsuite>
+</testsuites>
