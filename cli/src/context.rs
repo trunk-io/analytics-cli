@@ -80,6 +80,7 @@ pub fn gather_pre_test_context(
         repo_head_branch,
         repo_head_commit_epoch,
     )?;
+    tracing::debug!("Found repo state: {:?}", repo);
 
     let (junit_path_wrappers, bep_result, junit_path_wrappers_temp_dir) =
         coalesce_junit_path_wrappers(

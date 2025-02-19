@@ -35,10 +35,3 @@ pub fn init(
 
     sentry::init(opts)
 }
-
-pub fn logger(mut builder: env_logger::Builder, log_level: log::LevelFilter) -> anyhow::Result<()> {
-    let logger = sentry_log::SentryLogger::with_dest(builder.build());
-    log::set_boxed_logger(Box::new(logger))?;
-    log::set_max_level(log_level);
-    Ok(())
-}
