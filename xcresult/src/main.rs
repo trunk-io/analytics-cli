@@ -2,16 +2,17 @@ use std::{fs, io, path::PathBuf};
 
 use clap::Parser;
 use context::repo::RepoUrlParts;
-use xcresult::XCResult;
+use tracing_subscriber::prelude::*;
+use xcresult::xcresult::XCResult;
 
 #[derive(Debug, Parser)]
 pub struct Cli {
-    /// Repository URL
-    #[arg(long)]
-    pub repo_url: Option<String>,
     /// Organization URL slug
     #[arg(long)]
     pub org_url_slug: Option<String>,
+    /// Repository URL, e.g. `https://github.com/trunk-io/analytics-cli`
+    #[arg(long)]
+    pub repo_url: Option<String>,
     /// `.xcresult` directory to parse
     #[arg(required = true)]
     pub xcresult: String,
@@ -21,17 +22,25 @@ pub struct Cli {
 }
 
 fn main() -> anyhow::Result<()> {
+    tracing_subscriber::registry()
+        .with(tracing_subscriber::fmt::layer().with_target(false))
+        .with(tracing::metadata::LevelFilter::INFO)
+        .init();
     let Cli {
         xcresult: path,
-        repo_url,
         org_url_slug,
+        repo_url,
         output_file_path,
     } = Cli::parse();
     let repo_url_parts = repo_url
         .and_then(|repo_url| RepoUrlParts::from_url(&repo_url).ok())
         .unwrap_or_default();
-    let xcresult = XCResult::new(path, &repo_url_parts, org_url_slug.unwrap_or_default())?;
-    let mut junits = xcresult.generate_junits()?;
+    let xcresult = XCResult::new(
+        path,
+        org_url_slug.unwrap_or_default(),
+        repo_url_parts.repo_full_name(),
+    )?;
+    let mut junits = xcresult.generate_junits();
     let junit_count_and_first_junit = (junits.len(), junits.pop());
     let junit = if let (1, Some(junit)) = junit_count_and_first_junit {
         junit
