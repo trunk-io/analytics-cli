@@ -97,10 +97,23 @@ impl ToString for CIPlatform {
     }
 }
 
-#[cfg(feature = "ruby")]
 impl CIPlatform {
+    #[cfg(feature = "ruby")]
     pub fn to_string(&self) -> &str {
         (*self).into()
+    }
+
+    // Enforcing a priority rule for CIPlatforms. Highest priority is Custom,
+    // lowest is Unknown, everything else is in the middle (ie we choose arbitrarily
+    // between the two)
+    fn prioritize(self, other: CIPlatform) -> CIPlatform {
+        match (self, other) {
+            (CIPlatform::Custom, _) => CIPlatform::Custom,
+            (_, CIPlatform::Custom) => CIPlatform::Custom,
+            (CIPlatform::Unknown, anything_else) => anything_else,
+            (anything_else, CIPlatform::Unknown) => anything_else,
+            (_, _) => self,
+        }
     }
 }
 
@@ -155,10 +168,7 @@ impl From<&EnvVars> for CIPlatform {
     fn from(value: &EnvVars) -> Self {
         let mut ci_platform = CIPlatform::Unknown;
         for (key, ..) in value.iter() {
-            ci_platform = CIPlatform::from(key.as_str());
-            if ci_platform != CIPlatform::Unknown {
-                break;
-            }
+            ci_platform = ci_platform.prioritize(CIPlatform::from(key.as_str()));
         }
         ci_platform
     }
@@ -657,4 +667,88 @@ pub fn ruby_init(ruby: &magnus::Ruby) -> Result<(), magnus::Error> {
     ci_info.define_method("workflow", magnus::method!(CIInfo::workflow, 0))?;
     ci_info.define_method("job", magnus::method!(CIInfo::job, 0))?;
     Ok(())
+}
+
+#[test]
+fn unknown_is_lowest_ciplatform() {
+    pretty_assertions::assert_eq!(
+        (CIPlatform::Unknown).prioritize(CIPlatform::Unknown),
+        CIPlatform::Unknown,
+    );
+    pretty_assertions::assert_eq!(
+        (CIPlatform::Unknown).prioritize(CIPlatform::GitLabCI),
+        CIPlatform::GitLabCI,
+    );
+    pretty_assertions::assert_eq!(
+        (CIPlatform::Unknown).prioritize(CIPlatform::Custom),
+        CIPlatform::Custom,
+    );
+    pretty_assertions::assert_eq!(
+        (CIPlatform::Unknown).prioritize(CIPlatform::Unknown),
+        CIPlatform::Unknown,
+    );
+    pretty_assertions::assert_eq!(
+        (CIPlatform::GitLabCI).prioritize(CIPlatform::Unknown),
+        CIPlatform::GitLabCI,
+    );
+    pretty_assertions::assert_eq!(
+        (CIPlatform::Custom).prioritize(CIPlatform::Unknown),
+        CIPlatform::Custom,
+    );
+}
+
+#[test]
+fn custom_is_highest_ciplatform() {
+    pretty_assertions::assert_eq!(
+        (CIPlatform::Custom).prioritize(CIPlatform::Custom),
+        CIPlatform::Custom,
+    );
+    pretty_assertions::assert_eq!(
+        (CIPlatform::Custom).prioritize(CIPlatform::GitLabCI),
+        CIPlatform::Custom,
+    );
+    pretty_assertions::assert_eq!(
+        (CIPlatform::Custom).prioritize(CIPlatform::Unknown),
+        CIPlatform::Custom,
+    );
+    pretty_assertions::assert_eq!(
+        (CIPlatform::Custom).prioritize(CIPlatform::Custom),
+        CIPlatform::Custom,
+    );
+    pretty_assertions::assert_eq!(
+        (CIPlatform::GitLabCI).prioritize(CIPlatform::Custom),
+        CIPlatform::Custom,
+    );
+    pretty_assertions::assert_eq!(
+        (CIPlatform::Unknown).prioritize(CIPlatform::Custom),
+        CIPlatform::Custom,
+    );
+}
+
+#[test]
+fn other_ciplatforms_mid_tier() {
+    pretty_assertions::assert_eq!(
+        (CIPlatform::TravisCI).prioritize(CIPlatform::GitLabCI),
+        CIPlatform::TravisCI,
+    );
+    pretty_assertions::assert_eq!(
+        (CIPlatform::TravisCI).prioritize(CIPlatform::Custom),
+        CIPlatform::Custom,
+    );
+    pretty_assertions::assert_eq!(
+        (CIPlatform::TravisCI).prioritize(CIPlatform::Unknown),
+        CIPlatform::TravisCI,
+    );
+    pretty_assertions::assert_eq!(
+        (CIPlatform::GitLabCI).prioritize(CIPlatform::TravisCI),
+        CIPlatform::GitLabCI,
+    );
+    pretty_assertions::assert_eq!(
+        (CIPlatform::Custom).prioritize(CIPlatform::TravisCI),
+        CIPlatform::Custom,
+    );
+    pretty_assertions::assert_eq!(
+        (CIPlatform::Unknown).prioritize(CIPlatform::TravisCI),
+        CIPlatform::TravisCI,
+    );
 }
