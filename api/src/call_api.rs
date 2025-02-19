@@ -8,9 +8,9 @@ use tokio_retry::{strategy::ExponentialBackoff, Action, RetryIf};
 use crate::client::{NOT_FOUND_CONTEXT, UNAUTHORIZED_CONTEXT};
 
 // Tokio-retry uses base ^ retry * factor formula.
-// This will give us 8ms, 64ms, 512ms, 4096ms, 32768ms
-const RETRY_BASE_MS: u64 = 8;
-const RETRY_FACTOR: u64 = 1;
+// This will give us 2s, 4s, 8s, 16s, 32s
+const RETRY_BASE_MS: u64 = 2;
+const RETRY_FACTOR: u64 = 1000;
 const RETRY_COUNT_DEFAULT: usize = 5;
 
 const CHECK_PROGRESS_INTERVAL_SECS: u64 = 2;
