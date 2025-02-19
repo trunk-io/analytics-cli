@@ -63,6 +63,11 @@ impl AbortableRetry for reqwest::Error {
         !(self.is_decode()
             || self.status().map_or(false, |status: StatusCode| {
                 // List of codes for which we do not retry
+                if let Some(url) = self.url() {
+                    tracing::debug!("Received status code {:?} for {:?}", status, url.as_str());
+                } else {
+                    tracing::debug!("Received status code {:?}", status);
+                }
                 match status {
                     // 400
                     StatusCode::BAD_REQUEST => true,
