@@ -176,6 +176,8 @@ def convert_fd_type_to_json_schema_format(
         case FdKind.VALUE:
             return convert_fd_value_to_json_schema_format()
         case FdKind.ARRAY:
+            # Supporting arrays of arrays is unnecessary because arrays are primitives in JSONSchema.
+            # In the format description they are defined as a part of the schema and we can ignore them.
             pass
 
 
