@@ -81,7 +81,7 @@ def convert_fd_array_to_json_schema_format(
 
 
 def convert_fd_object_to_json_schema_format(
-    fd_type: Any, fd_types: Any, fd_types_inheritance_hierarchy: Dict[str, set[str]]
+    fd_type: Any, fd_types: Any, fd_types_inheritance_hierarchy: Dict[str, list[str]]
 ) -> Dict[str, Any]:
     json_schema_object_properties: Dict[str, Any] = {
         "_type": {"type": "object"},
@@ -120,14 +120,15 @@ def convert_fd_object_to_json_schema_format(
             # NOTE: Even arrays can be optional when xcresulttool formats JSON.
             is_required = False
             fd_property_type = fd_property["wrappedType"]
+        # NOTE: This check must be after updating the `fd_property_type` variable.
+        if fd_property_type in BAD_FD_TYPES:
+            continue
+
         if fd_property_type in FdValue:
             # NOTE: Even values can be optional when xcresulttool formats JSON.
             is_required = False
         if is_required:
             json_schema_object_required_properties.add(fd_property_name)
-
-        if fd_property_type in BAD_FD_TYPES:
-            continue
 
         json_schema_object: Dict[str, Any] = {"$ref": f"#/$defs/{fd_property_type}"}
 
@@ -165,7 +166,7 @@ def convert_fd_object_to_json_schema_format(
 
 
 def convert_fd_type_to_json_schema_format(
-    fd_type: Any, fd_types: Any, fd_types_inheritance_hierarchy: Dict[str, set[str]]
+    fd_type: Any, fd_types: Any, fd_types_inheritance_hierarchy: Dict[str, list[str]]
 ) -> Optional[Dict[str, Any]]:
     match FdKind(fd_type["kind"]):
         case FdKind.OBJECT:
@@ -207,9 +208,9 @@ def traverse_fd_types_inheritance_hierarchy(
 
 def order_fd_types_by_inheritance_hierarchy_by_number_of_properties(
     fd_types_inheritance_hierarchy: Dict[str, Dict[str, int]]
-) -> Dict[str, set[str]]:
+) -> Dict[str, list[str]]:
     fd_types_inheritance_hierarchy_orderd_by_number_of_properties: Dict[
-        str, set[str]
+        str, list[str]
     ] = {}
     for (
         fd_supertype_name,
@@ -217,13 +218,17 @@ def order_fd_types_by_inheritance_hierarchy_by_number_of_properties(
     ) in fd_types_inheritance_hierarchy.items():
         fd_types_inheritance_hierarchy_orderd_by_number_of_properties[
             fd_supertype_name
-        ] = set()
+        ] = list()
         for fd_subtype_name, _ in sorted(
             fd_subtype_name_and_property_count.items(), key=lambda item: item[1]
         ):
-            fd_types_inheritance_hierarchy_orderd_by_number_of_properties[
-                fd_supertype_name
-            ].add(fd_subtype_name)
+            if (
+                fd_subtype_name
+                not in fd_types_inheritance_hierarchy_orderd_by_number_of_properties
+            ):
+                fd_types_inheritance_hierarchy_orderd_by_number_of_properties[
+                    fd_supertype_name
+                ].append(fd_subtype_name)
     return fd_types_inheritance_hierarchy_orderd_by_number_of_properties
 
 
@@ -256,7 +261,7 @@ def main():
             fd_type, fd_types, fd_types_inheritance_hierarchy
         )
     fd_types_inheritance_hierarchy_orderd_by_number_of_properties: Dict[
-        str, set[str]
+        str, list[str]
     ] = order_fd_types_by_inheritance_hierarchy_by_number_of_properties(
         fd_types_inheritance_hierarchy
     )

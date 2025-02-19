@@ -294,31 +294,6 @@ impl<'a> XCResultTestLegacyNodeTree<'a> {
         {
             match action_test_summary_identifiable_object {
                 legacy_schema::ActionTestSummaryIdentifiableObject::Variant0(
-                    legacy_schema::ActionTestSummary {
-                        name: Some(legacy_schema::String { value: name, .. }),
-                        identifier:
-                            Some(legacy_schema::String {
-                                value: identifier, ..
-                            }),
-                        identifier_url:
-                            Some(legacy_schema::String {
-                                value: identifier_url,
-                                ..
-                            }),
-                        ..
-                    },
-                ) => {
-                    let test_node = XCResultTestLegacyNodeRef {
-                        name,
-                        identifier,
-                        identifier_url,
-                    };
-                    let node_index = self.add_node(test_node);
-                    if let Some(parent_node) = parent_node {
-                        self.add_edge(parent_node, node_index, ());
-                    }
-                }
-                legacy_schema::ActionTestSummaryIdentifiableObject::Variant1(
                     legacy_schema::ActionTestMetadata {
                         name: Some(legacy_schema::String { value: name, .. }),
                         identifier:
@@ -343,7 +318,7 @@ impl<'a> XCResultTestLegacyNodeTree<'a> {
                         self.add_edge(parent_node, node_index, ());
                     }
                 }
-                legacy_schema::ActionTestSummaryIdentifiableObject::Variant2(
+                legacy_schema::ActionTestSummaryIdentifiableObject::Variant1(
                     legacy_schema::ActionTestSummaryGroup {
                         name: Some(legacy_schema::String { value: name, .. }),
                         identifier:
@@ -368,6 +343,31 @@ impl<'a> XCResultTestLegacyNodeTree<'a> {
                     if let Some(ref subtests) = subtests {
                         self.traverse(&subtests.values, Some(node_index));
                     }
+                    if let Some(parent_node) = parent_node {
+                        self.add_edge(parent_node, node_index, ());
+                    }
+                }
+                legacy_schema::ActionTestSummaryIdentifiableObject::Variant2(
+                    legacy_schema::ActionTestSummary {
+                        name: Some(legacy_schema::String { value: name, .. }),
+                        identifier:
+                            Some(legacy_schema::String {
+                                value: identifier, ..
+                            }),
+                        identifier_url:
+                            Some(legacy_schema::String {
+                                value: identifier_url,
+                                ..
+                            }),
+                        ..
+                    },
+                ) => {
+                    let test_node = XCResultTestLegacyNodeRef {
+                        name,
+                        identifier,
+                        identifier_url,
+                    };
+                    let node_index = self.add_node(test_node);
                     if let Some(parent_node) = parent_node {
                         self.add_edge(parent_node, node_index, ());
                     }

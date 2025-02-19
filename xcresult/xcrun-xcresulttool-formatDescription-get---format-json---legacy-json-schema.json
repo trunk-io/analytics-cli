@@ -4,13 +4,13 @@
       "type": "object",
       "oneOf": [
         {
+          "$ref": "#/$defs/ActionTestPlanRunSummary"
+        },
+        {
           "$ref": "#/$defs/ActionTestSummaryIdentifiableObject"
         },
         {
           "$ref": "#/$defs/ActionTestableSummary"
-        },
-        {
-          "$ref": "#/$defs/ActionTestPlanRunSummary"
         },
         {
           "type": "object",
@@ -180,7 +180,7 @@
         }
       },
       "additionalProperties": false,
-      "required": ["issues", "metrics", "coverage"]
+      "required": ["issues", "coverage", "metrics"]
     },
     "ActionRunDestinationRecord": {
       "type": "object",
@@ -207,8 +207,8 @@
       "additionalProperties": false,
       "required": [
         "targetSDKRecord",
-        "localComputerRecord",
-        "targetDeviceRecord"
+        "targetDeviceRecord",
+        "localComputerRecord"
       ]
     },
     "ActionSDKRecord": {
@@ -957,13 +957,13 @@
       "type": "object",
       "oneOf": [
         {
-          "$ref": "#/$defs/ActionTestSummary"
-        },
-        {
           "$ref": "#/$defs/ActionTestMetadata"
         },
         {
           "$ref": "#/$defs/ActionTestSummaryGroup"
+        },
+        {
+          "$ref": "#/$defs/ActionTestSummary"
         },
         {
           "type": "object",
@@ -1182,10 +1182,10 @@
       "type": "object",
       "oneOf": [
         {
-          "$ref": "#/$defs/ActivityLogAnalyzerEventStep"
+          "$ref": "#/$defs/ActivityLogAnalyzerControlFlowStep"
         },
         {
-          "$ref": "#/$defs/ActivityLogAnalyzerControlFlowStep"
+          "$ref": "#/$defs/ActivityLogAnalyzerEventStep"
         },
         {
           "type": "object",
@@ -1354,10 +1354,10 @@
       "type": "object",
       "oneOf": [
         {
-          "$ref": "#/$defs/ActivityLogCommandInvocationSection"
+          "$ref": "#/$defs/ActivityLogMajorSection"
         },
         {
-          "$ref": "#/$defs/ActivityLogMajorSection"
+          "$ref": "#/$defs/ActivityLogCommandInvocationSection"
         },
         {
           "$ref": "#/$defs/ActivityLogUnitTestSection"
@@ -1875,10 +1875,10 @@
       "type": "object",
       "oneOf": [
         {
-          "$ref": "#/$defs/TestIssueSummary"
+          "$ref": "#/$defs/TestFailureIssueSummary"
         },
         {
-          "$ref": "#/$defs/TestFailureIssueSummary"
+          "$ref": "#/$defs/TestIssueSummary"
         },
         {
           "type": "object",
@@ -2099,8 +2099,7 @@
           "$ref": "#/$defs/String"
         }
       },
-      "additionalProperties": false,
-      "required": ["value"]
+      "additionalProperties": false
     },
     "SourceCodeContext": {
       "type": "object",
