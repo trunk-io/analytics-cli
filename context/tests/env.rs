@@ -878,11 +878,9 @@ fn test_simple_gitlab_stable_branches() {
 }
 
 #[test]
-fn does_not_cross_contaminate() {
+fn does_not_cross_contaminate_prioritizes_custom() {
     let pr_number = 123;
     let job_url = String::from("https://example.com");
-    let actor = String::from("username");
-    let email = String::from("username@example.com");
     let commit_author = String::from("username <username@example.com>");
     let branch = String::from("some-branch-name");
     let workflow = String::from("test-job-name");
@@ -935,23 +933,6 @@ fn does_not_cross_contaminate() {
 
     let ci_info = env_parser.into_ci_info_parser().unwrap().info_ci_info();
 
-    let gitlab_info = CIInfo {
-        platform: CIPlatform::GitLabCI,
-        job_url: Some(job_url),
-        branch: Some(branch),
-        branch_class: Some(BranchClass::Merge),
-        pr_number: Some(pr_number),
-        actor: Some(actor.clone()),
-        committer_name: Some(actor.clone()),
-        committer_email: Some(email.clone()),
-        author_name: Some(actor),
-        author_email: Some(email),
-        commit_message: None,
-        title: None,
-        workflow: Some(workflow),
-        job: Some(job),
-    };
-
     let custom_info = CIInfo {
         platform: CIPlatform::Custom,
         job_url: Some(custom_job_url),
@@ -969,8 +950,5 @@ fn does_not_cross_contaminate() {
         job: Some(custom_job_name),
     };
 
-    assert!(
-        ci_info == gitlab_info || ci_info == custom_info,
-        "Actual ci_info {ci_info:#?} should match either gitlab expectation {gitlab_info:#?} or custom expectation {custom_info:#?}",
-    );
+    pretty_assertions::assert_eq!(ci_info, custom_info);
 }
