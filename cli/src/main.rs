@@ -58,7 +58,7 @@ enum Commands {
 // https://docs.sentry.io/platforms/rust/#async-main-function
 fn main() -> anyhow::Result<()> {
     let release_name = format!("analytics-cli@{}", env!("CARGO_PKG_VERSION"));
-    let _guard = sentry::init(release_name.into(), None);
+    let guard = sentry::init(release_name.into(), None);
 
     tokio::runtime::Builder::new_multi_thread()
         .enable_all()
@@ -77,10 +77,12 @@ fn main() -> anyhow::Result<()> {
                 Err(e) => match (*(e.root_cause())).downcast_ref::<std::io::Error>() {
                     Some(io_error) if io_error.kind() == std::io::ErrorKind::ConnectionRefused => {
                         tracing::warn!("Could not connect to trunk's server: {:?}", e);
+                        guard.flush(None);
                         std::process::exit(exitcode::OK);
                     }
                     _ => {
                         tracing::error!("Error: {:?}", e);
+                        guard.flush(None);
                         std::process::exit(exitcode::SOFTWARE);
                     }
                 },
@@ -124,6 +126,7 @@ fn to_trace_filter(filter: log::LevelFilter) -> tracing::Level {
 }
 
 fn setup_logger(log_level_filter: LevelFilter) -> anyhow::Result<()> {
+    // trunk-ignore(clippy/match_ref_pats)
     let sentry_layer = sentry_tracing::layer().event_filter(|md| match md.level() {
         &tracing::Level::ERROR => sentry_tracing::EventFilter::Event,
         &tracing::Level::WARN => sentry_tracing::EventFilter::Breadcrumb,
