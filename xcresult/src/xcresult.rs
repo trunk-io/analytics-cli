@@ -8,7 +8,7 @@ use crate::types::{
     schema::{TestNode, TestNodeType, TestResult, Tests},
     SWIFT_DEFAULT_TEST_SUITE_NAME,
 };
-use crate::xcresult_legacy::XCResultTest;
+use crate::xcresult_legacy::XCResultTestLegacy;
 use crate::xcrun::xcresulttool_get_test_results_tests;
 
 #[derive(Debug, Clone)]
@@ -16,7 +16,7 @@ pub struct XCResult {
     tests: Tests,
     org_url_slug: String,
     repo_full_name: String,
-    legacy_xcresult_tests: HashMap<String, XCResultTest>,
+    legacy_xcresult_tests: HashMap<String, XCResultTestLegacy>,
 }
 
 impl XCResult {
@@ -32,11 +32,14 @@ impl XCResult {
                 e
             )
         })?;
-        let legacy_xcresult_tests = match XCResultTest::generate_from_object(&absolute_path) {
+        let legacy_xcresult_tests = match XCResultTestLegacy::generate_from_object(&absolute_path) {
             Ok(tests) => tests,
             Err(e) => {
-                tracing::warn!("Failed to generate legacy XCResultTest objects: {}", e);
-                tracing::warn!("Attempting to continue without legacy XCResultTest objects");
+                tracing::warn!(
+                    "Failed to generate legacy XCResultTestLegacy objects: {}",
+                    e
+                );
+                tracing::warn!("Attempting to continue without legacy XCResultTestLegacy objects");
                 HashMap::new()
             }
         };
@@ -49,11 +52,8 @@ impl XCResult {
     }
 
     pub fn generate_junits(&self) -> Vec<Report> {
-        self.xcresult_test_plans_to_junit_reports(self.tests.test_nodes.as_slice())
-    }
-
-    fn xcresult_test_plans_to_junit_reports(&self, test_nodes: &[TestNode]) -> Vec<Report> {
-        test_nodes
+        self.tests
+            .test_nodes
             .iter()
             .filter(|tn| matches!(tn.node_type, TestNodeType::TestPlan))
             .map(|test_plan| {
@@ -72,14 +72,6 @@ impl XCResult {
     ) -> Vec<TestSuite> {
         test_nodes
             .iter()
-            .filter(|tn| {
-                matches!(
-                    tn.node_type,
-                    TestNodeType::UnitTestBundle
-                        | TestNodeType::UiTestBundle
-                        | TestNodeType::TestSuite
-                )
-            })
             .flat_map(|test_bundle_or_test_suite| {
                 if matches!(
                     test_bundle_or_test_suite.node_type,
@@ -90,10 +82,12 @@ impl XCResult {
                         test_bundle.children.as_slice(),
                         Some(&test_bundle.name),
                     )
-                } else {
+                } else if matches!(test_bundle_or_test_suite.node_type, TestNodeType::TestSuite) {
                     let test_suite = test_bundle_or_test_suite;
                     vec![self
                         .xcresult_test_suite_to_junit_test_suite(test_suite, Option::<&str>::None)]
+                } else {
+                    vec![]
                 }
             })
             .collect()

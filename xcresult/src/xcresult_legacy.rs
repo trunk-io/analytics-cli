@@ -13,7 +13,7 @@ use crate::types::{legacy_schema, SWIFT_DEFAULT_TEST_SUITE_NAME};
 use crate::xcrun::{xcresulttool_get_object, xcresulttool_get_object_id};
 
 #[derive(Debug, Clone, Default)]
-pub struct XCResultTest {
+pub struct XCResultTestLegacy {
     pub test_plan_name: String,
     pub test_bundle_name: String,
     pub test_suite_name: String,
@@ -23,7 +23,7 @@ pub struct XCResultTest {
     pub file: Option<String>,
 }
 
-impl XCResultTest {
+impl XCResultTestLegacy {
     pub fn generate_from_object<T: AsRef<OsStr>>(path: T) -> anyhow::Result<HashMap<String, Self>> {
         let actions_invocation_record = xcresulttool_get_object(path.as_ref())?;
         let test_plans = actions_invocation_record
@@ -160,7 +160,7 @@ impl XCResultTest {
                     action_test_summary_identifiable_objects,
                     failure_summaries,
                 )| {
-                    let mut xc_result_test_node_tree = XCResultTestNodeTree::default();
+                    let mut xc_result_test_node_tree = XCResultTestLegacyNodeTree::default();
                     xc_result_test_node_tree
                         .traverse(action_test_summary_identifiable_objects, None);
 
@@ -260,30 +260,30 @@ impl XCResultTest {
 }
 
 #[derive(Debug, Clone, Default, PartialEq, PartialOrd, Eq, Ord, Hash)]
-struct XCResultTestNodeRef<'a> {
+struct XCResultTestLegacyNodeRef<'a> {
     name: &'a str,
     identifier: &'a str,
     identifier_url: &'a str,
 }
 
 #[derive(Debug, Clone, Default)]
-struct XCResultTestNodeTree<'a>(DiGraph<XCResultTestNodeRef<'a>, ()>);
+struct XCResultTestLegacyNodeTree<'a>(DiGraph<XCResultTestLegacyNodeRef<'a>, ()>);
 
-impl<'a> Deref for XCResultTestNodeTree<'a> {
-    type Target = DiGraph<XCResultTestNodeRef<'a>, ()>;
+impl<'a> Deref for XCResultTestLegacyNodeTree<'a> {
+    type Target = DiGraph<XCResultTestLegacyNodeRef<'a>, ()>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
 
-impl<'a> DerefMut for XCResultTestNodeTree<'a> {
+impl<'a> DerefMut for XCResultTestLegacyNodeTree<'a> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
     }
 }
 
-impl<'a> XCResultTestNodeTree<'a> {
+impl<'a> XCResultTestLegacyNodeTree<'a> {
     fn traverse(
         &mut self,
         action_test_summary_identifiable_objects: &'a [legacy_schema::ActionTestSummaryIdentifiableObject],
@@ -308,7 +308,7 @@ impl<'a> XCResultTestNodeTree<'a> {
                         ..
                     },
                 ) => {
-                    let test_node = XCResultTestNodeRef {
+                    let test_node = XCResultTestLegacyNodeRef {
                         name,
                         identifier,
                         identifier_url,
@@ -333,7 +333,7 @@ impl<'a> XCResultTestNodeTree<'a> {
                         ..
                     },
                 ) => {
-                    let test_node = XCResultTestNodeRef {
+                    let test_node = XCResultTestLegacyNodeRef {
                         name,
                         identifier,
                         identifier_url,
@@ -359,7 +359,7 @@ impl<'a> XCResultTestNodeTree<'a> {
                         ..
                     },
                 ) => {
-                    let test_node = XCResultTestNodeRef {
+                    let test_node = XCResultTestLegacyNodeRef {
                         name,
                         identifier,
                         identifier_url,
@@ -385,7 +385,7 @@ impl<'a> XCResultTestNodeTree<'a> {
                     name: Some(legacy_schema::String { value: name, .. }),
                     ..
                 } => {
-                    let test_node = XCResultTestNodeRef {
+                    let test_node = XCResultTestLegacyNodeRef {
                         name,
                         identifier,
                         identifier_url,
