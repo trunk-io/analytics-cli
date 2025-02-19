@@ -17,6 +17,8 @@ runs:
       shell: bash
       run: |
         chmod +x ${{ inputs.cli-binary-location }}
+        sha256sum ${{ inputs.cli-binary-location }}
+        ls -l ${{ inputs.cli-binary-location }}
 
     - name: Run tests on staging
       env:
