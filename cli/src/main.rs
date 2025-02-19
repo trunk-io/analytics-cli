@@ -58,7 +58,7 @@ enum Commands {
 // https://docs.sentry.io/platforms/rust/#async-main-function
 fn main() -> anyhow::Result<()> {
     let release_name = format!("analytics-cli@{}", env!("CARGO_PKG_VERSION"));
-    let _guard = sentry::init(release_name.into(), None);
+    let guard = sentry::init(release_name.into(), None);
 
     tokio::runtime::Builder::new_multi_thread()
         .enable_all()
@@ -77,10 +77,12 @@ fn main() -> anyhow::Result<()> {
                 Err(e) => match (*(e.root_cause())).downcast_ref::<std::io::Error>() {
                     Some(io_error) if io_error.kind() == std::io::ErrorKind::ConnectionRefused => {
                         tracing::warn!("Could not connect to trunk's server: {:?}", e);
+                        guard.flush(None);
                         std::process::exit(exitcode::OK);
                     }
                     _ => {
                         tracing::error!("Error: {:?}", e);
+                        guard.flush(None);
                         std::process::exit(exitcode::SOFTWARE);
                     }
                 },
@@ -112,26 +114,34 @@ async fn run(cli: Cli) -> anyhow::Result<i32> {
     }
 }
 
-fn to_trace_filter(filter: log::LevelFilter) -> tracing::level_filters::LevelFilter {
+fn to_trace_filter(filter: log::LevelFilter) -> tracing::Level {
     match filter {
-        log::LevelFilter::Debug => tracing::level_filters::LevelFilter::DEBUG,
-        log::LevelFilter::Error => tracing::level_filters::LevelFilter::ERROR,
-        log::LevelFilter::Info => tracing::level_filters::LevelFilter::INFO,
-        log::LevelFilter::Off => tracing::level_filters::LevelFilter::OFF,
-        log::LevelFilter::Trace => tracing::level_filters::LevelFilter::TRACE,
-        log::LevelFilter::Warn => tracing::level_filters::LevelFilter::WARN,
+        log::LevelFilter::Debug => tracing::Level::DEBUG,
+        log::LevelFilter::Error => tracing::Level::ERROR,
+        log::LevelFilter::Info => tracing::Level::INFO,
+        log::LevelFilter::Off => tracing::Level::TRACE,
+        log::LevelFilter::Trace => tracing::Level::TRACE,
+        log::LevelFilter::Warn => tracing::Level::WARN,
     }
 }
 
 fn setup_logger(log_level_filter: LevelFilter) -> anyhow::Result<()> {
+    // trunk-ignore(clippy/match_ref_pats)
+    let sentry_layer = sentry_tracing::layer().event_filter(|md| match md.level() {
+        &tracing::Level::ERROR => sentry_tracing::EventFilter::Event,
+        &tracing::Level::WARN => sentry_tracing::EventFilter::Breadcrumb,
+        &tracing::Level::INFO => sentry_tracing::EventFilter::Breadcrumb,
+        &tracing::Level::DEBUG => sentry_tracing::EventFilter::Breadcrumb,
+        _ => sentry_tracing::EventFilter::Ignore,
+    });
     tracing_subscriber::registry()
         .with(
-            tracing_subscriber::fmt::layer()
+            tracing_subscriber::fmt::Layer::new()
+                .without_time()
                 .with_target(false)
-                .without_time(),
+                .with_writer(std::io::stdout.with_max_level(to_trace_filter(log_level_filter))),
         )
-        .with(sentry_tracing::layer())
-        .with(to_trace_filter(log_level_filter))
+        .with(sentry_layer)
         .init();
     Ok(())
 }
