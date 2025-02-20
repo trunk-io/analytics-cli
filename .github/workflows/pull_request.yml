@@ -88,8 +88,10 @@ jobs:
         env:
           TRUNK_PUBLIC_API_ADDRESS: https://api.trunk-staging.io
         shell: bash
-        if: "!contains(matrix.platform.os-name, 'illumos')"
+        if: "contains(matrix.platform.target, 'illumos')"
         run: |
+          ls target/${{ matrix.platform.target }}/release/trunk-analytics-cli
+          shasum256 target/${{ matrix.platform.target }}/release/trunk-analytics-cli
           target/${{ matrix.platform.target }}/release/trunk-analytics-cli upload \
              --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
              --org-url-slug trunk-staging-org \
