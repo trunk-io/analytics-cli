@@ -50,30 +50,30 @@ jobs:
           staging-api-token: ${{ secrets.TRUNK_STAGING_ORG_API_TOKEN }}
           production-api-token: ${{ secrets.TRUNK_PROD_ORG_API_TOKEN }}
           environment-type: ${{ (github.event.event_type == 'production-release' && 'production') || (github.event.event_type == 'staging-release' && 'staging') || 'both' }}
-#  slack-workflow-status:
-#    if: always() && needs.build_cli.result != 'success'
-#    name: Post Smoke Test Failure
-#    needs:
-#      - build_cli
-#    runs-on: public-amd64-small
-#    permissions:
-#      actions: read
-#    env:
-#      SLACK_BOT_TOKEN: ${{ secrets.TRUNKBOT_SLACK_BOT_TOKEN }}
-#    steps:
-#      - name: Analytics Cli Smoke Test Failure
-#        uses: slackapi/slack-github-action@v1
-#        with:
-#          channel-id: staging-notifications
-#          payload: |
-#            {
-#              "blocks": [
-#                {
-#                  "type": "section",
-#                  "text": {
-#                    "type": "mrkdwn",
-#                    "text": "The main branch of the analytics cli is broken! The job attempting a simple upload had a result of ${{ needs.build_cli.result }}. Runs can be found at https://github.com/trunk-io/analytics-cli/actions/workflows/smoke_test_main.yml"
-#                  }
-#                }
-#              ]
-#            }
+  slack-workflow-status:
+    if: always() && needs.build_cli.result != 'success'
+    name: Post Smoke Test Failure
+    needs:
+      - build_cli
+    runs-on: public-amd64-small
+    permissions:
+      actions: read
+    env:
+      SLACK_BOT_TOKEN: ${{ secrets.TRUNKBOT_SLACK_BOT_TOKEN }}
+    steps:
+      - name: Analytics Cli Smoke Test Failure
+        uses: slackapi/slack-github-action@v1
+        with:
+          channel-id: staging-notifications
+          payload: |
+            {
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "The main branch of the analytics cli is broken! The job attempting a simple upload had a result of ${{ needs.build_cli.result }}. Runs can be found at https://github.com/trunk-io/analytics-cli/actions/workflows/smoke_test_main.yml"
+                  }
+                }
+              ]
+            }
