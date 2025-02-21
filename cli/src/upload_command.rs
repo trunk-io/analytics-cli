@@ -1,4 +1,4 @@
-use api::{client::ApiClient, message::BundleUploadStatus};
+use api::client::ApiClient;
 use bundle::{BundleMeta, BundlerUtil};
 use clap::{ArgAction, Args};
 use constants::EXIT_SUCCESS;
@@ -222,38 +222,11 @@ async fn upload_bundle(
     tracing::info!("Flushed temporary tarball to {:?}", bundle_temp_file);
 
     if no_upload {
-        if let Err(e) = api_client
-            .update_bundle_upload(&api::message::UpdateBundleUploadRequest {
-                id: upload.id.clone(),
-                upload_status: BundleUploadStatus::DryRun,
-            })
-            .await
-        {
-            tracing::warn!("{}", e);
-        } else {
-            tracing::debug!("Updated bundle upload status to DRY_RUN");
-        }
         tracing::info!("Skipping upload.");
     } else {
         api_client
             .put_bundle_to_s3(&upload.url, &bundle_temp_file)
             .await?;
-
-        if let Err(e) = api_client
-            .update_bundle_upload(&api::message::UpdateBundleUploadRequest {
-                id: upload.id.clone(),
-                upload_status: BundleUploadStatus::UploadComplete,
-            })
-            .await
-        {
-            tracing::warn!("{}", e)
-        } else {
-            tracing::debug!(
-                "Updated bundle upload status to {:#?}",
-                BundleUploadStatus::UploadComplete
-            )
-        }
-
         if exit_code == EXIT_SUCCESS {
             tracing::info!("Done");
         } else {

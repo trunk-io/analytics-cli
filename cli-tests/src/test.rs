@@ -94,7 +94,7 @@ async fn test_command_fails_with_no_junit_files_no_quarantine_successful_upload(
     println!("{assert}");
 
     let requests = state.requests.lock().unwrap().clone();
-    assert_eq!(requests.len(), 4);
+    assert_eq!(requests.len(), 3);
     let mut requests_iter = requests.into_iter();
 
     assert!(matches!(
@@ -115,11 +115,6 @@ async fn test_command_fails_with_no_junit_files_no_quarantine_successful_upload(
         bundle_meta.base_props.test_command.unwrap(),
         "bash -c exit 128"
     );
-
-    assert!(matches!(
-        requests_iter.next().unwrap(),
-        RequestPayload::UpdateBundleUpload(..)
-    ));
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -191,7 +186,7 @@ async fn test_command_succeeds_with_bundle_using_bep() {
     .failure();
 
     let requests = state.requests.lock().unwrap().clone();
-    assert_eq!(requests.len(), 5);
+    assert_eq!(requests.len(), 4);
 
     let tar_extract_directory = assert_matches!(&requests[3], RequestPayload::S3Upload(d) => d);
 
