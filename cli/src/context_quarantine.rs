@@ -208,39 +208,50 @@ pub async fn gather_quarantine_context(
     let quarantined = &quarantine_config.quarantined_tests;
 
     let total_failures = failed_tests_extractor.failed_tests().len();
-    quarantine_results.quarantine_results = failed_tests_extractor
+    let mut failures: Vec<Test> = vec![];
+    let mut quarantined_failures: Vec<Test> = vec![];
+    failed_tests_extractor
         .failed_tests()
         .iter()
         .cloned()
-        .filter_map(|failure| {
+        .for_each(|failure| {
             let quarantine_failure = quarantined.contains(&failure.id);
-            let url = match url_for_test_case(
-                &api_client.host,
-                &request.org_url_slug,
-                &request.repo,
-                &failure,
-            ) {
-                Ok(url) => format!("Learn more > {}", url),
-                Err(_) => String::from(""),
-            };
-            tracing::info!(
-                "{} -> {}{} {}",
-                failure.parent_name,
-                failure.name,
-                if quarantine_failure {
-                    " [QUARANTINED] "
-                } else {
-                    " "
-                },
-                url,
-            );
             if quarantine_failure {
-                Some(failure)
+                quarantined_failures.push(failure);
             } else {
-                None
+                failures.push(failure);
             }
-        })
-        .collect();
+        });
+
+    if !quarantined_failures.is_empty() {
+        let plural = if quarantined_failures.len() > 1 {
+            "s"
+        } else {
+            ""
+        };
+        // The hazard emoji consumes the first character after it, which is why it needs two spaces after it.
+        tracing::info!(
+            "⚠️  {} test failure{} quarantined:",
+            quarantined_failures.len(),
+            plural
+        );
+        quarantined_failures
+            .iter()
+            .for_each(|quarantined_failure| log_failure(quarantined_failure, request, api_client));
+    }
+
+    if !failures.is_empty() {
+        let plural = if failures.len() > 1 { "s" } else { "" };
+        tracing::info!(
+            "️❌ {} test failure{} not quarantined:",
+            failures.len(),
+            plural
+        );
+        failures
+            .iter()
+            .for_each(|failure| log_failure(failure, request, api_client));
+    }
+    quarantine_results.quarantine_results = quarantined_failures;
     quarantine_results.group_is_quarantined =
         quarantine_results.quarantine_results.len() == total_failures;
 
@@ -265,6 +276,23 @@ pub async fn gather_quarantine_context(
         exit_code,
         quarantine_status: quarantine_results,
     }
+}
+
+fn log_failure(
+    failure: &Test,
+    request: &api::message::GetQuarantineConfigRequest,
+    api_client: &ApiClient,
+) {
+    let url = match url_for_test_case(
+        &api_client.host,
+        &request.org_url_slug,
+        &request.repo,
+        failure,
+    ) {
+        Ok(url) => format!("Learn more > {}", url),
+        Err(_) => String::from(""),
+    };
+    tracing::info!("\t{} -> {} {}", failure.parent_name, failure.name, url,);
 }
 
 #[cfg(test)]
