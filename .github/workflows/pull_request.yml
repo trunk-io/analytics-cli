@@ -84,13 +84,25 @@ jobs:
           profile: release
           force-sentry-dev: true
 
-      - name: Upload results using action from ${{ matrix.platform.target }}
-        uses: ./.github/actions/upload_test_results
-        if: "!contains(matrix.platform.target, 'illumos') && always()"
-        with:
-          workspace: ${{ github.workspace }}
-          target: ${{ matrix.platform.target }}
-          trunk-staging-token: ${{ secrets.TRUNK_STAGING_ORG_API_TOKEN }}
+      - name: Upload results to staging using built CLI
+        env:
+          TRUNK_PUBLIC_API_ADDRESS: https://api.trunk-staging.io
+        shell: bash
+        if: "!contains(matrix.platform.target, 'illumos')"
+        run: |
+          target/${{ matrix.platform.target }}/release/trunk-analytics-cli upload \
+             --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
+             --org-url-slug trunk-staging-org \
+             --token ${{ secrets.TRUNK_STAGING_ORG_API_TOKEN }}
+
+      - name: Upload results to prod using built CLI
+        shell: bash
+        if: "!contains(matrix.platform.target, 'illumos')"
+        run: |
+          target/${{ matrix.platform.target }}/release/trunk-analytics-cli upload \
+            --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
+            --org-url-slug trunk \
+            --token ${{ secrets.TRUNK_PROD_ORG_API_TOKEN }}
 
   trunk_check_runner:
     name: Trunk Check runner [linux]
