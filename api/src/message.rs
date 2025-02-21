@@ -3,18 +3,6 @@ use context::repo::RepoUrlParts;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Clone, Deserialize, PartialEq, Eq)]
-pub enum BundleUploadStatus {
-    #[serde(rename = "PENDING")]
-    Pending,
-    #[serde(rename = "UPLOAD_COMPLETE")]
-    UploadComplete,
-    #[serde(rename = "UPLOAD_FAILED")]
-    UploadFailed,
-    #[serde(rename = "DRY_RUN")]
-    DryRun,
-}
-
-#[derive(Debug, Serialize, Clone, Deserialize, PartialEq, Eq)]
 pub struct CreateBundleUploadRequest {
     pub repo: RepoUrlParts,
     #[serde(rename = "orgUrlSlug")]
@@ -60,16 +48,6 @@ pub struct CreateRepoRequest {
 
 #[derive(Debug, Serialize, Clone, Deserialize, PartialEq, Eq)]
 pub struct CreateRepoResponse {}
-
-#[derive(Debug, Serialize, Clone, Deserialize, PartialEq, Eq)]
-pub struct UpdateBundleUploadRequest {
-    pub id: String,
-    #[serde(rename = "uploadStatus")]
-    pub upload_status: BundleUploadStatus,
-}
-
-#[derive(Debug, Serialize, Clone, Deserialize, PartialEq, Eq)]
-pub struct UpdateBundleUploadResponse {}
 
 #[derive(Debug, Serialize, Clone, Deserialize, PartialEq, Eq)]
 pub struct CreateBundleUploadIntentRequest {

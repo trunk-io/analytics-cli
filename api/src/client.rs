@@ -220,47 +220,6 @@ impl ApiClient {
         .call_api()
         .await
     }
-
-    pub async fn update_bundle_upload(
-        &self,
-        request: &message::UpdateBundleUploadRequest,
-    ) -> anyhow::Result<message::UpdateBundleUploadResponse> {
-        CallApi {
-            action: || async {
-                let response = self
-                    .trunk_client
-                    .patch(format!("{}{}/metrics/updateBundleUpload", self.host, self.version_path_prefix))
-                    .json(request)
-                    .send()
-                    .await?;
-
-                let response = status_code_help(
-                    response,
-                    CheckUnauthorized::Check,
-                    CheckNotFound::Check,
-                    |_| {
-                        format!(
-                            "Failed to update bundle upload status to {:#?}",
-                            request.upload_status
-                        )
-                    },
-                )?;
-
-                response
-                    .json::<message::UpdateBundleUploadResponse>()
-                    .await
-                    .context("Failed to get response body as json.")
-            },
-            log_progress_message: |time_elapsed, _| {
-                format!("Communicating with Trunk services is taking longer than expected. It has taken {} seconds so far.", time_elapsed.as_secs())
-            },
-            report_slow_progress_message: |time_elapsed| {
-                format!("Updating a bundle upload status is taking longer than {} seconds", time_elapsed.as_secs())
-            },
-        }
-        .call_api()
-        .await
-    }
 }
 
 #[derive(Debug, Clone, Copy)]

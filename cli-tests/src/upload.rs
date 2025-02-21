@@ -2,8 +2,8 @@ use std::sync::{Arc, Mutex};
 use std::{fs, io::BufReader};
 
 use api::message::{
-    BundleUploadStatus, CreateBundleUploadRequest, CreateBundleUploadResponse, CreateRepoRequest,
-    GetQuarantineConfigRequest, GetQuarantineConfigResponse, UpdateBundleUploadRequest,
+    CreateBundleUploadRequest, CreateBundleUploadResponse, CreateRepoRequest,
+    GetQuarantineConfigRequest, GetQuarantineConfigResponse,
 };
 use assert_matches::assert_matches;
 use axum::{extract::State, Json};
@@ -45,7 +45,7 @@ async fn upload_bundle() {
         .failure();
 
     let requests = state.requests.lock().unwrap().clone();
-    assert_eq!(requests.len(), 5);
+    assert_eq!(requests.len(), 4);
     let mut requests_iter = requests.into_iter();
 
     let quarantine_request = requests_iter.next().unwrap();
@@ -177,14 +177,6 @@ async fn upload_bundle() {
     assert_eq!(bundled_file.owners, ["@user"]);
     assert_eq!(bundled_file.team, None);
 
-    assert_eq!(
-        requests_iter.next().unwrap(),
-        RequestPayload::UpdateBundleUpload(UpdateBundleUploadRequest {
-            id: "test-bundle-upload-id".to_string(),
-            upload_status: BundleUploadStatus::UploadComplete
-        }),
-    );
-
     assert!(debug_props.command_line.ends_with(
         &command_builder
             .build_args()
@@ -212,7 +204,7 @@ async fn upload_bundle_using_bep() {
         .failure();
 
     let requests = state.requests.lock().unwrap().clone();
-    assert_eq!(requests.len(), 5);
+    assert_eq!(requests.len(), 4);
 
     let tar_extract_directory = assert_matches!(&requests[3], RequestPayload::S3Upload(d) => d);
 
@@ -268,7 +260,7 @@ async fn upload_bundle_success_status_code() {
 
     // No quarantine request
     let requests = state.requests.lock().unwrap().clone();
-    assert_eq!(requests.len(), 4);
+    assert_eq!(requests.len(), 3);
 
     // HINT: View CLI output with `cargo test -- --nocapture`
     println!("{assert}");
@@ -307,7 +299,7 @@ async fn upload_bundle_success_timestamp_status_code() {
 
     // No quarantine request
     let requests = state.requests.lock().unwrap().clone();
-    assert_eq!(requests.len(), 4);
+    assert_eq!(requests.len(), 3);
 
     // HINT: View CLI output with `cargo test -- --nocapture`
     println!("{assert}");

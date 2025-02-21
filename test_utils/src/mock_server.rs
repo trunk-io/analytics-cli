@@ -7,8 +7,7 @@ use std::{
 
 use api::message::{
     CreateBundleUploadRequest, CreateBundleUploadResponse, CreateRepoRequest, CreateRepoResponse,
-    GetQuarantineConfigRequest, GetQuarantineConfigResponse, UpdateBundleUploadRequest,
-    UpdateBundleUploadResponse,
+    GetQuarantineConfigRequest, GetQuarantineConfigResponse,
 };
 use axum::{
     body::Bytes,
@@ -16,7 +15,7 @@ use axum::{
     handler::Handler,
     http::StatusCode,
     response::Response,
-    routing::{any, patch, post, put, MethodRouter},
+    routing::{any, post, put, MethodRouter},
     Json, Router,
 };
 use tempfile::tempdir;
@@ -26,7 +25,6 @@ use tokio::{net::TcpListener, spawn};
 pub enum RequestPayload {
     CreateRepo(CreateRepoRequest),
     CreateBundleUpload(CreateBundleUploadRequest),
-    UpdateBundleUpload(UpdateBundleUploadRequest),
     GetQuarantineBulkTestStatus(GetQuarantineConfigRequest),
     S3Upload(PathBuf),
 }
@@ -43,7 +41,6 @@ pub struct MockServerBuilder {
     create_bundle_handler: MethodRouter<SharedMockServerState>,
     get_quarantining_config_handler: MethodRouter<SharedMockServerState>,
     s3_upload_handler: MethodRouter<SharedMockServerState>,
-    update_bundle_handler: MethodRouter<SharedMockServerState>,
 }
 
 impl MockServerBuilder {
@@ -53,7 +50,6 @@ impl MockServerBuilder {
             create_bundle_handler: post(create_bundle_handler),
             get_quarantining_config_handler: post(get_quarantining_config_handler),
             s3_upload_handler: put(s3_upload_handler),
-            update_bundle_handler: patch(update_bundle_handler),
         }
     }
 
@@ -89,14 +85,6 @@ impl MockServerBuilder {
         self.s3_upload_handler = put(handler);
     }
 
-    pub fn set_update_bundle_handler<H, T>(&mut self, handler: H)
-    where
-        H: Handler<T, SharedMockServerState>,
-        T: 'static,
-    {
-        self.update_bundle_handler = patch(handler);
-    }
-
     /// Mock server spawned in a new thread.
     pub async fn spawn_mock_server(self) -> SharedMockServerState {
         let listener = TcpListener::bind("localhost:0").await.unwrap();
@@ -115,8 +103,7 @@ impl MockServerBuilder {
                 "/v1/metrics/getQuarantineConfig",
                 self.get_quarantining_config_handler,
             )
-            .route("/s3upload", self.s3_upload_handler)
-            .route("/v1/metrics/updateBundleUpload", self.update_bundle_handler);
+            .route("/s3upload", self.s3_upload_handler);
 
         app = app.route(
             "/*rest",
@@ -180,21 +167,6 @@ pub async fn create_bundle_handler(
         url: format!("{host}/s3upload"),
         key: String::from("unused"),
     })
-}
-
-#[axum::debug_handler]
-pub async fn update_bundle_handler(
-    State(state): State<SharedMockServerState>,
-    Json(update_bundle_upload_request): Json<UpdateBundleUploadRequest>,
-) -> Json<UpdateBundleUploadResponse> {
-    state
-        .requests
-        .lock()
-        .unwrap()
-        .push(RequestPayload::UpdateBundleUpload(
-            update_bundle_upload_request,
-        ));
-    Json(UpdateBundleUploadResponse {})
 }
 
 #[axum::debug_handler]
