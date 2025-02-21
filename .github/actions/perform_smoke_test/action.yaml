@@ -22,7 +22,7 @@ runs:
         ls -l ${{ inputs.cli-binary-location }}
 
     - name: Run tests on staging
-      if: inputs.environment-type == "staging" || inputs.environment-type == "both"
+      if: inputs.environment-type == 'staging' || inputs.environment-type == 'both'
       env:
         TRUNK_PUBLIC_API_ADDRESS: https://api.trunk-staging.io
         FAIL_TEST: true
@@ -35,7 +35,7 @@ runs:
         cargo nextest run -p smoke-test --profile ci
 
     - name: Run tests on production
-      if: inputs.environment-type == "production" || inputs.environment-type == "both"
+      if: inputs.environment-type == 'production' || inputs.environment-type == 'both'
       env:
         TRUNK_PUBLIC_API_ADDRESS: https://api.trunk.io
         FAIL_TEST: true
@@ -48,7 +48,7 @@ runs:
         cargo nextest run -p smoke-test --profile ci
 
     - name: Upload to staging
-      if: inputs.environment-type == "staging" || inputs.environment-type == "both"
+      if: inputs.environment-type == 'staging' || inputs.environment-type == 'both'
       env:
         TRUNK_PUBLIC_API_ADDRESS: https://api.trunk-staging.io
       shell: bash
@@ -59,7 +59,7 @@ runs:
         --token ${{ inputs.staging-api-token }}
 
     - name: Upload to production
-      if: inputs.environment-type == "production" || inputs.environment-type == "both"
+      if: inputs.environment-type == 'production' || inputs.environment-type == 'both'
       env:
         TRUNK_PUBLIC_API_ADDRESS: https://api.trunk.io
       shell: bash
