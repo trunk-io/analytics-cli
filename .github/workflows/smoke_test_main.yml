@@ -5,6 +5,10 @@ on:
   workflow_dispatch: {}
   schedule:
     - cron: 0 0/2 * * *
+  repository_dispatch:
+    types:
+      - staging-release
+      - production-release
 jobs:
   build_cli:
     name: Smoke test ${{ matrix.platform.name }} cli from release
