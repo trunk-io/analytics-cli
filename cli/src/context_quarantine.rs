@@ -229,8 +229,9 @@ pub async fn gather_quarantine_context(
         } else {
             ""
         };
+        // The hazard emoji consumes the first character after it, which is why it needs two spaces after it.
         tracing::info!(
-            "⚠️ {} test failure{} quarantined:",
+            "⚠️  {} test failure{} quarantined:",
             quarantined_failures.len(),
             plural
         );
