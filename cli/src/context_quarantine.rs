@@ -281,12 +281,12 @@ fn log_failure(
     failure: &Test,
     request: &api::message::GetQuarantineConfigRequest,
     api_client: &ApiClient,
-) -> () {
+) {
     let url = match url_for_test_case(
         &api_client.host,
         &request.org_url_slug,
         &request.repo,
-        &failure,
+        failure,
     ) {
         Ok(url) => format!("Learn more > {}", url),
         Err(_) => String::from(""),
