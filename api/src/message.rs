@@ -38,18 +38,6 @@ pub struct GetQuarantineConfigRequest {
 }
 
 #[derive(Debug, Serialize, Clone, Deserialize, PartialEq, Eq)]
-pub struct CreateRepoRequest {
-    pub repo: RepoUrlParts,
-    #[serde(rename = "orgUrlSlug")]
-    pub org_url_slug: String,
-    #[serde(rename = "remoteUrls")]
-    pub remote_urls: Vec<String>,
-}
-
-#[derive(Debug, Serialize, Clone, Deserialize, PartialEq, Eq)]
-pub struct CreateRepoResponse {}
-
-#[derive(Debug, Serialize, Clone, Deserialize, PartialEq, Eq)]
 pub struct CreateBundleUploadIntentRequest {
     pub repo: RepoUrlParts,
     #[serde(rename = "orgUrlSlug")]

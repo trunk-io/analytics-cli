@@ -6,8 +6,8 @@ use std::{
 };
 
 use api::message::{
-    CreateBundleUploadRequest, CreateBundleUploadResponse, CreateRepoRequest, CreateRepoResponse,
-    GetQuarantineConfigRequest, GetQuarantineConfigResponse,
+    CreateBundleUploadRequest, CreateBundleUploadResponse, GetQuarantineConfigRequest,
+    GetQuarantineConfigResponse,
 };
 use axum::{
     body::Bytes,
@@ -23,7 +23,6 @@ use tokio::{net::TcpListener, spawn};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RequestPayload {
-    CreateRepo(CreateRepoRequest),
     CreateBundleUpload(CreateBundleUploadRequest),
     GetQuarantineBulkTestStatus(GetQuarantineConfigRequest),
     S3Upload(PathBuf),
@@ -37,7 +36,6 @@ pub struct MockServerState {
 
 #[derive(Debug, Clone)]
 pub struct MockServerBuilder {
-    repo_create_handler: MethodRouter<SharedMockServerState>,
     create_bundle_handler: MethodRouter<SharedMockServerState>,
     get_quarantining_config_handler: MethodRouter<SharedMockServerState>,
     s3_upload_handler: MethodRouter<SharedMockServerState>,
@@ -46,19 +44,10 @@ pub struct MockServerBuilder {
 impl MockServerBuilder {
     pub fn new() -> Self {
         Self {
-            repo_create_handler: post(repo_create_handler),
             create_bundle_handler: post(create_bundle_handler),
             get_quarantining_config_handler: post(get_quarantining_config_handler),
             s3_upload_handler: put(s3_upload_handler),
         }
-    }
-
-    pub fn set_repo_create_handler<H, T>(&mut self, handler: H)
-    where
-        H: Handler<T, SharedMockServerState>,
-        T: 'static,
-    {
-        self.repo_create_handler = post(handler);
     }
 
     pub fn set_create_bundle_handler<H, T>(&mut self, handler: H)
@@ -97,7 +86,6 @@ impl MockServerBuilder {
         });
 
         let mut app = Router::new()
-            .route("/v1/repo/create", self.repo_create_handler)
             .route("/v1/metrics/createBundleUpload", self.create_bundle_handler)
             .route(
                 "/v1/metrics/getQuarantineConfig",
@@ -134,19 +122,6 @@ impl Default for MockServerBuilder {
 }
 
 pub type SharedMockServerState = Arc<MockServerState>;
-
-#[axum::debug_handler]
-async fn repo_create_handler(
-    State(state): State<SharedMockServerState>,
-    Json(create_repo_request): Json<CreateRepoRequest>,
-) -> Json<CreateRepoResponse> {
-    state
-        .requests
-        .lock()
-        .unwrap()
-        .push(RequestPayload::CreateRepo(create_repo_request));
-    Json(CreateRepoResponse {})
-}
 
 #[axum::debug_handler]
 pub async fn create_bundle_handler(
