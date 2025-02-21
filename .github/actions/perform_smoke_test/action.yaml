@@ -9,6 +9,8 @@ inputs:
     description: Api token for the trunk-staging-org org on trunk-staging (should be available in secrets)
   production-api-token:
     description: Api token for the trunk org on trunk (should be available in secrets)
+  environment-type:
+    description: staging if you only want to run for staging, production if you only want production, both for both
 
 runs:
   using: composite
@@ -20,6 +22,7 @@ runs:
         ls -l ${{ inputs.cli-binary-location }}
 
     - name: Run tests on staging
+      if: inputs.environment-type == 'staging' || inputs.environment-type == 'both'
       env:
         TRUNK_PUBLIC_API_ADDRESS: https://api.trunk-staging.io
         FAIL_TEST: true
@@ -32,6 +35,7 @@ runs:
         cargo nextest run -p smoke-test --profile ci
 
     - name: Run tests on production
+      if: inputs.environment-type == 'production' || inputs.environment-type == 'both'
       env:
         TRUNK_PUBLIC_API_ADDRESS: https://api.trunk.io
         FAIL_TEST: true
@@ -44,6 +48,7 @@ runs:
         cargo nextest run -p smoke-test --profile ci
 
     - name: Upload to staging
+      if: inputs.environment-type == 'staging' || inputs.environment-type == 'both'
       env:
         TRUNK_PUBLIC_API_ADDRESS: https://api.trunk-staging.io
       shell: bash
@@ -54,6 +59,7 @@ runs:
         --token ${{ inputs.staging-api-token }}
 
     - name: Upload to production
+      if: inputs.environment-type == 'production' || inputs.environment-type == 'both'
       env:
         TRUNK_PUBLIC_API_ADDRESS: https://api.trunk.io
       shell: bash
