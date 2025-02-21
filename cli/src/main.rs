@@ -149,14 +149,14 @@ fn setup_logger(log_level_filter: LevelFilter) -> anyhow::Result<()> {
 // Uses a raw string to avoid needing to escape quotes in the title card. This is mostly just so you can see
 // what it looks like in code rather than needing to print.
 const TITLE_CARD: &str = r#"
-88888888888  88              88                        888888888888                                        
-88           88              88                             88                           ,d                
-88           88              88                             88                           88                
-88aaaaa      88  ,adPPYYba,  88   ,d8  8b       d8          88   ,adPPYba,  ,adPPYba,  MM88MMM  ,adPPYba,  
-88"""""      88  ""     `Y8  88 ,a8"   `8b     d8'          88  a8P_____88  I8[    ""    88     I8[    ""  
-88           88  ,adPPPPP88  8888[      `8b   d8'           88  8PP"""""""   `"Y8ba,     88      `"Y8ba,   
-88           88  88,    ,88  88`"Yba,    `8b,d8'            88  "8b,   ,aa  aa    ]8I    88,    aa    ]8I  
-88           88  `"8bbdP"Y8  88   `Y8a     Y88'             88   `"Ybbd8"'  `"YbbdP"'    "Y888  `"YbbdP"'  
-                                           d8'                                                             
-                                          d8'                                                              
+%%%%%%%%%%%  %%              %%                        %%%%%%%%%%%%                                        
+%%           %%              %%                             %%                           ,d                
+%%           %%              %%                             %%                           %%                
+%%aaaaa      %%  ,adPPYYba,  %%   ,d%  %b       d%          %%   ,adPPYba,  ,adPPYba,  MM%%MMM  ,adPPYba,  
+%%"""""      %%  ""     `Y%  %% ,a%"   `%b     d%'          %%  a%P_____%%  I%[    ""    %%     I%[    ""  
+%%           %%  ,adPPPPP%%  %%%%[      `%b   d%'           %%  %PP"""""""   `"Y%ba,     %%      `"Y%ba,   
+%%           %%  %%,    ,%%  %%`"Yba,    `%b,d%'            %%  "%b,   ,aa  aa    ]%I    %%,    aa    ]%I  
+%%           %%  `"%bbdP"Y%  %%   `Y%a     Y%%'             %%   `"Ybbd%"'  `"YbbdP"'    "Y%%%  `"YbbdP"'  
+                                           d%'                                                             
+                                          d%'                                                              
 "#;
