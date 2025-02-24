@@ -18,7 +18,7 @@ pub struct UploadArgs {
     no_upload: Option<bool>,
     team: Option<String>,
     codeowners_path: Option<String>,
-    use_quarantining: Option<bool>,
+    disable_quarantining: Option<bool>,
     allow_empty_test_results: Option<bool>,
 }
 
@@ -35,7 +35,7 @@ impl UploadArgs {
             no_upload: None,
             team: None,
             codeowners_path: None,
-            use_quarantining: None,
+            disable_quarantining: None,
             allow_empty_test_results: None,
         }
     }
@@ -122,13 +122,13 @@ impl UploadArgs {
                 }),
         )
         .chain(
-            self.use_quarantining
+            self.disable_quarantining
                 .into_iter()
-                .flat_map(|use_quarantining: bool| {
-                    if use_quarantining {
-                        vec![String::from("--use-quarantining")]
+                .flat_map(|disable_quarantining: bool| {
+                    if disable_quarantining {
+                        vec![String::from("--disable-quarantining")]
                     } else {
-                        vec![String::from("--use-quarantining=false")]
+                        vec![String::from("--disable-quarantining=false")]
                     }
                 }),
         )
@@ -224,15 +224,17 @@ impl CommandType {
         }
     }
 
-    pub fn use_quarantining(&mut self, new_flag: bool) -> &mut Self {
+    pub fn disable_quarantining(&mut self, new_flag: bool) -> &mut Self {
         match self {
             CommandType::Upload { upload_args, .. } => {
-                upload_args.use_quarantining = Some(new_flag)
+                upload_args.disable_quarantining = Some(new_flag)
             }
             CommandType::Quarantine { upload_args, .. } => {
-                upload_args.use_quarantining = Some(new_flag)
+                upload_args.disable_quarantining = Some(new_flag)
             }
-            CommandType::Test { upload_args, .. } => upload_args.use_quarantining = Some(new_flag),
+            CommandType::Test { upload_args, .. } => {
+                upload_args.disable_quarantining = Some(new_flag)
+            }
             CommandType::Validate { .. } => (),
         }
         self
@@ -342,8 +344,8 @@ impl<'b> CommandBuilder<'b> {
         self
     }
 
-    pub fn use_quarantining(&mut self, new_flag: bool) -> &mut Self {
-        self.command_type.use_quarantining(new_flag);
+    pub fn disable_quarantining(&mut self, new_flag: bool) -> &mut Self {
+        self.command_type.disable_quarantining(new_flag);
         self
     }
 

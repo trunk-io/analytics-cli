@@ -234,7 +234,7 @@ fn coalesce_junit_path_wrappers(
 
 pub async fn gather_exit_code_and_quarantined_tests_context(
     meta: &mut BundleMeta,
-    use_quarantining: bool,
+    disable_quarantining: bool,
     api_client: &ApiClient,
     file_set_builder: &FileSetBuilder,
     test_run_result: &Option<TestRunResult>,
@@ -252,7 +252,7 @@ pub async fn gather_exit_code_and_quarantined_tests_context(
                 quarantine_results: quarantined_tests,
                 ..
             },
-    } = if !use_quarantining {
+    } = if disable_quarantining {
         // use the exit code of the test run result if exists
         if let Some(test_run_result) = test_run_result {
             QuarantineContext {

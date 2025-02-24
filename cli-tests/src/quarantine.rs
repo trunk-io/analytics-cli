@@ -128,7 +128,7 @@ async fn quarantines_tests_regardless_of_upload() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn do_no_quarantines_tests_when_use_quarantined_disabled() {
+async fn do_not_quarantines_tests_when_quarantine_disabled_set() {
     let temp_dir = tempdir().unwrap();
     generate_mock_git_repo(&temp_dir);
     generate_mock_valid_junit_xmls(&temp_dir);
@@ -191,7 +191,7 @@ async fn do_no_quarantines_tests_when_use_quarantined_disabled() {
     let state = mock_server_builder.spawn_mock_server().await;
 
     let mut command = CommandBuilder::quarantine(temp_dir.path(), state.host.clone())
-        .use_quarantining(false)
+        .disable_quarantining(false)
         .command();
 
     let upload_failure = predicate::str::contains("Error uploading test results");
