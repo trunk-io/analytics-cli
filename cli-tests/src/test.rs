@@ -34,7 +34,7 @@ async fn test_command_succeeds_with_successful_upload() {
             String::from("exit 0"),
         ],
     )
-    .disable_quarantining(true)
+    .use_quarantining(false)
     .command()
     .assert()
     .success()
@@ -59,7 +59,7 @@ async fn test_command_fails_with_successful_upload() {
             String::from("exit 1"),
         ],
     )
-    .disable_quarantining(true)
+    .use_quarantining(false)
     .command()
     .assert()
     .failure()
@@ -133,7 +133,7 @@ async fn test_command_succeeds_with_upload_not_connected() {
             String::from("exit 0"),
         ],
     )
-    .disable_quarantining(true)
+    .use_quarantining(false)
     .command()
     .assert()
     .success()
@@ -156,7 +156,7 @@ async fn test_command_fails_with_upload_not_connected() {
             String::from("exit 1"),
         ],
     )
-    .disable_quarantining(true)
+    .use_quarantining(false)
     .command()
     .assert()
     .failure()

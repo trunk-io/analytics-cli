@@ -18,6 +18,7 @@ pub struct UploadArgs {
     no_upload: Option<bool>,
     team: Option<String>,
     codeowners_path: Option<String>,
+    use_quarantining: Option<bool>,
     disable_quarantining: Option<bool>,
     allow_empty_test_results: Option<bool>,
 }
@@ -35,6 +36,7 @@ impl UploadArgs {
             no_upload: None,
             team: None,
             codeowners_path: None,
+            use_quarantining: None,
             disable_quarantining: None,
             allow_empty_test_results: None,
         }
@@ -119,6 +121,17 @@ impl UploadArgs {
                 .into_iter()
                 .flat_map(|codeowners_path: String| {
                     vec![String::from("--codeowners-path"), codeowners_path]
+                }),
+        )
+        .chain(
+            self.use_quarantining
+                .into_iter()
+                .flat_map(|use_quarantining: bool| {
+                    if use_quarantining {
+                        vec![String::from("--use-quarantining")]
+                    } else {
+                        vec![String::from("--use-quarantining=false")]
+                    }
                 }),
         )
         .chain(
@@ -222,6 +235,20 @@ impl CommandType {
                 empty
             }
         }
+    }
+
+    pub fn use_quarantining(&mut self, new_flag: bool) -> &mut Self {
+        match self {
+            CommandType::Upload { upload_args, .. } => {
+                upload_args.use_quarantining = Some(new_flag)
+            }
+            CommandType::Quarantine { upload_args, .. } => {
+                upload_args.use_quarantining = Some(new_flag)
+            }
+            CommandType::Test { upload_args, .. } => upload_args.use_quarantining = Some(new_flag),
+            CommandType::Validate { .. } => (),
+        }
+        self
     }
 
     pub fn disable_quarantining(&mut self, new_flag: bool) -> &mut Self {
@@ -341,6 +368,11 @@ impl<'b> CommandBuilder<'b> {
 
     pub fn bazel_bep_path(&mut self, new_paths: &str) -> &mut Self {
         self.paths_state = Some(PathsState::BazelBepPath(String::from(new_paths)));
+        self
+    }
+
+    pub fn use_quarantining(&mut self, new_flag: bool) -> &mut Self {
+        self.command_type.use_quarantining(new_flag);
         self
     }
 
