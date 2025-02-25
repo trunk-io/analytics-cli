@@ -179,16 +179,16 @@ mod tests {
 
     use lazy_static::lazy_static;
     use reqwest::Response;
+    use serde::{Deserialize, Serialize};
     use tokio::time;
 
     use super::{
         CallApi, CHECK_PROGRESS_INTERVAL_SECS, REPORT_SLOW_PROGRESS_TIMEOUT_SECS,
         RETRY_COUNT_DEFAULT,
     };
-    use crate::{
-        client::{status_code_help, CheckNotFound, CheckUnauthorized},
-        message::CreateRepoResponse,
-    };
+    use crate::client::{status_code_help, CheckNotFound, CheckUnauthorized};
+    #[derive(Debug, Serialize, Clone, Deserialize, PartialEq, Eq)]
+    struct EmptyResponse {}
 
     #[tokio::test(start_paused = true)]
     async fn logs_progress_and_reports_slow_progress() {
@@ -318,7 +318,7 @@ mod tests {
                 time::sleep(Duration::from_secs(CHECK_PROGRESS_INTERVAL_SECS - 1)).await;
                 retry_count.fetch_add(1, Ordering::Relaxed);
                 Response::from(http::Response::new("{'invalid': 'json'"))
-                    .json::<CreateRepoResponse>()
+                    .json::<EmptyResponse>()
                     .await
             },
             log_progress_message: |_, _| String::new(),

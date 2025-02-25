@@ -292,6 +292,7 @@ pub async fn gather_upload_id_context(
             repo: meta.base_props.repo.repo.clone(),
             org_url_slug: meta.base_props.org.clone(),
             client_version: format!("trunk-analytics-cli {}", meta.base_props.cli_version),
+            remote_urls: vec![meta.base_props.repo.repo_url.clone()],
         })
         .await?;
     meta.base_props.bundle_upload_id.clone_from(&upload.id);

@@ -69,42 +69,6 @@ impl ApiClient {
         })
     }
 
-    pub async fn create_repo(
-        &self,
-        request: &message::CreateRepoRequest,
-    ) -> anyhow::Result<message::CreateRepoResponse> {
-        CallApi {
-            action: || async {
-                let response = self
-                    .trunk_client
-                    .post(format!("{}{}/repo/create", self.host, self.version_path_prefix))
-                    .json(&request)
-                    .send()
-                    .await?;
-
-                let response = status_code_help(
-                    response,
-                    CheckUnauthorized::Check,
-                    CheckNotFound::DoNotCheck,
-                    |_| "Failed to create repo.".to_string(),
-                )?;
-
-                response
-                    .json::<message::CreateRepoResponse>()
-                    .await
-                    .context("Failed to get response body as json.")
-            },
-            log_progress_message: |time_elapsed, _| {
-                format!("Communicating with Trunk services is taking longer than expected. It has taken {} seconds so far.", time_elapsed.as_secs())
-            },
-            report_slow_progress_message: |time_elapsed| {
-                format!("Creating a Trunk repo is taking longer than {} seconds", time_elapsed.as_secs())
-            },
-        }
-        .call_api()
-        .await
-    }
-
     pub async fn create_bundle_upload(
         &self,
         request: &message::CreateBundleUploadRequest,
