@@ -204,14 +204,6 @@ async fn upload_bundle(
     no_upload: bool,
     exit_code: i32,
 ) -> anyhow::Result<()> {
-    api_client
-        .create_repo(&api::message::CreateRepoRequest {
-            repo: meta.base_props.repo.repo.clone(),
-            org_url_slug: meta.base_props.org.clone(),
-            remote_urls: vec![meta.base_props.repo.repo_url.clone()],
-        })
-        .await?;
-
     let upload = gather_upload_id_context(&mut meta, api_client).await?;
 
     let (

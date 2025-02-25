@@ -2,8 +2,8 @@ use std::sync::{Arc, Mutex};
 use std::{fs, io::BufReader};
 
 use api::message::{
-    CreateBundleUploadRequest, CreateBundleUploadResponse, CreateRepoRequest,
-    GetQuarantineConfigRequest, GetQuarantineConfigResponse,
+    CreateBundleUploadRequest, CreateBundleUploadResponse, GetQuarantineConfigRequest,
+    GetQuarantineConfigResponse,
 };
 use assert_matches::assert_matches;
 use axum::{extract::State, Json};
@@ -45,7 +45,7 @@ async fn upload_bundle() {
         .failure();
 
     let requests = state.requests.lock().unwrap().clone();
-    assert_eq!(requests.len(), 4);
+    assert_eq!(requests.len(), 3);
     let mut requests_iter = requests.into_iter();
 
     let quarantine_request = requests_iter.next().unwrap();
@@ -67,21 +67,6 @@ async fn upload_bundle() {
             assert!(test.id.len() == 36, "Test ID should be a valid UUID");
         }
     });
-
-    assert_eq!(
-        requests_iter.next().unwrap(),
-        RequestPayload::CreateRepo(CreateRepoRequest {
-            repo: Repo {
-                host: String::from("github.com"),
-                owner: String::from("trunk-io"),
-                name: String::from("analytics-cli"),
-            },
-            org_url_slug: String::from("test-org"),
-            remote_urls: Vec::from(&[String::from(
-                "https://github.com/trunk-io/analytics-cli.git"
-            )]),
-        })
-    );
 
     let upload_request = assert_matches!(requests_iter.next().unwrap(), RequestPayload::CreateBundleUpload(ur) => ur);
     assert_eq!(
@@ -204,9 +189,9 @@ async fn upload_bundle_using_bep() {
         .failure();
 
     let requests = state.requests.lock().unwrap().clone();
-    assert_eq!(requests.len(), 4);
+    assert_eq!(requests.len(), 3);
 
-    let tar_extract_directory = assert_matches!(&requests[3], RequestPayload::S3Upload(d) => d);
+    let tar_extract_directory = assert_matches!(&requests[2], RequestPayload::S3Upload(d) => d);
 
     let junit_file = fs::File::open(tar_extract_directory.join("junit/0")).unwrap();
     let junit_reader = BufReader::new(junit_file);
@@ -260,7 +245,7 @@ async fn upload_bundle_success_status_code() {
 
     // No quarantine request
     let requests = state.requests.lock().unwrap().clone();
-    assert_eq!(requests.len(), 3);
+    assert_eq!(requests.len(), 2);
 
     // HINT: View CLI output with `cargo test -- --nocapture`
     println!("{assert}");
@@ -299,7 +284,7 @@ async fn upload_bundle_success_timestamp_status_code() {
 
     // No quarantine request
     let requests = state.requests.lock().unwrap().clone();
-    assert_eq!(requests.len(), 3);
+    assert_eq!(requests.len(), 2);
 
     // HINT: View CLI output with `cargo test -- --nocapture`
     println!("{assert}");

@@ -9,6 +9,8 @@ pub struct CreateBundleUploadRequest {
     pub org_url_slug: String,
     #[serde(rename = "clientVersion")]
     pub client_version: String,
+    #[serde(rename = "remoteUrls")]
+    pub remote_urls: Vec<String>,
 }
 
 #[derive(Debug, Serialize, Clone, Deserialize)]
@@ -36,18 +38,6 @@ pub struct GetQuarantineConfigRequest {
     #[serde(rename = "testIdentifiers")]
     pub test_identifiers: Vec<Test>,
 }
-
-#[derive(Debug, Serialize, Clone, Deserialize, PartialEq, Eq)]
-pub struct CreateRepoRequest {
-    pub repo: RepoUrlParts,
-    #[serde(rename = "orgUrlSlug")]
-    pub org_url_slug: String,
-    #[serde(rename = "remoteUrls")]
-    pub remote_urls: Vec<String>,
-}
-
-#[derive(Debug, Serialize, Clone, Deserialize, PartialEq, Eq)]
-pub struct CreateRepoResponse {}
 
 #[derive(Debug, Serialize, Clone, Deserialize, PartialEq, Eq)]
 pub struct CreateBundleUploadIntentRequest {
