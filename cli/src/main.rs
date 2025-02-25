@@ -1,4 +1,5 @@
 use std::env;
+use std::ffi::OsString;
 
 use clap::{Parser, Subcommand};
 use clap_verbosity_flag::{log::LevelFilter, InfoLevel, Verbosity};
@@ -64,7 +65,7 @@ fn main() -> anyhow::Result<()> {
         .enable_all()
         .build()?
         .block_on(async {
-            let cli = Cli::parse();
+            let cli = Cli::parse_from(build_command_line());
             let log_level_filter = cli.verbose.log_level_filter();
             setup_logger(log_level_filter)?;
             tracing::info!("{}", TITLE_CARD);
@@ -88,6 +89,47 @@ fn main() -> anyhow::Result<()> {
                 },
             }
         })
+}
+
+fn build_command_line() -> Vec<OsString> {
+    let mut base_command: Vec<OsString> = std::env::args_os().collect();
+    let insertion_index = if base_command.len() > 2 {
+        2
+    } else {
+        base_command.len()
+    };
+    let configs = configs_for_repo();
+    configs
+        .into_iter()
+        .rev()
+        .for_each(|config| base_command.insert(insertion_index, config));
+    base_command
+}
+
+fn configs_for_repo() -> Vec<OsString> {
+    home::home_dir()
+        .into_iter()
+        .map(|mut home_dir| {
+            home_dir.push(".trunk-analytics-cli");
+            home_dir.push("config.toml");
+            home_dir
+        })
+        .map(move |home_dir| home_dir.into_boxed_path())
+        .flat_map(|config_path| std::fs::read_to_string(config_path).into_iter())
+        .flat_map(|config_data| config_data.parse::<toml::Table>().into_iter())
+        .flat_map(|config_table| {
+            let config_vec: Vec<OsString> = config_table
+                .into_iter()
+                .flat_map(|(key, value)| match value {
+                    toml::Value::String(val) => {
+                        vec![Into::<OsString>::into(format!("--{}={}", key, val))]
+                    }
+                    _ => vec![],
+                })
+                .collect();
+            config_vec
+        })
+        .collect()
 }
 
 async fn run(cli: Cli) -> anyhow::Result<i32> {
