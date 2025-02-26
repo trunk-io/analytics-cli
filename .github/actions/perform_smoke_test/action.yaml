@@ -19,6 +19,7 @@ runs:
       shell: bash
       run: |
         chmod +x ${{ inputs.cli-binary-location }}
+        openssl dgst -sha256 ${{ inputs.cli-binary-location }} | awk '{print $NF}'
         ls -l ${{ inputs.cli-binary-location }}
 
     - name: Run tests on staging
