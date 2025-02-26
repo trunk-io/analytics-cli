@@ -151,6 +151,7 @@ impl MutTestReport {
             vec![resolved_path_str.into()],
             repo_root,
             false,
+            false,
         );
         let debug_props = BundleMetaDebugProps {
             command_line: self.0.borrow().command.clone(),
