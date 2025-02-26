@@ -75,9 +75,9 @@ pub fn xcresulttool_get_object_id<T: AsRef<OsStr>, U: AsRef<OsStr>>(
 const LEGACY_FLAG_MIN_VERSION: usize = 22608;
 fn xcresulttool_min_version_check() -> anyhow::Result<()> {
     let version = xcresulttool_version()?;
-    if version < LEGACY_FLAG_MIN_VERSION {
+    if version <= LEGACY_FLAG_MIN_VERSION {
         return Err(anyhow::anyhow!(
-            "xcresulttool version {} is not supported, please upgrade to version {} or higher",
+            "xcresulttool version {} is not supported, please upgrade to a version higher than {}",
             version,
             LEGACY_FLAG_MIN_VERSION
         ));
