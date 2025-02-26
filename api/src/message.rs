@@ -56,3 +56,8 @@ pub struct CreateBundleUploadIntentResponse {
     #[serde(rename = "clientVersion")]
     pub client_version: String,
 }
+
+#[derive(Debug, Serialize, Clone, Deserialize, PartialEq)]
+pub struct TelemetryUploadMetricsRequest {
+    pub upload_metrics: proto::upload_metrics::trunk::UploadMetrics,
+}

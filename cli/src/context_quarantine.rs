@@ -284,7 +284,7 @@ fn log_failure(
     api_client: &ApiClient,
 ) {
     let url = match url_for_test_case(
-        &api_client.host,
+        &api_client.api_host,
         &request.org_url_slug,
         &request.repo,
         failure,
