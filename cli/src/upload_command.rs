@@ -81,15 +81,27 @@ pub struct UploadArgs {
     pub codeowners_path: Option<String>,
     #[arg(
         long,
-        help = "Run commands with the quarantining step.",
+        help = "Run commands with the quarantining step. Deprecated, prefer disable-quarantining, which takes priority over this flag, to control quarantining.",
         action = ArgAction::Set,
         required = false,
         require_equals = true,
         num_args = 0..=1,
         default_value = "true",
         default_missing_value = "true",
+        hide = true
     )]
     pub use_quarantining: bool,
+    #[arg(
+        long,
+        help = "Does not apply quarantining if set to true",
+        action = ArgAction::Set,
+        required = false,
+        require_equals = true,
+        num_args = 0..=1,
+        default_value = "false",
+        default_missing_value = "true",
+    )]
+    pub disable_quarantining: bool,
     #[arg(
         long,
         alias = "allow-missing-junit-files",
@@ -111,6 +123,7 @@ impl UploadArgs {
         junit_paths: Vec<String>,
         repo_root: Option<String>,
         use_quarantining: bool,
+        disable_quarantining: bool,
     ) -> Self {
         Self {
             junit_paths,
@@ -119,6 +132,7 @@ impl UploadArgs {
             repo_root,
             allow_empty_test_results: true,
             use_quarantining,
+            disable_quarantining,
             ..Default::default()
         }
     }
@@ -175,7 +189,7 @@ pub async fn run_upload(
 
     let exit_code = gather_exit_code_and_quarantined_tests_context(
         &mut meta,
-        upload_args.use_quarantining,
+        upload_args.disable_quarantining || !upload_args.use_quarantining,
         &api_client,
         &file_set_builder,
         &test_run_result,

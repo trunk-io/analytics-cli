@@ -19,6 +19,7 @@ pub struct UploadArgs {
     team: Option<String>,
     codeowners_path: Option<String>,
     use_quarantining: Option<bool>,
+    disable_quarantining: Option<bool>,
     allow_empty_test_results: Option<bool>,
 }
 
@@ -36,6 +37,7 @@ impl UploadArgs {
             team: None,
             codeowners_path: None,
             use_quarantining: None,
+            disable_quarantining: None,
             allow_empty_test_results: None,
         }
     }
@@ -129,6 +131,17 @@ impl UploadArgs {
                         vec![String::from("--use-quarantining")]
                     } else {
                         vec![String::from("--use-quarantining=false")]
+                    }
+                }),
+        )
+        .chain(
+            self.disable_quarantining
+                .into_iter()
+                .flat_map(|disable_quarantining: bool| {
+                    if disable_quarantining {
+                        vec![String::from("--disable-quarantining")]
+                    } else {
+                        vec![String::from("--disable-quarantining=false")]
                     }
                 }),
         )
@@ -233,6 +246,22 @@ impl CommandType {
                 upload_args.use_quarantining = Some(new_flag)
             }
             CommandType::Test { upload_args, .. } => upload_args.use_quarantining = Some(new_flag),
+            CommandType::Validate { .. } => (),
+        }
+        self
+    }
+
+    pub fn disable_quarantining(&mut self, new_flag: bool) -> &mut Self {
+        match self {
+            CommandType::Upload { upload_args, .. } => {
+                upload_args.disable_quarantining = Some(new_flag)
+            }
+            CommandType::Quarantine { upload_args, .. } => {
+                upload_args.disable_quarantining = Some(new_flag)
+            }
+            CommandType::Test { upload_args, .. } => {
+                upload_args.disable_quarantining = Some(new_flag)
+            }
             CommandType::Validate { .. } => (),
         }
         self
@@ -344,6 +373,11 @@ impl<'b> CommandBuilder<'b> {
 
     pub fn use_quarantining(&mut self, new_flag: bool) -> &mut Self {
         self.command_type.use_quarantining(new_flag);
+        self
+    }
+
+    pub fn disable_quarantining(&mut self, new_flag: bool) -> &mut Self {
+        self.command_type.disable_quarantining(new_flag);
         self
     }
 
