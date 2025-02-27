@@ -28,3 +28,6 @@ trunk-analytics-cli = { path = "../cli", features = ["force-sentry-env-dev"] }
 [features]
 default = []
 wasm = []
+
+[dependencies]
+anyhow = "1.0.96"

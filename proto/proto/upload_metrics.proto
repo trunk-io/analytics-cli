@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package trunk.oss.flakytests_cli.v1;
+
+import "common.proto";
+import "google/protobuf/timestamp.proto";
+
+message UploadMetrics {
+  Semver client_version = 1;
+  Repo repo = 2;
+  google.protobuf.Timestamp cli_started_at = 3;
+  google.protobuf.Timestamp upload_started_at = 4;
+  google.protobuf.Timestamp upload_finished_at = 5;
+  bool failed = 6;
+}

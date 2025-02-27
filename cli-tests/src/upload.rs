@@ -45,7 +45,7 @@ async fn upload_bundle() {
         .failure();
 
     let requests = state.requests.lock().unwrap().clone();
-    assert_eq!(requests.len(), 3);
+    assert_eq!(requests.len(), 4);
     let mut requests_iter = requests.into_iter();
 
     let quarantine_request = requests_iter.next().unwrap();
@@ -189,7 +189,7 @@ async fn upload_bundle_using_bep() {
         .failure();
 
     let requests = state.requests.lock().unwrap().clone();
-    assert_eq!(requests.len(), 3);
+    assert_eq!(requests.len(), 4);
 
     let tar_extract_directory = assert_matches!(&requests[2], RequestPayload::S3Upload(d) => d);
 
@@ -245,7 +245,7 @@ async fn upload_bundle_success_status_code() {
 
     // No quarantine request
     let requests = state.requests.lock().unwrap().clone();
-    assert_eq!(requests.len(), 2);
+    assert_eq!(requests.len(), 3);
 
     // HINT: View CLI output with `cargo test -- --nocapture`
     println!("{assert}");
@@ -284,7 +284,7 @@ async fn upload_bundle_success_timestamp_status_code() {
 
     // No quarantine request
     let requests = state.requests.lock().unwrap().clone();
-    assert_eq!(requests.len(), 2);
+    assert_eq!(requests.len(), 3);
 
     // HINT: View CLI output with `cargo test -- --nocapture`
     println!("{assert}");
@@ -414,6 +414,8 @@ async fn upload_bundle_invalid_repo_root() {
         .stdout(predicate::str::contains(
             "Error: Failed to open git repository at \"../\"",
         ));
+    let requests = state.requests.lock().unwrap().clone();
+    assert_eq!(requests.len(), 0);
 
     // HINT: View CLI output with `cargo test -- --nocapture`
     println!("{assert}");
@@ -437,6 +439,8 @@ async fn upload_bundle_invalid_repo_root_explicit() {
         .stdout(predicate::str::contains(
             "Error: Failed to open git repository at",
         ));
+    let requests = state.requests.lock().unwrap().clone();
+    assert_eq!(requests.len(), 0);
 
     // HINT: View CLI output with `cargo test -- --nocapture`
     println!("{assert}");
@@ -600,4 +604,96 @@ async fn quarantines_tests_regardless_of_upload() {
     *QUARANTINE_CONFIG_RESPONSE.lock().unwrap() = QuarantineConfigResponse::Disabled;
     *CREATE_BUNDLE_RESPONSE.lock().unwrap() = CreateBundleResponse::Success;
     command.assert().success();
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn telemetry_upload_metrics_on_upload_failure() {
+    let temp_dir = tempdir().unwrap();
+    generate_mock_git_repo(&temp_dir);
+    generate_mock_valid_junit_xmls(&temp_dir);
+
+    let mut mock_server_builder = MockServerBuilder::new();
+    mock_server_builder.set_create_bundle_handler(
+        |State(_state): State<SharedMockServerState>, _: Json<CreateBundleUploadRequest>| async {},
+    );
+    let state = mock_server_builder.spawn_mock_server().await;
+
+    let assert = CommandBuilder::upload(temp_dir.path(), state.host.clone())
+        .disable_quarantining(true)
+        .command()
+        .assert()
+        .failure();
+
+    let requests = state.requests.lock().unwrap().clone();
+    assert_eq!(requests.len(), 1);
+
+    let telemetry_request =
+        assert_matches!(requests.last().unwrap(), RequestPayload::TelemetryUploadMetrics(ur) => ur);
+    let telemetry_request_repo = telemetry_request.repo.clone().unwrap();
+    assert!(telemetry_request.failed);
+    assert_eq!(telemetry_request_repo.host, "github.com");
+    assert_eq!(telemetry_request_repo.owner, "trunk-io");
+    assert_eq!(telemetry_request_repo.name, "analytics-cli");
+
+    // HINT: View CLI output with `cargo test -- --nocapture`
+    println!("{assert}");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn telemetry_upload_metrics_on_upload_success() {
+    let temp_dir = tempdir().unwrap();
+    generate_mock_git_repo(&temp_dir);
+    generate_mock_valid_junit_xmls(&temp_dir);
+
+    let mock_server_builder = MockServerBuilder::new();
+    let state = mock_server_builder.spawn_mock_server().await;
+
+    let assert = CommandBuilder::upload(temp_dir.path(), state.host.clone())
+        .disable_quarantining(true)
+        .command()
+        .assert()
+        .success();
+
+    let requests = state.requests.lock().unwrap().clone();
+    assert_eq!(requests.len(), 3);
+
+    let telemetry_request =
+        assert_matches!(requests.last().unwrap(), RequestPayload::TelemetryUploadMetrics(ur) => ur);
+    let telemetry_request_repo = telemetry_request.repo.clone().unwrap();
+    assert!(!telemetry_request.failed);
+    assert_eq!(telemetry_request_repo.host, "github.com");
+    assert_eq!(telemetry_request_repo.owner, "trunk-io");
+    assert_eq!(telemetry_request_repo.name, "analytics-cli");
+
+    // HINT: View CLI output with `cargo test -- --nocapture`
+    println!("{assert}");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn telemetry_does_not_impact_return() {
+    let temp_dir = tempdir().unwrap();
+    generate_mock_git_repo(&temp_dir);
+    generate_mock_valid_junit_xmls(&temp_dir);
+
+    let mut mock_server_builder = MockServerBuilder::new();
+    mock_server_builder.set_telemetry_upload_metrics_handler(
+        |State(_state): State<SharedMockServerState>, _: String| async { String::from("Err") },
+    );
+    let state = mock_server_builder.spawn_mock_server().await;
+
+    let assert = CommandBuilder::upload(temp_dir.path(), state.host.clone())
+        .disable_quarantining(true)
+        .command()
+        .assert()
+        .success();
+
+    let requests = state.requests.lock().unwrap().clone();
+    assert_eq!(requests.len(), 2);
+
+    // the last request must be s3 since telemetry is disabled
+    // this will error if the last request is not an s3 upload
+    assert_matches!(requests.last().unwrap(), RequestPayload::S3Upload(d) => d);
+
+    // HINT: View CLI output with `cargo test -- --nocapture`
+    println!("{assert}");
 }
