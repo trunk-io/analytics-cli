@@ -8,19 +8,19 @@ use crate::utils::CARGO_RUN;
 const DEFAULT_JUNIT_PATHS: &str = "./*";
 
 pub struct UploadArgs {
-    pub repo_root: Option<String>,
-    pub repo_url: Option<String>,
-    pub repo_head_sha: Option<String>,
-    pub repo_head_branch: Option<String>,
-    pub repo_head_commit_epoch: Option<String>,
-    pub tags: Option<Vec<String>>,
-    pub print_files: Option<bool>,
-    pub no_upload: Option<bool>,
-    pub team: Option<String>,
-    pub codeowners_path: Option<String>,
-    pub use_quarantining: Option<bool>,
-    pub disable_quarantining: Option<bool>,
-    pub allow_empty_test_results: Option<bool>,
+    repo_root: Option<String>,
+    repo_url: Option<String>,
+    repo_head_sha: Option<String>,
+    repo_head_branch: Option<String>,
+    repo_head_commit_epoch: Option<String>,
+    tags: Option<Vec<String>>,
+    print_files: Option<bool>,
+    no_upload: Option<bool>,
+    team: Option<String>,
+    codeowners_path: Option<String>,
+    use_quarantining: Option<bool>,
+    disable_quarantining: Option<bool>,
+    allow_empty_test_results: Option<bool>,
 }
 
 impl UploadArgs {
@@ -316,14 +316,10 @@ pub struct CommandBuilder<'a> {
 }
 
 impl<'b> CommandBuilder<'b> {
-    pub fn upload(
-        current_dir: &'b Path,
-        server_host: String,
-        upload_args: Option<UploadArgs>,
-    ) -> Self {
+    pub fn upload(current_dir: &'b Path, server_host: String) -> Self {
         CommandBuilder {
             command_type: CommandType::Upload {
-                upload_args: upload_args.unwrap_or(UploadArgs::empty()),
+                upload_args: UploadArgs::empty(),
                 server_host,
             },
             current_dir,

@@ -20,7 +20,7 @@ use test_utils::{
     mock_server::{MockServerBuilder, RequestPayload, SharedMockServerState},
 };
 
-use crate::command_builder::{CommandBuilder, UploadArgs};
+use crate::command_builder::CommandBuilder;
 use crate::utils::{
     generate_mock_bazel_bep, generate_mock_codeowners, generate_mock_git_repo,
     generate_mock_valid_junit_xmls,
@@ -36,7 +36,7 @@ async fn upload_bundle() {
 
     let state = MockServerBuilder::new().spawn_mock_server().await;
 
-    let command_builder = CommandBuilder::upload(temp_dir.path(), state.host.clone(), None);
+    let command_builder = CommandBuilder::upload(temp_dir.path(), state.host.clone());
 
     let assert = command_builder
         .command()
@@ -182,7 +182,7 @@ async fn upload_bundle_using_bep() {
 
     let state = MockServerBuilder::new().spawn_mock_server().await;
 
-    let assert = CommandBuilder::upload(temp_dir.path(), state.host.clone(), None)
+    let assert = CommandBuilder::upload(temp_dir.path(), state.host.clone())
         .bazel_bep_path("./bep.json")
         .command()
         .assert()
@@ -237,7 +237,7 @@ async fn upload_bundle_success_status_code() {
 
     // Even though the junits contain failures, they contain retries that succeeded,
     // so the upload command should have a successful exit code
-    let assert = CommandBuilder::upload(temp_dir.path(), state.host.clone(), None)
+    let assert = CommandBuilder::upload(temp_dir.path(), state.host.clone())
         .command()
         .assert()
         .code(0)
@@ -276,7 +276,7 @@ async fn upload_bundle_success_timestamp_status_code() {
 
     // Even though the junits contain failures, they contain retries that succeeded,
     // so the upload command should have a successful exit code
-    let assert = CommandBuilder::upload(temp_dir.path(), state.host.clone(), None)
+    let assert = CommandBuilder::upload(temp_dir.path(), state.host.clone())
         .command()
         .assert()
         .code(0)
@@ -297,7 +297,7 @@ async fn upload_bundle_empty_junit_paths() {
 
     let state = MockServerBuilder::new().spawn_mock_server().await;
 
-    let assert = CommandBuilder::upload(temp_dir.path(), state.host.clone(), None)
+    let assert = CommandBuilder::upload(temp_dir.path(), state.host.clone())
         .junit_paths("")
         .command()
         .assert()
@@ -340,7 +340,7 @@ async fn upload_bundle_no_files_allow_missing_junit_files() {
 
         let state = MockServerBuilder::new().spawn_mock_server().await;
 
-        let mut command = CommandBuilder::upload(temp_dir.path(), state.host.clone(), None)
+        let mut command = CommandBuilder::upload(temp_dir.path(), state.host.clone())
             .print_files(true)
             .command();
 
@@ -406,7 +406,7 @@ async fn upload_bundle_invalid_repo_root() {
 
     let state = MockServerBuilder::new().spawn_mock_server().await;
 
-    let assert = CommandBuilder::upload(temp_dir.path(), state.host.clone(), None)
+    let assert = CommandBuilder::upload(temp_dir.path(), state.host.clone())
         .repo_root("../")
         .command()
         .assert()
@@ -431,7 +431,7 @@ async fn upload_bundle_invalid_repo_root_explicit() {
     let child_path = temp_dir.path().join("child_dir");
     fs::create_dir(&child_path).unwrap();
 
-    let assert = CommandBuilder::upload(&child_path, state.host.clone(), None)
+    let assert = CommandBuilder::upload(&child_path, state.host.clone())
         .repo_root(child_path.to_str().unwrap())
         .command()
         .assert()
@@ -456,7 +456,7 @@ async fn upload_bundle_valid_repo_root_implicit() {
     let child_path = temp_dir.path().join("child_dir");
     fs::create_dir(&child_path).unwrap();
 
-    let assert = CommandBuilder::upload(&child_path, state.host.clone(), None)
+    let assert = CommandBuilder::upload(&child_path, state.host.clone())
         .command()
         .assert()
         .success();
@@ -470,11 +470,10 @@ async fn upload_bundle_when_server_down() {
     let temp_dir = tempdir().unwrap();
     generate_mock_git_repo(&temp_dir);
 
-    let assert =
-        CommandBuilder::upload(temp_dir.path(), String::from("https://localhost:10"), None)
-            .command()
-            .assert()
-            .success();
+    let assert = CommandBuilder::upload(temp_dir.path(), String::from("https://localhost:10"))
+        .command()
+        .assert()
+        .success();
 
     println!("{assert}");
 }
@@ -486,7 +485,7 @@ async fn upload_bundle_with_no_junit_files_no_quarantine_successful_upload() {
 
     let state = MockServerBuilder::new().spawn_mock_server().await;
 
-    let assert = CommandBuilder::upload(temp_dir.path(), state.host.clone(), None)
+    let assert = CommandBuilder::upload(temp_dir.path(), state.host.clone())
         .command()
         .assert()
         .code(0)
@@ -574,7 +573,7 @@ async fn quarantines_tests_regardless_of_upload() {
     );
     let state = mock_server_builder.spawn_mock_server().await;
 
-    let mut command = CommandBuilder::upload(temp_dir.path(), state.host.clone(), None).command();
+    let mut command = CommandBuilder::upload(temp_dir.path(), state.host.clone()).command();
 
     // First run won't quarantine any tests
     *QUARANTINE_CONFIG_RESPONSE.lock().unwrap() = QuarantineConfigResponse::None;
@@ -619,9 +618,8 @@ async fn telemetry_upload_metrics_on_upload_failure() {
     );
     let state = mock_server_builder.spawn_mock_server().await;
 
-    let mut upload_args = UploadArgs::empty();
-    upload_args.disable_quarantining = Some(true);
-    let assert = CommandBuilder::upload(temp_dir.path(), state.host.clone(), Some(upload_args))
+    let assert = CommandBuilder::upload(temp_dir.path(), state.host.clone())
+        .disable_quarantining(true)
         .command()
         .assert()
         .failure();
@@ -650,9 +648,8 @@ async fn telemetry_upload_metrics_on_upload_success() {
     let mock_server_builder = MockServerBuilder::new();
     let state = mock_server_builder.spawn_mock_server().await;
 
-    let mut upload_args = UploadArgs::empty();
-    upload_args.disable_quarantining = Some(true);
-    let assert = CommandBuilder::upload(temp_dir.path(), state.host.clone(), Some(upload_args))
+    let assert = CommandBuilder::upload(temp_dir.path(), state.host.clone())
+        .disable_quarantining(true)
         .command()
         .assert()
         .success();
@@ -684,9 +681,8 @@ async fn telemetry_does_not_impact_return() {
     );
     let state = mock_server_builder.spawn_mock_server().await;
 
-    let mut upload_args = UploadArgs::empty();
-    upload_args.disable_quarantining = Some(true);
-    let assert = CommandBuilder::upload(temp_dir.path(), state.host.clone(), Some(upload_args))
+    let assert = CommandBuilder::upload(temp_dir.path(), state.host.clone())
+        .disable_quarantining(true)
         .command()
         .assert()
         .success();

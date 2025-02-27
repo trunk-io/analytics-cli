@@ -218,9 +218,12 @@ impl ApiClient {
     pub async fn telemetry_upload_metrics(
         &self,
         request: &message::TelemetryUploadMetricsRequest,
-    ) -> anyhow::Result<Response> {
+    ) -> anyhow::Result<()> {
         CallApi {
             action: || async {
+                if std::env::var("DISABLE_TELEMETRY").is_ok() {
+                    return Ok(());
+                }
                 let response = self
                     .telemetry_client
                     .post(format!(
@@ -235,7 +238,7 @@ impl ApiClient {
                 if !response.status().is_client_error() {
                     response.error_for_status().map_err(|reqwest_error| {
                         anyhow::Error::from(reqwest_error).context(error_message)
-                    })
+                    }).map(|_| ())
                 } else {
                     match response.error_for_status() {
                         Ok(..) => Err(anyhow::Error::msg(error_message)),
