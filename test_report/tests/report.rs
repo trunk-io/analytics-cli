@@ -45,7 +45,7 @@ async fn publish_test_report() {
     thread_join_handle.join().unwrap();
 
     let requests = state.requests.lock().unwrap().clone();
-    assert!(requests.len() == 2);
+    assert!(requests.len() == 3);
     let tar_extract_directory = assert_matches!(&requests[1], RequestPayload::S3Upload(d) => d);
     let file = fs::File::open(tar_extract_directory.join("meta.json")).unwrap();
     let reader = BufReader::new(file);

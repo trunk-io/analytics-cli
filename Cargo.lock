@@ -113,9 +113,9 @@ dependencies = [
 
 [[package]]
 name = "anyhow"
-version = "1.0.95"
+version = "1.0.96"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "34ac096ce696dc2fcabef30516bb13c0a68a11d30131d3df6f04711467681b04"
+checksum = "6b964d184e89d9b6b67dd2715bc8e74cf3107fb2b529990c90cf517326150bf4"
 
 [[package]]
 name = "api"
@@ -129,6 +129,8 @@ dependencies = [
  "http 1.2.0",
  "lazy_static",
  "log",
+ "prost",
+ "proto",
  "reqwest",
  "sentry",
  "serde",
@@ -826,6 +828,7 @@ checksum = "f46ad14479a25103f283c0f10005961cf086d8dc42205bb44c46ac563475dca6"
 name = "cli-tests"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "api",
  "assert_cmd",
  "assert_matches",
@@ -4529,6 +4532,8 @@ dependencies = [
  "junit-mock",
  "lazy_static",
  "log",
+ "prost",
+ "proto",
  "sentry",
  "tar",
  "tempfile",
@@ -4950,6 +4955,7 @@ dependencies = [
  "log",
  "openssl",
  "openssl-src",
+ "proto",
  "quick-junit",
  "reqwest",
  "sentry-tracing",

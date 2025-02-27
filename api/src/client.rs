@@ -10,9 +10,11 @@ use crate::call_api::CallApi;
 use crate::message;
 
 pub struct ApiClient {
-    pub host: String,
+    pub api_host: String,
+    pub telemetry_host: String,
     s3_client: Client,
-    trunk_client: Client,
+    trunk_api_client: Client,
+    telemetry_client: Client,
     version_path_prefix: String,
 }
 
@@ -28,22 +30,48 @@ impl ApiClient {
         let api_token_header_value = HeaderValue::from_str(api_token)
             .map_err(|_| anyhow::Error::msg("Trunk API token is not ASCII"))?;
 
-        let host = std::env::var(TRUNK_PUBLIC_API_ADDRESS_ENV)
+        let api_host = std::env::var(TRUNK_PUBLIC_API_ADDRESS_ENV)
             .ok()
             .and_then(|s| if s.is_empty() { None } else { Some(s) })
             .unwrap_or_else(|| DEFAULT_ORIGIN.to_string());
-        tracing::info!("Using public api address {}", host);
+        tracing::debug!("Using public api address {}", api_host);
 
-        let mut trunk_client_default_headers = HeaderMap::new();
-        trunk_client_default_headers.append(
+        let telemetry_host = if api_host.contains("https://") {
+            format!(
+                "https://telemetry.{}",
+                api_host.split("https://").nth(1).unwrap_or_default()
+            )
+        } else {
+            // If the api_host is not https, we default to the api host
+            // this happens when the api_host is localhost and we are running
+            // inside of test environments
+            api_host.clone()
+        };
+
+        let mut trunk_api_client_default_headers = HeaderMap::new();
+        trunk_api_client_default_headers.append(
             header::CONTENT_TYPE,
             HeaderValue::from_static("application/json"),
         );
-        trunk_client_default_headers.append(Self::TRUNK_API_TOKEN_HEADER, api_token_header_value);
+        trunk_api_client_default_headers
+            .append(Self::TRUNK_API_TOKEN_HEADER, api_token_header_value.clone());
 
-        let trunk_client = Client::builder()
+        let trunk_api_client = Client::builder()
             .timeout(Self::TRUNK_API_TIMEOUT)
-            .default_headers(trunk_client_default_headers)
+            .default_headers(trunk_api_client_default_headers)
+            .build()?;
+
+        let mut telemetry_client_default_headers = HeaderMap::new();
+        telemetry_client_default_headers.append(
+            header::CONTENT_TYPE,
+            HeaderValue::from_static("application/x-protobuf"),
+        );
+        telemetry_client_default_headers
+            .append(Self::TRUNK_API_TOKEN_HEADER, api_token_header_value);
+
+        let telemetry_client = Client::builder()
+            .timeout(Self::TRUNK_API_TIMEOUT)
+            .default_headers(telemetry_client_default_headers)
             .build()?;
 
         let mut s3_client_default_headers = HeaderMap::new();
@@ -62,9 +90,11 @@ impl ApiClient {
         };
 
         Ok(Self {
-            host,
+            telemetry_host,
+            api_host,
             s3_client,
-            trunk_client,
+            trunk_api_client,
+            telemetry_client,
             version_path_prefix,
         })
     }
@@ -76,8 +106,8 @@ impl ApiClient {
         CallApi {
             action: || async {
                 let response = self
-                    .trunk_client
-                    .post(format!("{}{}/metrics/createBundleUpload", self.host, self.version_path_prefix))
+                    .trunk_api_client
+                    .post(format!("{}{}/metrics/createBundleUpload", self.api_host, self.version_path_prefix))
                     .json(&request)
                     .send()
                     .await?;
@@ -112,8 +142,8 @@ impl ApiClient {
         CallApi {
             action: || async {
                 let response = self
-                    .trunk_client
-                    .post(format!("{}{}/metrics/getQuarantineConfig", self.host, self.version_path_prefix))
+                    .trunk_api_client
+                    .post(format!("{}{}/metrics/getQuarantineConfig", self.api_host, self.version_path_prefix))
                     .json(&request)
                     .send()
                     .await?;
@@ -179,6 +209,52 @@ impl ApiClient {
             report_slow_progress_message: |time_elapsed| {
                 println!("oofed, {}", time_elapsed.as_secs());
                 format!("Uploading bundle to S3 is taking longer than {} seconds", time_elapsed.as_secs())
+            },
+        }
+        .call_api()
+        .await
+    }
+
+    pub async fn telemetry_upload_metrics(
+        &self,
+        request: &message::TelemetryUploadMetricsRequest,
+    ) -> anyhow::Result<()> {
+        CallApi {
+            action: || async {
+                if std::env::var("DISABLE_TELEMETRY").is_ok() {
+                    return Ok(());
+                }
+                let response = self
+                    .telemetry_client
+                    .post(format!(
+                        "{}{}/flakytests-cli/upload-metrics",
+                        self.telemetry_host, self.version_path_prefix
+                    ))
+                    .body(prost::Message::encode_to_vec(&request.upload_metrics))
+                    .send()
+                    .await?;
+
+                let error_message = "Failed to send telemetry metrics.";
+                if !response.status().is_client_error() {
+                    response.error_for_status().map_err(|reqwest_error| {
+                        anyhow::Error::from(reqwest_error).context(error_message)
+                    }).map(|_| ())
+                } else {
+                    match response.error_for_status() {
+                        Ok(..) => Err(anyhow::Error::msg(error_message)),
+                        Err(error) => Err(anyhow::Error::from(error).context(error_message)),
+                    }
+                }
+            },
+            log_progress_message: {
+                |time_elapsed, _| {
+                    format!("Reporting telemetry metrics to Trunk services is taking longer than expected. It has taken {} seconds so far.", time_elapsed.as_secs())
+                }
+            },
+            report_slow_progress_message: {
+                |time_elapsed| {
+                    format!("Reporting telemetry metrics to Trunk services is taking longer than {} seconds", time_elapsed.as_secs())
+                }
             },
         }
         .call_api()
@@ -277,7 +353,7 @@ mod tests {
         let state = mock_server_builder.spawn_mock_server().await;
 
         let mut api_client = ApiClient::new(String::from("mock-token")).unwrap();
-        api_client.host.clone_from(&state.host);
+        api_client.api_host.clone_from(&state.host);
 
         assert!(api_client
             .get_quarantining_config(&message::GetQuarantineConfigRequest {
@@ -319,12 +395,12 @@ mod tests {
         let state = mock_server_builder.spawn_mock_server().await;
 
         let mut api_client = ApiClient::new(String::from("mock-token")).unwrap();
-        api_client.host.clone_from(&state.host);
+        api_client.api_host.clone_from(&state.host);
 
         assert!(api_client
             .get_quarantining_config(&message::GetQuarantineConfigRequest {
                 repo: context::repo::RepoUrlParts {
-                    host: String::from("host"),
+                    host: String::from("api_host"),
                     owner: String::from("owner"),
                     name: String::from("name"),
                 },
@@ -356,12 +432,12 @@ mod tests {
         let state = mock_server_builder.spawn_mock_server().await;
 
         let mut api_client = ApiClient::new(String::from("mock-token")).unwrap();
-        api_client.host.clone_from(&state.host);
+        api_client.api_host.clone_from(&state.host);
 
         assert!(api_client
             .get_quarantining_config(&message::GetQuarantineConfigRequest {
                 repo: context::repo::RepoUrlParts {
-                    host: String::from("host"),
+                    host: String::from("api_host"),
                     owner: String::from("owner"),
                     name: String::from("name"),
                 },

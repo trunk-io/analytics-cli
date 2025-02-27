@@ -20,7 +20,7 @@ pub fn init(
         opts = options.unwrap_or_default();
     }
     opts.release = Some(release_name);
-    if std::env::var("DISABLE_SENTRY").is_ok() {
+    if std::env::var("DISABLE_SENTRY").is_ok() || std::env::var("DISABLE_TELEMETRY").is_ok() {
         opts.sample_rate = 0.0;
     }
 

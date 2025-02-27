@@ -1,0 +1,23 @@
+syntax = "proto3";
+
+package trunk.oss.flakytests_cli.v1;
+
+message Semver {
+  // e.g. 1
+  uint32 major = 1;
+  // e.g. 1
+  uint32 minor = 2;
+  // e.g. 0
+  uint32 patch = 3;
+  // e.g. -beta
+  string suffix = 4;
+}
+
+message Repo {
+  // e.g. GitHub.com
+  string host = 1;
+  // e.g. trunk-build
+  string owner = 2;
+  // e.g. trunk
+  string name = 3;
+}
