@@ -99,7 +99,7 @@ async fn test_command_fails_with_no_junit_files_no_quarantine_successful_upload(
     println!("{assert}");
 
     let requests = state.requests.lock().unwrap().clone();
-    assert_eq!(requests.len(), 2);
+    assert_eq!(requests.len(), 3);
     let mut requests_iter = requests.into_iter();
 
     assert!(matches!(
@@ -187,7 +187,7 @@ async fn test_command_succeeds_with_bundle_using_bep() {
     .failure();
 
     let requests = state.requests.lock().unwrap().clone();
-    assert_eq!(requests.len(), 3);
+    assert_eq!(requests.len(), 4);
 
     let tar_extract_directory = assert_matches!(&requests[2], RequestPayload::S3Upload(d) => d);
 

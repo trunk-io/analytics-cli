@@ -148,6 +148,14 @@ pub async fn run_upload(
     pre_test_context: Option<PreTestContext>,
     test_run_result: Option<TestRunResult>,
 ) -> anyhow::Result<UploadRunResult> {
+    // grab the exec start if provided (`test` subcommand) or use the current time
+    let cli_started_at = if let Some(test_run_result) = test_run_result.as_ref() {
+        test_run_result
+            .exec_start
+            .unwrap_or(chrono::Utc::now().into())
+    } else {
+        chrono::Utc::now().into()
+    };
     let api_client = ApiClient::new(&upload_args.token)?;
 
     let PreTestContext {
@@ -196,14 +204,45 @@ pub async fn run_upload(
     )
     .await;
 
+    let upload_started_at = chrono::Utc::now();
     let upload_bundle_result = upload_bundle(
-        meta,
+        meta.clone(),
         &api_client,
         bep_result,
         upload_args.no_upload,
         exit_code,
     )
     .await;
+    let upload_metrics = proto::upload_metrics::trunk::UploadMetrics {
+        client_version: Some(proto::upload_metrics::trunk::Semver {
+            major: env!("CARGO_PKG_VERSION_MAJOR").parse().unwrap_or_default(),
+            minor: env!("CARGO_PKG_VERSION_MINOR").parse().unwrap_or_default(),
+            patch: env!("CARGO_PKG_VERSION_PATCH").parse().unwrap_or_default(),
+            suffix: env!("CARGO_PKG_VERSION_PRE").into(),
+        }),
+        repo: Some(proto::upload_metrics::trunk::Repo {
+            host: meta.base_props.repo.repo.host.clone(),
+            owner: meta.base_props.repo.repo.owner.clone(),
+            name: meta.base_props.repo.repo.name.clone(),
+        }),
+        cli_started_at: Some(cli_started_at.into()),
+        upload_started_at: Some(upload_started_at.into()),
+        upload_finished_at: Some(chrono::Utc::now().into()),
+        failed: false,
+    };
+    let mut request = api::message::TelemetryUploadMetricsRequest { upload_metrics };
+    let telemetry_response;
+    if upload_bundle_result.is_err() {
+        request.upload_metrics.failed = true;
+        telemetry_response = api_client.telemetry_upload_metrics(&request).await;
+    } else {
+        request.upload_metrics.failed = false;
+        telemetry_response = api_client.telemetry_upload_metrics(&request).await;
+    }
+    if let Err(e) = telemetry_response {
+        // this is not a critical error, so we just log it
+        tracing::debug!("Failed to send telemetry: {:?}", e);
+    }
 
     Ok(UploadRunResult {
         exit_code,
@@ -239,7 +278,7 @@ async fn upload_bundle(
             tracing::info!(
                 "Upload successful; returning unsuccessful exit code of test run: {}",
                 exit_code
-            )
+            );
         }
     }
 

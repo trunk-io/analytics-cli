@@ -135,7 +135,7 @@ where
             time::sleep(duration).await;
             let time_elapsed = Instant::now().duration_since(report_slow_progress_start);
             let message = report_slow_progress_message(time_elapsed);
-            tracing::warn!("{:?}", message);
+            tracing::debug!("{:?}", message);
         });
 
         let check_progress_start = time::Instant::now();
