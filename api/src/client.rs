@@ -203,11 +203,9 @@ impl ApiClient {
                 )
             },
             log_progress_message: |time_elapsed, _| {
-                println!("Callled, {}", time_elapsed.as_secs());
                 format!("Uploading bundle to S3 is taking longer than expected. It has taken {} seconds so far.", time_elapsed.as_secs())
             },
             report_slow_progress_message: |time_elapsed| {
-                println!("oofed, {}", time_elapsed.as_secs());
                 format!("Uploading bundle to S3 is taking longer than {} seconds", time_elapsed.as_secs())
             },
         }
