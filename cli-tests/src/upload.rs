@@ -631,7 +631,10 @@ async fn is_ok_on_unauthorized() {
 
     let mut command = CommandBuilder::upload(temp_dir.path(), state.host.clone()).command();
 
-    command.assert().success();
+    command
+        .assert()
+        .failure()
+        .stdout(predicate::str::contains("Error: ").not());
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -658,7 +661,10 @@ async fn is_ok_on_forbidden() {
 
     let mut command = CommandBuilder::upload(temp_dir.path(), state.host.clone()).command();
 
-    command.assert().success();
+    command
+        .assert()
+        .failure()
+        .stdout(predicate::str::contains("Error: ").not());
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -685,7 +691,10 @@ async fn is_not_ok_on_bad_request() {
 
     let mut command = CommandBuilder::upload(temp_dir.path(), state.host.clone()).command();
 
-    command.assert().failure();
+    command
+        .assert()
+        .failure()
+        .stdout(predicate::str::contains("Error: "));
 }
 
 #[tokio::test(flavor = "multi_thread")]
