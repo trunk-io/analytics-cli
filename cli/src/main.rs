@@ -90,7 +90,7 @@ fn main() -> anyhow::Result<()> {
                             if status == StatusCode::UNAUTHORIZED || status == StatusCode::FORBIDDEN {
                                 tracing::warn!("Unauthorized to access trunk, are you sure your token is correct? {:?}", error);
                                 guard.flush(None);
-                                std::process::exit(exitcode::OK);
+                                std::process::exit(exitcode::SOFTWARE);
                             }
                         }
                     }
