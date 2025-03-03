@@ -634,7 +634,7 @@ async fn is_ok_on_unauthorized() {
     command
         .assert()
         .failure()
-        .stdout(predicate::str::contains("Error: ").not());
+        .stdout(predicate::str::contains("error: ").not());
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -664,7 +664,7 @@ async fn is_ok_on_forbidden() {
     command
         .assert()
         .failure()
-        .stdout(predicate::str::contains("Error: ").not());
+        .stdout(predicate::str::contains("error: ").not());
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -694,7 +694,7 @@ async fn is_not_ok_on_bad_request() {
     command
         .assert()
         .failure()
-        .stdout(predicate::str::contains("Error: "));
+        .stdout(predicate::str::contains("error: "));
 }
 
 #[tokio::test(flavor = "multi_thread")]
