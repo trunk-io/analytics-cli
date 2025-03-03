@@ -21,29 +21,39 @@ pub enum ErrorType {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Error {
-    message: String,
+    error_type: ErrorType,
     line_number: usize,
     path: PathBuf,
 }
 
 impl Error {
-    pub fn new(message: String, line_number: usize, path: PathBuf) -> Self {
+    pub fn new(error_type: ErrorType, line_number: usize, path: PathBuf) -> Self {
         Self {
-            message,
+            error_type,
             line_number,
             path,
         }
+    }
+
+    pub fn is_fatal(&self) -> bool {
+        matches!(
+            self.error_type,
+            ErrorType::InvalidSectionOwnerFormat
+                | ErrorType::MissingSectionName
+                | ErrorType::InvalidApprovalRequirement
+                | ErrorType::InvalidSectionFormat
+        )
     }
 }
 
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let Self {
-            message,
+            error_type,
             line_number,
             path,
         } = &self;
-        let inner = format!("{}:{line_number}\t{message}", path.to_string_lossy());
+        let inner = format!("{}:{line_number}\t{error_type}", path.to_string_lossy());
         f.write_str(inner.as_str())
     }
 }
