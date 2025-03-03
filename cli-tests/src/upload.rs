@@ -6,6 +6,7 @@ use api::message::{
     GetQuarantineConfigResponse,
 };
 use assert_matches::assert_matches;
+use axum::http::StatusCode;
 use axum::{extract::State, Json};
 use bundle::{BundleMeta, FileSetType};
 use codeowners::CodeOwners;
@@ -412,7 +413,7 @@ async fn upload_bundle_invalid_repo_root() {
         .assert()
         .failure()
         .stdout(predicate::str::contains(
-            "Error: Failed to open git repository at \"../\"",
+            "error: Failed to open git repository at \"../\"",
         ));
     let requests = state.requests.lock().unwrap().clone();
     assert_eq!(requests.len(), 0);
@@ -437,7 +438,7 @@ async fn upload_bundle_invalid_repo_root_explicit() {
         .assert()
         .failure()
         .stdout(predicate::str::contains(
-            "Error: Failed to open git repository at",
+            "error: Failed to open git repository at",
         ));
     let requests = state.requests.lock().unwrap().clone();
     assert_eq!(requests.len(), 0);
@@ -604,6 +605,96 @@ async fn quarantines_tests_regardless_of_upload() {
     *QUARANTINE_CONFIG_RESPONSE.lock().unwrap() = QuarantineConfigResponse::Disabled;
     *CREATE_BUNDLE_RESPONSE.lock().unwrap() = CreateBundleResponse::Success;
     command.assert().success();
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn is_ok_on_unauthorized() {
+    let temp_dir = tempdir().unwrap();
+    generate_mock_git_repo(&temp_dir);
+    generate_mock_valid_junit_xmls(&temp_dir);
+    generate_mock_codeowners(&temp_dir);
+
+    let mut mock_server_builder = MockServerBuilder::new();
+
+    mock_server_builder.set_get_quarantining_config_handler(
+        |Json(_): Json<GetQuarantineConfigRequest>| async {
+            Err::<Json<GetQuarantineConfigResponse>, StatusCode>(StatusCode::UNAUTHORIZED)
+        },
+    );
+
+    mock_server_builder.set_create_bundle_handler(
+        |State(_): State<SharedMockServerState>, _: Json<CreateBundleUploadRequest>| async {
+            Err::<Json<CreateBundleUploadResponse>, StatusCode>(StatusCode::UNAUTHORIZED)
+        },
+    );
+    let state = mock_server_builder.spawn_mock_server().await;
+
+    let mut command = CommandBuilder::upload(temp_dir.path(), state.host.clone()).command();
+
+    command
+        .assert()
+        .failure()
+        .stdout(predicate::str::contains("error: ").not());
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn is_ok_on_forbidden() {
+    let temp_dir = tempdir().unwrap();
+    generate_mock_git_repo(&temp_dir);
+    generate_mock_valid_junit_xmls(&temp_dir);
+    generate_mock_codeowners(&temp_dir);
+
+    let mut mock_server_builder = MockServerBuilder::new();
+
+    mock_server_builder.set_get_quarantining_config_handler(
+        |Json(_): Json<GetQuarantineConfigRequest>| async {
+            Err::<Json<GetQuarantineConfigResponse>, StatusCode>(StatusCode::FORBIDDEN)
+        },
+    );
+
+    mock_server_builder.set_create_bundle_handler(
+        |State(_): State<SharedMockServerState>, _: Json<CreateBundleUploadRequest>| async {
+            Err::<Json<CreateBundleUploadResponse>, StatusCode>(StatusCode::FORBIDDEN)
+        },
+    );
+    let state = mock_server_builder.spawn_mock_server().await;
+
+    let mut command = CommandBuilder::upload(temp_dir.path(), state.host.clone()).command();
+
+    command
+        .assert()
+        .failure()
+        .stdout(predicate::str::contains("error: ").not());
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn is_not_ok_on_bad_request() {
+    let temp_dir = tempdir().unwrap();
+    generate_mock_git_repo(&temp_dir);
+    generate_mock_valid_junit_xmls(&temp_dir);
+    generate_mock_codeowners(&temp_dir);
+
+    let mut mock_server_builder = MockServerBuilder::new();
+
+    mock_server_builder.set_get_quarantining_config_handler(
+        |Json(_): Json<GetQuarantineConfigRequest>| async {
+            Err::<Json<GetQuarantineConfigResponse>, StatusCode>(StatusCode::BAD_REQUEST)
+        },
+    );
+
+    mock_server_builder.set_create_bundle_handler(
+        |State(_): State<SharedMockServerState>, _: Json<CreateBundleUploadRequest>| async {
+            Err::<Json<CreateBundleUploadResponse>, StatusCode>(StatusCode::BAD_REQUEST)
+        },
+    );
+    let state = mock_server_builder.spawn_mock_server().await;
+
+    let mut command = CommandBuilder::upload(temp_dir.path(), state.host.clone()).command();
+
+    command
+        .assert()
+        .failure()
+        .stdout(predicate::str::contains("error: "));
 }
 
 #[tokio::test(flavor = "multi_thread")]

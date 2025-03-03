@@ -6,6 +6,7 @@ use third_party::sentry;
 use tracing_subscriber::prelude::*;
 use trunk_analytics_cli::{
     context::gather_debug_props,
+    error_report::log_error,
     quarantine_command::{run_quarantine, QuarantineArgs},
     test_command::{run_test, TestArgs},
     upload_command::{run_upload, UploadArgs, UploadRunResult},
@@ -74,18 +75,11 @@ fn main() -> anyhow::Result<()> {
             );
             match run(cli).await {
                 Ok(exit_code) => std::process::exit(exit_code),
-                Err(e) => match (*(e.root_cause())).downcast_ref::<std::io::Error>() {
-                    Some(io_error) if io_error.kind() == std::io::ErrorKind::ConnectionRefused => {
-                        tracing::warn!("Could not connect to trunk's server: {:?}", e);
-                        guard.flush(None);
-                        std::process::exit(exitcode::OK);
-                    }
-                    _ => {
-                        tracing::error!("Error: {:?}", e);
-                        guard.flush(None);
-                        std::process::exit(exitcode::SOFTWARE);
-                    }
-                },
+                Err(error) => {
+                    let exit_code = log_error(&error, None);
+                    guard.flush(None);
+                    std::process::exit(exit_code);
+                }
             }
         })
 }
