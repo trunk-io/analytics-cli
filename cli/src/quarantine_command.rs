@@ -1,6 +1,9 @@
 use clap::Args;
 
-use crate::upload_command::{run_upload, UploadArgs, UploadRunResult};
+use crate::{
+    error_report::log_error,
+    upload_command::{run_upload, UploadArgs, UploadRunResult},
+};
 
 #[derive(Args, Clone, Debug)]
 pub struct QuarantineArgs {
@@ -23,7 +26,7 @@ pub async fn run_quarantine(QuarantineArgs { upload_args }: QuarantineArgs) -> a
              upload_bundle_error,
          }| {
             if let Some(e) = upload_bundle_error {
-                tracing::error!("Error uploading test results: {:?}", e);
+                log_error(&e, Some("Error uploading test results"));
             }
             exit_code
         },

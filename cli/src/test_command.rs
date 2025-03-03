@@ -8,6 +8,7 @@ use constants::EXIT_FAILURE;
 
 use crate::{
     context::{gather_debug_props, gather_pre_test_context},
+    error_report::log_error,
     upload_command::{run_upload, UploadArgs, UploadRunResult},
 };
 
@@ -72,7 +73,7 @@ pub async fn run_test(
             },
         )
         .or_else(|e| {
-            tracing::error!("Error uploading test results: {:?}", e);
+            log_error(&e, Some("Error uploading test results"));
             Ok(test_run_result_exit_code)
         })
 }

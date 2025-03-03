@@ -1,5 +1,6 @@
 pub mod context;
 pub mod context_quarantine;
+pub mod error_report;
 pub mod print;
 pub mod quarantine_command;
 pub mod test_command;
