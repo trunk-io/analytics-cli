@@ -413,7 +413,7 @@ async fn upload_bundle_invalid_repo_root() {
         .assert()
         .failure()
         .stdout(predicate::str::contains(
-            "Error: Failed to open git repository at \"../\"",
+            "error: Failed to open git repository at \"../\"",
         ));
     let requests = state.requests.lock().unwrap().clone();
     assert_eq!(requests.len(), 0);
@@ -438,7 +438,7 @@ async fn upload_bundle_invalid_repo_root_explicit() {
         .assert()
         .failure()
         .stdout(predicate::str::contains(
-            "Error: Failed to open git repository at",
+            "error: Failed to open git repository at",
         ));
     let requests = state.requests.lock().unwrap().clone();
     assert_eq!(requests.len(), 0);
