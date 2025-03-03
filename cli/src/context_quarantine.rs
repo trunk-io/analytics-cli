@@ -9,6 +9,8 @@ use context::{
 };
 use quick_junit::TestCaseStatus;
 
+use crate::error_report::log_error;
+
 #[derive(Debug, Default, Clone)]
 pub struct QuarantineContext {
     pub exit_code: i32,
@@ -182,7 +184,7 @@ pub async fn gather_quarantine_context(
         let result = api_client.get_quarantining_config(request).await;
 
         if let Err(ref err) = result {
-            tracing::error!("{}", err);
+            log_error(err, None);
         }
 
         result.unwrap_or_default()

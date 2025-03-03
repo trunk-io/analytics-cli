@@ -2,11 +2,11 @@ use std::env;
 
 use clap::{Parser, Subcommand};
 use clap_verbosity_flag::{log::LevelFilter, InfoLevel, Verbosity};
-use http::StatusCode;
 use third_party::sentry;
 use tracing_subscriber::prelude::*;
 use trunk_analytics_cli::{
     context::gather_debug_props,
+    error_report::log_error,
     quarantine_command::{run_quarantine, QuarantineArgs},
     test_command::{run_test, TestArgs},
     upload_command::{run_upload, UploadArgs, UploadRunResult},
@@ -76,28 +76,9 @@ fn main() -> anyhow::Result<()> {
             match run(cli).await {
                 Ok(exit_code) => std::process::exit(exit_code),
                 Err(error) => {
-                    let root_cause = error.root_cause();
-                    if let Some(io_error) = root_cause.downcast_ref::<std::io::Error>() {
-                        if io_error.kind() == std::io::ErrorKind::ConnectionRefused {
-                            tracing::warn!("Could not connect to trunk's server: {:?}", error);
-                            guard.flush(None);
-                            std::process::exit(exitcode::OK);
-                        }
-                    }
-
-                    if let Some(reqwest_error) = root_cause.downcast_ref::<reqwest::Error>() {
-                        if let Some(status) = reqwest_error.status() {
-                            if status == StatusCode::UNAUTHORIZED || status == StatusCode::FORBIDDEN {
-                                tracing::warn!("Unauthorized to access trunk, are you sure your token is correct? {:?}", error);
-                                guard.flush(None);
-                                std::process::exit(exitcode::SOFTWARE);
-                            }
-                        }
-                    }
-
-                    tracing::error!("Error: {:?}", error);
+                    let exit_code = log_error(&error, None);
                     guard.flush(None);
-                    std::process::exit(exitcode::SOFTWARE);
+                    std::process::exit(exit_code);
                 }
             }
         })
