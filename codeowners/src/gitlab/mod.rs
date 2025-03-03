@@ -100,7 +100,12 @@ impl FromReader for GitLabOwners {
         if !file.valid() {
             let error_messages: Vec<String> =
                 file.errors().iter().map(ToString::to_string).collect();
-            return Err(anyhow::Error::msg(error_messages.join("\n")));
+            // check if failure should stop parsing
+            if file.errors().iter().any(|e| e.is_fatal()) {
+                return Err(anyhow::Error::msg(error_messages.join("\n")));
+            } else {
+                tracing::warn!("Suboptimal errors found when parsing CODEOWNERS:\n{}", error_messages.join("\n").replace("\t", " "));
+            }
         }
 
         Ok(GitLabOwners { file })
