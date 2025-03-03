@@ -16,4 +16,4 @@ runs:
         VERSION: ${{ inputs.version }}
       shell: bash
       run: |
-        sed -i.bak "s/0.0.0/$VERSION/g" ${{ inputs.file }}
+        sed -i.bak "s/0.0.0/$VERSION/" ${{ inputs.file }}
