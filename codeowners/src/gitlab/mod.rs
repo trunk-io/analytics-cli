@@ -100,7 +100,15 @@ impl FromReader for GitLabOwners {
         if !file.valid() {
             let error_messages: Vec<String> =
                 file.errors().iter().map(ToString::to_string).collect();
-            return Err(anyhow::Error::msg(error_messages.join("\n")));
+            // check if failure should stop parsing
+            if file.errors().iter().any(|e| e.is_fatal()) {
+                return Err(anyhow::Error::msg(error_messages.join("\n")));
+            } else {
+                tracing::warn!(
+                    "Suboptimal errors found when parsing CODEOWNERS:\n{}",
+                    error_messages.join("\n").replace('\t', " ")
+                );
+            }
         }
 
         Ok(GitLabOwners { file })
@@ -241,5 +249,23 @@ mod tests {
     fn no_implied_children_owners() {
         let owners = GitLabOwners::from_reader("foo/bar @doug".as_bytes()).unwrap();
         assert_eq!(owners.of("foo/bar/baz.rs"), Some(Vec::new()))
+    }
+
+    #[test]
+    fn suboptimal_codeowners_is_parsable() {
+        let missing_codepath = GitLabOwners::from_reader("@doug".as_bytes()).unwrap();
+        assert_eq!(missing_codepath.of("foo/bar/baz.rs"), Some(Vec::new()));
+        let missing_owner = GitLabOwners::from_reader("foo/bar".as_bytes()).unwrap();
+        assert_eq!(missing_owner.of("foo/bar/baz.rs"), Some(Vec::new()));
+        let partial_missing_owner =
+            GitLabOwners::from_reader("foo/bar @doug\nfoo/bar/baz.rs @bob".as_bytes()).unwrap();
+        assert_eq!(
+            partial_missing_owner.of("foo/bar/baz.rs"),
+            Some(vec![GitLabOwner::Name("@bob".into())])
+        );
+        assert_eq!(
+            partial_missing_owner.of("foo/bar/baz2.rs"),
+            Some(Vec::new())
+        );
     }
 }

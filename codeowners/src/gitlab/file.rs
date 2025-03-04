@@ -109,7 +109,7 @@ impl File {
 
                 if !section_parser.valid() {
                     section_parser.errors.iter().for_each(|error| {
-                        self.add_error(error.to_string(), line_number);
+                        self.add_error(error.clone(), line_number);
                     });
                 }
 
@@ -166,7 +166,7 @@ impl File {
                 .references()
                 .is_empty()
         {
-            self.add_error(ErrorType::InvalidEntryOwnerFormat.to_string(), line_number);
+            self.add_error(ErrorType::InvalidEntryOwnerFormat, line_number);
         }
 
         let owners = if !entry_owners.is_empty() {
@@ -176,7 +176,7 @@ impl File {
         };
 
         if owners.is_empty() {
-            self.add_error(ErrorType::MissingEntryOwner.to_string(), line_number);
+            self.add_error(ErrorType::MissingEntryOwner, line_number);
         }
 
         parsed.entry(section.name.clone()).or_default().insert(
@@ -235,7 +235,7 @@ impl File {
             .unwrap_or_default()
     }
 
-    fn add_error(&mut self, message: String, line_number: usize) {
+    fn add_error(&mut self, message: ErrorType, line_number: usize) {
         self.errors
             .push(Error::new(message, line_number, self.path.clone()));
     }
@@ -1032,33 +1032,29 @@ mod tests {
                 assert_eq!(
                     FILE.errors(),
                     [
+                        Error::new(ErrorType::MissingEntryOwner, 1, PathBuf::from("CODEOWNERS")),
                         Error::new(
-                            ErrorType::MissingEntryOwner.to_string(),
-                            1,
-                            PathBuf::from("CODEOWNERS")
-                        ),
-                        Error::new(
-                            ErrorType::MissingSectionName.to_string(),
+                            ErrorType::MissingSectionName,
                             3,
                             PathBuf::from("CODEOWNERS")
                         ),
                         Error::new(
-                            ErrorType::InvalidApprovalRequirement.to_string(),
+                            ErrorType::InvalidApprovalRequirement,
                             6,
                             PathBuf::from("CODEOWNERS")
                         ),
                         Error::new(
-                            ErrorType::InvalidSectionFormat.to_string(),
+                            ErrorType::InvalidSectionFormat,
                             9,
                             PathBuf::from("CODEOWNERS")
                         ),
                         Error::new(
-                            ErrorType::InvalidEntryOwnerFormat.to_string(),
+                            ErrorType::InvalidEntryOwnerFormat,
                             9,
                             PathBuf::from("CODEOWNERS")
                         ),
                         Error::new(
-                            ErrorType::InvalidEntryOwnerFormat.to_string(),
+                            ErrorType::InvalidEntryOwnerFormat,
                             12,
                             PathBuf::from("CODEOWNERS")
                         )
