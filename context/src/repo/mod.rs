@@ -19,7 +19,7 @@ pub const GIT_REMOTE_ORIGIN_URL_CONFIG: &str = "remote.origin.url";
 
 lazy_static! {
     static ref GH_MERGE_BRANCH_REGEX: Regex =
-        Regex::new(r"refs\/remotes\/pull\/[0-9]+\/merge").unwrap();
+        Regex::new(r"refs\/(remotes\/)?pull\/[0-9]+\/merge").unwrap();
 }
 
 #[derive(Debug, Clone, Default)]
