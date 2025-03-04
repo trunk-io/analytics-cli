@@ -12,4 +12,5 @@ message UploadMetrics {
   google.protobuf.Timestamp upload_started_at = 4;
   google.protobuf.Timestamp upload_finished_at = 5;
   bool failed = 6;
+  string failure_reason = 7;
 }
