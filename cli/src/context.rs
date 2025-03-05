@@ -270,6 +270,7 @@ pub async fn gather_exit_code_and_quarantined_tests_context(
                 repo: meta.base_props.repo.repo.clone(),
                 org_url_slug: meta.base_props.org.clone(),
                 test_identifiers: failed_tests_extractor.failed_tests().to_vec(),
+                remote_urls: vec![meta.base_props.repo.repo_url.clone()],
             },
             file_set_builder,
             Some(failed_tests_extractor),
