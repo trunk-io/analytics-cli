@@ -33,6 +33,8 @@ pub struct GetQuarantineConfigResponse {
 #[derive(Debug, Serialize, Clone, Deserialize, PartialEq, Eq)]
 pub struct GetQuarantineConfigRequest {
     pub repo: RepoUrlParts,
+    #[serde(rename = "remoteUrls")]
+    pub remote_urls: Vec<String>,
     #[serde(rename = "orgUrlSlug")]
     pub org_url_slug: String,
     #[serde(rename = "testIdentifiers")]
