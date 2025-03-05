@@ -156,7 +156,7 @@ pub async fn run_upload(
     } else {
         chrono::Utc::now().into()
     };
-    let api_client = ApiClient::new(&upload_args.token)?;
+    let api_client = ApiClient::new(&upload_args.token, &upload_args.org_url_slug)?;
 
     let PreTestContext {
         mut meta,
