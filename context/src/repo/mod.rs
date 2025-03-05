@@ -19,7 +19,7 @@ pub const GIT_REMOTE_ORIGIN_URL_CONFIG: &str = "remote.origin.url";
 
 lazy_static! {
     static ref GH_MERGE_BRANCH_REGEX: Regex =
-        Regex::new(r"refs\/remotes\/pull\/[0-9]+\/merge").unwrap();
+        Regex::new(r"refs\/(remotes\/)?pull\/[0-9]+\/merge").unwrap();
 }
 
 #[derive(Debug, Clone, Default)]
@@ -404,4 +404,32 @@ impl RepoUrlParts {
     pub fn js_new(host: String, owner: String, name: String) -> Self {
         Self { host, owner, name }
     }
+}
+
+#[test]
+fn matches_gh_remote_refs() {
+    assert!(GH_MERGE_BRANCH_REGEX.is_match("refs/remotes/pull/114342/merge"));
+}
+
+#[test]
+fn matches_gh_local_refs() {
+    assert!(GH_MERGE_BRANCH_REGEX.is_match("refs/pull/114342/merge"));
+}
+
+#[test]
+fn does_not_match_non_merges() {
+    assert!(!GH_MERGE_BRANCH_REGEX.is_match("refs/remotes/pull/114342"));
+    assert!(!GH_MERGE_BRANCH_REGEX.is_match("refs/pull/114342"));
+}
+
+#[test]
+fn does_not_match_non_numeric_prs() {
+    assert!(!GH_MERGE_BRANCH_REGEX.is_match("refs/remotes/pull/asdf/merge"));
+    assert!(!GH_MERGE_BRANCH_REGEX.is_match("refs/pull/asdf/merge"));
+}
+
+#[test]
+fn does_not_match_non_prs() {
+    assert!(!GH_MERGE_BRANCH_REGEX.is_match("refs/remotes/merge"));
+    assert!(!GH_MERGE_BRANCH_REGEX.is_match("refs/merge"));
 }
