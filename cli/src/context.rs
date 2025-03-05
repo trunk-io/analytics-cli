@@ -156,13 +156,13 @@ pub fn gather_post_test_context<U: AsRef<Path>>(
     )?;
 
     if !allow_empty_test_results && file_set_builder.no_files_found() {
-        return Err(anyhow::anyhow!("No JUnit files found to upload."));
+        return Err(anyhow::anyhow!("No test output files found to upload."));
     }
 
     tracing::info!("Total files pack and upload: {}", file_set_builder.count());
     if file_set_builder.no_files_found() {
         tracing::warn!(
-            "No JUnit files found to pack and upload using globs: {:?}",
+            "No test output files found to pack and upload using globs: {:?}",
             junit_path_wrappers
                 .iter()
                 .map(|j| &j.junit_path)
