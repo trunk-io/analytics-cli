@@ -705,7 +705,9 @@ async fn telemetry_upload_metrics_on_upload_failure() {
 
     let mut mock_server_builder = MockServerBuilder::new();
     mock_server_builder.set_create_bundle_handler(
-        |State(_state): State<SharedMockServerState>, _: Json<CreateBundleUploadRequest>| async {},
+        |State(_): State<SharedMockServerState>, _: Json<CreateBundleUploadRequest>| async {
+            Err::<Json<CreateBundleUploadResponse>, StatusCode>(StatusCode::BAD_REQUEST)
+        },
     );
     let state = mock_server_builder.spawn_mock_server().await;
 
@@ -725,6 +727,7 @@ async fn telemetry_upload_metrics_on_upload_failure() {
     assert_eq!(telemetry_request_repo.host, "github.com");
     assert_eq!(telemetry_request_repo.owner, "trunk-io");
     assert_eq!(telemetry_request_repo.name, "analytics-cli");
+    assert_eq!(telemetry_request.failure_reason, "400_bad_request");
 
     // HINT: View CLI output with `cargo test -- --nocapture`
     println!("{assert}");
@@ -755,6 +758,7 @@ async fn telemetry_upload_metrics_on_upload_success() {
     assert_eq!(telemetry_request_repo.host, "github.com");
     assert_eq!(telemetry_request_repo.owner, "trunk-io");
     assert_eq!(telemetry_request_repo.name, "analytics-cli");
+    assert_eq!(telemetry_request.failure_reason, "");
 
     // HINT: View CLI output with `cargo test -- --nocapture`
     println!("{assert}");
