@@ -91,7 +91,7 @@ async fn validate(
         None,
     )?;
     if file_set_builder.no_files_found() {
-        return Err(anyhow::anyhow!("No JUnit files found to validate."));
+        return Err(anyhow::anyhow!("No test output files found to validate."));
     }
     print_matched_files(&file_set_builder);
 

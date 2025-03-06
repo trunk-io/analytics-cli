@@ -492,7 +492,7 @@ async fn upload_bundle_with_no_junit_files_no_quarantine_successful_upload() {
         .code(0)
         .success()
         .stdout(predicate::str::contains(
-            "No JUnit files found, not quarantining any tests",
+            "No test output files found, not quarantining any tests",
         ));
 
     // HINT: View CLI output with `cargo test -- --nocapture`

@@ -172,7 +172,7 @@ pub async fn gather_quarantine_context(
     let mut exit_code = test_run_exit_code.unwrap_or(EXIT_SUCCESS);
 
     if file_set_builder.no_files_found() {
-        tracing::info!("No JUnit files found, not quarantining any tests");
+        tracing::info!("No test output files found, not quarantining any tests.");
         return QuarantineContext {
             exit_code,
             ..Default::default()
