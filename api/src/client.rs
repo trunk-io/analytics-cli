@@ -298,8 +298,8 @@ pub(crate) fn status_code_help<T: FnMut(&Response) -> String>(
     check_unauthorized: CheckUnauthorized,
     check_not_found: CheckNotFound,
     mut create_error_message: T,
-    api_host: &String,
-    org_url_slug: &String,
+    api_host: &str,
+    org_url_slug: &str,
 ) -> anyhow::Result<Response> {
     let base_error_message = create_error_message(&response);
 
@@ -311,14 +311,22 @@ pub(crate) fn status_code_help<T: FnMut(&Response) -> String>(
     } else {
         let domain: Option<String> = url::Url::parse(api_host)
             .ok()
-            .map(|url| url.domain().map(|domain| String::from(domain)))
-            .flatten();
+            .into_iter()
+            .flat_map(|url| {
+                url.domain()
+                    .into_iter()
+                    .map(String::from)
+                    .collect::<Vec<String>>()
+            })
+            .next();
         let error_message = match (response.status(), check_unauthorized, check_not_found) {
-            (StatusCode::UNAUTHORIZED, CheckUnauthorized::Check, _) => {
-                add_settings_url_to_context(UNAUTHORIZED_CONTEXT, domain, org_url_slug)
-            }
+            (StatusCode::UNAUTHORIZED, CheckUnauthorized::Check, _) => add_settings_url_to_context(
+                UNAUTHORIZED_CONTEXT,
+                domain,
+                &String::from(org_url_slug),
+            ),
             (StatusCode::NOT_FOUND, _, CheckNotFound::Check) => {
-                add_settings_url_to_context(NOT_FOUND_CONTEXT, domain, org_url_slug)
+                add_settings_url_to_context(NOT_FOUND_CONTEXT, domain, &String::from(org_url_slug))
             }
             _ => base_error_message,
         };
@@ -345,7 +353,7 @@ fn add_settings_url_to_context(
                 org_url_slug
             );
             format!(
-                "{} Your settings page can be found at: {}",
+                "{}\nYour settings page can be found at: {}",
                 context, settings_url
             )
         }
@@ -357,13 +365,19 @@ fn add_settings_url_to_context(
 fn adds_settings_if_domain_present() {
     let domain = url::Url::parse("https://api.fake-trunk.io/")
         .ok()
-        .map(|url| url.domain().map(|domain| String::from(domain)))
-        .flatten();
+        .into_iter()
+        .flat_map(|url| {
+            url.domain()
+                .into_iter()
+                .map(String::from)
+                .collect::<Vec<String>>()
+        })
+        .next();
     let final_context =
         add_settings_url_to_context("base_context", domain, &String::from("fake-org-slug"));
     assert_eq!(
         final_context,
-        "base_context Your settings page can be found at: https://app.fake-trunk.io/fake-org-slug/settings",
+        "base_context\nYour settings page can be found at: https://app.fake-trunk.io/fake-org-slug/settings",
     )
 }
 
