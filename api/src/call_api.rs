@@ -345,6 +345,8 @@ mod tests {
                     CheckUnauthorized::DoNotCheck,
                     CheckNotFound::Check,
                     |_e| String::from("Test message"),
+                    &String::from("mock_host"),
+                    &String::from("mock_url_slug"),
                 )
             },
             log_progress_message: |_, _| String::new(),
