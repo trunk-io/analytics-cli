@@ -254,7 +254,7 @@ async fn quarantining_resets_fail_code() {
         vec![
             String::from("bash"),
             String::from("-c"),
-            String::from("touch ./*; exit 1"),
+            String::from("sleep 1; touch ./*; exit 1"),
         ],
     )
     .command()
