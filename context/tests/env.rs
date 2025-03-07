@@ -213,9 +213,6 @@ fn test_simple_github() {
             EnvValidationIssue::SubOptimal(
                 EnvValidationIssueSubOptimal::CIInfoCommitterNameTooShort(String::from(""),),
             ),
-            EnvValidationIssue::SubOptimal(EnvValidationIssueSubOptimal::CIInfoTitleTooShort(
-                String::from(""),
-            ),),
         ]
     );
 }
