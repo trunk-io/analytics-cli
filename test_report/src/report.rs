@@ -174,7 +174,7 @@ impl MutTestReport {
                 )) {
                 Ok(_) => true,
                 Err(e) => {
-                    tracing::error!("Error uploading: {:?}", e);
+                    tracing::error!(hidden_in_console = true, "Error uploading: {:?}", e);
                     false
                 }
             }
