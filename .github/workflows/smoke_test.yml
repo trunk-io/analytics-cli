@@ -60,7 +60,7 @@ jobs:
       - name: Analytics Cli Smoke Test Failure
         uses: slackapi/slack-github-action@v1
         with:
-          channel-id: production-notifications
+          channel-id: ${{ (github.event.action == 'production-release' && 'production-notifications') || (github.event.action == 'staging-release' && 'staging-notifications') }}
           payload: |
             {
               "blocks": [
