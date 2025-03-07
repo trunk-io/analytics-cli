@@ -163,6 +163,7 @@ fn test_simple_github() {
         ),
         (String::from("GITHUB_WORKFLOW"), String::from(&workflow)),
         (String::from("GITHUB_JOB"), String::from(&job)),
+        (String::from("PR_TITLE"), String::from("pr-title")),
     ]);
 
     let mut env_parser = EnvParser::new();
@@ -186,7 +187,7 @@ fn test_simple_github() {
             author_name: None,
             author_email: None,
             commit_message: None,
-            title: None,
+            title: Some("pr-title".into()),
             workflow: Some(workflow),
             job: Some(job),
         }
