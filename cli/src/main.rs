@@ -3,6 +3,7 @@ use std::env;
 use clap::{Parser, Subcommand};
 use clap_verbosity_flag::{log::LevelFilter, InfoLevel, Verbosity};
 use third_party::sentry;
+use tracing::Instrument;
 use tracing_subscriber::prelude::*;
 use trunk_analytics_cli::{
     context::gather_debug_props,
@@ -41,6 +42,39 @@ impl Cli {
             |token| gather_debug_props(token).command_line,
         )
     }
+
+    pub fn command_name(&self) -> &str {
+        match &self.command {
+            Commands::Quarantine(..) => "quarantine",
+            Commands::Test(..) => "test",
+            Commands::Upload(..) => "upload",
+            Commands::Validate(..) => "validate",
+        }
+    }
+
+    pub fn org_url_slug(&self) -> String {
+        match &self.command {
+            Commands::Quarantine(args) => args.org_url_slug(),
+            Commands::Test(args) => args.org_url_slug(),
+            Commands::Upload(args) => args.org_url_slug.clone(),
+            Commands::Validate(..) => String::from("not used"),
+        }
+    }
+
+    pub fn repo_root(&self) -> String {
+        let explicit_root = match &self.command {
+            Commands::Quarantine(args) => args.repo_root(),
+            Commands::Test(args) => args.repo_root(),
+            Commands::Upload(args) => args.repo_root.clone(),
+            Commands::Validate(..) => None,
+        };
+        explicit_root
+            .or(std::env::current_dir()
+                .iter()
+                .flat_map(|path_buf| path_buf.clone().into_os_string().into_string().into_iter())
+                .next())
+            .unwrap_or(String::from("not set"))
+    }
 }
 
 #[derive(Debug, Subcommand)]
@@ -68,12 +102,19 @@ fn main() -> anyhow::Result<()> {
             let cli = Cli::parse();
             let log_level_filter = cli.verbose.log_level_filter();
             setup_logger(log_level_filter)?;
+            let span = tracing::info_span!(
+                "Running command",
+                tags.command = cli.command_name(),
+                tags.org_url_slug = cli.org_url_slug(),
+                tags.repo_root = cli.repo_root(),
+            );
             tracing::info!("{}", TITLE_CARD);
             tracing::info!(
                 command = cli.debug_props(),
                 "Trunk Flaky Test running command"
             );
-            match run(cli).await {
+            let run_result = { run(cli) }.instrument(span).await;
+            match run_result {
                 Ok(exit_code) => std::process::exit(exit_code),
                 Err(error) => {
                     let exit_code = log_error(&error, None);
@@ -133,6 +174,8 @@ fn setup_logger(log_level_filter: LevelFilter) -> anyhow::Result<()> {
             tracing_subscriber::fmt::Layer::new()
                 .without_time()
                 .with_target(false)
+                .with_level(false)
+                .with_current_span(false)
                 .with_writer(std::io::stdout.with_max_level(to_trace_filter(log_level_filter))),
         )
         .with(sentry_layer)
