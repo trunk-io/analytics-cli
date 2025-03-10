@@ -375,7 +375,7 @@ mod tests {
             .await
             .unwrap_err()
             .to_string()
-            .contains("Failed to get quarantine bulk test."));
+            .contains("501 Not Implemented"));
         assert_eq!(CALL_COUNT.load(Ordering::Relaxed), 1);
     }
 
@@ -417,7 +417,7 @@ mod tests {
             .await
             .unwrap_err()
             .to_string()
-            .contains("Failed to get quarantine bulk test."));
+            .contains("500 Internal Server Error"));
         assert_eq!(CALL_COUNT.load(Ordering::Relaxed), 6);
     }
 
@@ -454,6 +454,6 @@ mod tests {
             .await
             .unwrap_err()
             .to_string()
-            .contains("Quarantining config not found"));
+            .contains("404 Not Found"));
     }
 }
