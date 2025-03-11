@@ -77,17 +77,19 @@ impl BundleRepo {
 
         #[cfg(feature = "git-access")]
         {
-            let git_repo = repo_root
-                // if a repo root is provided then use that
-                // otherwise try to discover the repo root
-                .map_or(gix::discover(current_dir).ok(), |dir| gix::open(dir).ok())
-                .context(format!(
-                    "Failed to open git repository at {:?}",
-                    bundle_repo_options
-                        .repo_root
-                        .clone()
-                        .unwrap_or(PathBuf::from(""))
-                ))?;
+            let git_repo = match repo_root {
+                Some(manual_root) => gix::open(manual_root.clone()).map_err(|e| {
+                    tracing::warn!("Could not open the repo_root specified: {:?}", manual_root);
+                    anyhow::Error::from(e)
+                })?,
+                None => gix::discover(current_dir.clone()).map_err(|e| {
+                    tracing::warn!(
+                        "Current directory {:?} does not have a git repo",
+                        current_dir
+                    );
+                    anyhow::Error::from(e)
+                })?,
+            };
             tracing::info!("Using repo root at {:?}", git_repo.git_dir());
 
             bundle_repo_options.repo_url = bundle_repo_options.repo_url.or_else(|| {

@@ -1,9 +1,9 @@
 use std::path::Path;
 
-use anyhow::Context;
 use constants::{DEFAULT_ORIGIN, TRUNK_PUBLIC_API_ADDRESS_ENV};
 use http::{header::HeaderMap, HeaderValue};
 use reqwest::{header, Client, Response, StatusCode};
+use serde::de::DeserializeOwned;
 use tokio::fs;
 
 use crate::call_api::CallApi;
@@ -124,10 +124,7 @@ impl ApiClient {
                     &self.org_url_slug,
                 )?;
 
-                response
-                    .json::<message::CreateBundleUploadResponse>()
-                    .await
-                    .context("Failed to get response body as json.")
+                self.deserialize_response::<message::CreateBundleUploadResponse>(response).await
             },
             log_progress_message: |time_elapsed, _| {
                 format!("Reporting bundle upload initiation to Trunk services is taking longer than expected. It has taken {} seconds so far.", time_elapsed.as_secs())
@@ -168,10 +165,7 @@ impl ApiClient {
                     &self.org_url_slug,
                 )?;
 
-                response
-                    .json::<message::GetQuarantineConfigResponse>()
-                    .await
-                    .context("Failed to get response body as json.")
+                self.deserialize_response::<message::GetQuarantineConfigResponse>(response).await
             },
             log_progress_message: |time_elapsed, _| {
                 format!("Getting quarantine configuration from Trunk services is taking longer than expected. It has taken {} seconds so far.", time_elapsed.as_secs())
@@ -244,12 +238,14 @@ impl ApiClient {
                 let error_message = "Failed to send telemetry metrics.";
                 if !response.status().is_client_error() {
                     response.error_for_status().map_err(|reqwest_error| {
-                        anyhow::Error::from(reqwest_error).context(error_message)
+                        tracing::warn!("{}", error_message);
+                        anyhow::Error::from(reqwest_error)
                     }).map(|_| ())
                 } else {
+                    tracing::warn!("{}", error_message);
                     match response.error_for_status() {
                         Ok(..) => Err(anyhow::Error::msg(error_message)),
-                        Err(error) => Err(anyhow::Error::from(error).context(error_message)),
+                        Err(error) => Err(anyhow::Error::from(error)),
                     }
                 }
             },
@@ -266,6 +262,17 @@ impl ApiClient {
         }
         .call_api()
         .await
+    }
+
+    async fn deserialize_response<MessageType: DeserializeOwned>(
+        &self,
+        response: Response,
+    ) -> Result<MessageType, anyhow::Error> {
+        let deserialized: reqwest::Result<MessageType> = response.json::<MessageType>().await;
+        if deserialized.is_err() {
+            tracing::warn!("Failed to get response body as json.");
+        }
+        deserialized.map_err(anyhow::Error::from)
     }
 }
 
@@ -306,7 +313,8 @@ pub(crate) fn status_code_help<T: FnMut(&Response) -> String>(
     if !response.status().is_client_error() {
         response.error_for_status().map_err(|reqwest_error| {
             let error_message = format!("{base_error_message}{HELP_TEXT}");
-            anyhow::Error::from(reqwest_error).context(error_message)
+            tracing::warn!("{}", error_message);
+            anyhow::Error::from(reqwest_error)
         })
     } else {
         let domain: Option<String> = url::Url::parse(api_host)
@@ -333,9 +341,10 @@ pub(crate) fn status_code_help<T: FnMut(&Response) -> String>(
 
         let error_message_with_help = format!("{error_message}{HELP_TEXT}");
 
+        tracing::warn!("{}", error_message_with_help);
         match response.error_for_status() {
             Ok(..) => Err(anyhow::Error::msg(error_message_with_help)),
-            Err(error) => Err(anyhow::Error::from(error).context(error_message_with_help)),
+            Err(error) => Err(anyhow::Error::from(error)),
         }
     }
 }
@@ -443,7 +452,7 @@ mod tests {
             .await
             .unwrap_err()
             .to_string()
-            .contains("Failed to get quarantine bulk test."));
+            .contains("501 Not Implemented"));
         assert_eq!(CALL_COUNT.load(Ordering::Relaxed), 1);
     }
 
@@ -487,7 +496,7 @@ mod tests {
             .await
             .unwrap_err()
             .to_string()
-            .contains("Failed to get quarantine bulk test."));
+            .contains("500 Internal Server Error"));
         assert_eq!(CALL_COUNT.load(Ordering::Relaxed), 6);
     }
 
@@ -526,6 +535,6 @@ mod tests {
             .await
             .unwrap_err()
             .to_string()
-            .contains("Quarantining config not found"));
+            .contains("404 Not Found"));
     }
 }

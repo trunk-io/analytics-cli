@@ -413,7 +413,7 @@ async fn upload_bundle_invalid_repo_root() {
         .assert()
         .failure()
         .stdout(predicate::str::contains(
-            "error: Failed to open git repository at \"../\"",
+            "Could not open the repo_root specified",
         ));
     let requests = state.requests.lock().unwrap().clone();
     assert_eq!(requests.len(), 0);
@@ -438,7 +438,7 @@ async fn upload_bundle_invalid_repo_root_explicit() {
         .assert()
         .failure()
         .stdout(predicate::str::contains(
-            "error: Failed to open git repository at",
+            "Could not open the repo_root specified",
         ));
     let requests = state.requests.lock().unwrap().clone();
     assert_eq!(requests.len(), 0);
@@ -694,7 +694,7 @@ async fn is_not_ok_on_bad_request() {
     command
         .assert()
         .failure()
-        .stdout(predicate::str::contains("error: "));
+        .stdout(predicate::str::contains("error"));
 }
 
 #[tokio::test(flavor = "multi_thread")]

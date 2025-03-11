@@ -5,9 +5,8 @@ pub fn log_error(error: &anyhow::Error, base_message: Option<&str>) -> i32 {
     if let Some(io_error) = root_cause.downcast_ref::<std::io::Error>() {
         if io_error.kind() == std::io::ErrorKind::ConnectionRefused {
             tracing::warn!(
-                "{}: {:?}",
-                message(base_message, "could not connect to trunk's server"),
-                error
+                "{}",
+                message(base_message, "could not connect to trunk's server")
             );
             return exitcode::OK;
         }
@@ -19,17 +18,14 @@ pub fn log_error(error: &anyhow::Error, base_message: Option<&str>) -> i32 {
                 || status == StatusCode::FORBIDDEN
                 || status == StatusCode::NOT_FOUND
             {
-                tracing::warn!(
-                    "{}: {:?}",
-                    message(base_message, "unauthorized to access trunk"),
-                    error,
-                );
+                tracing::warn!("{}", message(base_message, "unauthorized to access trunk"),);
                 return exitcode::SOFTWARE;
             }
         }
     }
 
-    tracing::error!("{}: {:?}", message(base_message, "error"), error,);
+    tracing::error!("{}", message(base_message, "error"));
+    tracing::error!(hidden_in_console = true, "Caused by error: {:#?}", error);
     exitcode::SOFTWARE
 }
 
