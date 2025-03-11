@@ -353,7 +353,7 @@ fn add_settings_url_to_context(
                 org_url_slug
             );
             format!(
-                "{}\nYour settings page can be found at: {}",
+                "{}\nHint - Your settings page can be found at: {}",
                 context, settings_url
             )
         }
