@@ -91,7 +91,7 @@ async fn validate(
         None,
     )?;
     if file_set_builder.no_files_found() {
-        let msg = "No JUnit files found to validate.";
+        let msg = "No test output files found to validate.";
         tracing::warn!(msg);
         return Err(anyhow::anyhow!(msg));
     }
