@@ -19,6 +19,7 @@ use super::{
         JunitValidationLevel, JunitValidationType,
     },
 };
+use crate::junit::parser::extra_attrs;
 
 #[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass(get_all))]
 #[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
@@ -360,6 +361,21 @@ impl From<TestSuite> for BindingsTestSuite {
             ..
         }: TestSuite,
     ) -> Self {
+        let file = extra.get(extra_attrs::FILE);
+        let filepath = extra.get(extra_attrs::FILEPATH);
+        let test_cases = test_cases
+            .into_iter()
+            .map(|mut tc| {
+                if let Some(file) = file {
+                    tc.extra.insert(extra_attrs::FILE.into(), file.clone());
+                }
+                if let Some(filepath) = filepath {
+                    tc.extra
+                        .insert(extra_attrs::FILEPATH.into(), filepath.clone());
+                }
+                BindingsTestCase::from(tc)
+            })
+            .collect();
         Self {
             name: name.into_string(),
             tests,
@@ -369,7 +385,7 @@ impl From<TestSuite> for BindingsTestSuite {
             timestamp: timestamp.map(|t| t.timestamp()),
             timestamp_micros: timestamp.map(|t| t.timestamp_micros()),
             time: time.map(|t| t.as_secs_f64()),
-            test_cases: test_cases.into_iter().map(BindingsTestCase::from).collect(),
+            test_cases,
             properties: properties.into_iter().map(BindingsProperty::from).collect(),
             system_out: system_out.map(|s| s.to_string()),
             system_err: system_err.map(|s| s.to_string()),
@@ -414,9 +430,20 @@ impl From<BindingsTestSuite> for TestSuite {
             })
             .map(|dt| dt.fixed_offset());
         test_suite.time = time.map(Duration::from_secs_f64);
+        let file = test_suite.extra.get(extra_attrs::FILE);
+        let filepath = test_suite.extra.get(extra_attrs::FILEPATH);
         test_suite.test_cases = test_cases
             .into_iter()
-            .map(BindingsTestCase::try_into)
+            .map(|mut tc| {
+                if let Some(file) = file {
+                    tc.extra.insert(extra_attrs::FILE.into(), file.to_string());
+                }
+                if let Some(filepath) = filepath {
+                    tc.extra
+                        .insert(extra_attrs::FILEPATH.into(), filepath.to_string());
+                }
+                BindingsTestCase::try_into(tc)
+            })
             .filter_map(|t| {
                 // Removes any invalid test cases that could not be parsed correctly
                 t.ok()
@@ -924,6 +951,68 @@ impl BindingsJunitReportValidation {
             .filter(|issue| issue.level == JunitValidationLevel::SubOptimal)
             .count()
     }
+}
+
+#[cfg(feature = "bindings")]
+#[test]
+fn parse_quick_junit_to_bindings() {
+    use std::io::BufReader;
+
+    use crate::junit::parser::JunitParser;
+    const INPUT_XML: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
+<testsuites name="my-test-run" tests="2" failures="1" errors="0">
+    <testsuite name="my-test-suite" file="path/to/my/test.js" tests="2" disabled="0" errors="0" failures="1">
+        <testcase name="success-case">
+        </testcase>
+        <testcase name="failure-case">
+            <failure/>
+        </testcase>
+    </testsuite>
+</testsuites>
+"#;
+    let mut junit_parser = JunitParser::new();
+    junit_parser
+        .parse(BufReader::new(INPUT_XML.as_bytes()))
+        .unwrap();
+    let reports = junit_parser.into_reports();
+    assert_eq!(reports.len(), 1);
+    let bindings_report = BindingsReport::from(reports[0].clone());
+    assert_eq!(bindings_report.name, "my-test-run");
+    assert_eq!(bindings_report.tests, 2);
+    assert_eq!(bindings_report.failures, 1);
+    assert_eq!(bindings_report.errors, 0);
+    assert_eq!(bindings_report.test_suites.len(), 1);
+    let test_suite = &bindings_report.test_suites[0];
+    assert_eq!(test_suite.name, "my-test-suite");
+    assert_eq!(test_suite.tests, 2);
+    assert_eq!(test_suite.disabled, 0);
+    assert_eq!(test_suite.errors, 0);
+    assert_eq!(test_suite.failures, 1);
+    assert_eq!(test_suite.test_cases.len(), 2);
+    let test_case1 = &test_suite.test_cases[0];
+    assert_eq!(test_case1.name, "success-case");
+    assert_eq!(test_case1.classname, None);
+    assert_eq!(test_case1.assertions, None);
+    assert_eq!(test_case1.timestamp, None);
+    assert_eq!(test_case1.timestamp_micros, None);
+    assert_eq!(test_case1.time, None);
+    assert_eq!(test_case1.system_out, None);
+    assert_eq!(test_case1.system_err, None);
+    assert_eq!(test_case1.extra.len(), 1);
+    assert_eq!(test_case1.extra["file"], "path/to/my/test.js");
+    assert_eq!(test_case1.properties.len(), 0);
+    let test_case2 = &test_suite.test_cases[1];
+    assert_eq!(test_case2.name, "failure-case");
+    assert_eq!(test_case2.classname, None);
+    assert_eq!(test_case2.assertions, None);
+    assert_eq!(test_case2.timestamp, None);
+    assert_eq!(test_case2.timestamp_micros, None);
+    assert_eq!(test_case2.time, None);
+    assert_eq!(test_case2.system_out, None);
+    assert_eq!(test_case2.system_err, None);
+    assert_eq!(test_case2.extra.len(), 1);
+    assert_eq!(test_case2.extra["file"], "path/to/my/test.js");
+    assert_eq!(test_case2.properties.len(), 0);
 }
 
 #[cfg(feature = "bindings")]
