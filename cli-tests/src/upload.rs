@@ -167,8 +167,9 @@ async fn upload_bundle() {
         &command_builder
             .build_args()
             .join(" ")
-            .replace("test-token", "***")
+            .replace("test-token", "")
             .replace("--token", "")
+            .trim()
     ));
 
     // HINT: View CLI output with `cargo test -- --nocapture`
