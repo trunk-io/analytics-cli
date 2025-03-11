@@ -411,5 +411,9 @@ mod tests {
         let args: Vec<String> = vec!["trunk flakytests".into(), "test".into()];
         let debug_props = super::gather_debug_props(args, "token".to_string());
         assert_eq!(debug_props.command_line, "trunk flakytests test");
+
+        let args: Vec<String> = vec!["trunk flakytests".into(), "token".into()];
+        let debug_props = super::gather_debug_props(args, "token".to_string());
+        assert_eq!(debug_props.command_line, "trunk flakytests");
     }
 }
