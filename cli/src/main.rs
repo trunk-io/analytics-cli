@@ -38,7 +38,7 @@ impl Cli {
 
         token.map_or(
             format!("{:#?}", env::args().collect::<Vec<String>>()),
-            |token| gather_debug_props(token).command_line,
+            |token| gather_debug_props(env::args().collect::<Vec<String>>(), token).command_line,
         )
     }
 }

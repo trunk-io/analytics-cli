@@ -1,3 +1,5 @@
+use std::env;
+
 use api::client::ApiClient;
 use bundle::{BundleMeta, BundlerUtil};
 use clap::{ArgAction, Args};
@@ -168,7 +170,10 @@ pub async fn run_upload(
     } = if let Some(pre_test_context) = pre_test_context {
         pre_test_context
     } else {
-        gather_pre_test_context(upload_args.clone(), gather_debug_props(upload_args.token))?
+        gather_pre_test_context(
+            upload_args.clone(),
+            gather_debug_props(env::args().collect::<Vec<String>>(), upload_args.token),
+        )?
     };
 
     let file_set_builder = gather_post_test_context(

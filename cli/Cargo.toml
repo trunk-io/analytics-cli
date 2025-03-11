@@ -51,6 +51,8 @@ console = "0.15.8"
 serde_json = "1.0"
 clap-verbosity-flag = "3.0.2"
 proto = { path = "../proto" }
+regex = "1.11.1"
+lazy_static = "1.5.0"
 
 [dev-dependencies]
 test_utils = { version = "0.1.0", path = "../test_utils" }
