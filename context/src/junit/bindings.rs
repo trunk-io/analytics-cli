@@ -19,6 +19,7 @@ use super::{
         JunitValidationLevel, JunitValidationType,
     },
 };
+use crate::junit::parser::extra_attrs;
 
 #[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass(get_all))]
 #[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
@@ -76,8 +77,13 @@ impl From<TestResult> for BindingsReport {
             });
         let test_suites: Vec<BindingsTestSuite> = parent_name_map
             .into_iter()
-            .map(|(name, testcases)| {
+            .map(|(name, mut testcases)| {
                 let tests = testcases.len();
+                if let Some(file) = test_suite.extra.get("file") {
+                    testcases
+                        .iter()
+                        .map(|mut tc| tc.extra.insert(extra_attrs::FILE.into(), file.clone()));
+                }
                 let disabled = testcases
                     .iter()
                     .filter(|tc| tc.status.status == BindingsTestCaseStatusStatus::Skipped)
@@ -414,9 +420,20 @@ impl From<BindingsTestSuite> for TestSuite {
             })
             .map(|dt| dt.fixed_offset());
         test_suite.time = time.map(Duration::from_secs_f64);
+        let file = test_suite.extra.get(extra_attrs::FILE);
+        let filepath = test_suite.extra.get(extra_attrs::FILEPATH);
         test_suite.test_cases = test_cases
             .into_iter()
-            .map(BindingsTestCase::try_into)
+            .map(|mut tc| {
+                if let Some(file) = file {
+                    tc.extra.insert(extra_attrs::FILE.into(), file.to_string());
+                }
+                if let Some(filepath) = filepath {
+                    tc.extra
+                        .insert(extra_attrs::FILEPATH.into(), filepath.to_string());
+                }
+                BindingsTestCase::try_into(tc)
+            })
             .filter_map(|t| {
                 // Removes any invalid test cases that could not be parsed correctly
                 t.ok()
