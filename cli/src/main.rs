@@ -3,7 +3,6 @@ use std::env;
 use clap::{Parser, Subcommand};
 use clap_verbosity_flag::{log::LevelFilter, InfoLevel, Verbosity};
 use third_party::sentry;
-use tracing::Instrument;
 use tracing_subscriber::prelude::*;
 use trunk_analytics_cli::{
     context::gather_debug_props,
@@ -101,20 +100,18 @@ fn main() -> anyhow::Result<()> {
         .block_on(async {
             let cli = Cli::parse();
             let log_level_filter = cli.verbose.log_level_filter();
-            setup_logger(log_level_filter)?;
-            let span = tracing::info_span!(
-                "Running command",
-                tags.command = cli.command_name(),
-                tags.org_url_slug = cli.org_url_slug(),
-                tags.repo_root = cli.repo_root(),
-            );
+            setup_logger(
+                log_level_filter,
+                cli.command_name(),
+                cli.org_url_slug(),
+                cli.repo_root(),
+            )?;
             tracing::info!("{}", TITLE_CARD);
             tracing::info!(
                 command = cli.debug_props(),
                 "Trunk Flaky Test running command"
             );
-            let run_result = { run(cli) }.instrument(span).await;
-            match run_result {
+            match run(cli).await {
                 Ok(exit_code) => std::process::exit(exit_code),
                 Err(error) => {
                     let exit_code = log_error(&error, None);
@@ -160,14 +157,40 @@ fn to_trace_filter(filter: log::LevelFilter) -> tracing::Level {
     }
 }
 
-fn setup_logger(log_level_filter: LevelFilter) -> anyhow::Result<()> {
+fn setup_logger(
+    log_level_filter: LevelFilter,
+    command_name: &str,
+    org_url_slug: String,
+    repo_root: String,
+) -> anyhow::Result<()> {
+    let command_string = String::from(command_name);
     // trunk-ignore(clippy/match_ref_pats)
-    let sentry_layer = sentry_tracing::layer().event_filter(|md| match md.level() {
-        &tracing::Level::ERROR => sentry_tracing::EventFilter::Event,
-        &tracing::Level::WARN => sentry_tracing::EventFilter::Breadcrumb,
-        &tracing::Level::INFO => sentry_tracing::EventFilter::Breadcrumb,
-        &tracing::Level::DEBUG => sentry_tracing::EventFilter::Breadcrumb,
-        _ => sentry_tracing::EventFilter::Ignore,
+    let sentry_layer = sentry_tracing::layer().event_mapper(move |event, context| {
+        match event.metadata().level() {
+            &tracing::Level::ERROR => {
+                let mut event = sentry_tracing::event_from_event(event, context);
+                event
+                    .tags
+                    .insert(String::from("command_name"), command_string.clone());
+                event
+                    .tags
+                    .insert(String::from("org_url_slug"), org_url_slug.clone());
+                event
+                    .tags
+                    .insert(String::from("repo_root"), repo_root.clone());
+                sentry_tracing::EventMapping::Event(event)
+            }
+            &tracing::Level::WARN => sentry_tracing::EventMapping::Breadcrumb(
+                sentry_tracing::breadcrumb_from_event(event, context),
+            ),
+            &tracing::Level::INFO => sentry_tracing::EventMapping::Breadcrumb(
+                sentry_tracing::breadcrumb_from_event(event, context),
+            ),
+            &tracing::Level::DEBUG => sentry_tracing::EventMapping::Breadcrumb(
+                sentry_tracing::breadcrumb_from_event(event, context),
+            ),
+            _ => sentry_tracing::EventMapping::Ignore,
+        }
     });
     tracing_subscriber::registry()
         .with(
@@ -175,7 +198,6 @@ fn setup_logger(log_level_filter: LevelFilter) -> anyhow::Result<()> {
                 .without_time()
                 .with_target(false)
                 .with_level(false)
-                .with_current_span(false)
                 .with_writer(std::io::stdout.with_max_level(to_trace_filter(log_level_filter))),
         )
         .with(sentry_layer)
