@@ -10,6 +10,7 @@ use crate::{
         gather_post_test_context, gather_pre_test_context, gather_upload_id_context,
         PreTestContext,
     },
+    error_report::error_reason,
     test_command::TestRunResult,
 };
 
@@ -229,11 +230,13 @@ pub async fn run_upload(
         upload_started_at: Some(upload_started_at.into()),
         upload_finished_at: Some(chrono::Utc::now().into()),
         failed: false,
+        failure_reason: "".into(),
     };
     let mut request = api::message::TelemetryUploadMetricsRequest { upload_metrics };
     let telemetry_response;
-    if upload_bundle_result.is_err() {
+    if let Some(err) = upload_bundle_result.as_ref().err() {
         request.upload_metrics.failed = true;
+        request.upload_metrics.failure_reason = error_reason(err);
         telemetry_response = api_client.telemetry_upload_metrics(&request).await;
     } else {
         request.upload_metrics.failed = false;

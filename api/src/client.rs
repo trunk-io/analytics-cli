@@ -438,6 +438,7 @@ mod tests {
                 },
                 org_url_slug: String::from("org_url_slug"),
                 test_identifiers: vec![],
+                remote_urls: vec![],
             })
             .await
             .unwrap_err()
@@ -479,6 +480,7 @@ mod tests {
                     owner: String::from("owner"),
                     name: String::from("name"),
                 },
+                remote_urls: vec![],
                 org_url_slug: String::from("org_url_slug"),
                 test_identifiers: vec![],
             })
@@ -517,6 +519,7 @@ mod tests {
                     owner: String::from("owner"),
                     name: String::from("name"),
                 },
+                remote_urls: vec![],
                 org_url_slug: String::from("org_url_slug"),
                 test_identifiers: vec![],
             })
