@@ -377,7 +377,7 @@ fn adds_settings_if_domain_present() {
         add_settings_url_to_context("base_context", domain, &String::from("fake-org-slug"));
     assert_eq!(
         final_context,
-        "base_context\nYour settings page can be found at: https://app.fake-trunk.io/fake-org-slug/settings",
+        "base_context\nHint - Your settings page can be found at: https://app.fake-trunk.io/fake-org-slug/settings",
     )
 }
 
