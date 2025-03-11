@@ -3,7 +3,7 @@ use std::env;
 use clap::{Parser, Subcommand};
 use clap_verbosity_flag::{log::LevelFilter, InfoLevel, Verbosity};
 use third_party::sentry;
-use tracing_subscriber::prelude::*;
+use tracing_subscriber::{filter::FilterFn, prelude::*};
 use trunk_analytics_cli::{
     context::gather_debug_props,
     error_report::log_error,
@@ -128,13 +128,20 @@ fn setup_logger(log_level_filter: LevelFilter) -> anyhow::Result<()> {
         &tracing::Level::DEBUG => sentry_tracing::EventFilter::Breadcrumb,
         _ => sentry_tracing::EventFilter::Ignore,
     });
+
+    let console_layer = tracing_subscriber::fmt::Layer::new()
+        .without_time()
+        .with_target(false)
+        .with_writer(std::io::stdout.with_max_level(to_trace_filter(log_level_filter)))
+        .with_filter(FilterFn::new(|metadata| {
+            !metadata
+                .fields()
+                .iter()
+                .any(|field| field.name() == "hidden_in_console")
+        }));
+
     tracing_subscriber::registry()
-        .with(
-            tracing_subscriber::fmt::Layer::new()
-                .without_time()
-                .with_target(false)
-                .with_writer(std::io::stdout.with_max_level(to_trace_filter(log_level_filter))),
-        )
+        .with(console_layer)
         .with(sentry_layer)
         .init();
     Ok(())
