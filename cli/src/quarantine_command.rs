@@ -15,6 +15,14 @@ impl QuarantineArgs {
     pub fn token(&self) -> String {
         self.upload_args.token.clone()
     }
+
+    pub fn org_url_slug(&self) -> String {
+        self.upload_args.org_url_slug.clone()
+    }
+
+    pub fn repo_root(&self) -> Option<String> {
+        self.upload_args.repo_root.clone()
+    }
 }
 
 // This is an alias to `run_upload`, but does not exit on upload failure
