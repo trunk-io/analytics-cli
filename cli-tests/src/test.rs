@@ -93,7 +93,7 @@ async fn test_command_fails_with_no_junit_files_no_quarantine_successful_upload(
     .failure()
     .code(128)
     .stdout(predicate::str::contains(
-        "No JUnit files found, not quarantining any tests",
+        "No test output files found, not quarantining any tests",
     ));
 
     println!("{assert}");
@@ -254,7 +254,7 @@ async fn quarantining_resets_fail_code() {
         vec![
             String::from("bash"),
             String::from("-c"),
-            String::from("touch ./*; exit 1"),
+            String::from("sleep 1; touch ./*; exit 1"),
         ],
     )
     .command()

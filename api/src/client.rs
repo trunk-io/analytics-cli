@@ -1,9 +1,9 @@
 use std::path::Path;
 
-use anyhow::Context;
 use constants::{DEFAULT_ORIGIN, TRUNK_PUBLIC_API_ADDRESS_ENV};
 use http::{header::HeaderMap, HeaderValue};
 use reqwest::{header, Client, Response, StatusCode};
+use serde::de::DeserializeOwned;
 use tokio::fs;
 
 use crate::call_api::CallApi;
@@ -16,13 +16,15 @@ pub struct ApiClient {
     trunk_api_client: Client,
     telemetry_client: Client,
     version_path_prefix: String,
+    org_url_slug: String,
 }
 
 impl ApiClient {
     const TRUNK_API_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
     const TRUNK_API_TOKEN_HEADER: &'static str = "x-api-token";
 
-    pub fn new<T: AsRef<str>>(api_token: T) -> anyhow::Result<Self> {
+    pub fn new<T: AsRef<str>>(api_token: T, org_url_slug: T) -> anyhow::Result<Self> {
+        let org_url_slug = String::from(org_url_slug.as_ref());
         let api_token = api_token.as_ref();
         if api_token.trim().is_empty() {
             return Err(anyhow::anyhow!("Trunk API token is required."));
@@ -96,6 +98,7 @@ impl ApiClient {
             trunk_api_client,
             telemetry_client,
             version_path_prefix,
+            org_url_slug,
         })
     }
 
@@ -117,12 +120,11 @@ impl ApiClient {
                     CheckUnauthorized::Check,
                     CheckNotFound::Check,
                     |_| String::from("Failed to create bundle upload."),
+                    &self.api_host,
+                    &self.org_url_slug,
                 )?;
 
-                response
-                    .json::<message::CreateBundleUploadResponse>()
-                    .await
-                    .context("Failed to get response body as json.")
+                self.deserialize_response::<message::CreateBundleUploadResponse>(response).await
             },
             log_progress_message: |time_elapsed, _| {
                 format!("Reporting bundle upload initiation to Trunk services is taking longer than expected. It has taken {} seconds so far.", time_elapsed.as_secs())
@@ -159,12 +161,11 @@ impl ApiClient {
                             String::from("Failed to get quarantine bulk test.")
                         }
                     },
+                    &self.api_host,
+                    &self.org_url_slug,
                 )?;
 
-                response
-                    .json::<message::GetQuarantineConfigResponse>()
-                    .await
-                    .context("Failed to get response body as json.")
+                self.deserialize_response::<message::GetQuarantineConfigResponse>(response).await
             },
             log_progress_message: |time_elapsed, _| {
                 format!("Getting quarantine configuration from Trunk services is taking longer than expected. It has taken {} seconds so far.", time_elapsed.as_secs())
@@ -200,6 +201,8 @@ impl ApiClient {
                     CheckUnauthorized::DoNotCheck,
                     CheckNotFound::DoNotCheck,
                     |_| String::from("Failed to upload bundle to S3."),
+                    &self.api_host,
+                    &self.org_url_slug
                 )
             },
             log_progress_message: |time_elapsed, _| {
@@ -235,12 +238,14 @@ impl ApiClient {
                 let error_message = "Failed to send telemetry metrics.";
                 if !response.status().is_client_error() {
                     response.error_for_status().map_err(|reqwest_error| {
-                        anyhow::Error::from(reqwest_error).context(error_message)
+                        tracing::warn!("{}", error_message);
+                        anyhow::Error::from(reqwest_error)
                     }).map(|_| ())
                 } else {
+                    tracing::warn!("{}", error_message);
                     match response.error_for_status() {
                         Ok(..) => Err(anyhow::Error::msg(error_message)),
-                        Err(error) => Err(anyhow::Error::from(error).context(error_message)),
+                        Err(error) => Err(anyhow::Error::from(error)),
                     }
                 }
             },
@@ -257,6 +262,17 @@ impl ApiClient {
         }
         .call_api()
         .await
+    }
+
+    async fn deserialize_response<MessageType: DeserializeOwned>(
+        &self,
+        response: Response,
+    ) -> Result<MessageType, anyhow::Error> {
+        let deserialized: reqwest::Result<MessageType> = response.json::<MessageType>().await;
+        if deserialized.is_err() {
+            tracing::warn!("Failed to get response body as json.");
+        }
+        deserialized.map_err(anyhow::Error::from)
     }
 }
 
@@ -289,28 +305,96 @@ pub(crate) fn status_code_help<T: FnMut(&Response) -> String>(
     check_unauthorized: CheckUnauthorized,
     check_not_found: CheckNotFound,
     mut create_error_message: T,
+    api_host: &str,
+    org_url_slug: &str,
 ) -> anyhow::Result<Response> {
-    let base_error_message = &create_error_message(&response);
+    let base_error_message = create_error_message(&response);
 
     if !response.status().is_client_error() {
         response.error_for_status().map_err(|reqwest_error| {
             let error_message = format!("{base_error_message}{HELP_TEXT}");
-            anyhow::Error::from(reqwest_error).context(error_message)
+            tracing::warn!("{}", error_message);
+            anyhow::Error::from(reqwest_error)
         })
     } else {
+        let domain: Option<String> = url::Url::parse(api_host)
+            .ok()
+            .into_iter()
+            .flat_map(|url| {
+                url.domain()
+                    .into_iter()
+                    .map(String::from)
+                    .collect::<Vec<String>>()
+            })
+            .next();
         let error_message = match (response.status(), check_unauthorized, check_not_found) {
-            (StatusCode::UNAUTHORIZED, CheckUnauthorized::Check, _) => UNAUTHORIZED_CONTEXT,
-            (StatusCode::NOT_FOUND, _, CheckNotFound::Check) => NOT_FOUND_CONTEXT,
+            (StatusCode::UNAUTHORIZED, CheckUnauthorized::Check, _) => add_settings_url_to_context(
+                UNAUTHORIZED_CONTEXT,
+                domain,
+                &String::from(org_url_slug),
+            ),
+            (StatusCode::NOT_FOUND, _, CheckNotFound::Check) => {
+                add_settings_url_to_context(NOT_FOUND_CONTEXT, domain, &String::from(org_url_slug))
+            }
             _ => base_error_message,
         };
 
         let error_message_with_help = format!("{error_message}{HELP_TEXT}");
 
+        tracing::warn!("{}", error_message_with_help);
         match response.error_for_status() {
             Ok(..) => Err(anyhow::Error::msg(error_message_with_help)),
-            Err(error) => Err(anyhow::Error::from(error).context(error_message_with_help)),
+            Err(error) => Err(anyhow::Error::from(error)),
         }
     }
+}
+
+fn add_settings_url_to_context(
+    context: &str,
+    domain: Option<String>,
+    org_url_slug: &String,
+) -> String {
+    match domain {
+        Some(present_domain) => {
+            let settings_url = format!(
+                "https://{}/{}/settings",
+                present_domain.replace("api", "app"),
+                org_url_slug
+            );
+            format!(
+                "{}\nHint - Your settings page can be found at: {}",
+                context, settings_url
+            )
+        }
+        None => String::from(context),
+    }
+}
+
+#[test]
+fn adds_settings_if_domain_present() {
+    let domain = url::Url::parse("https://api.fake-trunk.io/")
+        .ok()
+        .into_iter()
+        .flat_map(|url| {
+            url.domain()
+                .into_iter()
+                .map(String::from)
+                .collect::<Vec<String>>()
+        })
+        .next();
+    let final_context =
+        add_settings_url_to_context("base_context", domain, &String::from("fake-org-slug"));
+    assert_eq!(
+        final_context,
+        "base_context\nHint - Your settings page can be found at: https://app.fake-trunk.io/fake-org-slug/settings",
+    )
+}
+
+#[test]
+fn does_not_add_settings_if_domain_absent() {
+    let final_context =
+        add_settings_url_to_context("base_context", None, &String::from("fake-org-slug"));
+    assert_eq!(final_context, "base_context",)
 }
 
 #[cfg(test)]
@@ -350,7 +434,8 @@ mod tests {
 
         let state = mock_server_builder.spawn_mock_server().await;
 
-        let mut api_client = ApiClient::new(String::from("mock-token")).unwrap();
+        let mut api_client =
+            ApiClient::new(String::from("mock-token"), String::from("mock-org")).unwrap();
         api_client.api_host.clone_from(&state.host);
 
         assert!(api_client
@@ -362,11 +447,12 @@ mod tests {
                 },
                 org_url_slug: String::from("org_url_slug"),
                 test_identifiers: vec![],
+                remote_urls: vec![],
             })
             .await
             .unwrap_err()
             .to_string()
-            .contains("Failed to get quarantine bulk test."));
+            .contains("501 Not Implemented"));
         assert_eq!(CALL_COUNT.load(Ordering::Relaxed), 1);
     }
 
@@ -392,7 +478,8 @@ mod tests {
 
         let state = mock_server_builder.spawn_mock_server().await;
 
-        let mut api_client = ApiClient::new(String::from("mock-token")).unwrap();
+        let mut api_client =
+            ApiClient::new(String::from("mock-token"), String::from("mock-org")).unwrap();
         api_client.api_host.clone_from(&state.host);
 
         assert!(api_client
@@ -402,13 +489,14 @@ mod tests {
                     owner: String::from("owner"),
                     name: String::from("name"),
                 },
+                remote_urls: vec![],
                 org_url_slug: String::from("org_url_slug"),
                 test_identifiers: vec![],
             })
             .await
             .unwrap_err()
             .to_string()
-            .contains("Failed to get quarantine bulk test."));
+            .contains("500 Internal Server Error"));
         assert_eq!(CALL_COUNT.load(Ordering::Relaxed), 6);
     }
 
@@ -429,7 +517,8 @@ mod tests {
 
         let state = mock_server_builder.spawn_mock_server().await;
 
-        let mut api_client = ApiClient::new(String::from("mock-token")).unwrap();
+        let mut api_client =
+            ApiClient::new(String::from("mock-token"), String::from("mock-org")).unwrap();
         api_client.api_host.clone_from(&state.host);
 
         assert!(api_client
@@ -439,12 +528,13 @@ mod tests {
                     owner: String::from("owner"),
                     name: String::from("name"),
                 },
+                remote_urls: vec![],
                 org_url_slug: String::from("org_url_slug"),
                 test_identifiers: vec![],
             })
             .await
             .unwrap_err()
             .to_string()
-            .contains("Quarantining config not found"));
+            .contains("404 Not Found"));
     }
 }

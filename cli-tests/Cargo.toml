@@ -24,6 +24,7 @@ tempfile = "3.2.0"
 test_utils = { path = "../test_utils" }
 tokio = { version = "*" }
 trunk-analytics-cli = { path = "../cli", features = ["force-sentry-env-dev"] }
+pretty_assertions = "0.6"
 
 [features]
 default = []

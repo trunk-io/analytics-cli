@@ -21,6 +21,8 @@ use context::{
     junit::{junit_path::JunitReportFileWithStatus, parser::JunitParser},
     repo::BundleRepo,
 };
+use lazy_static::lazy_static;
+use regex::Regex;
 use tempfile::TempDir;
 #[cfg(target_os = "macos")]
 use xcresult::xcresult::XCResult;
@@ -39,16 +41,19 @@ pub struct PreTestContext {
     pub junit_path_wrappers_temp_dir: Option<TempDir>,
 }
 
+lazy_static! {
+    static ref COMMAND_REGEX: Regex = Regex::new(r"--token[=]?").unwrap();
+}
+
 // This function is used to gather debug properties for the bundle meta.
 // It will trigger EXC_BAD_ACCESS on arm64-darwin builds when compiled under cdylib
-pub fn gather_debug_props(token: String) -> BundleMetaDebugProps {
+pub fn gather_debug_props(args: Vec<String>, token: String) -> BundleMetaDebugProps {
     BundleMetaDebugProps {
-        command_line: env::args()
-            .collect::<Vec<String>>()
-            .join(" ")
-            .replace(&token, "***")
-            .replace("--token=", "")
-            .replace("--token", ""),
+        command_line: COMMAND_REGEX
+            .replace(&args.join(" "), "")
+            .replace(&token, "")
+            .trim()
+            .to_string(),
     }
 }
 
@@ -156,13 +161,13 @@ pub fn gather_post_test_context<U: AsRef<Path>>(
     )?;
 
     if !allow_empty_test_results && file_set_builder.no_files_found() {
-        return Err(anyhow::anyhow!("No JUnit files found to upload."));
+        return Err(anyhow::anyhow!("No test output files found to upload."));
     }
 
     tracing::info!("Total files pack and upload: {}", file_set_builder.count());
     if file_set_builder.no_files_found() {
         tracing::warn!(
-            "No JUnit files found to pack and upload using globs: {:?}",
+            "No test output files found to pack and upload using globs: {:?}",
             junit_path_wrappers
                 .iter()
                 .map(|j| &j.junit_path)
@@ -270,6 +275,7 @@ pub async fn gather_exit_code_and_quarantined_tests_context(
                 repo: meta.base_props.repo.repo.clone(),
                 org_url_slug: meta.base_props.org.clone(),
                 test_identifiers: failed_tests_extractor.failed_tests().to_vec(),
+                remote_urls: vec![meta.base_props.repo.repo_url.clone()],
             },
             file_set_builder,
             Some(failed_tests_extractor),
@@ -377,4 +383,37 @@ fn parse_num_tests(file_sets: &[FileSet]) -> usize {
         })
         .flat_map(|junit_parser| junit_parser.into_reports())
         .fold(0, |num_tests, report| num_tests + report.tests)
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn test_gather_debug_props() {
+        let args: Vec<String> = vec!["trunk flakytests".into(), "test".into(), "--token".into()];
+        let debug_props = super::gather_debug_props(args, "token".to_string());
+        assert_eq!(debug_props.command_line, "trunk flakytests test");
+        let args: Vec<String> = vec![
+            "trunk flakytests".into(),
+            "test".into(),
+            "--token=token".into(),
+        ];
+        let debug_props = super::gather_debug_props(args, "token".to_string());
+        assert_eq!(debug_props.command_line, "trunk flakytests test");
+
+        let args: Vec<String> = vec![
+            "trunk flakytests".into(),
+            "test".into(),
+            "--token token".into(),
+        ];
+        let debug_props = super::gather_debug_props(args, "token".to_string());
+        assert_eq!(debug_props.command_line, "trunk flakytests test");
+
+        let args: Vec<String> = vec!["trunk flakytests".into(), "test".into()];
+        let debug_props = super::gather_debug_props(args, "token".to_string());
+        assert_eq!(debug_props.command_line, "trunk flakytests test");
+
+        let args: Vec<String> = vec!["trunk flakytests".into(), "token".into()];
+        let debug_props = super::gather_debug_props(args, "token".to_string());
+        assert_eq!(debug_props.command_line, "trunk flakytests");
+    }
 }

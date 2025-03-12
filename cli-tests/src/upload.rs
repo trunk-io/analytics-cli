@@ -167,8 +167,9 @@ async fn upload_bundle() {
         &command_builder
             .build_args()
             .join(" ")
-            .replace("test-token", "***")
+            .replace("test-token", "")
             .replace("--token", "")
+            .trim()
     ));
 
     // HINT: View CLI output with `cargo test -- --nocapture`
@@ -413,7 +414,7 @@ async fn upload_bundle_invalid_repo_root() {
         .assert()
         .failure()
         .stdout(predicate::str::contains(
-            "error: Failed to open git repository at \"../\"",
+            "Could not open the repo_root specified",
         ));
     let requests = state.requests.lock().unwrap().clone();
     assert_eq!(requests.len(), 0);
@@ -438,7 +439,7 @@ async fn upload_bundle_invalid_repo_root_explicit() {
         .assert()
         .failure()
         .stdout(predicate::str::contains(
-            "error: Failed to open git repository at",
+            "Could not open the repo_root specified",
         ));
     let requests = state.requests.lock().unwrap().clone();
     assert_eq!(requests.len(), 0);
@@ -492,7 +493,7 @@ async fn upload_bundle_with_no_junit_files_no_quarantine_successful_upload() {
         .code(0)
         .success()
         .stdout(predicate::str::contains(
-            "No JUnit files found, not quarantining any tests",
+            "No test output files found, not quarantining any tests",
         ));
 
     // HINT: View CLI output with `cargo test -- --nocapture`
@@ -694,7 +695,7 @@ async fn is_not_ok_on_bad_request() {
     command
         .assert()
         .failure()
-        .stdout(predicate::str::contains("error: "));
+        .stdout(predicate::str::contains("error"));
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -705,7 +706,9 @@ async fn telemetry_upload_metrics_on_upload_failure() {
 
     let mut mock_server_builder = MockServerBuilder::new();
     mock_server_builder.set_create_bundle_handler(
-        |State(_state): State<SharedMockServerState>, _: Json<CreateBundleUploadRequest>| async {},
+        |State(_): State<SharedMockServerState>, _: Json<CreateBundleUploadRequest>| async {
+            Err::<Json<CreateBundleUploadResponse>, StatusCode>(StatusCode::BAD_REQUEST)
+        },
     );
     let state = mock_server_builder.spawn_mock_server().await;
 
@@ -725,6 +728,7 @@ async fn telemetry_upload_metrics_on_upload_failure() {
     assert_eq!(telemetry_request_repo.host, "github.com");
     assert_eq!(telemetry_request_repo.owner, "trunk-io");
     assert_eq!(telemetry_request_repo.name, "analytics-cli");
+    assert_eq!(telemetry_request.failure_reason, "400_bad_request");
 
     // HINT: View CLI output with `cargo test -- --nocapture`
     println!("{assert}");
@@ -755,6 +759,7 @@ async fn telemetry_upload_metrics_on_upload_success() {
     assert_eq!(telemetry_request_repo.host, "github.com");
     assert_eq!(telemetry_request_repo.owner, "trunk-io");
     assert_eq!(telemetry_request_repo.name, "analytics-cli");
+    assert_eq!(telemetry_request.failure_reason, "");
 
     // HINT: View CLI output with `cargo test -- --nocapture`
     println!("{assert}");
