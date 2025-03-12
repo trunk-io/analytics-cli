@@ -4971,6 +4971,7 @@ dependencies = [
  "tracing",
  "tracing-log",
  "tracing-subscriber",
+ "url",
  "vergen",
  "xcresult",
 ]
