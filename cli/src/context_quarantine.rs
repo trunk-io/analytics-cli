@@ -9,7 +9,7 @@ use context::{
 };
 use quick_junit::TestCaseStatus;
 
-use crate::error_report::log_error;
+use crate::error_report::{log_error, Context};
 
 #[derive(Debug, Default, Clone)]
 pub struct QuarantineContext {
@@ -184,7 +184,13 @@ pub async fn gather_quarantine_context(
         match api_client.get_quarantining_config(request).await {
             Ok(response) => response,
             Err(err) => {
-                let error_code = log_error(&err, None);
+                let error_code = log_error(
+                    &err,
+                    Context {
+                        base_message: Some("Unable to find quarantine config".into()),
+                        org_url_slug: request.org_url_slug.clone(),
+                    },
+                );
                 if error_code == exitcode::SOFTWARE {
                     Err(err)?;
                 }
@@ -258,7 +264,9 @@ pub async fn gather_quarantine_context(
         failures
             .iter()
             .for_each(|failure| log_failure(failure, request, api_client));
+        tracing::info!("");
     }
+    let quarantined_failure_count = quarantined_failures.len();
     quarantine_results.quarantine_results = quarantined_failures;
     quarantine_results.group_is_quarantined =
         quarantine_results.quarantine_results.len() == total_failures;
@@ -269,7 +277,15 @@ pub async fn gather_quarantine_context(
         tracing::info!("No failed tests to quarantine, returning exit code from command.");
         exit_code
     } else if !quarantine_results.group_is_quarantined {
-        tracing::info!("Not all test failures were quarantined, returning exit code from command.");
+        tracing::info!(
+            "Quarantined {} out of {} test failures",
+            quarantined_failure_count,
+            total_failures
+        );
+        tracing::info!(
+            "Not all test failures were quarantined, using exit code {} from command",
+            exit_code
+        );
         exit_code
     } else if exit_code != EXIT_SUCCESS {
         tracing::info!(
@@ -279,6 +295,7 @@ pub async fn gather_quarantine_context(
     } else {
         exit_code
     };
+    tracing::info!("");
 
     Ok(QuarantineContext {
         exit_code,
