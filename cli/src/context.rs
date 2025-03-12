@@ -73,7 +73,6 @@ pub fn gather_pre_test_context(
         repo_head_branch,
         repo_head_commit_epoch,
         tags,
-        #[cfg(target_os = "macos")]
         allow_empty_test_results,
         ..
     } = upload_args;
@@ -213,6 +212,9 @@ fn coalesce_junit_path_wrappers(
                         "Failed to parse Bazel BEP file at {}: {}",
                         bazel_bep_path,
                         e
+                    );
+                    tracing::warn!(
+                        "Allow empty test results enabled - continuing without test results."
                     );
                     return Ok((junit_path_wrappers, None, None));
                 }
