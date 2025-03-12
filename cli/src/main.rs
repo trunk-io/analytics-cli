@@ -164,8 +164,8 @@ fn setup_logger(
     repo_root: String,
 ) -> anyhow::Result<()> {
     let command_string = String::from(command_name);
-    // trunk-ignore(clippy/match_ref_pats)
     let sentry_layer = sentry_tracing::layer().event_mapper(move |event, context| {
+        // trunk-ignore(clippy/match_ref_pats)
         match event.metadata().level() {
             &tracing::Level::ERROR => {
                 let mut event = sentry_tracing::event_from_event(event, context);
