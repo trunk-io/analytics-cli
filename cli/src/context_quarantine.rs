@@ -19,7 +19,7 @@ use context::{
 };
 use prost::Message;
 
-use crate::error_report::{log_error, Context};
+use crate::error_report::{is_user_error, log_error, Context};
 
 #[derive(Debug, Default, Clone)]
 pub struct QuarantineContext {
@@ -211,7 +211,7 @@ pub async fn gather_quarantine_context(
     file_set_builder: &FileSetBuilder,
     failed_tests_extractor: Option<FailedTestsExtractor>,
     test_run_exit_code: Option<i32>,
-) -> QuarantineContext {
+) -> anyhow::Result<QuarantineContext> {
     let failed_tests_extractor = failed_tests_extractor.unwrap_or_else(|| {
         FailedTestsExtractor::new(
             &request.repo,
@@ -224,10 +224,10 @@ pub async fn gather_quarantine_context(
 
     if file_set_builder.no_files_found() {
         tracing::info!("No test output files found, not quarantining any tests.");
-        return QuarantineContext {
+        return Ok(QuarantineContext {
             exit_code,
             ..Default::default()
-        };
+        });
     }
 
     let quarantine_config = if !failed_tests_extractor.failed_tests().is_empty()
@@ -238,19 +238,26 @@ pub async fn gather_quarantine_context(
             .any(|file_set| file_set.file_set_type == FileSetType::Junit)
     {
         tracing::info!("Checking if failed tests can be quarantined");
-        let result = api_client.get_quarantining_config(request).await;
-
-        if let Err(ref err) = result {
-            log_error(
-                err,
-                Context {
-                    base_message: Some("Unable to find quarantine config".into()),
-                    org_url_slug: request.org_url_slug.clone(),
-                },
-            );
+        match api_client.get_quarantining_config(request).await {
+            Ok(response) => response,
+            Err(err) => {
+                log_error(
+                    &err,
+                    Context {
+                        base_message: Some("Unable to find quarantine config".into()),
+                        org_url_slug: request.org_url_slug.clone(),
+                    },
+                );
+                if is_user_error(&err) {
+                    Err(err)?
+                } else {
+                    return Ok(QuarantineContext {
+                        exit_code,
+                        ..Default::default()
+                    });
+                }
+            }
         }
-
-        result.unwrap_or_default()
     } else {
         tracing::debug!("Skipping quarantine check.");
         api::message::GetQuarantineConfigResponse::default()
@@ -259,10 +266,10 @@ pub async fn gather_quarantine_context(
     // if quarantining is not enabled, return exit code and empty quarantine status
     if quarantine_config.is_disabled {
         tracing::info!("Quarantining is not enabled, not quarantining any tests");
-        return QuarantineContext {
+        return Ok(QuarantineContext {
             exit_code,
             quarantine_status: QuarantineBulkTestStatus::default(),
-        };
+        });
     } else {
         // quarantining is enabled, continue with quarantine process and update exit code
         exit_code = test_run_exit_code.unwrap_or_else(|| failed_tests_extractor.exit_code());
@@ -348,10 +355,10 @@ pub async fn gather_quarantine_context(
     };
     tracing::info!("");
 
-    QuarantineContext {
+    Ok(QuarantineContext {
         exit_code,
         quarantine_status: quarantine_results,
-    }
+    })
 }
 
 fn log_failure(

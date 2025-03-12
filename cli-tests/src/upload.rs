@@ -834,8 +834,80 @@ async fn test_variant_propagation() {
     let reader = BufReader::new(file);
     let bundle_meta: BundleMeta = serde_json::from_reader(reader).unwrap();
     assert_eq!(bundle_meta.variant, Some("test-variant".to_string()));
+}
 
-    // Fourth request should be telemetry
+#[tokio::test(flavor = "multi_thread")]
+async fn test_404_quarantine_config_skips_bundle_upload() {
+    let temp_dir = tempdir().unwrap();
+    generate_mock_git_repo(&temp_dir);
+    generate_mock_valid_junit_xmls(&temp_dir);
+
+    let mut mock_server_builder = MockServerBuilder::new();
+
+    // Mock getQuarantineConfig to return 404
+    mock_server_builder.set_get_quarantining_config_handler(
+        |Json(_): Json<GetQuarantineConfigRequest>| async {
+            Err::<Json<GetQuarantineConfigResponse>, StatusCode>(StatusCode::NOT_FOUND)
+        },
+    );
+
+    let state = mock_server_builder.spawn_mock_server().await;
+
+    let assert = CommandBuilder::upload(temp_dir.path(), state.host.clone())
+        .command()
+        .assert()
+        .failure();
+
+    // Verify only the quarantine config request was made
+    let requests = state.requests.lock().unwrap().clone();
+    assert_eq!(requests.len(), 0);
+
+    // HINT: View CLI output with `cargo test -- --nocapture`
+    println!("{assert}");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn test_500_quarantine_config_proceeds_with_bundle_upload() {
+    let temp_dir = tempdir().unwrap();
+    generate_mock_git_repo(&temp_dir);
+    generate_mock_valid_junit_xmls(&temp_dir);
+
+    let mut mock_server_builder = MockServerBuilder::new();
+
+    // Mock getQuarantineConfig to return 500
+    mock_server_builder.set_get_quarantining_config_handler(
+        |Json(_): Json<GetQuarantineConfigRequest>| async {
+            Err::<Json<GetQuarantineConfigResponse>, StatusCode>(StatusCode::INTERNAL_SERVER_ERROR)
+        },
+    );
+
+    let state = mock_server_builder.spawn_mock_server().await;
+
+    let assert = CommandBuilder::upload(temp_dir.path(), state.host.clone())
+        .command()
+        .assert()
+        .success();
+
+    // Verify all expected requests were made in order
+    let requests = state.requests.lock().unwrap().clone();
+    assert_eq!(requests.len(), 3);
+    let mut requests_iter = requests.into_iter();
+
+    // quarantine config failed, so first request should be create bundle upload
+    let upload_request = assert_matches!(requests_iter.next().unwrap(), RequestPayload::CreateBundleUpload(ur) => ur);
+    assert_eq!(
+        upload_request.repo,
+        Repo {
+            host: String::from("github.com"),
+            owner: String::from("trunk-io"),
+            name: String::from("analytics-cli"),
+        }
+    );
+
+    // second request should be s3 upload
+    assert_matches!(requests_iter.next().unwrap(), RequestPayload::S3Upload(_));
+
+    // third request should be telemetry
     assert_matches!(
         requests_iter.next().unwrap(),
         RequestPayload::TelemetryUploadMetrics(_)

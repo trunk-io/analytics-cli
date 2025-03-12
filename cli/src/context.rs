@@ -272,7 +272,7 @@ pub async fn gather_exit_code_and_quarantined_tests_context(
     api_client: &ApiClient,
     file_set_builder: &FileSetBuilder,
     test_run_result: &Option<TestRunResult>,
-) -> i32 {
+) -> anyhow::Result<i32> {
     // Run the quarantine step and update the exit code.
     let failed_tests_extractor = FailedTestsExtractor::new(
         &meta.base_props.repo.repo,
@@ -324,12 +324,12 @@ pub async fn gather_exit_code_and_quarantined_tests_context(
             Some(failed_tests_extractor),
             test_run_result.as_ref().map(|t| t.exit_code),
         )
-        .await
+        .await?
     };
 
     meta.base_props.quarantined_tests = quarantined_tests;
 
-    exit_code
+    Ok(exit_code)
 }
 
 pub async fn gather_upload_id_context(
