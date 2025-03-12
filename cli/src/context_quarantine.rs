@@ -160,7 +160,7 @@ pub async fn gather_quarantine_context(
     file_set_builder: &FileSetBuilder,
     failed_tests_extractor: Option<FailedTestsExtractor>,
     test_run_exit_code: Option<i32>,
-) -> QuarantineContext {
+) -> anyhow::Result<QuarantineContext> {
     let failed_tests_extractor = failed_tests_extractor.unwrap_or_else(|| {
         FailedTestsExtractor::new(
             &request.repo,
@@ -173,21 +173,27 @@ pub async fn gather_quarantine_context(
 
     if file_set_builder.no_files_found() {
         tracing::info!("No test output files found, not quarantining any tests.");
-        return QuarantineContext {
+        return Ok(QuarantineContext {
             exit_code,
             ..Default::default()
-        };
+        });
     }
 
     let quarantine_config = if !failed_tests_extractor.failed_tests().is_empty() {
         tracing::info!("Checking if failed tests can be quarantined");
-        let result = api_client.get_quarantining_config(request).await;
-
-        if let Err(ref err) = result {
-            log_error(err, None);
+        match api_client.get_quarantining_config(request).await {
+            Ok(response) => response,
+            Err(err) => {
+                let error_code = log_error(&err, None);
+                if error_code == exitcode::SOFTWARE {
+                    Err(err)?;
+                }
+                return Ok(QuarantineContext {
+                    exit_code,
+                    ..Default::default()
+                });
+            }
         }
-
-        result.unwrap_or_default()
     } else {
         tracing::debug!("No failed tests to quarantine");
         api::message::GetQuarantineConfigResponse::default()
@@ -196,10 +202,10 @@ pub async fn gather_quarantine_context(
     // if quarantining is not enabled, return exit code and empty quarantine status
     if quarantine_config.is_disabled {
         tracing::info!("Quarantining is not enabled, not quarantining any tests");
-        return QuarantineContext {
+        return Ok(QuarantineContext {
             exit_code,
             quarantine_status: QuarantineBulkTestStatus::default(),
-        };
+        });
     } else {
         // quarantining is enabled, continue with quarantine process and update exit code
         exit_code = test_run_exit_code.unwrap_or_else(|| failed_tests_extractor.exit_code());
@@ -274,10 +280,10 @@ pub async fn gather_quarantine_context(
         exit_code
     };
 
-    QuarantineContext {
+    Ok(QuarantineContext {
         exit_code,
         quarantine_status: quarantine_results,
-    }
+    })
 }
 
 fn log_failure(
