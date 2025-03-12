@@ -30,6 +30,14 @@ impl TestArgs {
     pub fn token(&self) -> String {
         self.upload_args.token.clone()
     }
+
+    pub fn org_url_slug(&self) -> String {
+        self.upload_args.org_url_slug.clone()
+    }
+
+    pub fn repo_root(&self) -> Option<String> {
+        self.upload_args.repo_root.clone()
+    }
 }
 
 #[derive(Debug, Clone)]

@@ -41,6 +41,39 @@ impl Cli {
             |token| gather_debug_props(env::args().collect::<Vec<String>>(), token).command_line,
         )
     }
+
+    pub fn command_name(&self) -> &str {
+        match &self.command {
+            Commands::Quarantine(..) => "quarantine",
+            Commands::Test(..) => "test",
+            Commands::Upload(..) => "upload",
+            Commands::Validate(..) => "validate",
+        }
+    }
+
+    pub fn org_url_slug(&self) -> String {
+        match &self.command {
+            Commands::Quarantine(args) => args.org_url_slug(),
+            Commands::Test(args) => args.org_url_slug(),
+            Commands::Upload(args) => args.org_url_slug.clone(),
+            Commands::Validate(..) => String::from("not used"),
+        }
+    }
+
+    pub fn repo_root(&self) -> String {
+        let explicit_root = match &self.command {
+            Commands::Quarantine(args) => args.repo_root(),
+            Commands::Test(args) => args.repo_root(),
+            Commands::Upload(args) => args.repo_root.clone(),
+            Commands::Validate(..) => None,
+        };
+        explicit_root
+            .or(std::env::current_dir()
+                .iter()
+                .flat_map(|path_buf| path_buf.clone().into_os_string().into_string().into_iter())
+                .next())
+            .unwrap_or(String::from("not set"))
+    }
 }
 
 #[derive(Debug, Subcommand)]
@@ -67,7 +100,12 @@ fn main() -> anyhow::Result<()> {
         .block_on(async {
             let cli = Cli::parse();
             let log_level_filter = cli.verbose.log_level_filter();
-            setup_logger(log_level_filter)?;
+            setup_logger(
+                log_level_filter,
+                cli.command_name(),
+                cli.org_url_slug(),
+                cli.repo_root(),
+            )?;
             tracing::info!("{}", TITLE_CARD);
             tracing::info!(
                 command = cli.debug_props(),
@@ -119,19 +157,46 @@ fn to_trace_filter(filter: log::LevelFilter) -> tracing::Level {
     }
 }
 
-fn setup_logger(log_level_filter: LevelFilter) -> anyhow::Result<()> {
-    // trunk-ignore(clippy/match_ref_pats)
-    let sentry_layer = sentry_tracing::layer().event_filter(|md| match md.level() {
-        &tracing::Level::ERROR => sentry_tracing::EventFilter::Event,
-        &tracing::Level::WARN => sentry_tracing::EventFilter::Breadcrumb,
-        &tracing::Level::INFO => sentry_tracing::EventFilter::Breadcrumb,
-        &tracing::Level::DEBUG => sentry_tracing::EventFilter::Breadcrumb,
-        _ => sentry_tracing::EventFilter::Ignore,
+fn setup_logger(
+    log_level_filter: LevelFilter,
+    command_name: &str,
+    org_url_slug: String,
+    repo_root: String,
+) -> anyhow::Result<()> {
+    let command_string = String::from(command_name);
+    let sentry_layer = sentry_tracing::layer().event_mapper(move |event, context| {
+        // trunk-ignore(clippy/match_ref_pats)
+        match event.metadata().level() {
+            &tracing::Level::ERROR => {
+                let mut event = sentry_tracing::event_from_event(event, context);
+                event
+                    .tags
+                    .insert(String::from("command_name"), command_string.clone());
+                event
+                    .tags
+                    .insert(String::from("org_url_slug"), org_url_slug.clone());
+                event
+                    .tags
+                    .insert(String::from("repo_root"), repo_root.clone());
+                sentry_tracing::EventMapping::Event(event)
+            }
+            &tracing::Level::WARN => sentry_tracing::EventMapping::Breadcrumb(
+                sentry_tracing::breadcrumb_from_event(event, context),
+            ),
+            &tracing::Level::INFO => sentry_tracing::EventMapping::Breadcrumb(
+                sentry_tracing::breadcrumb_from_event(event, context),
+            ),
+            &tracing::Level::DEBUG => sentry_tracing::EventMapping::Breadcrumb(
+                sentry_tracing::breadcrumb_from_event(event, context),
+            ),
+            _ => sentry_tracing::EventMapping::Ignore,
+        }
     });
 
     let console_layer = tracing_subscriber::fmt::Layer::new()
         .without_time()
         .with_target(false)
+        .with_level(false)
         .with_writer(std::io::stdout.with_max_level(to_trace_filter(log_level_filter)))
         .with_filter(FilterFn::new(|metadata| {
             !metadata
