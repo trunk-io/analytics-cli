@@ -405,11 +405,13 @@ fn parse_num_tests(file_sets: &[FileSet]) -> usize {
 
 #[cfg(test)]
 mod tests {
+    #[cfg(target_os = "macos")]
     use context::repo::RepoUrlParts;
 
     use crate::context::coalesce_junit_path_wrappers;
     #[test]
     fn test_coalesce_junit_path_wrappers() {
+        #[cfg(target_os = "macos")]
         let repo = RepoUrlParts {
             host: "github.com".to_string(),
             owner: "trunk-io".to_string(),
