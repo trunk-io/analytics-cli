@@ -122,15 +122,15 @@ fn main() -> anyhow::Result<()> {
                             org_url_slug,
                         },
                     );
-                    guard.flush(None);
                     if exit_code != exitcode::OK {
-                        tracing::error!("Unable to proceed, returning exit code: {}", exit_code);
+                        tracing::warn!("Unable to proceed, returning exit code: {}", exit_code);
                     } else {
-                        tracing::error!(
+                        tracing::warn!(
                             "Errors occurred during upload, returning default exit code: {}",
                             exit_code
                         );
                     }
+                    guard.flush(None);
                     std::process::exit(exit_code);
                 }
             }
