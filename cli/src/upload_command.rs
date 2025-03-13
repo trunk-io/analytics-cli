@@ -211,6 +211,7 @@ pub async fn run_upload(
     .await;
 
     let upload_started_at = chrono::Utc::now();
+    tracing::info!("Uploading test results...");
     let upload_bundle_result = upload_bundle(
         meta.clone(),
         &api_client,
@@ -252,6 +253,9 @@ pub async fn run_upload(
         tracing::debug!("Failed to send telemetry: {:?}", e);
     }
 
+    if upload_bundle_result.is_err() {
+        tracing::error!("Failed to upload bundle");
+    }
     Ok(UploadRunResult {
         exit_code,
         upload_bundle_error: upload_bundle_result.err(),
@@ -281,7 +285,7 @@ async fn upload_bundle(
             .put_bundle_to_s3(&upload.url, &bundle_temp_file)
             .await?;
         if exit_code == EXIT_SUCCESS {
-            tracing::info!("Done");
+            tracing::info!("Upload successful");
         } else {
             tracing::info!(
                 "Upload successful; returning unsuccessful exit code of test run: {}",
