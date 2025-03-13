@@ -8,6 +8,6 @@ describe do
   it do
     # generate a random number to be injected into the description
     now = Time.now.to_i
-    expect(now).to eq(now)
+    expect(now).to eq(1)
   end
 end

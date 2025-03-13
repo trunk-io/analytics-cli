@@ -117,6 +117,17 @@ impl MutTestReport {
         Ok(())
     }
 
+    pub fn is_quarantined(
+        &self,
+        id: String,
+        name: String,
+        parent_name: String,
+        classname: String,
+        file: String,
+    ) -> bool {
+        true
+    }
+
     // sends out to the trunk api
     pub fn publish(&self) -> bool {
         let release_name = format!("rspec-flaky-tests@{}", env!("CARGO_PKG_VERSION"));
@@ -272,5 +283,9 @@ pub fn ruby_init(ruby: &magnus::Ruby) -> Result<(), magnus::Error> {
     test_report.define_method("to_s", magnus::method!(MutTestReport::to_string, 0))?;
     test_report.define_method("publish", magnus::method!(MutTestReport::publish, 0))?;
     test_report.define_method("add_test", magnus::method!(MutTestReport::add_test, 11))?;
+    test_report.define_method(
+        "is_quarantined",
+        magnus::method!(MutTestReport::is_quarantined, 5),
+    )?;
     Ok(())
 }
