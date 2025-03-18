@@ -37,7 +37,6 @@ fn convert_case_to_test<T: AsRef<str>>(
     let name = String::from(case.name.as_str());
     let class_name = case.classname.clone();
     let file = case.extra().get("file").cloned();
-    // convert timestamp_micros to millis using chrono
     let timestamp_millis = Some(TimeDelta::num_milliseconds(&TimeDelta::microseconds(
         case.timestamp_micros
             .or(suite.timestamp_micros)
@@ -50,6 +49,7 @@ fn convert_case_to_test<T: AsRef<str>>(
         file,
         id: String::with_capacity(0),
         timestamp_millis,
+        is_quarantined: case.is_quarantined(),
     };
     if let Some(id) = case.extra().get("id") {
         if id.is_empty() {
@@ -279,7 +279,7 @@ pub async fn gather_quarantine_context(
         .iter()
         .cloned()
         .for_each(|failure| {
-            let quarantine_failure = quarantined.contains(&failure.id);
+            let quarantine_failure = quarantined.contains(&failure.id) || failure.is_quarantined;
             if quarantine_failure {
                 quarantined_failures.push(failure);
             } else {

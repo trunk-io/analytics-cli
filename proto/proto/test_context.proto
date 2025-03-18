@@ -23,6 +23,7 @@ message TestCaseRun {
   google.protobuf.Timestamp started_at = 9;
   google.protobuf.Timestamp finished_at = 10;
   string status_output_message = 11;
+  bool is_quarantined = 12;
 }
 
 message UploaderMetadata {
