@@ -8,6 +8,27 @@ def escape(str)
   str.dump[1..-2]
 end
 
+def description_generated?(example)
+  auto_generated_exp = /^\s?is expected to eq .*$/
+  full_description = example.full_description
+  parent_description = example.example_group.description
+  checked_description = full_description.sub(parent_description, '')
+  auto_generated_exp.match(checked_description) != nil
+end
+
+# TODO move this into the bindings
+def generate_id(example)
+  if description_generated?(example)
+    # trunk-ignore(rubocop/Style/SoleNestedConditional)
+    return "trunk:#{example.id}-#{example.location}" if description_generated?(example)
+  end
+end
+
+class String
+  def red; "\e[31m#{self}\e[0m" end
+  def yellow; "\e[33m#{self}\e[0m" end
+end
+
 module RSpec
   module Core
     # Example is the class that represents a test case
@@ -19,14 +40,21 @@ module RSpec
       # decide if we want to fail the test or not
       # trunk-ignore(rubocop/Naming/AccessorMethodName)
       def set_exception(exception)
-        # TODO: this is where we'll need to override the result once the logic is ready
-        # trunk-ignore(rubocop/Lint/LiteralAsCondition)
-        if true
-          set_exception_core(exception)
-        else
+        id = generate_id(self) || ''
+        test_report = TestReport.new('rspec', "#{$PROGRAM_NAME} #{ARGV.join(' ')}")
+        name = self.full_description
+        parent_name = self.example_group.metadata[:description]
+        parent_name = parent_name.empty? ? 'rspec' : parent_name
+        file = escape(self.metadata[:file_path])
+        classname = file.sub(%r{\.[^/.]+\Z}, '').gsub('/', '.').gsub(/\A\.+|\.+\Z/, '')
+        if test_report.is_quarantined(id, name, parent_name, classname, file)
           # monitor the override in the metadata
           metadata[:quarantined_exception] = exception
+          puts "Quarantined test: `#{name}` in `#{parent_name}`".yellow
+          puts "Exception: #{exception}".red
           nil
+        else
+          set_exception_core(exception)
         end
       end
 
@@ -70,10 +98,6 @@ module RSpec
       else
         @example.metadata[:attempt_number] = 0
       end
-
-      # add the test to the report
-      # return the report
-      @testreport
     end
   end
 end
@@ -93,26 +117,10 @@ class TrunkAnalyticsListener
     @testreport.publish
   end
 
-  def description_generated?(example)
-    auto_generated_exp = /^\s?is expected to eq .*$/
-    full_description = example.full_description
-    parent_description = example.example_group.description
-    checked_description = full_description.sub(parent_description, '')
-    auto_generated_exp.match(checked_description) != nil
-  end
-
-  def generate_id(example)
-    if description_generated?(example)
-      # trunk-ignore(rubocop/Style/SoleNestedConditional)
-      return "trunk:#{example.id}-#{example.location}" if description_generated?(example)
-    end
-    nil
-  end
-
   # trunk-ignore(rubocop/Metrics/AbcSize,rubocop/Metrics/MethodLength,rubocop/Metrics/CyclomaticComplexity)
   def add_test_case(example)
     if example.exception
-      failure_message = example.exception.message
+      failure_message = example.metadata[:quarantined_exception] || example.exception.message
       # failure details is far more robust than the message, but noiser
       # if example.exception.backtrace
       # failure_details = example.exception.backtrace.join('\n')
@@ -137,6 +145,10 @@ class TrunkAnalyticsListener
     when :pending
       status = Status.new('skipped')
     end
+    if example.metadata[:quarantined_exception]
+      status = Status.new('quarantined')
+    end
+    is_quarantined = example.metadata[:quarantined_exception] ? true : false
     parent_name = example.example_group.metadata[:description]
     parent_name = parent_name.empty? ? 'rspec' : parent_name
     @testreport.add_test(id, name, classname, file, parent_name, line, status, attempt_number,

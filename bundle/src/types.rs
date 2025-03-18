@@ -22,6 +22,7 @@ pub struct Test {
     pub id: String,
     /// Added in v0.6.9
     pub timestamp_millis: Option<i64>,
+    pub is_quarantined: bool,
 }
 
 impl Test {
@@ -41,6 +42,7 @@ impl Test {
             file,
             id: String::with_capacity(0),
             timestamp_millis,
+            is_quarantined: false,
         };
 
         test.set_id(org_slug, repo);

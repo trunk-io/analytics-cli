@@ -51,6 +51,7 @@ impl From<TestCaseRunStatus> for BindingsTestCaseStatusStatus {
             TestCaseRunStatus::Failure => BindingsTestCaseStatusStatus::NonSuccess,
             TestCaseRunStatus::Skipped => BindingsTestCaseStatusStatus::Skipped,
             TestCaseRunStatus::Unspecified => BindingsTestCaseStatusStatus::Unspecified,
+            TestCaseRunStatus::Quarantined => BindingsTestCaseStatusStatus::Quarantined,
         }
     }
 }
@@ -715,6 +716,7 @@ pub enum BindingsTestCaseStatusStatus {
     NonSuccess,
     Skipped,
     Unspecified,
+    Quarantined,
 }
 
 #[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass(get_all))]
