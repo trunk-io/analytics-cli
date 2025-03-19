@@ -5,6 +5,7 @@ use std::{
 
 use api::{client::ApiClient, urls::url_for_test_case};
 use bundle::{FileSet, FileSetBuilder, FileSetType, QuarantineBulkTestStatus, Test};
+use chrono::TimeDelta;
 use constants::{EXIT_FAILURE, EXIT_SUCCESS};
 use context::{
     junit::{
@@ -36,8 +37,12 @@ fn convert_case_to_test<T: AsRef<str>>(
     let name = String::from(case.name.as_str());
     let class_name = case.classname.clone();
     let file = case.extra().get("file").cloned();
-    let timestamp_millis = case.timestamp_micros.or(suite.timestamp_micros).map(|ts| ts / 1000);
-    println!("timestamp_millis: {:?}", timestamp_millis);
+    // convert timestamp_micros to millis using chrono
+    let timestamp_millis = Some(TimeDelta::num_milliseconds(&TimeDelta::microseconds(
+        case.timestamp_micros
+            .or(suite.timestamp_micros)
+            .unwrap_or(0),
+    )));
     let mut test = Test {
         name,
         parent_name,
