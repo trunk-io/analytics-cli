@@ -323,6 +323,12 @@ impl BindingsTestSuite {
     }
 }
 
+impl BindingsTestSuite {
+    pub fn extra(&self) -> HashMap<String, String> {
+        self.extra.clone()
+    }
+}
+
 #[cfg(feature = "wasm")]
 #[wasm_bindgen]
 impl BindingsTestSuite {
@@ -528,6 +534,12 @@ impl BindingsTestCase {
                 acc
             });
         js_sys::Object::from_entries(&entries)
+    }
+}
+
+impl BindingsTestCase {
+    pub fn extra(&self) -> HashMap<String, String> {
+        self.extra.clone()
     }
 }
 
