@@ -1,13 +1,23 @@
-use std::collections::HashMap;
+use std::{
+    collections::HashMap,
+    io::{BufReader, Read},
+};
 
 use api::{client::ApiClient, urls::url_for_test_case};
-use bundle::{FileSet, FileSetBuilder, QuarantineBulkTestStatus, Test};
+use bundle::{FileSet, FileSetBuilder, FileSetType, QuarantineBulkTestStatus, Test};
+use chrono::TimeDelta;
 use constants::{EXIT_FAILURE, EXIT_SUCCESS};
 use context::{
-    junit::{junit_path::JunitReportStatus, parser::JunitParser},
+    junit::{
+        bindings::{
+            BindingsReport, BindingsTestCase, BindingsTestCaseStatusStatus, BindingsTestSuite,
+        },
+        junit_path::JunitReportStatus,
+        parser::JunitParser,
+    },
     repo::RepoUrlParts,
 };
-use quick_junit::TestCaseStatus;
+use prost::Message;
 
 use crate::error_report::{log_error, Context};
 
@@ -21,17 +31,18 @@ fn convert_case_to_test<T: AsRef<str>>(
     repo: &RepoUrlParts,
     org_slug: T,
     parent_name: String,
-    case: &quick_junit::TestCase,
-    suite: &quick_junit::TestSuite,
+    case: &BindingsTestCase,
+    suite: &BindingsTestSuite,
 ) -> Test {
     let name = String::from(case.name.as_str());
-    let xml_string_to_string = |s: &quick_junit::XmlString| String::from(s.as_str());
-    let class_name = case.classname.as_ref().map(xml_string_to_string);
-    let file = case.extra.get("file").map(xml_string_to_string);
-    let timestamp_millis = case
-        .timestamp
-        .or(suite.timestamp)
-        .map(|t| t.timestamp_millis());
+    let class_name = case.classname.clone();
+    let file = case.extra().get("file").cloned();
+    // convert timestamp_micros to millis using chrono
+    let timestamp_millis = Some(TimeDelta::num_milliseconds(&TimeDelta::microseconds(
+        case.timestamp_micros
+            .or(suite.timestamp_micros)
+            .unwrap_or(0),
+    )));
     let mut test = Test {
         name,
         parent_name,
@@ -40,8 +51,13 @@ fn convert_case_to_test<T: AsRef<str>>(
         id: String::with_capacity(0),
         timestamp_millis,
     };
-    if let Some(id) = case.extra.get("id").map(xml_string_to_string) {
-        test.id = id;
+    if let Some(id) = case.extra().get("id") {
+        if id.is_empty() {
+            test.set_id(org_slug, repo);
+        } else {
+            // trunk-ignore(clippy/assigning_clones)
+            test.id = id.clone();
+        }
     } else {
         test.set_id(org_slug, repo);
     }
@@ -65,25 +81,58 @@ impl FailedTestsExtractor {
                     continue;
                 }
             }
-            for file in &file_set.files {
-                let file = match std::fs::File::open(&file.original_path) {
+            for base_file in &file_set.files {
+                let file = match std::fs::File::open(&base_file.original_path) {
                     Ok(file) => file,
-                    Err(e) => {
-                        tracing::warn!("Error opening file: {}", e);
+                    Err(err) => {
+                        tracing::warn!(
+                            "Failed to open file {:?} for reading: {}",
+                            base_file.original_path,
+                            err
+                        );
                         continue;
                     }
                 };
-                let reader = std::io::BufReader::new(file);
-                let mut junitxml = JunitParser::new();
-                match junitxml.parse(reader) {
-                    Ok(junitxml) => junitxml,
-                    Err(e) => {
-                        tracing::warn!("Error parsing junitxml: {}", e);
-                        continue;
+                let mut reader = BufReader::new(file);
+                let bindings_reports = match file_set.file_set_type {
+                    FileSetType::Junit => {
+                        let mut junitxml = JunitParser::new();
+                        match junitxml.parse(reader) {
+                            Ok(junitxml) => junitxml,
+                            Err(err) => {
+                                tracing::warn!(
+                                    "Failed to parse junit xml file {:?}: {}",
+                                    base_file.original_path,
+                                    err
+                                );
+                                continue;
+                            }
+                        };
+                        junitxml
+                            .into_reports()
+                            .iter()
+                            .map(|report| BindingsReport::from(report.clone()))
+                            .collect::<Vec<BindingsReport>>()
+                    }
+                    _ => {
+                        let mut buffer = Vec::new();
+                        let result = reader.read_to_end(&mut buffer);
+                        if let Err(err) = result {
+                            tracing::warn!(
+                                "Failed to read file {:?} for reading: {}",
+                                base_file.original_path,
+                                err
+                            );
+                            continue;
+                        }
+                        let test_result =
+                            proto::test_context::test_run::TestResult::decode(buffer.as_slice())
+                                .unwrap();
+                        vec![BindingsReport::from(test_result)]
                     }
                 };
-                for report in junitxml.reports() {
-                    for suite in &report.test_suites {
+                for report in bindings_reports {
+                    for suite in report.test_suites {
                         let parent_name = String::from(suite.name.as_str());
                         for case in &suite.test_cases {
                             let test = convert_case_to_test(
@@ -91,13 +140,14 @@ impl FailedTestsExtractor {
                                 org_slug.as_ref(),
                                 parent_name.clone(),
                                 case,
-                                suite,
+                                &suite,
                             );
-                            match &case.status {
-                                TestCaseStatus::Skipped { .. } => {
+                            match &case.status.status {
+                                BindingsTestCaseStatusStatus::Unspecified
+                                | BindingsTestCaseStatusStatus::Skipped { .. } => {
                                     continue;
                                 }
-                                TestCaseStatus::Success { .. } => {
+                                BindingsTestCaseStatusStatus::Success { .. } => {
                                     if let Some(existing_timestamp) = successes.get(&test.id) {
                                         if *existing_timestamp > test.timestamp_millis.unwrap_or(0)
                                         {
@@ -109,7 +159,7 @@ impl FailedTestsExtractor {
                                         test.timestamp_millis.unwrap_or(0),
                                     );
                                 }
-                                TestCaseStatus::NonSuccess { .. } => {
+                                BindingsTestCaseStatusStatus::NonSuccess { .. } => {
                                     // Only store the most recent failure of a given test run ID
                                     if let Some(existing_test) = failures.get(&test.id) {
                                         if existing_test.timestamp_millis > test.timestamp_millis {
@@ -179,7 +229,13 @@ pub async fn gather_quarantine_context(
         };
     }
 
-    let quarantine_config = if !failed_tests_extractor.failed_tests().is_empty() {
+    let quarantine_config = if !failed_tests_extractor.failed_tests().is_empty()
+        && file_set_builder
+            .file_sets()
+            .iter()
+            // internal files track quarantine status directly, so we don't need to check them
+            .any(|file_set| file_set.file_set_type == FileSetType::Junit)
+    {
         tracing::info!("Checking if failed tests can be quarantined");
         let result = api_client.get_quarantining_config(request).await;
 
@@ -195,7 +251,7 @@ pub async fn gather_quarantine_context(
 
         result.unwrap_or_default()
     } else {
-        tracing::debug!("No failed tests to quarantine");
+        tracing::debug!("Skipping quarantine check.");
         api::message::GetQuarantineConfigResponse::default()
     };
 
