@@ -184,6 +184,41 @@ impl ApiClient {
         .await
     }
 
+    pub async fn list_quarantined_tests(
+        &self,
+        request: &message::ListQuarantinedTestsRequest,
+    ) -> anyhow::Result<message::ListQuarantinedTestsResponse> {
+        CallApi {
+            action: || async {
+                let response = self
+                    .trunk_api_client
+                    .post(format!("{}{}/flaky-tests/list-quarantined-tests", self.api_host, self.version_path_prefix))
+                    .json(&request)
+                    .send()
+                    .await?;
+
+                let response = status_code_help(
+                    response,
+                    CheckUnauthorized::Check,
+                    CheckNotFound::DoNotCheck,
+                    |_| String::from("Failed to list quarantined tests."),
+                    &self.api_host,
+                    &self.org_url_slug,
+                )?;
+
+                self.deserialize_response::<message::ListQuarantinedTestsResponse>(response).await
+            },
+            log_progress_message: |time_elapsed, _| {
+                format!("Listing quarantined tests from Trunk services is taking longer than expected. It has taken {} seconds so far.", time_elapsed.as_secs())
+            },
+            report_slow_progress_message: |time_elapsed| {
+                format!("Listing quarantined tests from Trunk services is taking longer than {} seconds", time_elapsed.as_secs())
+            },
+        }
+        .call_api()
+        .await
+    }
+
     pub async fn put_bundle_to_s3<U: AsRef<str>, B: AsRef<Path>>(
         &self,
         url: U,
