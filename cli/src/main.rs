@@ -6,7 +6,7 @@ use third_party::sentry;
 use tracing_subscriber::{filter::FilterFn, prelude::*};
 use trunk_analytics_cli::{
     context::gather_debug_props,
-    error_report::log_error,
+    error_report::{log_error, Context},
     quarantine_command::{run_quarantine, QuarantineArgs},
     test_command::{run_test, TestArgs},
     upload_command::{run_upload, UploadArgs, UploadRunResult},
@@ -99,6 +99,7 @@ fn main() -> anyhow::Result<()> {
         .build()?
         .block_on(async {
             let cli = Cli::parse();
+            let org_url_slug = cli.org_url_slug();
             let log_level_filter = cli.verbose.log_level_filter();
             setup_logger(
                 log_level_filter,
@@ -114,7 +115,21 @@ fn main() -> anyhow::Result<()> {
             match run(cli).await {
                 Ok(exit_code) => std::process::exit(exit_code),
                 Err(error) => {
-                    let exit_code = log_error(&error, None);
+                    let exit_code = log_error(
+                        &error,
+                        Context {
+                            base_message: None,
+                            org_url_slug,
+                        },
+                    );
+                    if exit_code != exitcode::OK {
+                        tracing::warn!("Unable to proceed, returning exit code: {}", exit_code);
+                    } else {
+                        tracing::warn!(
+                            "Errors occurred during upload, returning default exit code: {}",
+                            exit_code
+                        );
+                    }
                     guard.flush(None);
                     std::process::exit(exit_code);
                 }

@@ -19,8 +19,17 @@ pub struct ApiClient {
     org_url_slug: String,
 }
 
+pub fn get_api_host() -> String {
+    std::env::var(TRUNK_PUBLIC_API_ADDRESS_ENV)
+        .ok()
+        .and_then(|s| if s.is_empty() { None } else { Some(s) })
+        .unwrap_or_else(|| DEFAULT_ORIGIN.to_string())
+}
+
 impl ApiClient {
     const TRUNK_API_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
+    // This should always be fast
+    const TRUNK_TELEMETRY_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(1);
     const TRUNK_API_TOKEN_HEADER: &'static str = "x-api-token";
 
     pub fn new<T: AsRef<str>>(api_token: T, org_url_slug: T) -> anyhow::Result<Self> {
@@ -32,10 +41,7 @@ impl ApiClient {
         let api_token_header_value = HeaderValue::from_str(api_token)
             .map_err(|_| anyhow::Error::msg("Trunk API token is not ASCII"))?;
 
-        let api_host = std::env::var(TRUNK_PUBLIC_API_ADDRESS_ENV)
-            .ok()
-            .and_then(|s| if s.is_empty() { None } else { Some(s) })
-            .unwrap_or_else(|| DEFAULT_ORIGIN.to_string());
+        let api_host = get_api_host();
         tracing::debug!("Using public api address {}", api_host);
 
         let telemetry_host = if api_host.contains("https://") {
@@ -72,7 +78,7 @@ impl ApiClient {
             .append(Self::TRUNK_API_TOKEN_HEADER, api_token_header_value);
 
         let telemetry_client = Client::builder()
-            .timeout(Self::TRUNK_API_TIMEOUT)
+            .timeout(Self::TRUNK_TELEMETRY_TIMEOUT)
             .default_headers(telemetry_client_default_headers)
             .build()?;
 
@@ -298,8 +304,6 @@ pub(crate) const NOT_FOUND_CONTEXT: &str = concat!(
     "(Settings -> Manage Organization -> Organization Slug).",
 );
 
-const HELP_TEXT: &str = "\n\nFor more help, contact us at https://slack.trunk.io/";
-
 pub(crate) fn status_code_help<T: FnMut(&Response) -> String>(
     response: Response,
     check_unauthorized: CheckUnauthorized,
@@ -311,11 +315,7 @@ pub(crate) fn status_code_help<T: FnMut(&Response) -> String>(
     let base_error_message = create_error_message(&response);
 
     if !response.status().is_client_error() {
-        response.error_for_status().map_err(|reqwest_error| {
-            let error_message = format!("{base_error_message}{HELP_TEXT}");
-            tracing::warn!("{}", error_message);
-            anyhow::Error::from(reqwest_error)
-        })
+        response.error_for_status().map_err(anyhow::Error::from)
     } else {
         let domain: Option<String> = url::Url::parse(api_host)
             .ok()
@@ -339,11 +339,8 @@ pub(crate) fn status_code_help<T: FnMut(&Response) -> String>(
             _ => base_error_message,
         };
 
-        let error_message_with_help = format!("{error_message}{HELP_TEXT}");
-
-        tracing::warn!("{}", error_message_with_help);
         match response.error_for_status() {
-            Ok(..) => Err(anyhow::Error::msg(error_message_with_help)),
+            Ok(..) => Err(anyhow::Error::msg(error_message)),
             Err(error) => Err(anyhow::Error::from(error)),
         }
     }
