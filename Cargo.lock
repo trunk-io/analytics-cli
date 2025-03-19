@@ -4957,6 +4957,7 @@ dependencies = [
  "log",
  "openssl",
  "openssl-src",
+ "prost",
  "proto",
  "quick-junit",
  "regex",
