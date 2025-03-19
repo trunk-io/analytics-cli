@@ -86,7 +86,7 @@ async fn publish_test_report() {
     assert!(base_props.quarantined_tests.is_empty());
 
     let file_set = base_props.file_sets.first().unwrap();
-    assert_eq!(file_set.file_set_type, FileSetType::Junit);
+    assert_eq!(file_set.file_set_type, FileSetType::Internal);
     assert!(file_set.glob.ends_with(".bin"));
     assert_eq!(file_set.files.len(), 1);
 

@@ -42,17 +42,24 @@ impl FileSetBuilder {
         let file_set_builder =
             Self::file_sets_from_glob(repo_root, junit_paths, team, codeowners, exec_start)?;
 
-        // Handle case when junit paths are not globs.
+        // Handle case when paths are not globs.
         if file_set_builder.count == 0 {
             let junit_paths_with_glob = junit_paths
                 .iter()
                 .cloned()
-                .map(|mut junit_wrapper| {
-                    junit_wrapper.junit_path = PathBuf::from(junit_wrapper.junit_path)
+                .flat_map(|junit_wrapper| {
+                    let mut junit_wrapper_xml = junit_wrapper.clone();
+                    junit_wrapper_xml.junit_path = PathBuf::from(junit_wrapper_xml.junit_path)
                         .join("**/*.xml")
                         .to_string_lossy()
                         .to_string();
-                    junit_wrapper
+                    let mut junit_wrapper_internal = junit_wrapper.clone();
+                    junit_wrapper_internal.junit_path =
+                        PathBuf::from(junit_wrapper_internal.junit_path)
+                            .join("**/*.bin")
+                            .to_string_lossy()
+                            .to_string();
+                    vec![junit_wrapper_xml, junit_wrapper_internal]
                 })
                 .collect::<Vec<_>>();
 
@@ -101,11 +108,22 @@ impl FileSetBuilder {
                         Ok(acc)
                     },
                 )?;
+                // If any file is a binary file, set the file set type to internal.
+                let file_set_type = bundled_files.iter().fold(FileSetType::Junit, |acc, file| {
+                    if acc == FileSetType::Internal {
+                        return acc;
+                    }
+                    if file.original_path.ends_with(".bin") {
+                        return FileSetType::Internal;
+                    }
+                    acc
+                });
                 acc.count = count;
                 acc.file_sets.push(FileSet::new(
                     bundled_files,
                     junit_wrapper.junit_path.clone(),
                     junit_wrapper.status.clone(),
+                    file_set_type,
                 ));
                 Ok(acc)
             },
@@ -167,9 +185,10 @@ impl FileSet {
         files: Vec<BundledFile>,
         glob: String,
         resolved_status: Option<JunitReportStatus>,
+        file_set_type: FileSetType,
     ) -> Self {
         Self {
-            file_set_type: FileSetType::Junit,
+            file_set_type,
             files,
             glob,
             resolved_status,
@@ -183,6 +202,7 @@ impl FileSet {
 pub enum FileSetType {
     #[default]
     Junit,
+    Internal,
 }
 
 #[cfg(feature = "wasm")]
