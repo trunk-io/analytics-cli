@@ -9,7 +9,7 @@ use constants::EXIT_FAILURE;
 
 use crate::{
     context::{gather_debug_props, gather_pre_test_context},
-    error_report::log_error,
+    error_report::{log_error, Context},
     upload_command::{run_upload, UploadArgs, UploadRunResult},
 };
 
@@ -69,6 +69,7 @@ pub async fn run_test(
         test_run_result.exec_start = None;
     }
 
+    let org_url_slug = upload_args.org_url_slug.clone();
     let upload_run_result =
         run_upload(upload_args, Some(pre_test_context), Some(test_run_result)).await;
 
@@ -85,7 +86,13 @@ pub async fn run_test(
             },
         )
         .or_else(|e| {
-            log_error(&e, Some("Error uploading test results"));
+            log_error(
+                &e,
+                Context {
+                    base_message: Some("Error uploading test results".into()),
+                    org_url_slug,
+                },
+            );
             Ok(test_run_result_exit_code)
         })
 }
