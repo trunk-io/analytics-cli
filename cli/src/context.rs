@@ -73,7 +73,6 @@ pub fn gather_pre_test_context(
         repo_head_branch,
         repo_head_commit_epoch,
         tags,
-        #[cfg(target_os = "macos")]
         allow_empty_test_results,
         ..
     } = upload_args;
@@ -97,7 +96,6 @@ pub fn gather_pre_test_context(
             &repo.repo,
             #[cfg(target_os = "macos")]
             org_url_slug.clone(),
-            #[cfg(target_os = "macos")]
             allow_empty_test_results,
         )?;
 
@@ -192,7 +190,7 @@ fn coalesce_junit_path_wrappers(
     #[cfg(target_os = "macos")] xcresult_path: Option<String>,
     #[cfg(target_os = "macos")] repo: &RepoUrlParts,
     #[cfg(target_os = "macos")] org_url_slug: String,
-    #[cfg(target_os = "macos")] allow_empty_test_results: bool,
+    allow_empty_test_results: bool,
 ) -> anyhow::Result<(
     Vec<JunitReportFileWithStatus>,
     Option<BepParseResult>,
@@ -205,8 +203,28 @@ fn coalesce_junit_path_wrappers(
 
     let mut bep_result: Option<BepParseResult> = None;
     if let Some(bazel_bep_path) = bazel_bep_path {
-        let mut parser = BazelBepParser::new(bazel_bep_path);
-        let bep_parse_result = parser.parse()?;
+        let mut parser = BazelBepParser::new(&bazel_bep_path);
+        let bep_parse_result = match parser.parse() {
+            Ok(result) => result,
+            Err(e) => {
+                if allow_empty_test_results {
+                    tracing::warn!(
+                        "Failed to parse Bazel BEP file at {}: {}",
+                        bazel_bep_path,
+                        e
+                    );
+                    tracing::warn!(
+                        "Allow empty test results enabled - continuing without test results."
+                    );
+                    return Ok((junit_path_wrappers, None, None));
+                }
+                return Err(anyhow::anyhow!(
+                    "Failed to parse Bazel BEP file at {}: {}",
+                    bazel_bep_path,
+                    e
+                ));
+            }
+        };
         print_bep_results(&bep_parse_result);
         junit_path_wrappers = bep_parse_result.uncached_xml_files();
         bep_result = Some(bep_parse_result);
@@ -387,6 +405,50 @@ fn parse_num_tests(file_sets: &[FileSet]) -> usize {
 
 #[cfg(test)]
 mod tests {
+    #[cfg(target_os = "macos")]
+    use context::repo::RepoUrlParts;
+
+    use crate::context::coalesce_junit_path_wrappers;
+    #[test]
+    fn test_coalesce_junit_path_wrappers() {
+        #[cfg(target_os = "macos")]
+        let repo = RepoUrlParts {
+            host: "github.com".to_string(),
+            owner: "trunk-io".to_string(),
+            name: "analytics-cli".to_string(),
+        };
+        let result_err = coalesce_junit_path_wrappers(
+            vec!["test".into()],
+            Some("test".into()),
+            #[cfg(target_os = "macos")]
+            Some("test".into()),
+            #[cfg(target_os = "macos")]
+            &repo,
+            #[cfg(target_os = "macos")]
+            "test".into(),
+            false,
+        );
+        assert!(result_err.is_err());
+        let result_ok = coalesce_junit_path_wrappers(
+            vec!["test".into()],
+            Some("test".into()),
+            #[cfg(target_os = "macos")]
+            Some("test".into()),
+            #[cfg(target_os = "macos")]
+            &repo,
+            #[cfg(target_os = "macos")]
+            "test".into(),
+            true,
+        );
+        assert!(result_ok.is_ok());
+        let result = result_ok.unwrap();
+        assert_eq!(result.0.len(), 1);
+        let junit_result = &result.0[0];
+        assert_eq!(junit_result.junit_path, "test");
+        assert!(result.1.is_none());
+        assert!(result.2.is_none());
+    }
+
     #[test]
     fn test_gather_debug_props() {
         let args: Vec<String> = vec!["trunk flakytests".into(), "test".into(), "--token".into()];
