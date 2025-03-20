@@ -55,13 +55,13 @@ pub async fn run_test(
     }: TestArgs,
 ) -> anyhow::Result<i32> {
     let token = upload_args.token.clone();
-    let pre_test_context = gather_pre_test_context(
+    tracing::info!("running command: {:?}", command);
+    let mut test_run_result = run_test_command(&command).await?;
+    let test_context = gather_pre_test_context(
         upload_args.clone(),
         gather_debug_props(env::args().collect::<Vec<String>>(), token),
     )?;
 
-    tracing::info!("running command: {:?}", command);
-    let mut test_run_result = run_test_command(&command).await?;
     let test_run_result_exit_code = test_run_result.exit_code;
     // remove exec start because it filters out test files and we want to
     // trust bazel-bep to provide the required test files
@@ -71,7 +71,7 @@ pub async fn run_test(
 
     let org_url_slug = upload_args.org_url_slug.clone();
     let upload_run_result =
-        run_upload(upload_args, Some(pre_test_context), Some(test_run_result)).await;
+        run_upload(upload_args, Some(test_context), Some(test_run_result)).await;
 
     upload_run_result
         .and_then(
