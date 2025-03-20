@@ -9,7 +9,7 @@ use context::bazel_bep::parser::BepParseResult;
 use crate::{
     context::{
         gather_debug_props, gather_exit_code_and_quarantined_tests_context,
-        gather_post_test_context, gather_pre_test_context, gather_upload_id_context,
+        gather_initial_test_context, gather_post_test_context, gather_upload_id_context,
         PreTestContext,
     },
     error_report::error_reason,
@@ -170,7 +170,7 @@ pub async fn run_upload(
     } = if let Some(pre_test_context) = pre_test_context {
         pre_test_context
     } else {
-        gather_pre_test_context(
+        gather_initial_test_context(
             upload_args.clone(),
             gather_debug_props(env::args().collect::<Vec<String>>(), upload_args.token),
         )?

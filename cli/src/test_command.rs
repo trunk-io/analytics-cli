@@ -8,7 +8,7 @@ use clap::Args;
 use constants::EXIT_FAILURE;
 
 use crate::{
-    context::{gather_debug_props, gather_pre_test_context},
+    context::{gather_debug_props, gather_initial_test_context},
     error_report::{log_error, Context},
     upload_command::{run_upload, UploadArgs, UploadRunResult},
 };
@@ -55,9 +55,8 @@ pub async fn run_test(
     }: TestArgs,
 ) -> anyhow::Result<i32> {
     let token = upload_args.token.clone();
-    tracing::info!("running command: {:?}", command);
     let mut test_run_result = run_test_command(&command).await?;
-    let test_context = gather_pre_test_context(
+    let test_context = gather_initial_test_context(
         upload_args.clone(),
         gather_debug_props(env::args().collect::<Vec<String>>(), token),
     )?;
