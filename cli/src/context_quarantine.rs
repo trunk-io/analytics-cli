@@ -49,7 +49,7 @@ fn convert_case_to_test<T: AsRef<str>>(
         file,
         id: String::with_capacity(0),
         timestamp_millis,
-        is_quarantined: case.status.status == BindingsTestCaseStatusStatus::Quarantined,
+        is_quarantined: case.is_quarantined(),
     };
     if let Some(id) = case.extra().get("id") {
         if id.is_empty() {
@@ -159,8 +159,7 @@ impl FailedTestsExtractor {
                                         test.timestamp_millis.unwrap_or(0),
                                     );
                                 }
-                                BindingsTestCaseStatusStatus::Quarantined
-                                | BindingsTestCaseStatusStatus::NonSuccess { .. } => {
+                                BindingsTestCaseStatusStatus::NonSuccess { .. } => {
                                     // Only store the most recent failure of a given test run ID
                                     if let Some(existing_test) = failures.get(&test.id) {
                                         if existing_test.timestamp_millis > test.timestamp_millis {

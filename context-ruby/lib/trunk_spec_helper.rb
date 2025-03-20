@@ -49,7 +49,7 @@ module RSpec
         classname = file.sub(%r{\.[^/.]+\Z}, '').gsub('/', '.').gsub(/\A\.+|\.+\Z/, '')
         if test_report.is_quarantined(id, name, parent_name, classname, file)
           # monitor the override in the metadata
-          metadata[:quarantined_exception] = exception
+          self.metadata[:quarantined_exception] = exception
           puts "Quarantined test: `#{name}` in `#{parent_name}`".yellow
           puts "Exception: #{exception}".red
           nil
@@ -120,11 +120,14 @@ class TrunkAnalyticsListener
   # trunk-ignore(rubocop/Metrics/AbcSize,rubocop/Metrics/MethodLength,rubocop/Metrics/CyclomaticComplexity)
   def add_test_case(example)
     if example.exception
-      failure_message = example.metadata[:quarantined_exception] || example.exception.message
+      failure_message = example.exception.message
       # failure details is far more robust than the message, but noiser
       # if example.exception.backtrace
       # failure_details = example.exception.backtrace.join('\n')
       # end
+    end
+    if example.metadata[:quarantined_exception]
+      failure_message = "#{example.metadata[:quarantined_exception]}"
     end
     # TODO: should we use concatenated string or alias when auto-generated description?
     name = example.full_description
@@ -146,9 +149,8 @@ class TrunkAnalyticsListener
       status = Status.new('skipped')
     end
     if example.metadata[:quarantined_exception]
-      status = Status.new('quarantined')
+      status = Status.new('failure')
     end
-    is_quarantined = example.metadata[:quarantined_exception] ? true : false
     parent_name = example.example_group.metadata[:description]
     parent_name = parent_name.empty? ? 'rspec' : parent_name
     @testreport.add_test(id, name, classname, file, parent_name, line, status, attempt_number,

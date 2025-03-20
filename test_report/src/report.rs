@@ -49,14 +49,12 @@ pub enum Status {
     Failure,
     Skipped,
     Unspecified,
-    Quarantined,
 }
 
 const SUCCESS: &str = "success";
 const FAILURE: &str = "failure";
 const SKIPPED: &str = "skipped";
 const UNSPECIFIED: &str = "unspecified";
-const QUARANTINED: &str = "quarantined";
 
 #[cfg(feature = "ruby")]
 impl Status {
@@ -65,7 +63,6 @@ impl Status {
             SUCCESS => Status::Success,
             FAILURE => Status::Failure,
             SKIPPED => Status::Skipped,
-            QUARANTINED => Status::Quarantined,
             UNSPECIFIED => Status::Unspecified,
             _ => Status::Unspecified,
         }
@@ -79,7 +76,6 @@ impl From<Status> for &str {
             Status::Failure => FAILURE,
             Status::Skipped => SKIPPED,
             Status::Unspecified => UNSPECIFIED,
-            Status::Quarantined => QUARANTINED,
         }
     }
 }
@@ -211,6 +207,7 @@ impl MutTestReport {
             .build()
             .unwrap()
             .block_on(api_client.list_quarantined_tests(&request));
+        // TODO this is being called too much
         match response {
             Ok(response) => {
                 for test in response.quarantined_tests.iter() {
@@ -355,10 +352,8 @@ impl MutTestReport {
             Status::Success => test.status = TestCaseRunStatus::Success.into(),
             Status::Failure => test.status = TestCaseRunStatus::Failure.into(),
             Status::Skipped => test.status = TestCaseRunStatus::Skipped.into(),
-            Status::Quarantined => test.status = TestCaseRunStatus::Quarantined.into(),
             Status::Unspecified => test.status = TestCaseRunStatus::Unspecified.into(),
         }
-        // test.status = status;
         test.attempt_number = attempt_number;
         let started_at_date_time = DateTime::from_timestamp(started_at, 0).unwrap_or_default();
         let test_started_at = Timestamp {
@@ -373,6 +368,13 @@ impl MutTestReport {
         };
         test.finished_at = Some(test_finished_at);
         test.status_output_message = output;
+        test.is_quarantined = self.is_quarantined(
+            Some(test.id.clone()),
+            Some(test.name.clone()),
+            Some(test.parent_name.clone()),
+            Some(test.classname.clone()),
+            Some(test.file.clone()),
+        );
         self.0
             .borrow_mut()
             .test_result
