@@ -161,6 +161,7 @@ impl From<TestCaseRun> for BindingsTestCase {
             file,
             line,
             attempt_number,
+            is_quarantined,
         }: TestCaseRun,
     ) -> Self {
         let started_at = started_at.unwrap_or_default();
@@ -220,6 +221,7 @@ impl From<TestCaseRun> for BindingsTestCase {
                 ("line".to_string(), line.to_string()),
                 ("attempt_number".to_string(), attempt_number.to_string()),
                 ("parent_name".to_string(), parent_name),
+                ("is_quarantined".to_string(), is_quarantined.to_string()),
             ]),
             properties: vec![],
         }
@@ -540,6 +542,12 @@ impl BindingsTestCase {
 impl BindingsTestCase {
     pub fn extra(&self) -> HashMap<String, String> {
         self.extra.clone()
+    }
+
+    pub fn is_quarantined(&self) -> bool {
+        self.extra
+            .get("is_quarantined")
+            .map_or(false, |v| v == "true")
     }
 }
 

@@ -104,7 +104,6 @@ pub struct QuarantinedTest {
     pub name: String,
     pub parent: Option<String>,
     pub file: Option<String>,
-    #[serde(rename = "className")]
     pub class_name: Option<String>,
     pub status: String,
     pub quarantine_setting: QuarantineSetting,

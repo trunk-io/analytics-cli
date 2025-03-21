@@ -3697,8 +3697,10 @@ name = "test_report"
 version = "0.0.0"
 dependencies = [
  "anyhow",
+ "api",
  "bundle",
  "chrono",
+ "context",
  "env_logger",
  "log",
  "magnus",
@@ -4056,6 +4058,7 @@ dependencies = [
  "lazy_static",
  "log",
  "openssl",
+ "prost",
  "proto",
  "quick-junit",
  "regex",
