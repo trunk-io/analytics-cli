@@ -65,7 +65,7 @@ impl Cli {
             Commands::Quarantine(args) => args.hide_banner(),
             Commands::Test(args) => args.hide_banner(),
             Commands::Upload(args) => args.hide_banner,
-            Commands::Validate(_args) => false,
+            Commands::Validate(args) => args.hide_banner(),
         }
     }
 
