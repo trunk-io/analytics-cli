@@ -7,7 +7,7 @@ use std::{
 
 use api::message::{
     CreateBundleUploadRequest, CreateBundleUploadResponse, GetQuarantineConfigRequest,
-    GetQuarantineConfigResponse,
+    GetQuarantineConfigResponse, ListQuarantinedTestsRequest, ListQuarantinedTestsResponse, Page,
 };
 use axum::{
     body::Bytes,
@@ -29,6 +29,7 @@ pub enum RequestPayload {
     GetQuarantineBulkTestStatus(GetQuarantineConfigRequest),
     S3Upload(PathBuf),
     TelemetryUploadMetrics(UploadMetrics),
+    ListQuarantinedTests(ListQuarantinedTestsRequest),
 }
 
 #[derive(Debug, Default)]
@@ -43,6 +44,7 @@ pub struct MockServerBuilder {
     get_quarantining_config_handler: MethodRouter<SharedMockServerState>,
     s3_upload_handler: MethodRouter<SharedMockServerState>,
     telemetry_upload_metrics: MethodRouter<SharedMockServerState>,
+    list_quarantined_tests_handler: MethodRouter<SharedMockServerState>,
 }
 
 impl MockServerBuilder {
@@ -52,6 +54,7 @@ impl MockServerBuilder {
             get_quarantining_config_handler: post(get_quarantining_config_handler),
             s3_upload_handler: put(s3_upload_handler),
             telemetry_upload_metrics: post(telemetry_upload_metrics_handler),
+            list_quarantined_tests_handler: post(list_quarantined_tests_handler),
         }
     }
 
@@ -87,6 +90,14 @@ impl MockServerBuilder {
         self.telemetry_upload_metrics = post(handler);
     }
 
+    pub fn list_quarantined_tests_handler<H, T>(&mut self, handler: H)
+    where
+        H: Handler<T, SharedMockServerState>,
+        T: 'static,
+    {
+        self.list_quarantined_tests_handler = post(handler);
+    }
+
     /// Mock server spawned in a new thread.
     pub async fn spawn_mock_server(self) -> SharedMockServerState {
         let listener = TcpListener::bind("localhost:0").await.unwrap();
@@ -108,6 +119,10 @@ impl MockServerBuilder {
             .route(
                 "/v1/flakytests-cli/upload-metrics",
                 self.telemetry_upload_metrics,
+            )
+            .route(
+                "/v1/flaky-tests/list-quarantined-tests",
+                self.list_quarantined_tests_handler,
             );
 
         app = app.route(
@@ -197,6 +212,7 @@ pub async fn telemetry_upload_metrics_handler(
         Response::new(String::from("Err"))
     }
 }
+
 #[axum::debug_handler]
 pub async fn s3_upload_handler(
     State(state): State<SharedMockServerState>,
@@ -220,4 +236,29 @@ pub async fn s3_upload_handler(
         .unwrap()
         .push(RequestPayload::S3Upload(tar_extract_directory.into_path()));
     Response::new(String::from("OK"))
+}
+
+#[axum::debug_handler]
+pub async fn list_quarantined_tests_handler(
+    State(state): State<SharedMockServerState>,
+    Json(list_quarantined_tests_request): Json<ListQuarantinedTestsRequest>,
+) -> Json<ListQuarantinedTestsResponse> {
+    state
+        .requests
+        .lock()
+        .unwrap()
+        .push(RequestPayload::ListQuarantinedTests(
+            list_quarantined_tests_request,
+        ));
+    Json(ListQuarantinedTestsResponse {
+        quarantined_tests: Vec::new(),
+        page: Page {
+            total_rows: 0,
+            total_pages: 0,
+            next_page_token: "".to_string(),
+            prev_page_token: "".to_string(),
+            last_page_token: "".to_string(),
+            page_index: 0,
+        },
+    })
 }
