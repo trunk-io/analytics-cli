@@ -38,6 +38,10 @@ impl TestArgs {
     pub fn repo_root(&self) -> Option<String> {
         self.upload_args.repo_root.clone()
     }
+
+    pub fn hide_banner(&self) -> bool {
+        self.upload_args.hide_banner
+    }
 }
 
 #[derive(Debug, Clone)]

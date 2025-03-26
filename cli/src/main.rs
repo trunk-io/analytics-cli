@@ -60,6 +60,15 @@ impl Cli {
         }
     }
 
+    pub fn hide_banner(&self) -> bool {
+        match &self.command {
+            Commands::Quarantine(args) => args.hide_banner(),
+            Commands::Test(args) => args.hide_banner(),
+            Commands::Upload(args) => args.hide_banner,
+            Commands::Validate(_args) => false,
+        }
+    }
+
     pub fn repo_root(&self) -> String {
         let explicit_root = match &self.command {
             Commands::Quarantine(args) => args.repo_root(),
@@ -107,7 +116,9 @@ fn main() -> anyhow::Result<()> {
                 cli.org_url_slug(),
                 cli.repo_root(),
             )?;
-            tracing::info!("{}", TITLE_CARD);
+            if !cli.hide_banner() {
+                tracing::info!("{}", TITLE_CARD);
+            }
             tracing::info!(
                 command = cli.debug_props(),
                 "Trunk Flaky Test running command"
