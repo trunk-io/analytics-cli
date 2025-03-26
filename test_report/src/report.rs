@@ -143,7 +143,6 @@ impl MutTestReport {
         }
         let api_client = ApiClient::new(token, org_url_slug.clone());
         let bundle_repo = BundleRepo::new(None, None, None, None, None);
-        // need repo + org to generate the test identifier
         match (api_client, bundle_repo) {
             (Ok(api_client), Ok(bundle_repo)) => {
                 let test_identifier = Test::new(
@@ -324,6 +323,7 @@ impl MutTestReport {
         started_at: i64,
         finished_at: i64,
         output: String,
+        is_quarantined: bool,
     ) {
         let mut test = TestCaseRun::default();
         if let Some(id) = id {
@@ -356,13 +356,7 @@ impl MutTestReport {
         };
         test.finished_at = Some(test_finished_at);
         test.status_output_message = output;
-        test.is_quarantined = self.is_quarantined(
-            Some(test.id.clone()),
-            Some(test.name.clone()),
-            Some(test.parent_name.clone()),
-            Some(test.classname.clone()),
-            Some(test.file.clone()),
-        );
+        test.is_quarantined = is_quarantined;
         self.0
             .borrow_mut()
             .test_result
@@ -390,7 +384,7 @@ pub fn ruby_init(ruby: &magnus::Ruby) -> Result<(), magnus::Error> {
     test_report.define_singleton_method("new", magnus::function!(MutTestReport::new, 2))?;
     test_report.define_method("to_s", magnus::method!(MutTestReport::to_string, 0))?;
     test_report.define_method("publish", magnus::method!(MutTestReport::publish, 0))?;
-    test_report.define_method("add_test", magnus::method!(MutTestReport::add_test, 11))?;
+    test_report.define_method("add_test", magnus::method!(MutTestReport::add_test, 12))?;
     test_report.define_method(
         "is_quarantined",
         magnus::method!(MutTestReport::is_quarantined, 5),

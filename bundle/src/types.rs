@@ -239,6 +239,36 @@ mod tests {
         assert_eq!(result.class_name, class_name);
         assert_eq!(result.file, file);
         assert_eq!(result.id, "aad1f138-09ab-5ea9-9c21-af48a03d6edd");
+        let result = Test::new(
+            Some("aad1f138-09ab-5ea9-9c21-af48a03d6edd"),
+            name.clone(),
+            parent_name.clone(),
+            class_name.clone(),
+            file.clone(),
+            org_slug,
+            &repo,
+            Some(0),
+        );
+        assert_eq!(result.name, name);
+        assert_eq!(result.parent_name, parent_name);
+        assert_eq!(result.class_name, class_name);
+        assert_eq!(result.file, file);
+        assert_eq!(result.id, "aad1f138-09ab-5ea9-9c21-af48a03d6edd");
+        let result = Test::new(
+            Some("trunk:example-id"),
+            name.clone(),
+            parent_name.clone(),
+            class_name.clone(),
+            file.clone(),
+            org_slug,
+            &repo,
+            Some(0),
+        );
+        assert_eq!(result.name, name);
+        assert_eq!(result.parent_name, parent_name);
+        assert_eq!(result.class_name, class_name);
+        assert_eq!(result.file, file);
+        assert_eq!(result.id, "208beb01-6179-546e-b0dd-8502e24ae85c");
         let result = Test {
             name: name.clone(),
             parent_name: parent_name.clone(),

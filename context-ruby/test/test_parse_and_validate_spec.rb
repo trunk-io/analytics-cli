@@ -22,7 +22,7 @@ describe 'context_ruby' do
     expect(parsed.branch_class.to_s).to eq('NONE')
     expect(parsed.actor).to eq('Spikey')
     expect(parsed.workflow).to eq('test-workflow')
-    expect(parsed.job).to eq('test-job2')
+    expect(parsed.job).to eq('test-job')
   end
 
   it 'should be able to env_parse stable branches' do

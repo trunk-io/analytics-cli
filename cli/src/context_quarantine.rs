@@ -37,6 +37,7 @@ fn convert_case_to_test<T: AsRef<str>>(
     let name = String::from(case.name.as_str());
     let class_name = case.classname.clone();
     let file = case.extra().get("file").cloned();
+    // convert timestamp_micros to millis using chrono
     let timestamp_millis = Some(TimeDelta::num_milliseconds(&TimeDelta::microseconds(
         case.timestamp_micros
             .or(suite.timestamp_micros)

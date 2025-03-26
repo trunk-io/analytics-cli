@@ -6,4 +6,3 @@ gemspec
 
 gem 'rake'
 gem 'rake-compiler', '1.2.0'
-gem 'rspec-retry'
