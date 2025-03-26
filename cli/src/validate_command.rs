@@ -1,7 +1,7 @@
 use std::{collections::BTreeMap, io::BufReader};
 
 use bundle::{FileSet, FileSetBuilder};
-use clap::{arg, Args};
+use clap::{arg, ArgAction, Args};
 use codeowners::CodeOwners;
 use colored::{ColoredString, Colorize};
 use console::Emoji;
@@ -43,6 +43,23 @@ pub struct ValidateArgs {
     show_warnings: bool,
     #[arg(long, help = "Value to override CODEOWNERS file or directory path.")]
     pub codeowners_path: Option<String>,
+    #[arg(
+        long,
+        help = "Hide the top-level flaky tests banner",
+        action = ArgAction::Set,
+        required = false,
+        require_equals = true,
+        num_args = 0..=1,
+        default_value = "false",
+        default_missing_value = "true",
+    )]
+    pub hide_banner: bool,
+}
+
+impl ValidateArgs {
+    pub fn hide_banner(&self) -> bool {
+        self.hide_banner
+    }
 }
 
 pub async fn run_validate(validate_args: ValidateArgs) -> anyhow::Result<i32> {
@@ -51,6 +68,7 @@ pub async fn run_validate(validate_args: ValidateArgs) -> anyhow::Result<i32> {
         bazel_bep_path,
         show_warnings: _,
         codeowners_path,
+        hide_banner: _,
     } = validate_args;
 
     let junit_file_paths = match bazel_bep_path {

@@ -117,6 +117,17 @@ pub struct UploadArgs {
         default_missing_value = "true",
     )]
     pub allow_empty_test_results: bool,
+    #[arg(
+        long,
+        help = "Hide the top-level flaky tests banner",
+        action = ArgAction::Set,
+        required = false,
+        require_equals = true,
+        num_args = 0..=1,
+        default_value = "false",
+        default_missing_value = "true",
+    )]
+    pub hide_banner: bool,
 }
 
 impl UploadArgs {

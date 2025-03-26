@@ -23,6 +23,10 @@ impl QuarantineArgs {
     pub fn repo_root(&self) -> Option<String> {
         self.upload_args.repo_root.clone()
     }
+
+    pub fn hide_banner(&self) -> bool {
+        self.upload_args.hide_banner
+    }
 }
 
 // This is an alias to `run_upload`, but does not exit on upload failure
