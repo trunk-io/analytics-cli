@@ -44,6 +44,7 @@ fn test_url_generated() {
         file: None,
         id: String::from("c33a7f64-8f3e-5db9-b37b-2ea870d2441b"),
         timestamp_millis: None,
+        is_quarantined: false,
     };
 
     let actual = url_for_test_case(

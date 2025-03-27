@@ -1,7 +1,10 @@
-use std::{cell::RefCell, env, fs, time::SystemTime};
+use std::{cell::RefCell, collections::HashMap, env, fs, time::SystemTime};
 
+use api::{client::ApiClient, message};
 use bundle::BundleMetaDebugProps;
+use bundle::Test;
 use chrono::prelude::*;
+use context::repo::{BundleRepo, RepoUrlParts};
 #[cfg(feature = "ruby")]
 use magnus::{value::ReprValue, Module, Object};
 use prost_wkt_types::Timestamp;
@@ -17,6 +20,7 @@ pub struct TestReport {
     test_result: TestResult,
     command: String,
     started_at: SystemTime,
+    quarantined_tests: Option<HashMap<Test, bool>>,
 }
 
 #[cfg_attr(feature = "wasm", wasm_bindgen)]
@@ -41,6 +45,7 @@ impl Status {
             SUCCESS => Status::Success,
             FAILURE => Status::Failure,
             SKIPPED => Status::Skipped,
+            UNSPECIFIED => Status::Unspecified,
             _ => Status::Unspecified,
         }
     }
@@ -97,6 +102,7 @@ impl MutTestReport {
             test_result,
             command,
             started_at,
+            quarantined_tests: None,
         }))
     }
 
@@ -112,9 +118,114 @@ impl MutTestReport {
                     .without_time(),
             )
             .with(sentry_tracing::layer())
-            .with(tracing::level_filters::LevelFilter::INFO)
+            .with(tracing::level_filters::LevelFilter::ERROR)
             .init();
         Ok(())
+    }
+
+    pub fn is_quarantined(
+        &self,
+        id: Option<String>,
+        name: Option<String>,
+        parent_name: Option<String>,
+        classname: Option<String>,
+        file: Option<String>,
+    ) -> bool {
+        let token = env::var("TRUNK_API_TOKEN").unwrap_or_default();
+        let org_url_slug = env::var("TRUNK_ORG_URL_SLUG").unwrap_or_default();
+        if token.is_empty() {
+            tracing::warn!("Not checking quarantine status because TRUNK_API_TOKEN is empty");
+            return false;
+        }
+        if org_url_slug.is_empty() {
+            tracing::warn!("Not checking quarantine status because TRUNK_ORG_URL_SLUG is empty");
+            return false;
+        }
+        let api_client = ApiClient::new(token, org_url_slug.clone());
+        let bundle_repo = BundleRepo::new(None, None, None, None, None);
+        match (api_client, bundle_repo) {
+            (Ok(api_client), Ok(bundle_repo)) => {
+                let test_identifier = Test::new(
+                    id.clone(),
+                    name.unwrap_or_default(),
+                    parent_name.unwrap_or_default(),
+                    classname,
+                    file,
+                    org_url_slug.clone(),
+                    &bundle_repo.repo,
+                    None,
+                );
+                self.populate_quarantined_tests(&api_client, &bundle_repo.repo, org_url_slug);
+                if let Some(quarantined_tests) = self.0.borrow().quarantined_tests.as_ref() {
+                    return *quarantined_tests.get(&test_identifier).unwrap_or(&false);
+                }
+                false
+            }
+            _ => {
+                tracing::warn!("Unable to fetch quarantined tests");
+                false
+            }
+        }
+    }
+
+    fn populate_quarantined_tests(
+        &self,
+        api_client: &ApiClient,
+        repo: &RepoUrlParts,
+        org_url_slug: String,
+    ) {
+        if self.0.borrow().quarantined_tests.as_ref().is_some() {
+            // already fetched
+            return;
+        }
+        let mut quarantined_tests = HashMap::new();
+        let mut request = message::ListQuarantinedTestsRequest {
+            org_url_slug: org_url_slug.clone(),
+            page_query: message::PageQuery {
+                page_size: 100,
+                page_token: String::new(),
+            },
+            repo: repo.clone(),
+        };
+        loop {
+            let response = tokio::runtime::Builder::new_multi_thread()
+                .enable_all()
+                .build()
+                .unwrap()
+                .block_on(api_client.list_quarantined_tests(&request));
+            match response {
+                Ok(response) => {
+                    for test in response.quarantined_tests.iter() {
+                        let test = Test::new(
+                            Some(test.test_case_id.clone()),
+                            test.name.clone(),
+                            test.parent.clone().unwrap_or_default(),
+                            test.classname.clone(),
+                            test.file.clone(),
+                            org_url_slug.clone(),
+                            repo,
+                            None,
+                        );
+
+                        quarantined_tests.insert(test, true);
+                    }
+                    if response.page.next_page_token.is_empty() {
+                        break;
+                    }
+                    request.page_query.page_token = response.page.next_page_token;
+                }
+                Err(err) => {
+                    tracing::warn!("Unable to fetch quarantined tests");
+                    tracing::error!(
+                        hidden_in_console = true,
+                        "Error fetching quarantined tests: {:?}",
+                        err
+                    );
+                    break;
+                }
+            }
+        }
+        self.0.borrow_mut().quarantined_tests = Some(quarantined_tests);
     }
 
     // sends out to the trunk api
@@ -212,6 +323,7 @@ impl MutTestReport {
         started_at: i64,
         finished_at: i64,
         output: String,
+        is_quarantined: bool,
     ) {
         let mut test = TestCaseRun::default();
         if let Some(id) = id {
@@ -230,7 +342,6 @@ impl MutTestReport {
             Status::Skipped => test.status = TestCaseRunStatus::Skipped.into(),
             Status::Unspecified => test.status = TestCaseRunStatus::Unspecified.into(),
         }
-        // test.status = status;
         test.attempt_number = attempt_number;
         let started_at_date_time = DateTime::from_timestamp(started_at, 0).unwrap_or_default();
         let test_started_at = Timestamp {
@@ -245,6 +356,7 @@ impl MutTestReport {
         };
         test.finished_at = Some(test_finished_at);
         test.status_output_message = output;
+        test.is_quarantined = is_quarantined;
         self.0
             .borrow_mut()
             .test_result
@@ -272,6 +384,10 @@ pub fn ruby_init(ruby: &magnus::Ruby) -> Result<(), magnus::Error> {
     test_report.define_singleton_method("new", magnus::function!(MutTestReport::new, 2))?;
     test_report.define_method("to_s", magnus::method!(MutTestReport::to_string, 0))?;
     test_report.define_method("publish", magnus::method!(MutTestReport::publish, 0))?;
-    test_report.define_method("add_test", magnus::method!(MutTestReport::add_test, 11))?;
+    test_report.define_method("add_test", magnus::method!(MutTestReport::add_test, 12))?;
+    test_report.define_method(
+        "is_quarantined",
+        magnus::method!(MutTestReport::is_quarantined, 5),
+    )?;
     Ok(())
 }

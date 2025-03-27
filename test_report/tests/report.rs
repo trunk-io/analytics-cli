@@ -2,6 +2,7 @@ use std::{env, fs, io::BufReader, thread};
 
 use assert_matches::assert_matches;
 use bundle::{BundleMeta, FileSetType};
+use context::repo::RepoUrlParts;
 use prost::Message;
 use prost_wkt_types::Timestamp;
 use proto::test_context::test_run::TestCaseRunStatus;
@@ -38,6 +39,36 @@ async fn publish_test_report() {
             1000,
             1001,
             "test-message".into(),
+            false,
+        );
+        // call this twice to later validate we only send one request
+        test_report.is_quarantined(
+            Some("2".into()),
+            Some("test-name".into()),
+            Some("test-parent-name".into()),
+            Some("test-classname".into()),
+            Some("test-file".into()),
+        );
+        test_report.is_quarantined(
+            Some("2".into()),
+            Some("test-name".into()),
+            Some("test-parent-name".into()),
+            Some("test-classname".into()),
+            Some("test-file".into()),
+        );
+        test_report.add_test(
+            Some("2".into()),
+            "test-name".into(),
+            "test-classname".into(),
+            "test-file".into(),
+            "test-parent-name".into(),
+            None,
+            Status::Failure,
+            0,
+            1000,
+            1001,
+            "test-message".into(),
+            true,
         );
         let result = test_report.publish();
         assert!(result);
@@ -45,8 +76,22 @@ async fn publish_test_report() {
     thread_join_handle.join().unwrap();
 
     let requests = state.requests.lock().unwrap().clone();
-    assert!(requests.len() == 3);
-    let tar_extract_directory = assert_matches!(&requests[1], RequestPayload::S3Upload(d) => d);
+    assert_eq!(requests.len(), 4);
+    let mut requests_iter = requests.iter();
+    let list_quarantined_tests_request = assert_matches!(&requests_iter.next().unwrap(), RequestPayload::ListQuarantinedTests(d) => d);
+    assert_eq!(list_quarantined_tests_request.org_url_slug, "test-org",);
+    assert_eq!(
+        list_quarantined_tests_request.repo,
+        RepoUrlParts {
+            host: "github.com".into(),
+            owner: "trunk-io".into(),
+            name: "analytics-cli".into()
+        }
+    );
+    // validate we only send one list quarantined tests request
+    assert_matches!(&requests_iter.next().unwrap(), RequestPayload::CreateBundleUpload(d) => d);
+    let tar_extract_directory =
+        assert_matches!(&requests_iter.next().unwrap(), RequestPayload::S3Upload(d) => d);
     let file = fs::File::open(tar_extract_directory.join("meta.json")).unwrap();
     let reader = BufReader::new(file);
     let bundle_meta: BundleMeta = serde_json::from_reader(reader).unwrap();
@@ -83,7 +128,8 @@ async fn publish_test_report() {
     more_asserts::assert_lt!(time_since_upload.num_minutes(), 5);
     assert_eq!(base_props.test_command, Some("test-command 123".into()));
     assert!(base_props.os_info.is_some());
-    assert!(base_props.quarantined_tests.is_empty());
+    assert_eq!(base_props.quarantined_tests.len(), 1);
+    assert_eq!(base_props.quarantined_tests[0].id, "2");
 
     let file_set = base_props.file_sets.first().unwrap();
     assert_eq!(file_set.file_set_type, FileSetType::Internal);
@@ -92,7 +138,7 @@ async fn publish_test_report() {
 
     let junit_props = bundle_meta.junit_props;
     assert_eq!(junit_props.num_files, 1);
-    assert_eq!(junit_props.num_tests, 1);
+    assert_eq!(junit_props.num_tests, 2);
 
     let bundled_file = file_set.files.first().unwrap();
     assert_eq!(bundled_file.path, "internal/0");
@@ -110,22 +156,32 @@ async fn publish_test_report() {
         seconds: 1001,
         nanos: 0,
     };
-    assert_eq!(report.test_case_runs.len(), 1);
-    assert_eq!(report.test_case_runs[0].id, "1");
-    assert_eq!(report.test_case_runs[0].name, "test-name");
-    assert_eq!(report.test_case_runs[0].classname, "test-classname");
-    assert_eq!(report.test_case_runs[0].file, "test-file");
-    assert_eq!(report.test_case_runs[0].parent_name, "test-parent-name");
-    assert_eq!(
-        report.test_case_runs[0].status,
-        TestCaseRunStatus::Success as i32
-    );
-    assert_eq!(report.test_case_runs[0].line, 0);
-    assert_eq!(report.test_case_runs[0].attempt_number, 0);
-    assert_eq!(report.test_case_runs[0].started_at, Some(test_started_at));
-    assert_eq!(report.test_case_runs[0].finished_at, Some(test_finished_at));
-    assert_eq!(
-        report.test_case_runs[0].status_output_message,
-        "test-message"
-    );
+    assert_eq!(report.test_case_runs.len(), 2);
+    let test_case_run = &report.test_case_runs[0];
+    assert_eq!(test_case_run.id, "1");
+    assert_eq!(test_case_run.name, "test-name");
+    assert_eq!(test_case_run.classname, "test-classname");
+    assert_eq!(test_case_run.file, "test-file");
+    assert_eq!(test_case_run.parent_name, "test-parent-name");
+    assert_eq!(test_case_run.status, TestCaseRunStatus::Success as i32);
+    assert_eq!(test_case_run.line, 0);
+    assert_eq!(test_case_run.attempt_number, 0);
+    assert_eq!(test_case_run.started_at, Some(test_started_at.clone()));
+    assert_eq!(test_case_run.finished_at, Some(test_finished_at.clone()));
+    assert!(!test_case_run.is_quarantined);
+    assert_eq!(test_case_run.status_output_message, "test-message");
+
+    let test_case_run = &report.test_case_runs[1];
+    assert_eq!(test_case_run.id, "2");
+    assert_eq!(test_case_run.name, "test-name");
+    assert_eq!(test_case_run.classname, "test-classname");
+    assert_eq!(test_case_run.file, "test-file");
+    assert_eq!(test_case_run.parent_name, "test-parent-name");
+    assert_eq!(test_case_run.status, TestCaseRunStatus::Failure as i32);
+    assert_eq!(test_case_run.line, 0);
+    assert_eq!(test_case_run.attempt_number, 0);
+    assert_eq!(test_case_run.started_at, Some(test_started_at));
+    assert_eq!(test_case_run.finished_at, Some(test_finished_at));
+    assert!(test_case_run.is_quarantined);
+    assert_eq!(test_case_run.status_output_message, "test-message");
 }

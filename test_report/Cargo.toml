@@ -24,6 +24,8 @@ bundle = { path = "../bundle" }
 tracing = "0.1.41"
 sentry-tracing = "0.36.0"
 tracing-subscriber = "0.3.19"
+api = { version = "0.1.0", path = "../api" }
+context = { version = "0.1.0", path = "../context" }
 
 [dev-dependencies]
 assert_matches = "1.5.0"

@@ -66,9 +66,7 @@ pub struct TelemetryUploadMetricsRequest {
 
 #[derive(Debug, Serialize, Clone, Deserialize, PartialEq)]
 pub struct PageQuery {
-    #[serde(rename = "pageSize")]
     pub page_size: i32,
-    #[serde(rename = "pageToken")]
     pub page_token: String,
 }
 
@@ -85,9 +83,7 @@ pub struct Page {
 #[derive(Debug, Serialize, Clone, Deserialize, PartialEq)]
 pub struct ListQuarantinedTestsRequest {
     pub repo: RepoUrlParts,
-    #[serde(rename = "orgUrlSlug")]
     pub org_url_slug: String,
-    #[serde(rename = "pageQuery")]
     pub page_query: PageQuery,
 }
 
@@ -104,8 +100,7 @@ pub struct QuarantinedTest {
     pub name: String,
     pub parent: Option<String>,
     pub file: Option<String>,
-    #[serde(rename = "className")]
-    pub class_name: Option<String>,
+    pub classname: Option<String>,
     pub status: String,
     pub quarantine_setting: QuarantineSetting,
     pub test_case_id: String,
