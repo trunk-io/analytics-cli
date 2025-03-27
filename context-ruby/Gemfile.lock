@@ -2,7 +2,6 @@ PATH
   remote: .
   specs:
     rspec_trunk_flaky_tests (0.0.0)
-      colorize (= 1.1.0)
       rb_sys (= 0.9.103)
       rspec-core (> 3.3)
 
@@ -36,6 +35,7 @@ PLATFORMS
   x86_64-linux
 
 DEPENDENCIES
+  colorize (= 1.1.0)
   rake
   rake-compiler (= 1.2.0)
   rspec

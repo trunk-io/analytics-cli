@@ -6,3 +6,4 @@ gemspec
 
 gem 'rake'
 gem 'rake-compiler', '1.2.0'
+gem 'colorize', '1.1.0'
