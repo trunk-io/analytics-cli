@@ -4,6 +4,8 @@ require 'rspec/core'
 require 'time'
 require 'context_ruby'
 
+# String is an override to the main String class that is used to colorize the output
+# it is used to make the output more readable
 class String
   def colorize(color_code)
     "\e[#{color_code}m#{self}\e[0m"
