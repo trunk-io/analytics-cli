@@ -2,14 +2,12 @@ PATH
   remote: .
   specs:
     rspec_trunk_flaky_tests (0.0.0)
-      colorize (= 1.1.0)
       rb_sys (= 0.9.103)
       rspec-core (> 3.3)
 
 GEM
   remote: https://rubygems.org/
   specs:
-    colorize (1.1.0)
     diff-lcs (1.5.1)
     rake (13.2.1)
     rake-compiler (1.2.0)
