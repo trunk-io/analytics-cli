@@ -14,11 +14,15 @@ def description_generated?(example)
   full_description = example.full_description
   parent_description = example.example_group.description
   checked_description = full_description.sub(parent_description, '')
-  auto_generated_exp.match(checked_description) != nil
+  !auto_generated_exp.match(checked_description).nil? || full_description.empty?
 end
 
 def generate_id(example)
   return "trunk:#{example.id}-#{example.location}" if description_generated?(example)
+end
+
+def trunk_disabled
+  ENV['DISABLE_RSPEC_TRUNK_FLAKY_TESTS'] == 'true' || ENV['TRUNK_ORG_URL_SLUG'].nil? || ENV['TRUNK_API_TOKEN'].nil?
 end
 
 # we want to cache the test report so we can add to it as we go and reduce the number of API calls
@@ -35,13 +39,15 @@ module RSpec
       # decide if we want to fail the test or not
       # trunk-ignore(rubocop/Naming/AccessorMethodName,rubocop/Metrics/MethodLength,rubocop/Metrics/AbcSize)
       def set_exception(exception)
+        return set_exception_core(exception) if trunk_disabled
+
         id = generate_id(self)
         name = full_description
         parent_name = example_group.metadata[:description]
         parent_name = parent_name.empty? ? 'rspec' : parent_name
         file = escape(metadata[:file_path])
         classname = file.sub(%r{\.[^/.]+\Z}, '').gsub('/', '.').gsub(/\A\.+|\.+\Z/, '')
-        puts "Checking if test is quarantined: `#{name}` in `#{parent_name}`".colorize(:yellow)
+        puts "Test failed, checking if it can be quarantined: `#{location}`".colorize(:yellow)
         if $test_report.is_quarantined(id, name, parent_name, classname, file)
           # monitor the override in the metadata
           metadata[:quarantined_exception] = exception
@@ -68,7 +74,7 @@ module RSpec
   class Trunk
     def self.setup
       RSpec.configure do |config|
-        if ENV['DISABLE_RSPEC_TRUNK_FLAKY_TESTS'] == 'true'
+        if trunk_disabled
           config.around(:each, &:run)
         else
           config.around(:each, &:run_with_trunk)
@@ -150,7 +156,7 @@ class TrunkAnalyticsListener
 end
 
 RSpec.configure do |c|
-  next if ENV['DISABLE_RSPEC_TRUNK_FLAKY_TESTS'] == 'true'
+  next if trunk_disabled
 
   c.reporter.register_listener TrunkAnalyticsListener.new, :example_finished, :close
 end

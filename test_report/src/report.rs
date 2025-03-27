@@ -20,7 +20,7 @@ pub struct TestReport {
     test_result: TestResult,
     command: String,
     started_at: SystemTime,
-    quarantined_tests: Option<HashMap<Test, bool>>,
+    quarantined_tests: Option<HashMap<String, Test>>,
 }
 
 #[cfg_attr(feature = "wasm", wasm_bindgen)]
@@ -157,7 +157,7 @@ impl MutTestReport {
                 );
                 self.populate_quarantined_tests(&api_client, &bundle_repo.repo, org_url_slug);
                 if let Some(quarantined_tests) = self.0.borrow().quarantined_tests.as_ref() {
-                    return *quarantined_tests.get(&test_identifier).unwrap_or(&false);
+                    return quarantined_tests.get(&test_identifier.id).is_some();
                 }
                 false
             }
@@ -207,7 +207,7 @@ impl MutTestReport {
                             None,
                         );
 
-                        quarantined_tests.insert(test, true);
+                        quarantined_tests.insert(test.id.clone(), test);
                     }
                     if response.page.next_page_token.is_empty() {
                         break;
