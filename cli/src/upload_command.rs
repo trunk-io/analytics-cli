@@ -163,7 +163,7 @@ pub async fn run_upload(
     pre_test_context: Option<PreTestContext>,
     test_run_result: Option<TestRunResult>,
 ) -> anyhow::Result<UploadRunResult> {
-    if upload_args.tags.len() > 0 {
+    if !upload_args.tags.is_empty() {
         tracing::error!(
             "Tags are deprecated and ignored. They will be removed in a future release."
         );
