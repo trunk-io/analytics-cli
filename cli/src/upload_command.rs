@@ -68,6 +68,7 @@ pub struct UploadArgs {
         long,
         value_delimiter = ',',
         help = "Comma separated list of custom tag=value pairs."
+        hide = true
     )]
     pub tags: Vec<String>,
     #[arg(long, help = "Print files which will be uploaded to stdout.")]
@@ -162,6 +163,11 @@ pub async fn run_upload(
     pre_test_context: Option<PreTestContext>,
     test_run_result: Option<TestRunResult>,
 ) -> anyhow::Result<UploadRunResult> {
+    if upload_args.tags.len() > 0 {
+        tracing::error!(
+            "Tags are deprecated and ignored. They will be removed in a future release."
+        );
+    }
     // grab the exec start if provided (`test` subcommand) or use the current time
     let cli_started_at = if let Some(test_run_result) = test_run_result.as_ref() {
         test_run_result
