@@ -1,5 +1,3 @@
-use std::hash::{Hash, Hasher};
-
 use context::repo::RepoUrlParts;
 #[cfg(feature = "pyo3")]
 use pyo3::prelude::*;
@@ -25,12 +23,6 @@ pub struct Test {
     /// Added in v0.6.9
     pub timestamp_millis: Option<i64>,
     pub is_quarantined: bool,
-}
-
-impl Hash for Test {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.id.hash(state);
-    }
 }
 
 impl Test {
