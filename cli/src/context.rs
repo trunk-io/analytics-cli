@@ -10,8 +10,8 @@ use std::{
 
 use api::{client::ApiClient, message::CreateBundleUploadResponse};
 use bundle::{
-    parse_custom_tags, BundleMeta, BundleMetaBaseProps, BundleMetaDebugProps, BundleMetaJunitProps,
-    FileSet, FileSetBuilder, QuarantineBulkTestStatus, META_VERSION,
+    BundleMeta, BundleMetaBaseProps, BundleMetaDebugProps, BundleMetaJunitProps, FileSet,
+    FileSetBuilder, QuarantineBulkTestStatus, META_VERSION,
 };
 use constants::ENVS_TO_GET;
 #[cfg(target_os = "macos")]
@@ -72,7 +72,6 @@ pub fn gather_initial_test_context(
         repo_head_sha,
         repo_head_branch,
         repo_head_commit_epoch,
-        tags,
         allow_empty_test_results,
         ..
     } = upload_args;
@@ -123,7 +122,6 @@ pub fn gather_initial_test_context(
                 env!("VERGEN_RUSTC_SEMVER")
             ),
             bundle_upload_id: String::with_capacity(0),
-            tags: parse_custom_tags(&tags)?,
             file_sets: Vec::with_capacity(0),
             envs,
             upload_time_epoch: SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs(),

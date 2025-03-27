@@ -123,7 +123,6 @@ async fn upload_bundle() {
         "your.email@example.com"
     );
     assert_eq!(base_props.bundle_upload_id, "test-bundle-upload-id");
-    assert_eq!(base_props.tags, &[]);
     assert_eq!(base_props.file_sets.len(), 1);
     assert_eq!(junit_props.num_files, 1);
     assert_eq!(junit_props.num_tests, 500);
