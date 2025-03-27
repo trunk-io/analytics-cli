@@ -67,7 +67,7 @@ pub struct UploadArgs {
     #[arg(
         long,
         value_delimiter = ',',
-        help = "Comma separated list of custom tag=value pairs."
+        help = "Comma separated list of custom tag=value pairs.",
         hide = true
     )]
     pub tags: Vec<String>,
