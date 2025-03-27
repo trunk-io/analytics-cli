@@ -3,7 +3,24 @@
 require 'rspec/core'
 require 'time'
 require 'context_ruby'
-require 'colorize'
+
+class String
+  def colorize(color_code)
+    "\e[#{color_code}m#{self}\e[0m"
+  end
+
+  def red
+    colorize(31)
+  end
+
+  def green
+    colorize(32)
+  end
+
+  def yellow
+    colorize(33)
+  end
+end
 
 def escape(str)
   str.dump[1..-2]
@@ -47,14 +64,14 @@ module RSpec
         parent_name = parent_name.empty? ? 'rspec' : parent_name
         file = escape(metadata[:file_path])
         classname = file.sub(%r{\.[^/.]+\Z}, '').gsub('/', '.').gsub(/\A\.+|\.+\Z/, '')
-        puts "Test failed, checking if it can be quarantined: `#{location}`".colorize(:yellow)
+        puts "Test failed, checking if it can be quarantined: `#{location}`".yellow
         if $test_report.is_quarantined(id, name, parent_name, classname, file)
           # monitor the override in the metadata
           metadata[:quarantined_exception] = exception
-          puts "Test is quarantined, overriding exception: #{exception}".colorize(:green)
+          puts "Test is quarantined, overriding exception: #{exception}".green
           nil
         else
-          puts 'Test is not quarantined, continuing'.colorize(:red)
+          puts 'Test is not quarantined, continuing'.red
           set_exception_core(exception)
         end
       end
@@ -117,9 +134,9 @@ class TrunkAnalyticsListener
   def close(_notification)
     res = @testreport.publish
     if res
-      puts 'Flaky tests report upload complete'.colorize(:green)
+      puts 'Flaky tests report upload complete'.green
     else
-      puts 'Failed to publish flaky tests report'.colorize(:red)
+      puts 'Failed to publish flaky tests report'.red
     end
   end
 
