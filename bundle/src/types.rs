@@ -103,106 +103,11 @@ pub struct BundleUploader {
     pub org_slug: String,
 }
 
-/// Custom tags defined by the user.
-///
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
-#[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass(get_all))]
-#[cfg_attr(feature = "wasm", derive(Tsify))]
-pub struct CustomTag {
-    pub key: String,
-    pub value: String,
-}
-
 #[cfg(test)]
 mod tests {
     use context::repo::RepoUrlParts as Repo;
 
     use super::*;
-
-    #[test]
-    pub fn test_parse_good_custom_tags() {
-        let good_tags = &[
-            (
-                vec!["a=b".to_owned(), "1=2".to_owned()],
-                vec![
-                    CustomTag {
-                        key: "a".to_string(),
-                        value: "b".to_string(),
-                    },
-                    CustomTag {
-                        key: "1".to_string(),
-                        value: "2".to_string(),
-                    },
-                ],
-            ),
-            (
-                vec![
-                    "key1=value1".to_owned(),
-                    "key2=value2".to_owned(),
-                    "key3=value3".to_owned(),
-                ],
-                vec![
-                    CustomTag {
-                        key: "key1".to_string(),
-                        value: "value1".to_string(),
-                    },
-                    CustomTag {
-                        key: "key2".to_string(),
-                        value: "value2".to_string(),
-                    },
-                    CustomTag {
-                        key: "key3".to_string(),
-                        value: "value3".to_string(),
-                    },
-                ],
-            ),
-            (
-                vec![
-                    "key1=value1".to_owned(),
-                    "key2=value2".to_owned(),
-                    "key3=value3".to_owned(),
-                    "key4=value4".to_owned(),
-                ],
-                vec![
-                    CustomTag {
-                        key: "key1".to_string(),
-                        value: "value1".to_string(),
-                    },
-                    CustomTag {
-                        key: "key2".to_string(),
-                        value: "value2".to_string(),
-                    },
-                    CustomTag {
-                        key: "key3".to_string(),
-                        value: "value3".to_string(),
-                    },
-                    CustomTag {
-                        key: "key4".to_string(),
-                        value: "value4".to_string(),
-                    },
-                ],
-            ),
-        ];
-
-        for (tags_str, expected) in good_tags {
-            let actual: Vec<CustomTag> = crate::custom_tag::parse_custom_tags(tags_str).unwrap();
-            assert_eq!(actual, *expected);
-        }
-    }
-
-    #[test]
-    pub fn test_parse_bad_custom_tags() {
-        let bad_tags = vec![
-            vec!["key1=".to_owned(), "key2=value2".to_owned()],
-            vec!["=value".to_owned(), "key2=value2".to_owned()],
-            vec!["  =  ".to_owned(), "key2=value2".to_owned()],
-        ];
-
-        for tags_str in bad_tags {
-            let actual = crate::custom_tag::parse_custom_tags(&tags_str);
-            assert!(actual.is_err());
-        }
-    }
 
     #[test]
     fn test_test_new() {
