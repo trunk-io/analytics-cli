@@ -280,6 +280,20 @@ pub async fn gather_exit_code_and_quarantined_tests_context(
         if let Some(test_run_result) = test_run_result {
             QuarantineContext {
                 exit_code: test_run_result.exit_code,
+                quarantine_status: QuarantineBulkTestStatus {
+                    quarantine_results: failed_tests_extractor
+                        .failed_tests()
+                        .iter()
+                        .filter_map(|test| {
+                            if test.is_quarantined {
+                                Some(test.clone())
+                            } else {
+                                None
+                            }
+                        })
+                        .collect(),
+                    ..Default::default()
+                },
                 ..Default::default()
             }
         } else {

@@ -1,3 +1,5 @@
+use std::hash::{Hash, Hasher};
+
 use context::repo::RepoUrlParts;
 #[cfg(feature = "pyo3")]
 use pyo3::prelude::*;
@@ -22,10 +24,18 @@ pub struct Test {
     pub id: String,
     /// Added in v0.6.9
     pub timestamp_millis: Option<i64>,
+    pub is_quarantined: bool,
+}
+
+impl Hash for Test {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.id.hash(state);
+    }
 }
 
 impl Test {
     pub fn new<T: AsRef<str>>(
+        id: Option<T>,
         name: String,
         parent_name: String,
         class_name: Option<String>,
@@ -41,9 +51,14 @@ impl Test {
             file,
             id: String::with_capacity(0),
             timestamp_millis,
+            is_quarantined: false,
         };
 
-        test.set_id(org_slug, repo);
+        if let Some(id) = id {
+            test.generate_custom_uuid(org_slug.as_ref(), repo, id.as_ref());
+        } else {
+            test.set_id(org_slug, repo);
+        }
 
         test
     }
@@ -61,6 +76,25 @@ impl Test {
         .join("#");
         self.id =
             uuid::Uuid::new_v5(&uuid::Uuid::NAMESPACE_URL, info_id_input.as_bytes()).to_string()
+    }
+
+    pub fn generate_custom_uuid<T: AsRef<str>>(&mut self, org_slug: T, repo: &RepoUrlParts, id: T) {
+        if id.as_ref().is_empty() {
+            self.set_id(org_slug.as_ref(), repo);
+            return;
+        }
+        if uuid::Uuid::parse_str(id.as_ref()).is_ok() {
+            self.id = id.as_ref().to_string();
+            return;
+        }
+        let info_id_input = [
+            org_slug.as_ref(),
+            repo.repo_full_name().as_str(),
+            id.as_ref(),
+        ]
+        .join("#");
+        self.id =
+            uuid::Uuid::new_v5(&uuid::Uuid::NAMESPACE_URL, info_id_input.as_bytes()).to_string();
     }
 }
 
@@ -191,6 +225,7 @@ mod tests {
             name: "name".to_string(),
         };
         let result = Test::new(
+            None,
             name.clone(),
             parent_name.clone(),
             class_name.clone(),
@@ -204,6 +239,36 @@ mod tests {
         assert_eq!(result.class_name, class_name);
         assert_eq!(result.file, file);
         assert_eq!(result.id, "aad1f138-09ab-5ea9-9c21-af48a03d6edd");
+        let result = Test::new(
+            Some("aad1f138-09ab-5ea9-9c21-af48a03d6edd"),
+            name.clone(),
+            parent_name.clone(),
+            class_name.clone(),
+            file.clone(),
+            org_slug,
+            &repo,
+            Some(0),
+        );
+        assert_eq!(result.name, name);
+        assert_eq!(result.parent_name, parent_name);
+        assert_eq!(result.class_name, class_name);
+        assert_eq!(result.file, file);
+        assert_eq!(result.id, "aad1f138-09ab-5ea9-9c21-af48a03d6edd");
+        let result = Test::new(
+            Some("trunk:example-id"),
+            name.clone(),
+            parent_name.clone(),
+            class_name.clone(),
+            file.clone(),
+            org_slug,
+            &repo,
+            Some(0),
+        );
+        assert_eq!(result.name, name);
+        assert_eq!(result.parent_name, parent_name);
+        assert_eq!(result.class_name, class_name);
+        assert_eq!(result.file, file);
+        assert_eq!(result.id, "208beb01-6179-546e-b0dd-8502e24ae85c");
         let result = Test {
             name: name.clone(),
             parent_name: parent_name.clone(),
@@ -211,6 +276,7 @@ mod tests {
             file: file.clone(),
             id: String::from("da5b8893-d6ca-5c1c-9a9c-91f40a2a3649"),
             timestamp_millis: Some(0),
+            is_quarantined: false,
         };
         assert_eq!(result.name, name);
         assert_eq!(result.parent_name, parent_name);
