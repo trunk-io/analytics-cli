@@ -19,7 +19,7 @@ use context::{
 };
 use prost::Message;
 
-use crate::error_report::{log_error, Context};
+use crate::error_report::{is_user_error, log_error, Context};
 
 #[derive(Debug, Default, Clone)]
 pub struct QuarantineContext {
@@ -241,20 +241,22 @@ pub async fn gather_quarantine_context(
         match api_client.get_quarantining_config(request).await {
             Ok(response) => response,
             Err(err) => {
-                let error_code = log_error(
+                log_error(
                     &err,
                     Context {
                         base_message: Some("Unable to find quarantine config".into()),
                         org_url_slug: request.org_url_slug.clone(),
                     },
                 );
-                if error_code == exitcode::SOFTWARE {
-                    Err(err)?;
+                if is_user_error(&err) {
+                    println!("user error {}", err);
+                    Err(err)?
+                } else {
+                    return Ok(QuarantineContext {
+                        exit_code,
+                        ..Default::default()
+                    });
                 }
-                return Ok(QuarantineContext {
-                    exit_code,
-                    ..Default::default()
-                });
             }
         }
     } else {
