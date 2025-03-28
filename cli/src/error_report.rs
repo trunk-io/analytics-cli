@@ -33,6 +33,18 @@ pub struct Context {
     pub org_url_slug: String,
 }
 
+pub fn is_user_error(request_err: &anyhow::Error) -> bool {
+    let root_cause = request_err.root_cause();
+    if let Some(reqwest_error) = root_cause.downcast_ref::<reqwest::Error>() {
+        if let Some(status) = reqwest_error.status() {
+            return status == StatusCode::UNAUTHORIZED
+                || status == StatusCode::FORBIDDEN
+                || status == StatusCode::NOT_FOUND;
+        }
+    }
+    false
+}
+
 pub fn log_error(error: &anyhow::Error, context: Context) -> i32 {
     let root_cause = error.root_cause();
     let Context {
@@ -50,23 +62,16 @@ pub fn log_error(error: &anyhow::Error, context: Context) -> i32 {
     }
 
     let api_host = get_api_host();
-    if let Some(reqwest_error) = root_cause.downcast_ref::<reqwest::Error>() {
-        if let Some(status) = reqwest_error.status() {
-            if status == StatusCode::UNAUTHORIZED
-                || status == StatusCode::FORBIDDEN
-                || status == StatusCode::NOT_FOUND
-            {
-                tracing::warn!(
-                    "{}",
-                    add_settings_url_to_context(
-                        message(base_message, UNAUTHORIZED_CONTEXT),
-                        Some(api_host),
-                        &org_url_slug
-                    )
-                );
-                return exitcode::SOFTWARE;
-            }
-        }
+    if is_user_error(error) {
+        tracing::warn!(
+            "{}",
+            add_settings_url_to_context(
+                message(base_message, UNAUTHORIZED_CONTEXT),
+                Some(api_host),
+                &org_url_slug
+            )
+        );
+        return exitcode::SOFTWARE;
     }
 
     if let Some(base_message) = base_message {
