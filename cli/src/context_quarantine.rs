@@ -249,7 +249,6 @@ pub async fn gather_quarantine_context(
                     },
                 );
                 if is_user_error(&err) {
-                    println!("user error {}", err);
                     Err(err)?
                 } else {
                     return Ok(QuarantineContext {
