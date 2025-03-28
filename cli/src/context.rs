@@ -130,6 +130,7 @@ pub fn gather_initial_test_context(
             os_info: Some(env::consts::OS.to_string()),
             codeowners: None,
         },
+        variant: upload_args.variant.clone(),
     };
 
     Ok(PreTestContext {

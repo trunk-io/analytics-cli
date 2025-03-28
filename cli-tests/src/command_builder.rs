@@ -21,6 +21,7 @@ pub struct UploadArgs {
     use_quarantining: Option<bool>,
     disable_quarantining: Option<bool>,
     allow_empty_test_results: Option<bool>,
+    variant: Option<String>,
 }
 
 impl UploadArgs {
@@ -39,6 +40,7 @@ impl UploadArgs {
             use_quarantining: None,
             disable_quarantining: None,
             allow_empty_test_results: None,
+            variant: None,
         }
     }
 
@@ -154,6 +156,12 @@ impl UploadArgs {
                 }
             },
         ))
+        .chain(
+            self.variant
+                .clone()
+                .into_iter()
+                .flat_map(|variant: String| vec![String::from("--variant"), variant]),
+        )
         .collect()
     }
 }
@@ -388,6 +396,22 @@ impl<'b> CommandBuilder<'b> {
 
     pub fn repo_root(&mut self, new_value: &str) -> &mut Self {
         self.command_type.repo_root(new_value);
+        self
+    }
+
+    pub fn variant(&mut self, new_value: &str) -> &mut Self {
+        match &mut self.command_type {
+            CommandType::Upload { upload_args, .. } => {
+                upload_args.variant = Some(new_value.to_string());
+            }
+            CommandType::Quarantine { upload_args, .. } => {
+                upload_args.variant = Some(new_value.to_string());
+            }
+            CommandType::Test { upload_args, .. } => {
+                upload_args.variant = Some(new_value.to_string());
+            }
+            CommandType::Validate { .. } => {}
+        }
         self
     }
 

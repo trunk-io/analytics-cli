@@ -792,3 +792,54 @@ async fn telemetry_does_not_impact_return() {
     // HINT: View CLI output with `cargo test -- --nocapture`
     println!("{assert}");
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn test_variant_propagation() {
+    let temp_dir = tempdir().unwrap();
+    generate_mock_git_repo(&temp_dir);
+    generate_mock_valid_junit_xmls(&temp_dir);
+    generate_mock_codeowners(&temp_dir);
+
+    let state = MockServerBuilder::new().spawn_mock_server().await;
+
+    let assert = CommandBuilder::upload(temp_dir.path(), state.host.clone())
+        .variant("test-variant")
+        .command()
+        .assert()
+        .failure();
+
+    let requests = state.requests.lock().unwrap().clone();
+    assert_eq!(requests.len(), 4);
+    let mut requests_iter = requests.into_iter();
+
+    // First request should be quarantine config
+    assert_matches!(
+        requests_iter.next().unwrap(),
+        RequestPayload::GetQuarantineBulkTestStatus(_)
+    );
+
+    // Second request should be create bundle upload
+    assert_matches!(
+        requests_iter.next().unwrap(),
+        RequestPayload::CreateBundleUpload(_)
+    );
+
+    // Third request should be s3 upload
+    let tar_extract_directory =
+        assert_matches!(requests_iter.next().unwrap(), RequestPayload::S3Upload(d) => d);
+
+    // Verify variant in meta.json
+    let file = fs::File::open(tar_extract_directory.join("meta.json")).unwrap();
+    let reader = BufReader::new(file);
+    let bundle_meta: BundleMeta = serde_json::from_reader(reader).unwrap();
+    assert_eq!(bundle_meta.variant, Some("test-variant".to_string()));
+
+    // Fourth request should be telemetry
+    assert_matches!(
+        requests_iter.next().unwrap(),
+        RequestPayload::TelemetryUploadMetrics(_)
+    );
+
+    // HINT: View CLI output with `cargo test -- --nocapture`
+    println!("{assert}");
+}
