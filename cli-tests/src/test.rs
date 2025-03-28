@@ -72,6 +72,62 @@ async fn test_command_fails_with_successful_upload() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn test_run_test_with_really_long_command() {
+    let temp_dir = tempdir().unwrap();
+    generate_mock_git_repo(&temp_dir);
+    generate_mock_valid_junit_xmls(&temp_dir);
+    generate_mock_codeowners(&temp_dir);
+
+    let state = MockServerBuilder::new().spawn_mock_server().await;
+
+    // Create a very long command with many arguments
+    let long_command = vec![
+        String::from("bash"),
+        String::from("-c"),
+        format!(
+            "echo '{}' && exit 0",
+            "x".repeat(10000) // Create a 10000-character string
+        ),
+    ];
+
+    let assert = CommandBuilder::test(temp_dir.path(), state.host.clone(), long_command)
+        .use_quarantining(false)
+        .command()
+        .assert()
+        .success();
+
+    let requests = state.requests.lock().unwrap().clone();
+    assert_eq!(requests.len(), 3);
+    let mut requests_iter = requests.into_iter();
+
+    // First request should be create bundle upload
+    assert_matches!(
+        requests_iter.next().unwrap(),
+        RequestPayload::CreateBundleUpload(_)
+    );
+
+    // Second request should be s3 upload
+    let tar_extract_directory =
+        assert_matches!(requests_iter.next().unwrap(), RequestPayload::S3Upload(d) => d);
+
+    // Verify the command in meta.json is not truncated
+    let file = fs::File::open(tar_extract_directory.join("meta.json")).unwrap();
+    let reader = BufReader::new(file);
+    let bundle_meta: BundleMeta = serde_json::from_reader(reader).unwrap();
+    let test_command = bundle_meta.base_props.test_command.unwrap();
+    assert!(test_command.len() > 10000, "Command was truncated");
+
+    // Third request should be telemetry
+    assert_matches!(
+        requests_iter.next().unwrap(),
+        RequestPayload::TelemetryUploadMetrics(_)
+    );
+
+    // HINT: View CLI output with `cargo test -- --nocapture`
+    println!("{assert}");
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn test_command_fails_with_no_junit_files_no_quarantine_successful_upload() {
     let temp_dir = tempdir().unwrap();
     generate_mock_git_repo(&temp_dir);
