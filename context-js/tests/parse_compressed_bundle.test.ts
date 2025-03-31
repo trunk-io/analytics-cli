@@ -61,6 +61,7 @@ const generateBundleMeta = (): TestBundleMeta => ({
     },
   },
   upload_time_epoch: faker.number.int(),
+  tags: [],
   test_command: faker.hacker.verb(),
 });
 
