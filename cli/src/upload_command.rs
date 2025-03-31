@@ -128,6 +128,13 @@ pub struct UploadArgs {
         default_missing_value = "true",
     )]
     pub hide_banner: bool,
+    #[arg(
+        long,
+        help = "Value to set the variant of the test results uploaded.",
+        required = false,
+        num_args = 1
+    )]
+    pub variant: Option<String>,
 }
 
 impl UploadArgs {
