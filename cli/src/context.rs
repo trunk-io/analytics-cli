@@ -130,7 +130,17 @@ pub fn gather_initial_test_context(
             os_info: Some(env::consts::OS.to_string()),
             codeowners: None,
         },
-        variant: upload_args.variant.clone(),
+        variant: upload_args.variant.as_ref().map(|v| {
+            if v.len() > 64 {
+                tracing::warn!(
+                    "Variant '{}' exceeds 64 character limit and will be truncated",
+                    v
+                );
+                v[..64].to_string()
+            } else {
+                v.clone()
+            }
+        }),
     };
 
     Ok(PreTestContext {
@@ -418,10 +428,64 @@ fn parse_num_tests(file_sets: &[FileSet]) -> usize {
 
 #[cfg(test)]
 mod tests {
+    use bundle::BundleMetaDebugProps;
     #[cfg(target_os = "macos")]
     use context::repo::RepoUrlParts;
 
     use crate::context::coalesce_junit_path_wrappers;
+    use crate::context::gather_initial_test_context;
+    use crate::upload_command::UploadArgs;
+
+    #[test]
+    fn test_variant_truncation() {
+        let mut upload_args = UploadArgs::new(
+            "test-token".to_string(),
+            "test-org".to_string(),
+            vec![],
+            None,
+            false,
+            false,
+        );
+
+        // Test case 1: Variant under 64 characters
+        upload_args.variant = Some("short-variant".to_string());
+        let context = gather_initial_test_context(
+            upload_args.clone(),
+            BundleMetaDebugProps {
+                command_line: "test".to_string(),
+            },
+        )
+        .unwrap();
+        assert_eq!(context.meta.variant, Some("short-variant".to_string()));
+
+        // Test case 2: Variant exactly 64 characters
+        let long_variant = "a".repeat(64);
+        upload_args.variant = Some(long_variant.clone());
+        let context = gather_initial_test_context(
+            upload_args.clone(),
+            BundleMetaDebugProps {
+                command_line: "test".to_string(),
+            },
+        )
+        .unwrap();
+        assert_eq!(context.meta.variant, Some(long_variant));
+
+        // Test case 3: Variant over 64 characters
+        let very_long_variant = "a".repeat(100);
+        upload_args.variant = Some(very_long_variant.clone());
+        let context = gather_initial_test_context(
+            upload_args,
+            BundleMetaDebugProps {
+                command_line: "test".to_string(),
+            },
+        )
+        .unwrap();
+        assert_eq!(
+            context.meta.variant,
+            Some(very_long_variant[..64].to_string())
+        );
+    }
+
     #[test]
     fn test_coalesce_junit_path_wrappers() {
         #[cfg(target_os = "macos")]
