@@ -134,7 +134,6 @@ jobs:
         with:
           target: ${{ matrix.platform.target }}
           args: --release --out dist --find-interpreter --manifest-path ./context-py/Cargo.toml
-          sccache: "true"
       - name: Upload wheels
         uses: actions/upload-artifact@v4
         with:
