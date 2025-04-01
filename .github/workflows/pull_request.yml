@@ -13,6 +13,7 @@ on:
   push:
     branches:
       - main
+      - gabe/testing
 
 env:
   CARGO_TERM_COLOR: always
@@ -64,9 +65,13 @@ jobs:
 
       - name: Run tests
         uses: ./.github/actions/run_tests
-        continue-on-error: true
         with:
           target: ${{ matrix.platform.target }}
+
+      - name: Capture previous result
+        if: "always()"
+        run: |
+          echo $!
 
       - name: Build darwin target
         uses: ./.github/actions/build_cli_macos_target

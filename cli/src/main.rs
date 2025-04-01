@@ -20,7 +20,6 @@ use trunk_analytics_cli::{
     about = "Trunk Flaky Tests CLI",
     bin_name = "trunk flakytests",
 )]
-struct Cli {
     #[command(subcommand)]
     pub command: Commands,
     #[command(flatten)]
