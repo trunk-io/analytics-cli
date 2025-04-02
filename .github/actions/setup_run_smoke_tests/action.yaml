@@ -7,7 +7,11 @@ runs:
     - name: Setup Rust & Cargo
       uses: ./.github/actions/setup_rust_cargo
 
-    - name: Install Nextest
+    - name: Install nextest (darwin)
+      if: runner.os == 'macOS'
+      uses: taiki-e/install-action@nextest
+
+    - name: Install nextest (linux x86)
+      if: runner.os == 'Linux'
       shell: bash
-      run: |
-        cargo install --version 0.9.85 cargo-nextest --force --locked
+      run: curl -LsSf https://get.nexte.st/latest/linux | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin
