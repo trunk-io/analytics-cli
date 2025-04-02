@@ -29,7 +29,7 @@ def escape(str)
 end
 
 def description_generated?(example)
-  auto_generated_exp = /^\s?is expected to eq .*$/
+  auto_generated_exp = /^\s?is expected to.*$/
   full_description = example.full_description
   parent_description = example.example_group.description
   checked_description = full_description.sub(parent_description, '')
