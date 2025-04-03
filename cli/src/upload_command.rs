@@ -133,7 +133,8 @@ pub struct UploadArgs {
         long,
         help = "Value to set the variant of the test results uploaded.",
         required = false,
-        num_args = 1
+        num_args = 1,
+        hide = true
     )]
     pub variant: Option<String>,
 }
