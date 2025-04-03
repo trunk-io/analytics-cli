@@ -4,6 +4,7 @@ use std::{
     mem,
 };
 
+use proto::test_context::test_run::{TestCaseRun, TestCaseRunStatus};
 #[cfg(feature = "pyo3")]
 use pyo3::prelude::*;
 #[cfg(feature = "pyo3")]
@@ -186,6 +187,41 @@ impl JunitParser {
 
     pub fn into_reports(self) -> Vec<Report> {
         self.reports
+    }
+
+    pub fn into_test_case_runs(self) -> Vec<TestCaseRun> {
+        let mut test_case_runs = Vec::new();
+        for report in self.reports {
+            for test_suite in report.test_suites {
+                for test_case in test_suite.test_cases {
+                    let mut test_case_run = TestCaseRun::default();
+                    test_case_run.name = test_case.name.into();
+                    test_case_run.parent_name = test_suite.name.to_string();
+                    test_case_run.classname = test_case
+                        .classname
+                        .map(|v| v.to_string())
+                        .unwrap_or_default();
+                    // started at
+                    // finished at
+                    test_case_run.status = match test_case.status {
+                        TestCaseStatus::Success { .. } => TestCaseRunStatus::Success.into(),
+                        TestCaseStatus::Skipped { .. } => TestCaseRunStatus::Skipped.into(),
+                        TestCaseStatus::NonSuccess { .. } => TestCaseRunStatus::Failure.into(),
+                    };
+                    // test_case_run.status_output_message = test_case.status.message.into();
+                    test_case_run.file = test_case
+                        .extra
+                        .get(extra_attrs::FILE)
+                        .map(|v| v.to_string())
+                        .unwrap_or_default();
+                    // line
+                    // attempt_number
+                    test_case_run.is_quarantined = false;
+                    test_case_runs.push(test_case_run);
+                }
+            }
+        }
+        test_case_runs
     }
 
     pub fn parse<R: BufRead>(&mut self, xml: R) -> anyhow::Result<()> {

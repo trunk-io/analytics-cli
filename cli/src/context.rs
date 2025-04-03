@@ -143,6 +143,7 @@ pub fn gather_initial_test_context(
                 v.clone()
             }
         }),
+        original_file_sets: Vec::with_capacity(0),
     };
 
     Ok(PreTestContext {
@@ -188,6 +189,7 @@ pub fn gather_post_test_context<U: AsRef<Path>>(
         num_files: file_set_builder.count(),
         num_tests: parse_num_tests(file_set_builder.file_sets()),
     };
+    meta.original_file_sets = file_set_builder.original_file_sets().to_vec();
     meta.base_props.file_sets = file_set_builder.file_sets().to_vec();
     meta.base_props.codeowners = file_set_builder.take_codeowners();
     meta.base_props.test_command = test_run_result.as_ref().map(|r| r.command.clone());

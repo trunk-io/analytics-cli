@@ -1,14 +1,19 @@
 use std::{
     fmt::Debug,
     format,
+    io::BufReader,
     path::{Path, PathBuf},
     time::SystemTime,
 };
 
 use codeowners::{CodeOwners, Owners, OwnersOfPath};
 use constants::ALLOW_LIST;
-use context::junit::junit_path::{JunitReportFileWithStatus, JunitReportStatus};
+use context::junit::{
+    junit_path::{JunitReportFileWithStatus, JunitReportStatus},
+    parser::JunitParser,
+};
 use glob::glob;
+use proto::test_context::test_run::TestResult;
 #[cfg(feature = "pyo3")]
 use pyo3::prelude::*;
 #[cfg(feature = "pyo3")]
@@ -23,6 +28,7 @@ use wasm_bindgen::prelude::*;
 #[derive(Debug, Default, Clone)]
 pub struct FileSetBuilder {
     count: usize,
+    original_file_sets: Vec<FileSet>,
     file_sets: Vec<FileSet>,
     codeowners: Option<CodeOwners>,
 }
@@ -119,12 +125,39 @@ impl FileSetBuilder {
                     acc
                 });
                 acc.count = count;
-                acc.file_sets.push(FileSet::new(
-                    bundled_files,
+                acc.original_file_sets.push(FileSet::new(
+                    bundled_files.clone(),
                     junit_wrapper.junit_path.clone(),
                     junit_wrapper.status.clone(),
-                    file_set_type,
+                    file_set_type.clone(),
                 ));
+                if file_set_type != FileSetType::Internal {
+                    // read the junit files and write them to the file system as a test report
+                    let mut junit_parser = JunitParser::new();
+                    for file in &bundled_files {
+                        if file.original_path.ends_with(".xml") {
+                            let file_contents = std::fs::read_to_string(&file.original_path)?;
+                            junit_parser.parse(BufReader::new(file_contents.as_bytes()))?;
+                        }
+                    }
+                    let test_case_runs = junit_parser.into_test_case_runs();
+                    // Write test case runs to a temporary file
+                    let mut test_result = TestResult::default();
+                    test_result.test_case_runs = test_case_runs;
+                    let mut buf = Vec::new();
+                    prost::Message::encode(&test_result, &mut buf)?;
+                    let temp_dir = tempfile::tempdir()?;
+                    let test_report_path = temp_dir.path().join("test_report.bin");
+                    std::fs::write(&test_report_path, buf)?;
+                    acc.file_sets = vec![FileSet::new(
+                        bundled_files,
+                        test_report_path.to_string_lossy().to_string(),
+                        junit_wrapper.status.clone(),
+                        FileSetType::Internal,
+                    )];
+                } else {
+                    acc.file_sets = acc.original_file_sets.clone();
+                }
                 Ok(acc)
             },
         )
@@ -136,6 +169,10 @@ impl FileSetBuilder {
 
     pub fn file_sets(&self) -> &[FileSet] {
         &self.file_sets
+    }
+
+    pub fn original_file_sets(&self) -> &[FileSet] {
+        &self.original_file_sets
     }
 
     pub fn codeowners(&self) -> &Option<CodeOwners> {

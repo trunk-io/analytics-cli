@@ -6,7 +6,9 @@ edition = "2021"
 [dependencies]
 anyhow = "1.0.44"
 codeowners = { path = "../codeowners" }
+proto = { path = "../proto" }
 constants = { path = "../constants" }
+prost = "0.12.6"
 context = { path = "../context", default-features = false }
 js-sys = { version = "0.3.70", optional = true }
 log = "0.4.14"

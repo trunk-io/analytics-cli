@@ -658,6 +658,8 @@ dependencies = [
  "glob",
  "js-sys",
  "log",
+ "prost",
+ "proto",
  "pyo3",
  "pyo3-stub-gen",
  "regex",
