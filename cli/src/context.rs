@@ -217,7 +217,6 @@ pub fn generate_internal_file(
                 }
             }
         }
-        // todo - internal is already one file
     }
     // Write test case runs to a temporary file
     let test_result = TestResult {
@@ -235,11 +234,8 @@ pub fn generate_internal_file(
         owners: vec![],
         path: filename.to_string(),
         team: None,
-        last_modified_epoch_ns: test_report_path
-            .metadata()?
-            .modified()?
-            .duration_since(std::time::UNIX_EPOCH)?
-            .as_nanos(),
+        // last_modified_epoch_ns does not serialize so the compiler complains it does not exist
+        ..Default::default()
     })
 }
 
