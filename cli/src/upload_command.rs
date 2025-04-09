@@ -10,7 +10,7 @@ use crate::{
     context::{
         gather_debug_props, gather_exit_code_and_quarantined_tests_context,
         gather_initial_test_context, gather_post_test_context, gather_upload_id_context,
-        PreTestContext,
+        generate_internal_file, PreTestContext,
     },
     error_report::error_reason,
     test_command::TestRunResult,
@@ -211,6 +211,11 @@ pub async fn run_upload(
     )?;
     if let Some(num_tests) = test_run_result.clone().and_then(|r| r.num_tests) {
         meta.junit_props.num_tests = num_tests;
+    }
+    let temp_dir = tempfile::tempdir()?;
+    let internal_bundled_file = generate_internal_file(&meta.base_props.file_sets, &temp_dir);
+    if let Ok(internal_bundled_file) = internal_bundled_file {
+        meta.internal_bundled_file = Some(internal_bundled_file);
     }
 
     if upload_args.print_files {
