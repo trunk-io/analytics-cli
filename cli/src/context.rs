@@ -10,8 +10,8 @@ use std::{
 
 use api::{client::ApiClient, message::CreateBundleUploadResponse};
 use bundle::{
-    BundleMeta, BundleMetaBaseProps, BundleMetaDebugProps, BundleMetaJunitProps, FileSet,
-    FileSetBuilder, QuarantineBulkTestStatus, META_VERSION,
+    BundleMeta, BundleMetaBaseProps, BundleMetaDebugProps, BundleMetaJunitProps, BundledFile,
+    FileSet, FileSetBuilder, FileSetType, QuarantineBulkTestStatus, META_VERSION,
 };
 use constants::ENVS_TO_GET;
 #[cfg(target_os = "macos")]
@@ -22,6 +22,7 @@ use context::{
     repo::BundleRepo,
 };
 use lazy_static::lazy_static;
+use proto::test_context::test_run::TestResult;
 use regex::Regex;
 use tempfile::TempDir;
 #[cfg(target_os = "macos")]
@@ -142,6 +143,7 @@ pub fn gather_initial_test_context(
                 v.clone()
             }
         }),
+        internal_bundled_file: None,
     };
 
     Ok(PreTestContext {
@@ -192,6 +194,49 @@ pub fn gather_post_test_context<U: AsRef<Path>>(
     meta.base_props.test_command = test_run_result.as_ref().map(|r| r.command.clone());
 
     Ok(file_set_builder)
+}
+
+pub fn generate_internal_file(
+    file_sets: &[FileSet],
+    temp_dir: &TempDir,
+) -> anyhow::Result<BundledFile> {
+    let mut test_case_runs = Vec::new();
+    for file_set in file_sets {
+        if file_set.file_set_type != FileSetType::Internal {
+            for file in &file_set.files {
+                let mut junit_parser = JunitParser::new();
+                if file.original_path.ends_with(".xml") {
+                    let file_contents = std::fs::read_to_string(&file.original_path)?;
+                    let parsed_results =
+                        junit_parser.parse(BufReader::new(file_contents.as_bytes()));
+                    if let Err(e) = parsed_results {
+                        tracing::warn!("Failed to parse JUnit file {:?}: {:?}", file, e);
+                        continue;
+                    }
+                    test_case_runs.extend(junit_parser.into_test_case_runs());
+                }
+            }
+        }
+    }
+    // Write test case runs to a temporary file
+    let test_result = TestResult {
+        test_case_runs,
+        ..Default::default()
+    };
+    let mut buf = Vec::new();
+    prost::Message::encode(&test_result, &mut buf)?;
+    let filename = "internal.bin";
+    let test_report_path = temp_dir.path().join(filename);
+    std::fs::write(&test_report_path, buf)?;
+    Ok(BundledFile {
+        original_path: test_report_path.to_string_lossy().to_string(),
+        original_path_rel: None,
+        owners: vec![],
+        path: filename.to_string(),
+        team: None,
+        // last_modified_epoch_ns does not serialize so the compiler complains it does not exist
+        ..Default::default()
+    })
 }
 
 fn coalesce_junit_path_wrappers(

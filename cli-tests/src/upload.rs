@@ -15,6 +15,7 @@ use context::{
 };
 use lazy_static::lazy_static;
 use predicates::prelude::*;
+use prost::Message;
 use tempfile::tempdir;
 use test_utils::{
     inputs::get_test_file_path,
@@ -162,6 +163,28 @@ async fn upload_bundle() {
     );
     assert_eq!(bundled_file.owners, ["@user"]);
     assert_eq!(bundled_file.team, None);
+
+    // Verify internal bundled file contents
+    let internal_bundled_file = bundle_meta.internal_bundled_file.as_ref().unwrap();
+    assert_eq!(internal_bundled_file.path, "internal.bin");
+    assert_eq!(internal_bundled_file.owners.len(), 0);
+    assert_eq!(internal_bundled_file.team, None);
+
+    let bin = fs::read(tar_extract_directory.join(&internal_bundled_file.path)).unwrap();
+    let report = proto::test_context::test_run::TestResult::decode(&*bin).unwrap();
+
+    assert_eq!(report.test_case_runs.len(), 500);
+    let test_case_run = &report.test_case_runs[0];
+    assert!(test_case_run.id.is_empty());
+    assert!(!test_case_run.name.is_empty());
+    assert!(!test_case_run.classname.is_empty());
+    assert!(!test_case_run.file.is_empty());
+    assert!(!test_case_run.parent_name.is_empty());
+    assert_eq!(test_case_run.line, 0);
+    assert_eq!(test_case_run.attempt_number, 0);
+    assert!(test_case_run.started_at.is_some());
+    assert!(test_case_run.finished_at.is_some());
+    assert!(!test_case_run.is_quarantined);
 
     assert!(debug_props.command_line.ends_with(
         &command_builder

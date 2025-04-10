@@ -69,6 +69,12 @@ impl BundlerUtil {
                 })?;
                 Ok::<(), anyhow::Error>(())
             })?;
+        if let Some(bundled_file) = self.meta.internal_bundled_file.as_ref() {
+            let path = std::path::Path::new(&bundled_file.original_path);
+            let mut file = File::open(path)?;
+            tar.append_file(&bundled_file.path, &mut file)?;
+            total_bytes_in += std::fs::metadata(path)?.len();
+        }
 
         if let Some(CodeOwners { ref path, .. }) = self.meta.base_props.codeowners {
             let mut file = File::open(path)?;
