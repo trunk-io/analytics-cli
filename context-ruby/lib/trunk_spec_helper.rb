@@ -28,18 +28,6 @@ def escape(str)
   str.dump[1..-2]
 end
 
-def description_generated?(example)
-  auto_generated_exp = /^\s?is expected to .*$/
-  full_description = example.full_description
-  parent_description = example.example_group.description
-  checked_description = full_description.sub(parent_description, '')
-  !auto_generated_exp.match(checked_description).nil? || full_description.empty?
-end
-
-def generate_id(example)
-  return "trunk:#{example.id}-#{example.location}" if description_generated?(example)
-end
-
 def trunk_disabled
   ENV['DISABLE_RSPEC_TRUNK_FLAKY_TESTS'] == 'true' || ENV['TRUNK_ORG_URL_SLUG'].nil? || ENV['TRUNK_API_TOKEN'].nil?
 end
@@ -53,6 +41,7 @@ module RSpec
     class Example
       # keep the original method around so we can call it
       alias set_exception_core set_exception
+      alias assign_generated_description_core assign_generated_description
       # RSpec uses the existance of an exception to determine if the test failed
       # We need to override this to allow us to capture the exception and then
       # decide if we want to fail the test or not
@@ -60,7 +49,7 @@ module RSpec
       def set_exception(exception)
         return set_exception_core(exception) if trunk_disabled
 
-        id = generate_id(self)
+        id = generate_trunk_id
         name = full_description
         parent_name = example_group.metadata[:description]
         parent_name = parent_name.empty? ? 'rspec' : parent_name
@@ -76,6 +65,21 @@ module RSpec
           puts 'Test is not quarantined, continuing'.red
           set_exception_core(exception)
         end
+      end
+
+      def assign_generated_description
+        metadata[:is_description_generated] = description_generated?
+        assign_generated_description_core
+      end
+
+      def description_generated?
+        return metadata[:is_description_generated] unless metadata[:is_description_generated].nil?
+
+        description == location_description
+      end
+
+      def generate_trunk_id
+        return "trunk:#{id}-#{location}" if description_generated?
       end
 
       # Procsy is a class that is used to wrap execution of the Example class
@@ -134,8 +138,7 @@ class TrunkAnalyticsListener
   end
 
   def close(_notification)
-    res = @testreport.publish
-    if res
+    if @testreport.publish
       puts 'Flaky tests report upload complete'.green
     else
       puts 'Failed to publish flaky tests report'.red
@@ -153,7 +156,7 @@ class TrunkAnalyticsListener
     line = example.metadata[:line_number]
     started_at = example.execution_result.started_at.to_i
     finished_at = example.execution_result.finished_at.to_i
-    id = generate_id(example)
+    id = example.generate_trunk_id
 
     attempt_number = example.metadata[:attempt_number] || 0
     status = example.execution_result.status.to_s
