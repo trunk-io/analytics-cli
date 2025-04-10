@@ -4,6 +4,8 @@ use std::{
     mem,
 };
 
+use prost_wkt_types::Timestamp;
+use proto::test_context::test_run::{TestCaseRun, TestCaseRunStatus};
 #[cfg(feature = "pyo3")]
 use pyo3::prelude::*;
 #[cfg(feature = "pyo3")]
@@ -38,6 +40,7 @@ pub mod extra_attrs {
     pub const FILEPATH: &str = "filepath";
     pub const LINE: &str = "line";
     pub const ID: &str = "id";
+    pub const ATTEMPT_NUMBER: &str = "attempt_number";
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -186,6 +189,86 @@ impl JunitParser {
 
     pub fn into_reports(self) -> Vec<Report> {
         self.reports
+    }
+
+    pub fn into_test_case_runs(self) -> Vec<TestCaseRun> {
+        let mut test_case_runs = Vec::new();
+        for report in self.reports {
+            for test_suite in report.test_suites {
+                for test_case in test_suite.test_cases {
+                    let mut test_case_run = TestCaseRun {
+                        name: test_case.name.into(),
+                        parent_name: test_suite.name.to_string(),
+                        ..Default::default()
+                    };
+                    test_case_run.classname = test_case
+                        .classname
+                        .map(|v| v.to_string())
+                        .unwrap_or_default();
+                    if let Some(test_case_timestamp) = test_case.timestamp {
+                        test_case_run.started_at = Some(Timestamp {
+                            seconds: test_case_timestamp.timestamp(),
+                            nanos: test_case_timestamp.timestamp_subsec_nanos() as i32,
+                        });
+                    } else if let Some(test_suite_timestamp) = test_suite.timestamp {
+                        test_case_run.started_at = Some(Timestamp {
+                            seconds: test_suite_timestamp.timestamp(),
+                            nanos: test_suite_timestamp.timestamp_subsec_nanos() as i32,
+                        });
+                    }
+                    if let Some(test_case_time) = test_case.time {
+                        test_case_run.finished_at =
+                            test_case_run.started_at.clone().map(|mut v| {
+                                v.seconds += test_case_time.as_secs() as i64;
+                                v.nanos += test_case_time.subsec_nanos() as i32;
+                                v
+                            });
+                    } else if let Some(test_suite_time) = test_suite.time {
+                        test_case_run.finished_at =
+                            test_case_run.started_at.clone().map(|mut v| {
+                                v.seconds += test_suite_time.as_secs() as i64;
+                                v.nanos += test_suite_time.subsec_nanos() as i32;
+                                v
+                            });
+                    }
+                    test_case_run.status = match test_case.status {
+                        TestCaseStatus::Success { .. } => TestCaseRunStatus::Success.into(),
+                        TestCaseStatus::Skipped { message, .. } => {
+                            test_case_run.status_output_message =
+                                message.map(|v| v.to_string()).unwrap_or_default();
+                            TestCaseRunStatus::Skipped.into()
+                        }
+                        TestCaseStatus::NonSuccess { message, .. } => {
+                            test_case_run.status_output_message =
+                                message.map(|v| v.to_string()).unwrap_or_default();
+                            TestCaseRunStatus::Failure.into()
+                        }
+                    };
+                    test_case_run.file = test_case
+                        .extra
+                        .get(extra_attrs::FILE)
+                        .or_else(|| test_case.extra.get(extra_attrs::FILEPATH))
+                        .map(|v| v.to_string())
+                        .unwrap_or_default();
+                    test_case_run.line = test_case
+                        .extra
+                        .get(extra_attrs::LINE)
+                        .map(|v| v.to_string())
+                        .and_then(|v| v.parse::<i32>().ok())
+                        .unwrap_or_default();
+                    test_case_run.attempt_number = test_case
+                        .extra
+                        .get(extra_attrs::ATTEMPT_NUMBER)
+                        .map(|v| v.to_string())
+                        .and_then(|v| v.parse::<i32>().ok())
+                        .unwrap_or_default();
+                    test_case_run.is_quarantined = false;
+                    test_case_runs.push(test_case_run);
+                }
+            }
+        }
+        dbg!(test_case_runs.clone());
+        test_case_runs
     }
 
     pub fn parse<R: BufRead>(&mut self, xml: R) -> anyhow::Result<()> {
@@ -735,5 +818,85 @@ mod unescape_and_truncate {
             Cow::Borrowed(b) => Cow::Borrowed(safe_truncate_str::<MAX_LEN>(b)),
             Cow::Owned(b) => Cow::Owned(String::from(safe_truncate_str::<MAX_LEN>(b.as_str()))),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::io::BufReader;
+
+    use prost_wkt_types::Timestamp;
+    use proto::test_context::test_run::TestCaseRunStatus;
+
+    use crate::junit::parser::JunitParser;
+    #[test]
+    fn test_into_test_case_runs() {
+        let mut junit_parser = JunitParser::new();
+        let file_contents = r#"
+        <xml version="1.0" encoding="UTF-8"?>
+        <testsuites>
+            <testsuite name="testsuite" timestamp="2023-10-01T12:00:00Z" time="0.002">
+                <testcase file="test.java" line="5" classname="test" name="test_variant_truncation1" time="0.001">
+                    <failure message="Test failed" type="java.lang.AssertionError">
+                        <![CDATA[Expected: <true> but was: <false>]]>
+                    </failure>
+                </testcase>
+                <testcase file="test.java" name="test_variant_truncation2" time="0.001" />
+            </testsuite>
+        </testsuites>
+        "#;
+        let parsed_results = junit_parser.parse(BufReader::new(file_contents.as_bytes()));
+        assert!(parsed_results.is_ok());
+        let test_case_runs = junit_parser.into_test_case_runs();
+        assert_eq!(test_case_runs.len(), 2);
+        let test_case_run1 = &test_case_runs[0];
+        assert_eq!(test_case_run1.name, "test_variant_truncation1");
+        assert_eq!(test_case_run1.parent_name, "testsuite");
+        assert_eq!(test_case_run1.classname, "test");
+        assert_eq!(test_case_run1.status, TestCaseRunStatus::Failure as i32);
+        assert_eq!(test_case_run1.status_output_message, "Test failed");
+        assert_eq!(test_case_run1.file, "test.java");
+        assert_eq!(test_case_run1.attempt_number, 0);
+        assert!(!test_case_run1.is_quarantined);
+        assert_eq!(
+            test_case_run1.started_at,
+            Some(Timestamp {
+                seconds: 1696161600,
+                nanos: 0
+            })
+        );
+        assert_eq!(
+            test_case_run1.finished_at,
+            Some(Timestamp {
+                seconds: 1696161600,
+                nanos: 1000000
+            })
+        );
+        assert_eq!(test_case_run1.line, 5);
+
+        let test_case_run2 = &test_case_runs[1];
+        assert_eq!(test_case_run2.name, "test_variant_truncation2");
+        assert_eq!(test_case_run2.parent_name, "testsuite");
+        assert_eq!(test_case_run2.classname, "");
+        assert_eq!(test_case_run2.status, TestCaseRunStatus::Success as i32);
+        assert_eq!(test_case_run2.status_output_message, "");
+        assert_eq!(test_case_run2.file, "test.java");
+        assert_eq!(test_case_run2.attempt_number, 0);
+        assert!(!test_case_run2.is_quarantined);
+        assert_eq!(
+            test_case_run2.started_at,
+            Some(Timestamp {
+                seconds: 1696161600,
+                nanos: 0
+            })
+        );
+        assert_eq!(
+            test_case_run2.finished_at,
+            Some(Timestamp {
+                seconds: 1696161600,
+                nanos: 1000000
+            })
+        );
+        assert_eq!(test_case_run2.line, 0);
     }
 }
