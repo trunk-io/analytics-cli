@@ -267,7 +267,6 @@ impl JunitParser {
                 }
             }
         }
-        dbg!(test_case_runs.clone());
         test_case_runs
     }
 
