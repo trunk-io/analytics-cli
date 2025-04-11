@@ -83,17 +83,6 @@ pub fn validate(report: &Report) -> JunitReportValidation {
             }
         };
 
-        if let Some(raw_test_suite_id) = test_suite.extra.get("id") {
-            let test_case_id = uuid::Uuid::parse_str(raw_test_suite_id).unwrap_or_default();
-            if test_case_id.get_version() != Some(uuid::Version::Sha1) {
-                test_suite_validation.add_issue(JunitValidationIssue::SubOptimal(
-                    JunitTestSuiteValidationIssueSubOptimal::TestSuiteInvalidId(
-                        raw_test_suite_id.to_string().clone(),
-                    ),
-                ));
-            }
-        }
-
         let mut valid_test_cases: Vec<TestCase> = Vec::new();
         for test_case in test_suite.test_cases.iter() {
             let mut test_case_validation = JunitTestCaseValidation::default();
@@ -111,17 +100,6 @@ pub fn validate(report: &Report) -> JunitReportValidation {
                     ));
                 }
             };
-
-            if let Some(raw_test_case_id) = test_case.extra.get("id") {
-                let test_case_id = uuid::Uuid::parse_str(raw_test_case_id).unwrap_or_default();
-                if test_case_id.get_version() != Some(uuid::Version::Sha1) {
-                    test_case_validation.add_issue(JunitValidationIssue::SubOptimal(
-                        JunitTestCaseValidationIssueSubOptimal::TestCaseInvalidId(
-                            raw_test_case_id.to_string().clone(),
-                        ),
-                    ));
-                }
-            }
 
             match validate_field_len::<MAX_FIELD_LEN, _>(
                 test_case
@@ -515,8 +493,6 @@ impl JunitTestSuiteValidation {
 
 #[derive(Error, Debug, Clone, PartialEq, Eq)]
 pub enum JunitTestSuiteValidationIssueSubOptimal {
-    #[error("test suite id is not a valid uuidv5")]
-    TestSuiteInvalidId(String),
     #[error("test suite name too long, truncated to {}", MAX_FIELD_LEN)]
     TestSuiteNameTooLong(String),
 }
@@ -607,8 +583,6 @@ pub enum JunitTestCaseValidationIssueSubOptimal {
         TIMESTAMP_STALE_HOURS
     )]
     TestCaseStaleTimestamp(DateTime<FixedOffset>),
-    #[error("test case id is not a valid uuidv5")]
-    TestCaseInvalidId(String),
 }
 
 #[derive(Error, Debug, Clone, PartialEq, Eq)]
