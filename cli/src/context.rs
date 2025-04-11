@@ -202,7 +202,18 @@ pub fn generate_internal_file(
 ) -> anyhow::Result<BundledFile> {
     let mut test_case_runs = Vec::new();
     for file_set in file_sets {
-        if file_set.file_set_type != FileSetType::Internal {
+        if file_set.file_set_type == FileSetType::Internal {
+            if file_set.files.is_empty() {
+                return Err(anyhow::anyhow!("Internal file set is empty"));
+            }
+            if file_set.files.len() > 1 {
+                return Err(anyhow::anyhow!(
+                    "Internal file set contains more than one file"
+                ));
+            }
+            // Internal file set, we should just use that directly
+            return Ok(file_set.files[0].clone());
+        } else {
             for file in &file_set.files {
                 let mut junit_parser = JunitParser::new();
                 if file.original_path.ends_with(".xml") {
