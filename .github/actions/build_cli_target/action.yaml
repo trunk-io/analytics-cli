@@ -25,7 +25,7 @@ runs:
       run: cargo install cross --git https://github.com/cross-rs/cross --force
 
     - name: Build CLI ${{ inputs.target }} target
-      uses: houseabsolute/actions-rust-cross@v1
+      uses: houseabsolute/actions-rust-cross@v1.0.1
       # Cross-rs does not directly support cross compilation with macOS targets
       if: ${{ !contains(inputs.target, 'darwin') }}
       with:
