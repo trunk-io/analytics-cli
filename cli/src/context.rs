@@ -57,7 +57,7 @@ pub fn gather_debug_props(args: Vec<String>, token: String) -> BundleMetaDebugPr
     }
 }
 
-pub fn gather_initial_test_context(
+pub fn gather_pre_test_context(
     upload_args: UploadArgs,
     debug_props: BundleMetaDebugProps,
 ) -> anyhow::Result<PreTestContext> {

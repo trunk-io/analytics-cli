@@ -8,7 +8,7 @@ use prost_wkt_types::Timestamp;
 use proto::test_context::test_run::{TestCaseRun, TestCaseRunStatus, TestResult, UploaderMetadata};
 use third_party::sentry;
 use tracing_subscriber::prelude::*;
-use trunk_analytics_cli::{context::gather_initial_test_context, upload_command::run_upload};
+use trunk_analytics_cli::{context::gather_pre_test_context, upload_command::run_upload};
 #[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::wasm_bindgen;
 
@@ -162,8 +162,7 @@ impl MutTestReport {
             exit_code: 0,
             num_tests: Some(self.0.borrow().test_result.test_case_runs.len()),
         };
-        if let Ok(pre_test_context) = gather_initial_test_context(upload_args.clone(), debug_props)
-        {
+        if let Ok(pre_test_context) = gather_pre_test_context(upload_args.clone(), debug_props) {
             match tokio::runtime::Builder::new_multi_thread()
                 .enable_all()
                 .build()
