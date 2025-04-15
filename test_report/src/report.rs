@@ -111,7 +111,7 @@ impl MutTestReport {
         prost::Message::encode_to_vec(&self.0.borrow().test_result)
     }
 
-    fn setup_logger(&self) -> anyhow::Result<()> {
+    fn setup_logger(&self) {
         let console_layer = tracing_subscriber::fmt::Layer::new()
             .without_time()
             .with_target(false)
@@ -125,15 +125,9 @@ impl MutTestReport {
 
         tracing_subscriber::registry()
             .with(console_layer)
-            .with(
-                tracing_subscriber::fmt::layer()
-                    .with_target(false)
-                    .without_time(),
-            )
             .with(sentry_tracing::layer())
-            .with(tracing::level_filters::LevelFilter::ERROR)
+            .with(tracing::level_filters::LevelFilter::INFO)
             .init();
-        Ok(())
     }
 
     pub fn is_quarantined(
@@ -245,7 +239,7 @@ impl MutTestReport {
     pub fn publish(&self) -> bool {
         let release_name = format!("rspec-flaky-tests@{}", env!("CARGO_PKG_VERSION"));
         let guard = sentry::init(release_name.into(), None);
-        let _logger_setup_res = self.setup_logger();
+        self.setup_logger();
         let resolved_path = if let Ok(path) = self.save() {
             path
         } else {
@@ -324,11 +318,6 @@ impl MutTestReport {
             }
         };
         guard.flush(None);
-        if result {
-            tracing::info!("Upload successful");
-        } else {
-            tracing::error!("Upload failed");
-        }
         result
     }
 

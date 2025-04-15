@@ -138,7 +138,11 @@ class TrunkAnalyticsListener
   end
 
   def close(_notification)
-    @testreport.publish
+    if @testreport.publish
+      puts 'Flaky tests report upload complete'.green
+    else
+      puts 'Failed to publish flaky tests report'.red
+    end
   end
 
   # trunk-ignore(rubocop/Metrics/AbcSize,rubocop/Metrics/MethodLength,rubocop/Metrics/CyclomaticComplexity)
