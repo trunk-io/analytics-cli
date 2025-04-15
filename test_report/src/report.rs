@@ -10,8 +10,7 @@ use magnus::{value::ReprValue, Module, Object};
 use prost_wkt_types::Timestamp;
 use proto::test_context::test_run::{TestCaseRun, TestCaseRunStatus, TestResult, UploaderMetadata};
 use third_party::sentry;
-use tracing_subscriber::filter::FilterFn;
-use tracing_subscriber::prelude::*;
+use tracing_subscriber::{filter::FilterFn, prelude::*};
 use trunk_analytics_cli::{context::gather_initial_test_context, upload_command::run_upload};
 #[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::wasm_bindgen;
@@ -111,7 +110,29 @@ impl MutTestReport {
         prost::Message::encode_to_vec(&self.0.borrow().test_result)
     }
 
-    fn setup_logger(&self) {
+    fn setup_logger(&self, org_url_slug: String) {
+        let sentry_layer = sentry_tracing::layer().event_mapper(move |event, context| {
+            // trunk-ignore(clippy/match_ref_pats)
+            match event.metadata().level() {
+                &tracing::Level::ERROR => {
+                    let mut event = sentry_tracing::event_from_event(event, context);
+                    event
+                        .tags
+                        .insert(String::from("org_url_slug"), org_url_slug.clone());
+                    sentry_tracing::EventMapping::Event(event)
+                }
+                &tracing::Level::WARN => sentry_tracing::EventMapping::Breadcrumb(
+                    sentry_tracing::breadcrumb_from_event(event, context),
+                ),
+                &tracing::Level::INFO => sentry_tracing::EventMapping::Breadcrumb(
+                    sentry_tracing::breadcrumb_from_event(event, context),
+                ),
+                &tracing::Level::DEBUG => sentry_tracing::EventMapping::Breadcrumb(
+                    sentry_tracing::breadcrumb_from_event(event, context),
+                ),
+                _ => sentry_tracing::EventMapping::Ignore,
+            }
+        });
         let console_layer = tracing_subscriber::fmt::Layer::new()
             .without_time()
             .with_target(false)
@@ -123,10 +144,17 @@ impl MutTestReport {
                     .any(|field| field.name() == "hidden_in_console")
             }));
 
+        let trunk_log_level = match env::var("TRUNK_LOG_LEVEL").unwrap_or_default().as_str() {
+            "debug" => tracing::level_filters::LevelFilter::DEBUG,
+            "info" => tracing::level_filters::LevelFilter::INFO,
+            "warn" => tracing::level_filters::LevelFilter::WARN,
+            "error" => tracing::level_filters::LevelFilter::ERROR,
+            _ => tracing::level_filters::LevelFilter::INFO,
+        };
         tracing_subscriber::registry()
             .with(console_layer)
-            .with(sentry_tracing::layer())
-            .with(tracing::level_filters::LevelFilter::INFO)
+            .with(sentry_layer)
+            .with(trunk_log_level)
             .init();
     }
 
@@ -238,8 +266,9 @@ impl MutTestReport {
     // sends out to the trunk api
     pub fn publish(&self) -> bool {
         let release_name = format!("rspec-flaky-tests@{}", env!("CARGO_PKG_VERSION"));
+        let org_url_slug = env::var("TRUNK_ORG_URL_SLUG").unwrap_or_default();
         let guard = sentry::init(release_name.into(), None);
-        self.setup_logger();
+        self.setup_logger(org_url_slug.clone());
         let resolved_path = if let Ok(path) = self.save() {
             path
         } else {
@@ -247,7 +276,6 @@ impl MutTestReport {
         };
         let resolved_path_str = resolved_path.path().to_str().unwrap_or_default();
         let token = env::var("TRUNK_API_TOKEN").unwrap_or_default();
-        let org_url_slug = env::var("TRUNK_ORG_URL_SLUG").unwrap_or_default();
         let repo_root = env::var("REPO_ROOT").ok();
         if token.is_empty() {
             tracing::warn!("Not publishing results because TRUNK_API_TOKEN is empty");
@@ -298,9 +326,10 @@ impl MutTestReport {
                                 "Error uploading: {:?}",
                                 upload_bundle_error
                             );
-                            return false;
+                            false
+                        } else {
+                            true
                         }
-                        true
                     }
                     Err(e) => {
                         tracing::error!(hidden_in_console = true, "Error uploading: {:?}", e);
