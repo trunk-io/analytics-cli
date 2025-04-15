@@ -276,17 +276,22 @@ impl ApiClient {
                     .send()
                     .await?;
 
-                let error_message = "Failed to send telemetry metrics.";
+                let error_message = "Failed to send telemetry metrics";
                 if !response.status().is_client_error() {
                     response.error_for_status().map_err(|reqwest_error| {
-                        tracing::warn!("{}", error_message);
+                        tracing::warn!(hidden_in_console=true, "{} - {}", error_message, reqwest_error);
                         anyhow::Error::from(reqwest_error)
                     }).map(|_| ())
                 } else {
-                    tracing::warn!("{}", error_message);
                     match response.error_for_status() {
-                        Ok(..) => Err(anyhow::Error::msg(error_message)),
-                        Err(error) => Err(anyhow::Error::from(error)),
+                        Ok(response) => {
+                            tracing::debug!("{} - {}", error_message, response.status());
+                            Err(anyhow::Error::msg(error_message))
+                        },
+                        Err(error) => {
+                            tracing::debug!("{} - {}", error_message, error);
+                            Err(anyhow::Error::from(error))
+                        },
                     }
                 }
             },
