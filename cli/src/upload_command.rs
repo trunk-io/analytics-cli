@@ -267,8 +267,11 @@ pub async fn run_upload(
         telemetry_response = api_client.telemetry_upload_metrics(&request).await;
     }
     if let Err(e) = telemetry_response {
-        // this is not a critical error, so we just log it
-        tracing::debug!("Failed to send telemetry: {:?}", e);
+        tracing::error!(
+            hidden_in_console = true,
+            "Failed to send telemetry: {:?}",
+            e
+        );
     }
 
     if upload_bundle_result.is_err() {

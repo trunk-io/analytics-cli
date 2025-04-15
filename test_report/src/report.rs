@@ -10,6 +10,7 @@ use magnus::{value::ReprValue, Module, Object};
 use prost_wkt_types::Timestamp;
 use proto::test_context::test_run::{TestCaseRun, TestCaseRunStatus, TestResult, UploaderMetadata};
 use third_party::sentry;
+use tracing_subscriber::filter::FilterFn;
 use tracing_subscriber::prelude::*;
 use trunk_analytics_cli::{context::gather_initial_test_context, upload_command::run_upload};
 #[cfg(feature = "wasm")]
@@ -110,8 +111,20 @@ impl MutTestReport {
         prost::Message::encode_to_vec(&self.0.borrow().test_result)
     }
 
-    fn setup_logger() -> anyhow::Result<()> {
+    fn setup_logger(&self) -> anyhow::Result<()> {
+        let console_layer = tracing_subscriber::fmt::Layer::new()
+            .without_time()
+            .with_target(false)
+            .with_level(false)
+            .with_filter(FilterFn::new(|metadata| {
+                !metadata
+                    .fields()
+                    .iter()
+                    .any(|field| field.name() == "hidden_in_console")
+            }));
+
         tracing_subscriber::registry()
+            .with(console_layer)
             .with(
                 tracing_subscriber::fmt::layer()
                     .with_target(false)
@@ -231,8 +244,8 @@ impl MutTestReport {
     // sends out to the trunk api
     pub fn publish(&self) -> bool {
         let release_name = format!("rspec-flaky-tests@{}", env!("CARGO_PKG_VERSION"));
-        let _guard = sentry::init(release_name.into(), None);
-        let _logger_setup_res = MutTestReport::setup_logger();
+        let guard = sentry::init(release_name.into(), None);
+        let _logger_setup_res = self.setup_logger();
         let resolved_path = if let Ok(path) = self.save() {
             path
         } else {
@@ -273,27 +286,50 @@ impl MutTestReport {
             exit_code: 0,
             num_tests: Some(self.0.borrow().test_result.test_case_runs.len()),
         };
-        if let Ok(pre_test_context) = gather_initial_test_context(upload_args.clone(), debug_props)
-        {
-            match tokio::runtime::Builder::new_multi_thread()
-                .enable_all()
-                .build()
-                .unwrap()
-                .block_on(run_upload(
-                    upload_args,
-                    Some(pre_test_context),
-                    Some(test_run_result),
-                )) {
-                Ok(_) => true,
-                Err(e) => {
-                    tracing::error!(hidden_in_console = true, "Error uploading: {:?}", e);
-                    false
+        let result = match gather_initial_test_context(upload_args.clone(), debug_props) {
+            Ok(pre_test_context) => {
+                match tokio::runtime::Builder::new_multi_thread()
+                    .enable_all()
+                    .build()
+                    .unwrap()
+                    .block_on(run_upload(
+                        upload_args,
+                        Some(pre_test_context),
+                        Some(test_run_result),
+                    )) {
+                    Ok(upload_result) => {
+                        if let Some(upload_bundle_error) = upload_result.upload_bundle_error {
+                            tracing::error!(
+                                hidden_in_console = true,
+                                "Error uploading: {:?}",
+                                upload_bundle_error
+                            );
+                            return false;
+                        }
+                        true
+                    }
+                    Err(e) => {
+                        tracing::error!(hidden_in_console = true, "Error uploading: {:?}", e);
+                        false
+                    }
                 }
             }
+            Err(e) => {
+                tracing::error!(
+                    hidden_in_console = true,
+                    "Error gathering initial test context: {:?}",
+                    e
+                );
+                false
+            }
+        };
+        guard.flush(None);
+        if result {
+            tracing::info!("Upload successful");
         } else {
-            tracing::warn!("Error gathering pre test context");
-            false
+            tracing::error!("Upload failed");
         }
+        result
     }
 
     // saves to local fs and returns the path
