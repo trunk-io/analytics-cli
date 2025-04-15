@@ -137,7 +137,7 @@ pub struct UploadArgs {
         num_args = 1,
         hide = true
     )]
-    pub default_quarantine_exit_code: Option<i32>,
+    pub previous_exit_code: Option<i32>,
 }
 
 impl UploadArgs {
@@ -227,10 +227,10 @@ pub async fn run_upload(
             }
         }
     }
-    let default_exit_code = if let Some(exit_code) = upload_args.default_quarantine_exit_code {
+    let default_exit_code = if let Some(exit_code) = upload_args.previous_exit_code {
         Some(exit_code)
     } else {
-        test_run_result.as_ref().and_then(|r| Some(r.exit_code))
+        test_run_result.as_ref().map(|r| r.exit_code)
     };
     let exit_code = gather_exit_code_and_quarantined_tests_context(
         &mut meta,
