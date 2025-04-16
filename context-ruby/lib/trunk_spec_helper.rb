@@ -48,7 +48,7 @@ module RSpec
       # trunk-ignore(rubocop/Naming/AccessorMethodName,rubocop/Metrics/MethodLength,rubocop/Metrics/AbcSize)
       def set_exception(exception)
         return set_exception_core(exception) if trunk_disabled
-        return set_exception_core(exception) if metadata[:retry_attempts] && metadata[:retry_attempts] > 0
+        return set_exception_core(exception) if metadata[:retry_attempts]&.positive?
 
         id = generate_trunk_id
         name = full_description
