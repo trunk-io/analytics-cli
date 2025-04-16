@@ -226,7 +226,7 @@ pub async fn run_upload(
         &file_set_builder,
         &test_run_result,
     )
-    .await;
+    .await?;
 
     let upload_started_at = chrono::Utc::now();
     tracing::info!("Uploading test results...");
