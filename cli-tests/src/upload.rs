@@ -276,6 +276,50 @@ async fn upload_bundle_success_status_code() {
     println!("{assert}");
 }
 
+// same test as upload_bundle_success_status_code but with a previous exit code set
+#[tokio::test(flavor = "multi_thread")]
+async fn upload_bundle_success_preceding_failure() {
+    let temp_dir = tempdir().unwrap();
+    generate_mock_git_repo(&temp_dir);
+    let test_bep_path = get_test_file_path("test_fixtures/bep_retries");
+    // The test cases need not match up or have timestamps, so long as there is a testSummary
+    // That indicates a flake or pass
+    let uri_fail = format!(
+        "file://{}",
+        get_test_file_path("../cli/test_fixtures/junit1_fail.xml")
+    );
+    let uri_pass = format!(
+        "file://{}",
+        get_test_file_path("../cli/test_fixtures/junit0_pass.xml")
+    );
+
+    let bep_content = fs::read_to_string(&test_bep_path)
+        .unwrap()
+        .replace("${URI_FAIL}", &uri_fail)
+        .replace("${URI_PASS}", &uri_pass);
+    let bep_path = temp_dir.path().join("bep.json");
+    fs::write(&bep_path, bep_content).unwrap();
+
+    let state = MockServerBuilder::new().spawn_mock_server().await;
+    let previous_exit_code = 127;
+
+    // Even though the junits contain failures, they contain retries that succeeded,
+    // so the upload command should have a successful exit code
+    let assert = CommandBuilder::upload(temp_dir.path(), state.host.clone())
+        .previous_exit_code(previous_exit_code)
+        .command()
+        .assert()
+        .code(previous_exit_code)
+        .failure();
+
+    // No quarantine request
+    let requests = state.requests.lock().unwrap().clone();
+    assert_eq!(requests.len(), 3);
+
+    // HINT: View CLI output with `cargo test -- --nocapture`
+    println!("{assert}");
+}
+
 #[tokio::test(flavor = "multi_thread")]
 async fn upload_bundle_success_timestamp_status_code() {
     let temp_dir = tempdir().unwrap();
