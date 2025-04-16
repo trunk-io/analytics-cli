@@ -1148,7 +1148,7 @@ fn parse_test_report_to_bindings() {
 
     // verify that the test report is valid
     let results = validate(&converted_bindings.clone().into());
-    assert_eq!(results.all_issues_flat().len(), 4);
+    assert_eq!(results.all_issues_flat().len(), 1);
     results
         .all_issues_flat()
         .sort_by(|a, b| a.error_message.cmp(&b.error_message));
