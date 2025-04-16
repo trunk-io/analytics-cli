@@ -48,6 +48,7 @@ module RSpec
       # trunk-ignore(rubocop/Naming/AccessorMethodName,rubocop/Metrics/MethodLength,rubocop/Metrics/AbcSize)
       def set_exception(exception)
         return set_exception_core(exception) if trunk_disabled
+        return set_exception_core(exception) if metadata[:retry_attempts] && metadata[:retry_attempts] > 0
 
         id = generate_trunk_id
         name = full_description
@@ -158,7 +159,7 @@ class TrunkAnalyticsListener
     finished_at = example.execution_result.finished_at.to_i
     id = example.generate_trunk_id
 
-    attempt_number = example.metadata[:attempt_number] || 0
+    attempt_number = example.metadata[:retry_attempts] || example.metadata[:attempt_number] || 0
     status = example.execution_result.status.to_s
     # set the status to failure, but mark it as quarantined
     is_quarantined = example.metadata[:quarantined_exception] ? true : false
