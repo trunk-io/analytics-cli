@@ -137,7 +137,7 @@ pub struct UploadArgs {
         num_args = 1,
         hide = true
     )]
-    pub previous_exit_code: Option<i32>,
+    pub test_process_exit_code: Option<i32>,
 }
 
 impl UploadArgs {
@@ -227,7 +227,7 @@ pub async fn run_upload(
             }
         }
     }
-    let default_exit_code = if let Some(exit_code) = upload_args.previous_exit_code {
+    let default_exit_code = if let Some(exit_code) = upload_args.test_process_exit_code {
         Some(exit_code)
     } else {
         test_run_result.as_ref().map(|r| r.exit_code)

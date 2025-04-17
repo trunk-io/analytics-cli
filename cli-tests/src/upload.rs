@@ -301,15 +301,15 @@ async fn upload_bundle_success_preceding_failure() {
     fs::write(&bep_path, bep_content).unwrap();
 
     let state = MockServerBuilder::new().spawn_mock_server().await;
-    let previous_exit_code = 127;
+    let test_process_exit_code = 127;
 
     // Even though the junits contain failures, they contain retries that succeeded,
     // so the upload command should have a successful exit code
     let assert = CommandBuilder::upload(temp_dir.path(), state.host.clone())
-        .previous_exit_code(previous_exit_code)
+        .test_process_exit_code(test_process_exit_code)
         .command()
         .assert()
-        .code(previous_exit_code)
+        .code(test_process_exit_code)
         .failure();
 
     // No quarantine request

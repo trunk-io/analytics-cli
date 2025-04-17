@@ -22,7 +22,7 @@ pub struct UploadArgs {
     disable_quarantining: Option<bool>,
     allow_empty_test_results: Option<bool>,
     variant: Option<String>,
-    previous_exit_code: Option<i32>,
+    test_process_exit_code: Option<i32>,
 }
 
 impl UploadArgs {
@@ -42,7 +42,7 @@ impl UploadArgs {
             disable_quarantining: None,
             allow_empty_test_results: None,
             variant: None,
-            previous_exit_code: None,
+            test_process_exit_code: None,
         }
     }
 
@@ -165,12 +165,12 @@ impl UploadArgs {
                 .flat_map(|variant: String| vec![String::from("--variant"), variant]),
         )
         .chain(
-            self.previous_exit_code
+            self.test_process_exit_code
                 .into_iter()
-                .flat_map(|previous_exit_code: i32| {
+                .flat_map(|test_process_exit_code: i32| {
                     vec![
-                        String::from("--previous-exit-code"),
-                        previous_exit_code.to_string(),
+                        String::from("--test-process-exit-code"),
+                        test_process_exit_code.to_string(),
                     ]
                 }),
         )
@@ -427,16 +427,16 @@ impl<'b> CommandBuilder<'b> {
         self
     }
 
-    pub fn previous_exit_code(&mut self, new_value: i32) -> &mut Self {
+    pub fn test_process_exit_code(&mut self, new_value: i32) -> &mut Self {
         match &mut self.command_type {
             CommandType::Upload { upload_args, .. } => {
-                upload_args.previous_exit_code = Some(new_value);
+                upload_args.test_process_exit_code = Some(new_value);
             }
             CommandType::Quarantine { upload_args, .. } => {
-                upload_args.previous_exit_code = Some(new_value);
+                upload_args.test_process_exit_code = Some(new_value);
             }
             CommandType::Test { upload_args, .. } => {
-                upload_args.previous_exit_code = Some(new_value);
+                upload_args.test_process_exit_code = Some(new_value);
             }
             CommandType::Validate { .. } => {}
         }
