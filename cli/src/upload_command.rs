@@ -130,6 +130,14 @@ pub struct UploadArgs {
         hide = true
     )]
     pub variant: Option<String>,
+    #[arg(
+        long,
+        help = "The exit code to use when not all tests are quarantined.",
+        required = false,
+        num_args = 1,
+        hide = true
+    )]
+    pub test_process_exit_code: Option<i32>,
 }
 
 impl UploadArgs {
@@ -172,6 +180,7 @@ pub async fn run_upload(
     } else {
         chrono::Utc::now().into()
     };
+
     let api_client = ApiClient::new(&upload_args.token, &upload_args.org_url_slug)?;
 
     let PreTestContext {
@@ -218,13 +227,17 @@ pub async fn run_upload(
             }
         }
     }
-
+    let default_exit_code = if let Some(exit_code) = upload_args.test_process_exit_code {
+        Some(exit_code)
+    } else {
+        test_run_result.as_ref().map(|r| r.exit_code)
+    };
     let exit_code = gather_exit_code_and_quarantined_tests_context(
         &mut meta,
         upload_args.disable_quarantining || !upload_args.use_quarantining,
         &api_client,
         &file_set_builder,
-        &test_run_result,
+        default_exit_code,
     )
     .await;
 
