@@ -137,6 +137,18 @@ pub struct UploadArgs {
         hide = true
     )]
     pub variant: Option<String>,
+    #[arg(
+        long,
+        help = "Value to set the name of the author of the commit being tested. If you are setting this, we assume you are overriding all local repository information.",
+        required = false,
+        num_args = 1,
+        hide = true,
+        requires = "repo_url",
+        requires = "repo_head_sha",
+        requires = "repo_head_branch",
+        requires = "repo_head_commit_epoch"
+    )]
+    pub author_name: Option<String>,
 }
 
 impl UploadArgs {

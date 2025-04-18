@@ -58,10 +58,18 @@ pub fn gather_debug_props(args: Vec<String>, token: String) -> BundleMetaDebugPr
     }
 }
 
+fn use_uncloned_repo(upload_args: &UploadArgs) -> bool {
+    upload_args.author_name.is_some()
+        && upload_args.repo_url.is_some()
+        && upload_args.repo_head_sha.is_some()
+        && upload_args.repo_head_branch.is_some()
+}
+
 pub fn gather_initial_test_context(
     upload_args: UploadArgs,
     debug_props: BundleMetaDebugProps,
 ) -> anyhow::Result<PreTestContext> {
+    let use_uncloned_repo = use_uncloned_repo(&upload_args);
     let UploadArgs {
         junit_paths,
         #[cfg(target_os = "macos")]
@@ -74,6 +82,7 @@ pub fn gather_initial_test_context(
         repo_head_branch,
         repo_head_commit_epoch,
         allow_empty_test_results,
+        author_name,
         ..
     } = upload_args;
 
@@ -83,6 +92,8 @@ pub fn gather_initial_test_context(
         repo_head_sha,
         repo_head_branch,
         repo_head_commit_epoch,
+        author_name,
+        use_uncloned_repo,
     )?;
     tracing::debug!("Found repo state: {:?}", repo);
 

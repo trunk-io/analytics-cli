@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use std::process::Command;
 
 use anyhow::Context;
+use chrono::offset::Utc;
 use lazy_static::lazy_static;
 #[cfg(feature = "pyo3")]
 use pyo3::prelude::*;
@@ -57,6 +58,8 @@ impl BundleRepo {
         repo_head_sha: Option<String>,
         repo_head_branch: Option<String>,
         repo_head_commit_epoch: Option<String>,
+        author_name: Option<String>,
+        use_uncloned_repo: bool,
     ) -> anyhow::Result<BundleRepo> {
         let current_dir = std::env::current_dir().context("failed to get current directory")?;
         #[allow(unused_mut)]
@@ -75,62 +78,96 @@ impl BundleRepo {
         #[allow(unused_mut)]
         let mut head_commit_author = None;
 
+        if use_uncloned_repo {
+            match bundle_repo_options.repo_head_commit_epoch {
+                Some(_) => (),
+                None => {
+                    // Commit epoch is used as a fallback when upload dates are not available, so filling it
+                    // here when we don't have access to a commit.
+                    bundle_repo_options.repo_head_commit_epoch = Some(Utc::now().timestamp());
+                }
+            }
+
+            if let None = bundle_repo_options.repo_url {
+                Err(anyhow::Error::msg(
+                    "Repo_url was not passed when use_uncloned_repo was set",
+                ))?;
+            }
+
+            if let None = bundle_repo_options.repo_head_sha {
+                Err(anyhow::Error::msg(
+                    "Repo_url was not passed when use_uncloned_repo was set",
+                ))?;
+            }
+
+            if let None = bundle_repo_options.repo_head_branch {
+                Err(anyhow::Error::msg(
+                    "Repo_url was not passed when use_uncloned_repo was set",
+                ))?;
+            }
+
+            head_commit_author = Some((author_name.unwrap_or_default(), String::default()));
+        }
+
         #[cfg(feature = "git-access")]
         {
-            let git_repo = match repo_root {
-                Some(manual_root) => gix::open(manual_root.clone()).map_err(|e| {
-                    tracing::warn!("Could not open the repo_root specified: {:?}", manual_root);
-                    anyhow::Error::from(e)
-                })?,
-                None => gix::discover(current_dir.clone()).map_err(|e| {
-                    tracing::warn!(
-                        "Current directory {:?} does not have a git repo",
-                        current_dir
-                    );
-                    anyhow::Error::from(e)
-                })?,
-            };
-            tracing::info!("Using repo root at {:?}", git_repo.git_dir());
+            if !use_uncloned_repo {
+                let git_repo = match repo_root {
+                    Some(manual_root) => gix::open(manual_root.clone()).map_err(|e| {
+                        tracing::warn!("Could not open the repo_root specified: {:?}", manual_root);
+                        anyhow::Error::from(e)
+                    })?,
+                    None => gix::discover(current_dir.clone()).map_err(|e| {
+                        tracing::warn!(
+                            "Current directory {:?} does not have a git repo",
+                            current_dir
+                        );
+                        anyhow::Error::from(e)
+                    })?,
+                };
+                tracing::info!("Using repo root at {:?}", git_repo.git_dir());
 
-            bundle_repo_options.repo_url = bundle_repo_options.repo_url.or_else(|| {
-                git_repo
-                    .config_snapshot()
-                    .string(GIT_REMOTE_ORIGIN_URL_CONFIG)
-                    .map(|s| s.to_string())
-            });
+                bundle_repo_options.repo_url = bundle_repo_options.repo_url.or_else(|| {
+                    git_repo
+                        .config_snapshot()
+                        .string(GIT_REMOTE_ORIGIN_URL_CONFIG)
+                        .map(|s| s.to_string())
+                });
 
-            if let Ok(mut git_head) = git_repo.head() {
-                bundle_repo_options.repo_head_branch = bundle_repo_options
-                    .repo_head_branch
-                    .or_else(|| git_head.referent_name().map(|s| s.as_bstr().to_string()))
-                    .or_else(|| {
-                        Self::git_head_branch_from_remote_branches(&git_repo)
+                if let Ok(mut git_head) = git_repo.head() {
+                    bundle_repo_options.repo_head_branch = bundle_repo_options
+                        .repo_head_branch
+                        .or_else(|| git_head.referent_name().map(|s| s.as_bstr().to_string()))
+                        .or_else(|| {
+                            Self::git_head_branch_from_remote_branches(&git_repo)
+                                .ok()
+                                .flatten()
+                        });
+
+                    if let Ok(mut commit) = git_head.peel_to_commit_in_place() {
+                        commit = Self::resolve_repo_head_commit(
+                            &git_repo,
+                            commit,
+                            bundle_repo_options
+                                .repo_head_branch
+                                .clone()
+                                .unwrap_or_default(),
+                        );
+
+                        bundle_repo_options.repo_head_sha = bundle_repo_options
+                            .repo_head_sha
+                            .or_else(|| Some(commit.id().to_string()));
+                        bundle_repo_options.repo_head_commit_epoch = bundle_repo_options
+                            .repo_head_commit_epoch
+                            .or_else(|| commit.time().ok().map(|time| time.seconds));
+                        head_commit_message =
+                            commit.message().map(|msg| msg.title.to_string()).ok();
+                        head_commit_author = commit
+                            .author()
                             .ok()
-                            .flatten()
-                    });
-
-                if let Ok(mut commit) = git_head.peel_to_commit_in_place() {
-                    commit = Self::resolve_repo_head_commit(
-                        &git_repo,
-                        commit,
-                        bundle_repo_options
-                            .repo_head_branch
-                            .clone()
-                            .unwrap_or_default(),
-                    );
-
-                    bundle_repo_options.repo_head_sha = bundle_repo_options
-                        .repo_head_sha
-                        .or_else(|| Some(commit.id().to_string()));
-                    bundle_repo_options.repo_head_commit_epoch = bundle_repo_options
-                        .repo_head_commit_epoch
-                        .or_else(|| commit.time().ok().map(|time| time.seconds));
-                    head_commit_message = commit.message().map(|msg| msg.title.to_string()).ok();
-                    head_commit_author = commit
-                        .author()
-                        .ok()
-                        .map(|signature| signature.to_owned())
-                        .map(|a| (a.name.to_string(), a.email.to_string()));
+                            .map(|signature| signature.to_owned())
+                            .map(|a| (a.name.to_string(), a.email.to_string()));
+                    }
                 }
             }
         }
@@ -146,6 +183,12 @@ impl BundleRepo {
         let repo_head_sha = bundle_repo_options.repo_head_sha.unwrap_or_default();
         let repo_head_sha_short =
             &repo_head_sha[..std::cmp::min(Self::SHORT_SHA_LEN, repo_head_sha.len())];
+        tracing::info!(
+            "URL {:?}, ROOT {:?}, REPO {:?}",
+            repo_url,
+            bundle_repo_options.repo_root,
+            repo_url_parts
+        );
         Ok(BundleRepo {
             repo: repo_url_parts,
             repo_root: bundle_repo_options

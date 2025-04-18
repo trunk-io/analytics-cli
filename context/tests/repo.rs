@@ -1,7 +1,9 @@
-use chrono::DateTime;
+use chrono::{DateTime, Utc};
 use context::repo::{
     self,
-    validator::{RepoValidationIssue, RepoValidationLevel, MAX_SHA_FIELD_LEN},
+    validator::{
+        RepoValidationIssue, RepoValidationIssueSubOptimal, RepoValidationLevel, MAX_SHA_FIELD_LEN,
+    },
     BundleRepo, RepoUrlParts,
 };
 use test_utils::mock_git_repo::{setup_repo_with_commit, TEST_BRANCH, TEST_ORIGIN};
@@ -18,6 +20,8 @@ fn test_try_read_from_root() {
         None,
         None,
         None,
+        None,
+        false,
     );
 
     assert!(bundle_repo.is_ok());
@@ -62,6 +66,8 @@ fn test_try_read_from_root_with_url_override() {
         None,
         None,
         None,
+        None,
+        false,
     );
 
     assert!(bundle_repo.is_ok());
@@ -103,6 +109,8 @@ fn test_try_read_from_root_with_sha_override() {
         Some(sha.to_string()),
         None,
         None,
+        None,
+        false,
     );
 
     assert!(bundle_repo.is_ok());
@@ -147,6 +155,8 @@ fn test_try_read_from_root_with_branch_override() {
         None,
         Some(branch.to_string()),
         None,
+        None,
+        false,
     );
 
     assert!(bundle_repo.is_ok());
@@ -188,6 +198,8 @@ fn test_try_read_from_root_with_time_override() {
         None,
         None,
         Some(epoch.to_string()),
+        None,
+        false,
     );
 
     assert!(bundle_repo.is_ok());
@@ -449,6 +461,8 @@ fn test_parse_repo_shas_too_long() {
         Some(sha.to_string()),
         None,
         None,
+        None,
+        false,
     );
 
     assert!(bundle_repo.is_ok());
@@ -479,6 +493,8 @@ fn test_parse_repo_shas_too_short() {
         Some(blank_sha.to_string()),
         None,
         None,
+        None,
+        false,
     );
 
     assert!(bundle_repo.is_ok());
@@ -492,4 +508,220 @@ fn test_parse_repo_shas_too_short() {
             repo::validator::RepoValidationIssueInvalid::RepoShaTooShort(blank_sha.to_string())
         )]
     );
+}
+
+#[test]
+fn test_uncloned_repo_uses_passed_args() {
+    let url = "https://myhost.com/myorg/myrepo";
+    let sha = "992414234aaac";
+    let branch = "mybranch";
+    let epoch = Utc::now().timestamp();
+    let author = "myauthor";
+    let bundle_repo = BundleRepo::new(
+        None,
+        Some(String::from(url)),
+        Some(String::from(sha)),
+        Some(String::from(branch)),
+        Some(epoch.to_string()),
+        Some(String::from(author)),
+        true,
+    );
+
+    assert!(bundle_repo.is_ok());
+    let bundle_repo = bundle_repo.unwrap();
+
+    let actual_repo = RepoUrlParts {
+        host: String::from("myhost.com"),
+        owner: String::from("myorg"),
+        name: String::from("myrepo"),
+    };
+
+    pretty_assertions::assert_eq!(bundle_repo.repo, actual_repo);
+    assert!(bundle_repo.repo_root.len() > 0);
+    pretty_assertions::assert_eq!(bundle_repo.repo_url, url);
+    pretty_assertions::assert_eq!(bundle_repo.repo_head_branch, branch);
+    pretty_assertions::assert_eq!(bundle_repo.repo_head_sha, sha);
+    pretty_assertions::assert_eq!(
+        bundle_repo.repo_head_sha_short,
+        Some(String::from(&(sha[..7])))
+    );
+    pretty_assertions::assert_eq!(bundle_repo.repo_head_commit_epoch, epoch);
+    pretty_assertions::assert_eq!(bundle_repo.repo_head_author_name, author);
+
+    let repo_validation = repo::validator::validate(&bundle_repo);
+    pretty_assertions::assert_eq!(repo_validation.max_level(), RepoValidationLevel::SubOptimal);
+    pretty_assertions::assert_eq!(
+        repo_validation.issues(),
+        &[
+            RepoValidationIssue::SubOptimal(
+                RepoValidationIssueSubOptimal::RepoAuthorEmailTooShort(String::from(""))
+            ),
+            RepoValidationIssue::SubOptimal(
+                RepoValidationIssueSubOptimal::RepoCommitMessageTooShort(String::from(""))
+            ),
+        ]
+    );
+}
+
+#[test]
+fn test_uncloned_repo_without_epoch_falls_back_to_now() {
+    let url = "https://myhost.com/myorg/myrepo";
+    let sha = "992414234aaac";
+    let branch = "mybranch";
+    let author = "myauthor";
+    let bundle_repo = BundleRepo::new(
+        None,
+        Some(String::from(url)),
+        Some(String::from(sha)),
+        Some(String::from(branch)),
+        None,
+        Some(String::from(author)),
+        true,
+    );
+
+    assert!(bundle_repo.is_ok());
+    let bundle_repo = bundle_repo.unwrap();
+
+    let actual_repo = RepoUrlParts {
+        host: String::from("myhost.com"),
+        owner: String::from("myorg"),
+        name: String::from("myrepo"),
+    };
+
+    pretty_assertions::assert_eq!(bundle_repo.repo, actual_repo);
+    assert!(bundle_repo.repo_root.len() > 0);
+    pretty_assertions::assert_eq!(bundle_repo.repo_url, url);
+    pretty_assertions::assert_eq!(bundle_repo.repo_head_branch, branch);
+    pretty_assertions::assert_eq!(bundle_repo.repo_head_sha, sha);
+    pretty_assertions::assert_eq!(
+        bundle_repo.repo_head_sha_short,
+        Some(String::from(&(sha[..7])))
+    );
+    assert!(bundle_repo.repo_head_commit_epoch > 0);
+    pretty_assertions::assert_eq!(bundle_repo.repo_head_author_name, author);
+
+    let repo_validation = repo::validator::validate(&bundle_repo);
+    pretty_assertions::assert_eq!(repo_validation.max_level(), RepoValidationLevel::SubOptimal);
+    pretty_assertions::assert_eq!(
+        repo_validation.issues(),
+        &[
+            RepoValidationIssue::SubOptimal(
+                RepoValidationIssueSubOptimal::RepoAuthorEmailTooShort(String::from(""))
+            ),
+            RepoValidationIssue::SubOptimal(
+                RepoValidationIssueSubOptimal::RepoCommitMessageTooShort(String::from(""))
+            ),
+        ]
+    );
+}
+
+#[test]
+fn test_uncloned_repo_without_author_is_fine() {
+    let url = "https://myhost.com/myorg/myrepo";
+    let sha = "992414234aaac";
+    let branch = "mybranch";
+    let bundle_repo = BundleRepo::new(
+        None,
+        Some(String::from(url)),
+        Some(String::from(sha)),
+        Some(String::from(branch)),
+        None,
+        None,
+        true,
+    );
+
+    assert!(bundle_repo.is_ok());
+    let bundle_repo = bundle_repo.unwrap();
+
+    let actual_repo = RepoUrlParts {
+        host: String::from("myhost.com"),
+        owner: String::from("myorg"),
+        name: String::from("myrepo"),
+    };
+
+    pretty_assertions::assert_eq!(bundle_repo.repo, actual_repo);
+    assert!(bundle_repo.repo_root.len() > 0);
+    pretty_assertions::assert_eq!(bundle_repo.repo_url, url);
+    pretty_assertions::assert_eq!(bundle_repo.repo_head_branch, branch);
+    pretty_assertions::assert_eq!(bundle_repo.repo_head_sha, sha);
+    pretty_assertions::assert_eq!(
+        bundle_repo.repo_head_sha_short,
+        Some(String::from(&(sha[..7])))
+    );
+    assert!(bundle_repo.repo_head_commit_epoch > 0);
+    pretty_assertions::assert_eq!(bundle_repo.repo_head_author_name, "");
+
+    let repo_validation = repo::validator::validate(&bundle_repo);
+    pretty_assertions::assert_eq!(repo_validation.max_level(), RepoValidationLevel::SubOptimal);
+    pretty_assertions::assert_eq!(
+        repo_validation.issues(),
+        &[
+            RepoValidationIssue::SubOptimal(
+                RepoValidationIssueSubOptimal::RepoAuthorEmailTooShort(String::from(""))
+            ),
+            RepoValidationIssue::SubOptimal(RepoValidationIssueSubOptimal::RepoAuthorNameTooShort(
+                String::from("")
+            )),
+            RepoValidationIssue::SubOptimal(
+                RepoValidationIssueSubOptimal::RepoCommitMessageTooShort(String::from(""))
+            ),
+        ]
+    );
+}
+
+#[test]
+fn test_uncloned_repo_with_missing_url_bails() {
+    let sha = "992414234aaac";
+    let branch = "mybranch";
+    let epoch = "114342342";
+    let author = "myauthor";
+    let bundle_repo = BundleRepo::new(
+        None,
+        None,
+        Some(String::from(sha)),
+        Some(String::from(branch)),
+        Some(String::from(epoch)),
+        Some(String::from(author)),
+        true,
+    );
+
+    assert!(bundle_repo.is_err());
+}
+
+#[test]
+fn test_uncloned_repo_with_missing_sha_bails() {
+    let url = "https://myhost.com/myrepo";
+    let branch = "mybranch";
+    let epoch = "114342342";
+    let author = "myauthor";
+    let bundle_repo = BundleRepo::new(
+        None,
+        Some(String::from(url)),
+        None,
+        Some(String::from(branch)),
+        Some(String::from(epoch)),
+        Some(String::from(author)),
+        true,
+    );
+
+    assert!(bundle_repo.is_err());
+}
+
+#[test]
+fn test_uncloned_repo_with_missing_branch_bails() {
+    let url = "https://myhost.com/myrepo";
+    let sha = "992414234aaac";
+    let epoch = "114342342";
+    let author = "myauthor";
+    let bundle_repo = BundleRepo::new(
+        None,
+        Some(String::from(url)),
+        Some(String::from(sha)),
+        None,
+        Some(String::from(epoch)),
+        Some(String::from(author)),
+        true,
+    );
+
+    assert!(bundle_repo.is_err());
 }
