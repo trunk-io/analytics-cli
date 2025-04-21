@@ -22,6 +22,7 @@ pub struct UploadArgs {
     disable_quarantining: Option<bool>,
     allow_empty_test_results: Option<bool>,
     variant: Option<String>,
+    test_process_exit_code: Option<i32>,
 }
 
 impl UploadArgs {
@@ -41,6 +42,7 @@ impl UploadArgs {
             disable_quarantining: None,
             allow_empty_test_results: None,
             variant: None,
+            test_process_exit_code: None,
         }
     }
 
@@ -161,6 +163,16 @@ impl UploadArgs {
                 .clone()
                 .into_iter()
                 .flat_map(|variant: String| vec![String::from("--variant"), variant]),
+        )
+        .chain(
+            self.test_process_exit_code
+                .into_iter()
+                .flat_map(|test_process_exit_code: i32| {
+                    vec![
+                        String::from("--test-process-exit-code"),
+                        test_process_exit_code.to_string(),
+                    ]
+                }),
         )
         .collect()
     }
@@ -409,6 +421,22 @@ impl<'b> CommandBuilder<'b> {
             }
             CommandType::Test { upload_args, .. } => {
                 upload_args.variant = Some(new_value.to_string());
+            }
+            CommandType::Validate { .. } => {}
+        }
+        self
+    }
+
+    pub fn test_process_exit_code(&mut self, new_value: i32) -> &mut Self {
+        match &mut self.command_type {
+            CommandType::Upload { upload_args, .. } => {
+                upload_args.test_process_exit_code = Some(new_value);
+            }
+            CommandType::Quarantine { upload_args, .. } => {
+                upload_args.test_process_exit_code = Some(new_value);
+            }
+            CommandType::Test { upload_args, .. } => {
+                upload_args.test_process_exit_code = Some(new_value);
             }
             CommandType::Validate { .. } => {}
         }

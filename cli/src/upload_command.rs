@@ -64,13 +64,6 @@ pub struct UploadArgs {
     pub repo_head_branch: Option<String>,
     #[arg(long, help = "Value to override commit epoch of repository head.")]
     pub repo_head_commit_epoch: Option<String>,
-    #[arg(
-        long,
-        value_delimiter = ',',
-        help = "Comma separated list of custom tag=value pairs.",
-        hide = true
-    )]
-    pub tags: Vec<String>,
     #[arg(long, help = "Print files which will be uploaded to stdout.")]
     pub print_files: bool,
     #[arg(
@@ -139,6 +132,14 @@ pub struct UploadArgs {
     pub variant: Option<String>,
     #[arg(
         long,
+        help = "The exit code to use when not all tests are quarantined.",
+        required = false,
+        num_args = 1,
+        hide = true
+    )]
+    pub test_process_exit_code: Option<i32>,
+    #[arg(
+        long,
         help = "Value to set the name of the author of the commit being tested. If you are setting this, we assume you are overriding all local repository information.",
         required = false,
         num_args = 1,
@@ -183,11 +184,6 @@ pub async fn run_upload(
     pre_test_context: Option<PreTestContext>,
     test_run_result: Option<TestRunResult>,
 ) -> anyhow::Result<UploadRunResult> {
-    if !upload_args.tags.is_empty() {
-        tracing::error!(
-            "Tags are deprecated and ignored. They will be removed in a future release."
-        );
-    }
     // grab the exec start if provided (`test` subcommand) or use the current time
     let cli_started_at = if let Some(test_run_result) = test_run_result.as_ref() {
         test_run_result
@@ -196,6 +192,7 @@ pub async fn run_upload(
     } else {
         chrono::Utc::now().into()
     };
+
     let api_client = ApiClient::new(&upload_args.token, &upload_args.org_url_slug)?;
 
     let PreTestContext {
@@ -242,13 +239,17 @@ pub async fn run_upload(
             }
         }
     }
-
+    let default_exit_code = if let Some(exit_code) = upload_args.test_process_exit_code {
+        Some(exit_code)
+    } else {
+        test_run_result.as_ref().map(|r| r.exit_code)
+    };
     let exit_code = gather_exit_code_and_quarantined_tests_context(
         &mut meta,
         upload_args.disable_quarantining || !upload_args.use_quarantining,
         &api_client,
         &file_set_builder,
-        &test_run_result,
+        default_exit_code,
     )
     .await;
 
@@ -291,8 +292,11 @@ pub async fn run_upload(
         telemetry_response = api_client.telemetry_upload_metrics(&request).await;
     }
     if let Err(e) = telemetry_response {
-        // this is not a critical error, so we just log it
-        tracing::debug!("Failed to send telemetry: {:?}", e);
+        tracing::error!(
+            hidden_in_console = true,
+            "Failed to send telemetry: {:?}",
+            e
+        );
     }
 
     if upload_bundle_result.is_err() {

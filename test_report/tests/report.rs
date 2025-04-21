@@ -145,6 +145,9 @@ async fn publish_test_report() {
     assert_eq!(bundled_file.owners.len(), 0);
     assert_eq!(bundled_file.team, None);
 
+    let internal_bundled_file = bundle_meta.internal_bundled_file.unwrap();
+    assert_eq!(internal_bundled_file.path, bundled_file.path);
+
     let bin = fs::read(tar_extract_directory.join(&bundled_file.path)).unwrap();
     let report = proto::test_context::test_run::TestResult::decode(&*bin).unwrap();
 

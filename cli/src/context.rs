@@ -213,7 +213,18 @@ pub fn generate_internal_file(
 ) -> anyhow::Result<BundledFile> {
     let mut test_case_runs = Vec::new();
     for file_set in file_sets {
-        if file_set.file_set_type != FileSetType::Internal {
+        if file_set.file_set_type == FileSetType::Internal {
+            if file_set.files.is_empty() {
+                return Err(anyhow::anyhow!("Internal file set is empty"));
+            }
+            if file_set.files.len() > 1 {
+                return Err(anyhow::anyhow!(
+                    "Internal file set contains more than one file"
+                ));
+            }
+            // Internal file set, we should just use that directly
+            return Ok(file_set.files[0].clone());
+        } else {
             for file in &file_set.files {
                 let mut junit_parser = JunitParser::new();
                 if file.original_path.ends_with(".xml") {
@@ -326,7 +337,7 @@ pub async fn gather_exit_code_and_quarantined_tests_context(
     disable_quarantining: bool,
     api_client: &ApiClient,
     file_set_builder: &FileSetBuilder,
-    test_run_result: &Option<TestRunResult>,
+    default_exit_code: Option<i32>,
 ) -> i32 {
     // Run the quarantine step and update the exit code.
     let failed_tests_extractor = FailedTestsExtractor::new(
@@ -343,9 +354,9 @@ pub async fn gather_exit_code_and_quarantined_tests_context(
             },
     } = if disable_quarantining {
         // use the exit code of the test run result if exists
-        if let Some(test_run_result) = test_run_result {
+        if let Some(exit_code) = default_exit_code {
             QuarantineContext {
-                exit_code: test_run_result.exit_code,
+                exit_code,
                 quarantine_status: QuarantineBulkTestStatus {
                     quarantine_results: failed_tests_extractor
                         .failed_tests()
@@ -377,7 +388,7 @@ pub async fn gather_exit_code_and_quarantined_tests_context(
             },
             file_set_builder,
             Some(failed_tests_extractor),
-            test_run_result.as_ref().map(|t| t.exit_code),
+            default_exit_code,
         )
         .await
     };

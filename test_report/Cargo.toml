@@ -18,7 +18,7 @@ tempfile = "3.2.0"
 chrono = "0.4.33"
 serde_json = "1.0.133"
 js-sys = { version = "0.3.70", optional = true }
-tokio = "1.42.0"
+tokio = "1.43.1"
 anyhow = "1.0.94"
 bundle = { path = "../bundle" }
 tracing = "0.1.41"
