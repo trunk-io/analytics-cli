@@ -616,7 +616,7 @@ fn test_uncloned_repo_without_epoch_falls_back_to_now() {
 }
 
 #[test]
-fn test_uncloned_repo_without_author_is_fine() {
+fn test_uncloned_repo_without_author_bails() {
     let url = "https://myhost.com/myorg/myrepo";
     let sha = "992414234aaac";
     let branch = "mybranch";
@@ -630,43 +630,7 @@ fn test_uncloned_repo_without_author_is_fine() {
         true,
     );
 
-    assert!(bundle_repo.is_ok());
-    let bundle_repo = bundle_repo.unwrap();
-
-    let actual_repo = RepoUrlParts {
-        host: String::from("myhost.com"),
-        owner: String::from("myorg"),
-        name: String::from("myrepo"),
-    };
-
-    pretty_assertions::assert_eq!(bundle_repo.repo, actual_repo);
-    assert!(bundle_repo.repo_root.len() > 0);
-    pretty_assertions::assert_eq!(bundle_repo.repo_url, url);
-    pretty_assertions::assert_eq!(bundle_repo.repo_head_branch, branch);
-    pretty_assertions::assert_eq!(bundle_repo.repo_head_sha, sha);
-    pretty_assertions::assert_eq!(
-        bundle_repo.repo_head_sha_short,
-        Some(String::from(&(sha[..7])))
-    );
-    assert!(bundle_repo.repo_head_commit_epoch > 0);
-    pretty_assertions::assert_eq!(bundle_repo.repo_head_author_name, "");
-
-    let repo_validation = repo::validator::validate(&bundle_repo);
-    pretty_assertions::assert_eq!(repo_validation.max_level(), RepoValidationLevel::SubOptimal);
-    pretty_assertions::assert_eq!(
-        repo_validation.issues(),
-        &[
-            RepoValidationIssue::SubOptimal(
-                RepoValidationIssueSubOptimal::RepoAuthorEmailTooShort(String::from(""))
-            ),
-            RepoValidationIssue::SubOptimal(RepoValidationIssueSubOptimal::RepoAuthorNameTooShort(
-                String::from("")
-            )),
-            RepoValidationIssue::SubOptimal(
-                RepoValidationIssueSubOptimal::RepoCommitMessageTooShort(String::from(""))
-            ),
-        ]
-    );
+    assert!(bundle_repo.is_err());
 }
 
 #[test]

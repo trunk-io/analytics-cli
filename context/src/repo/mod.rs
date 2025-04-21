@@ -58,7 +58,7 @@ impl BundleRepo {
         repo_head_sha: Option<String>,
         repo_head_branch: Option<String>,
         repo_head_commit_epoch: Option<String>,
-        author_name: Option<String>,
+        repo_head_author_name: Option<String>,
         use_uncloned_repo: bool,
     ) -> anyhow::Result<BundleRepo> {
         let current_dir = std::env::current_dir().context("failed to get current directory")?;
@@ -96,17 +96,25 @@ impl BundleRepo {
 
             if let None = bundle_repo_options.repo_head_sha {
                 Err(anyhow::Error::msg(
-                    "Repo_url was not passed when use_uncloned_repo was set",
+                    "Repo_head_sha was not passed when use_uncloned_repo was set",
                 ))?;
             }
 
             if let None = bundle_repo_options.repo_head_branch {
                 Err(anyhow::Error::msg(
-                    "Repo_url was not passed when use_uncloned_repo was set",
+                    "Repo_head_branch was not passed when use_uncloned_repo was set",
                 ))?;
             }
 
-            head_commit_author = Some((author_name.unwrap_or_default(), String::default()));
+            if let None = repo_head_author_name {
+                Err(anyhow::Error::msg(
+                    "Repo_head_author_name was not passed when use_uncloned_repo was set",
+                ))?;
+            }
+            head_commit_author = Some((
+                repo_head_author_name.clone().unwrap_or_default(),
+                String::default(),
+            ));
         }
 
         #[cfg(feature = "git-access")]
@@ -162,11 +170,15 @@ impl BundleRepo {
                             .or_else(|| commit.time().ok().map(|time| time.seconds));
                         head_commit_message =
                             commit.message().map(|msg| msg.title.to_string()).ok();
-                        head_commit_author = commit
-                            .author()
-                            .ok()
-                            .map(|signature| signature.to_owned())
-                            .map(|a| (a.name.to_string(), a.email.to_string()));
+                        head_commit_author = repo_head_author_name
+                            .map(|name| (name, String::default()))
+                            .or_else(|| {
+                                commit
+                                    .author()
+                                    .ok()
+                                    .map(|signature| signature.to_owned())
+                                    .map(|a| (a.name.to_string(), a.email.to_string()))
+                            });
                     }
                 }
             }
