@@ -166,15 +166,20 @@ impl From<TestCaseRun> for BindingsTestCase {
     ) -> Self {
         let started_at = started_at.unwrap_or_default();
         let timestamp = chrono::DateTime::from(started_at.clone());
-        let timestamp_micros = chrono::DateTime::from(started_at).timestamp_subsec_micros() as i64;
+        let timestamp_micros = chrono::DateTime::from(started_at).timestamp_micros();
         let time = (chrono::DateTime::from(finished_at.unwrap_or_default()) - timestamp)
             .to_std()
             .unwrap_or_default();
+        let classname = if classname.is_empty() {
+            None
+        } else {
+            Some(classname)
+        };
         let typed_status =
             TestCaseRunStatus::try_from(status).unwrap_or(TestCaseRunStatus::Unspecified);
         Self {
             name,
-            classname: Some(classname),
+            classname,
             assertions: None,
             timestamp: Some(timestamp.timestamp()),
             timestamp_micros: Some(timestamp_micros),
@@ -1107,7 +1112,10 @@ fn parse_test_report_to_bindings() {
     );
     assert_eq!(
         test_case1.timestamp_micros,
-        Some(test1.started_at.unwrap().nanos as i64)
+        Some(
+            test1.started_at.clone().unwrap().seconds * 1000000
+                + test1.started_at.unwrap().nanos as i64 / 1000
+        )
     );
     assert_eq!(test_case1.time, Some(1000.0));
     assert_eq!(test_case1.system_out, None);
@@ -1132,7 +1140,10 @@ fn parse_test_report_to_bindings() {
     );
     assert_eq!(
         test_case2.timestamp_micros,
-        Some(test2.started_at.unwrap().nanos as i64)
+        Some(
+            test2.started_at.clone().unwrap().seconds * 1000000
+                + test2.started_at.unwrap().nanos as i64 / 1000
+        )
     );
     assert_eq!(test_case2.time, Some(1000.0));
     assert_eq!(test_case2.system_out, None);
