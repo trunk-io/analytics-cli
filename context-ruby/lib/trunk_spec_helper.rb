@@ -47,6 +47,7 @@ module RSpec
       # decide if we want to fail the test or not
       # trunk-ignore(rubocop/Naming/AccessorMethodName,rubocop/Metrics/MethodLength,rubocop/Metrics/AbcSize)
       def set_exception(exception)
+        return set_exception_core(exception) if metadata[:pending]
         return set_exception_core(exception) if trunk_disabled
         return set_exception_core(exception) if metadata[:retry_attempts]&.positive?
 
