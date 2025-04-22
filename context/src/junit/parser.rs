@@ -958,7 +958,22 @@ mod tests {
             assert_eq!(run_binding.time, report_binding.time);
             assert_eq!(run_binding.system_out, report_binding.system_out);
             assert_eq!(run_binding.system_err, report_binding.system_err);
-            //assert_eq!(run_binding.properties, report_binding.properties);
+            // check that the properties match
+            for property in run_binding.properties.iter() {
+                if let Some(report_property) = report_binding
+                    .properties
+                    .iter()
+                    .find(|p| p.name == property.name)
+                {
+                    assert_eq!(property.value, report_property.value);
+                } else {
+                    panic!("Property {} not found in report binding", property.name);
+                }
+            }
+            assert_eq!(
+                run_binding.extra().get("file"),
+                report_binding.extra().get("file")
+            );
         }
     }
 }
