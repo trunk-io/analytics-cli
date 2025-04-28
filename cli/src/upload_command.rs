@@ -160,6 +160,7 @@ pub struct UploadArgs {
         requires = "repo_head_commit_epoch",
         requires = "repo_head_author_name",
         conflicts_with = "repo_root"
+        hide = true
     )]
     pub use_uncloned_repo: bool,
 }
