@@ -59,6 +59,7 @@ impl BundleRepo {
         repo_head_branch: Option<String>,
         repo_head_commit_epoch: Option<String>,
         repo_head_author_name: Option<String>,
+        repo_head_author_email: Option<String>,
         use_uncloned_repo: bool,
     ) -> anyhow::Result<BundleRepo> {
         let current_dir = std::env::current_dir().context("failed to get current directory")?;
@@ -111,9 +112,14 @@ impl BundleRepo {
                     "Repo_head_author_name was not passed when use_uncloned_repo was set",
                 ))?;
             }
+            if repo_head_author_email.is_none() {
+                Err(anyhow::Error::msg(
+                    "Repo_head_author_email was not passed when use_uncloned_repo was set",
+                ))?;
+            }
             head_commit_author = Some((
                 repo_head_author_name.clone().unwrap_or_default(),
-                String::default(),
+                repo_head_author_email.clone().unwrap_or_default(),
             ));
         }
 

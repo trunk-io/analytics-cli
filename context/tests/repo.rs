@@ -21,6 +21,7 @@ fn test_try_read_from_root() {
         None,
         None,
         None,
+        None,
         false,
     );
 
@@ -67,6 +68,7 @@ fn test_try_read_from_root_with_url_override() {
         None,
         None,
         None,
+        None,
         false,
     );
 
@@ -107,6 +109,7 @@ fn test_try_read_from_root_with_sha_override() {
         Some(root.to_str().unwrap().to_string()),
         None,
         Some(sha.to_string()),
+        None,
         None,
         None,
         None,
@@ -156,6 +159,7 @@ fn test_try_read_from_root_with_branch_override() {
         Some(branch.to_string()),
         None,
         None,
+        None,
         false,
     );
 
@@ -198,6 +202,7 @@ fn test_try_read_from_root_with_time_override() {
         None,
         None,
         Some(epoch.to_string()),
+        None,
         None,
         false,
     );
@@ -462,6 +467,7 @@ fn test_parse_repo_shas_too_long() {
         None,
         None,
         None,
+        None,
         false,
     );
 
@@ -494,6 +500,7 @@ fn test_parse_repo_shas_too_short() {
         None,
         None,
         None,
+        None,
         false,
     );
 
@@ -517,6 +524,7 @@ fn test_uncloned_repo_uses_passed_args() {
     let branch = "mybranch";
     let epoch = Utc::now().timestamp();
     let author = "myauthor";
+    let email = "myemail@example.com";
     let bundle_repo = BundleRepo::new(
         None,
         Some(String::from(url)),
@@ -524,6 +532,7 @@ fn test_uncloned_repo_uses_passed_args() {
         Some(String::from(branch)),
         Some(epoch.to_string()),
         Some(String::from(author)),
+        Some(String::from(email)),
         true,
     );
 
@@ -547,19 +556,15 @@ fn test_uncloned_repo_uses_passed_args() {
     );
     pretty_assertions::assert_eq!(bundle_repo.repo_head_commit_epoch, epoch);
     pretty_assertions::assert_eq!(bundle_repo.repo_head_author_name, author);
+    pretty_assertions::assert_eq!(bundle_repo.repo_head_author_email, email);
 
     let repo_validation = repo::validator::validate(&bundle_repo);
     pretty_assertions::assert_eq!(repo_validation.max_level(), RepoValidationLevel::SubOptimal);
     pretty_assertions::assert_eq!(
         repo_validation.issues(),
-        &[
-            RepoValidationIssue::SubOptimal(
-                RepoValidationIssueSubOptimal::RepoAuthorEmailTooShort(String::from(""))
-            ),
-            RepoValidationIssue::SubOptimal(
-                RepoValidationIssueSubOptimal::RepoCommitMessageTooShort(String::from(""))
-            ),
-        ]
+        &[RepoValidationIssue::SubOptimal(
+            RepoValidationIssueSubOptimal::RepoCommitMessageTooShort(String::from(""))
+        ),]
     );
 }
 
@@ -569,6 +574,7 @@ fn test_uncloned_repo_without_epoch_falls_back_to_now() {
     let sha = "992414234aaac";
     let branch = "mybranch";
     let author = "myauthor";
+    let email = "myemail@example.com";
     let bundle_repo = BundleRepo::new(
         None,
         Some(String::from(url)),
@@ -576,6 +582,7 @@ fn test_uncloned_repo_without_epoch_falls_back_to_now() {
         Some(String::from(branch)),
         None,
         Some(String::from(author)),
+        Some(String::from(email)),
         true,
     );
 
@@ -599,19 +606,15 @@ fn test_uncloned_repo_without_epoch_falls_back_to_now() {
     );
     assert!(bundle_repo.repo_head_commit_epoch > 0);
     pretty_assertions::assert_eq!(bundle_repo.repo_head_author_name, author);
+    pretty_assertions::assert_eq!(bundle_repo.repo_head_author_email, email);
 
     let repo_validation = repo::validator::validate(&bundle_repo);
     pretty_assertions::assert_eq!(repo_validation.max_level(), RepoValidationLevel::SubOptimal);
     pretty_assertions::assert_eq!(
         repo_validation.issues(),
-        &[
-            RepoValidationIssue::SubOptimal(
-                RepoValidationIssueSubOptimal::RepoAuthorEmailTooShort(String::from(""))
-            ),
-            RepoValidationIssue::SubOptimal(
-                RepoValidationIssueSubOptimal::RepoCommitMessageTooShort(String::from(""))
-            ),
-        ]
+        &[RepoValidationIssue::SubOptimal(
+            RepoValidationIssueSubOptimal::RepoCommitMessageTooShort(String::from(""))
+        ),]
     );
 }
 
@@ -620,12 +623,34 @@ fn test_uncloned_repo_without_author_bails() {
     let url = "https://myhost.com/myorg/myrepo";
     let sha = "992414234aaac";
     let branch = "mybranch";
+    let email = "myemail@example.com";
     let bundle_repo = BundleRepo::new(
         None,
         Some(String::from(url)),
         Some(String::from(sha)),
         Some(String::from(branch)),
         None,
+        None,
+        Some(String::from(email)),
+        true,
+    );
+
+    assert!(bundle_repo.is_err());
+}
+
+#[test]
+fn test_uncloned_repo_without_email_bails() {
+    let url = "https://myhost.com/myorg/myrepo";
+    let sha = "992414234aaac";
+    let branch = "mybranch";
+    let author = "myauthor";
+    let bundle_repo = BundleRepo::new(
+        None,
+        Some(String::from(url)),
+        Some(String::from(sha)),
+        Some(String::from(branch)),
+        None,
+        Some(String::from(author)),
         None,
         true,
     );
@@ -639,6 +664,7 @@ fn test_uncloned_repo_with_missing_url_bails() {
     let branch = "mybranch";
     let epoch = "114342342";
     let author = "myauthor";
+    let email = "myemail@example.com";
     let bundle_repo = BundleRepo::new(
         None,
         None,
@@ -646,6 +672,7 @@ fn test_uncloned_repo_with_missing_url_bails() {
         Some(String::from(branch)),
         Some(String::from(epoch)),
         Some(String::from(author)),
+        Some(String::from(email)),
         true,
     );
 
@@ -658,6 +685,7 @@ fn test_uncloned_repo_with_missing_sha_bails() {
     let branch = "mybranch";
     let epoch = "114342342";
     let author = "myauthor";
+    let email = "myemail@example.com";
     let bundle_repo = BundleRepo::new(
         None,
         Some(String::from(url)),
@@ -665,6 +693,7 @@ fn test_uncloned_repo_with_missing_sha_bails() {
         Some(String::from(branch)),
         Some(String::from(epoch)),
         Some(String::from(author)),
+        Some(String::from(email)),
         true,
     );
 
@@ -677,6 +706,7 @@ fn test_uncloned_repo_with_missing_branch_bails() {
     let sha = "992414234aaac";
     let epoch = "114342342";
     let author = "myauthor";
+    let email = "myemail@example.com";
     let bundle_repo = BundleRepo::new(
         None,
         Some(String::from(url)),
@@ -684,6 +714,7 @@ fn test_uncloned_repo_with_missing_branch_bails() {
         None,
         Some(String::from(epoch)),
         Some(String::from(author)),
+        Some(String::from(email)),
         true,
     );
 

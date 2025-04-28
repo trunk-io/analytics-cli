@@ -148,6 +148,14 @@ pub struct UploadArgs {
     pub repo_head_author_name: Option<String>,
     #[arg(
         long,
+        help = "Value to set the email of the author of the commit being tested.",
+        required = false,
+        num_args = 1,
+        hide = true
+    )]
+    pub repo_head_author_email: Option<String>,
+    #[arg(
+        long,
         help = "Set when you want to upload to a repository which is not available in your filesystem.",
         required = false,
         require_equals = false,
@@ -159,7 +167,8 @@ pub struct UploadArgs {
         requires = "repo_head_branch",
         requires = "repo_head_commit_epoch",
         requires = "repo_head_author_name",
-        conflicts_with = "repo_root"
+        requires = "repo_head_author_email",
+        conflicts_with = "repo_root",
         hide = true
     )]
     pub use_uncloned_repo: bool,
