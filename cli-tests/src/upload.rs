@@ -974,13 +974,20 @@ async fn test_can_upload_with_uncloned_repo() {
     let reader = BufReader::new(file);
     let bundle_meta: BundleMeta = serde_json::from_reader(reader).unwrap();
 
+    let expected_repo_root = String::from(
+        fs::canonicalize(temp_dir.path())
+            .expect("Could not canonicalize temp dir")
+            .as_os_str()
+            .to_str()
+            .unwrap(),
+    );
     let expected = BundleRepo {
         repo: RepoUrlParts {
             host: String::from("github.com"),
             owner: String::from("my-org"),
             name: String::from("my-repo"),
         },
-        repo_root: String::from(temp_dir.path().as_os_str().to_str().unwrap()),
+        repo_root: expected_repo_root,
         repo_url: String::from(repo_url),
         repo_head_sha: String::from(sha),
         repo_head_sha_short: Some(String::from("1234567")),
@@ -1141,13 +1148,20 @@ async fn test_can_use_manual_overrides_on_cloned_repo() {
     let reader = BufReader::new(file);
     let bundle_meta: BundleMeta = serde_json::from_reader(reader).unwrap();
 
+    let expected_repo_root = String::from(
+        fs::canonicalize(temp_dir.path())
+            .expect("Could not canonicalize temp dir")
+            .as_os_str()
+            .to_str()
+            .unwrap(),
+    );
     let expected = BundleRepo {
         repo: RepoUrlParts {
             host: String::from("github.com"),
             owner: String::from("my-org"),
             name: String::from("my-repo"),
         },
-        repo_root: String::from(temp_dir.path().as_os_str().to_str().unwrap()),
+        repo_root: expected_repo_root,
         repo_url: String::from(repo_url),
         repo_head_sha: String::from(sha),
         repo_head_sha_short: Some(String::from("1234567")),
