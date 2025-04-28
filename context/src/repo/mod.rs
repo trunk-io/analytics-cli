@@ -88,25 +88,25 @@ impl BundleRepo {
                 }
             }
 
-            if let None = bundle_repo_options.repo_url {
+            if bundle_repo_options.repo_url.is_none() {
                 Err(anyhow::Error::msg(
                     "Repo_url was not passed when use_uncloned_repo was set",
                 ))?;
             }
 
-            if let None = bundle_repo_options.repo_head_sha {
+            if bundle_repo_options.repo_head_sha.is_none() {
                 Err(anyhow::Error::msg(
                     "Repo_head_sha was not passed when use_uncloned_repo was set",
                 ))?;
             }
 
-            if let None = bundle_repo_options.repo_head_branch {
+            if bundle_repo_options.repo_head_branch.is_none() {
                 Err(anyhow::Error::msg(
                     "Repo_head_branch was not passed when use_uncloned_repo was set",
                 ))?;
             }
 
-            if let None = repo_head_author_name {
+            if repo_head_author_name.is_none() {
                 Err(anyhow::Error::msg(
                     "Repo_head_author_name was not passed when use_uncloned_repo was set",
                 ))?;

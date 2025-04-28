@@ -537,7 +537,7 @@ fn test_uncloned_repo_uses_passed_args() {
     };
 
     pretty_assertions::assert_eq!(bundle_repo.repo, actual_repo);
-    assert!(bundle_repo.repo_root.len() > 0);
+    assert!(!bundle_repo.repo_root.is_empty());
     pretty_assertions::assert_eq!(bundle_repo.repo_url, url);
     pretty_assertions::assert_eq!(bundle_repo.repo_head_branch, branch);
     pretty_assertions::assert_eq!(bundle_repo.repo_head_sha, sha);
@@ -589,7 +589,7 @@ fn test_uncloned_repo_without_epoch_falls_back_to_now() {
     };
 
     pretty_assertions::assert_eq!(bundle_repo.repo, actual_repo);
-    assert!(bundle_repo.repo_root.len() > 0);
+    assert!(!bundle_repo.repo_root.is_empty());
     pretty_assertions::assert_eq!(bundle_repo.repo_url, url);
     pretty_assertions::assert_eq!(bundle_repo.repo_head_branch, branch);
     pretty_assertions::assert_eq!(bundle_repo.repo_head_sha, sha);
