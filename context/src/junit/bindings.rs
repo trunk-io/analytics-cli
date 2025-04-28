@@ -166,15 +166,20 @@ impl From<TestCaseRun> for BindingsTestCase {
     ) -> Self {
         let started_at = started_at.unwrap_or_default();
         let timestamp = chrono::DateTime::from(started_at.clone());
-        let timestamp_micros = chrono::DateTime::from(started_at).timestamp_subsec_micros() as i64;
+        let timestamp_micros = chrono::DateTime::from(started_at).timestamp_micros();
         let time = (chrono::DateTime::from(finished_at.unwrap_or_default()) - timestamp)
             .to_std()
             .unwrap_or_default();
+        let classname = if classname.is_empty() {
+            None
+        } else {
+            Some(classname)
+        };
         let typed_status =
             TestCaseRunStatus::try_from(status).unwrap_or(TestCaseRunStatus::Unspecified);
         Self {
             name,
-            classname: Some(classname),
+            classname,
             assertions: None,
             timestamp: Some(timestamp.timestamp()),
             timestamp_micros: Some(timestamp_micros),
@@ -973,13 +978,23 @@ impl BindingsJunitReportValidation {
     }
 }
 
-#[cfg(feature = "bindings")]
-#[test]
-fn parse_quick_junit_to_bindings() {
+#[cfg(test)]
+mod tests {
     use std::io::BufReader;
 
+    use proto::test_context::test_run::{TestCaseRun, TestCaseRunStatus, TestResult};
+
+    use crate::junit::bindings::BindingsReport;
     use crate::junit::parser::JunitParser;
-    const INPUT_XML: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
+    use crate::junit::validator::{JunitValidationLevel, JunitValidationType};
+
+    #[cfg(feature = "bindings")]
+    #[test]
+    fn parse_quick_junit_to_bindings() {
+        use std::io::BufReader;
+
+        use crate::junit::parser::JunitParser;
+        const INPUT_XML: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
 <testsuites name="my-test-run" tests="2" failures="1" errors="0">
     <testsuite name="my-test-suite" file="path/to/my/test.js" tests="2" disabled="0" errors="0" failures="1">
         <testcase name="success-case">
@@ -990,193 +1005,277 @@ fn parse_quick_junit_to_bindings() {
     </testsuite>
 </testsuites>
 "#;
-    let mut junit_parser = JunitParser::new();
-    junit_parser
-        .parse(BufReader::new(INPUT_XML.as_bytes()))
-        .unwrap();
-    let reports = junit_parser.into_reports();
-    assert_eq!(reports.len(), 1);
-    let bindings_report = BindingsReport::from(reports[0].clone());
-    assert_eq!(bindings_report.name, "my-test-run");
-    assert_eq!(bindings_report.tests, 2);
-    assert_eq!(bindings_report.failures, 1);
-    assert_eq!(bindings_report.errors, 0);
-    assert_eq!(bindings_report.test_suites.len(), 1);
-    let test_suite = &bindings_report.test_suites[0];
-    assert_eq!(test_suite.name, "my-test-suite");
-    assert_eq!(test_suite.tests, 2);
-    assert_eq!(test_suite.disabled, 0);
-    assert_eq!(test_suite.errors, 0);
-    assert_eq!(test_suite.failures, 1);
-    assert_eq!(test_suite.test_cases.len(), 2);
-    let test_case1 = &test_suite.test_cases[0];
-    assert_eq!(test_case1.name, "success-case");
-    assert_eq!(test_case1.classname, None);
-    assert_eq!(test_case1.assertions, None);
-    assert_eq!(test_case1.timestamp, None);
-    assert_eq!(test_case1.timestamp_micros, None);
-    assert_eq!(test_case1.time, None);
-    assert_eq!(test_case1.system_out, None);
-    assert_eq!(test_case1.system_err, None);
-    assert_eq!(test_case1.extra.len(), 1);
-    assert_eq!(test_case1.extra["file"], "path/to/my/test.js");
-    assert_eq!(test_case1.properties.len(), 0);
-    let test_case2 = &test_suite.test_cases[1];
-    assert_eq!(test_case2.name, "failure-case");
-    assert_eq!(test_case2.classname, None);
-    assert_eq!(test_case2.assertions, None);
-    assert_eq!(test_case2.timestamp, None);
-    assert_eq!(test_case2.timestamp_micros, None);
-    assert_eq!(test_case2.time, None);
-    assert_eq!(test_case2.system_out, None);
-    assert_eq!(test_case2.system_err, None);
-    assert_eq!(test_case2.extra.len(), 1);
-    assert_eq!(test_case2.extra["file"], "path/to/my/test.js");
-    assert_eq!(test_case2.properties.len(), 0);
-}
-
-#[cfg(feature = "bindings")]
-#[test]
-fn parse_test_report_to_bindings() {
-    use prost_wkt_types::Timestamp;
-
-    use crate::junit::validator::validate;
-    let test_started_at = Timestamp {
-        seconds: 1000,
-        nanos: 0,
-    };
-    let test_finished_at = Timestamp {
-        seconds: 2000,
-        nanos: 0,
-    };
-    let test1 = TestCaseRun {
-        id: "test_id1".into(),
-        name: "test_name".into(),
-        classname: "test_classname".into(),
-        file: "test_file".into(),
-        parent_name: "test_parent_name1".into(),
-        line: 1,
-        status: TestCaseRunStatus::Success.into(),
-        attempt_number: 1,
-        started_at: Some(test_started_at.clone()),
-        finished_at: Some(test_finished_at.clone()),
-        status_output_message: "test_status_output_message".into(),
-        ..Default::default()
-    };
-
-    let test2 = TestCaseRun {
-        id: "test_id2".into(),
-        name: "test_name".into(),
-        classname: "test_classname".into(),
-        file: "test_file".into(),
-        parent_name: "test_parent_name2".into(),
-        line: 1,
-        status: TestCaseRunStatus::Failure.into(),
-        attempt_number: 1,
-        started_at: Some(test_started_at.clone()),
-        finished_at: Some(test_finished_at),
-        status_output_message: "test_status_output_message".into(),
-        ..Default::default()
-    };
-
-    let mut test_result = TestResult::default();
-    test_result.test_case_runs.push(test1.clone());
-    test_result.test_case_runs.push(test1.clone());
-    test_result.test_case_runs.push(test2.clone());
-
-    let converted_bindings: BindingsReport = test_result.into();
-    assert_eq!(converted_bindings.test_suites.len(), 2);
-    let mut test_suite1 = &converted_bindings.test_suites[0];
-    let mut test_suite2 = &converted_bindings.test_suites[1];
-    if test_suite1.name == "test_parent_name1" {
-        assert_eq!(test_suite1.tests, 2);
-        assert_eq!(test_suite2.tests, 1);
-    } else {
-        assert_eq!(test_suite1.tests, 1);
-        assert_eq!(test_suite2.tests, 2);
-        // swap them for convenience
-        (test_suite1, test_suite2) = (test_suite2, test_suite1);
+        let mut junit_parser = JunitParser::new();
+        junit_parser
+            .parse(BufReader::new(INPUT_XML.as_bytes()))
+            .unwrap();
+        let reports = junit_parser.into_reports();
+        assert_eq!(reports.len(), 1);
+        let bindings_report = BindingsReport::from(reports[0].clone());
+        assert_eq!(bindings_report.name, "my-test-run");
+        assert_eq!(bindings_report.tests, 2);
+        assert_eq!(bindings_report.failures, 1);
+        assert_eq!(bindings_report.errors, 0);
+        assert_eq!(bindings_report.test_suites.len(), 1);
+        let test_suite = &bindings_report.test_suites[0];
+        assert_eq!(test_suite.name, "my-test-suite");
+        assert_eq!(test_suite.tests, 2);
+        assert_eq!(test_suite.disabled, 0);
+        assert_eq!(test_suite.errors, 0);
+        assert_eq!(test_suite.failures, 1);
+        assert_eq!(test_suite.test_cases.len(), 2);
+        let test_case1 = &test_suite.test_cases[0];
+        assert_eq!(test_case1.name, "success-case");
+        assert_eq!(test_case1.classname, None);
+        assert_eq!(test_case1.assertions, None);
+        assert_eq!(test_case1.timestamp, None);
+        assert_eq!(test_case1.timestamp_micros, None);
+        assert_eq!(test_case1.time, None);
+        assert_eq!(test_case1.system_out, None);
+        assert_eq!(test_case1.system_err, None);
+        assert_eq!(test_case1.extra.len(), 1);
+        assert_eq!(test_case1.extra["file"], "path/to/my/test.js");
+        assert_eq!(test_case1.properties.len(), 0);
+        let test_case2 = &test_suite.test_cases[1];
+        assert_eq!(test_case2.name, "failure-case");
+        assert_eq!(test_case2.classname, None);
+        assert_eq!(test_case2.assertions, None);
+        assert_eq!(test_case2.timestamp, None);
+        assert_eq!(test_case2.timestamp_micros, None);
+        assert_eq!(test_case2.time, None);
+        assert_eq!(test_case2.system_out, None);
+        assert_eq!(test_case2.system_err, None);
+        assert_eq!(test_case2.extra.len(), 1);
+        assert_eq!(test_case2.extra["file"], "path/to/my/test.js");
+        assert_eq!(test_case2.properties.len(), 0);
     }
-    let test_case1 = &test_suite1.test_cases[0];
-    assert_eq!(test_case1.name, test1.name);
-    assert_eq!(test_case1.classname, Some(test1.classname));
-    assert_eq!(test_case1.assertions, None);
-    assert_eq!(
-        test_case1.timestamp,
-        Some(test1.started_at.clone().unwrap().seconds)
-    );
-    assert_eq!(
-        test_case1.timestamp_micros,
-        Some(test1.started_at.unwrap().nanos as i64)
-    );
-    assert_eq!(test_case1.time, Some(1000.0));
-    assert_eq!(test_case1.system_out, None);
-    assert_eq!(test_case1.system_err, None);
-    assert_eq!(test_case1.extra["id"], test1.id);
-    assert_eq!(test_case1.extra["file"], test1.file);
-    assert_eq!(test_case1.extra["line"], test1.line.to_string());
-    assert_eq!(
-        test_case1.extra["attempt_number"],
-        test1.attempt_number.to_string()
-    );
-    assert_eq!(test_case1.properties.len(), 0);
 
-    assert_eq!(test_suite2.test_cases.len(), 1);
-    let test_case2 = &test_suite2.test_cases[0];
-    assert_eq!(test_case2.name, test2.name);
-    assert_eq!(test_case2.classname, Some(test2.classname));
-    assert_eq!(test_case2.assertions, None);
-    assert_eq!(
-        test_case2.timestamp,
-        Some(test2.started_at.clone().unwrap().seconds)
-    );
-    assert_eq!(
-        test_case2.timestamp_micros,
-        Some(test2.started_at.unwrap().nanos as i64)
-    );
-    assert_eq!(test_case2.time, Some(1000.0));
-    assert_eq!(test_case2.system_out, None);
-    assert_eq!(test_case2.system_err, None);
-    assert_eq!(test_case2.extra["id"], test2.id);
-    assert_eq!(test_case2.extra["file"], test2.file);
-    assert_eq!(test_case2.extra["line"], test2.line.to_string());
-    assert_eq!(
-        test_case2.extra["attempt_number"],
-        test2.attempt_number.to_string()
-    );
-    assert_eq!(test_case2.properties.len(), 0);
+    #[cfg(feature = "bindings")]
+    #[test]
+    fn parse_test_report_to_bindings() {
+        use prost_wkt_types::Timestamp;
 
-    // verify that the test report is valid
-    let results = validate(&converted_bindings.clone().into());
-    assert_eq!(results.all_issues_flat().len(), 1);
-    results
-        .all_issues_flat()
-        .sort_by(|a, b| a.error_message.cmp(&b.error_message));
-    results
-        .all_issues_flat()
-        .iter()
-        .enumerate()
-        .for_each(|issue| {
-            assert_eq!(issue.1.level, JunitValidationLevel::SubOptimal);
-            if issue.0 == 0 {
-                assert_eq!(issue.1.error_type, JunitValidationType::Report);
-                assert_eq!(
-                    issue.1.error_message,
-                    "report has old (> 30 day(s)) timestamps"
-                );
-            } else {
-                assert_eq!(issue.1.error_type, JunitValidationType::TestCase);
-                assert_eq!(issue.1.error_message, "test case id is not a valid uuidv5");
+        use crate::junit::validator::validate;
+        let test_started_at = Timestamp {
+            seconds: 1000,
+            nanos: 0,
+        };
+        let test_finished_at = Timestamp {
+            seconds: 2000,
+            nanos: 0,
+        };
+        let test1 = TestCaseRun {
+            id: "test_id1".into(),
+            name: "test_name".into(),
+            classname: "test_classname".into(),
+            file: "test_file".into(),
+            parent_name: "test_parent_name1".into(),
+            line: 1,
+            status: TestCaseRunStatus::Success.into(),
+            attempt_number: 1,
+            started_at: Some(test_started_at.clone()),
+            finished_at: Some(test_finished_at.clone()),
+            status_output_message: "test_status_output_message".into(),
+            ..Default::default()
+        };
+
+        let test2 = TestCaseRun {
+            id: "test_id2".into(),
+            name: "test_name".into(),
+            classname: "test_classname".into(),
+            file: "test_file".into(),
+            parent_name: "test_parent_name2".into(),
+            line: 1,
+            status: TestCaseRunStatus::Failure.into(),
+            attempt_number: 1,
+            started_at: Some(test_started_at.clone()),
+            finished_at: Some(test_finished_at),
+            status_output_message: "test_status_output_message".into(),
+            ..Default::default()
+        };
+
+        let mut test_result = TestResult::default();
+        test_result.test_case_runs.push(test1.clone());
+        test_result.test_case_runs.push(test1.clone());
+        test_result.test_case_runs.push(test2.clone());
+
+        let converted_bindings: BindingsReport = test_result.into();
+        assert_eq!(converted_bindings.test_suites.len(), 2);
+        let mut test_suite1 = &converted_bindings.test_suites[0];
+        let mut test_suite2 = &converted_bindings.test_suites[1];
+        if test_suite1.name == "test_parent_name1" {
+            assert_eq!(test_suite1.tests, 2);
+            assert_eq!(test_suite2.tests, 1);
+        } else {
+            assert_eq!(test_suite1.tests, 1);
+            assert_eq!(test_suite2.tests, 2);
+            // swap them for convenience
+            (test_suite1, test_suite2) = (test_suite2, test_suite1);
+        }
+        let test_case1 = &test_suite1.test_cases[0];
+        assert_eq!(test_case1.name, test1.name);
+        assert_eq!(test_case1.classname, Some(test1.classname));
+        assert_eq!(test_case1.assertions, None);
+        assert_eq!(
+            test_case1.timestamp,
+            Some(test1.started_at.clone().unwrap().seconds)
+        );
+        assert_eq!(
+            test_case1.timestamp_micros,
+            Some(
+                test1.started_at.clone().unwrap().seconds * 1000000
+                    + test1.started_at.unwrap().nanos as i64 / 1000
+            )
+        );
+        assert_eq!(test_case1.time, Some(1000.0));
+        assert_eq!(test_case1.system_out, None);
+        assert_eq!(test_case1.system_err, None);
+        assert_eq!(test_case1.extra["id"], test1.id);
+        assert_eq!(test_case1.extra["file"], test1.file);
+        assert_eq!(test_case1.extra["line"], test1.line.to_string());
+        assert_eq!(
+            test_case1.extra["attempt_number"],
+            test1.attempt_number.to_string()
+        );
+        assert_eq!(test_case1.properties.len(), 0);
+
+        assert_eq!(test_suite2.test_cases.len(), 1);
+        let test_case2 = &test_suite2.test_cases[0];
+        assert_eq!(test_case2.name, test2.name);
+        assert_eq!(test_case2.classname, Some(test2.classname));
+        assert_eq!(test_case2.assertions, None);
+        assert_eq!(
+            test_case2.timestamp,
+            Some(test2.started_at.clone().unwrap().seconds)
+        );
+        assert_eq!(
+            test_case2.timestamp_micros,
+            Some(
+                test2.started_at.clone().unwrap().seconds * 1000000
+                    + test2.started_at.unwrap().nanos as i64 / 1000
+            )
+        );
+        assert_eq!(test_case2.time, Some(1000.0));
+        assert_eq!(test_case2.system_out, None);
+        assert_eq!(test_case2.system_err, None);
+        assert_eq!(test_case2.extra["id"], test2.id);
+        assert_eq!(test_case2.extra["file"], test2.file);
+        assert_eq!(test_case2.extra["line"], test2.line.to_string());
+        assert_eq!(
+            test_case2.extra["attempt_number"],
+            test2.attempt_number.to_string()
+        );
+        assert_eq!(test_case2.properties.len(), 0);
+
+        // verify that the test report is valid
+        let results = validate(&converted_bindings.clone().into());
+        assert_eq!(results.all_issues_flat().len(), 1);
+        results
+            .all_issues_flat()
+            .sort_by(|a, b| a.error_message.cmp(&b.error_message));
+        results
+            .all_issues_flat()
+            .iter()
+            .enumerate()
+            .for_each(|issue| {
+                assert_eq!(issue.1.level, JunitValidationLevel::SubOptimal);
+                if issue.0 == 0 {
+                    assert_eq!(issue.1.error_type, JunitValidationType::Report);
+                    assert_eq!(
+                        issue.1.error_message,
+                        "report has old (> 30 day(s)) timestamps"
+                    );
+                } else {
+                    assert_eq!(issue.1.error_type, JunitValidationType::TestCase);
+                    assert_eq!(issue.1.error_message, "test case id is not a valid uuidv5");
+                }
+            });
+        assert_eq!(results.test_suites.len(), 2);
+        assert_eq!(results.valid_test_suites.len(), 2);
+        assert_eq!(
+            results.valid_test_suites[0].test_cases.len(),
+            converted_bindings.test_suites[0].tests
+        );
+        assert_eq!(
+            results.valid_test_suites[1].test_cases.len(),
+            converted_bindings.test_suites[1].tests
+        );
+    }
+    #[cfg(feature = "bindings")]
+    #[test]
+    fn test_junit_conversion_paths() {
+        let mut junit_parser = JunitParser::new();
+        let file_contents = r#"
+        <xml version="1.0" encoding="UTF-8"?>
+        <testsuites>
+            <testsuite name="testsuite" time="0.002">
+                <testcase file="test.java" line="5" timestamp="2023-10-01T12:00:00Z" classname="test" name="test_variant_truncation1" time="0.001">
+                    <failure message="Test failed" type="java.lang.AssertionError">
+                        <![CDATA[Expected: <true> but was: <false>]]>
+                    </failure>
+                </testcase>
+                <testcase file="test.java" name="test_variant_truncation2" timestamp="2023-10-01T12:00:00Z" time="0.001" />
+            </testsuite>
+        </testsuites>
+        "#;
+        let parsed_results = junit_parser.parse(BufReader::new(file_contents.as_bytes()));
+        assert!(parsed_results.is_ok());
+
+        // Get test case runs from parser
+        let test_case_runs = junit_parser.into_test_case_runs();
+        assert_eq!(test_case_runs.len(), 2);
+
+        // Convert test case runs to bindings
+        let bindings_from_runs: Vec<crate::junit::bindings::BindingsTestCase> =
+            test_case_runs.into_iter().map(|run| run.into()).collect();
+
+        // Get reports and convert directly to bindings
+        let mut junit_parser = JunitParser::new();
+        junit_parser
+            .parse(BufReader::new(file_contents.as_bytes()))
+            .unwrap();
+        let reports = junit_parser.into_reports();
+        assert_eq!(reports.len(), 1);
+
+        let bindings_from_reports: Vec<crate::junit::bindings::BindingsTestCase> = reports[0]
+            .test_suites
+            .iter()
+            .flat_map(|suite| suite.test_cases.iter().map(|case| case.clone().into()))
+            .collect();
+
+        // Compare the two conversion paths
+        assert_eq!(bindings_from_runs.len(), bindings_from_reports.len());
+
+        for (run_binding, report_binding) in
+            bindings_from_runs.iter().zip(bindings_from_reports.iter())
+        {
+            assert_eq!(run_binding.name, report_binding.name);
+            assert_eq!(run_binding.classname, report_binding.classname);
+            assert_eq!(run_binding.status.status, report_binding.status.status);
+            assert_eq!(run_binding.timestamp, report_binding.timestamp);
+            assert_eq!(
+                run_binding.timestamp_micros,
+                report_binding.timestamp_micros
+            );
+            assert_eq!(run_binding.time, report_binding.time);
+            assert_eq!(run_binding.system_out, report_binding.system_out);
+            assert_eq!(run_binding.system_err, report_binding.system_err);
+            // check that the properties match
+            for property in run_binding.properties.iter() {
+                if let Some(report_property) = report_binding
+                    .properties
+                    .iter()
+                    .find(|p| p.name == property.name)
+                {
+                    assert_eq!(property.value, report_property.value);
+                } else {
+                    panic!("Property {} not found in report binding", property.name);
+                }
             }
-        });
-    assert_eq!(results.test_suites.len(), 2);
-    assert_eq!(results.valid_test_suites.len(), 2);
-    assert_eq!(
-        results.valid_test_suites[0].test_cases.len(),
-        converted_bindings.test_suites[0].tests
-    );
-    assert_eq!(
-        results.valid_test_suites[1].test_cases.len(),
-        converted_bindings.test_suites[1].tests
-    );
+            assert_eq!(
+                run_binding.extra().get("file"),
+                report_binding.extra().get("file")
+            );
+        }
+    }
 }
