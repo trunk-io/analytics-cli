@@ -177,7 +177,7 @@ impl MutTestReport {
             return false;
         }
         let api_client = ApiClient::new(token, org_url_slug.clone());
-        let bundle_repo = BundleRepo::new(None, None, None, None, None, None, None, false);
+        let bundle_repo = BundleRepo::new(None, None, None, None, None, None, false);
         match (api_client, bundle_repo) {
             (Ok(api_client), Ok(bundle_repo)) => {
                 let test_identifier = Test::new(

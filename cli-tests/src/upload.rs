@@ -943,7 +943,6 @@ async fn test_can_upload_with_uncloned_repo() {
     let branch = "my-branch";
     let epoch: i64 = 12341432;
     let author_name = "my-gh-username";
-    let author_email = "myemail@example.com";
 
     let assert = CommandBuilder::upload(temp_dir.path(), state.host.clone())
         .use_uncloned_repo(true)
@@ -952,7 +951,6 @@ async fn test_can_upload_with_uncloned_repo() {
         .repo_head_branch(branch)
         .repo_head_commit_epoch(epoch.to_string().as_str())
         .repo_head_author_name(author_name)
-        .repo_head_author_email(author_email)
         .command()
         .assert()
         .success();
@@ -997,7 +995,7 @@ async fn test_can_upload_with_uncloned_repo() {
         repo_head_commit_epoch: epoch,
         repo_head_commit_message: String::from(""),
         repo_head_author_name: String::from(author_name),
-        repo_head_author_email: String::from(author_email),
+        repo_head_author_email: String::from(""),
     };
     assert_eq!(bundle_meta.base_props.repo, expected);
 
@@ -1075,7 +1073,6 @@ async fn test_uncloned_repo_conflicts_with_repo_root() {
     let branch = "my-branch";
     let epoch: i64 = 12341432;
     let author_name = "my-gh-username";
-    let author_email = "myemail@example.com";
 
     let assert = CommandBuilder::upload(temp_dir.path(), state.host.clone())
         .use_uncloned_repo(true)
@@ -1085,7 +1082,6 @@ async fn test_uncloned_repo_conflicts_with_repo_root() {
         .repo_head_branch(branch)
         .repo_head_commit_epoch(epoch.to_string().as_str())
         .repo_head_author_name(author_name)
-        .repo_head_author_email(author_email)
         .command()
         .assert()
         .failure();
@@ -1124,7 +1120,6 @@ async fn test_can_use_manual_overrides_on_cloned_repo() {
     let branch = "my-branch";
     let epoch: i64 = 12341432;
     let author_name = "my-gh-username";
-    let author_email = "myemail@example.com";
 
     let assert = CommandBuilder::upload(temp_dir.path(), state.host.clone())
         .repo_url(repo_url)
@@ -1132,7 +1127,6 @@ async fn test_can_use_manual_overrides_on_cloned_repo() {
         .repo_head_branch(branch)
         .repo_head_commit_epoch(epoch.to_string().as_str())
         .repo_head_author_name(author_name)
-        .repo_head_author_email(author_email)
         .command()
         .assert()
         .success();

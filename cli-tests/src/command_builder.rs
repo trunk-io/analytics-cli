@@ -25,7 +25,6 @@ pub struct UploadArgs {
     test_process_exit_code: Option<i32>,
     use_uncloned_repo: Option<bool>,
     repo_head_author_name: Option<String>,
-    repo_head_author_email: Option<String>,
 }
 
 impl UploadArgs {
@@ -48,7 +47,6 @@ impl UploadArgs {
             test_process_exit_code: None,
             use_uncloned_repo: None,
             repo_head_author_name: None,
-            repo_head_author_email: None,
         }
     }
 
@@ -196,14 +194,6 @@ impl UploadArgs {
                 vec![
                     String::from("--repo-head-author-name"),
                     repo_head_author_name,
-                ]
-            },
-        ))
-        .chain(self.repo_head_author_email.clone().into_iter().flat_map(
-            |repo_head_author_email: String| {
-                vec![
-                    String::from("--repo-head-author-email"),
-                    repo_head_author_email,
                 ]
             },
         ))
@@ -439,22 +429,6 @@ impl CommandType {
         }
         self
     }
-
-    pub fn repo_head_author_email(&mut self, new_value: &str) -> &mut Self {
-        match self {
-            CommandType::Upload { upload_args, .. } => {
-                upload_args.repo_head_author_email = Some(String::from(new_value))
-            }
-            CommandType::Quarantine { upload_args, .. } => {
-                upload_args.repo_head_author_email = Some(String::from(new_value))
-            }
-            CommandType::Test { upload_args, .. } => {
-                upload_args.repo_head_author_email = Some(String::from(new_value))
-            }
-            CommandType::Validate { .. } => (),
-        }
-        self
-    }
 }
 
 #[derive(Clone)]
@@ -597,11 +571,6 @@ impl<'b> CommandBuilder<'b> {
 
     pub fn repo_head_author_name(&mut self, new_value: &str) -> &mut Self {
         self.command_type.repo_head_author_name(new_value);
-        self
-    }
-
-    pub fn repo_head_author_email(&mut self, new_value: &str) -> &mut Self {
-        self.command_type.repo_head_author_email(new_value);
         self
     }
 

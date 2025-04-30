@@ -75,7 +75,6 @@ pub fn gather_initial_test_context(
         repo_head_commit_epoch,
         allow_empty_test_results,
         repo_head_author_name,
-        repo_head_author_email,
         ..
     } = upload_args;
 
@@ -86,7 +85,6 @@ pub fn gather_initial_test_context(
         repo_head_branch,
         repo_head_commit_epoch,
         repo_head_author_name,
-        repo_head_author_email,
         upload_args.use_uncloned_repo,
     )?;
     tracing::debug!("Found repo state: {:?}", repo);
