@@ -139,6 +139,7 @@ class TrunkAnalyticsListener
     add_test_case(notification.example)
   end
 
+  # trunk-ignore(rubocop/Metrics/CyclomaticComplexity,rubocop/Metrics/AbcSize)
   def close(_notification)
     published = @testreport.publish
     if published && !ENV['TRUNK_LOCAL_UPLOAD_DIR']
