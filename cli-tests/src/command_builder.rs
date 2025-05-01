@@ -23,6 +23,8 @@ pub struct UploadArgs {
     allow_empty_test_results: Option<bool>,
     variant: Option<String>,
     test_process_exit_code: Option<i32>,
+    use_uncloned_repo: Option<bool>,
+    repo_head_author_name: Option<String>,
 }
 
 impl UploadArgs {
@@ -43,6 +45,8 @@ impl UploadArgs {
             allow_empty_test_results: None,
             variant: None,
             test_process_exit_code: None,
+            use_uncloned_repo: None,
+            repo_head_author_name: None,
         }
     }
 
@@ -174,6 +178,25 @@ impl UploadArgs {
                     ]
                 }),
         )
+        .chain(
+            self.use_uncloned_repo
+                .into_iter()
+                .flat_map(|use_uncloned_repo: bool| {
+                    if use_uncloned_repo {
+                        vec![String::from("--use-uncloned-repo")]
+                    } else {
+                        vec![String::from("")]
+                    }
+                }),
+        )
+        .chain(self.repo_head_author_name.clone().into_iter().flat_map(
+            |repo_head_author_name: String| {
+                vec![
+                    String::from("--repo-head-author-name"),
+                    repo_head_author_name,
+                ]
+            },
+        ))
         .collect()
     }
 }
@@ -312,6 +335,100 @@ impl CommandType {
         }
         self
     }
+
+    pub fn use_uncloned_repo(&mut self, new_flag: bool) -> &mut Self {
+        match self {
+            CommandType::Upload { upload_args, .. } => {
+                upload_args.use_uncloned_repo = Some(new_flag)
+            }
+            CommandType::Quarantine { upload_args, .. } => {
+                upload_args.use_uncloned_repo = Some(new_flag)
+            }
+            CommandType::Test { upload_args, .. } => upload_args.use_uncloned_repo = Some(new_flag),
+            CommandType::Validate { .. } => (),
+        }
+        self
+    }
+
+    pub fn repo_url(&mut self, new_value: &str) -> &mut Self {
+        match self {
+            CommandType::Upload { upload_args, .. } => {
+                upload_args.repo_url = Some(String::from(new_value))
+            }
+            CommandType::Quarantine { upload_args, .. } => {
+                upload_args.repo_url = Some(String::from(new_value))
+            }
+            CommandType::Test { upload_args, .. } => {
+                upload_args.repo_url = Some(String::from(new_value))
+            }
+            CommandType::Validate { .. } => (),
+        }
+        self
+    }
+
+    pub fn repo_head_sha(&mut self, new_value: &str) -> &mut Self {
+        match self {
+            CommandType::Upload { upload_args, .. } => {
+                upload_args.repo_head_sha = Some(String::from(new_value))
+            }
+            CommandType::Quarantine { upload_args, .. } => {
+                upload_args.repo_head_sha = Some(String::from(new_value))
+            }
+            CommandType::Test { upload_args, .. } => {
+                upload_args.repo_head_sha = Some(String::from(new_value))
+            }
+            CommandType::Validate { .. } => (),
+        }
+        self
+    }
+
+    pub fn repo_head_branch(&mut self, new_value: &str) -> &mut Self {
+        match self {
+            CommandType::Upload { upload_args, .. } => {
+                upload_args.repo_head_branch = Some(String::from(new_value))
+            }
+            CommandType::Quarantine { upload_args, .. } => {
+                upload_args.repo_head_branch = Some(String::from(new_value))
+            }
+            CommandType::Test { upload_args, .. } => {
+                upload_args.repo_head_branch = Some(String::from(new_value))
+            }
+            CommandType::Validate { .. } => (),
+        }
+        self
+    }
+
+    pub fn repo_head_commit_epoch(&mut self, new_value: &str) -> &mut Self {
+        match self {
+            CommandType::Upload { upload_args, .. } => {
+                upload_args.repo_head_commit_epoch = Some(String::from(new_value))
+            }
+            CommandType::Quarantine { upload_args, .. } => {
+                upload_args.repo_head_commit_epoch = Some(String::from(new_value))
+            }
+            CommandType::Test { upload_args, .. } => {
+                upload_args.repo_head_commit_epoch = Some(String::from(new_value))
+            }
+            CommandType::Validate { .. } => (),
+        }
+        self
+    }
+
+    pub fn repo_head_author_name(&mut self, new_value: &str) -> &mut Self {
+        match self {
+            CommandType::Upload { upload_args, .. } => {
+                upload_args.repo_head_author_name = Some(String::from(new_value))
+            }
+            CommandType::Quarantine { upload_args, .. } => {
+                upload_args.repo_head_author_name = Some(String::from(new_value))
+            }
+            CommandType::Test { upload_args, .. } => {
+                upload_args.repo_head_author_name = Some(String::from(new_value))
+            }
+            CommandType::Validate { .. } => (),
+        }
+        self
+    }
 }
 
 #[derive(Clone)]
@@ -424,6 +541,36 @@ impl<'b> CommandBuilder<'b> {
             }
             CommandType::Validate { .. } => {}
         }
+        self
+    }
+
+    pub fn use_uncloned_repo(&mut self, new_flag: bool) -> &mut Self {
+        self.command_type.use_uncloned_repo(new_flag);
+        self
+    }
+
+    pub fn repo_url(&mut self, new_value: &str) -> &mut Self {
+        self.command_type.repo_url(new_value);
+        self
+    }
+
+    pub fn repo_head_sha(&mut self, new_value: &str) -> &mut Self {
+        self.command_type.repo_head_sha(new_value);
+        self
+    }
+
+    pub fn repo_head_branch(&mut self, new_value: &str) -> &mut Self {
+        self.command_type.repo_head_branch(new_value);
+        self
+    }
+
+    pub fn repo_head_commit_epoch(&mut self, new_value: &str) -> &mut Self {
+        self.command_type.repo_head_commit_epoch(new_value);
+        self
+    }
+
+    pub fn repo_head_author_name(&mut self, new_value: &str) -> &mut Self {
+        self.command_type.repo_head_author_name(new_value);
         self
     }
 

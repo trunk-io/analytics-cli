@@ -138,6 +138,31 @@ pub struct UploadArgs {
         hide = true
     )]
     pub test_process_exit_code: Option<i32>,
+    #[arg(
+        long,
+        help = "Value to set the name of the author of the commit being tested.",
+        required = false,
+        num_args = 1,
+        hide = true
+    )]
+    pub repo_head_author_name: Option<String>,
+    #[arg(
+        long,
+        help = "Set when you want to upload to a repository which is not available in your filesystem.",
+        required = false,
+        require_equals = false,
+        num_args = 0,
+        default_value = "false",
+        default_missing_value = "true",
+        requires = "repo_url",
+        requires = "repo_head_sha",
+        requires = "repo_head_branch",
+        requires = "repo_head_commit_epoch",
+        requires = "repo_head_author_name",
+        conflicts_with = "repo_root",
+        hide = true
+    )]
+    pub use_uncloned_repo: bool,
 }
 
 impl UploadArgs {

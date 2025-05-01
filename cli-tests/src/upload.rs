@@ -10,11 +10,13 @@ use axum::http::StatusCode;
 use axum::{extract::State, Json};
 use bundle::{BundleMeta, FileSetType};
 use codeowners::CodeOwners;
+use context::repo::{BundleRepo, RepoUrlParts};
 use context::{
     bazel_bep::parser::BazelBepParser, junit::parser::JunitParser, repo::RepoUrlParts as Repo,
 };
 use lazy_static::lazy_static;
 use predicates::prelude::*;
+use pretty_assertions::assert_eq;
 use prost::Message;
 use tempfile::tempdir;
 use test_utils::{
@@ -901,6 +903,275 @@ async fn test_variant_propagation() {
     let reader = BufReader::new(file);
     let bundle_meta: BundleMeta = serde_json::from_reader(reader).unwrap();
     assert_eq!(bundle_meta.variant, Some("test-variant".to_string()));
+
+    // Fourth request should be telemetry
+    assert_matches!(
+        requests_iter.next().unwrap(),
+        RequestPayload::TelemetryUploadMetrics(_)
+    );
+
+    // HINT: View CLI output with `cargo test -- --nocapture`
+    println!("{assert}");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn test_can_upload_with_uncloned_repo() {
+    let temp_dir = tempdir().unwrap();
+    generate_mock_codeowners(&temp_dir);
+
+    let test_bep_path = get_test_file_path("test_fixtures/bep_retries");
+    let uri_fail = format!(
+        "file://{}",
+        get_test_file_path("../cli/test_fixtures/junit0_fail.xml")
+    );
+    let uri_pass = format!(
+        "file://{}",
+        get_test_file_path("../cli/test_fixtures/junit0_pass.xml")
+    );
+
+    let bep_content = fs::read_to_string(&test_bep_path)
+        .unwrap()
+        .replace("${URI_FAIL}", &uri_fail)
+        .replace("${URI_PASS}", &uri_pass);
+    let bep_path = temp_dir.path().join("bep.json");
+    fs::write(&bep_path, bep_content).unwrap();
+
+    let state = MockServerBuilder::new().spawn_mock_server().await;
+
+    let repo_url = "https://github.com/my-org/my-repo";
+    let sha = "1234567890abcde";
+    let branch = "my-branch";
+    let epoch: i64 = 12341432;
+    let author_name = "my-gh-username";
+
+    let assert = CommandBuilder::upload(temp_dir.path(), state.host.clone())
+        .use_uncloned_repo(true)
+        .repo_url(repo_url)
+        .repo_head_sha(sha)
+        .repo_head_branch(branch)
+        .repo_head_commit_epoch(epoch.to_string().as_str())
+        .repo_head_author_name(author_name)
+        .command()
+        .assert()
+        .success();
+
+    let requests = state.requests.lock().unwrap().clone();
+    assert_eq!(requests.len(), 3);
+    let mut requests_iter = requests.into_iter();
+
+    // Second request should be create bundle upload
+    assert_matches!(
+        requests_iter.next().unwrap(),
+        RequestPayload::CreateBundleUpload(_)
+    );
+
+    // Third request should be s3 upload
+    let tar_extract_directory =
+        assert_matches!(requests_iter.next().unwrap(), RequestPayload::S3Upload(d) => d);
+
+    // Verify variant in meta.json
+    let file = fs::File::open(tar_extract_directory.join("meta.json")).unwrap();
+    let reader = BufReader::new(file);
+    let bundle_meta: BundleMeta = serde_json::from_reader(reader).unwrap();
+
+    let expected_repo_root = String::from(
+        fs::canonicalize(temp_dir.path())
+            .expect("Could not canonicalize temp dir")
+            .as_os_str()
+            .to_str()
+            .unwrap(),
+    );
+    let expected = BundleRepo {
+        repo: RepoUrlParts {
+            host: String::from("github.com"),
+            owner: String::from("my-org"),
+            name: String::from("my-repo"),
+        },
+        repo_root: expected_repo_root,
+        repo_url: String::from(repo_url),
+        repo_head_sha: String::from(sha),
+        repo_head_sha_short: Some(String::from("1234567")),
+        repo_head_branch: String::from(branch),
+        repo_head_commit_epoch: epoch,
+        repo_head_commit_message: String::from(""),
+        repo_head_author_name: String::from(author_name),
+        repo_head_author_email: String::from(""),
+    };
+    assert_eq!(bundle_meta.base_props.repo, expected);
+
+    // Fourth request should be telemetry
+    assert_matches!(
+        requests_iter.next().unwrap(),
+        RequestPayload::TelemetryUploadMetrics(_)
+    );
+
+    // HINT: View CLI output with `cargo test -- --nocapture`
+    println!("{assert}");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn test_uncloned_repo_requires_manual_settings() {
+    let temp_dir = tempdir().unwrap();
+    generate_mock_codeowners(&temp_dir);
+
+    let test_bep_path = get_test_file_path("test_fixtures/bep_retries");
+    let uri_fail = format!(
+        "file://{}",
+        get_test_file_path("../cli/test_fixtures/junit0_fail.xml")
+    );
+    let uri_pass = format!(
+        "file://{}",
+        get_test_file_path("../cli/test_fixtures/junit0_pass.xml")
+    );
+
+    let bep_content = fs::read_to_string(&test_bep_path)
+        .unwrap()
+        .replace("${URI_FAIL}", &uri_fail)
+        .replace("${URI_PASS}", &uri_pass);
+    let bep_path = temp_dir.path().join("bep.json");
+    fs::write(&bep_path, bep_content).unwrap();
+
+    let state = MockServerBuilder::new().spawn_mock_server().await;
+
+    let assert = CommandBuilder::upload(temp_dir.path(), state.host.clone())
+        .use_uncloned_repo(true)
+        .command()
+        .assert()
+        .failure();
+
+    // HINT: View CLI output with `cargo test -- --nocapture`
+    println!("{assert}");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn test_uncloned_repo_conflicts_with_repo_root() {
+    let temp_dir = tempdir().unwrap();
+    generate_mock_git_repo(&temp_dir);
+    generate_mock_codeowners(&temp_dir);
+
+    let test_bep_path = get_test_file_path("test_fixtures/bep_retries");
+    let uri_fail = format!(
+        "file://{}",
+        get_test_file_path("../cli/test_fixtures/junit0_fail.xml")
+    );
+    let uri_pass = format!(
+        "file://{}",
+        get_test_file_path("../cli/test_fixtures/junit0_pass.xml")
+    );
+
+    let bep_content = fs::read_to_string(&test_bep_path)
+        .unwrap()
+        .replace("${URI_FAIL}", &uri_fail)
+        .replace("${URI_PASS}", &uri_pass);
+    let bep_path = temp_dir.path().join("bep.json");
+    fs::write(&bep_path, bep_content).unwrap();
+
+    let state = MockServerBuilder::new().spawn_mock_server().await;
+
+    let repo_url = "https://github.com/my-org/my-repo";
+    let sha = "1234567890abcde";
+    let branch = "my-branch";
+    let epoch: i64 = 12341432;
+    let author_name = "my-gh-username";
+
+    let assert = CommandBuilder::upload(temp_dir.path(), state.host.clone())
+        .use_uncloned_repo(true)
+        .repo_root("./")
+        .repo_url(repo_url)
+        .repo_head_sha(sha)
+        .repo_head_branch(branch)
+        .repo_head_commit_epoch(epoch.to_string().as_str())
+        .repo_head_author_name(author_name)
+        .command()
+        .assert()
+        .failure();
+
+    // HINT: View CLI output with `cargo test -- --nocapture`
+    println!("{assert}");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn test_can_use_manual_overrides_on_cloned_repo() {
+    let temp_dir = tempdir().unwrap();
+    generate_mock_git_repo(&temp_dir);
+    generate_mock_codeowners(&temp_dir);
+
+    let test_bep_path = get_test_file_path("test_fixtures/bep_retries");
+    let uri_fail = format!(
+        "file://{}",
+        get_test_file_path("../cli/test_fixtures/junit0_fail.xml")
+    );
+    let uri_pass = format!(
+        "file://{}",
+        get_test_file_path("../cli/test_fixtures/junit0_pass.xml")
+    );
+
+    let bep_content = fs::read_to_string(&test_bep_path)
+        .unwrap()
+        .replace("${URI_FAIL}", &uri_fail)
+        .replace("${URI_PASS}", &uri_pass);
+    let bep_path = temp_dir.path().join("bep.json");
+    fs::write(&bep_path, bep_content).unwrap();
+
+    let state = MockServerBuilder::new().spawn_mock_server().await;
+
+    let repo_url = "https://github.com/my-org/my-repo";
+    let sha = "1234567890abcde";
+    let branch = "my-branch";
+    let epoch: i64 = 12341432;
+    let author_name = "my-gh-username";
+
+    let assert = CommandBuilder::upload(temp_dir.path(), state.host.clone())
+        .repo_url(repo_url)
+        .repo_head_sha(sha)
+        .repo_head_branch(branch)
+        .repo_head_commit_epoch(epoch.to_string().as_str())
+        .repo_head_author_name(author_name)
+        .command()
+        .assert()
+        .success();
+
+    let requests = state.requests.lock().unwrap().clone();
+    assert_eq!(requests.len(), 3);
+    let mut requests_iter = requests.into_iter();
+
+    assert_matches!(
+        requests_iter.next().unwrap(),
+        RequestPayload::CreateBundleUpload(_)
+    );
+
+    let tar_extract_directory =
+        assert_matches!(requests_iter.next().unwrap(), RequestPayload::S3Upload(d) => d);
+
+    // Verify variant in meta.json
+    let file = fs::File::open(tar_extract_directory.join("meta.json")).unwrap();
+    let reader = BufReader::new(file);
+    let bundle_meta: BundleMeta = serde_json::from_reader(reader).unwrap();
+
+    let expected_repo_root = String::from(
+        fs::canonicalize(temp_dir.path())
+            .expect("Could not canonicalize temp dir")
+            .as_os_str()
+            .to_str()
+            .unwrap(),
+    );
+    let expected = BundleRepo {
+        repo: RepoUrlParts {
+            host: String::from("github.com"),
+            owner: String::from("my-org"),
+            name: String::from("my-repo"),
+        },
+        repo_root: expected_repo_root,
+        repo_url: String::from(repo_url),
+        repo_head_sha: String::from(sha),
+        repo_head_sha_short: Some(String::from("1234567")),
+        repo_head_branch: String::from(branch),
+        repo_head_commit_epoch: epoch,
+        repo_head_commit_message: String::from("Initial commit"),
+        repo_head_author_name: String::from(author_name),
+        repo_head_author_email: String::from(""),
+    };
+    assert_eq!(bundle_meta.base_props.repo, expected);
 
     // Fourth request should be telemetry
     assert_matches!(
