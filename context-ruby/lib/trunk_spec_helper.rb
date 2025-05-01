@@ -140,10 +140,15 @@ class TrunkAnalyticsListener
   end
 
   def close(_notification)
-    if @testreport.publish
+    published = @testreport.publish
+    if published && !ENV['TRUNK_LOCAL_UPLOAD_DIR']
       puts 'Flaky tests report upload complete'.green
-    else
+    elsif !published && !ENV['TRUNK_LOCAL_UPLOAD_DIR']
       puts 'Failed to publish flaky tests report'.red
+    elsif published && ENV['TRUNK_LOCAL_UPLOAD_DIR']
+      puts 'Local Flaky tests report generated'.green
+    elsif !published && ENV['TRUNK_LOCAL_UPLOAD_DIR']
+      puts 'Failed to generate local flaky tests report'.red
     end
   end
 

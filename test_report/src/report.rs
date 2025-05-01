@@ -269,12 +269,19 @@ impl MutTestReport {
         let org_url_slug = env::var("TRUNK_ORG_URL_SLUG").unwrap_or_default();
         let guard = sentry::init(release_name.into(), None);
         self.setup_logger(org_url_slug.clone());
-        let resolved_path = if let Ok(path) = self.save() {
-            path
-        } else {
-            return false;
+        let desired_path = env::var("TRUNK_LOCAL_UPLOAD_DIR").ok();
+        let resolved_path = match self.save(desired_path.clone()) {
+            Ok(path) => path,
+            Err(e) => {
+                tracing::error!("Error saving test results: {:?}", e);
+                return false;
+            }
         };
-        let resolved_path_str = resolved_path.path().to_str().unwrap_or_default();
+        if desired_path.is_some() {
+            println!("Saved test results to {:?}. Please run `trunk flakytests upload` to upload the results.", resolved_path);
+            return true;
+        }
+        let resolved_path_str = resolved_path.as_path().to_str().unwrap_or_default();
         let token = env::var("TRUNK_API_TOKEN").unwrap_or_default();
         let repo_root = env::var("REPO_ROOT").ok();
         if token.is_empty() {
@@ -351,8 +358,22 @@ impl MutTestReport {
     }
 
     // saves to local fs and returns the path
-    fn save(&self) -> Result<tempfile::NamedTempFile, anyhow::Error> {
+    fn save(&self, path: Option<String>) -> Result<std::path::PathBuf, std::io::Error> {
         let buf = self.serialize_test_result();
+        if let Some(path) = path {
+            let mut path_obj = std::path::PathBuf::from(path.clone());
+            path_obj = path_obj.join("trunk_output.bin");
+            // create directory if it doesn't exist
+            if let Some(parent) = path_obj.parent() {
+                if !parent.exists() {
+                    fs::create_dir_all(parent)?;
+                }
+            }
+            fs::write(&path_obj, buf)?;
+            return path_obj.canonicalize().map_err(|_| {
+                std::io::Error::new(std::io::ErrorKind::Other, "Failed to canonicalize path")
+            });
+        }
         let named_temp_file = tempfile::Builder::new().suffix(".bin").tempfile()?;
         fs::write(&named_temp_file, buf)?;
         // file modification uses filetime which is less precise than systemTime
@@ -360,7 +381,7 @@ impl MutTestReport {
         // when the start time ends up being after the file modification time
         let file = fs::File::open(&named_temp_file).unwrap();
         file.set_modified(SystemTime::now())?;
-        Ok(named_temp_file)
+        Ok(named_temp_file.path().to_path_buf())
     }
 
     // adds a test to the test report
