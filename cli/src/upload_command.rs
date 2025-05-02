@@ -157,7 +157,6 @@ pub struct UploadArgs {
         requires = "repo_url",
         requires = "repo_head_sha",
         requires = "repo_head_branch",
-        requires = "repo_head_commit_epoch",
         requires = "repo_head_author_name",
         conflicts_with = "repo_root",
         hide = true
