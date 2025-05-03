@@ -115,7 +115,7 @@ impl FailedTestsExtractor {
                             .map(|report| BindingsReport::from(report.clone()))
                             .collect::<Vec<BindingsReport>>()
                     }
-                    _ => {
+                    FileSetType::Internal => {
                         let mut buffer = Vec::new();
                         let result = reader.read_to_end(&mut buffer);
                         if let Err(err) = result {
@@ -127,9 +127,17 @@ impl FailedTestsExtractor {
                             continue;
                         }
                         let test_result =
-                            proto::test_context::test_run::TestResult::decode(buffer.as_slice())
-                                .unwrap();
-                        vec![BindingsReport::from(test_result)]
+                            proto::test_context::test_run::TestResult::decode(buffer.as_slice());
+                        if let Ok(test_result) = test_result {
+                            vec![BindingsReport::from(test_result)]
+                        } else {
+                            tracing::warn!(
+                                "Failed to decode file {:?} for reading: {}",
+                                base_file.original_path,
+                                test_result.unwrap_err()
+                            );
+                            continue;
+                        }
                     }
                 };
                 for report in bindings_reports {
