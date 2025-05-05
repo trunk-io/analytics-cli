@@ -269,12 +269,22 @@ impl MutTestReport {
         let org_url_slug = env::var("TRUNK_ORG_URL_SLUG").unwrap_or_default();
         let guard = sentry::init(release_name.into(), None);
         self.setup_logger(org_url_slug.clone());
-        let resolved_path = if let Ok(path) = self.save() {
-            path
-        } else {
-            return false;
+        let named_temp_file = match tempfile::Builder::new().suffix(".bin").tempfile() {
+            Ok(tempfile) => tempfile,
+            Err(e) => {
+                tracing::error!("Error creating temp file: {:?}", e);
+                return false;
+            }
         };
-        let resolved_path_str = resolved_path.path().to_str().unwrap_or_default();
+        let desired_path = named_temp_file.path().to_path_buf();
+        let resolved_path = match self.save(desired_path.clone()) {
+            Ok(path) => path,
+            Err(e) => {
+                tracing::error!("Error saving test results: {:?}", e);
+                return false;
+            }
+        };
+        let resolved_path_str = resolved_path.as_path().to_str().unwrap_or_default();
         let token = env::var("TRUNK_API_TOKEN").unwrap_or_default();
         let repo_root = env::var("REPO_ROOT").ok();
         if token.is_empty() {
@@ -351,16 +361,33 @@ impl MutTestReport {
     }
 
     // saves to local fs and returns the path
-    fn save(&self) -> Result<tempfile::NamedTempFile, anyhow::Error> {
+    fn save(&self, path_buf: std::path::PathBuf) -> Result<std::path::PathBuf, std::io::Error> {
+        // create parent directory if it doesn't exist
+        if let Some(parent) = path_buf.parent() {
+            if !parent.exists() {
+                fs::create_dir_all(parent)?;
+            }
+        }
         let buf = self.serialize_test_result();
-        let named_temp_file = tempfile::Builder::new().suffix(".bin").tempfile()?;
-        fs::write(&named_temp_file, buf)?;
+        fs::write(&path_buf, buf)?;
         // file modification uses filetime which is less precise than systemTime
         // we need to update it to the current time to avoid race conditions later down the line
         // when the start time ends up being after the file modification time
-        let file = fs::File::open(&named_temp_file).unwrap();
+        let file = fs::File::open(&path_buf).unwrap();
         file.set_modified(SystemTime::now())?;
-        Ok(named_temp_file)
+        Ok(path_buf)
+    }
+
+    // saves to local fs and returns the path
+    pub fn try_save(&self, path: String) -> bool {
+        let desired_path = std::path::PathBuf::from(path).join("trunk_output.bin");
+        match self.save(desired_path) {
+            Ok(_) => true,
+            Err(e) => {
+                tracing::warn!("Error saving test results: {:?}", e);
+                false
+            }
+        }
     }
 
     // adds a test to the test report
@@ -439,6 +466,7 @@ pub fn ruby_init(ruby: &magnus::Ruby) -> Result<(), magnus::Error> {
     test_report.define_method("to_s", magnus::method!(MutTestReport::to_string, 0))?;
     test_report.define_method("publish", magnus::method!(MutTestReport::publish, 0))?;
     test_report.define_method("add_test", magnus::method!(MutTestReport::add_test, 12))?;
+    test_report.define_method("try_save", magnus::method!(MutTestReport::try_save, 1))?;
     test_report.define_method(
         "is_quarantined",
         magnus::method!(MutTestReport::is_quarantined, 5),
