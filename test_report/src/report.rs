@@ -276,12 +276,7 @@ impl MutTestReport {
                 return false;
             }
         };
-        let trunk_local_upload_dir = env::var("TRUNK_LOCAL_UPLOAD_DIR");
-        let desired_path = trunk_local_upload_dir
-            .clone()
-            .map(std::path::PathBuf::from)
-            .map(|p| p.join("trunk_output.bin"))
-            .unwrap_or(named_temp_file.path().to_path_buf());
+        let desired_path = named_temp_file.path().to_path_buf();
         let resolved_path = match self.save(desired_path.clone()) {
             Ok(path) => path,
             Err(e) => {
@@ -289,10 +284,6 @@ impl MutTestReport {
                 return false;
             }
         };
-        if trunk_local_upload_dir.is_ok() {
-            println!("Saved test results to {:?}. Please run `trunk flakytests upload` to upload the results.", resolved_path);
-            return true;
-        }
         let resolved_path_str = resolved_path.as_path().to_str().unwrap_or_default();
         let token = env::var("TRUNK_API_TOKEN").unwrap_or_default();
         let repo_root = env::var("REPO_ROOT").ok();
@@ -387,6 +378,18 @@ impl MutTestReport {
         Ok(path_buf)
     }
 
+    // saves to local fs and returns the path
+    pub fn try_save(&self, path: String) -> bool {
+        let desired_path = std::path::PathBuf::from(path).join("trunk_output.bin");
+        match self.save(desired_path) {
+            Ok(_) => true,
+            Err(e) => {
+                tracing::warn!("Error saving test results: {:?}", e);
+                false
+            }
+        }
+    }
+
     // adds a test to the test report
     pub fn add_test(
         &self,
@@ -463,6 +466,7 @@ pub fn ruby_init(ruby: &magnus::Ruby) -> Result<(), magnus::Error> {
     test_report.define_method("to_s", magnus::method!(MutTestReport::to_string, 0))?;
     test_report.define_method("publish", magnus::method!(MutTestReport::publish, 0))?;
     test_report.define_method("add_test", magnus::method!(MutTestReport::add_test, 12))?;
+    test_report.define_method("try_save", magnus::method!(MutTestReport::try_save, 1))?;
     test_report.define_method(
         "is_quarantined",
         magnus::method!(MutTestReport::is_quarantined, 5),

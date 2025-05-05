@@ -188,3 +188,25 @@ async fn publish_test_report() {
     assert!(test_case_run.is_quarantined);
     assert_eq!(test_case_run.status_output_message, "test-message");
 }
+
+#[test]
+fn test_mut_test_report_try_save() {
+    use std::fs;
+
+    use proto::test_context::test_run::TestResult;
+    use tempfile::tempdir;
+    use test_report::report::MutTestReport;
+
+    let temp_dir = tempdir().unwrap();
+    let report = MutTestReport::new("test-origin".into(), "test-command".into());
+    let result = report.try_save(temp_dir.path().to_str().unwrap().to_string());
+    assert!(result, "try_save should return true on success");
+
+    let file_path = temp_dir.path().join("trunk_output.bin");
+    assert!(file_path.exists(), "Saved file does not exist");
+    let data = fs::read(&file_path).expect("Failed to read saved file");
+    assert!(!data.is_empty(), "Saved file is empty");
+    let deserialized = TestResult::decode(&*data).expect("Failed to decode TestResult");
+    // The default TestResult should have no test_case_runs
+    assert_eq!(deserialized.test_case_runs.len(), 0);
+}
