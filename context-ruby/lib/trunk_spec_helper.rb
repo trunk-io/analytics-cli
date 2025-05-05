@@ -45,6 +45,7 @@ module RSpec
       # RSpec uses the existance of an exception to determine if the test failed
       # We need to override this to allow us to capture the exception and then
       # decide if we want to fail the test or not
+      # trunk-ignore(rubocop/Metrics/AbcSize,rubocop/Metrics/MethodLength,rubocop/Naming/AccessorMethodName)
       def set_exception(exception)
         return set_exception_core(exception) if metadata[:pending]
         return set_exception_core(exception) if trunk_disabled
@@ -138,6 +139,7 @@ class TrunkAnalyticsListener
     add_test_case(notification.example)
   end
 
+  # trunk-ignore(rubocop/Metrics/MethodLength)
   def close(_notification)
     if ENV['TRUNK_LOCAL_UPLOAD_DIR']
       saved = @testreport.try_save(ENV['TRUNK_LOCAL_UPLOAD_DIR'])
@@ -156,6 +158,7 @@ class TrunkAnalyticsListener
     end
   end
 
+  # trunk-ignore(rubocop/Metrics/CyclomaticComplexity,rubocop/Metrics/AbcSize,rubocop/Metrics/MethodLength)
   def add_test_case(example)
     failure_message = example.exception.to_s if example.exception
     failure_message = example.metadata[:quarantined_exception].to_s if example.metadata[:quarantined_exception]
