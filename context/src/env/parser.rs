@@ -285,6 +285,7 @@ impl<'a> CIInfoParser<'a> {
     }
 
     fn parse_github_actions(&mut self) {
+        tracing::info!("WE ARE PARSING GITHUB");
         if let Some(gh_ref) = self.get_env_var("GITHUB_REF") {
             if gh_ref.starts_with("refs/pull/") {
                 let stripped_ref = gh_ref
@@ -363,6 +364,7 @@ impl<'a> CIInfoParser<'a> {
     }
 
     fn parse_gitlab_ci(&mut self) {
+        tracing::info!("WE ARE PARSING GITLAB");
         self.ci_info.job_url = self.get_env_var("CI_JOB_URL");
         if let Some(branch) = self
             .get_env_var("CI_COMMIT_REF_NAME")
