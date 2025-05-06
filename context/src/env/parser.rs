@@ -213,6 +213,7 @@ impl<'a> CIInfoParser<'a> {
     }
 
     pub fn parse(&mut self) {
+        tracing::info!("PARSING {:?}", self.ci_info.platform);
         match self.ci_info.platform {
             CIPlatform::GitHubActions => self.parse_github_actions(),
             CIPlatform::JenkinsPipeline => self.parse_jenkins_pipeline(),

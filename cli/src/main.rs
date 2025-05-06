@@ -241,7 +241,7 @@ fn setup_logger(
 // Uses a raw string to avoid needing to escape quotes in the title card. This is mostly just so you can see
 // what it looks like in code rather than needing to print.
 const TITLE_CARD: &str = r#"
-%%%%%%%%%%%  %%              %%                        %%%%%%%%%%%%                                        
+BANNERCHANGED%%%%%%%%%%%  %%              %%                        %%%%%%%%%%%%                                        
 %%           %%              %%                             %%                           ,d                
 %%           %%              %%                             %%                           %%                
 %%aaaaa      %%  ,adPPYYba,  %%   ,d%  %b       d%          %%   ,adPPYba,  ,adPPYba,  MM%%MMM  ,adPPYba,  
