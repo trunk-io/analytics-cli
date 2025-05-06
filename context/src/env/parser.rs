@@ -196,6 +196,7 @@ impl<'a> CIInfoParser<'a> {
         env_vars: &'a EnvVars,
         stable_branches: &'a [&'a str],
     ) -> Self {
+        tracing::info!("CIPARSER CREATED");
         Self {
             errors: Vec::new(),
             ci_info: CIInfo::new(platform),
@@ -618,6 +619,7 @@ pub struct EnvParser<'a> {
 
 impl<'a> EnvParser<'a> {
     pub fn new() -> Self {
+        tracing::info!("LITERALLY ANYTHING");
         Default::default()
     }
 
@@ -638,6 +640,7 @@ impl<'a> EnvParser<'a> {
     }
 
     fn parse_ci_platform(&mut self, env_vars: &'a EnvVars, stable_branches: &'a [&str]) {
+        tracing::info!("PARSE CI PLATFORM");
         self.ci_info_parser = Some(CIInfoParser::new(
             CIPlatform::from(env_vars),
             env_vars,

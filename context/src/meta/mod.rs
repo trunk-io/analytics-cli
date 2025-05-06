@@ -24,6 +24,7 @@ pub struct MetaContext {
 impl MetaContext {
     pub fn new(ci_info: &CIInfo, repo: &BundleRepo, stable_branches: &[&str]) -> Self {
         let mut enriched_ci_info = ci_info.clone();
+        tracing::info!("CI_INFO PASSED IN {:?}", ci_info);
 
         if enriched_ci_info.branch.is_none() {
             let new_branch = clean_branch(&repo.repo_head_branch);
