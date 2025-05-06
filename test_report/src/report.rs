@@ -316,7 +316,6 @@ impl MutTestReport {
             command: self.0.borrow().command.clone(),
             exec_start: Some(self.0.borrow().started_at),
             exit_code: 0,
-            num_tests: Some(self.0.borrow().test_result.test_case_runs.len()),
         };
         let result = match gather_initial_test_context(upload_args.clone(), debug_props) {
             Ok(pre_test_context) => {

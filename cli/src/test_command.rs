@@ -49,7 +49,6 @@ pub struct TestRunResult {
     pub command: String,
     pub exec_start: Option<SystemTime>,
     pub exit_code: i32,
-    pub num_tests: Option<usize>,
 }
 
 pub async fn run_test(
@@ -128,7 +127,6 @@ pub async fn run_test_command<T: AsRef<str>>(command: &[T]) -> anyhow::Result<Te
     Ok(TestRunResult {
         exit_code,
         exec_start: Some(exec_start),
-        num_tests: None,
         command: command
             .iter()
             .map(|s| s.as_ref())

@@ -1,3 +1,4 @@
+use std::io::Read;
 #[cfg(target_os = "macos")]
 use std::io::Write;
 use std::{
@@ -22,6 +23,7 @@ use context::{
     repo::BundleRepo,
 };
 use lazy_static::lazy_static;
+use prost::Message;
 use proto::test_context::test_run::TestResult;
 use regex::Regex;
 use tempfile::TempDir;
@@ -450,7 +452,7 @@ fn handle_xcresult(
 }
 
 fn parse_num_tests(file_sets: &[FileSet]) -> usize {
-    file_sets
+    let bundled_files = file_sets
         .iter()
         .flat_map(|file_set| &file_set.files)
         .filter_map(|bundled_file| {
@@ -464,11 +466,14 @@ fn parse_num_tests(file_sets: &[FileSet]) -> usize {
                 );
             }
             file.ok().map(|f| (f, bundled_file))
-        })
+        });
+
+    let junit_num_tests = bundled_files
+        .clone()
         .filter_map(|(file, bundled_file)| {
             let file_buf_reader = BufReader::new(file);
             let mut junit_parser = JunitParser::new();
-            // skip .bin files
+            // skip non xml files
             if !bundled_file.original_path.ends_with(".xml") {
                 return None;
             }
@@ -483,7 +488,35 @@ fn parse_num_tests(file_sets: &[FileSet]) -> usize {
             Some(junit_parser)
         })
         .flat_map(|junit_parser| junit_parser.into_reports())
-        .fold(0, |num_tests, report| num_tests + report.tests)
+        .fold(0, |num_tests, report| num_tests + report.tests);
+
+    let internal_num_tests = bundled_files
+        .filter_map(|(file, bundled_file)| {
+            let mut file_buf_reader = BufReader::new(file);
+            // skip non bin files
+            if !bundled_file.original_path.ends_with(".bin") {
+                return None;
+            }
+            let mut buffer = Vec::new();
+            let result = file_buf_reader.read_to_end(&mut buffer);
+            if let Err(ref e) = result {
+                tracing::warn!(
+                    "Encountered error while reading file {}: {}",
+                    bundled_file.get_print_path(),
+                    e
+                );
+                return None;
+            }
+            let test_result = proto::test_context::test_run::TestResult::decode(buffer.as_slice());
+            if let Ok(test_result) = test_result {
+                let num_tests = test_result.test_case_runs.len();
+                Some(num_tests)
+            } else {
+                None
+            }
+        })
+        .sum::<usize>();
+    junit_num_tests + internal_num_tests
 }
 
 #[cfg(test)]
