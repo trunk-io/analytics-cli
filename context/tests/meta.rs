@@ -70,7 +70,6 @@ fn valid_ci_info_and_bundle_repo() -> (CIInfo, BundleRepo) {
         (String::from("BUILDKITE"), String::from("true")),
     ]);
 
-    tracing::info!("RUNNING PARSER {:?}", env_vars);
     let mut env_parser = EnvParser::new();
     env_parser.parse(&env_vars, &[]);
 

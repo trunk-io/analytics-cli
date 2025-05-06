@@ -30,7 +30,7 @@ runs:
         GITLAB_CI: true
         CI_JOB_URL: mock_gitlab.com/${{ env.GITHUB_REPOSITORY }}/actions/runs/${{ env.GITHUB_RUN_ID }}
         GI_COMMIT_REF_NAME: ${{ env.GITHUB_REF }}
-        CI_COMMIT_BRANCH: FAKE-BRANCH #${{ env.GITHUB_HEAD_REF }}
+        CI_COMMIT_BRANCH: ${{ env.GITHUB_HEAD_REF }}
         CI_MERGE_REQUEST_SOURCE_BRANCH_NAME: ${{ env.GITHUB_REF }}
         CI_MERGE_REQUEST_IID: ${{ env.GITHUB_REF }}
         CI_COMMIT_AUTHOR: ${{ env.GITHUB_ACTOR }}
@@ -55,7 +55,7 @@ runs:
         GITLAB_CI: true
         CI_JOB_URL: mock_gitlab.com/${{ env.GITHUB_REPOSITORY }}/actions/runs/${{ env.GITHUB_RUN_ID }}
         GI_COMMIT_REF_NAME: ${{ env.GITHUB_REF }}
-        CI_COMMIT_BRANCH: FAKE-BRANCH #${{ env.GITHUB_HEAD_REF }}
+        CI_COMMIT_BRANCH: ${{ env.GITHUB_HEAD_REF }}
         CI_MERGE_REQUEST_SOURCE_BRANCH_NAME: ${{ env.GITHUB_REF }}
         CI_MERGE_REQUEST_IID: ${{ env.GITHUB_REF }}
         CI_COMMIT_AUTHOR: ${{ env.GITHUB_ACTOR }}
@@ -79,7 +79,7 @@ runs:
         GITLAB_CI: true
         CI_JOB_URL: mock_gitlab.com/${{ env.GITHUB_REPOSITORY }}/actions/runs/${{ env.GITHUB_RUN_ID }}
         GI_COMMIT_REF_NAME: ${{ env.GITHUB_REF }}
-        CI_COMMIT_BRANCH: FAKE-BRANCH #${{ env.GITHUB_HEAD_REF }}
+        CI_COMMIT_BRANCH: ${{ env.GITHUB_HEAD_REF }}
         CI_MERGE_REQUEST_SOURCE_BRANCH_NAME: ${{ env.GITHUB_REF }}
         CI_MERGE_REQUEST_IID: ${{ env.GITHUB_REF }}
         CI_COMMIT_AUTHOR: ${{ env.GITHUB_ACTOR }}
@@ -102,7 +102,7 @@ runs:
         GITLAB_CI: true
         CI_JOB_URL: mock_gitlab.com/${{ env.GITHUB_REPOSITORY }}/actions/runs/${{ env.GITHUB_RUN_ID }}
         GI_COMMIT_REF_NAME: ${{ env.GITHUB_REF }}
-        CI_COMMIT_BRANCH: FAKE-BRANCH #${{ env.GITHUB_HEAD_REF }}
+        CI_COMMIT_BRANCH: ${{ env.GITHUB_HEAD_REF }}
         CI_MERGE_REQUEST_SOURCE_BRANCH_NAME: ${{ env.GITHUB_REF }}
         CI_MERGE_REQUEST_IID: ${{ env.GITHUB_REF }}
         CI_COMMIT_AUTHOR: ${{ env.GITHUB_ACTOR }}

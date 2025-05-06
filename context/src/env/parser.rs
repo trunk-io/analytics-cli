@@ -196,7 +196,6 @@ impl<'a> CIInfoParser<'a> {
         env_vars: &'a EnvVars,
         stable_branches: &'a [&'a str],
     ) -> Self {
-        tracing::info!("CIPARSER CREATED");
         Self {
             errors: Vec::new(),
             ci_info: CIInfo::new(platform),
@@ -214,7 +213,6 @@ impl<'a> CIInfoParser<'a> {
     }
 
     pub fn parse(&mut self) {
-        tracing::info!("PARSING {:?}", self.ci_info.platform);
         match self.ci_info.platform {
             CIPlatform::GitHubActions => self.parse_github_actions(),
             CIPlatform::JenkinsPipeline => self.parse_jenkins_pipeline(),
@@ -287,7 +285,6 @@ impl<'a> CIInfoParser<'a> {
     }
 
     fn parse_github_actions(&mut self) {
-        tracing::info!("WE ARE PARSING GITHUB");
         if let Some(gh_ref) = self.get_env_var("GITHUB_REF") {
             if gh_ref.starts_with("refs/pull/") {
                 let stripped_ref = gh_ref
@@ -366,7 +363,6 @@ impl<'a> CIInfoParser<'a> {
     }
 
     fn parse_gitlab_ci(&mut self) {
-        tracing::info!("WE ARE PARSING GITLAB");
         self.ci_info.job_url = self.get_env_var("CI_JOB_URL");
         if let Some(branch) = self
             .get_env_var("CI_COMMIT_REF_NAME")
@@ -619,7 +615,6 @@ pub struct EnvParser<'a> {
 
 impl<'a> EnvParser<'a> {
     pub fn new() -> Self {
-        tracing::info!("LITERALLY ANYTHING");
         Default::default()
     }
 
@@ -632,7 +627,6 @@ impl<'a> EnvParser<'a> {
     }
 
     pub fn parse(&mut self, env_vars: &'a EnvVars, stable_branches: &'a [&str]) {
-        tracing::info!("NOT GETTING PARSING LOGS");
         self.parse_ci_platform(env_vars, stable_branches);
         if let Some(ci_info) = &mut self.ci_info_parser {
             ci_info.parse();
@@ -640,7 +634,6 @@ impl<'a> EnvParser<'a> {
     }
 
     fn parse_ci_platform(&mut self, env_vars: &'a EnvVars, stable_branches: &'a [&str]) {
-        tracing::info!("PARSE CI PLATFORM");
         self.ci_info_parser = Some(CIInfoParser::new(
             CIPlatform::from(env_vars),
             env_vars,
