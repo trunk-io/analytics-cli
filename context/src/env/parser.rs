@@ -630,6 +630,7 @@ impl<'a> EnvParser<'a> {
     }
 
     pub fn parse(&mut self, env_vars: &'a EnvVars, stable_branches: &'a [&str]) {
+        tracing::info!("NOT GETTING PARSING LOGS");
         self.parse_ci_platform(env_vars, stable_branches);
         if let Some(ci_info) = &mut self.ci_info_parser {
             ci_info.parse();
