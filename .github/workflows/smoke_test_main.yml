@@ -25,6 +25,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: christian/trunk-14827-add-test-uploads-for-fake-gitlab-repo
 
       - name: Setup Run Smoke Tests
         uses: ./.github/actions/setup_run_smoke_tests
