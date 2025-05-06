@@ -230,9 +230,6 @@ pub async fn run_upload(
         upload_args.allow_empty_test_results,
         &test_run_result,
     )?;
-    if let Some(num_tests) = test_run_result.clone().and_then(|r| r.num_tests) {
-        meta.junit_props.num_tests = num_tests;
-    }
     let temp_dir = tempfile::tempdir()?;
     let internal_bundled_file = generate_internal_file(&meta.base_props.file_sets, &temp_dir);
     if let Ok(internal_bundled_file) = internal_bundled_file {
