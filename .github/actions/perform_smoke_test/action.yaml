@@ -1,6 +1,5 @@
 name: Perform Smoke Test
 description: Runs the actual smoke tests
-#TODO secrets.TRUNK_ORG_API_TOKEN is not a real secret yet, gotta get an admin to add it to github
 
 inputs:
   cli-binary-location:
