@@ -1,0 +1,122 @@
+name: Perform Gitlab Smoke Test
+description: Runs the actual smoke tests while using env vars to mock a gitlab upload
+
+inputs:
+  cli-binary-location:
+    description: Location for the cli binary, relative to current directory. Uses x86_64-unknown-linux binaries.
+  staging-api-token:
+    description: Api token for the trunk-staging-org org on trunk-staging (should be available in secrets)
+  production-api-token:
+    description: Api token for the trunk org on trunk (should be available in secrets)
+  environment-type:
+    description: staging if you only want to run for staging, production if you only want production, both for both
+
+runs:
+  using: composite
+  steps:
+    - name: Make executable
+      shell: bash
+      run: |
+        chmod +x ${{ inputs.cli-binary-location }}
+        openssl dgst -sha256 ${{ inputs.cli-binary-location }} | awk '{print $NF}'
+        ls -l ${{ inputs.cli-binary-location }}
+
+    - name: Run tests on staging
+      if: inputs.environment-type == 'staging' || inputs.environment-type == 'both'
+      env:
+        TRUNK_PUBLIC_API_ADDRESS: https://api.trunk-staging.io
+        FAIL_TEST: true
+        GITHUB_ACTIONS: false
+        GITLAB_CI: true
+        CI_JOB_URL: mock_gitlab.com/${{ env.GITHUB_REPOSITORY }}/actions/runs/${{ env.GITHUB_RUN_ID }}
+        CI_COMMIT_REF_NAME: ${{ env.GITHUB_REF }}
+        CI_COMMIT_BRANCH: ${{ env.GITHUB_HEAD_REF }}
+        CI_MERGE_REQUEST_SOURCE_BRANCH_NAME: ${{ env.GITHUB_REF }}
+        CI_MERGE_REQUEST_IID: ${{ env.GITHUB_REF }}
+        CI_COMMIT_AUTHOR: ${{ env.GITHUB_ACTOR }}
+        CI_COMMIT_MESSAGE: mock_commit_message
+        CI_MERGE_REQUEST_TITLE: ${{ env.PR_TITLE }}
+        CI_JOB_NAME: ${{ env.GITHUB_WORKFLOW }}
+        CI_JOB_STAGE: ${{ env.GITHUB_JOB }}
+      shell: bash
+      run: |
+        ./${{ inputs.cli-binary-location }} test \
+        --org-url-slug trunk-staging-org \
+        --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
+        --token ${{ inputs.staging-api-token }} \
+        --repo-url https://gitlab.com/trunk-staging-org/analytics-cli-fake-gitlab/ \
+        cargo nextest run -p smoke-test --profile ci
+
+    - name: Run tests on production
+      if: inputs.environment-type == 'production' || inputs.environment-type == 'both'
+      env:
+        TRUNK_PUBLIC_API_ADDRESS: https://api.trunk.io
+        FAIL_TEST: true
+        GITHUB_ACTIONS: false
+        GITLAB_CI: true
+        CI_JOB_URL: mock_gitlab.com/${{ env.GITHUB_REPOSITORY }}/actions/runs/${{ env.GITHUB_RUN_ID }}
+        CI_COMMIT_REF_NAME: ${{ env.GITHUB_REF }}
+        CI_COMMIT_BRANCH: ${{ env.GITHUB_HEAD_REF }}
+        CI_MERGE_REQUEST_SOURCE_BRANCH_NAME: ${{ env.GITHUB_REF }}
+        CI_MERGE_REQUEST_IID: ${{ env.GITHUB_REF }}
+        CI_COMMIT_AUTHOR: ${{ env.GITHUB_ACTOR }}
+        CI_COMMIT_MESSAGE: mock_commit_message
+        CI_MERGE_REQUEST_TITLE: ${{ env.PR_TITLE }}
+        CI_JOB_NAME: ${{ env.GITHUB_WORKFLOW }}
+        CI_JOB_STAGE: ${{ env.GITHUB_JOB }}
+      shell: bash
+      run: |
+        ./${{ inputs.cli-binary-location }} test \
+        --org-url-slug trunk \
+        --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
+        --token ${{ inputs.production-api-token }} \
+        --repo-url https://gitlab.com/trunk-io/analytics-cli-fake-gitlab/ \
+        cargo nextest run -p smoke-test --profile ci
+
+    - name: Upload to staging
+      if: inputs.environment-type == 'staging' || inputs.environment-type == 'both'
+      env:
+        TRUNK_PUBLIC_API_ADDRESS: https://api.trunk-staging.io
+        GITHUB_ACTIONS: false
+        GITLAB_CI: true
+        CI_JOB_URL: mock_gitlab.com/${{ env.GITHUB_REPOSITORY }}/actions/runs/${{ env.GITHUB_RUN_ID }}
+        CI_COMMIT_REF_NAME: ${{ env.GITHUB_REF }}
+        CI_COMMIT_BRANCH: ${{ env.GITHUB_HEAD_REF }}
+        CI_MERGE_REQUEST_SOURCE_BRANCH_NAME: ${{ env.GITHUB_REF }}
+        CI_MERGE_REQUEST_IID: ${{ env.GITHUB_REF }}
+        CI_COMMIT_AUTHOR: ${{ env.GITHUB_ACTOR }}
+        CI_COMMIT_MESSAGE: mock_commit_message
+        CI_MERGE_REQUEST_TITLE: ${{ env.PR_TITLE }}
+        CI_JOB_NAME: ${{ env.GITHUB_WORKFLOW }}
+        CI_JOB_STAGE: ${{ env.GITHUB_JOB }}
+      shell: bash
+      run: |
+        ./${{ inputs.cli-binary-location }} upload \
+        --org-url-slug trunk-staging-org \
+        --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
+        --token ${{ inputs.staging-api-token }} \
+        --repo-url https://gitlab.com/trunk-staging-org/analytics-cli-fake-gitlab/
+
+    - name: Upload to production
+      if: inputs.environment-type == 'production' || inputs.environment-type == 'both'
+      env:
+        TRUNK_PUBLIC_API_ADDRESS: https://api.trunk.io
+        GITHUB_ACTIONS: false
+        GITLAB_CI: true
+        CI_JOB_URL: mock_gitlab.com/${{ env.GITHUB_REPOSITORY }}/actions/runs/${{ env.GITHUB_RUN_ID }}
+        CI_COMMIT_REF_NAME: ${{ env.GITHUB_REF }}
+        CI_COMMIT_BRANCH: ${{ env.GITHUB_HEAD_REF }}
+        CI_MERGE_REQUEST_SOURCE_BRANCH_NAME: ${{ env.GITHUB_REF }}
+        CI_MERGE_REQUEST_IID: ${{ env.GITHUB_REF }}
+        CI_COMMIT_AUTHOR: ${{ env.GITHUB_ACTOR }}
+        CI_COMMIT_MESSAGE: mock_commit_message
+        CI_MERGE_REQUEST_TITLE: ${{ env.PR_TITLE }}
+        CI_JOB_NAME: ${{ env.GITHUB_WORKFLOW }}
+        CI_JOB_STAGE: ${{ env.GITHUB_JOB }}
+      shell: bash
+      run: |
+        ./${{ inputs.cli-binary-location }} upload \
+        --org-url-slug trunk \
+        --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
+        --token ${{ inputs.production-api-token }} \
+        --repo-url https://gitlab.com/trunk-io/analytics-cli-fake-gitlab/
