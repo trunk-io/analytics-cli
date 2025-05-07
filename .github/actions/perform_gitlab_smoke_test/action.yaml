@@ -70,7 +70,7 @@ runs:
         --org-url-slug trunk \
         --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
         --token ${{ inputs.production-api-token }} \
-        --repo-url https://gitlab.com/trunk/analytics-cli-fake-gitlab/ \
+        --repo-url https://gitlab.com/trunk-io/analytics-cli-fake-gitlab/ \
         cargo nextest run -p smoke-test --profile ci
 
     - name: Upload to staging
@@ -119,4 +119,4 @@ runs:
         --org-url-slug trunk \
         --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
         --token ${{ inputs.production-api-token }} \
-        --repo-url https://gitlab.com/trunk/analytics-cli-fake-gitlab/
+        --repo-url https://gitlab.com/trunk-io/analytics-cli-fake-gitlab/
