@@ -136,7 +136,11 @@ jobs:
     # only empty during testing
     if: needs.perform_smoke_test.result == 'success' && github.event.inputs.release_tag != ''
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          lfs: "true"
+          fetch-depth: 0
 
       - id: download
         uses: actions/download-artifact@v4
