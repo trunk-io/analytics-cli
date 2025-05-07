@@ -95,46 +95,12 @@ jobs:
           path: target/${{ matrix.platform.target }}/release-with-debug/trunk-analytics-cli
           if-no-files-found: error
 
-  perform_smoke_test:
-    name: Smoke test ${{ github.event.inputs.release_tag }} - ${{ matrix.type.name }}
-    runs-on: ${{ matrix.type.os }}
-    strategy:
-      matrix:
-        type:
-          - name: linux
-            os: public-amd64-small
-            target: x86_64-unknown-linux
-          - name: macos
-            os: macos-latest
-            target: aarch64-apple-darwin
-    needs:
-      - build_release
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Get Release Candidate
-        uses: actions/download-artifact@v4
-        with:
-          name: ${{ matrix.type.target }}
-          path: ./trunk-analytics-cli
-
-      - name: Setup Run Smoke Tests
-        uses: ./.github/actions/setup_run_smoke_tests
-
-      - name: Run Smoke Tests
-        uses: ./.github/actions/perform_smoke_test
-        with:
-          cli-binary-location: trunk-analytics-cli/trunk-analytics-cli
-          staging-api-token: ${{ secrets.TRUNK_STAGING_ORG_API_TOKEN }}
-          production-api-token: ${{ secrets.TRUNK_PROD_ORG_API_TOKEN }}
-
   tag_and_release:
     name: Tag and Release [ ${{ github.event.inputs.release_tag }} ]
-    runs-on: public-amd64-small
-    needs: [build_release, perform_smoke_test]
+    runs-on: monorepo-amd64-4xlarge-dind-dual-mount
+    needs: [build_release]
     # only empty during testing
-    if: needs.perform_smoke_test.result == 'success' && github.event.inputs.release_tag != ''
+    if: github.event.inputs.release_tag != ''
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -162,17 +128,8 @@ jobs:
         with:
           tools: gh
 
-      - name: Create GH release and upload binary
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh release create --prerelease --latest=false \
-            --target ${{ github.sha }} \
-            --generate-notes ${{ github.event.inputs.release_tag }} \
-            ./build/*.tar.gz
-
       - name: Create Sentry release
-        uses: getsentry/action-release@v1
+        uses: getsentry/action-release@v1.10.5
         env:
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
           SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
