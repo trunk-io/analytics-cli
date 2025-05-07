@@ -29,7 +29,7 @@ runs:
         GITHUB_ACTIONS: false
         GITLAB_CI: true
         CI_JOB_URL: mock_gitlab.com/${{ env.GITHUB_REPOSITORY }}/actions/runs/${{ env.GITHUB_RUN_ID }}
-        GI_COMMIT_REF_NAME: ${{ env.GITHUB_REF }}
+        CI_COMMIT_REF_NAME: ${{ env.GITHUB_REF }}
         CI_COMMIT_BRANCH: ${{ env.GITHUB_HEAD_REF }}
         CI_MERGE_REQUEST_SOURCE_BRANCH_NAME: ${{ env.GITHUB_REF }}
         CI_MERGE_REQUEST_IID: ${{ env.GITHUB_REF }}
@@ -44,7 +44,7 @@ runs:
         --org-url-slug trunk-staging-org \
         --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
         --token ${{ inputs.staging-api-token }} \
-        --repo-url https://gitlab.com/gitlab-org/ \
+        --repo-url https://gitlab.com/trunk-staging-org/analytics-cli-fake-gitlab/ \
         cargo nextest run -p smoke-test --profile ci
 
     - name: Run tests on production
@@ -55,7 +55,7 @@ runs:
         GITHUB_ACTIONS: false
         GITLAB_CI: true
         CI_JOB_URL: mock_gitlab.com/${{ env.GITHUB_REPOSITORY }}/actions/runs/${{ env.GITHUB_RUN_ID }}
-        GI_COMMIT_REF_NAME: ${{ env.GITHUB_REF }}
+        CI_COMMIT_REF_NAME: ${{ env.GITHUB_REF }}
         CI_COMMIT_BRANCH: ${{ env.GITHUB_HEAD_REF }}
         CI_MERGE_REQUEST_SOURCE_BRANCH_NAME: ${{ env.GITHUB_REF }}
         CI_MERGE_REQUEST_IID: ${{ env.GITHUB_REF }}
@@ -70,7 +70,7 @@ runs:
         --org-url-slug trunk \
         --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
         --token ${{ inputs.production-api-token }} \
-        --repo-url https://gitlab.com/gitlab-org/ \
+        --repo-url https://gitlab.com/trunk/analytics-cli-fake-gitlab/ \
         cargo nextest run -p smoke-test --profile ci
 
     - name: Upload to staging
@@ -80,7 +80,7 @@ runs:
         GITHUB_ACTIONS: false
         GITLAB_CI: true
         CI_JOB_URL: mock_gitlab.com/${{ env.GITHUB_REPOSITORY }}/actions/runs/${{ env.GITHUB_RUN_ID }}
-        GI_COMMIT_REF_NAME: ${{ env.GITHUB_REF }}
+        CI_COMMIT_REF_NAME: ${{ env.GITHUB_REF }}
         CI_COMMIT_BRANCH: ${{ env.GITHUB_HEAD_REF }}
         CI_MERGE_REQUEST_SOURCE_BRANCH_NAME: ${{ env.GITHUB_REF }}
         CI_MERGE_REQUEST_IID: ${{ env.GITHUB_REF }}
@@ -95,7 +95,7 @@ runs:
         --org-url-slug trunk-staging-org \
         --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
         --token ${{ inputs.staging-api-token }} \
-        --repo-url https://gitlab.com/gitlab-org/
+        --repo-url https://gitlab.com/trunk-staging-org/analytics-cli-fake-gitlab/
 
     - name: Upload to production
       if: inputs.environment-type == 'production' || inputs.environment-type == 'both'
@@ -104,7 +104,7 @@ runs:
         GITHUB_ACTIONS: false
         GITLAB_CI: true
         CI_JOB_URL: mock_gitlab.com/${{ env.GITHUB_REPOSITORY }}/actions/runs/${{ env.GITHUB_RUN_ID }}
-        GI_COMMIT_REF_NAME: ${{ env.GITHUB_REF }}
+        CI_COMMIT_REF_NAME: ${{ env.GITHUB_REF }}
         CI_COMMIT_BRANCH: ${{ env.GITHUB_HEAD_REF }}
         CI_MERGE_REQUEST_SOURCE_BRANCH_NAME: ${{ env.GITHUB_REF }}
         CI_MERGE_REQUEST_IID: ${{ env.GITHUB_REF }}
@@ -119,4 +119,4 @@ runs:
         --org-url-slug trunk \
         --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
         --token ${{ inputs.production-api-token }} \
-        --repo-url https://gitlab.com/gitlab-org/
+        --repo-url https://gitlab.com/trunk/analytics-cli-fake-gitlab/
