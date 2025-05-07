@@ -147,7 +147,6 @@ impl ApiClient {
         &self,
         request: &message::GetQuarantineConfigRequest,
     ) -> anyhow::Result<message::GetQuarantineConfigResponse> {
-        tracing::info!("Getting quarantining config with request {:?}", request);
         CallApi {
             action: || async {
                 let response = self
@@ -189,7 +188,6 @@ impl ApiClient {
         &self,
         request: &message::ListQuarantinedTestsRequest,
     ) -> anyhow::Result<message::ListQuarantinedTestsResponse> {
-        tracing::info!("Listing quarantined tests with request {:?}", request);
         CallApi {
             action: || async {
                 let response = self

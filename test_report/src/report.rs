@@ -228,7 +228,6 @@ impl MutTestReport {
                 .build()
                 .unwrap()
                 .block_on(api_client.list_quarantined_tests(&request));
-            tracing::info!("list quarantined tests response was {:?}", response);
             match response {
                 Ok(response) => {
                     for test in response.quarantined_tests.iter() {
