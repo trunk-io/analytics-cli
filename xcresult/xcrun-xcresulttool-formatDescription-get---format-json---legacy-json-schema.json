@@ -632,6 +632,21 @@
         "_type": {
           "type": "object"
         },
+        "failureSummaries": {
+          "type": "object",
+          "properties": {
+            "_type": {
+              "type": "object"
+            },
+            "_values": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ActionTestFailureSummary"
+              }
+            }
+          },
+          "required": ["_values"]
+        },
         "summaries": {
           "type": "object",
           "properties": {
@@ -648,7 +663,7 @@
           "required": ["_values"]
         }
       },
-      "additionalProperties": false
+      "additionalProperties": true
     },
     "ActionTestPlanRunSummary": {
       "type": "object",
