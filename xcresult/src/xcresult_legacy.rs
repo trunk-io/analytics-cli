@@ -242,7 +242,7 @@ impl XCResultTestLegacy {
                                         .as_ref()
                                         .and_then(|failure_summaries| {
                                             // grab the first failure summary if there are multiple
-                                            failure_summaries.values.iter().nth(0)
+                                            failure_summaries.values.first()
                                         })
                                         .and_then(|failure_summary| {
                                             failure_summary.source_code_context.as_ref().and_then(
@@ -270,27 +270,21 @@ impl XCResultTestLegacy {
                                                                                     },
                                                                                 )
                                                                         })
+                                                                        .map(|file_path| {
+                                                                            file_path.value.clone()
+                                                                        })
                                                                 })
                                                                 .filter(|file_path| {
-                                                                    std::path::Path::new(
-                                                                        &file_path.value,
-                                                                    )
-                                                                    .extension()
-                                                                    .map(|ext| {
-                                                                        ext == "swift" || ext == "m"
-                                                                    })
-                                                                    .unwrap_or(false)
+                                                                    std::path::Path::new(&file_path)
+                                                                        .extension()
+                                                                        .map(|ext| {
+                                                                            ext == "swift"
+                                                                                || ext == "m"
+                                                                        })
+                                                                        .unwrap_or(false)
                                                                 })
                                                                 // use the last valid swift / obj-c file-path in the stack
                                                                 .last()
-                                                                .and_then(|file_path| {
-                                                                    let mut file =
-                                                                        file_path.value.clone();
-                                                                    file = file
-                                                                        .replace(" ", "%20")
-                                                                        .into();
-                                                                    Some(file)
-                                                                })
                                                         })
                                                 },
                                             )
