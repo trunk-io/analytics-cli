@@ -39,6 +39,7 @@ fn main() -> anyhow::Result<()> {
         path,
         org_url_slug.unwrap_or_default(),
         repo_url_parts.repo_full_name(),
+        true,
     )?;
     let mut junits = xcresult.generate_junits();
     let junit_count_and_first_junit = (junits.len(), junits.pop());

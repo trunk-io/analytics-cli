@@ -24,6 +24,7 @@ impl XCResult {
         path: T,
         org_url_slug: String,
         repo_full_name: String,
+        use_experimental_failure_summary: bool,
     ) -> anyhow::Result<XCResult> {
         let absolute_path = fs::canonicalize(path.as_ref()).map_err(|e| {
             anyhow::anyhow!(
@@ -32,7 +33,10 @@ impl XCResult {
                 e
             )
         })?;
-        let legacy_xcresult_tests = match XCResultTestLegacy::generate_from_object(&absolute_path) {
+        let legacy_xcresult_tests = match XCResultTestLegacy::generate_from_object(
+            &absolute_path,
+            use_experimental_failure_summary,
+        ) {
             Ok(tests) => tests,
             Err(e) => {
                 tracing::warn!(

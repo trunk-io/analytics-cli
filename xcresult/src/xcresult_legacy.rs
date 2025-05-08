@@ -24,7 +24,7 @@ pub struct XCResultTestLegacy {
 }
 
 impl XCResultTestLegacy {
-    fn find_file_in_test_summary<'a>(failure_summary_id: &'a str, path: &OsStr) -> Option<String> {
+    fn find_file_in_test_summary(failure_summary_id: &str, path: &OsStr) -> Option<String> {
         let summary = xcresulttool_get_object_id(path, failure_summary_id);
         summary.ok().and_then(|summary| {
             summary
@@ -55,7 +55,9 @@ impl XCResultTestLegacy {
                                                         |location| location.file_path.as_ref(),
                                                     )
                                                 })
-                                                .map(|file_path| file_path.value.clone())
+                                                .map(|file_path| {
+                                                    file_path.value.replace(' ', "%20")
+                                                })
                                         })
                                         .filter(|file_path| {
                                             std::path::Path::new(&file_path)
@@ -70,7 +72,10 @@ impl XCResultTestLegacy {
                 })
         })
     }
-    pub fn generate_from_object<T: AsRef<OsStr>>(path: T) -> anyhow::Result<HashMap<String, Self>> {
+    pub fn generate_from_object<T: AsRef<OsStr>>(
+        path: T,
+        use_experimental_failure_summary: bool,
+    ) -> anyhow::Result<HashMap<String, Self>> {
         let actions_invocation_record = xcresulttool_get_object(path.as_ref())?;
         let test_plans = actions_invocation_record
             .actions
@@ -279,8 +284,13 @@ impl XCResultTestLegacy {
                                     test_case_name.to_string()
                                 };
                             let failure_summary_id = node.weight.failure_summary_id;
-                            let mut file = if let Some(failure_summary_id) = failure_summary_id {
-                                Self::find_file_in_test_summary(failure_summary_id, path.as_ref())
+                            let mut file = if use_experimental_failure_summary
+                                && failure_summary_id.is_some()
+                            {
+                                Self::find_file_in_test_summary(
+                                    failure_summary_id.unwrap_or_default(),
+                                    path.as_ref(),
+                                )
                             } else {
                                 None
                             };
