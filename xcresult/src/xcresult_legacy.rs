@@ -24,6 +24,52 @@ pub struct XCResultTestLegacy {
 }
 
 impl XCResultTestLegacy {
+    fn find_file_in_test_summary<'a>(failure_summary_id: &'a str, path: &OsStr) -> Option<String> {
+        let summary = xcresulttool_get_object_id(path, failure_summary_id);
+        summary.ok().and_then(|summary| {
+            summary
+                .failure_summaries
+                .as_ref()
+                .and_then(|failure_summaries| {
+                    // grab the first failure summary if there are multiple
+                    failure_summaries.values.first()
+                })
+                .and_then(|failure_summary| {
+                    failure_summary
+                        .source_code_context
+                        .as_ref()
+                        .and_then(|source_code_context| {
+                            source_code_context
+                                .call_stack
+                                .as_ref()
+                                .and_then(|call_stack| {
+                                    call_stack
+                                        .values
+                                        .iter()
+                                        .filter_map(|call_stack| {
+                                            call_stack
+                                                .symbol_info
+                                                .as_ref()
+                                                .and_then(|symbol_info| {
+                                                    symbol_info.location.as_ref().and_then(
+                                                        |location| location.file_path.as_ref(),
+                                                    )
+                                                })
+                                                .map(|file_path| file_path.value.clone())
+                                        })
+                                        .filter(|file_path| {
+                                            std::path::Path::new(&file_path)
+                                                .extension()
+                                                .map(|ext| ext == "swift" || ext == "m")
+                                                .unwrap_or(false)
+                                        })
+                                        // use the last valid swift / obj-c file-path in the stack
+                                        .last()
+                                })
+                        })
+                })
+        })
+    }
     pub fn generate_from_object<T: AsRef<OsStr>>(path: T) -> anyhow::Result<HashMap<String, Self>> {
         let actions_invocation_record = xcresulttool_get_object(path.as_ref())?;
         let test_plans = actions_invocation_record
@@ -234,62 +280,7 @@ impl XCResultTestLegacy {
                                 };
                             let failure_summary_id = node.weight.failure_summary_id;
                             let mut file = if let Some(failure_summary_id) = failure_summary_id {
-                                let summary =
-                                    xcresulttool_get_object_id(path.as_ref(), failure_summary_id);
-                                summary.ok().and_then(|summary| {
-                                    summary
-                                        .failure_summaries
-                                        .as_ref()
-                                        .and_then(|failure_summaries| {
-                                            // grab the first failure summary if there are multiple
-                                            failure_summaries.values.first()
-                                        })
-                                        .and_then(|failure_summary| {
-                                            failure_summary.source_code_context.as_ref().and_then(
-                                                |source_code_context| {
-                                                    source_code_context
-                                                        .call_stack
-                                                        .as_ref()
-                                                        .and_then(|call_stack| {
-                                                            call_stack
-                                                                .values
-                                                                .iter()
-                                                                .filter_map(|call_stack| {
-                                                                    call_stack
-                                                                        .symbol_info
-                                                                        .as_ref()
-                                                                        .and_then(|symbol_info| {
-                                                                            symbol_info
-                                                                                .location
-                                                                                .as_ref()
-                                                                                .and_then(
-                                                                                    |location| {
-                                                                                        location
-                                                                                .file_path
-                                                                                .as_ref()
-                                                                                    },
-                                                                                )
-                                                                        })
-                                                                        .map(|file_path| {
-                                                                            file_path.value.clone()
-                                                                        })
-                                                                })
-                                                                .filter(|file_path| {
-                                                                    std::path::Path::new(&file_path)
-                                                                        .extension()
-                                                                        .map(|ext| {
-                                                                            ext == "swift"
-                                                                                || ext == "m"
-                                                                        })
-                                                                        .unwrap_or(false)
-                                                                })
-                                                                // use the last valid swift / obj-c file-path in the stack
-                                                                .last()
-                                                        })
-                                                },
-                                            )
-                                        })
-                                })
+                                Self::find_file_in_test_summary(failure_summary_id, path.as_ref())
                             } else {
                                 None
                             };
