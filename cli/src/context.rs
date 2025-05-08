@@ -77,6 +77,7 @@ pub fn gather_initial_test_context(
         repo_head_commit_epoch,
         allow_empty_test_results,
         repo_head_author_name,
+        #[cfg(target_os = "macos")]
         use_experimental_failure_summary,
         ..
     } = upload_args;
