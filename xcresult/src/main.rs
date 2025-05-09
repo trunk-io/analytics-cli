@@ -19,6 +19,8 @@ pub struct Cli {
     /// JUnit XML output file path, defaults to stdout
     #[arg(long)]
     pub output_file_path: Option<PathBuf>,
+    #[arg(long, required = false)]
+    pub use_experimental_failure_summary: bool,
 }
 
 fn main() -> anyhow::Result<()> {
@@ -31,6 +33,7 @@ fn main() -> anyhow::Result<()> {
         org_url_slug,
         repo_url,
         output_file_path,
+        use_experimental_failure_summary,
     } = Cli::parse();
     let repo_url_parts = repo_url
         .and_then(|repo_url| RepoUrlParts::from_url(&repo_url).ok())
@@ -39,7 +42,7 @@ fn main() -> anyhow::Result<()> {
         path,
         org_url_slug.unwrap_or_default(),
         repo_url_parts.repo_full_name(),
-        true,
+        use_experimental_failure_summary,
     )?;
     let mut junits = xcresult.generate_junits();
     let junit_count_and_first_junit = (junits.len(), junits.pop());
