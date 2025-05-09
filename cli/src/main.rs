@@ -27,6 +27,7 @@ struct Cli {
     pub verbose: Verbosity<InfoLevel>,
 }
 
+//Adding a comment
 impl Cli {
     pub fn debug_props(&self) -> String {
         let token = match &self.command {
