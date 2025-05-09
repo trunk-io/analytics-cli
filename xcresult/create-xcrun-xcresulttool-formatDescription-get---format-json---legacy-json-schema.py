@@ -139,15 +139,28 @@ def convert_fd_object_to_json_schema_format(
 
         json_schema_object_properties[fd_property_name] = json_schema_object
 
+    fd_type_name = fd_type["type"]["name"]
+    if fd_type_name == "ActionTestPlanRunSummaries":
+        json_schema_object_properties["failureSummaries"] = {
+            "type": "object",
+            "properties": {
+                "_type": {"type": "object"},
+                "_values": {
+                    "type": "array",
+                    "items": {"$ref": "#/$defs/ActionTestFailureSummary"},
+                },
+            },
+            "required": ["_values"],
+        }
+
     json_schema_def: Dict[str, Any] = {
         "type": "object",
         "properties": json_schema_object_properties,
-        "additionalProperties": False,
+        "additionalProperties": fd_type_name == "ActionTestPlanRunSummaries",
     }
     if len(json_schema_object_required_properties) > 0:
         json_schema_def["required"] = list(json_schema_object_required_properties)
 
-    fd_type_name = fd_type["type"]["name"]
     if fd_type_name in fd_types_inheritance_hierarchy:
         json_schema_def = {
             "type": "object",

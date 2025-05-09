@@ -24,7 +24,58 @@ pub struct XCResultTestLegacy {
 }
 
 impl XCResultTestLegacy {
-    pub fn generate_from_object<T: AsRef<OsStr>>(path: T) -> anyhow::Result<HashMap<String, Self>> {
+    fn find_file_in_test_summary(failure_summary_id: &str, path: &OsStr) -> Option<String> {
+        let summary = xcresulttool_get_object_id(path, failure_summary_id);
+        summary.ok().and_then(|summary| {
+            summary
+                .failure_summaries
+                .as_ref()
+                .and_then(|failure_summaries| {
+                    // grab the first failure summary if there are multiple
+                    failure_summaries.values.first()
+                })
+                .and_then(|failure_summary| {
+                    failure_summary
+                        .source_code_context
+                        .as_ref()
+                        .and_then(|source_code_context| {
+                            source_code_context
+                                .call_stack
+                                .as_ref()
+                                .and_then(|call_stack| {
+                                    call_stack
+                                        .values
+                                        .iter()
+                                        .filter_map(|call_stack| {
+                                            call_stack
+                                                .symbol_info
+                                                .as_ref()
+                                                .and_then(|symbol_info| {
+                                                    symbol_info.location.as_ref().and_then(
+                                                        |location| location.file_path.as_ref(),
+                                                    )
+                                                })
+                                                .map(|file_path| {
+                                                    file_path.value.replace(' ', "%20")
+                                                })
+                                        })
+                                        .filter(|file_path| {
+                                            std::path::Path::new(&file_path)
+                                                .extension()
+                                                .map(|ext| ext == "swift" || ext == "m")
+                                                .unwrap_or(false)
+                                        })
+                                        // use the last valid swift / obj-c file-path in the stack
+                                        .last()
+                                })
+                        })
+                })
+        })
+    }
+    pub fn generate_from_object<T: AsRef<OsStr>>(
+        path: T,
+        use_experimental_failure_summary: bool,
+    ) -> anyhow::Result<HashMap<String, Self>> {
         let actions_invocation_record = xcresulttool_get_object(path.as_ref())?;
         let test_plans = actions_invocation_record
             .actions
@@ -232,12 +283,25 @@ impl XCResultTestLegacy {
                                 } else {
                                     test_case_name.to_string()
                                 };
-                            let file = files.as_ref().and_then(|files| {
-                                files
-                                    .get(&test_suite_name)
-                                    .or_else(|| files.get(&Some(&formatted_test_case_name)))
-                                    .cloned()
-                            });
+                            let failure_summary_id = node.weight.failure_summary_id;
+                            let mut file = if use_experimental_failure_summary
+                                && failure_summary_id.is_some()
+                            {
+                                Self::find_file_in_test_summary(
+                                    failure_summary_id.unwrap_or_default(),
+                                    path.as_ref(),
+                                )
+                            } else {
+                                None
+                            };
+                            if file.is_none() {
+                                file = files.as_ref().and_then(|files| {
+                                    files
+                                        .get(&test_suite_name)
+                                        .or_else(|| files.get(&Some(&formatted_test_case_name)))
+                                        .cloned()
+                                })
+                            }
 
                             Some(Self {
                                 test_plan_name: String::from(*test_plan_name),
@@ -264,6 +328,7 @@ struct XCResultTestLegacyNodeRef<'a> {
     name: &'a str,
     identifier: &'a str,
     identifier_url: &'a str,
+    failure_summary_id: Option<&'a str>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -305,6 +370,18 @@ impl<'a> XCResultTestLegacyNodeTree<'a> {
                                 value: identifier_url,
                                 ..
                             }),
+                        test_status:
+                            Some(legacy_schema::String {
+                                value: test_status, ..
+                            }),
+                        summary_ref:
+                            Some(legacy_schema::Reference {
+                                id:
+                                    Some(legacy_schema::String {
+                                        value: summary_id, ..
+                                    }),
+                                ..
+                            }),
                         ..
                     },
                 ) => {
@@ -312,6 +389,11 @@ impl<'a> XCResultTestLegacyNodeTree<'a> {
                         name,
                         identifier,
                         identifier_url,
+                        failure_summary_id: if test_status != "Success" {
+                            Some(summary_id)
+                        } else {
+                            None
+                        },
                     };
                     let node_index = self.add_node(test_node);
                     if let Some(parent_node) = parent_node {
@@ -338,6 +420,7 @@ impl<'a> XCResultTestLegacyNodeTree<'a> {
                         name,
                         identifier,
                         identifier_url,
+                        failure_summary_id: None,
                     };
                     let node_index = self.add_node(test_node);
                     if let Some(ref subtests) = subtests {
@@ -366,6 +449,7 @@ impl<'a> XCResultTestLegacyNodeTree<'a> {
                         name,
                         identifier,
                         identifier_url,
+                        failure_summary_id: None,
                     };
                     let node_index = self.add_node(test_node);
                     if let Some(parent_node) = parent_node {
@@ -389,6 +473,7 @@ impl<'a> XCResultTestLegacyNodeTree<'a> {
                         name,
                         identifier,
                         identifier_url,
+                        failure_summary_id: None,
                     };
                     let node_index = self.add_node(test_node);
                     if let Some(parent_node) = parent_node {

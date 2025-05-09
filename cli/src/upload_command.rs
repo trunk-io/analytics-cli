@@ -162,6 +162,15 @@ pub struct UploadArgs {
         hide = true
     )]
     pub use_uncloned_repo: bool,
+    #[cfg(target_os = "macos")]
+    #[arg(
+        long,
+        help = "Flag to enable populating file paths from xcresult stack traces",
+        required = false,
+        num_args = 1,
+        hide = true
+    )]
+    pub use_experimental_failure_summary: bool,
 }
 
 impl UploadArgs {

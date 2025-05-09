@@ -77,6 +77,8 @@ pub fn gather_initial_test_context(
         repo_head_commit_epoch,
         allow_empty_test_results,
         repo_head_author_name,
+        #[cfg(target_os = "macos")]
+        use_experimental_failure_summary,
         ..
     } = upload_args;
 
@@ -101,6 +103,8 @@ pub fn gather_initial_test_context(
             &repo.repo,
             #[cfg(target_os = "macos")]
             org_url_slug.clone(),
+            #[cfg(target_os = "macos")]
+            use_experimental_failure_summary,
             allow_empty_test_results,
         )?;
 
@@ -261,6 +265,7 @@ fn coalesce_junit_path_wrappers(
     #[cfg(target_os = "macos")] xcresult_path: Option<String>,
     #[cfg(target_os = "macos")] repo: &RepoUrlParts,
     #[cfg(target_os = "macos")] org_url_slug: String,
+    #[cfg(target_os = "macos")] use_experimental_failure_summary: bool,
     allow_empty_test_results: bool,
 ) -> anyhow::Result<(
     Vec<JunitReportFileWithStatus>,
@@ -305,7 +310,13 @@ fn coalesce_junit_path_wrappers(
     #[cfg(target_os = "macos")]
     {
         let temp_dir = tempfile::tempdir()?;
-        let temp_paths = handle_xcresult(&temp_dir, xcresult_path, repo, org_url_slug)?;
+        let temp_paths = handle_xcresult(
+            &temp_dir,
+            xcresult_path,
+            repo,
+            org_url_slug,
+            use_experimental_failure_summary,
+        )?;
         _junit_path_wrappers_temp_dir = Some(temp_dir);
         junit_path_wrappers = [junit_path_wrappers.as_slice(), temp_paths.as_slice()].concat();
         if junit_path_wrappers.is_empty() {
@@ -415,10 +426,16 @@ fn handle_xcresult(
     xcresult_path: Option<String>,
     repo: &RepoUrlParts,
     org_url_slug: String,
+    use_experimental_failure_summary: bool,
 ) -> Result<Vec<JunitReportFileWithStatus>, anyhow::Error> {
     let mut temp_paths = Vec::new();
     if let Some(xcresult_path) = xcresult_path {
-        let xcresult = XCResult::new(xcresult_path, org_url_slug, repo.repo_full_name())?;
+        let xcresult = XCResult::new(
+            xcresult_path,
+            org_url_slug,
+            repo.repo_full_name(),
+            use_experimental_failure_summary,
+        )?;
         let junits = xcresult.generate_junits();
         if junits.is_empty() {
             return Err(anyhow::anyhow!(
