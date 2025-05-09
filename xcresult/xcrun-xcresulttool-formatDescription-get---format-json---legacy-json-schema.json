@@ -140,7 +140,7 @@
         }
       },
       "additionalProperties": false,
-      "required": ["actionResult", "buildResult", "runDestination"]
+      "required": ["runDestination", "actionResult", "buildResult"]
     },
     "ActionResult": {
       "type": "object",
@@ -180,7 +180,7 @@
         }
       },
       "additionalProperties": false,
-      "required": ["issues", "coverage", "metrics"]
+      "required": ["metrics", "coverage", "issues"]
     },
     "ActionRunDestinationRecord": {
       "type": "object",
@@ -206,9 +206,9 @@
       },
       "additionalProperties": false,
       "required": [
-        "targetSDKRecord",
+        "localComputerRecord",
         "targetDeviceRecord",
-        "localComputerRecord"
+        "targetSDKRecord"
       ]
     },
     "ActionSDKRecord": {
@@ -632,21 +632,6 @@
         "_type": {
           "type": "object"
         },
-        "failureSummaries": {
-          "type": "object",
-          "properties": {
-            "_type": {
-              "type": "object"
-            },
-            "_values": {
-              "type": "array",
-              "items": {
-                "$ref": "#/$defs/ActionTestFailureSummary"
-              }
-            }
-          },
-          "required": ["_values"]
-        },
         "summaries": {
           "type": "object",
           "properties": {
@@ -657,6 +642,21 @@
               "type": "array",
               "items": {
                 "$ref": "#/$defs/ActionTestPlanRunSummary"
+              }
+            }
+          },
+          "required": ["_values"]
+        },
+        "failureSummaries": {
+          "type": "object",
+          "properties": {
+            "_type": {
+              "type": "object"
+            },
+            "_values": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ActionTestFailureSummary"
               }
             }
           },
@@ -1116,7 +1116,7 @@
         }
       },
       "additionalProperties": false,
-      "required": ["issues", "metrics"]
+      "required": ["metrics", "issues"]
     },
     "ActivityLogAnalyzerControlFlowStep": {
       "type": "object",
