@@ -45,18 +45,25 @@ lazy_static! {
 fn test_xcresult_with_valid_path() {
     let path = TEMP_DIR_TEST_1.as_ref().join("test1.xcresult");
     let path_str = path.to_str().unwrap();
-    let xcresult = XCResult::new(path_str, ORG_URL_SLUG.clone(), REPO_FULL_NAME.clone());
-    assert!(xcresult.is_ok());
+    for use_experimental_failure_summary in [true, false] {
+        let xcresult = XCResult::new(
+            path_str,
+            ORG_URL_SLUG.clone(),
+            REPO_FULL_NAME.clone(),
+            use_experimental_failure_summary,
+        );
+        assert!(xcresult.is_ok());
 
-    let mut junits = xcresult.unwrap().generate_junits();
-    assert_eq!(junits.len(), 1);
-    let junit = junits.pop().unwrap();
-    let mut junit_writer: Vec<u8> = Vec::new();
-    junit.serialize(&mut junit_writer).unwrap();
-    pretty_assertions::assert_eq!(
-        String::from_utf8(junit_writer).unwrap(),
-        include_str!("data/test1.junit.xml")
-    );
+        let mut junits = xcresult.unwrap().generate_junits();
+        assert_eq!(junits.len(), 1);
+        let junit = junits.pop().unwrap();
+        let mut junit_writer: Vec<u8> = Vec::new();
+        junit.serialize(&mut junit_writer).unwrap();
+        pretty_assertions::assert_eq!(
+            String::from_utf8(junit_writer).unwrap(),
+            include_str!("data/test1.junit.xml")
+        );
+    }
 }
 
 #[cfg(target_os = "macos")]
@@ -64,15 +71,22 @@ fn test_xcresult_with_valid_path() {
 fn test_xcresult_with_invalid_path() {
     let path = TempDir::default().join("does-not-exist.xcresult");
     let path_str = path.to_str().unwrap();
-    let xcresult = XCResult::new(path_str, ORG_URL_SLUG.clone(), REPO_FULL_NAME.clone());
-    assert!(xcresult.is_err());
-    pretty_assertions::assert_eq!(
-        xcresult.err().unwrap().to_string(),
-        format!(
-            "failed to get absolute path for {}: No such file or directory (os error 2)",
-            path.to_string_lossy()
-        )
-    );
+    for use_experimental_failure_summary in [true, false] {
+        let xcresult = XCResult::new(
+            path_str,
+            ORG_URL_SLUG.clone(),
+            REPO_FULL_NAME.clone(),
+            use_experimental_failure_summary,
+        );
+        assert!(xcresult.is_err());
+        pretty_assertions::assert_eq!(
+            xcresult.err().unwrap().to_string(),
+            format!(
+                "failed to get absolute path for {}: No such file or directory (os error 2)",
+                path.to_string_lossy()
+            )
+        );
+    }
 }
 
 #[cfg(target_os = "macos")]
@@ -80,12 +94,19 @@ fn test_xcresult_with_invalid_path() {
 fn test_xcresult_with_invalid_xcresult() {
     let path = TEMP_DIR_TEST_3.as_ref().join("test3.xcresult");
     let path_str = path.to_str().unwrap();
-    let xcresult = XCResult::new(path_str, ORG_URL_SLUG.clone(), REPO_FULL_NAME.clone());
-    assert!(xcresult.is_err());
-    pretty_assertions::assert_eq!(
-        xcresult.err().unwrap().to_string(),
-        "failed to parse json from xcresulttool output: expected value at line 1 column 1"
-    );
+    for use_experimental_failure_summary in [true, false] {
+        let xcresult = XCResult::new(
+            path_str,
+            ORG_URL_SLUG.clone(),
+            REPO_FULL_NAME.clone(),
+            use_experimental_failure_summary,
+        );
+        assert!(xcresult.is_err());
+        pretty_assertions::assert_eq!(
+            xcresult.err().unwrap().to_string(),
+            "failed to parse json from xcresulttool output: expected value at line 1 column 1"
+        );
+    }
 }
 
 #[cfg(target_os = "macos")]
@@ -93,18 +114,25 @@ fn test_xcresult_with_invalid_xcresult() {
 fn test_complex_xcresult_with_valid_path() {
     let path = TEMP_DIR_TEST_4.as_ref().join("test4.xcresult");
     let path_str = path.to_str().unwrap();
-    let xcresult = XCResult::new(path_str, ORG_URL_SLUG.clone(), REPO_FULL_NAME.clone());
-    assert!(xcresult.is_ok());
+    for use_experimental_failure_summary in [true, false] {
+        let xcresult = XCResult::new(
+            path_str,
+            ORG_URL_SLUG.clone(),
+            REPO_FULL_NAME.clone(),
+            use_experimental_failure_summary,
+        );
+        assert!(xcresult.is_ok());
 
-    let mut junits = xcresult.unwrap().generate_junits();
-    assert_eq!(junits.len(), 1);
-    let junit = junits.pop().unwrap();
-    let mut junit_writer: Vec<u8> = Vec::new();
-    junit.serialize(&mut junit_writer).unwrap();
-    pretty_assertions::assert_eq!(
-        String::from_utf8(junit_writer).unwrap(),
-        include_str!("data/test4.junit.xml")
-    );
+        let mut junits = xcresult.unwrap().generate_junits();
+        assert_eq!(junits.len(), 1);
+        let junit = junits.pop().unwrap();
+        let mut junit_writer: Vec<u8> = Vec::new();
+        junit.serialize(&mut junit_writer).unwrap();
+        pretty_assertions::assert_eq!(
+            String::from_utf8(junit_writer).unwrap(),
+            include_str!("data/test4.junit.xml")
+        );
+    }
 }
 
 #[cfg(target_os = "macos")]
@@ -114,18 +142,25 @@ fn test_swift_without_test_suites() {
         .as_ref()
         .join("test-swift-without-test-suites.xcresult");
     let path_str = path.to_str().unwrap();
-    let xcresult = XCResult::new(path_str, ORG_URL_SLUG.clone(), REPO_FULL_NAME.clone());
-    assert!(xcresult.is_ok());
+    for use_experimental_failure_summary in [true, false] {
+        let xcresult = XCResult::new(
+            path_str,
+            ORG_URL_SLUG.clone(),
+            REPO_FULL_NAME.clone(),
+            use_experimental_failure_summary,
+        );
+        assert!(xcresult.is_ok());
 
-    let mut junits = xcresult.unwrap().generate_junits();
-    assert_eq!(junits.len(), 1);
-    let junit = junits.pop().unwrap();
-    let mut junit_writer: Vec<u8> = Vec::new();
-    junit.serialize(&mut junit_writer).unwrap();
-    pretty_assertions::assert_eq!(
-        String::from_utf8(junit_writer).unwrap(),
-        include_str!("data/test-swift-without-test-suites.junit.xml")
-    );
+        let mut junits = xcresult.unwrap().generate_junits();
+        assert_eq!(junits.len(), 1);
+        let junit = junits.pop().unwrap();
+        let mut junit_writer: Vec<u8> = Vec::new();
+        junit.serialize(&mut junit_writer).unwrap();
+        pretty_assertions::assert_eq!(
+            String::from_utf8(junit_writer).unwrap(),
+            include_str!("data/test-swift-without-test-suites.junit.xml")
+        );
+    }
 }
 
 #[cfg(target_os = "macos")]
@@ -135,18 +170,25 @@ fn test_swift_mix() {
         .as_ref()
         .join("test-swift-mix.xcresult");
     let path_str = path.to_str().unwrap();
-    let xcresult = XCResult::new(path_str, ORG_URL_SLUG.clone(), REPO_FULL_NAME.clone());
-    assert!(xcresult.is_ok());
+    for use_experimental_failure_summary in [true, false] {
+        let xcresult = XCResult::new(
+            path_str,
+            ORG_URL_SLUG.clone(),
+            REPO_FULL_NAME.clone(),
+            use_experimental_failure_summary,
+        );
+        assert!(xcresult.is_ok());
 
-    let mut junits = xcresult.unwrap().generate_junits();
-    assert_eq!(junits.len(), 1);
-    let junit = junits.pop().unwrap();
-    let mut junit_writer: Vec<u8> = Vec::new();
-    junit.serialize(&mut junit_writer).unwrap();
-    pretty_assertions::assert_eq!(
-        String::from_utf8(junit_writer).unwrap(),
-        include_str!("data/test-swift-mix.junit.xml")
-    );
+        let mut junits = xcresult.unwrap().generate_junits();
+        assert_eq!(junits.len(), 1);
+        let junit = junits.pop().unwrap();
+        let mut junit_writer: Vec<u8> = Vec::new();
+        junit.serialize(&mut junit_writer).unwrap();
+        pretty_assertions::assert_eq!(
+            String::from_utf8(junit_writer).unwrap(),
+            include_str!("data/test-swift-mix.junit.xml")
+        );
+    }
 }
 
 #[cfg(target_os = "linux")]
@@ -168,16 +210,23 @@ fn test_expected_failures_xcresult_with_valid_path() {
         .as_ref()
         .join("test-ExpectedFailures.xcresult");
     let path_str = path.to_str().unwrap();
-    let xcresult = XCResult::new(path_str, ORG_URL_SLUG.clone(), REPO_FULL_NAME.clone());
-    assert!(xcresult.is_ok());
+    for use_experimental_failure_summary in [true, false] {
+        let xcresult = XCResult::new(
+            path_str,
+            ORG_URL_SLUG.clone(),
+            REPO_FULL_NAME.clone(),
+            use_experimental_failure_summary,
+        );
+        assert!(xcresult.is_ok());
 
-    let mut junits = xcresult.unwrap().generate_junits();
-    assert_eq!(junits.len(), 1);
-    let junit = junits.pop().unwrap();
-    let mut junit_writer: Vec<u8> = Vec::new();
-    junit.serialize(&mut junit_writer).unwrap();
-    pretty_assertions::assert_eq!(
-        String::from_utf8(junit_writer).unwrap(),
-        include_str!("data/test-ExpectedFailures.junit.xml")
-    );
+        let mut junits = xcresult.unwrap().generate_junits();
+        assert_eq!(junits.len(), 1);
+        let junit = junits.pop().unwrap();
+        let mut junit_writer: Vec<u8> = Vec::new();
+        junit.serialize(&mut junit_writer).unwrap();
+        pretty_assertions::assert_eq!(
+            String::from_utf8(junit_writer).unwrap(),
+            include_str!("data/test-ExpectedFailures.junit.xml")
+        );
+    }
 }
