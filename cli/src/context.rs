@@ -18,7 +18,7 @@ use constants::ENVS_TO_GET;
 #[cfg(target_os = "macos")]
 use context::repo::RepoUrlParts;
 use context::{
-    bazel_bep::parser::{BazelBepParser, BepParseResult},
+    bazel_bep::{binary_parser::BazelBepBinParser, common::BepParseResult, parser::BazelBepParser},
     junit::{junit_path::JunitReportFileWithStatus, parser::JunitParser},
     repo::BundleRepo,
 };
@@ -41,6 +41,7 @@ pub struct PreTestContext {
     pub meta: BundleMeta,
     pub junit_path_wrappers: Vec<JunitReportFileWithStatus>,
     pub bep_result: Option<BepParseResult>,
+    pub binary_bep_result: Option<BepParseResult>,
     pub junit_path_wrappers_temp_dir: Option<TempDir>,
 }
 
@@ -69,6 +70,7 @@ pub fn gather_initial_test_context(
         #[cfg(target_os = "macos")]
         xcresult_path,
         bazel_bep_path,
+        build_event_binary_file,
         org_url_slug,
         repo_root,
         repo_url,
@@ -93,7 +95,7 @@ pub fn gather_initial_test_context(
     )?;
     tracing::debug!("Found repo state: {:?}", repo);
 
-    let (junit_path_wrappers, bep_result, junit_path_wrappers_temp_dir) =
+    let (junit_path_wrappers, bep_result, binary_bep_result, junit_path_wrappers_temp_dir) =
         coalesce_junit_path_wrappers(
             junit_paths,
             bazel_bep_path,
@@ -105,6 +107,7 @@ pub fn gather_initial_test_context(
             org_url_slug.clone(),
             #[cfg(target_os = "macos")]
             use_experimental_failure_summary,
+            build_event_binary_file,
             allow_empty_test_results,
         )?;
 
@@ -159,6 +162,7 @@ pub fn gather_initial_test_context(
         meta,
         junit_path_wrappers,
         bep_result,
+        binary_bep_result,
         junit_path_wrappers_temp_dir,
     })
 }
@@ -266,9 +270,11 @@ fn coalesce_junit_path_wrappers(
     #[cfg(target_os = "macos")] repo: &RepoUrlParts,
     #[cfg(target_os = "macos")] org_url_slug: String,
     #[cfg(target_os = "macos")] use_experimental_failure_summary: bool,
+    build_event_binary_file: Option<String>,
     allow_empty_test_results: bool,
 ) -> anyhow::Result<(
     Vec<JunitReportFileWithStatus>,
+    Option<BepParseResult>,
     Option<BepParseResult>,
     Option<TempDir>,
 )> {
@@ -281,8 +287,8 @@ fn coalesce_junit_path_wrappers(
     if let Some(bazel_bep_path) = bazel_bep_path {
         let mut parser = BazelBepParser::new(&bazel_bep_path);
         let bep_parse_result = match parser.parse() {
-            Ok(result) => result,
-            Err(e) => {
+            anyhow::Result::Ok(result) => result,
+            anyhow::Result::Err(e) => {
                 if allow_empty_test_results {
                     tracing::warn!(
                         "Failed to parse Bazel BEP file at {}: {}",
@@ -292,7 +298,7 @@ fn coalesce_junit_path_wrappers(
                     tracing::warn!(
                         "Allow empty test results enabled - continuing without test results."
                     );
-                    return Ok((junit_path_wrappers, None, None));
+                    return Ok((junit_path_wrappers, None, None, None));
                 }
                 return Err(anyhow::anyhow!(
                     "Failed to parse Bazel BEP file at {}: {}",
@@ -304,6 +310,35 @@ fn coalesce_junit_path_wrappers(
         print_bep_results(&bep_parse_result);
         junit_path_wrappers = bep_parse_result.uncached_xml_files();
         bep_result = Some(bep_parse_result);
+    }
+
+    let mut binary_bep_result: Option<BepParseResult> = None;
+    if let Some(build_event_binary_file) = build_event_binary_file {
+        let mut parser = BazelBepBinParser::new(&build_event_binary_file);
+        let binary_bep_parse_result = match parser.parse() {
+            anyhow::Result::Ok(result) => result,
+            anyhow::Result::Err(e) => {
+                if allow_empty_test_results {
+                    tracing::warn!(
+                        "Failed to parse Bazel BEP binary file at {}: {}",
+                        build_event_binary_file,
+                        e
+                    );
+                    tracing::warn!(
+                        "Allow empty test results enabled - continuing without test results."
+                    );
+                    return Ok((junit_path_wrappers, None, None, None));
+                }
+                return Err(anyhow::anyhow!(
+                    "Failed to parse Bazel BEP file at {}: {}",
+                    build_event_binary_file,
+                    e
+                ));
+            }
+        };
+        print_bep_results(&binary_bep_parse_result);
+        junit_path_wrappers = binary_bep_parse_result.uncached_xml_files();
+        binary_bep_result = Some(binary_bep_parse_result);
     }
 
     let mut _junit_path_wrappers_temp_dir = None;
@@ -333,6 +368,7 @@ fn coalesce_junit_path_wrappers(
     Ok((
         junit_path_wrappers,
         bep_result,
+        binary_bep_result,
         _junit_path_wrappers_temp_dir,
     ))
 }
@@ -613,6 +649,7 @@ mod tests {
             &repo,
             #[cfg(target_os = "macos")]
             "test".into(),
+            None,
             false,
         );
         assert!(result_err.is_err());
@@ -625,6 +662,7 @@ mod tests {
             &repo,
             #[cfg(target_os = "macos")]
             "test".into(),
+            None,
             true,
         );
         assert!(result_ok.is_ok());

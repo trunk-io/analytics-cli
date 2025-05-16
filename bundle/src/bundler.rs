@@ -8,7 +8,7 @@ use async_compression::futures::bufread::ZstdDecoder;
 use async_std::{io::ReadExt, stream::StreamExt};
 use async_tar_wasm::Archive;
 use codeowners::CodeOwners;
-use context::bazel_bep::parser::BepParseResult;
+use context::bazel_bep::common::BepParseResult;
 use futures_io::AsyncBufRead;
 use tempfile::TempDir;
 #[cfg(feature = "wasm")]

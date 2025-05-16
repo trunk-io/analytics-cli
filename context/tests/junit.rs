@@ -3,7 +3,6 @@ use std::{fs, io::BufReader, time::Duration};
 use chrono::{NaiveTime, TimeDelta, Utc};
 use context::junit::{
     self,
-    parser::extra_attrs,
     parser::JunitParser,
     validator::{
         JunitTestCaseValidationIssue, JunitTestCaseValidationIssueInvalid,
