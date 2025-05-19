@@ -20,6 +20,7 @@ impl BazelBepBinParser {
     }
 
     pub fn parse(&mut self) -> anyhow::Result<BepParseResult> {
+        tracing::info!("Attempting to parse bep file as binary");
         let mut file = std::fs::File::open(&self.build_event_binary_file)?;
         let mut raw_contents = Vec::new();
         file.read_to_end(&mut raw_contents)?;

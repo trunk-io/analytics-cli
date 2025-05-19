@@ -25,8 +25,8 @@ const JUNIT_GLOB_REQUIRED_UNLESS_PRESENT_ARG: &str = "junit_paths";
 pub struct UploadArgs {
     #[arg(
         long,
-        required_unless_present_any = [JUNIT_GLOB_REQUIRED_UNLESS_PRESENT_ARG, "bazel_bep_path", "build_event_binary_file"],
-        conflicts_with_all = ["bazel_bep_path", "build_event_binary_file"],
+        required_unless_present_any = [JUNIT_GLOB_REQUIRED_UNLESS_PRESENT_ARG, "bazel_bep_path"],
+        conflicts_with = "bazel_bep_path",
         value_delimiter = ',',
         value_parser = clap::builder::NonEmptyStringValueParser::new(),
         help = "Comma-separated list of glob paths to junit files."
@@ -34,24 +34,17 @@ pub struct UploadArgs {
     pub junit_paths: Vec<String>,
     #[arg(
         long,
-        required_unless_present_any = [JUNIT_GLOB_REQUIRED_UNLESS_PRESENT_ARG, "junit_paths", "build_event_binary_file"],
-        conflicts_with_all = ["junit_paths", "build_event_binary_file"],
+        required_unless_present_any = [JUNIT_GLOB_REQUIRED_UNLESS_PRESENT_ARG, "junit_paths"],
         help = "Path to bazel build event protocol JSON file."
     )]
     pub bazel_bep_path: Option<String>,
     #[cfg(target_os = "macos")]
     #[arg(long,
-        required_unless_present_any = ["junit_paths", "bazel_bep_path", "build_event_binary_file"],
-        conflicts_with_all = ["junit_paths", "bazel_bep_path", "build_event_binary_file"],
+        required_unless_present_any = ["junit_paths", "bazel_bep_path"],
+        conflicts_with_all = ["junit_paths", "bazel_bep_path"],
         required = false, help = "Path of xcresult directory"
     )]
     pub xcresult_path: Option<String>,
-    #[arg(long,
-        required_unless_present_any = [JUNIT_GLOB_REQUIRED_UNLESS_PRESENT_ARG, "junit_paths", "bazel_bep_path"],
-        conflicts_with_all = ["junit_paths", "bazel_bep_path"],
-        help = "Path to bazel build event protocol binary file."
-    )]
-    pub build_event_binary_file: Option<String>,
     #[arg(long, help = "Organization url slug.")]
     pub org_url_slug: String,
     #[arg(
@@ -227,7 +220,6 @@ pub async fn run_upload(
         mut meta,
         junit_path_wrappers,
         bep_result,
-        binary_bep_result,
         // directory is removed on drop
         junit_path_wrappers_temp_dir: _junit_path_wrappers_temp_dir,
     } = if let Some(pre_test_context) = pre_test_context {
@@ -285,7 +277,6 @@ pub async fn run_upload(
         meta.clone(),
         &api_client,
         bep_result,
-        binary_bep_result,
         upload_args.no_upload,
         exit_code,
     )
@@ -339,7 +330,6 @@ async fn upload_bundle(
     mut meta: BundleMeta,
     api_client: &ApiClient,
     bep_result: Option<BepParseResult>,
-    binary_bep_result: Option<BepParseResult>,
     no_upload: bool,
     exit_code: i32,
 ) -> anyhow::Result<()> {
@@ -349,7 +339,7 @@ async fn upload_bundle(
         bundle_temp_file,
         // directory is removed on drop
         _bundle_temp_dir,
-    ) = BundlerUtil::new(meta, bep_result.or(binary_bep_result)).make_tarball_in_temp_dir()?;
+    ) = BundlerUtil::new(meta, bep_result).make_tarball_in_temp_dir()?;
     tracing::info!("Flushed temporary tarball to {:?}", bundle_temp_file);
 
     if no_upload {

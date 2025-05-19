@@ -41,7 +41,6 @@ pub struct PreTestContext {
     pub meta: BundleMeta,
     pub junit_path_wrappers: Vec<JunitReportFileWithStatus>,
     pub bep_result: Option<BepParseResult>,
-    pub binary_bep_result: Option<BepParseResult>,
     pub junit_path_wrappers_temp_dir: Option<TempDir>,
 }
 
@@ -70,7 +69,6 @@ pub fn gather_initial_test_context(
         #[cfg(target_os = "macos")]
         xcresult_path,
         bazel_bep_path,
-        build_event_binary_file,
         org_url_slug,
         repo_root,
         repo_url,
@@ -95,7 +93,7 @@ pub fn gather_initial_test_context(
     )?;
     tracing::debug!("Found repo state: {:?}", repo);
 
-    let (junit_path_wrappers, bep_result, binary_bep_result, junit_path_wrappers_temp_dir) =
+    let (junit_path_wrappers, bep_result, junit_path_wrappers_temp_dir) =
         coalesce_junit_path_wrappers(
             junit_paths,
             bazel_bep_path,
@@ -107,7 +105,6 @@ pub fn gather_initial_test_context(
             org_url_slug.clone(),
             #[cfg(target_os = "macos")]
             use_experimental_failure_summary,
-            build_event_binary_file,
             allow_empty_test_results,
         )?;
 
@@ -162,7 +159,6 @@ pub fn gather_initial_test_context(
         meta,
         junit_path_wrappers,
         bep_result,
-        binary_bep_result,
         junit_path_wrappers_temp_dir,
     })
 }
@@ -263,6 +259,32 @@ pub fn generate_internal_file(
     })
 }
 
+fn fall_back_to_binary_parse(
+    json_parse_result: anyhow::Result<BepParseResult>,
+    bazel_bep_path: &String,
+) -> anyhow::Result<BepParseResult> {
+    let mut binary_parser = BazelBepBinParser::new(bazel_bep_path);
+    match json_parse_result {
+        anyhow::Result::Ok(result) if !result.errors.is_empty() => {
+            let binary_result = binary_parser.parse();
+            match binary_result {
+                anyhow::Result::Ok(result) if result.errors.is_empty() => {
+                    anyhow::Result::Ok(result)
+                }
+                _ => anyhow::Result::Ok(result),
+            }
+        }
+        anyhow::Result::Err(json_error) => {
+            let binary_result = binary_parser.parse();
+            match binary_result {
+                anyhow::Result::Ok(result) => anyhow::Result::Ok(result),
+                _ => anyhow::Result::Err(json_error),
+            }
+        }
+        just_json => just_json,
+    }
+}
+
 fn coalesce_junit_path_wrappers(
     junit_paths: Vec<String>,
     bazel_bep_path: Option<String>,
@@ -270,11 +292,9 @@ fn coalesce_junit_path_wrappers(
     #[cfg(target_os = "macos")] repo: &RepoUrlParts,
     #[cfg(target_os = "macos")] org_url_slug: String,
     #[cfg(target_os = "macos")] use_experimental_failure_summary: bool,
-    build_event_binary_file: Option<String>,
     allow_empty_test_results: bool,
 ) -> anyhow::Result<(
     Vec<JunitReportFileWithStatus>,
-    Option<BepParseResult>,
     Option<BepParseResult>,
     Option<TempDir>,
 )> {
@@ -286,7 +306,8 @@ fn coalesce_junit_path_wrappers(
     let mut bep_result: Option<BepParseResult> = None;
     if let Some(bazel_bep_path) = bazel_bep_path {
         let mut parser = BazelBepParser::new(&bazel_bep_path);
-        let bep_parse_result = match parser.parse() {
+        let result = fall_back_to_binary_parse(parser.parse(), &bazel_bep_path);
+        let bep_parse_result = match result {
             anyhow::Result::Ok(result) => result,
             anyhow::Result::Err(e) => {
                 if allow_empty_test_results {
@@ -298,7 +319,7 @@ fn coalesce_junit_path_wrappers(
                     tracing::warn!(
                         "Allow empty test results enabled - continuing without test results."
                     );
-                    return Ok((junit_path_wrappers, None, None, None));
+                    return Ok((junit_path_wrappers, None, None));
                 }
                 return Err(anyhow::anyhow!(
                     "Failed to parse Bazel BEP file at {}: {}",
@@ -310,35 +331,6 @@ fn coalesce_junit_path_wrappers(
         print_bep_results(&bep_parse_result);
         junit_path_wrappers = bep_parse_result.uncached_xml_files();
         bep_result = Some(bep_parse_result);
-    }
-
-    let mut binary_bep_result: Option<BepParseResult> = None;
-    if let Some(build_event_binary_file) = build_event_binary_file {
-        let mut parser = BazelBepBinParser::new(&build_event_binary_file);
-        let binary_bep_parse_result = match parser.parse() {
-            anyhow::Result::Ok(result) => result,
-            anyhow::Result::Err(e) => {
-                if allow_empty_test_results {
-                    tracing::warn!(
-                        "Failed to parse Bazel BEP binary file at {}: {}",
-                        build_event_binary_file,
-                        e
-                    );
-                    tracing::warn!(
-                        "Allow empty test results enabled - continuing without test results."
-                    );
-                    return Ok((junit_path_wrappers, None, None, None));
-                }
-                return Err(anyhow::anyhow!(
-                    "Failed to parse Bazel BEP file at {}: {}",
-                    build_event_binary_file,
-                    e
-                ));
-            }
-        };
-        print_bep_results(&binary_bep_parse_result);
-        junit_path_wrappers = binary_bep_parse_result.uncached_xml_files();
-        binary_bep_result = Some(binary_bep_parse_result);
     }
 
     let mut _junit_path_wrappers_temp_dir = None;
@@ -368,7 +360,6 @@ fn coalesce_junit_path_wrappers(
     Ok((
         junit_path_wrappers,
         bep_result,
-        binary_bep_result,
         _junit_path_wrappers_temp_dir,
     ))
 }
@@ -649,7 +640,6 @@ mod tests {
             &repo,
             #[cfg(target_os = "macos")]
             "test".into(),
-            None,
             false,
         );
         assert!(result_err.is_err());
@@ -662,7 +652,6 @@ mod tests {
             &repo,
             #[cfg(target_os = "macos")]
             "test".into(),
-            None,
             true,
         );
         assert!(result_ok.is_ok());
