@@ -1,4 +1,4 @@
-use context::bazel_bep::parser::BepParseResult;
+use context::bazel_bep::common::BepParseResult;
 
 pub fn print_bep_results(bep_result: &BepParseResult) {
     if !bep_result.errors.is_empty() {

@@ -278,6 +278,25 @@ async fn upload_bundle_success_status_code() {
     println!("{assert}");
 }
 
+#[tokio::test(flavor = "multi_thread")]
+async fn falls_back_to_binary_file() {
+    let temp_dir = tempdir().unwrap();
+    generate_mock_git_repo(&temp_dir);
+    let test_bep_path = get_test_file_path("test_fixtures/bep_binary_file.bin");
+
+    let state = MockServerBuilder::new().spawn_mock_server().await;
+
+    let assert = CommandBuilder::upload(temp_dir.path(), state.host.clone())
+        .bazel_bep_path(test_bep_path.as_str())
+        .command()
+        .assert()
+        .success();
+
+    assert.stdout(predicate::str::contains(
+        "Attempting to parse bep file as binary",
+    ));
+}
+
 // same test as upload_bundle_success_status_code but with a previous exit code set
 #[tokio::test(flavor = "multi_thread")]
 async fn upload_bundle_success_preceding_failure() {

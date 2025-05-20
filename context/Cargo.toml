@@ -35,6 +35,7 @@ magnus = { version = "0.7.1", optional = true, default-features = false }
 proto = { path = "../proto" }
 prost-wkt-types = { version = "0.5.1", features = ["vendored-protox"] }
 tracing = "0.1.41"
+prost = "0.12.6"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 pyo3 = { version = "0.22.5", optional = true, features = [
