@@ -119,7 +119,7 @@ pub fn generate_mock_missing_filepath_suboptimal_junit_xmls<T: AsRef<Path>>(dire
 pub fn generate_mock_codeowners<T: AsRef<Path>>(directory: T) {
     const CODEOWNERS: &str = r#"
         [Owners of Everything]
-        * @user
+        * @user @user2
     "#;
     fs::write(directory.as_ref().join("CODEOWNERS"), CODEOWNERS).unwrap();
 }

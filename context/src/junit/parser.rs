@@ -4,8 +4,9 @@ use std::{
     mem,
 };
 
+use codeowners::{CodeOwners, GitHubOwner, GitLabOwner, Owners, OwnersOfPath};
 use prost_wkt_types::Timestamp;
-use proto::test_context::test_run::{TestCaseRun, TestCaseRunStatus};
+use proto::test_context::test_run::{CodeOwner, TestCaseRun, TestCaseRunStatus};
 #[cfg(feature = "pyo3")]
 use pyo3::prelude::*;
 #[cfg(feature = "pyo3")]
@@ -191,7 +192,7 @@ impl JunitParser {
         self.reports
     }
 
-    pub fn into_test_case_runs(self) -> Vec<TestCaseRun> {
+    pub fn into_test_case_runs(self, codeowners: Option<&CodeOwners>) -> Vec<TestCaseRun> {
         let mut test_case_runs = Vec::new();
         for report in self.reports {
             for test_suite in report.test_suites {
@@ -244,12 +245,46 @@ impl JunitParser {
                             TestCaseRunStatus::Failure.into()
                         }
                     };
-                    test_case_run.file = test_case
+                    let file = test_case
                         .extra
                         .get(extra_attrs::FILE)
                         .or_else(|| test_case.extra.get(extra_attrs::FILEPATH))
                         .map(|v| v.to_string())
                         .unwrap_or_default();
+                    if !file.is_empty() && codeowners.is_some() {
+                        let codeowners: Vec<CodeOwner> = codeowners
+                            .as_ref()
+                            .map(|o| match o.owners.as_ref() {
+                                Some(Owners::GitHubOwners(owners)) => {
+                                    let owners = owners.of(file.clone()).unwrap_or_default();
+                                    owners
+                                        .iter()
+                                        .map(|github_owner| match github_owner {
+                                            GitHubOwner::Username(name)
+                                            | GitHubOwner::Team(name)
+                                            | GitHubOwner::Email(name) => {
+                                                CodeOwner { name: name.clone() }
+                                            }
+                                        })
+                                        .collect()
+                                }
+                                Some(Owners::GitLabOwners(owners)) => {
+                                    let owners = owners.of(file.clone()).unwrap_or_default();
+                                    owners
+                                        .iter()
+                                        .map(|gitlab_owner| match gitlab_owner {
+                                            GitLabOwner::Name(name) | GitLabOwner::Email(name) => {
+                                                CodeOwner { name: name.clone() }
+                                            }
+                                        })
+                                        .collect()
+                                }
+                                None => vec![],
+                            })
+                            .unwrap_or_default();
+                        test_case_run.codeowners = codeowners;
+                    }
+                    test_case_run.file = file;
                     test_case_run.line = test_case
                         .extra
                         .get(extra_attrs::LINE)
@@ -846,7 +881,7 @@ mod tests {
         "#;
         let parsed_results = junit_parser.parse(BufReader::new(file_contents.as_bytes()));
         assert!(parsed_results.is_ok());
-        let test_case_runs = junit_parser.into_test_case_runs();
+        let test_case_runs = junit_parser.into_test_case_runs(None);
         assert_eq!(test_case_runs.len(), 2);
         let test_case_run1 = &test_case_runs[0];
         assert_eq!(test_case_run1.name, "test_variant_truncation1");

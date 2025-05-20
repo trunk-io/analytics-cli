@@ -1,4 +1,4 @@
-use std::{env, fs, io::BufReader, thread};
+use std::{env, fs, io::BufReader, path::Path, thread};
 
 use assert_matches::assert_matches;
 use bundle::{BundleMeta, FileSetType};
@@ -11,10 +11,19 @@ use test_report::report::{MutTestReport, Status};
 use test_utils::mock_git_repo::setup_repo_with_commit;
 use test_utils::mock_server::{MockServerBuilder, RequestPayload};
 
+pub fn generate_mock_codeowners<T: AsRef<Path>>(directory: T) {
+    const CODEOWNERS: &str = r#"
+        test-file @user
+        test-file2 @user @user2
+    "#;
+    fs::write(directory.as_ref().join("CODEOWNERS"), CODEOWNERS).unwrap();
+}
+
 #[tokio::test(flavor = "multi_thread")]
 async fn publish_test_report() {
     let temp_dir = tempdir().unwrap();
     let repo_setup_res = setup_repo_with_commit(&temp_dir);
+    generate_mock_codeowners(&temp_dir);
     assert!(repo_setup_res.is_ok());
     let set_current_dir_res = env::set_current_dir(&temp_dir);
     assert!(set_current_dir_res.is_ok());
@@ -60,7 +69,7 @@ async fn publish_test_report() {
             Some("2".into()),
             "test-name".into(),
             "test-classname".into(),
-            "test-file".into(),
+            "test-file2".into(),
             "test-parent-name".into(),
             None,
             Status::Failure,
@@ -173,12 +182,13 @@ async fn publish_test_report() {
     assert_eq!(test_case_run.finished_at, Some(test_finished_at.clone()));
     assert!(!test_case_run.is_quarantined);
     assert_eq!(test_case_run.status_output_message, "test-message");
+    assert_eq!(test_case_run.codeowners.len(), 1);
 
     let test_case_run = &report.test_case_runs[1];
     assert_eq!(test_case_run.id, "2");
     assert_eq!(test_case_run.name, "test-name");
     assert_eq!(test_case_run.classname, "test-classname");
-    assert_eq!(test_case_run.file, "test-file");
+    assert_eq!(test_case_run.file, "test-file2");
     assert_eq!(test_case_run.parent_name, "test-parent-name");
     assert_eq!(test_case_run.status, TestCaseRunStatus::Failure as i32);
     assert_eq!(test_case_run.line, 0);
@@ -187,6 +197,7 @@ async fn publish_test_report() {
     assert_eq!(test_case_run.finished_at, Some(test_finished_at));
     assert!(test_case_run.is_quarantined);
     assert_eq!(test_case_run.status_output_message, "test-message");
+    assert_eq!(test_case_run.codeowners.len(), 2);
 }
 
 #[test]

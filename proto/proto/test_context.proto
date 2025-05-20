@@ -11,6 +11,10 @@ enum TestCaseRunStatus {
   TEST_CASE_RUN_STATUS_SKIPPED = 3;
 }
 
+message CodeOwner {
+  string name = 1;
+}
+
 message TestCaseRun {
   string id = 1;
   string name = 2;
@@ -24,6 +28,7 @@ message TestCaseRun {
   google.protobuf.Timestamp finished_at = 10;
   string status_output_message = 11;
   bool is_quarantined = 12;
+  repeated CodeOwner codeowners = 13;
 }
 
 message UploaderMetadata {
