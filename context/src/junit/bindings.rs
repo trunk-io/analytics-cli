@@ -162,7 +162,7 @@ impl From<TestCaseRun> for BindingsTestCase {
             line,
             attempt_number,
             is_quarantined,
-            ..
+            codeowners,
         }: TestCaseRun,
     ) -> Self {
         let started_at = started_at.unwrap_or_default();
@@ -181,6 +181,7 @@ impl From<TestCaseRun> for BindingsTestCase {
         Self {
             name,
             classname,
+            codeowners: Some(codeowners.iter().map(|c| c.name.to_owned()).collect()),
             assertions: None,
             timestamp: Some(timestamp.timestamp()),
             timestamp_micros: Some(timestamp_micros),
@@ -514,6 +515,7 @@ pub struct BindingsTestCase {
     pub status: BindingsTestCaseStatus,
     pub system_out: Option<String>,
     pub system_err: Option<String>,
+    pub codeowners: Option<Vec<String>>,
     extra: HashMap<String, String>,
     pub properties: Vec<BindingsProperty>,
 }
@@ -591,6 +593,7 @@ impl From<TestCase> for BindingsTestCase {
                     .map(|(k, v)| (k.to_string(), v.to_string())),
             ),
             properties: properties.into_iter().map(BindingsProperty::from).collect(),
+            codeowners: None,
         }
     }
 }
@@ -603,6 +606,7 @@ impl TryInto<TestCase> for BindingsTestCase {
             name,
             classname,
             assertions,
+            codeowners: _,
             timestamp: _,
             timestamp_micros,
             time,
@@ -983,7 +987,7 @@ impl BindingsJunitReportValidation {
 mod tests {
     use std::io::BufReader;
 
-    use proto::test_context::test_run::{TestCaseRun, TestCaseRunStatus, TestResult};
+    use proto::test_context::test_run::{CodeOwner, TestCaseRun, TestCaseRunStatus, TestResult};
 
     use crate::junit::bindings::BindingsReport;
     use crate::junit::parser::JunitParser;
@@ -1065,6 +1069,9 @@ mod tests {
             seconds: 2000,
             nanos: 0,
         };
+        let codeowner1 = CodeOwner {
+            name: "@user".into(),
+        };
         let test1 = TestCaseRun {
             id: "test_id1".into(),
             name: "test_name".into(),
@@ -1077,6 +1084,7 @@ mod tests {
             started_at: Some(test_started_at.clone()),
             finished_at: Some(test_finished_at.clone()),
             status_output_message: "test_status_output_message".into(),
+            codeowners: vec![codeowner1],
             ..Default::default()
         };
 
@@ -1139,6 +1147,8 @@ mod tests {
             test1.attempt_number.to_string()
         );
         assert_eq!(test_case1.properties.len(), 0);
+        assert_eq!(test_case1.codeowners.clone().unwrap().len(), 1);
+        assert_eq!(test_case1.codeowners.clone().unwrap()[0], "@user");
 
         assert_eq!(test_suite2.test_cases.len(), 1);
         let test_case2 = &test_suite2.test_cases[0];
@@ -1167,6 +1177,7 @@ mod tests {
             test2.attempt_number.to_string()
         );
         assert_eq!(test_case2.properties.len(), 0);
+        assert_eq!(test_case2.codeowners.clone().unwrap().len(), 0);
 
         // verify that the test report is valid
         let results = validate(&converted_bindings.clone().into());
