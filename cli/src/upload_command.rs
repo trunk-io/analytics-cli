@@ -4,7 +4,7 @@ use api::client::ApiClient;
 use bundle::{BundleMeta, BundlerUtil};
 use clap::{ArgAction, Args};
 use constants::EXIT_SUCCESS;
-use context::bazel_bep::parser::BepParseResult;
+use context::bazel_bep::common::BepParseResult;
 
 use crate::{
     context::{
