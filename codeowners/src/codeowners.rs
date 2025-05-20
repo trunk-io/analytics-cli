@@ -20,8 +20,8 @@ use wasm_bindgen::prelude::*;
 #[cfg(feature = "pyo3")]
 use crate::{github::BindingsGitHubOwners, gitlab::BindingsGitLabOwners};
 use crate::{
-    github::GitHubOwners,
-    gitlab::GitLabOwners,
+    github::{GitHubOwner, GitHubOwners},
+    gitlab::{GitLabOwner, GitLabOwners},
     traits::{FromReader, OwnersOfPath},
 };
 
@@ -33,6 +33,34 @@ pub struct CodeOwners {
     pub path: PathBuf,
     #[serde(skip_serializing, skip_deserializing)]
     pub owners: Option<Owners>,
+}
+
+pub fn flatten_code_owners(codeowners: &CodeOwners, file: &String) -> Vec<String> {
+    match codeowners.owners.as_ref() {
+        Some(Owners::GitHubOwners(owners)) => {
+            let owners = owners.of(file).unwrap_or_default();
+            return owners
+                .iter()
+                .map(|github_owner| match github_owner {
+                    GitHubOwner::Username(name)
+                    | GitHubOwner::Team(name)
+                    | GitHubOwner::Email(name) => name.clone(),
+                })
+                .collect();
+        }
+        Some(Owners::GitLabOwners(owners)) => {
+            let owners = owners.of(file).unwrap_or_default();
+            return owners
+                .iter()
+                .map(|gitlab_owner| match gitlab_owner {
+                    GitLabOwner::Name(name) | GitLabOwner::Email(name) => name.clone(),
+                })
+                .collect();
+        }
+        None => {
+            vec![]
+        }
+    }
 }
 
 impl CodeOwners {

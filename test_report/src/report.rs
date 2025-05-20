@@ -4,7 +4,7 @@ use api::{client::ApiClient, message};
 use bundle::BundleMetaDebugProps;
 use bundle::Test;
 use chrono::prelude::*;
-use codeowners::{CodeOwners, GitHubOwner, GitLabOwner, Owners, OwnersOfPath};
+use codeowners::CodeOwners;
 use context::repo::{BundleRepo, RepoUrlParts};
 #[cfg(feature = "ruby")]
 use magnus::{value::ReprValue, Module, Object};
@@ -424,37 +424,18 @@ impl MutTestReport {
         // trunk-ignore(clippy/assigning_clones)
         test.file = file.clone();
         if !test.file.is_empty() {
-            test.codeowners = self
+            let codeowners: Option<Vec<String>> = self
                 .0
                 .borrow_mut()
                 .codeowners
                 .as_ref()
-                .map(|o| match o.owners.as_ref() {
-                    Some(Owners::GitHubOwners(owners)) => {
-                        let owners = owners.of(file).unwrap_or_default();
-                        owners
-                            .iter()
-                            .map(|github_owner| match github_owner {
-                                GitHubOwner::Username(name)
-                                | GitHubOwner::Team(name)
-                                | GitHubOwner::Email(name) => CodeOwner { name: name.clone() },
-                            })
-                            .collect()
-                    }
-                    Some(Owners::GitLabOwners(owners)) => {
-                        let owners = owners.of(file).unwrap_or_default();
-                        owners
-                            .iter()
-                            .map(|gitlab_owner| match gitlab_owner {
-                                GitLabOwner::Name(name) | GitLabOwner::Email(name) => {
-                                    CodeOwner { name: name.clone() }
-                                }
-                            })
-                            .collect()
-                    }
-                    None => vec![],
-                })
-                .unwrap_or_default();
+                .map(|co| codeowners::flatten_code_owners(co, &file));
+            if let Some(codeowners) = codeowners {
+                test.codeowners = codeowners
+                    .iter()
+                    .map(|name| CodeOwner { name: name.clone() })
+                    .collect();
+            }
         }
         test.parent_name = parent_name;
         if let Some(line) = line {

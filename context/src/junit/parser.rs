@@ -4,7 +4,7 @@ use std::{
     mem,
 };
 
-use codeowners::{CodeOwners, GitHubOwner, GitLabOwner, Owners, OwnersOfPath};
+use codeowners::CodeOwners;
 use prost_wkt_types::Timestamp;
 use proto::test_context::test_run::{CodeOwner, TestCaseRun, TestCaseRunStatus};
 #[cfg(feature = "pyo3")]
@@ -252,37 +252,15 @@ impl JunitParser {
                         .map(|v| v.to_string())
                         .unwrap_or_default();
                     if !file.is_empty() && codeowners.is_some() {
-                        let codeowners: Vec<CodeOwner> = codeowners
+                        let codeowners: Option<Vec<String>> = codeowners
                             .as_ref()
-                            .map(|o| match o.owners.as_ref() {
-                                Some(Owners::GitHubOwners(owners)) => {
-                                    let owners = owners.of(file.clone()).unwrap_or_default();
-                                    owners
-                                        .iter()
-                                        .map(|github_owner| match github_owner {
-                                            GitHubOwner::Username(name)
-                                            | GitHubOwner::Team(name)
-                                            | GitHubOwner::Email(name) => {
-                                                CodeOwner { name: name.clone() }
-                                            }
-                                        })
-                                        .collect()
-                                }
-                                Some(Owners::GitLabOwners(owners)) => {
-                                    let owners = owners.of(file.clone()).unwrap_or_default();
-                                    owners
-                                        .iter()
-                                        .map(|gitlab_owner| match gitlab_owner {
-                                            GitLabOwner::Name(name) | GitLabOwner::Email(name) => {
-                                                CodeOwner { name: name.clone() }
-                                            }
-                                        })
-                                        .collect()
-                                }
-                                None => vec![],
-                            })
-                            .unwrap_or_default();
-                        test_case_run.codeowners = codeowners;
+                            .map(|co| codeowners::flatten_code_owners(co, &file));
+                        if let Some(codeowners) = codeowners {
+                            test_case_run.codeowners = codeowners
+                                .iter()
+                                .map(|name| CodeOwner { name: name.clone() })
+                                .collect();
+                        }
                     }
                     test_case_run.file = file;
                     test_case_run.line = test_case
