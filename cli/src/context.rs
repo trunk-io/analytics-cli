@@ -18,7 +18,7 @@ use constants::ENVS_TO_GET;
 #[cfg(target_os = "macos")]
 use context::repo::RepoUrlParts;
 use context::{
-    bazel_bep::parser::{BazelBepParser, BepParseResult},
+    bazel_bep::{binary_parser::BazelBepBinParser, common::BepParseResult, parser::BazelBepParser},
     junit::{junit_path::JunitReportFileWithStatus, parser::JunitParser},
     repo::BundleRepo,
 };
@@ -259,6 +259,32 @@ pub fn generate_internal_file(
     })
 }
 
+fn fall_back_to_binary_parse(
+    json_parse_result: anyhow::Result<BepParseResult>,
+    bazel_bep_path: &String,
+) -> anyhow::Result<BepParseResult> {
+    let mut binary_parser = BazelBepBinParser::new(bazel_bep_path);
+    match json_parse_result {
+        anyhow::Result::Ok(result) if !result.errors.is_empty() => {
+            let binary_result = binary_parser.parse();
+            match binary_result {
+                anyhow::Result::Ok(result) if result.errors.is_empty() => {
+                    anyhow::Result::Ok(result)
+                }
+                _ => anyhow::Result::Ok(result),
+            }
+        }
+        anyhow::Result::Err(json_error) => {
+            let binary_result = binary_parser.parse();
+            match binary_result {
+                anyhow::Result::Ok(result) => anyhow::Result::Ok(result),
+                _ => anyhow::Result::Err(json_error),
+            }
+        }
+        just_json => just_json,
+    }
+}
+
 fn coalesce_junit_path_wrappers(
     junit_paths: Vec<String>,
     bazel_bep_path: Option<String>,
@@ -280,9 +306,10 @@ fn coalesce_junit_path_wrappers(
     let mut bep_result: Option<BepParseResult> = None;
     if let Some(bazel_bep_path) = bazel_bep_path {
         let mut parser = BazelBepParser::new(&bazel_bep_path);
-        let bep_parse_result = match parser.parse() {
-            Ok(result) => result,
-            Err(e) => {
+        let result = fall_back_to_binary_parse(parser.parse(), &bazel_bep_path);
+        let bep_parse_result = match result {
+            anyhow::Result::Ok(result) => result,
+            anyhow::Result::Err(e) => {
                 if allow_empty_test_results {
                     tracing::warn!(
                         "Failed to parse Bazel BEP file at {}: {}",

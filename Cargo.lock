@@ -969,6 +969,7 @@ dependencies = [
  "openssl",
  "openssl-src",
  "pretty_assertions",
+ "prost",
  "prost-wkt-types",
  "proto",
  "pyo3",
