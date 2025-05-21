@@ -64,8 +64,6 @@ pub struct UploadArgs {
     pub repo_head_branch: Option<String>,
     #[arg(long, help = "Value to override commit epoch of repository head.")]
     pub repo_head_commit_epoch: Option<String>,
-    #[arg(long, help = "Print files which will be uploaded to stdout.")]
-    pub print_files: bool,
     #[arg(long, help = "Value to tag team owner of upload.", hide = true)]
     pub team: Option<String>,
     #[arg(long, help = "Value to override CODEOWNERS file or directory path.")]
@@ -243,18 +241,6 @@ pub async fn run_upload(
         meta.internal_bundled_file = Some(internal_bundled_file);
     }
 
-    if upload_args.print_files {
-        println!("Files to upload:");
-        for file_set in &meta.base_props.file_sets {
-            println!(
-                "  File set ({:?}): {}",
-                file_set.file_set_type, file_set.glob
-            );
-            for file in &file_set.files {
-                println!("    {}", file.original_path);
-            }
-        }
-    }
     let default_exit_code = if let Some(exit_code) = upload_args.test_process_exit_code {
         Some(exit_code)
     } else {
