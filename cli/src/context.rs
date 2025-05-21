@@ -167,7 +167,6 @@ pub fn gather_initial_test_context(
 pub fn gather_post_test_context<U: AsRef<Path>>(
     meta: &mut BundleMeta,
     junit_path_wrappers: Vec<JunitReportFileWithStatus>,
-    team: &Option<String>,
     codeowners_path: &Option<U>,
     allow_empty_test_results: bool,
     test_run_result: &Option<TestRunResult>,
@@ -175,7 +174,6 @@ pub fn gather_post_test_context<U: AsRef<Path>>(
     let mut file_set_builder = FileSetBuilder::build_file_sets(
         &meta.base_props.repo.repo_root,
         &junit_path_wrappers,
-        team,
         codeowners_path,
         test_run_result.as_ref().and_then(|r| r.exec_start),
     )?;
@@ -255,7 +253,6 @@ pub fn generate_internal_file(
         original_path_rel: None,
         owners: vec![],
         path: filename.to_string(),
-        team: None,
         // last_modified_epoch_ns does not serialize so the compiler complains it does not exist
         ..Default::default()
     })

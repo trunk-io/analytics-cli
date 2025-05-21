@@ -206,6 +206,14 @@ pub async fn run_upload(
         chrono::Utc::now().into()
     };
 
+    if let Some(team) = &upload_args.team {
+        if !team.is_empty() {
+            tracing::error!(
+                "The --team flag is deprecated and will be removed in a future version."
+            );
+        }
+    }
+
     let api_client = ApiClient::new(&upload_args.token, &upload_args.org_url_slug)?;
 
     let PreTestContext {
@@ -226,7 +234,6 @@ pub async fn run_upload(
     let file_set_builder = gather_post_test_context(
         &mut meta,
         junit_path_wrappers,
-        &upload_args.team,
         &upload_args.codeowners_path,
         upload_args.allow_empty_test_results,
         &test_run_result,
