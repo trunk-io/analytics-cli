@@ -66,12 +66,6 @@ pub struct UploadArgs {
     pub repo_head_commit_epoch: Option<String>,
     #[arg(long, help = "Print files which will be uploaded to stdout.")]
     pub print_files: bool,
-    #[arg(
-        long,
-        alias = "dry-run",
-        help = "Run metrics CLI without uploading to API."
-    )]
-    pub no_upload: bool,
     #[arg(long, help = "Value to tag team owner of upload.", hide = true)]
     pub team: Option<String>,
     #[arg(long, help = "Value to override CODEOWNERS file or directory path.")]
@@ -277,14 +271,8 @@ pub async fn run_upload(
 
     let upload_started_at = chrono::Utc::now();
     tracing::info!("Uploading test results...");
-    let upload_bundle_result = upload_bundle(
-        meta.clone(),
-        &api_client,
-        bep_result,
-        upload_args.no_upload,
-        exit_code,
-    )
-    .await;
+    let upload_bundle_result =
+        upload_bundle(meta.clone(), &api_client, bep_result, exit_code).await;
     let upload_metrics = proto::upload_metrics::trunk::UploadMetrics {
         client_version: Some(proto::upload_metrics::trunk::Semver {
             major: env!("CARGO_PKG_VERSION_MAJOR").parse().unwrap_or_default(),
@@ -334,7 +322,6 @@ async fn upload_bundle(
     mut meta: BundleMeta,
     api_client: &ApiClient,
     bep_result: Option<BepParseResult>,
-    no_upload: bool,
     exit_code: i32,
 ) -> anyhow::Result<()> {
     let upload = gather_upload_id_context(&mut meta, api_client).await?;
@@ -346,20 +333,16 @@ async fn upload_bundle(
     ) = BundlerUtil::new(meta, bep_result).make_tarball_in_temp_dir()?;
     tracing::info!("Flushed temporary tarball to {:?}", bundle_temp_file);
 
-    if no_upload {
-        tracing::info!("Skipping upload.");
+    api_client
+        .put_bundle_to_s3(&upload.url, &bundle_temp_file)
+        .await?;
+    if exit_code == EXIT_SUCCESS {
+        tracing::info!("Upload successful");
     } else {
-        api_client
-            .put_bundle_to_s3(&upload.url, &bundle_temp_file)
-            .await?;
-        if exit_code == EXIT_SUCCESS {
-            tracing::info!("Upload successful");
-        } else {
-            tracing::info!(
-                "Upload successful; returning unsuccessful exit code of test run: {}",
-                exit_code
-            );
-        }
+        tracing::info!(
+            "Upload successful; returning unsuccessful exit code of test run: {}",
+            exit_code
+        );
     }
 
     Ok(())
