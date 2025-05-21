@@ -32,7 +32,7 @@ impl Cli {
         let token = match &self.command {
             Commands::Quarantine(args) => Some(args.token()),
             Commands::Test(args) => Some(args.token()),
-            Commands::Upload(args) => Some(args.token.clone()),
+            Commands::Upload(args) => Some(args.token().clone()),
             Commands::Validate(..) => None,
         };
 

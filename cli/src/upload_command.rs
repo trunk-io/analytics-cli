@@ -49,11 +49,10 @@ pub struct UploadArgs {
     pub org_url_slug: String,
     #[arg(
         long,
-        required = true,
         env = "TRUNK_API_TOKEN",
         help = "Organization token. Defaults to TRUNK_API_TOKEN env var."
     )]
-    pub token: String,
+    pub token: Option<String>,
     #[arg(long, help = "Path to repository root. Defaults to current directory.")]
     pub repo_root: Option<String>,
     #[arg(long, help = "Value to override URL of repository.")]
@@ -177,13 +176,39 @@ impl UploadArgs {
         Self {
             junit_paths,
             org_url_slug,
-            token,
+            token: Some(token),
             repo_root,
             allow_empty_test_results: true,
             use_quarantining,
             disable_quarantining,
             ..Default::default()
         }
+    }
+
+    pub fn token(&self) -> String {
+        if self.token.is_none() {
+            // read from  ~/.cache/trunk/user.yaml
+            let dir = dirs::home_dir();
+            if dir.is_none() {
+                return "".to_string();
+            }
+            let dir = dir.unwrap();
+            let mut path = dir;
+            path.push(".cache");
+            path.push("trunk");
+            path.push("user.yaml");
+            if let Ok(f) = std::fs::File::open(path) {
+                let d: Result<serde_yaml::Value, serde_yaml::Error> = serde_yaml::from_reader(f);
+                if d.is_err() {
+                    return "".to_string();
+                }
+                return d.unwrap()["trunk_user"]["tokens"]["access_token"]
+                    .as_str()
+                    .unwrap_or_default()
+                    .to_string();
+            }
+        }
+        self.token.clone().unwrap()
     }
 }
 
@@ -206,7 +231,7 @@ pub async fn run_upload(
         chrono::Utc::now().into()
     };
 
-    let api_client = ApiClient::new(&upload_args.token, &upload_args.org_url_slug)?;
+    let api_client = ApiClient::new(&upload_args.token(), &upload_args.org_url_slug)?;
 
     let PreTestContext {
         mut meta,
@@ -219,7 +244,7 @@ pub async fn run_upload(
     } else {
         gather_initial_test_context(
             upload_args.clone(),
-            gather_debug_props(env::args().collect::<Vec<String>>(), upload_args.token),
+            gather_debug_props(env::args().collect::<Vec<String>>(), upload_args.token()),
         )?
     };
 

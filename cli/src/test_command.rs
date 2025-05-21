@@ -6,6 +6,7 @@ use std::{
 
 use clap::Args;
 use constants::EXIT_FAILURE;
+use serde_yaml;
 
 use crate::{
     context::{gather_debug_props, gather_initial_test_context},
@@ -28,7 +29,29 @@ pub struct TestArgs {
 
 impl TestArgs {
     pub fn token(&self) -> String {
-        self.upload_args.token.clone()
+        if self.upload_args.token.is_none() {
+            // read from  ~/.cache/trunk/user.yaml
+            let dir = dirs::home_dir();
+            if dir.is_none() {
+                return "".to_string();
+            }
+            let dir = dir.unwrap();
+            let mut path = dir;
+            path.push(".cache");
+            path.push("trunk");
+            path.push("user.yaml");
+            if let Ok(f) = std::fs::File::open(path) {
+                let d: Result<serde_yaml::Value, serde_yaml::Error> = serde_yaml::from_reader(f);
+                if d.is_err() {
+                    return "".to_string();
+                }
+                return d.unwrap()["trunk_user"]["tokens"]["access_token"]
+                    .as_str()
+                    .unwrap_or_default()
+                    .to_string();
+            }
+        }
+        self.upload_args.token.clone().unwrap()
     }
 
     pub fn org_url_slug(&self) -> String {
@@ -51,29 +74,28 @@ pub struct TestRunResult {
     pub exit_code: i32,
 }
 
-pub async fn run_test(
-    TestArgs {
-        upload_args,
-        command,
-    }: TestArgs,
-) -> anyhow::Result<i32> {
-    let token = upload_args.token.clone();
-    let mut test_run_result = run_test_command(&command).await?;
+pub async fn run_test(test_args: TestArgs) -> anyhow::Result<i32> {
+    let token = test_args.token();
+    let mut test_run_result = run_test_command(&test_args.command).await?;
     let test_context = gather_initial_test_context(
-        upload_args.clone(),
+        test_args.upload_args.clone(),
         gather_debug_props(env::args().collect::<Vec<String>>(), token),
     )?;
 
     let test_run_result_exit_code = test_run_result.exit_code;
     // remove exec start because it filters out test files and we want to
     // trust bazel-bep to provide the required test files
-    if upload_args.bazel_bep_path.is_some() {
+    if test_args.upload_args.bazel_bep_path.is_some() {
         test_run_result.exec_start = None;
     }
 
-    let org_url_slug = upload_args.org_url_slug.clone();
-    let upload_run_result =
-        run_upload(upload_args, Some(test_context), Some(test_run_result)).await;
+    let org_url_slug = test_args.upload_args.org_url_slug.clone();
+    let upload_run_result = run_upload(
+        test_args.upload_args,
+        Some(test_context),
+        Some(test_run_result),
+    )
+    .await;
 
     upload_run_result
         .and_then(
@@ -88,6 +110,7 @@ pub async fn run_test(
             },
         )
         .or_else(|e| {
+            println!("error: {}", e);
             log_error(
                 &e,
                 Context {

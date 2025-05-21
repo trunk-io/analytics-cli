@@ -13,7 +13,23 @@ pub struct QuarantineArgs {
 
 impl QuarantineArgs {
     pub fn token(&self) -> String {
-        self.upload_args.token.clone()
+        if self.upload_args.token.is_none() {
+            // read from  ~/.cache/trunk/user.yaml
+            let f = std::fs::File::open("~/.cache/trunk/user.yaml");
+            if f.is_err() {
+                return "".to_string();
+            }
+            let d: Result<serde_yaml::Value, serde_yaml::Error> =
+                serde_yaml::from_reader(f.unwrap());
+            if d.is_err() {
+                return "".to_string();
+            }
+            return d.unwrap()["trunk_user"]["tokens"]["access_token"]
+                .as_str()
+                .unwrap_or_default()
+                .to_string();
+        }
+        self.upload_args.token.clone().unwrap()
     }
 
     pub fn org_url_slug(&self) -> String {
