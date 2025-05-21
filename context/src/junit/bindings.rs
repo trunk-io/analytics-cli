@@ -162,6 +162,7 @@ impl From<TestCaseRun> for BindingsTestCase {
             line,
             attempt_number,
             is_quarantined,
+            ..
         }: TestCaseRun,
     ) -> Self {
         let started_at = started_at.unwrap_or_default();
@@ -1222,7 +1223,7 @@ mod tests {
         assert!(parsed_results.is_ok());
 
         // Get test case runs from parser
-        let test_case_runs = junit_parser.into_test_case_runs();
+        let test_case_runs = junit_parser.into_test_case_runs(None);
         assert_eq!(test_case_runs.len(), 2);
 
         // Convert test case runs to bindings
