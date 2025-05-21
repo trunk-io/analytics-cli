@@ -1,14 +1,17 @@
-use std::{cell::RefCell, collections::HashMap, env, fs, time::SystemTime};
+use std::{cell::RefCell, collections::HashMap, env, fs, path::Path, time::SystemTime};
 
 use api::{client::ApiClient, message};
 use bundle::BundleMetaDebugProps;
 use bundle::Test;
 use chrono::prelude::*;
+use codeowners::CodeOwners;
 use context::repo::{BundleRepo, RepoUrlParts};
 #[cfg(feature = "ruby")]
 use magnus::{value::ReprValue, Module, Object};
 use prost_wkt_types::Timestamp;
-use proto::test_context::test_run::{TestCaseRun, TestCaseRunStatus, TestResult, UploaderMetadata};
+use proto::test_context::test_run::{
+    CodeOwner, TestCaseRun, TestCaseRunStatus, TestResult, UploaderMetadata,
+};
 use third_party::sentry;
 use tracing_subscriber::{filter::FilterFn, prelude::*};
 use trunk_analytics_cli::{context::gather_initial_test_context, upload_command::run_upload};
@@ -21,6 +24,7 @@ pub struct TestReport {
     command: String,
     started_at: SystemTime,
     quarantined_tests: Option<HashMap<String, Test>>,
+    codeowners: Option<CodeOwners>,
 }
 
 #[cfg_attr(feature = "wasm", wasm_bindgen)]
@@ -98,11 +102,18 @@ impl MutTestReport {
             version: env!("CARGO_PKG_VERSION").to_string(),
             upload_time: None,
         });
+        let codeowners = BundleRepo::new(None, None, None, None, None, None, false)
+            .ok()
+            .map(|repo| repo.repo_root)
+            .as_ref()
+            .map(Path::new::<String>)
+            .and_then(|repo_root| CodeOwners::find_file(repo_root, &None::<&Path>));
         Self(RefCell::new(TestReport {
             test_result,
             command,
             started_at,
             quarantined_tests: None,
+            codeowners,
         }))
     }
 
@@ -286,7 +297,6 @@ impl MutTestReport {
         };
         let resolved_path_str = resolved_path.as_path().to_str().unwrap_or_default();
         let token = env::var("TRUNK_API_TOKEN").unwrap_or_default();
-        let repo_root = env::var("REPO_ROOT").ok();
         if token.is_empty() {
             tracing::warn!("Not publishing results because TRUNK_API_TOKEN is empty");
             return false;
@@ -305,7 +315,7 @@ impl MutTestReport {
             token,
             org_url_slug,
             vec![resolved_path_str.into()],
-            repo_root,
+            None,
             false,
             false,
         );
@@ -411,7 +421,22 @@ impl MutTestReport {
         }
         test.name = name;
         test.classname = classname;
-        test.file = file;
+        // trunk-ignore(clippy/assigning_clones)
+        test.file = file.clone();
+        if !test.file.is_empty() {
+            let codeowners: Option<Vec<String>> = self
+                .0
+                .borrow_mut()
+                .codeowners
+                .as_ref()
+                .map(|co| codeowners::flatten_code_owners(co, &file));
+            if let Some(codeowners) = codeowners {
+                test.codeowners = codeowners
+                    .iter()
+                    .map(|name| CodeOwner { name: name.clone() })
+                    .collect();
+            }
+        }
         test.parent_name = parent_name;
         if let Some(line) = line {
             test.line = line;

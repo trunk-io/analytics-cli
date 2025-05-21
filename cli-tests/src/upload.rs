@@ -163,7 +163,7 @@ async fn upload_bundle() {
             .unwrap()
             .is_file()
     );
-    assert_eq!(bundled_file.owners, ["@user"]);
+    assert_eq!(bundled_file.owners, ["@user", "@user2"]);
     assert_eq!(bundled_file.team, None);
 
     // Verify internal bundled file contents
@@ -187,6 +187,9 @@ async fn upload_bundle() {
     assert!(test_case_run.started_at.is_some());
     assert!(test_case_run.finished_at.is_some());
     assert!(!test_case_run.is_quarantined);
+    assert_eq!(test_case_run.codeowners.len(), 2);
+    assert_eq!(test_case_run.codeowners[0].name, "@user");
+    assert_eq!(test_case_run.codeowners[1].name, "@user2");
 
     assert!(debug_props.command_line.ends_with(
         &command_builder

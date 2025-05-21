@@ -14,6 +14,7 @@ use bundle::{
     BundleMeta, BundleMetaBaseProps, BundleMetaDebugProps, BundleMetaJunitProps, BundledFile,
     FileSet, FileSetBuilder, FileSetType, QuarantineBulkTestStatus, META_VERSION,
 };
+use codeowners::CodeOwners;
 use constants::ENVS_TO_GET;
 #[cfg(target_os = "macos")]
 use context::repo::RepoUrlParts;
@@ -208,6 +209,7 @@ pub fn gather_post_test_context<U: AsRef<Path>>(
 pub fn generate_internal_file(
     file_sets: &[FileSet],
     temp_dir: &TempDir,
+    codeowners: Option<&CodeOwners>,
 ) -> anyhow::Result<BundledFile> {
     let mut test_case_runs = Vec::new();
     for file_set in file_sets {
@@ -233,7 +235,7 @@ pub fn generate_internal_file(
                         tracing::warn!("Failed to parse JUnit file {:?}: {:?}", file, e);
                         continue;
                     }
-                    test_case_runs.extend(junit_parser.into_test_case_runs());
+                    test_case_runs.extend(junit_parser.into_test_case_runs(codeowners));
                 }
             }
         }
@@ -640,6 +642,8 @@ mod tests {
             &repo,
             #[cfg(target_os = "macos")]
             "test".into(),
+            #[cfg(target_os = "macos")]
+            false,
             false,
         );
         assert!(result_err.is_err());
@@ -652,6 +656,8 @@ mod tests {
             &repo,
             #[cfg(target_os = "macos")]
             "test".into(),
+            #[cfg(target_os = "macos")]
+            false,
             true,
         );
         assert!(result_ok.is_ok());
