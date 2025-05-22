@@ -103,13 +103,6 @@ impl UploadArgs {
                 args
             }
         }))
-        .chain(self.print_files.into_iter().flat_map(|print_files: bool| {
-            if print_files {
-                vec![String::from("--print-files")]
-            } else {
-                vec![]
-            }
-        }))
         .chain(self.no_upload.into_iter().flat_map(|no_upload: bool| {
             if no_upload {
                 vec![String::from("--repo-root")]

@@ -1,8 +1,6 @@
 #[cfg(test)]
 mod command_builder;
 #[cfg(test)]
-mod quarantine;
-#[cfg(test)]
 mod test;
 #[cfg(test)]
 mod upload;

@@ -7,7 +7,6 @@ use tracing_subscriber::{filter::FilterFn, prelude::*};
 use trunk_analytics_cli::{
     context::gather_debug_props,
     error_report::{log_error, Context},
-    quarantine_command::{run_quarantine, QuarantineArgs},
     test_command::{run_test, TestArgs},
     upload_command::{run_upload, UploadArgs, UploadRunResult},
     validate_command::{run_validate, ValidateArgs},
@@ -30,7 +29,6 @@ struct Cli {
 impl Cli {
     pub fn debug_props(&self) -> String {
         let token = match &self.command {
-            Commands::Quarantine(args) => Some(args.token()),
             Commands::Test(args) => Some(args.token()),
             Commands::Upload(args) => Some(args.token.clone()),
             Commands::Validate(..) => None,
@@ -44,7 +42,6 @@ impl Cli {
 
     pub fn command_name(&self) -> &str {
         match &self.command {
-            Commands::Quarantine(..) => "quarantine",
             Commands::Test(..) => "test",
             Commands::Upload(..) => "upload",
             Commands::Validate(..) => "validate",
@@ -53,7 +50,6 @@ impl Cli {
 
     pub fn org_url_slug(&self) -> String {
         match &self.command {
-            Commands::Quarantine(args) => args.org_url_slug(),
             Commands::Test(args) => args.org_url_slug(),
             Commands::Upload(args) => args.org_url_slug.clone(),
             Commands::Validate(..) => String::from("not used"),
@@ -62,7 +58,6 @@ impl Cli {
 
     pub fn hide_banner(&self) -> bool {
         match &self.command {
-            Commands::Quarantine(args) => args.hide_banner(),
             Commands::Test(args) => args.hide_banner(),
             Commands::Upload(args) => args.hide_banner,
             Commands::Validate(args) => args.hide_banner(),
@@ -71,7 +66,6 @@ impl Cli {
 
     pub fn repo_root(&self) -> String {
         let explicit_root = match &self.command {
-            Commands::Quarantine(args) => args.repo_root(),
             Commands::Test(args) => args.repo_root(),
             Commands::Upload(args) => args.repo_root.clone(),
             Commands::Validate(..) => None,
@@ -87,8 +81,6 @@ impl Cli {
 
 #[derive(Debug, Subcommand)]
 enum Commands {
-    /// Quarantine flaky tests and upload data to Trunk Flaky Tests
-    Quarantine(QuarantineArgs),
     /// Run a test command and upload data to Trunk Flaky Tests
     Test(TestArgs),
     /// Upload data to Trunk Flaky Tests
@@ -156,7 +148,6 @@ async fn run(cli: Cli) -> anyhow::Result<i32> {
         env!("VERGEN_RUSTC_SEMVER")
     );
     match cli.command {
-        Commands::Quarantine(quarantine_args) => run_quarantine(quarantine_args).await,
         Commands::Upload(upload_args) => {
             let UploadRunResult {
                 exit_code,
