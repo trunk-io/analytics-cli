@@ -433,9 +433,7 @@ async fn upload_bundle_no_files_allow_missing_junit_files() {
 
         let state = MockServerBuilder::new().spawn_mock_server().await;
 
-        let mut command = CommandBuilder::upload(temp_dir.path(), state.host.clone())
-            .print_files(true)
-            .command();
+        let mut command = CommandBuilder::upload(temp_dir.path(), state.host.clone()).command();
 
         match flag {
             Flag::Long => {
