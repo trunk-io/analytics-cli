@@ -14,7 +14,6 @@ pub struct UploadArgs {
     repo_head_branch: Option<String>,
     repo_head_commit_epoch: Option<String>,
     tags: Option<Vec<String>>,
-    print_files: Option<bool>,
     no_upload: Option<bool>,
     team: Option<String>,
     codeowners_path: Option<String>,
@@ -36,7 +35,6 @@ impl UploadArgs {
             repo_head_branch: None,
             repo_head_commit_epoch: None,
             tags: None,
-            print_files: None,
             no_upload: None,
             team: None,
             codeowners_path: None,
@@ -303,16 +301,6 @@ impl CommandType {
         self
     }
 
-    pub fn print_files(&mut self, new_flag: bool) -> &mut Self {
-        match self {
-            CommandType::Upload { upload_args, .. } => upload_args.print_files = Some(new_flag),
-            CommandType::Quarantine { upload_args, .. } => upload_args.print_files = Some(new_flag),
-            CommandType::Test { upload_args, .. } => upload_args.print_files = Some(new_flag),
-            CommandType::Validate { .. } => (),
-        }
-        self
-    }
-
     pub fn repo_root(&mut self, new_value: &str) -> &mut Self {
         match self {
             CommandType::Upload { upload_args, .. } => {
@@ -508,11 +496,6 @@ impl<'b> CommandBuilder<'b> {
 
     pub fn disable_quarantining(&mut self, new_flag: bool) -> &mut Self {
         self.command_type.disable_quarantining(new_flag);
-        self
-    }
-
-    pub fn print_files(&mut self, new_flag: bool) -> &mut Self {
-        self.command_type.print_files(new_flag);
         self
     }
 
