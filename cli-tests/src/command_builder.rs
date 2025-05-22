@@ -216,7 +216,6 @@ impl CommandType {
     pub fn name(&self) -> String {
         match self {
             CommandType::Upload { .. } => String::from("upload"),
-            CommandType::Quarantine { .. } => String::from("quarantine"),
             CommandType::Test { .. } => String::from("test"),
             CommandType::Validate { .. } => String::from("validate"),
         }
@@ -437,17 +436,6 @@ impl<'b> CommandBuilder<'b> {
     pub fn upload(current_dir: &'b Path, server_host: String) -> Self {
         CommandBuilder {
             command_type: CommandType::Upload {
-                upload_args: UploadArgs::empty(),
-                server_host,
-            },
-            current_dir,
-            paths_state: None,
-        }
-    }
-
-    pub fn quarantine(current_dir: &'b Path, server_host: String) -> Self {
-        CommandBuilder {
-            command_type: CommandType::Quarantine {
                 upload_args: UploadArgs::empty(),
                 server_host,
             },
