@@ -31,7 +31,6 @@ impl FileSetBuilder {
     pub fn build_file_sets<T: AsRef<str>, U: AsRef<Path>>(
         repo_root: T,
         junit_paths: &[JunitReportFileWithStatus],
-        team: &Option<String>,
         codeowners_path: &Option<U>,
         exec_start: Option<SystemTime>,
     ) -> anyhow::Result<Self> {
@@ -40,7 +39,7 @@ impl FileSetBuilder {
         let codeowners = CodeOwners::find_file(repo_root, codeowners_path);
 
         let file_set_builder =
-            Self::file_sets_from_glob(repo_root, junit_paths, team, codeowners, exec_start)?;
+            Self::file_sets_from_glob(repo_root, junit_paths, codeowners, exec_start)?;
 
         // Handle case when paths are not globs.
         if file_set_builder.count == 0 {
@@ -66,7 +65,6 @@ impl FileSetBuilder {
             return Self::file_sets_from_glob(
                 repo_root,
                 junit_paths_with_glob.as_slice(),
-                team,
                 file_set_builder.codeowners,
                 exec_start,
             );
@@ -78,7 +76,6 @@ impl FileSetBuilder {
     fn file_sets_from_glob(
         repo_root: &str,
         junit_paths: &[JunitReportFileWithStatus],
-        team: &Option<String>,
         codeowners: Option<CodeOwners>,
         exec_start: Option<SystemTime>,
     ) -> anyhow::Result<Self> {
@@ -98,7 +95,6 @@ impl FileSetBuilder {
                             acc.0,
                             repo_root,
                             &junit_wrapper.junit_path,
-                            team.clone(),
                             codeowners,
                             exec_start,
                         )? {
@@ -241,7 +237,6 @@ impl BundledFile {
         file_index: usize,
         repo_root: T,
         glob_path: U,
-        team: Option<String>,
         codeowners: &Option<CodeOwners>,
         start: Option<SystemTime>,
     ) -> anyhow::Result<Option<Self>> {
@@ -314,7 +309,9 @@ impl BundledFile {
                 .duration_since(std::time::UNIX_EPOCH)?
                 .as_nanos(),
             owners,
-            team,
+            // Added in v0.5.33 but unused
+            // We are unable to remove for the time being
+            team: None,
         }))
     }
 
