@@ -1202,3 +1202,130 @@ async fn test_can_use_manual_overrides_on_cloned_repo() {
     // HINT: View CLI output with `cargo test -- --nocapture`
     println!("{assert}");
 }
+
+#[derive(Debug, Clone, Copy)]
+enum QuarantineConfigResponse {
+    Disabled,
+    None,
+    Some,
+    All,
+}
+
+#[derive(Debug, Clone, Copy)]
+enum CreateBundleResponse {
+    Error,
+    Success,
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn do_not_quarantines_tests_when_quarantine_disabled_set() {
+    let temp_dir = tempdir().unwrap();
+    generate_mock_git_repo(&temp_dir);
+    generate_mock_valid_junit_xmls(&temp_dir);
+    generate_mock_codeowners(&temp_dir);
+
+    let mut mock_server_builder = MockServerBuilder::new();
+
+    lazy_static! {
+        static ref QUARANTINE_CONFIG_RESPONSE: Arc<Mutex<QuarantineConfigResponse>> =
+            Arc::new(Mutex::new(QuarantineConfigResponse::None));
+    }
+    mock_server_builder.set_get_quarantining_config_handler(
+        |Json(get_quarantine_bulk_test_status_request): Json<GetQuarantineConfigRequest>| {
+            let mut test_ids = get_quarantine_bulk_test_status_request
+                .test_identifiers
+                .into_iter()
+                .map(|t| t.id)
+                .collect::<Vec<_>>();
+            let quarantine_config_response = *QUARANTINE_CONFIG_RESPONSE.lock().unwrap();
+            let quarantined_tests = match quarantine_config_response {
+                QuarantineConfigResponse::Disabled => Vec::new(),
+                QuarantineConfigResponse::None => Vec::new(),
+                QuarantineConfigResponse::Some => test_ids.split_off(1),
+                QuarantineConfigResponse::All => test_ids,
+            };
+            let is_disabled = matches!(
+                quarantine_config_response,
+                QuarantineConfigResponse::Disabled
+            );
+            async move {
+                Json(GetQuarantineConfigResponse {
+                    is_disabled,
+                    quarantined_tests,
+                })
+            }
+        },
+    );
+    lazy_static! {
+        static ref CREATE_BUNDLE_RESPONSE: Arc<Mutex<CreateBundleResponse>> =
+            Arc::new(Mutex::new(CreateBundleResponse::Error));
+    }
+    mock_server_builder.set_create_bundle_handler(
+        |State(state): State<SharedMockServerState>, _: Json<CreateBundleUploadRequest>| {
+            let create_bundle_response = *CREATE_BUNDLE_RESPONSE.lock().unwrap();
+            let result = match create_bundle_response {
+                CreateBundleResponse::Error => Err(String::from("Server is down")),
+                CreateBundleResponse::Success => {
+                    let host = &state.host;
+                    Ok(Json(CreateBundleUploadResponse {
+                        id: String::from("test-bundle-upload-id"),
+                        id_v2: String::from("test-bundle-upload-id-v2"),
+                        url: format!("{host}/s3upload"),
+                        key: String::from("unused"),
+                    }))
+                }
+            };
+            async { result }
+        },
+    );
+    let state = mock_server_builder.spawn_mock_server().await;
+
+    let mut command = CommandBuilder::upload(temp_dir.path(), state.host.clone())
+        .disable_quarantining(true)
+        .test_process_exit_code(1)
+        .command();
+
+    *CREATE_BUNDLE_RESPONSE.lock().unwrap() = CreateBundleResponse::Success;
+
+    // there is a provided exit code, so all of the options below will default to failure
+    // First run won't quarantine any tests
+    *QUARANTINE_CONFIG_RESPONSE.lock().unwrap() = QuarantineConfigResponse::None;
+    command.assert().failure();
+
+    // Second run won't quarantine even when config generates 1 quarantined test
+    *QUARANTINE_CONFIG_RESPONSE.lock().unwrap() = QuarantineConfigResponse::Some;
+    command.assert().failure();
+
+    // Third run won't quarantine even when config generates all tests quarantined
+    *QUARANTINE_CONFIG_RESPONSE.lock().unwrap() = QuarantineConfigResponse::All;
+    command.assert().failure();
+
+    // Fourth run won't quarantine with quarantining disabled in the app
+    *QUARANTINE_CONFIG_RESPONSE.lock().unwrap() = QuarantineConfigResponse::Disabled;
+    command.assert().failure();
+
+    // repeat the test with quarantining disabled with use-quarantining
+    let mut command = CommandBuilder::upload(temp_dir.path(), state.host.clone())
+        .use_quarantining(false)
+        .test_process_exit_code(1)
+        .command();
+
+    *CREATE_BUNDLE_RESPONSE.lock().unwrap() = CreateBundleResponse::Success;
+
+    // there is a provided exit code, so all of the options below will default to failure
+    // First run won't quarantine any tests
+    *QUARANTINE_CONFIG_RESPONSE.lock().unwrap() = QuarantineConfigResponse::None;
+    command.assert().failure();
+
+    // Second run won't quarantine even when config generates 1 quarantined test
+    *QUARANTINE_CONFIG_RESPONSE.lock().unwrap() = QuarantineConfigResponse::Some;
+    command.assert().failure();
+
+    // Third run won't quarantine even when config generates all tests quarantined
+    *QUARANTINE_CONFIG_RESPONSE.lock().unwrap() = QuarantineConfigResponse::All;
+    command.assert().failure();
+
+    // Fourth run won't quarantine with quarantining disabled in the app
+    *QUARANTINE_CONFIG_RESPONSE.lock().unwrap() = QuarantineConfigResponse::Disabled;
+    command.assert().failure();
+}
