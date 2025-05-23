@@ -234,14 +234,28 @@ impl JunitParser {
                     }
                     test_case_run.status = match test_case.status {
                         TestCaseStatus::Success { .. } => TestCaseRunStatus::Success.into(),
-                        TestCaseStatus::Skipped { message, .. } => {
-                            test_case_run.status_output_message =
-                                message.map(|v| v.to_string()).unwrap_or_default();
+                        TestCaseStatus::Skipped {
+                            message,
+                            description,
+                            ..
+                        } => {
+                            if let Some(description) = description {
+                                test_case_run.status_output_message = description.to_string();
+                            } else if let Some(message) = message {
+                                test_case_run.status_output_message = message.to_string();
+                            }
                             TestCaseRunStatus::Skipped.into()
                         }
-                        TestCaseStatus::NonSuccess { message, .. } => {
-                            test_case_run.status_output_message =
-                                message.map(|v| v.to_string()).unwrap_or_default();
+                        TestCaseStatus::NonSuccess {
+                            message,
+                            description,
+                            ..
+                        } => {
+                            if let Some(description) = description {
+                                test_case_run.status_output_message = description.to_string();
+                            } else if let Some(message) = message {
+                                test_case_run.status_output_message = message.to_string();
+                            }
                             TestCaseRunStatus::Failure.into()
                         }
                     };
@@ -853,7 +867,9 @@ mod tests {
                         <![CDATA[Expected: <true> but was: <false>]]>
                     </failure>
                 </testcase>
-                <testcase file="test.java" name="test_variant_truncation2" time="0.001" />
+                <testcase file="test.java" name="test_variant_truncation2" time="0.001">
+                    <failure message="Test failed"/>
+                </testcase>
             </testsuite>
         </testsuites>
         "#;
@@ -866,7 +882,10 @@ mod tests {
         assert_eq!(test_case_run1.parent_name, "testsuite");
         assert_eq!(test_case_run1.classname, "test");
         assert_eq!(test_case_run1.status, TestCaseRunStatus::Failure as i32);
-        assert_eq!(test_case_run1.status_output_message, "Test failed");
+        assert_eq!(
+            test_case_run1.status_output_message,
+            "Expected: <true> but was: <false>"
+        );
         assert_eq!(test_case_run1.file, "test.java");
         assert_eq!(test_case_run1.attempt_number, 0);
         assert!(!test_case_run1.is_quarantined);
@@ -890,8 +909,8 @@ mod tests {
         assert_eq!(test_case_run2.name, "test_variant_truncation2");
         assert_eq!(test_case_run2.parent_name, "testsuite");
         assert_eq!(test_case_run2.classname, "");
-        assert_eq!(test_case_run2.status, TestCaseRunStatus::Success as i32);
-        assert_eq!(test_case_run2.status_output_message, "");
+        assert_eq!(test_case_run2.status, TestCaseRunStatus::Failure as i32);
+        assert_eq!(test_case_run2.status_output_message, "Test failed");
         assert_eq!(test_case_run2.file, "test.java");
         assert_eq!(test_case_run2.attempt_number, 0);
         assert!(!test_case_run2.is_quarantined);
