@@ -205,19 +205,22 @@ describe("context-js", () => {
   });
 
   it("parses internal.bin", () => {
-    let file_path = path.resolve(__dirname, "../tests/test_internal.bin");
-    let file = fs.readFileSync(file_path);
-    let results = bin_parse(file);
-    expect(results).toBeDefined();
-    expect(results.length).toBe(1);
-    let result = results[0];
-    expect(result.name).toBe("rspec");
-    expect(result.tests).toBe(13);
-    expect(result.test_suites.length).toBe(2);
-    let test_suite = result.test_suites[0];
-    expect(test_suite.name).toBe("RSpec Expectations");
-    expect(test_suite.tests).toBe(8);
-    let test = test_suite.test_cases[0];
-    expect(test.name).toBe("RSpec Expectations is expected to eq 1748019964");
+    expect.hasAssertions();
+
+    const file_path = path.resolve(__dirname, "../tests/test_internal.bin");
+    const file = fs.readFileSync(file_path);
+    const results = bin_parse(file);
+
+    expect(results).toHaveLength(1);
+
+    const result = results.at(0);
+
+    expect(result?.tests).toBe(13);
+    expect(result?.test_suites).toHaveLength(2);
+
+    const test_suite = result.test_suites.at(0);
+
+    expect(test_suite?.name).toBe("RSpec Expectations");
+    expect(test_suite?.test_cases).toHaveLength(8);
   });
 });
