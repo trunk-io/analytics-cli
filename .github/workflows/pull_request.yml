@@ -86,14 +86,14 @@ jobs:
 
       - name: Upload results to staging using built CLI
         env:
-          TRUNK_PUBLIC_API_ADDRESS: https://api.trunk-staging.io
+          TRUNK_PUBLIC_API_ADDRESS: https://api.dev3.trunk-staging.io
         shell: bash
         if: "!contains(matrix.platform.target, 'illumos')"
         run: |
           target/${{ matrix.platform.target }}/release/trunk-analytics-cli upload \
              --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
-             --org-url-slug trunk-staging-org \
-             --token ${{ secrets.TRUNK_STAGING_ORG_API_TOKEN }}
+             --org-url-slug trunk-io \
+             --token 127301ebd0b675fba02b8c62d1e64b90966e7a67
 
       - name: Upload results to prod using built CLI
         shell: bash
