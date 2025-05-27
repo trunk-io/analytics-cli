@@ -26,6 +26,8 @@ pub struct QuarantineContext {
     pub exit_code: i32,
     pub quarantine_status: QuarantineBulkTestStatus,
     pub failures: Vec<Test>,
+    pub repo: RepoUrlParts,
+    pub org_url_slug: String,
 }
 
 fn convert_case_to_test<T: AsRef<str>>(
@@ -235,6 +237,8 @@ pub async fn gather_quarantine_context(
         tracing::info!("No test output files found, not quarantining any tests.");
         return QuarantineContext {
             exit_code,
+            repo: request.repo.clone(),
+            org_url_slug: request.org_url_slug.clone(),
             ..Default::default()
         };
     }
@@ -272,6 +276,8 @@ pub async fn gather_quarantine_context(
             exit_code,
             quarantine_status: QuarantineBulkTestStatus::default(),
             failures: failed_tests_extractor.failed_tests().to_vec(),
+            repo: request.repo.clone(),
+            org_url_slug: request.org_url_slug.clone(),
         };
     } else {
         // quarantining is enabled, continue with quarantine process and update exit code
@@ -359,6 +365,8 @@ pub async fn gather_quarantine_context(
         exit_code,
         quarantine_status: quarantine_results,
         failures,
+        repo: request.repo.clone(),
+        org_url_slug: request.org_url_slug.clone(),
     }
 }
 

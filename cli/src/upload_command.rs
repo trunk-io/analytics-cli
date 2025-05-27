@@ -263,6 +263,7 @@ pub async fn run_upload(
         default_exit_code,
     )
     .await;
+    // trunk-ignore(clippy/assigning_clones)
     meta.base_props.quarantined_tests = quarantine_context
         .quarantine_status
         .quarantine_results
@@ -337,7 +338,6 @@ async fn upload_bundle(
     ) = BundlerUtil::new(meta, bep_result).make_tarball_in_temp_dir()?;
     tracing::info!("Flushed temporary tarball to {:?}", bundle_temp_file);
 
-    /*
     api_client
         .put_bundle_to_s3(&upload.url, &bundle_temp_file)
         .await?;
@@ -349,24 +349,26 @@ async fn upload_bundle(
             exit_code
         );
     }
-    */
 
     Ok(())
 }
 
-use api::urls::url_for_test_case;
+use api::{client::get_api_host, urls::url_for_test_case};
 use bundle::Test;
 use superconsole::{style::style, Line, Span};
 
 impl Component for UploadRunResult {
     fn draw_unchecked(&self, _dimensions: Dimensions, _mode: DrawMode) -> anyhow::Result<Lines> {
         let mut output: Vec<Line> = Vec::new();
+        output.push(Line::from_iter([Span::new_unstyled("Test Report:")?]));
+        output.push(Line::default());
         let qc = &self.quarantine_context;
         let quarantined = &qc.quarantine_status.quarantine_results;
         let failures = &qc.failures;
         let quarantined_count = quarantined.len();
         let non_quarantined_count = failures.len();
-        let all_quarantined = non_quarantined_count == 0 && quarantined_count > 0;
+        let all_quarantined =
+            non_quarantined_count == 0 && quarantined_count > 0 || failures.is_empty();
 
         // Helper closure to render the test table
         let render_test_table = |tests: &[Test]| -> anyhow::Result<Vec<Line>> {
@@ -375,19 +377,29 @@ impl Component for UploadRunResult {
                 "    {:<60} Link",
                 "Name"
             ))?]));
-            for test in tests {
+            // look at the first 15 tests
+            for test in tests.into_iter().take(15) {
                 let output_name = format!(
                     "{}{}{}",
                     test.parent_name,
                     if test.parent_name.is_empty() { "" } else { "/" },
                     test.name
                 );
-                // TODO: fix this
-                //let link = url_for_test_case(self.public_api_address, self.org_url_slug, self.repo, test)?;
-                let link = "";
+                let link = url_for_test_case(
+                    &get_api_host(),
+                    &self.quarantine_context.org_url_slug,
+                    &self.quarantine_context.repo,
+                    test,
+                )?;
                 lines.push(Line::from_iter([Span::new_unstyled(format!(
                     "    {:<60} {}",
                     output_name, link
+                ))?]));
+            }
+            if tests.len() > 15 {
+                lines.push(Line::from_iter([Span::new_unstyled(format!(
+                    "    ... and {} more",
+                    tests.len() - 15
                 ))?]));
             }
             lines.push(Line::default());
@@ -431,6 +443,7 @@ impl Component for UploadRunResult {
                 qc.exit_code
             ))?]));
         }
+        output.push(Line::default());
 
         Ok(Lines(output))
     }

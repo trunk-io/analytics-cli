@@ -58,6 +58,14 @@ impl Cli {
         }
     }
 
+    pub fn hide_banner(&self) -> bool {
+        match &self.command {
+            Commands::Test(args) => args.hide_banner(),
+            Commands::Upload(args) => args.hide_banner,
+            Commands::Validate(args) => args.hide_banner(),
+        }
+    }
+
     pub fn repo_root(&self) -> String {
         let explicit_root = match &self.command {
             Commands::Test(args) => args.repo_root(),
@@ -102,6 +110,7 @@ fn main() -> anyhow::Result<()> {
                 cli.org_url_slug(),
                 cli.repo_root(),
             )?;
+
             tracing::info!(
                 command = cli.debug_props(),
                 "Trunk Flaky Test running command"
@@ -212,10 +221,12 @@ fn setup_logger(
 
     // make console layer toggle based on vebosity
     let console_layer = tracing_subscriber::fmt::Layer::new()
-        .with_target(false)
-        .with_level(false)
+        .with_target(true)
+        .with_level(true)
         .with_writer(std::io::stdout.with_max_level(to_trace_filter(log_level_filter)))
-        .with_filter(FilterFn::new(|_metadata| false));
+        .with_filter(FilterFn::new(|metadata| {
+            metadata.level() == &tracing::Level::DEBUG || metadata.level() == &tracing::Level::TRACE
+        }));
 
     tracing_subscriber::registry()
         .with(console_layer)
