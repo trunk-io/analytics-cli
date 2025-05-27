@@ -197,10 +197,6 @@ pub enum CommandType {
         upload_args: UploadArgs,
         server_host: String,
     },
-    Quarantine {
-        upload_args: UploadArgs,
-        server_host: String,
-    },
     Test {
         upload_args: UploadArgs,
         command: Vec<String>,
@@ -224,7 +220,6 @@ impl CommandType {
     pub fn build_args(&self) -> Vec<String> {
         match self {
             CommandType::Upload { upload_args, .. } => upload_args.build_args(),
-            CommandType::Quarantine { upload_args, .. } => upload_args.build_args(),
             CommandType::Test {
                 upload_args,
                 command,
@@ -255,10 +250,6 @@ impl CommandType {
                 String::from(TRUNK_PUBLIC_API_ADDRESS_ENV),
                 server_host.clone(),
             )]),
-            CommandType::Quarantine { server_host, .. } => HashMap::from([(
-                String::from(TRUNK_PUBLIC_API_ADDRESS_ENV),
-                server_host.clone(),
-            )]),
             CommandType::Test { server_host, .. } => HashMap::from([(
                 String::from(TRUNK_PUBLIC_API_ADDRESS_ENV),
                 server_host.clone(),
@@ -275,9 +266,6 @@ impl CommandType {
             CommandType::Upload { upload_args, .. } => {
                 upload_args.use_quarantining = Some(new_flag)
             }
-            CommandType::Quarantine { upload_args, .. } => {
-                upload_args.use_quarantining = Some(new_flag)
-            }
             CommandType::Test { upload_args, .. } => upload_args.use_quarantining = Some(new_flag),
             CommandType::Validate { .. } => (),
         }
@@ -287,9 +275,6 @@ impl CommandType {
     pub fn disable_quarantining(&mut self, new_flag: bool) -> &mut Self {
         match self {
             CommandType::Upload { upload_args, .. } => {
-                upload_args.disable_quarantining = Some(new_flag)
-            }
-            CommandType::Quarantine { upload_args, .. } => {
                 upload_args.disable_quarantining = Some(new_flag)
             }
             CommandType::Test { upload_args, .. } => {
@@ -305,9 +290,6 @@ impl CommandType {
             CommandType::Upload { upload_args, .. } => {
                 upload_args.repo_root = Some(String::from(new_value))
             }
-            CommandType::Quarantine { upload_args, .. } => {
-                upload_args.repo_root = Some(String::from(new_value))
-            }
             CommandType::Test { upload_args, .. } => {
                 upload_args.repo_root = Some(String::from(new_value))
             }
@@ -321,9 +303,6 @@ impl CommandType {
             CommandType::Upload { upload_args, .. } => {
                 upload_args.use_uncloned_repo = Some(new_flag)
             }
-            CommandType::Quarantine { upload_args, .. } => {
-                upload_args.use_uncloned_repo = Some(new_flag)
-            }
             CommandType::Test { upload_args, .. } => upload_args.use_uncloned_repo = Some(new_flag),
             CommandType::Validate { .. } => (),
         }
@@ -333,9 +312,6 @@ impl CommandType {
     pub fn repo_url(&mut self, new_value: &str) -> &mut Self {
         match self {
             CommandType::Upload { upload_args, .. } => {
-                upload_args.repo_url = Some(String::from(new_value))
-            }
-            CommandType::Quarantine { upload_args, .. } => {
                 upload_args.repo_url = Some(String::from(new_value))
             }
             CommandType::Test { upload_args, .. } => {
@@ -351,9 +327,6 @@ impl CommandType {
             CommandType::Upload { upload_args, .. } => {
                 upload_args.repo_head_sha = Some(String::from(new_value))
             }
-            CommandType::Quarantine { upload_args, .. } => {
-                upload_args.repo_head_sha = Some(String::from(new_value))
-            }
             CommandType::Test { upload_args, .. } => {
                 upload_args.repo_head_sha = Some(String::from(new_value))
             }
@@ -365,9 +338,6 @@ impl CommandType {
     pub fn repo_head_branch(&mut self, new_value: &str) -> &mut Self {
         match self {
             CommandType::Upload { upload_args, .. } => {
-                upload_args.repo_head_branch = Some(String::from(new_value))
-            }
-            CommandType::Quarantine { upload_args, .. } => {
                 upload_args.repo_head_branch = Some(String::from(new_value))
             }
             CommandType::Test { upload_args, .. } => {
@@ -383,9 +353,6 @@ impl CommandType {
             CommandType::Upload { upload_args, .. } => {
                 upload_args.repo_head_commit_epoch = Some(String::from(new_value))
             }
-            CommandType::Quarantine { upload_args, .. } => {
-                upload_args.repo_head_commit_epoch = Some(String::from(new_value))
-            }
             CommandType::Test { upload_args, .. } => {
                 upload_args.repo_head_commit_epoch = Some(String::from(new_value))
             }
@@ -397,9 +364,6 @@ impl CommandType {
     pub fn repo_head_author_name(&mut self, new_value: &str) -> &mut Self {
         match self {
             CommandType::Upload { upload_args, .. } => {
-                upload_args.repo_head_author_name = Some(String::from(new_value))
-            }
-            CommandType::Quarantine { upload_args, .. } => {
                 upload_args.repo_head_author_name = Some(String::from(new_value))
             }
             CommandType::Test { upload_args, .. } => {
@@ -497,9 +461,6 @@ impl<'b> CommandBuilder<'b> {
             CommandType::Upload { upload_args, .. } => {
                 upload_args.variant = Some(new_value.to_string());
             }
-            CommandType::Quarantine { upload_args, .. } => {
-                upload_args.variant = Some(new_value.to_string());
-            }
             CommandType::Test { upload_args, .. } => {
                 upload_args.variant = Some(new_value.to_string());
             }
@@ -541,9 +502,6 @@ impl<'b> CommandBuilder<'b> {
     pub fn test_process_exit_code(&mut self, new_value: i32) -> &mut Self {
         match &mut self.command_type {
             CommandType::Upload { upload_args, .. } => {
-                upload_args.test_process_exit_code = Some(new_value);
-            }
-            CommandType::Quarantine { upload_args, .. } => {
                 upload_args.test_process_exit_code = Some(new_value);
             }
             CommandType::Test { upload_args, .. } => {
