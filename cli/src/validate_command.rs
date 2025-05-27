@@ -104,7 +104,7 @@ async fn validate(
     let file_set_builder =
         FileSetBuilder::build_file_sets(&current_dir, &junit_paths, &Option::<&str>::None, None)?;
     if file_set_builder.no_files_found() {
-        let msg = "No test output files found to validate.";
+        let msg = "No test output files found to validate";
         tracing::warn!(msg);
         return Err(anyhow::anyhow!(msg));
     }
