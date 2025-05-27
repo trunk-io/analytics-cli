@@ -25,6 +25,7 @@ use crate::error_report::{log_error, Context};
 pub struct QuarantineContext {
     pub exit_code: i32,
     pub quarantine_status: QuarantineBulkTestStatus,
+    pub failures: Vec<Test>,
 }
 
 fn convert_case_to_test<T: AsRef<str>>(
@@ -270,6 +271,7 @@ pub async fn gather_quarantine_context(
         return QuarantineContext {
             exit_code,
             quarantine_status: QuarantineBulkTestStatus::default(),
+            failures: failed_tests_extractor.failed_tests().to_vec(),
         };
     } else {
         // quarantining is enabled, continue with quarantine process and update exit code
@@ -302,9 +304,8 @@ pub async fn gather_quarantine_context(
         } else {
             ""
         };
-        // The hazard emoji consumes the first character after it, which is why it needs two spaces after it.
         tracing::info!(
-            "⚠️  {} test failure{} quarantined:",
+            "{} test failure{} quarantined:",
             quarantined_failures.len(),
             plural
         );
@@ -323,7 +324,6 @@ pub async fn gather_quarantine_context(
         failures
             .iter()
             .for_each(|failure| log_failure(failure, request, api_client));
-        tracing::info!("");
     }
     let quarantined_failure_count = quarantined_failures.len();
     quarantine_results.quarantine_results = quarantined_failures;
@@ -354,11 +354,11 @@ pub async fn gather_quarantine_context(
     } else {
         exit_code
     };
-    tracing::info!("");
 
     QuarantineContext {
         exit_code,
         quarantine_status: quarantine_results,
+        failures,
     }
 }
 

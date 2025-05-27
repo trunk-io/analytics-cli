@@ -5,7 +5,9 @@ use bundle::{BundleMeta, BundlerUtil};
 use clap::{ArgAction, Args};
 use constants::EXIT_SUCCESS;
 use context::bazel_bep::common::BepParseResult;
+use superconsole::{Component, Dimensions, DrawMode, Lines};
 
+use crate::context_quarantine::QuarantineContext;
 use crate::{
     context::{
         gather_debug_props, gather_exit_code_and_quarantined_tests_context,
@@ -188,8 +190,8 @@ impl UploadArgs {
 }
 
 pub struct UploadRunResult {
-    pub exit_code: i32,
     pub upload_bundle_error: Option<anyhow::Error>,
+    pub quarantine_context: QuarantineContext,
 }
 
 pub async fn run_upload(
@@ -253,7 +255,7 @@ pub async fn run_upload(
     } else {
         test_run_result.as_ref().map(|r| r.exit_code)
     };
-    let exit_code = gather_exit_code_and_quarantined_tests_context(
+    let quarantine_context = gather_exit_code_and_quarantined_tests_context(
         &mut meta,
         upload_args.disable_quarantining || !upload_args.use_quarantining,
         &api_client,
@@ -261,11 +263,20 @@ pub async fn run_upload(
         default_exit_code,
     )
     .await;
+    meta.base_props.quarantined_tests = quarantine_context
+        .quarantine_status
+        .quarantine_results
+        .clone();
 
     let upload_started_at = chrono::Utc::now();
     tracing::info!("Uploading test results...");
-    let upload_bundle_result =
-        upload_bundle(meta.clone(), &api_client, bep_result, exit_code).await;
+    let upload_bundle_result = upload_bundle(
+        meta.clone(),
+        &api_client,
+        bep_result,
+        quarantine_context.exit_code,
+    )
+    .await;
     let upload_metrics = proto::upload_metrics::trunk::UploadMetrics {
         client_version: Some(proto::upload_metrics::trunk::Semver {
             major: env!("CARGO_PKG_VERSION_MAJOR").parse().unwrap_or_default(),
@@ -306,7 +317,7 @@ pub async fn run_upload(
         tracing::error!("Failed to upload bundle");
     }
     Ok(UploadRunResult {
-        exit_code,
+        quarantine_context,
         upload_bundle_error: upload_bundle_result.err(),
     })
 }
@@ -326,6 +337,7 @@ async fn upload_bundle(
     ) = BundlerUtil::new(meta, bep_result).make_tarball_in_temp_dir()?;
     tracing::info!("Flushed temporary tarball to {:?}", bundle_temp_file);
 
+    /*
     api_client
         .put_bundle_to_s3(&upload.url, &bundle_temp_file)
         .await?;
@@ -337,6 +349,89 @@ async fn upload_bundle(
             exit_code
         );
     }
+    */
 
     Ok(())
+}
+
+use api::urls::url_for_test_case;
+use bundle::Test;
+use superconsole::{style::style, Line, Span};
+
+impl Component for UploadRunResult {
+    fn draw_unchecked(&self, _dimensions: Dimensions, _mode: DrawMode) -> anyhow::Result<Lines> {
+        let mut output: Vec<Line> = Vec::new();
+        let qc = &self.quarantine_context;
+        let quarantined = &qc.quarantine_status.quarantine_results;
+        let failures = &qc.failures;
+        let quarantined_count = quarantined.len();
+        let non_quarantined_count = failures.len();
+        let all_quarantined = non_quarantined_count == 0 && quarantined_count > 0;
+
+        // Helper closure to render the test table
+        let render_test_table = |tests: &[Test]| -> anyhow::Result<Vec<Line>> {
+            let mut lines = Vec::new();
+            lines.push(Line::from_iter([Span::new_unstyled(format!(
+                "    {:<60} Link",
+                "Name"
+            ))?]));
+            for test in tests {
+                let output_name = format!(
+                    "{}{}{}",
+                    test.parent_name,
+                    if test.parent_name.is_empty() { "" } else { "/" },
+                    test.name
+                );
+                // TODO: fix this
+                //let link = url_for_test_case(self.public_api_address, self.org_url_slug, self.repo, test)?;
+                let link = "";
+                lines.push(Line::from_iter([Span::new_unstyled(format!(
+                    "    {:<60} {}",
+                    output_name, link
+                ))?]));
+            }
+            lines.push(Line::default());
+            Ok(lines)
+        };
+
+        // Quarantined section
+        if quarantined_count > 0 {
+            output.push(Line::from_iter([
+                Span::new_unstyled("❤️‍🩹  ")?,
+                Span::new_styled(style(format!(
+                    "{} tests failed and were quarantined ",
+                    quarantined_count
+                )))?,
+            ]));
+            output.push(Line::default());
+            output.extend(render_test_table(quarantined)?);
+        }
+
+        // Non-quarantined failures section
+        if non_quarantined_count > 0 {
+            output.push(Line::from_iter([
+                Span::new_unstyled("❌ ")?,
+                Span::new_styled(style(format!(
+                    "{} tests failed and were not quarantined",
+                    non_quarantined_count
+                )))?,
+            ]));
+            output.push(Line::default());
+            output.extend(render_test_table(failures)?);
+        }
+
+        // Final line if all failures were quarantined
+        if all_quarantined {
+            output.push(Line::from_iter([
+                Span::new_unstyled("🎉 All test failures were quarantined, overriding exit code to be exit_success (0)")?,
+            ]));
+        } else {
+            output.push(Line::from_iter([Span::new_unstyled(format!(
+                "⚠️  Some test failures were not quarantined, using exit code: {}",
+                qc.exit_code
+            ))?]));
+        }
+
+        Ok(Lines(output))
+    }
 }

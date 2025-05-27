@@ -2,8 +2,10 @@ use std::env;
 
 use clap::{Parser, Subcommand};
 use clap_verbosity_flag::{log::LevelFilter, InfoLevel, Verbosity};
+use superconsole::SuperConsole;
 use third_party::sentry;
 use tracing_subscriber::{filter::FilterFn, prelude::*};
+use trunk_analytics_cli::context_quarantine::QuarantineContext;
 use trunk_analytics_cli::{
     context::gather_debug_props,
     error_report::{log_error, Context},
@@ -56,14 +58,6 @@ impl Cli {
         }
     }
 
-    pub fn hide_banner(&self) -> bool {
-        match &self.command {
-            Commands::Test(args) => args.hide_banner(),
-            Commands::Upload(args) => args.hide_banner,
-            Commands::Validate(args) => args.hide_banner(),
-        }
-    }
-
     pub fn repo_root(&self) -> String {
         let explicit_root = match &self.command {
             Commands::Test(args) => args.repo_root(),
@@ -108,9 +102,6 @@ fn main() -> anyhow::Result<()> {
                 cli.org_url_slug(),
                 cli.repo_root(),
             )?;
-            if !cli.hide_banner() {
-                tracing::info!("{}", TITLE_CARD);
-            }
             tracing::info!(
                 command = cli.debug_props(),
                 "Trunk Flaky Test running command"
@@ -147,18 +138,27 @@ async fn run(cli: Cli) -> anyhow::Result<i32> {
         env!("VERGEN_GIT_SHA"),
         env!("VERGEN_RUSTC_SEMVER")
     );
+    let mut superconsole = SuperConsole::new().ok_or_else(|| anyhow::anyhow!("Not a TTY"))?;
     match cli.command {
         Commands::Upload(upload_args) => {
+            let result = run_upload(upload_args, None, None).await?;
+            superconsole.render(&result)?;
+            superconsole.finalize(&result)?;
             let UploadRunResult {
-                exit_code,
+                quarantine_context: QuarantineContext { exit_code, .. },
                 upload_bundle_error,
-            } = run_upload(upload_args, None, None).await?;
+            } = result;
             if let Some(upload_bundle_error) = upload_bundle_error {
                 return Err(upload_bundle_error);
             }
             Ok(exit_code)
         }
-        Commands::Test(test_args) => run_test(test_args).await,
+        Commands::Test(test_args) => {
+            let result = run_test(test_args).await?;
+            superconsole.render(&result)?;
+            superconsole.finalize(&result)?;
+            Ok(result.quarantine_context.exit_code)
+        }
         Commands::Validate(validate_args) => run_validate(validate_args).await,
     }
 }
@@ -210,17 +210,12 @@ fn setup_logger(
         }
     });
 
+    // make console layer toggle based on vebosity
     let console_layer = tracing_subscriber::fmt::Layer::new()
-        .without_time()
         .with_target(false)
         .with_level(false)
         .with_writer(std::io::stdout.with_max_level(to_trace_filter(log_level_filter)))
-        .with_filter(FilterFn::new(|metadata| {
-            !metadata
-                .fields()
-                .iter()
-                .any(|field| field.name() == "hidden_in_console")
-        }));
+        .with_filter(FilterFn::new(|_metadata| false));
 
     tracing_subscriber::registry()
         .with(console_layer)
@@ -228,18 +223,3 @@ fn setup_logger(
         .init();
     Ok(())
 }
-
-// Uses a raw string to avoid needing to escape quotes in the title card. This is mostly just so you can see
-// what it looks like in code rather than needing to print.
-const TITLE_CARD: &str = r#"
-%%%%%%%%%%%  %%              %%                        %%%%%%%%%%%%                                        
-%%           %%              %%                             %%                           ,d                
-%%           %%              %%                             %%                           %%                
-%%aaaaa      %%  ,adPPYYba,  %%   ,d%  %b       d%          %%   ,adPPYba,  ,adPPYba,  MM%%MMM  ,adPPYba,  
-%%"""""      %%  ""     `Y%  %% ,a%"   `%b     d%'          %%  a%P_____%%  I%[    ""    %%     I%[    ""  
-%%           %%  ,adPPPPP%%  %%%%[      `%b   d%'           %%  %PP"""""""   `"Y%ba,     %%      `"Y%ba,   
-%%           %%  %%,    ,%%  %%`"Yba,    `%b,d%'            %%  "%b,   ,aa  aa    ]%I    %%,    aa    ]%I  
-%%           %%  `"%bbdP"Y%  %%   `Y%a     Y%%'             %%   `"Ybbd%"'  `"YbbdP"'    "Y%%%  `"YbbdP"'  
-                                           d%'                                                             
-                                          d%'                                                              
-"#;
