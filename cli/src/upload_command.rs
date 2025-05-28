@@ -338,6 +338,7 @@ async fn upload_bundle(
     ) = BundlerUtil::new(meta, bep_result).make_tarball_in_temp_dir()?;
     tracing::info!("Flushed temporary tarball to {:?}", bundle_temp_file);
 
+    /*
     api_client
         .put_bundle_to_s3(&upload.url, &bundle_temp_file)
         .await?;
@@ -349,18 +350,25 @@ async fn upload_bundle(
             exit_code
         );
     }
+    */
 
     Ok(())
 }
 
 use api::{client::get_api_host, urls::url_for_test_case};
 use bundle::Test;
-use superconsole::{style::style, Line, Span};
+use superconsole::{
+    style::{style, Attribute, Color, Stylize},
+    Line, Span,
+};
+use unicode_ellipsis::truncate_str_leading;
 
 impl Component for UploadRunResult {
     fn draw_unchecked(&self, _dimensions: Dimensions, _mode: DrawMode) -> anyhow::Result<Lines> {
         let mut output: Vec<Line> = Vec::new();
-        output.push(Line::from_iter([Span::new_unstyled("Test Report:")?]));
+        output.push(Line::from_iter([Span::new_styled(
+            String::from("Test Report").attribute(Attribute::Bold),
+        )?]));
         output.push(Line::default());
         let qc = &self.quarantine_context;
         let quarantined = &qc.quarantine_status.quarantine_results;
@@ -371,80 +379,109 @@ impl Component for UploadRunResult {
             non_quarantined_count == 0 && quarantined_count > 0 || failures.is_empty();
 
         // Helper closure to render the test table
-        let render_test_table = |tests: &[Test]| -> anyhow::Result<Vec<Line>> {
-            let mut lines = Vec::new();
-            lines.push(Line::from_iter([Span::new_unstyled(format!(
-                "    {:<60} Link",
-                "Name"
-            ))?]));
-            // look at the first 15 tests
-            for test in tests.into_iter().take(15) {
+        let render_test_table = |tests: &[Test]| -> anyhow::Result<Lines> {
+            let mut output = Vec::new();
+            // look at the first 12 tests
+            let max_take = 12;
+            for test in tests.iter().take(max_take) {
                 let output_name = format!(
                     "{}{}{}",
                     test.parent_name,
                     if test.parent_name.is_empty() { "" } else { "/" },
                     test.name
                 );
+                let truncated = truncate_str_leading(&output_name, 60);
                 let link = url_for_test_case(
                     &get_api_host(),
                     &self.quarantine_context.org_url_slug,
                     &self.quarantine_context.repo,
                     test,
                 )?;
-                lines.push(Line::from_iter([Span::new_unstyled(format!(
-                    "    {:<60} {}",
-                    output_name, link
+                output.push(Line::from_iter([Span::new_styled(
+                    style(truncated.to_string()).attribute(Attribute::Italic),
+                )?]));
+                let mut link_output = Line::from_iter([
+                    Span::new_unstyled("⤷ ")?,
+                    Span::new_styled(style(link).attribute(Attribute::Underlined))?,
+                ]);
+                link_output.pad_left(2);
+                output.push(link_output);
+                output.push(Line::default());
+            }
+            let mut output = Lines(output);
+            output.pad_lines_left(2);
+            if tests.len() > max_take {
+                output.push(Line::from_iter([Span::new_unstyled(format!(
+                    "…and {} more",
+                    tests.len() - max_take
                 ))?]));
             }
-            if tests.len() > 15 {
-                lines.push(Line::from_iter([Span::new_unstyled(format!(
-                    "    ... and {} more",
-                    tests.len() - 15
-                ))?]));
-            }
-            lines.push(Line::default());
-            Ok(lines)
+            output.pad_lines_bottom(1);
+            Ok(output)
         };
 
         // Quarantined section
         if quarantined_count > 0 {
-            output.push(Line::from_iter([
-                Span::new_unstyled("❤️‍🩹  ")?,
-                Span::new_styled(style(format!(
-                    "{} tests failed and were quarantined ",
-                    quarantined_count
-                )))?,
-            ]));
-            output.push(Line::default());
+            output.extend(vec![
+                Line::from_iter([
+                    Span::new_unstyled("❤️‍🩹  ")?,
+                    Span::new_styled(
+                        style(format!("{} tests ", quarantined_count)).attribute(Attribute::Bold),
+                    )?,
+                    Span::new_styled(style(String::from("failed and were ")))?,
+                    Span::new_styled(
+                        style(String::from("quarantined"))
+                            .with(Color::Yellow)
+                            .attribute(Attribute::Bold),
+                    )?,
+                ]),
+                Line::default(),
+            ]);
             output.extend(render_test_table(quarantined)?);
         }
 
         // Non-quarantined failures section
         if non_quarantined_count > 0 {
-            output.push(Line::from_iter([
-                Span::new_unstyled("❌ ")?,
-                Span::new_styled(style(format!(
-                    "{} tests failed and were not quarantined",
-                    non_quarantined_count
-                )))?,
-            ]));
-            output.push(Line::default());
+            output.extend(vec![
+                Line::from_iter([
+                    Span::new_unstyled("❌ ")?,
+                    Span::new_unstyled(format!("{} tests ", non_quarantined_count))?,
+                    Span::new_styled(
+                        style(String::from("failed "))
+                            .with(Color::Red)
+                            .attribute(Attribute::Bold),
+                    )?,
+                    Span::new_styled(style(String::from("and were ")))?,
+                    Span::new_styled(style(String::from("not ")).attribute(Attribute::Bold))?,
+                    Span::new_unstyled("quarantined")?,
+                ]),
+                Line::default(),
+            ]);
             output.extend(render_test_table(failures)?);
         }
 
         // Final line if all failures were quarantined
         if all_quarantined {
             output.push(Line::from_iter([
-                Span::new_unstyled("🎉 All test failures were quarantined, overriding exit code to be exit_success (0)")?,
+                Span::new_unstyled("🎉 All test failures were quarantined, overriding exit code to be exit_success ")?,
+                Span::new_styled(style(format!(
+                    "({})",
+                    EXIT_SUCCESS
+                )).attribute(Attribute::Bold))?
             ]));
         } else {
-            output.push(Line::from_iter([Span::new_unstyled(format!(
-                "⚠️  Some test failures were not quarantined, using exit code: {}",
-                qc.exit_code
-            ))?]));
+            output.push(Line::from_iter([
+                Span::new_unstyled(
+                    "⚠️  Some test failures were not quarantined, using exit code: ".to_string(),
+                )?,
+                Span::new_styled(
+                    style(format!("{}", self.quarantine_context.exit_code))
+                        .attribute(Attribute::Bold),
+                )?,
+            ]));
         }
-        output.push(Line::default());
-
-        Ok(Lines(output))
+        output.iter_mut().for_each(|line| line.pad_left(4));
+        let lines = Lines(output);
+        Ok(lines)
     }
 }

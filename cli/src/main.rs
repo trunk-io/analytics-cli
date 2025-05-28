@@ -2,7 +2,7 @@ use std::env;
 
 use clap::{Parser, Subcommand};
 use clap_verbosity_flag::{log::LevelFilter, InfoLevel, Verbosity};
-use superconsole::SuperConsole;
+use superconsole::{Dimensions, SuperConsole};
 use third_party::sentry;
 use tracing_subscriber::{filter::FilterFn, prelude::*};
 use trunk_analytics_cli::context_quarantine::QuarantineContext;
@@ -115,7 +115,17 @@ fn main() -> anyhow::Result<()> {
                 command = cli.debug_props(),
                 "Trunk Flaky Test running command"
             );
-            match run(cli).await {
+            let superconsole = match SuperConsole::new() {
+                Some(console) => console,
+                None => {
+                    tracing::warn!("Failed to create superconsole");
+                    SuperConsole::forced_new(Dimensions {
+                        width: 143,
+                        height: 24,
+                    })
+                }
+            };
+            match run(cli, superconsole).await {
                 Ok(exit_code) => std::process::exit(exit_code),
                 Err(error) => {
                     let exit_code = log_error(
@@ -125,13 +135,20 @@ fn main() -> anyhow::Result<()> {
                             org_url_slug,
                         },
                     );
-                    if exit_code != exitcode::OK {
-                        tracing::warn!("Unable to proceed, returning exit code: {}", exit_code);
-                    } else {
-                        tracing::warn!(
-                            "Errors occurred during upload, returning default exit code: {}",
+                    if exit_code == exitcode::OK {
+                        tracing::info!(
+                            "No errors occurred, returning default exit code: {}",
                             exit_code
                         );
+                    } else if exit_code == exitcode::SOFTWARE {
+                        // SOFTWARE is used to indicate that the upload command failed
+                        tracing::warn!(
+                            "Errors occurred during upload, returning exit code: {}",
+                            exit_code
+                        );
+                    } else {
+                        // Unused codepath, but we log it for completeness
+                        tracing::warn!("Unable to proceed, returning exit code: {}", exit_code);
                     }
                     guard.flush(None);
                     std::process::exit(exit_code);
@@ -140,14 +157,13 @@ fn main() -> anyhow::Result<()> {
         })
 }
 
-async fn run(cli: Cli) -> anyhow::Result<i32> {
+async fn run(cli: Cli, mut superconsole: SuperConsole) -> anyhow::Result<i32> {
     tracing::info!(
         "Starting trunk flakytests {} (git={}) rustc={}",
         env!("CARGO_PKG_VERSION"),
         env!("VERGEN_GIT_SHA"),
         env!("VERGEN_RUSTC_SEMVER")
     );
-    let mut superconsole = SuperConsole::new().ok_or_else(|| anyhow::anyhow!("Not a TTY"))?;
     match cli.command {
         Commands::Upload(upload_args) => {
             let result = run_upload(upload_args, None, None).await?;
@@ -224,8 +240,12 @@ fn setup_logger(
         .with_target(true)
         .with_level(true)
         .with_writer(std::io::stdout.with_max_level(to_trace_filter(log_level_filter)))
-        .with_filter(FilterFn::new(|metadata| {
-            metadata.level() == &tracing::Level::DEBUG || metadata.level() == &tracing::Level::TRACE
+        .with_filter(FilterFn::new(move |metadata| {
+            !metadata
+                .fields()
+                .iter()
+                .any(|field| field.name() == "hidden_in_console")
+                && to_trace_filter(log_level_filter) > tracing::Level::INFO
         }));
 
     tracing_subscriber::registry()
