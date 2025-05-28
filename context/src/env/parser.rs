@@ -331,7 +331,14 @@ impl<'a> CIInfoParser<'a> {
     }
 
     fn parse_buildkite(&mut self) {
-        self.ci_info.job_url = self.get_env_var("BUILDKITE_BUILD_URL");
+        if let (Some(url), Some(id)) = (
+            self.get_env_var("BUILDKITE_BUILD_URL"),
+            self.get_env_var("BUILDKITE_STEP_ID"),
+        ) {
+            self.ci_info.job_url = Some(format!("{}#{}", url, id));
+        } else {
+            self.ci_info.job_url = None;
+        }
         self.ci_info.branch = self.get_env_var("BUILDKITE_BRANCH");
         self.ci_info.pr_number = Self::parse_pr_number(self.get_env_var("BUILDKITE_PULL_REQUEST"));
         self.ci_info.actor = self.get_env_var("BUILDKITE_BUILD_AUTHOR_EMAIL");
