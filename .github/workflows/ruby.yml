@@ -15,7 +15,7 @@ permissions:
 
 jobs:
   build:
-    runs-on: public-amd64-2xlarge
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
