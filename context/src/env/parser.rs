@@ -336,8 +336,6 @@ impl<'a> CIInfoParser<'a> {
             self.get_env_var("BUILDKITE_STEP_ID"),
         ) {
             self.ci_info.job_url = Some(format!("{}#{}", url, id));
-        } else {
-            self.ci_info.job_url = None;
         }
         self.ci_info.branch = self.get_env_var("BUILDKITE_BRANCH");
         self.ci_info.pr_number = Self::parse_pr_number(self.get_env_var("BUILDKITE_PULL_REQUEST"));
