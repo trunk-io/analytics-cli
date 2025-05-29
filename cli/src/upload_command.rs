@@ -66,6 +66,13 @@ pub struct UploadArgs {
     pub repo_head_commit_epoch: Option<String>,
     #[arg(long, help = "Value to tag team owner of upload.", hide = true)]
     pub team: Option<String>,
+    #[arg(
+        long,
+        help = "Print the files that would be uploaded to the server.",
+        hide = true,
+        required = false
+    )]
+    pub print_files: Option<bool>,
     #[arg(long, help = "Value to override CODEOWNERS file or directory path.")]
     pub codeowners_path: Option<String>,
     #[arg(
@@ -205,6 +212,12 @@ pub async fn run_upload(
     } else {
         chrono::Utc::now().into()
     };
+
+    if upload_args.print_files.is_some() {
+        tracing::error!(
+            "The --print-files flag is deprecated and will be removed in a future version."
+        );
+    }
 
     if let Some(team) = &upload_args.team {
         if !team.is_empty() {
