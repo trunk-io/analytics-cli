@@ -2,8 +2,10 @@ use std::env;
 
 use clap::{Parser, Subcommand};
 use clap_verbosity_flag::{log::LevelFilter, InfoLevel, Verbosity};
+use superconsole::{Dimensions, SuperConsole};
 use third_party::sentry;
 use tracing_subscriber::{filter::FilterFn, prelude::*};
+use trunk_analytics_cli::context_quarantine::QuarantineContext;
 use trunk_analytics_cli::{
     context::gather_debug_props,
     error_report::{log_error, Context},
@@ -108,14 +110,22 @@ fn main() -> anyhow::Result<()> {
                 cli.org_url_slug(),
                 cli.repo_root(),
             )?;
-            if !cli.hide_banner() {
-                tracing::info!("{}", TITLE_CARD);
-            }
+
             tracing::info!(
                 command = cli.debug_props(),
                 "Trunk Flaky Test running command"
             );
-            match run(cli).await {
+            let superconsole = match SuperConsole::new() {
+                Some(console) => console,
+                None => {
+                    tracing::warn!("Failed to create superconsole");
+                    SuperConsole::forced_new(Dimensions {
+                        width: 143,
+                        height: 24,
+                    })
+                }
+            };
+            match run(cli, superconsole).await {
                 Ok(exit_code) => std::process::exit(exit_code),
                 Err(error) => {
                     let exit_code = log_error(
@@ -125,13 +135,20 @@ fn main() -> anyhow::Result<()> {
                             org_url_slug,
                         },
                     );
-                    if exit_code != exitcode::OK {
-                        tracing::warn!("Unable to proceed, returning exit code: {}", exit_code);
-                    } else {
-                        tracing::warn!(
-                            "Errors occurred during upload, returning default exit code: {}",
+                    if exit_code == exitcode::OK {
+                        tracing::info!(
+                            "No errors occurred, returning default exit code: {}",
                             exit_code
                         );
+                    } else if exit_code == exitcode::SOFTWARE {
+                        // SOFTWARE is used to indicate that the upload command failed
+                        tracing::warn!(
+                            "Errors occurred during upload, returning exit code: {}",
+                            exit_code
+                        );
+                    } else {
+                        // Unused codepath, but we log it for completeness
+                        tracing::warn!("Unable to proceed, returning exit code: {}", exit_code);
                     }
                     guard.flush(None);
                     std::process::exit(exit_code);
@@ -140,7 +157,7 @@ fn main() -> anyhow::Result<()> {
         })
 }
 
-async fn run(cli: Cli) -> anyhow::Result<i32> {
+async fn run(cli: Cli, mut superconsole: SuperConsole) -> anyhow::Result<i32> {
     tracing::info!(
         "Starting trunk flakytests {} (git={}) rustc={}",
         env!("CARGO_PKG_VERSION"),
@@ -149,16 +166,24 @@ async fn run(cli: Cli) -> anyhow::Result<i32> {
     );
     match cli.command {
         Commands::Upload(upload_args) => {
+            let result = run_upload(upload_args, None, None).await?;
+            superconsole.render(&result)?;
+            superconsole.finalize(&result)?;
             let UploadRunResult {
-                exit_code,
+                quarantine_context: QuarantineContext { exit_code, .. },
                 upload_bundle_error,
-            } = run_upload(upload_args, None, None).await?;
+            } = result;
             if let Some(upload_bundle_error) = upload_bundle_error {
                 return Err(upload_bundle_error);
             }
             Ok(exit_code)
         }
-        Commands::Test(test_args) => run_test(test_args).await,
+        Commands::Test(test_args) => {
+            let result = run_test(test_args).await?;
+            superconsole.render(&result)?;
+            superconsole.finalize(&result)?;
+            Ok(result.quarantine_context.exit_code)
+        }
         Commands::Validate(validate_args) => run_validate(validate_args).await,
     }
 }
@@ -210,16 +235,17 @@ fn setup_logger(
         }
     });
 
+    // make console layer toggle based on vebosity
     let console_layer = tracing_subscriber::fmt::Layer::new()
-        .without_time()
-        .with_target(false)
-        .with_level(false)
+        .with_target(true)
+        .with_level(true)
         .with_writer(std::io::stdout.with_max_level(to_trace_filter(log_level_filter)))
-        .with_filter(FilterFn::new(|metadata| {
+        .with_filter(FilterFn::new(move |metadata| {
             !metadata
                 .fields()
                 .iter()
                 .any(|field| field.name() == "hidden_in_console")
+                && to_trace_filter(log_level_filter) > tracing::Level::INFO
         }));
 
     tracing_subscriber::registry()
@@ -228,18 +254,3 @@ fn setup_logger(
         .init();
     Ok(())
 }
-
-// Uses a raw string to avoid needing to escape quotes in the title card. This is mostly just so you can see
-// what it looks like in code rather than needing to print.
-const TITLE_CARD: &str = r#"
-%%%%%%%%%%%  %%              %%                        %%%%%%%%%%%%                                        
-%%           %%              %%                             %%                           ,d                
-%%           %%              %%                             %%                           %%                
-%%aaaaa      %%  ,adPPYYba,  %%   ,d%  %b       d%          %%   ,adPPYba,  ,adPPYba,  MM%%MMM  ,adPPYba,  
-%%"""""      %%  ""     `Y%  %% ,a%"   `%b     d%'          %%  a%P_____%%  I%[    ""    %%     I%[    ""  
-%%           %%  ,adPPPPP%%  %%%%[      `%b   d%'           %%  %PP"""""""   `"Y%ba,     %%      `"Y%ba,   
-%%           %%  %%,    ,%%  %%`"Yba,    `%b,d%'            %%  "%b,   ,aa  aa    ]%I    %%,    aa    ]%I  
-%%           %%  `"%bbdP"Y%  %%   `Y%a     Y%%'             %%   `"Ybbd%"'  `"YbbdP"'    "Y%%%  `"YbbdP"'  
-                                           d%'                                                             
-                                          d%'                                                              
-"#;
