@@ -8,6 +8,8 @@ use context::env::{
 #[test]
 fn test_simple_buildkite() {
     let job_url = String::from("https://buildkite.com/test/builds/123");
+    let step_id = String::from("step-id");
+    let full_job_url = format!("{}#{}", job_url, step_id);
     let branch = String::from("some-branch-name");
     let env_vars = EnvVars::from_iter(vec![
         (
@@ -21,6 +23,7 @@ fn test_simple_buildkite() {
             String::from(""),
         ),
         (String::from("BUILDKITE"), String::from("true")),
+        (String::from("BUILDKITE_STEP_ID"), String::from("step-id")),
     ]);
 
     let mut env_parser = EnvParser::new();
@@ -32,7 +35,7 @@ fn test_simple_buildkite() {
         ci_info,
         CIInfo {
             platform: CIPlatform::Buildkite,
-            job_url: Some(job_url),
+            job_url: Some(full_job_url),
             branch: Some(branch),
             branch_class: Some(BranchClass::None),
             pr_number: None,
