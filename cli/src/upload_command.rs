@@ -424,8 +424,7 @@ impl Component for UploadRunResult {
         let failures = &qc.failures;
         let quarantined_count = quarantined.len();
         let non_quarantined_count = failures.len();
-        let all_quarantined =
-            non_quarantined_count == 0 && quarantined_count > 0 || failures.is_empty();
+        let all_quarantined = non_quarantined_count == 0 && quarantined_count > 0;
 
         // Helper closure to render the test table
         let render_test_table = |tests: &[Test]| -> anyhow::Result<Lines> {
