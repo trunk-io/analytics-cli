@@ -291,6 +291,8 @@ async fn falls_back_to_binary_file() {
 
     let assert = CommandBuilder::upload(temp_dir.path(), state.host.clone())
         .bazel_bep_path(test_bep_path.as_str())
+        // verbose output to see the tracing log
+        .verbose(true)
         .command()
         .assert()
         .success();
@@ -502,8 +504,8 @@ async fn upload_bundle_invalid_repo_root() {
         .command()
         .assert()
         .failure()
-        .stdout(predicate::str::contains(
-            "Could not open the repo_root specified",
+        .stderr(predicate::str::contains(
+            "\"../\" does not appear to be a git repository",
         ));
     let requests = state.requests.lock().unwrap().clone();
     assert_eq!(requests.len(), 0);
@@ -527,9 +529,10 @@ async fn upload_bundle_invalid_repo_root_explicit() {
         .command()
         .assert()
         .failure()
-        .stdout(predicate::str::contains(
-            "Could not open the repo_root specified",
-        ));
+        .stderr(predicate::str::contains(format!(
+            "\"{}\" does not appear to be a git repository",
+            child_path.to_str().unwrap()
+        )));
     let requests = state.requests.lock().unwrap().clone();
     assert_eq!(requests.len(), 0);
 
@@ -581,8 +584,8 @@ async fn upload_bundle_with_no_junit_files_no_quarantine_successful_upload() {
         .assert()
         .code(0)
         .success()
-        .stdout(predicate::str::contains(
-            "No test output files found, not quarantining any tests",
+        .stderr(predicate::str::contains(
+            "No tests were found in the provided test results",
         ));
 
     // HINT: View CLI output with `cargo test -- --nocapture`
@@ -784,7 +787,7 @@ async fn is_not_ok_on_bad_request() {
     command
         .assert()
         .failure()
-        .stdout(predicate::str::contains("error"));
+        .stderr(predicate::str::contains("error"));
 }
 
 #[tokio::test(flavor = "multi_thread")]
