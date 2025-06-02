@@ -57,6 +57,7 @@ prost = "0.12.6"
 superconsole = "0.2.0"
 console = "0.15.11"
 unicode-ellipsis = "0.3.0"
+pluralizer = "0.5.0"
 
 [dev-dependencies]
 test_utils = { version = "0.1.0", path = "../test_utils" }
