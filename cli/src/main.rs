@@ -130,22 +130,10 @@ fn main() -> anyhow::Result<()> {
                     if let Err(e) = render_result {
                         tracing::error!("Failed to render upload display: {}", e);
                     }
-                    let mut exit_code = run_result.quarantine_context.exit_code;
-                    if let Some(upload_bundle_error) = run_result.upload_bundle_error {
-                        let error_report = ErrorReport::new(
-                            upload_bundle_error,
-                            org_url_slug,
-                            Some(
-                                "There was an error that occurred while uploading test results"
-                                    .into(),
-                            ),
-                        );
-                        exit_code = error_report.context.exit_code;
-                        let render_result = superconsole.render(&error_report);
-                        if let Err(e) = render_result {
-                            tracing::error!("Failed to render error display: {}", e);
-                        }
-                    }
+                    let exit_code = run_result
+                        .error_report
+                        .map(|e| e.context.exit_code)
+                        .unwrap_or(run_result.quarantine_context.exit_code);
                     guard.flush(None);
                     std::process::exit(exit_code)
                 }

@@ -21,6 +21,7 @@ use crate::{
         gather_initial_test_context, gather_post_test_context, gather_upload_id_context,
         generate_internal_file, PreTestContext,
     },
+    error_report::ErrorReport,
     test_command::TestRunResult,
 };
 
@@ -219,7 +220,7 @@ fn error_reason(error: &anyhow::Error) -> String {
 }
 
 pub struct UploadRunResult {
-    pub upload_bundle_error: Option<anyhow::Error>,
+    pub error_report: Option<ErrorReport>,
     pub quarantine_context: QuarantineContext,
     pub meta: BundleMeta,
 }
@@ -360,9 +361,17 @@ pub async fn run_upload(
     if upload_bundle_result.is_err() {
         tracing::error!("Failed to upload bundle");
     }
+    let error_report = match upload_bundle_result {
+        Ok(_) => None,
+        Err(e) => Some(ErrorReport::new(
+            e,
+            upload_args.org_url_slug.clone(),
+            Some("There was an unexpected error that occurred while uploading test results".into()),
+        )),
+    };
     Ok(UploadRunResult {
         quarantine_context,
-        upload_bundle_error: upload_bundle_result.err(),
+        error_report,
         meta,
     })
 }
@@ -398,8 +407,14 @@ async fn upload_bundle(
 }
 
 impl Component for UploadRunResult {
-    fn draw_unchecked(&self, _dimensions: Dimensions, _mode: DrawMode) -> anyhow::Result<Lines> {
+    fn draw_unchecked(&self, dimensions: Dimensions, mode: DrawMode) -> anyhow::Result<Lines> {
         let mut output: Vec<Line> = Vec::new();
+        // If there is an error report, we display it instead
+        if let Some(error_report) = self.error_report.as_ref() {
+            output.push(Line::default());
+            output.extend(error_report.draw_unchecked(dimensions, mode)?);
+            return Ok(Lines(output));
+        }
         output.push(Line::from_iter([Span::new_styled(
             String::from("Test Report").attribute(Attribute::Bold),
         )?]));

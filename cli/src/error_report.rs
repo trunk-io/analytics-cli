@@ -95,6 +95,9 @@ impl Component for ErrorReport {
             exit_code,
         } = &self.context;
         let mut lines = Vec::new();
+        lines.push(Line::from_iter([Span::new_styled(
+            String::from("Error Encountered").attribute(Attribute::Bold),
+        )?]));
         if is_connection_refused(&self.error) {
             if let Some(base_message) = base_message {
                 lines.push(Line::from_iter([Span::new_unstyled(base_message)?]));
