@@ -196,6 +196,7 @@ pub enum CommandType {
     Upload {
         upload_args: UploadArgs,
         server_host: String,
+        verbose: Option<bool>,
     },
     Test {
         upload_args: UploadArgs,
@@ -219,7 +220,24 @@ impl CommandType {
 
     pub fn build_args(&self) -> Vec<String> {
         match self {
-            CommandType::Upload { upload_args, .. } => upload_args.build_args(),
+            CommandType::Upload {
+                verbose,
+                upload_args,
+                ..
+            } => {
+                // append the verbose flag if set
+                upload_args
+                    .build_args()
+                    .into_iter()
+                    .chain(verbose.iter().flat_map(|verbose: &bool| {
+                        if *verbose {
+                            vec![String::from("--verbose")]
+                        } else {
+                            vec![]
+                        }
+                    }))
+                    .collect()
+            }
             CommandType::Test {
                 upload_args,
                 command,
@@ -373,6 +391,15 @@ impl CommandType {
         }
         self
     }
+
+    pub fn verbose(&mut self, new_flag: bool) -> &mut Self {
+        match self {
+            CommandType::Upload { verbose, .. } => *verbose = Some(new_flag),
+            CommandType::Test { .. } => (), // Verbose is not applicable for test command
+            CommandType::Validate { .. } => (), // Verbose is not applicable for validate command
+        }
+        self
+    }
 }
 
 #[derive(Clone)]
@@ -402,6 +429,7 @@ impl<'b> CommandBuilder<'b> {
             command_type: CommandType::Upload {
                 upload_args: UploadArgs::empty(),
                 server_host,
+                verbose: None,
             },
             current_dir,
             paths_state: None,
@@ -438,6 +466,11 @@ impl<'b> CommandBuilder<'b> {
 
     pub fn bazel_bep_path(&mut self, new_paths: &str) -> &mut Self {
         self.paths_state = Some(PathsState::BazelBepPath(String::from(new_paths)));
+        self
+    }
+
+    pub fn verbose(&mut self, new_flag: bool) -> &mut Self {
+        self.command_type.verbose(new_flag);
         self
     }
 
