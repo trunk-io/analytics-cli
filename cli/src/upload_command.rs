@@ -514,10 +514,6 @@ impl Component for UploadRunResult {
             output.push(Line::from_iter([Span::new_unstyled(
                 "⚠️  No tests were found in the provided test results",
             )?]));
-        } else if failures.is_empty() {
-            output.push(Line::from_iter([Span::new_unstyled(
-                "🎉 No test failures found!",
-            )?]));
         } else if all_quarantined {
             output.push(Line::from_iter([
                 Span::new_unstyled("🎉 All test failures were quarantined, overriding exit code to be exit_success ")?,
@@ -526,6 +522,10 @@ impl Component for UploadRunResult {
                     EXIT_SUCCESS
                 )).attribute(Attribute::Bold))?
             ]));
+        } else if failures.is_empty() {
+            output.push(Line::from_iter([Span::new_unstyled(
+                "🎉 No test failures found!",
+            )?]));
         } else {
             output.push(Line::from_iter([
                 Span::new_unstyled(
