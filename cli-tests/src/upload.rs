@@ -18,7 +18,7 @@ use lazy_static::lazy_static;
 use predicates::prelude::*;
 use pretty_assertions::assert_eq;
 use prost::Message;
-use tempfile::tempdir;
+use tempfile::{tempdir, TempDir};
 use test_utils::{
     inputs::get_test_file_path,
     mock_server::{MockServerBuilder, RequestPayload, SharedMockServerState},
@@ -33,9 +33,9 @@ use crate::utils::{
 // NOTE: must be multi threaded to start a mock server
 #[tokio::test(flavor = "multi_thread")]
 async fn upload_bundle() {
-    let temp_dir = tempdir().unwrap();
+    let temp_dir = TempDir::with_prefix("not-hidden").unwrap();
     generate_mock_git_repo(&temp_dir);
-    generate_mock_valid_junit_xmls(&temp_dir);
+    generate_mock_valid_junit_xmls(temp_dir.path());
     generate_mock_codeowners(&temp_dir);
 
     let state = MockServerBuilder::new().spawn_mock_server().await;

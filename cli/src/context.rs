@@ -208,6 +208,7 @@ pub fn generate_internal_file(
     file_sets: &[FileSet],
     temp_dir: &TempDir,
     codeowners: Option<&CodeOwners>,
+    repo: &BundleRepo,
 ) -> anyhow::Result<BundledFile> {
     let mut test_case_runs = Vec::new();
     for file_set in file_sets {
@@ -233,7 +234,7 @@ pub fn generate_internal_file(
                         tracing::warn!("Failed to parse JUnit file {:?}: {:?}", file, e);
                         continue;
                     }
-                    test_case_runs.extend(junit_parser.into_test_case_runs(codeowners));
+                    test_case_runs.extend(junit_parser.into_test_case_runs(codeowners, repo));
                 }
             }
         }

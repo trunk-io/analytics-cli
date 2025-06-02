@@ -1,7 +1,10 @@
 use std::{collections::HashMap, io::BufReader};
 
 use bundle::{parse_meta_from_tarball as parse_tarball, VersionedBundle};
-use context::{env, junit, repo};
+use context::{
+    env, junit,
+    repo::{self, BundleRepo},
+};
 use futures::{future::Either, io::BufReader as BufReaderAsync, stream::TryStreamExt};
 use js_sys::Uint8Array;
 use wasm_bindgen::prelude::*;
@@ -92,6 +95,7 @@ pub fn junit_validate(
 ) -> junit::bindings::BindingsJunitReportValidation {
     junit::bindings::BindingsJunitReportValidation::from(junit::validator::validate(
         &report.clone().into(),
+        &BundleRepo::default(),
     ))
 }
 

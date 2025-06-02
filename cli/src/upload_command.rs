@@ -243,6 +243,7 @@ pub async fn run_upload(
         &meta.base_props.file_sets,
         &temp_dir,
         meta.base_props.codeowners.as_ref(),
+        &meta.base_props.repo,
     );
     if let Ok(internal_bundled_file) = internal_bundled_file {
         meta.internal_bundled_file = Some(internal_bundled_file);

@@ -7,7 +7,10 @@ use bundle::{
 use codeowners::{
     associate_codeowners_multithreaded as associate_codeowners, BindingsOwners, CodeOwners, Owners,
 };
-use context::{env, junit, meta, repo};
+use context::{
+    env, junit, meta,
+    repo::{self, BundleRepo},
+};
 use prost::Message;
 use pyo3::{exceptions::PyTypeError, prelude::*};
 use pyo3_stub_gen::{define_stub_info_gatherer, derive::gen_stub_pyfunction};
@@ -111,7 +114,10 @@ fn bin_parse(bin: Vec<u8>) -> PyResult<Vec<junit::bindings::BindingsReport>> {
 fn junit_validate(
     report: junit::bindings::BindingsReport,
 ) -> junit::bindings::BindingsJunitReportValidation {
-    junit::bindings::BindingsJunitReportValidation::from(junit::validator::validate(&report.into()))
+    junit::bindings::BindingsJunitReportValidation::from(junit::validator::validate(
+        &report.into(),
+        &BundleRepo::default(),
+    ))
 }
 
 #[gen_stub_pyfunction]

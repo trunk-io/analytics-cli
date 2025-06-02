@@ -1,15 +1,18 @@
 use std::{fs, io::BufReader, time::Duration};
 
 use chrono::{NaiveTime, TimeDelta, Utc};
-use context::junit::{
-    self,
-    parser::JunitParser,
-    validator::{
-        JunitTestCaseValidationIssue, JunitTestCaseValidationIssueInvalid,
-        JunitTestCaseValidationIssueSubOptimal, JunitTestSuiteValidationIssue,
-        JunitTestSuiteValidationIssueInvalid, JunitTestSuiteValidationIssueSubOptimal,
-        JunitValidationIssue, JunitValidationLevel,
+use context::{
+    junit::{
+        self,
+        parser::JunitParser,
+        validator::{
+            JunitTestCaseValidationIssue, JunitTestCaseValidationIssueInvalid,
+            JunitTestCaseValidationIssueSubOptimal, JunitTestSuiteValidationIssue,
+            JunitTestSuiteValidationIssueInvalid, JunitTestSuiteValidationIssueSubOptimal,
+            JunitValidationIssue, JunitValidationLevel,
+        },
     },
+    repo::BundleRepo,
 };
 use junit_mock::JunitMock;
 use quick_junit::Report;
@@ -54,7 +57,8 @@ fn generate_mock_junit_reports(
 
     let mut jm = JunitMock::new(options);
     let seed = jm.get_seed();
-    let reports = jm.generate_reports();
+    let tmp_dir: Option<String> = None;
+    let reports = jm.generate_reports(&tmp_dir);
     (seed, reports)
 }
 
@@ -87,7 +91,7 @@ fn validate_test_suite_name_too_short() {
         test_suite.name = String::new().into();
     }
 
-    let report_validation = junit::validator::validate(&generated_report);
+    let report_validation = junit::validator::validate(&generated_report, &BundleRepo::default());
 
     assert_eq!(
         report_validation.max_level(),
@@ -123,7 +127,7 @@ fn validate_test_case_name_too_short() {
         }
     }
 
-    let report_validation = junit::validator::validate(&generated_report);
+    let report_validation = junit::validator::validate(&generated_report, &BundleRepo::default());
 
     assert_eq!(
         report_validation.max_level(),
@@ -156,7 +160,7 @@ fn validate_test_suite_name_too_long() {
         test_suite.name = "a".repeat(junit::validator::MAX_FIELD_LEN + 1).into();
     }
 
-    let report_validation = junit::validator::validate(&generated_report);
+    let report_validation = junit::validator::validate(&generated_report, &BundleRepo::default());
 
     assert_eq!(
         report_validation.max_level(),
@@ -192,7 +196,7 @@ fn validate_test_case_name_too_long() {
         }
     }
 
-    let report_validation = junit::validator::validate(&generated_report);
+    let report_validation = junit::validator::validate(&generated_report, &BundleRepo::default());
 
     assert_eq!(
         report_validation.max_level(),
@@ -230,7 +234,7 @@ fn validate_max_level() {
         }
     }
 
-    let report_validation = junit::validator::validate(&generated_report);
+    let report_validation = junit::validator::validate(&generated_report, &BundleRepo::default());
 
     assert_eq!(
         report_validation.max_level(),
@@ -305,7 +309,8 @@ fn parse_round_trip_and_validate_fuzzed() {
     for (index, generated_report) in generated_reports.iter().enumerate() {
         let serialized_generated_report = serialize_report(generated_report);
         let first_parsed_report = parse_report(&serialized_generated_report);
-        let report_validation = junit::validator::validate(&first_parsed_report);
+        let report_validation =
+            junit::validator::validate(&first_parsed_report, &BundleRepo::default());
 
         assert_eq!(
             report_validation.max_level(),
@@ -336,7 +341,8 @@ fn parse_round_trip_and_validate_fuzzed() {
 fn parse_without_testsuites_element() {
     let options = new_mock_junit_options(1, Some(1), Some(1), true);
     let mut jm = JunitMock::new(options);
-    let reports = jm.generate_reports();
+    let tmp_dir: Option<String> = None;
+    let reports = jm.generate_reports(&tmp_dir);
 
     let tempdir = TempDir::new().unwrap();
     let xml_path = jm

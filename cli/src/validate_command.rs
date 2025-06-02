@@ -17,6 +17,7 @@ use context::{
             JunitValidationLevel,
         },
     },
+    repo::BundleRepo,
 };
 use quick_junit::Report;
 
@@ -132,6 +133,7 @@ async fn validate(
             (parsed_reports, parse_issues)
         },
     );
+    let repo = BundleRepo::new(None, None, None, None, None, None, false).unwrap_or_default();
     // print parse issues
     let (num_unparsable_reports, num_suboptimally_parsable_reports) =
         print_parse_issues(&parse_issues);
@@ -139,7 +141,7 @@ async fn validate(
     // validate
     let report_validations: JunitFileToValidation = parsed_reports
         .into_iter()
-        .map(|(file, report)| (file, validate_report(&report)))
+        .map(|(file, report)| (file, validate_report(&report, &repo)))
         .collect();
     // print validation results
     let (mut num_invalid_reports, mut num_suboptimal_reports) =
