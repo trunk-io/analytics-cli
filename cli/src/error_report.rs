@@ -1,6 +1,9 @@
 use api::client::get_api_host;
 use http::StatusCode;
-use superconsole::{Component, Dimensions, DrawMode, Line, Lines, Span};
+use superconsole::{
+    style::{style, Attribute, Stylize},
+    Component, Dimensions, DrawMode, Line, Lines, Span,
+};
 
 const HELP_TEXT: &str = "For more help, contact us at https://slack.trunk.io/";
 const CONNECTION_REFUSED_CONTEXT: &str = concat!("Unable to connect to trunk's server",);
@@ -19,6 +22,7 @@ fn add_settings_url_to_context(domain: String, org_url_slug: &String) -> String 
 pub struct Context {
     pub base_message: Option<String>,
     pub org_url_slug: String,
+    pub exit_code: i32,
 }
 
 impl Component for Context {
@@ -30,6 +34,35 @@ impl Component for Context {
 pub struct ErrorReport {
     pub error: anyhow::Error,
     pub context: Context,
+}
+
+impl ErrorReport {
+    pub fn new(error: anyhow::Error, org_url_slug: String, base_message: Option<String>) -> Self {
+        Self {
+            context: Context {
+                base_message,
+                org_url_slug,
+                exit_code: ErrorReport::find_exit_code(&error),
+            },
+            error,
+        }
+    }
+
+    fn find_exit_code(error: &anyhow::Error) -> i32 {
+        if is_connection_refused(error) {
+            tracing::warn!(CONNECTION_REFUSED_CONTEXT);
+            return exitcode::OK;
+        }
+
+        if is_unauthorized(error) {
+            tracing::warn!(UNAUTHORIZED_CONTEXT);
+            return exitcode::SOFTWARE;
+        }
+
+        tracing::error!("{}", error);
+        tracing::error!(hidden_in_console = true, "Caused by error: {:#?}", error);
+        exitcode::SOFTWARE
+    }
 }
 
 fn is_connection_refused(error: &anyhow::Error) -> bool {
@@ -59,11 +92,13 @@ impl Component for ErrorReport {
         let Context {
             base_message,
             org_url_slug,
+            exit_code,
         } = &self.context;
         let mut lines = Vec::new();
         if is_connection_refused(&self.error) {
             if let Some(base_message) = base_message {
                 lines.push(Line::from_iter([Span::new_unstyled(base_message)?]));
+                lines.push(Line::default());
             }
             lines.push(Line::from_iter([Span::new_unstyled(
                 CONNECTION_REFUSED_CONTEXT,
@@ -77,6 +112,7 @@ impl Component for ErrorReport {
                     Line::from_iter([Span::new_unstyled(
                         base_message.as_deref().unwrap_or_default(),
                     )?]),
+                    Line::default(),
                     Line::from_iter([Span::new_unstyled(UNAUTHORIZED_CONTEXT)?]),
                     Line::from_iter([Span::new_unstyled(add_settings_url_to_context(
                         api_host,
@@ -93,46 +129,34 @@ impl Component for ErrorReport {
             lines.push(Line::from_iter([Span::new_unstyled(
                 base_message.as_deref().unwrap_or("An error occurred"),
             )?]));
+            lines.push(Line::default());
         } else {
             lines.push(Line::from_iter([Span::new_unstyled(
                 self.error.to_string(),
             )?]));
         }
         lines.push(Line::from_iter([Span::new_unstyled(HELP_TEXT)?]));
+        lines.push(Line::default());
+        if exit_code == &exitcode::OK {
+            lines.push(Line::from_iter([
+                Span::new_unstyled("No errors occurred, returning default exit code: ")?,
+                Span::new_styled(style(exit_code.to_string()).attribute(Attribute::Bold))?,
+            ]));
+        } else if exit_code == &exitcode::SOFTWARE {
+            // SOFTWARE is used to indicate that the upload command failed
+            lines.push(Line::from_iter([
+                Span::new_unstyled("Errors occurred during execution, returning exit code: ")?,
+                Span::new_styled(style(exit_code.to_string()).attribute(Attribute::Bold))?,
+            ]));
+        } else {
+            // Should be an unused codepath, but we log it for completeness
+            lines.push(Line::from_iter([
+                Span::new_unstyled("Errors occurred during execution, returning exit code: ")?,
+                Span::new_styled(style(exit_code.to_string()).attribute(Attribute::Bold))?,
+            ]));
+        }
         Ok(Lines(lines))
     }
-}
-
-pub fn find_exit_code(error_display: &ErrorReport) -> i32 {
-    let ErrorReport {
-        context: Context { base_message, .. },
-        error,
-    } = error_display;
-    if is_connection_refused(error) {
-        if let Some(base_message) = base_message {
-            tracing::warn!("{}: {}", base_message, CONNECTION_REFUSED_CONTEXT,);
-        } else {
-            tracing::warn!(CONNECTION_REFUSED_CONTEXT);
-        }
-        return exitcode::OK;
-    }
-
-    if is_unauthorized(error) {
-        if let Some(base_message) = base_message {
-            tracing::warn!("{}: {}", base_message, UNAUTHORIZED_CONTEXT);
-        } else {
-            tracing::warn!(UNAUTHORIZED_CONTEXT);
-        }
-        return exitcode::SOFTWARE;
-    }
-
-    if let Some(base_message) = base_message {
-        tracing::error!(base_message);
-    } else {
-        tracing::error!("{}", error);
-    }
-    tracing::error!(hidden_in_console = true, "Caused by error: {:#?}", error);
-    exitcode::SOFTWARE
 }
 
 #[test]

@@ -5,10 +5,9 @@ use clap_verbosity_flag::{log::LevelFilter, InfoLevel, Verbosity};
 use superconsole::{Dimensions, SuperConsole};
 use third_party::sentry;
 use tracing_subscriber::{filter::FilterFn, prelude::*};
-use trunk_analytics_cli::context_quarantine::QuarantineContext;
 use trunk_analytics_cli::{
     context::gather_debug_props,
-    error_report::{find_exit_code, Context, ErrorReport},
+    error_report::ErrorReport,
     test_command::{run_test, TestArgs},
     upload_command::{run_upload, UploadArgs, UploadRunResult},
     validate_command::{run_validate, ValidateArgs},
@@ -125,35 +124,49 @@ fn main() -> anyhow::Result<()> {
                     })
                 }
             };
-            match run(cli, &mut superconsole).await {
-                Ok(exit_code) => std::process::exit(exit_code),
+            match run(cli).await {
+                Ok(RunResult::Upload(run_result)) => {
+                    let render_result = superconsole.render(&run_result);
+                    if let Err(e) = render_result {
+                        tracing::error!("Failed to render upload display: {}", e);
+                    }
+                    let mut exit_code = run_result.quarantine_context.exit_code;
+                    if let Some(upload_bundle_error) = run_result.upload_bundle_error {
+                        let error_report = ErrorReport::new(
+                            upload_bundle_error,
+                            org_url_slug,
+                            Some(
+                                "There was an error that occurred while uploading test results"
+                                    .into(),
+                            ),
+                        );
+                        exit_code = error_report.context.exit_code;
+                        let render_result = superconsole.render(&error_report);
+                        if let Err(e) = render_result {
+                            tracing::error!("Failed to render error display: {}", e);
+                        }
+                    }
+                    guard.flush(None);
+                    std::process::exit(exit_code)
+                }
+                Ok(RunResult::Test(run_result)) => {
+                    let render_result = superconsole.render(&run_result);
+                    if let Err(e) = render_result {
+                        tracing::error!("Failed to render test display: {}", e);
+                    }
+                    guard.flush(None);
+                    std::process::exit(run_result.quarantine_context.exit_code)
+                }
+                Ok(RunResult::Validate(exit_code)) => {
+                    guard.flush(None);
+                    std::process::exit(exit_code)
+                }
                 Err(error) => {
-                    let error_display = ErrorReport {
-                        error,
-                        context: Context {
-                            base_message: None,
-                            org_url_slug: org_url_slug.clone(),
-                        },
-                    };
-                    let exit_code = find_exit_code(&error_display);
-                    let render_result = superconsole.render(&error_display);
+                    let error_report = ErrorReport::new(error, org_url_slug, None);
+                    let exit_code = error_report.context.exit_code;
+                    let render_result = superconsole.render(&error_report);
                     if let Err(e) = render_result {
                         tracing::error!("Failed to render error display: {}", e);
-                    }
-                    if exit_code == exitcode::OK {
-                        tracing::info!(
-                            "No errors occurred, returning default exit code: {}",
-                            exit_code
-                        );
-                    } else if exit_code == exitcode::SOFTWARE {
-                        // SOFTWARE is used to indicate that the upload command failed
-                        tracing::warn!(
-                            "Errors occurred during execution, returning exit code: {}",
-                            exit_code
-                        );
-                    } else {
-                        // Unused codepath, but we log it for completeness
-                        tracing::warn!("Unable to proceed, returning exit code: {}", exit_code);
                     }
                     guard.flush(None);
                     std::process::exit(exit_code);
@@ -162,7 +175,13 @@ fn main() -> anyhow::Result<()> {
         })
 }
 
-async fn run(cli: Cli, superconsole: &mut SuperConsole) -> anyhow::Result<i32> {
+enum RunResult {
+    Upload(UploadRunResult),
+    Test(UploadRunResult),
+    Validate(i32),
+}
+
+async fn run(cli: Cli) -> anyhow::Result<RunResult> {
     tracing::info!(
         "Starting trunk flakytests {} (git={}) rustc={}",
         env!("CARGO_PKG_VERSION"),
@@ -171,26 +190,17 @@ async fn run(cli: Cli, superconsole: &mut SuperConsole) -> anyhow::Result<i32> {
     );
     match cli.command {
         Commands::Upload(upload_args) => {
-            // log error for upload + quarantine
             let result = run_upload(upload_args, None, None).await?;
-            superconsole.render(&result)?;
-            let UploadRunResult {
-                quarantine_context: QuarantineContext { exit_code, .. },
-                upload_bundle_error,
-                ..
-            } = result;
-            if let Some(upload_bundle_error) = upload_bundle_error {
-                return Err(upload_bundle_error);
-            }
-            Ok(exit_code)
+            Ok(RunResult::Upload(result))
         }
         Commands::Test(test_args) => {
-            // log error for upload + quarantine + test run
             let result = run_test(test_args).await?;
-            superconsole.render(&result)?;
-            Ok(result.quarantine_context.exit_code)
+            Ok(RunResult::Test(result))
         }
-        Commands::Validate(validate_args) => run_validate(validate_args).await,
+        Commands::Validate(validate_args) => {
+            let result = run_validate(validate_args).await?;
+            Ok(RunResult::Validate(result))
+        }
     }
 }
 
