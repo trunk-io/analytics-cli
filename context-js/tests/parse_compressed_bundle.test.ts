@@ -6,7 +6,11 @@ import * as path from "node:path";
 import { compress } from "@mongodb-js/zstd";
 import * as tar from "tar";
 
-import { parse_meta_from_tarball, VersionedBundle } from "../pkg/context_js";
+import {
+  parse_meta_from_tarball,
+  parse_internal_bin_from_tarball,
+  VersionedBundle,
+} from "../pkg/context_js";
 
 type RecursiveOmit<T, K extends PropertyKey> = {
   [P in keyof Omit<T, K>]: T[P] extends object ? RecursiveOmit<T[P], K> : T[P];
@@ -68,19 +72,28 @@ const generateBundleMeta = (): TestBundleMeta => ({
 const bundleMetaJsonSerializer = (_key: unknown, value: unknown) =>
   typeof value === "bigint" ? Number(value) : value;
 
-const compressAndUploadMeta = async (metaInfoJson: string) => {
+const compressAndUploadMetaWithInternalBin = async (metaInfoJson: string) => {
   const tmpDir = await fs.mkdtemp(
     path.resolve(os.tmpdir(), "bundle-upload-extract-"),
   );
   const metaInfoFilePath = path.resolve(tmpDir, "meta.json");
   await fs.writeFile(metaInfoFilePath, metaInfoJson);
+
+  const internalBinSourcePath = path.resolve(
+    __dirname,
+    "../tests/test_internal.bin",
+  );
+  const internalBinFile = await fs.readFile(internalBinSourcePath);
+  const internalBinDestPath = path.resolve(tmpDir, "internal.bin");
+  await fs.writeFile(internalBinDestPath, internalBinFile);
+
   const tarPath = path.resolve(tmpDir, `bundle.tar`);
   await tar.create(
     {
       cwd: tmpDir,
       file: tarPath,
     },
-    [path.basename(metaInfoFilePath)],
+    [path.basename(metaInfoFilePath), path.basename(internalBinDestPath)],
   );
 
   const tarBuffer = await fs.readFile(tarPath);
@@ -126,7 +139,8 @@ describe("context-js", () => {
         bundleMetaJsonSerializer,
         2,
       );
-      const compressedBuffer = await compressAndUploadMeta(metaInfoJson);
+      const compressedBuffer =
+        await compressAndUploadMetaWithInternalBin(metaInfoJson);
 
       const readableStream = new ReadableStream({
         start(controller) {
@@ -153,7 +167,8 @@ describe("context-js", () => {
     expect.hasAssertions();
 
     const emptyJson = "{}";
-    const compressedBuffer = await compressAndUploadMeta(emptyJson);
+    const compressedBuffer =
+      await compressAndUploadMetaWithInternalBin(emptyJson);
 
     const readableStream = new ReadableStream({
       start(controller) {
@@ -165,5 +180,42 @@ describe("context-js", () => {
     await expect(
       async () => await parse_meta_from_tarball(readableStream),
     ).rejects.toThrow("missing field `version`");
+  });
+
+  it("decompresses and parses internal.bin", async () => {
+    expect.hasAssertions();
+
+    const compressedBuffer = await compressAndUploadMetaWithInternalBin("{}");
+
+    const readableStream = new ReadableStream({
+      start(controller) {
+        controller.enqueue(compressedBuffer);
+        controller.close();
+      },
+    });
+
+    const bindingsReports =
+      await parse_internal_bin_from_tarball(readableStream);
+
+    expect(bindingsReports).toHaveLength(1);
+
+    const result = bindingsReports.at(0);
+
+    expect(result?.tests).toBe(13);
+    expect(result?.test_suites).toHaveLength(2);
+
+    const contextRubySuite = result?.test_suites.find(
+      ({ name }) => name === "context_ruby",
+    );
+
+    expect(contextRubySuite).toBeDefined();
+    expect(contextRubySuite?.test_cases).toHaveLength(5);
+
+    const rspecExpectationsSuite = result?.test_suites.find(
+      ({ name }) => name === "RSpec Expectation",
+    );
+
+    expect(rspecExpectationsSuite).toBeDefined();
+    expect(rspecExpectationsSuite?.test_cases).toHaveLength(8);
   });
 });

@@ -9,6 +9,7 @@ use async_std::{io::ReadExt, stream::StreamExt};
 use async_tar_wasm::Archive;
 use codeowners::CodeOwners;
 use context::bazel_bep::common::BepParseResult;
+use context::junit;
 use futures_io::AsyncBufRead;
 use prost::Message;
 use proto::test_context::test_run::TestResult;
@@ -126,39 +127,33 @@ impl BundlerUtil {
     }
 }
 
+/// Reads and decompresses a .tar.zstd file from an input stream into just the specified file.
+/// This does not assume any specific order of files in the tarball, so it will read through all entries
+/// until it finds the specified file.
 async fn parse_file_from_tarball<R: AsyncBufRead>(
     input: R,
-    filename: &str,
+    file_name: &str,
 ) -> anyhow::Result<Vec<u8>> {
     let zstd_decoder = ZstdDecoder::new(Box::pin(input));
     let archive = Archive::new(zstd_decoder);
+    let mut entries = archive.entries()?;
 
-    if let Some(first_entry) = archive.entries()?.next().await {
-        let mut owned_first_entry = first_entry?;
-        let path_str = owned_first_entry
-            .path()?
-            .to_str()
-            .unwrap_or_default()
-            .to_owned();
+    while let Some(entry) = entries.next().await {
+        let mut owned_entry = entry?;
+        let path_str = owned_entry.path()?.to_str().unwrap_or_default().to_owned();
 
-        if path_str == META_FILENAME {
+        if path_str == file_name {
             let mut file_bytes = Vec::new();
-            owned_first_entry.read_to_end(&mut file_bytes).await?;
+            owned_entry.read_to_end(&mut file_bytes).await?;
 
             return Ok(file_bytes);
         }
     }
-    Err(anyhow::anyhow!(format!(
-        "No file at {} found in the tarball",
-        filename
-    )))
-}
 
-/// Reads and decompresses a .tar.zstd file from an input stream into just a `meta.json` file
-///
-pub async fn parse_meta_from_tarball<R: AsyncBufRead>(input: R) -> anyhow::Result<VersionedBundle> {
-    let meta_bytes = parse_file_from_tarball(input, META_FILENAME).await?;
-    parse_meta(meta_bytes)
+    Err(anyhow::anyhow!(format!(
+        "No file '{}' found in the tarball",
+        file_name
+    )))
 }
 
 pub fn parse_meta(meta_bytes: Vec<u8>) -> anyhow::Result<VersionedBundle> {
@@ -178,17 +173,42 @@ pub fn parse_meta(meta_bytes: Vec<u8>) -> anyhow::Result<VersionedBundle> {
     Ok(VersionedBundle::V0_5_29(base_bundle))
 }
 
-/// Reads and decompresses a .tar.zstd file from an input stream into just the test results from it
-///
+/// Reads and decompresses a .tar.zstd file from an input stream into just a `meta.json` file.
+/// This assumes that the `meta.json` file will be the first entry in the tarball.
+pub async fn parse_meta_from_tarball<R: AsyncBufRead>(input: R) -> anyhow::Result<VersionedBundle> {
+    let zstd_decoder = ZstdDecoder::new(Box::pin(input));
+    let archive = Archive::new(zstd_decoder);
+
+    if let Some(first_entry) = archive.entries()?.next().await {
+        let mut owned_first_entry = first_entry?;
+        let path_str = owned_first_entry
+            .path()?
+            .to_str()
+            .unwrap_or_default()
+            .to_owned();
+
+        if path_str == META_FILENAME {
+            let mut meta_bytes = Vec::new();
+            owned_first_entry.read_to_end(&mut meta_bytes).await?;
+
+            return parse_meta(meta_bytes);
+        }
+    }
+    Err(anyhow::anyhow!("No meta.json file found in the tarball"))
+}
+
+pub fn decode_internal_bin(
+    internal_bin_bytes: Vec<u8>,
+) -> anyhow::Result<Vec<junit::bindings::BindingsReport>> {
+    let test_result = TestResult::decode(internal_bin_bytes.as_slice())
+        .map_err(|err| anyhow::anyhow!("Failed to decode internal.bin: {}", err))?;
+
+    Ok(vec![junit::bindings::BindingsReport::from(test_result)])
+}
+
 pub async fn parse_internal_bin_from_tarball<R: AsyncBufRead>(
     input: R,
-) -> anyhow::Result<TestResult> {
-    let meta_bytes = parse_file_from_tarball(input, INTERNAL_BIN_FILENAME).await?;
-    if let Ok(test_result) = TestResult::decode(meta_bytes.as_slice()) {
-        return Ok(test_result);
-    }
-
-    Err(anyhow::anyhow!(
-        "Failed to decode internal.bin from tarball"
-    ))
+) -> anyhow::Result<Vec<junit::bindings::BindingsReport>> {
+    let internal_bin_bytes = parse_file_from_tarball(input, INTERNAL_BIN_FILENAME).await?;
+    decode_internal_bin(internal_bin_bytes)
 }

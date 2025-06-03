@@ -1,7 +1,7 @@
 use std::{collections::HashMap, io::BufReader, sync::Arc};
 
 use bundle::{
-    parse_internal_bin_from_tarball as parse_internal_bin_from_tarball_impl,
+    decode_internal_bin, parse_internal_bin_from_tarball as parse_internal_bin_from_tarball_impl,
     parse_meta as parse_meta_impl, parse_meta_from_tarball as parse_meta_from_tarball_impl,
     BindingsVersionedBundle,
 };
@@ -9,7 +9,6 @@ use codeowners::{
     associate_codeowners_multithreaded as associate_codeowners, BindingsOwners, CodeOwners, Owners,
 };
 use context::{env, junit, meta, repo};
-use prost::Message;
 use pyo3::{exceptions::PyTypeError, prelude::*};
 use pyo3_stub_gen::{define_stub_info_gatherer, derive::gen_stub_pyfunction};
 
@@ -102,9 +101,9 @@ fn junit_parse_issue_level_to_string(
 #[gen_stub_pyfunction]
 #[pyfunction]
 fn bin_parse(bin: Vec<u8>) -> PyResult<Vec<junit::bindings::BindingsReport>> {
-    let test_result = proto::test_context::test_run::TestResult::decode(bin.as_slice())
-        .map_err(|err| PyTypeError::new_err(err.to_string()))?;
-    Ok(vec![junit::bindings::BindingsReport::from(test_result)])
+    let bindings_report =
+        decode_internal_bin(bin).map_err(|err| PyTypeError::new_err(err.to_string()))?;
+    Ok(bindings_report)
 }
 
 #[gen_stub_pyfunction]
@@ -183,7 +182,7 @@ pub fn parse_internal_bin_from_tarball(
         .block_on(parse_internal_bin_from_tarball_impl(py_bytes_reader))
         .map_err(|err| PyTypeError::new_err(err.to_string()))?;
 
-    Ok(vec![junit::bindings::BindingsReport::from(internal_bin)])
+    Ok(internal_bin)
 }
 
 #[gen_stub_pyfunction]
@@ -394,6 +393,7 @@ fn context_py(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(parse_meta, m)?)?;
     m.add_function(wrap_pyfunction!(meta_validate, m)?)?;
     m.add_function(wrap_pyfunction!(meta_validation_level_to_string, m)?)?;
+    m.add_function(wrap_pyfunction!(parse_internal_bin_from_tarball, m)?)?;
 
     m.add_class::<codeowners::BindingsOwners>()?;
     m.add_function(wrap_pyfunction!(codeowners_parse, m)?)?;

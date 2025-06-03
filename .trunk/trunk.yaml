@@ -114,6 +114,9 @@ downloads:
     downloads:
       - url: https://static.rust-lang.org/dist/${version}/rust-src-nightly.tar.xz
 tools:
+  disabled:
+    - rust-src
+    - rust
   definitions:
     - name: rust-src
       download: rust-src
@@ -122,11 +125,9 @@ tools:
   runtimes:
     - ruby
     - node
-    - rust
   enabled:
     - gh@2.62.0
     - pnpm@9.14.2
     # Update `RUST_SRC_PATH` path to `rust-src` if this is updated
     # IfChange
-    - rust-src@2024-05-01
     # ThenChange .envrc

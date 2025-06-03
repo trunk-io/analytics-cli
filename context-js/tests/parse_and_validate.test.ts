@@ -3,6 +3,7 @@ import fs from "fs";
 import path from "path";
 import utc from "dayjs/plugin/utc";
 import { describe, expect, it } from "vitest";
+import { strict as assert } from "node:assert";
 
 import {
   BundleRepo,
@@ -80,6 +81,7 @@ describe("context-js", () => {
 
     let parse_result = junit_parse(Buffer.from(validJunitXml, "utf-8"));
     let report = parse_result.report;
+    assert(report, "Report from parsing report should not be null");
 
     let junitReportValidation = junit_validate(report);
 
@@ -98,6 +100,7 @@ describe("context-js", () => {
 
     parse_result = junit_parse(Buffer.from(suboptimalJunitXml, "utf-8"));
     report = parse_result.report;
+    assert(report, "Report from parsing report should not be null");
 
     junitReportValidation = junit_validate(report);
 
@@ -125,6 +128,7 @@ describe("context-js", () => {
 
     parse_result = junit_parse(Buffer.from(nestedJunitXml, "utf-8"));
     report = parse_result.report;
+    assert(report, "Report from parsing report should not be null");
 
     junitReportValidation = junit_validate(report);
 
@@ -218,7 +222,7 @@ describe("context-js", () => {
     expect(result?.tests).toBe(13);
     expect(result?.test_suites).toHaveLength(2);
 
-    const test_suite = result.test_suites.at(0);
+    const test_suite = result?.test_suites.at(0);
 
     expect(test_suite?.name).toBe("RSpec Expectations");
     expect(test_suite?.test_cases).toHaveLength(8);
