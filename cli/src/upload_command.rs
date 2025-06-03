@@ -7,6 +7,7 @@ use bundle::{BundleMeta, BundlerUtil};
 use clap::{ArgAction, Args};
 use constants::EXIT_SUCCESS;
 use context::bazel_bep::common::BepParseResult;
+use pluralizer::pluralize;
 use superconsole::{
     style::{style, Attribute, Color, Stylize},
     Line, Span,
@@ -424,8 +425,7 @@ impl Component for UploadRunResult {
         let failures = &qc.failures;
         let quarantined_count = quarantined.len();
         let non_quarantined_count = failures.len();
-        let all_quarantined =
-            non_quarantined_count == 0 && quarantined_count > 0 || failures.is_empty();
+        let all_quarantined = non_quarantined_count == 0 && quarantined_count > 0;
 
         // Helper closure to render the test table
         let render_test_table = |tests: &[Test]| -> anyhow::Result<Lines> {
@@ -475,9 +475,16 @@ impl Component for UploadRunResult {
                 Line::from_iter([
                     Span::new_unstyled("❤️‍🩹  ")?,
                     Span::new_styled(
-                        style(format!("{} tests ", quarantined_count)).attribute(Attribute::Bold),
+                        style(format!(
+                            "{} ",
+                            pluralize("test", quarantined_count as isize, true)
+                        ))
+                        .attribute(Attribute::Bold),
                     )?,
-                    Span::new_styled(style(String::from("failed and were ")))?,
+                    Span::new_styled(style(format!(
+                        "failed and {} ",
+                        pluralize("was", quarantined_count as isize, false)
+                    )))?,
                     Span::new_styled(
                         style(String::from("quarantined"))
                             .with(Color::Yellow)
@@ -494,13 +501,19 @@ impl Component for UploadRunResult {
             output.extend(vec![
                 Line::from_iter([
                     Span::new_unstyled("❌ ")?,
-                    Span::new_unstyled(format!("{} tests ", non_quarantined_count))?,
+                    Span::new_unstyled(format!(
+                        "{} ",
+                        pluralize("test", non_quarantined_count as isize, true)
+                    ))?,
                     Span::new_styled(
                         style(String::from("failed "))
                             .with(Color::Red)
                             .attribute(Attribute::Bold),
                     )?,
-                    Span::new_styled(style(String::from("and were ")))?,
+                    Span::new_styled(style(format!(
+                        "and {} ",
+                        pluralize("was", non_quarantined_count as isize, false)
+                    )))?,
                     Span::new_styled(style(String::from("not ")).attribute(Attribute::Bold))?,
                     Span::new_unstyled("quarantined")?,
                 ]),
