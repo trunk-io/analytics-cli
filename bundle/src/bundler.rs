@@ -10,6 +10,8 @@ use async_tar_wasm::Archive;
 use codeowners::CodeOwners;
 use context::bazel_bep::common::BepParseResult;
 use futures_io::AsyncBufRead;
+use prost::Message;
+use proto::test_context::test_run::TestResult;
 use tempfile::TempDir;
 #[cfg(feature = "wasm")]
 use tsify_next::Tsify;
@@ -27,6 +29,7 @@ pub struct BundlerUtil {
 }
 
 const META_FILENAME: &str = "meta.json";
+const INTERNAL_BIN_FILENAME: &str = "internal.bin";
 
 impl BundlerUtil {
     const ZSTD_COMPRESSION_LEVEL: i32 = 15; // This gives roughly 10x compression for text, 22 gives 11x.
@@ -123,9 +126,10 @@ impl BundlerUtil {
     }
 }
 
-/// Reads and decompresses a .tar.zstd file from an input stream into just a `meta.json` file
-///
-pub async fn parse_meta_from_tarball<R: AsyncBufRead>(input: R) -> anyhow::Result<VersionedBundle> {
+async fn parse_file_from_tarball<R: AsyncBufRead>(
+    input: R,
+    filename: &str,
+) -> anyhow::Result<Vec<u8>> {
     let zstd_decoder = ZstdDecoder::new(Box::pin(input));
     let archive = Archive::new(zstd_decoder);
 
@@ -138,13 +142,23 @@ pub async fn parse_meta_from_tarball<R: AsyncBufRead>(input: R) -> anyhow::Resul
             .to_owned();
 
         if path_str == META_FILENAME {
-            let mut meta_bytes = Vec::new();
-            owned_first_entry.read_to_end(&mut meta_bytes).await?;
+            let mut file_bytes = Vec::new();
+            owned_first_entry.read_to_end(&mut file_bytes).await?;
 
-            return parse_meta(meta_bytes);
+            return Ok(file_bytes);
         }
     }
-    Err(anyhow::anyhow!("No meta.json file found in the tarball"))
+    Err(anyhow::anyhow!(format!(
+        "No file at {} found in the tarball",
+        filename
+    )))
+}
+
+/// Reads and decompresses a .tar.zstd file from an input stream into just a `meta.json` file
+///
+pub async fn parse_meta_from_tarball<R: AsyncBufRead>(input: R) -> anyhow::Result<VersionedBundle> {
+    let meta_bytes = parse_file_from_tarball(input, META_FILENAME).await?;
+    parse_meta(meta_bytes)
 }
 
 pub fn parse_meta(meta_bytes: Vec<u8>) -> anyhow::Result<VersionedBundle> {
@@ -162,4 +176,19 @@ pub fn parse_meta(meta_bytes: Vec<u8>) -> anyhow::Result<VersionedBundle> {
 
     let base_bundle = serde_json::from_slice(&meta_bytes)?;
     Ok(VersionedBundle::V0_5_29(base_bundle))
+}
+
+/// Reads and decompresses a .tar.zstd file from an input stream into just the test results from it
+///
+pub async fn parse_internal_bin_from_tarball<R: AsyncBufRead>(
+    input: R,
+) -> anyhow::Result<TestResult> {
+    let meta_bytes = parse_file_from_tarball(input, INTERNAL_BIN_FILENAME).await?;
+    if let Ok(test_result) = TestResult::decode(meta_bytes.as_slice()) {
+        return Ok(test_result);
+    }
+
+    Err(anyhow::anyhow!(
+        "Failed to decode internal.bin from tarball"
+    ))
 }

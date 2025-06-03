@@ -1,17 +1,21 @@
 use std::{collections::HashMap, io::BufReader};
 
-use bundle::{parse_meta_from_tarball as parse_tarball, VersionedBundle};
+use bundle::{
+    parse_internal_bin_from_tarball as parse_bin, parse_meta_from_tarball as parse_tarball,
+    VersionedBundle,
+};
 use context::{env, junit, repo};
 use futures::{future::Either, io::BufReader as BufReaderAsync, stream::TryStreamExt};
 use js_sys::Uint8Array;
 use prost::Message;
+use proto::test_context::test_run::TestResult;
 use wasm_bindgen::prelude::*;
 use wasm_streams::{readable::sys, readable::ReadableStream};
 
 #[wasm_bindgen]
 pub fn bin_parse(bin: Vec<u8>) -> Result<Vec<junit::bindings::BindingsReport>, JsError> {
-    let test_result = proto::test_context::test_run::TestResult::decode(bin.as_slice())
-        .map_err(|err| JsError::new(&err.to_string()))?;
+    let test_result =
+        TestResult::decode(bin.as_slice()).map_err(|err| JsError::new(&err.to_string()))?;
     Ok(vec![junit::bindings::BindingsReport::from(test_result)])
 }
 
@@ -133,4 +137,33 @@ pub async fn parse_meta_from_tarball(
     parse_tarball(buf_reader)
         .await
         .map_err(|err| JsError::new(&err.to_string()))
+}
+
+#[wasm_bindgen()]
+pub async fn parse_internal_bin_from_tarball(
+    input: sys::ReadableStream,
+) -> Result<Vec<junit::bindings::BindingsReport>, JsError> {
+    let readable_stream = ReadableStream::from_raw(input);
+
+    // Many platforms do not support readable byte streams
+    // https://github.com/MattiasBuelens/wasm-streams/issues/19#issuecomment-1447294077
+    let async_read = match readable_stream.try_into_async_read() {
+        Ok(async_read) => Either::Left(async_read),
+        Err((_err, body)) => Either::Right(
+            body.into_stream()
+                .map_ok(|js_value| js_value.dyn_into::<Uint8Array>().unwrap_throw().to_vec())
+                .map_err(|_js_error| {
+                    std::io::Error::new(std::io::ErrorKind::Other, "failed to read")
+                })
+                .into_async_read(),
+        ),
+    };
+
+    let buf_reader = BufReaderAsync::new(async_read);
+
+    let test_result = parse_bin(buf_reader)
+        .await
+        .map_err(|err| JsError::new(&err.to_string()))?;
+
+    Ok(vec![junit::bindings::BindingsReport::from(test_result)])
 }

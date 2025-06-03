@@ -1,6 +1,7 @@
 use std::{collections::HashMap, io::BufReader, sync::Arc};
 
 use bundle::{
+    parse_internal_bin_from_tarball as parse_internal_bin_from_tarball_impl,
     parse_meta as parse_meta_impl, parse_meta_from_tarball as parse_meta_from_tarball_impl,
     BindingsVersionedBundle,
 };
@@ -166,6 +167,23 @@ pub fn parse_meta_from_tarball(
         .block_on(parse_meta_from_tarball_impl(py_bytes_reader))
         .map_err(|err| PyTypeError::new_err(err.to_string()))?;
     Ok(BindingsVersionedBundle(versioned_bundle))
+}
+
+#[gen_stub_pyfunction]
+#[pyfunction]
+pub fn parse_internal_bin_from_tarball(
+    py: Python<'_>,
+    reader: PyObject,
+) -> PyResult<Vec<junit::bindings::BindingsReport>> {
+    let py_bytes_reader = PyBytesReader::new(reader.into_bound(py))?;
+    let rt = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()?;
+    let internal_bin = rt
+        .block_on(parse_internal_bin_from_tarball_impl(py_bytes_reader))
+        .map_err(|err| PyTypeError::new_err(err.to_string()))?;
+
+    Ok(vec![junit::bindings::BindingsReport::from(internal_bin)])
 }
 
 #[gen_stub_pyfunction]
