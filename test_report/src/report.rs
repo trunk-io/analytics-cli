@@ -339,7 +339,9 @@ impl MutTestReport {
                         Some(test_run_result),
                     )) {
                     Ok(upload_result) => {
-                        if let Some(upload_bundle_error) = upload_result.upload_bundle_error {
+                        if let Some(upload_bundle_error) =
+                            upload_result.error_report.map(|e| e.error)
+                        {
                             tracing::error!(
                                 hidden_in_console = true,
                                 "Error uploading: {:?}",

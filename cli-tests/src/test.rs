@@ -148,8 +148,8 @@ async fn test_command_fails_with_no_junit_files_no_quarantine_successful_upload(
     .assert()
     .failure()
     .code(128)
-    .stdout(predicate::str::contains(
-        "No test output files found, not quarantining any tests",
+    .stderr(predicate::str::contains(
+        "No tests were found in the provided test results",
     ));
 
     println!("{assert}");
