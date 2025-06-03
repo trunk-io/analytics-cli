@@ -11,7 +11,7 @@ fn not_hidden(entry: &DirEntry) -> bool {
     entry
         .file_name()
         .to_str()
-        .map(|s| !s.starts_with("."))
+        .map(|file_string| !file_string.starts_with("."))
         .unwrap_or(true)
 }
 
@@ -26,11 +26,7 @@ fn contains_test(path: &String, test_xml_name: &XmlString) -> bool {
         .map(|text| {
             let has_full_name = text.contains(test_name);
             let has_name_splits = test_parts.all(|p| text.contains(p));
-            if has_full_name || has_name_splits {
-                true
-            } else {
-                false
-            }
+            has_full_name || has_name_splits
         })
         .unwrap_or(false)
 }
@@ -38,7 +34,7 @@ fn contains_test(path: &String, test_xml_name: &XmlString) -> bool {
 fn file_containing_tests(file_paths: Vec<String>, test_name: &XmlString) -> Option<String> {
     let mut matching_paths = file_paths
         .iter()
-        .filter(|path| contains_test(*path, test_name));
+        .filter(|path| contains_test(path, test_name));
     let first_match = matching_paths.next();
     let another_match = matching_paths.next();
     match (first_match, another_match) {
@@ -57,7 +53,6 @@ fn convert_to_absolute(
     let initial_str = String::from(initial.as_str());
     let path = Path::new(&initial_str);
     if path.is_absolute() {
-        println!("Path {:?} was absolute", path);
         path.to_str().map(String::from)
     } else if Path::new(&repo.repo_root).is_absolute() {
         let mut walk = WalkDir::new(repo.repo_root.clone())
@@ -90,19 +85,14 @@ fn convert_to_absolute(
 }
 
 pub fn filename_for_test_case(test_case: &TestCase, repo: &BundleRepo) -> String {
-    println!(
-        "!!!!!!!!!!!!!!!!! File {:?} Filepath {:?} Classname {:?}",
-        test_case.extra.get(extra_attrs::FILE),
-        test_case.extra.get(extra_attrs::FILEPATH),
-        test_case.classname
-    );
     test_case
         .extra
         .get(extra_attrs::FILE)
         .or(test_case.extra.get(extra_attrs::FILEPATH))
         .or(test_case.classname.as_ref())
-        .map(|s| convert_to_absolute(s, repo, &test_case.name))
-        .flatten()
+        .iter()
+        .flat_map(|s| convert_to_absolute(s, repo, &test_case.name))
+        .next()
         .unwrap_or_default()
 }
 
