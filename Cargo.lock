@@ -1000,6 +1000,8 @@ dependencies = [
  "futures",
  "js-sys",
  "log",
+ "prost",
+ "proto",
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "wasm-streams",

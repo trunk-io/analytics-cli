@@ -7,8 +7,16 @@ use context::{
 };
 use futures::{future::Either, io::BufReader as BufReaderAsync, stream::TryStreamExt};
 use js_sys::Uint8Array;
+use prost::Message;
 use wasm_bindgen::prelude::*;
 use wasm_streams::{readable::sys, readable::ReadableStream};
+
+#[wasm_bindgen]
+pub fn bin_parse(bin: Vec<u8>) -> Result<Vec<junit::bindings::BindingsReport>, JsError> {
+    let test_result = proto::test_context::test_run::TestResult::decode(bin.as_slice())
+        .map_err(|err| JsError::new(&err.to_string()))?;
+    Ok(vec![junit::bindings::BindingsReport::from(test_result)])
+}
 
 #[wasm_bindgen]
 pub fn env_parse(

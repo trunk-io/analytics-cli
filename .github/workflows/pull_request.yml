@@ -24,17 +24,14 @@ jobs:
       matrix:
         platform:
           - os-name: linux-x86_64
-            # cross-rs is unsupported on public-amd64-2xlarge
             runs-on: ubuntu-latest
             target: x86_64-unknown-linux-musl
 
           - os-name: linux-aarch64
-            # cross-rs is unsupported on public-amd64-2xlarge
             runs-on: ubuntu-24.04-arm
             target: aarch64-unknown-linux-musl
 
           - os-name: x86_64-linux
-            # cross-rs is unsupported on public-amd64-2xlarge
             runs-on: ubuntu-latest
             target: x86_64-unknown-illumos
 
@@ -106,7 +103,7 @@ jobs:
 
   trunk_check_runner:
     name: Trunk Check runner [linux]
-    runs-on: public-amd64-2xlarge
+    runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v4

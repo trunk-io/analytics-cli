@@ -1,4 +1,6 @@
 import dayjs from "dayjs";
+import fs from "fs";
+import path from "path";
 import utc from "dayjs/plugin/utc";
 import { describe, expect, it } from "vitest";
 
@@ -18,6 +20,7 @@ import {
   parse_branch_class,
   BranchClass,
   GitLabMergeRequestEventType,
+  bin_parse,
 } from "../pkg/context_js";
 
 // eslint-disable-next-line vitest/require-hook
@@ -199,5 +202,25 @@ describe("context-js", () => {
         "my-dev-branch",
       ]),
     ).toBe(BranchClass.ProtectedBranch);
+  });
+
+  it("parses internal.bin", () => {
+    expect.hasAssertions();
+
+    const file_path = path.resolve(__dirname, "../tests/test_internal.bin");
+    const file = fs.readFileSync(file_path);
+    const results = bin_parse(file);
+
+    expect(results).toHaveLength(1);
+
+    const result = results.at(0);
+
+    expect(result?.tests).toBe(13);
+    expect(result?.test_suites).toHaveLength(2);
+
+    const test_suite = result.test_suites.at(0);
+
+    expect(test_suite?.name).toBe("RSpec Expectations");
+    expect(test_suite?.test_cases).toHaveLength(8);
   });
 });
