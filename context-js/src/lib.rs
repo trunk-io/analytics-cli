@@ -1,19 +1,21 @@
 use std::{collections::HashMap, io::BufReader};
 
 use bundle::{
-    decode_internal_bin, parse_internal_bin_from_tarball as parse_internal_bin,
+    parse_internal_bin_from_tarball as parse_internal_bin,
     parse_meta_from_tarball as parse_tarball, VersionedBundle,
 };
 use context::{env, junit, repo};
 use futures::{future::Either, io::BufReader as BufReaderAsync, stream::TryStreamExt};
 use js_sys::Uint8Array;
+use prost::Message;
 use wasm_bindgen::prelude::*;
 use wasm_streams::{readable::sys, readable::ReadableStream};
 
 #[wasm_bindgen]
 pub fn bin_parse(bin: Vec<u8>) -> Result<Vec<junit::bindings::BindingsReport>, JsError> {
-    let bindings_report = decode_internal_bin(bin).map_err(|err| JsError::new(&err.to_string()))?;
-    Ok(bindings_report)
+    let test_result = proto::test_context::test_run::TestResult::decode(bin.as_slice())
+        .map_err(|err| JsError::new(&err.to_string()))?;
+    Ok(vec![junit::bindings::BindingsReport::from(test_result)])
 }
 
 #[wasm_bindgen]
@@ -157,7 +159,9 @@ pub async fn parse_internal_bin_from_tarball(
     };
 
     let buf_reader = BufReaderAsync::new(async_read);
-    parse_internal_bin(buf_reader)
+    let test_result = parse_internal_bin(buf_reader)
         .await
-        .map_err(|err| JsError::new(&err.to_string()))
+        .map_err(|err| JsError::new(&err.to_string()))?;
+
+    Ok(vec![junit::bindings::BindingsReport::from(test_result)])
 }

@@ -9,7 +9,6 @@ use async_std::{io::ReadExt, stream::StreamExt};
 use async_tar_wasm::Archive;
 use codeowners::CodeOwners;
 use context::bazel_bep::common::BepParseResult;
-use context::junit;
 use futures_io::AsyncBufRead;
 use prost::Message;
 use proto::test_context::test_run::TestResult;
@@ -197,18 +196,12 @@ pub async fn parse_meta_from_tarball<R: AsyncBufRead>(input: R) -> anyhow::Resul
     Err(anyhow::anyhow!("No meta.json file found in the tarball"))
 }
 
-pub fn decode_internal_bin(
-    internal_bin_bytes: Vec<u8>,
-) -> anyhow::Result<Vec<junit::bindings::BindingsReport>> {
-    let test_result = TestResult::decode(internal_bin_bytes.as_slice())
-        .map_err(|err| anyhow::anyhow!("Failed to decode internal.bin: {}", err))?;
-
-    Ok(vec![junit::bindings::BindingsReport::from(test_result)])
-}
-
 pub async fn parse_internal_bin_from_tarball<R: AsyncBufRead>(
     input: R,
-) -> anyhow::Result<Vec<junit::bindings::BindingsReport>> {
+) -> anyhow::Result<TestResult> {
     let internal_bin_bytes = parse_file_from_tarball(input, INTERNAL_BIN_FILENAME).await?;
-    decode_internal_bin(internal_bin_bytes)
+    let test_result: TestResult = TestResult::decode(internal_bin_bytes.as_slice())
+        .map_err(|err| anyhow::anyhow!("Failed to decode internal.bin: {}", err))?;
+
+    Ok(test_result)
 }

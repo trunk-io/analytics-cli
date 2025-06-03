@@ -212,7 +212,7 @@ describe("context-js", () => {
     expect(contextRubySuite?.test_cases).toHaveLength(5);
 
     const rspecExpectationsSuite = result?.test_suites.find(
-      ({ name }) => name === "RSpec Expectation",
+      ({ name }) => name === "RSpec Expectations",
     );
 
     expect(rspecExpectationsSuite).toBeDefined();
