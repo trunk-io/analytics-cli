@@ -25,12 +25,6 @@ pub struct Context {
     pub exit_code: i32,
 }
 
-impl Component for Context {
-    fn draw_unchecked(&self, _dimensions: Dimensions, _mode: DrawMode) -> anyhow::Result<Lines> {
-        Ok(Lines(vec![Line::default()]))
-    }
-}
-
 pub struct ErrorReport {
     pub error: anyhow::Error,
     pub context: Context,

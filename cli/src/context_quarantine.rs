@@ -17,6 +17,7 @@ use context::{
     },
     repo::RepoUrlParts,
 };
+use pluralizer::pluralize;
 use prost::Message;
 
 #[derive(Debug, Default, Clone)]
@@ -291,15 +292,10 @@ pub async fn gather_quarantine_context(
         });
 
     if !quarantined_failures.is_empty() {
-        let plural = if quarantined_failures.len() > 1 {
-            "s"
-        } else {
-            ""
-        };
         tracing::info!(
-            "{} test failure{} quarantined:",
+            "{} test {} quarantined:",
             quarantined_failures.len(),
-            plural
+            pluralize("failure", quarantined_failures.len() as isize, false),
         );
         quarantined_failures
             .iter()
@@ -307,11 +303,10 @@ pub async fn gather_quarantine_context(
     }
 
     if !failures.is_empty() {
-        let plural = if failures.len() > 1 { "s" } else { "" };
         tracing::info!(
-            "️❌ {} test failure{} not quarantined:",
+            "️❌ {} test {} not quarantined:",
             failures.len(),
-            plural
+            pluralize("failure", quarantined_failures.len() as isize, false),
         );
         failures
             .iter()
