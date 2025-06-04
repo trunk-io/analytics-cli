@@ -11,6 +11,7 @@ use axum::http::StatusCode;
 use axum::{extract::State, Json};
 use bundle::{BundleMeta, FileSetType};
 use codeowners::CodeOwners;
+use constants::EXIT_FAILURE;
 use context::repo::{BundleRepo, RepoUrlParts};
 use context::{
     bazel_bep::parser::BazelBepParser, junit::parser::JunitParser, repo::RepoUrlParts as Repo,
@@ -1343,9 +1344,9 @@ async fn uses_software_exit_code_if_upload_fails() {
         <testsuites name="vitest tests" tests="1" failures="0" errors="0" time="1.128069555">
             <testsuite name="src/constants/products-parser-server.test.ts" timestamp="2025-05-27T15:31:07.510Z" hostname="christian-cloudtop" tests="10" failures="0" errors="0" skipped="0" time="0.007118101">
                 <testcase classname="src/constants/products-parser-server.test.ts" name="Product Parsers &gt; Server-side parsers &gt; has parsers for all products" time="0.001408508">
-                    <system-err>
+                    <failure>
                         Test failed
-                    </system-err>
+                    </failure>
                 </testcase>
             </testsuite>
         </testsuites">
@@ -1383,12 +1384,12 @@ async fn uses_failure_exit_code_if_unquarantined_tests_fail() {
         <testsuites name="vitest tests" tests="1" failures="0" errors="0" time="1.128069555">
             <testsuite name="src/constants/products-parser-server.test.ts" timestamp="2025-05-27T15:31:07.510Z" hostname="christian-cloudtop" tests="10" failures="0" errors="0" skipped="0" time="0.007118101">
                 <testcase classname="src/constants/products-parser-server.test.ts" name="Product Parsers &gt; Server-side parsers &gt; has parsers for all products" time="0.001408508">
-                    <system-err>
+                    <failure>
                         Test failed
-                    </system-err>
+                    </failure>
                 </testcase>
             </testsuite>
-        </testsuites">
+        </testsuites>
     "#).unwrap();
 
     let mock_server_builder = MockServerBuilder::new();
@@ -1400,7 +1401,7 @@ async fn uses_failure_exit_code_if_unquarantined_tests_fail() {
         .junit_paths("junit.xml")
         .command()
         .assert()
-        .code(predicate::eq(exitcode::SOFTWARE));
+        .code(predicate::eq(EXIT_FAILURE));
 
     // HINT: View CLI output with `cargo test -- --nocapture`
     println!("{assert}");
@@ -1418,9 +1419,9 @@ async fn uses_passed_exit_code_if_unquarantined_tests_fail() {
         <testsuites name="vitest tests" tests="1" failures="0" errors="0" time="1.128069555">
             <testsuite name="src/constants/products-parser-server.test.ts" timestamp="2025-05-27T15:31:07.510Z" hostname="christian-cloudtop" tests="10" failures="0" errors="0" skipped="0" time="0.007118101">
                 <testcase classname="src/constants/products-parser-server.test.ts" name="Product Parsers &gt; Server-side parsers &gt; has parsers for all products" time="0.001408508">
-                    <system-err>
+                    <failure>
                         Test failed
-                    </system-err>
+                    </failure>
                 </testcase>
             </testsuite>
         </testsuites">
