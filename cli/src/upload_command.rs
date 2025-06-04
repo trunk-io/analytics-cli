@@ -538,11 +538,8 @@ impl Component for UploadRunResult {
             output.push(Line::from_iter([
                 Span::new_unstyled("✅ ")?,
                 Span::new_styled(
-                    format!(
-                        "{}",
-                        pluralize("perfect file", perfect_files as isize, true)
-                    )
-                    .attribute(Attribute::Bold),
+                    pluralize("perfect file", perfect_files as isize, true)
+                        .attribute(Attribute::Bold),
                 )?,
             ]));
         }
