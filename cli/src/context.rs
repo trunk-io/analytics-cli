@@ -20,7 +20,11 @@ use constants::ENVS_TO_GET;
 use context::repo::RepoUrlParts;
 use context::{
     bazel_bep::{binary_parser::BazelBepBinParser, common::BepParseResult, parser::BazelBepParser},
-    junit::{junit_path::JunitReportFileWithStatus, parser::JunitParser},
+    junit::{
+        junit_path::JunitReportFileWithStatus,
+        parser::JunitParser,
+        validator::{validate, JunitReportValidationFlatIssue, JunitValidationLevel},
+    },
     repo::BundleRepo,
 };
 use lazy_static::lazy_static;
@@ -230,8 +234,53 @@ pub fn generate_internal_file(
                     let parsed_results =
                         junit_parser.parse(BufReader::new(file_contents.as_bytes()));
                     if let Err(e) = parsed_results {
-                        tracing::warn!("Failed to parse JUnit file {:?}: {:?}", file, e);
+                        tracing::warn!(
+                            "Failed to parse JUnit file {:?}: {:?}",
+                            file.original_path,
+                            e
+                        );
                         continue;
+                    }
+                    if let Some(report) = junit_parser.reports().first() {
+                        let issues = validate(report).all_issues_flat();
+                        let sub_optimal_issues: Vec<&JunitReportValidationFlatIssue> = issues
+                            .iter()
+                            .filter(|issue| issue.level == JunitValidationLevel::SubOptimal)
+                            .collect();
+                        let invalid_issues: Vec<&JunitReportValidationFlatIssue> = issues
+                            .iter()
+                            .filter(|issue| issue.level == JunitValidationLevel::Invalid)
+                            .collect();
+
+                        match (sub_optimal_issues.is_empty(), invalid_issues.is_empty()) {
+                            (false, false) => {
+                                tracing::warn!(
+                                    "JUnit file {:?} has errors and warnings",
+                                    file.original_path
+                                );
+                                tracing::warn!("  Errors:");
+                                for error in invalid_issues.iter().take(5) {
+                                    tracing::warn!("    {:?}", error.error_message);
+                                }
+                                tracing::warn!("  Warnings:");
+                                for warning in sub_optimal_issues.iter().take(5) {
+                                    tracing::warn!("    {:?}", warning.error_message);
+                                }
+                            }
+                            (true, false) => {
+                                tracing::warn!("JUnit file {:?} has errors:", file.original_path);
+                                for error in invalid_issues.iter().take(5) {
+                                    tracing::warn!("  {:?}", error.error_message);
+                                }
+                            }
+                            (false, true) => {
+                                tracing::warn!("JUnit file {:?} has warnings:", file.original_path);
+                                for warning in sub_optimal_issues.iter().take(5) {
+                                    tracing::warn!("  {:?}", warning.error_message);
+                                }
+                            }
+                            (true, true) => (),
+                        }
                     }
                     test_case_runs.extend(junit_parser.into_test_case_runs(codeowners));
                 }
