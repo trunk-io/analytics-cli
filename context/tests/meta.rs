@@ -68,7 +68,7 @@ fn valid_ci_info_and_bundle_repo() -> (CIInfo, BundleRepo) {
             String::from(""),
         ),
         (String::from("BUILDKITE"), String::from("true")),
-        (String::from("BUILDKITE_STEP_ID"), String::from("step-id")),
+        (String::from("BUILDKITE_JOB_ID"), String::from("job-id")),
     ]);
 
     let mut env_parser = EnvParser::new();
