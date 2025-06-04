@@ -3,7 +3,6 @@ import fs from "fs";
 import path from "path";
 import utc from "dayjs/plugin/utc";
 import { describe, expect, it } from "vitest";
-import { strict as assert } from "node:assert";
 
 import {
   BundleRepo,
@@ -81,9 +80,9 @@ describe("context-js", () => {
 
     let parse_result = junit_parse(Buffer.from(validJunitXml, "utf-8"));
     let report = parse_result.report;
-    assert(report, "Report from parsing report should not be null");
+    expect(report).toBeDefined();
 
-    let junitReportValidation = junit_validate(report);
+    let junitReportValidation = junit_validate(report!);
 
     expect(junitReportValidation.max_level()).toBe(JunitValidationLevel.Valid);
 
@@ -100,9 +99,9 @@ describe("context-js", () => {
 
     parse_result = junit_parse(Buffer.from(suboptimalJunitXml, "utf-8"));
     report = parse_result.report;
-    assert(report, "Report from parsing report should not be null");
+    expect(report).toBeDefined();
 
-    junitReportValidation = junit_validate(report);
+    junitReportValidation = junit_validate(report!);
 
     expect(junitReportValidation.max_level()).toBe(
       JunitValidationLevel.SubOptimal,
@@ -128,9 +127,9 @@ describe("context-js", () => {
 
     parse_result = junit_parse(Buffer.from(nestedJunitXml, "utf-8"));
     report = parse_result.report;
-    assert(report, "Report from parsing report should not be null");
+    expect(report).toBeDefined();
 
-    junitReportValidation = junit_validate(report);
+    junitReportValidation = junit_validate(report!);
 
     expect(junitReportValidation.max_level()).toBe(JunitValidationLevel.Valid);
   });

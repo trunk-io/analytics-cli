@@ -115,6 +115,8 @@ downloads:
       - url: https://static.rust-lang.org/dist/${version}/rust-src-nightly.tar.xz
 tools:
   disabled:
+    # To see why these are disabled, see
+    # https://trunk-io.slack.com/archives/C08AEDGMZNH/p1748962373354059
     - rust-src
     - rust
   definitions:

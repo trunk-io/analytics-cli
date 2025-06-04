@@ -1,4 +1,5 @@
 use std::{
+    collections::HashMap,
     fs::File,
     io::{Seek, Write},
     path::PathBuf,
@@ -28,8 +29,8 @@ pub struct BundlerUtil {
     bep_result: Option<BepParseResult>,
 }
 
-const META_FILENAME: &str = "meta.json";
-const INTERNAL_BIN_FILENAME: &str = "internal.bin";
+pub const META_FILENAME: &str = "meta.json";
+pub const INTERNAL_BIN_FILENAME: &str = "internal.bin";
 
 impl BundlerUtil {
     const ZSTD_COMPRESSION_LEVEL: i32 = 15; // This gives roughly 10x compression for text, 22 gives 11x.
@@ -72,6 +73,8 @@ impl BundlerUtil {
                 })?;
                 Ok::<(), anyhow::Error>(())
             })?;
+
+        // Add the internal binary file if it exists.
         if let Some(bundled_file) = self.meta.internal_bundled_file.as_ref() {
             let path = std::path::Path::new(&bundled_file.original_path);
             let mut file = File::open(path)?;
@@ -126,33 +129,47 @@ impl BundlerUtil {
     }
 }
 
-/// Reads and decompresses a .tar.zstd file from an input stream into just the specified file.
-/// This does not assume any specific order of files in the tarball, so it will read through all entries
-/// until it finds the specified file.
-async fn parse_file_from_tarball<R: AsyncBufRead>(
+/// Reads and decompresses a .tar.zstd file from an input stream into multiple specified files.
+pub async fn extract_files_from_tarball<R: AsyncBufRead>(
     input: R,
-    file_name: &str,
-) -> anyhow::Result<Vec<u8>> {
+    file_names: &[&str],
+) -> anyhow::Result<HashMap<String, Vec<u8>>> {
     let zstd_decoder = ZstdDecoder::new(Box::pin(input));
     let archive = Archive::new(zstd_decoder);
     let mut entries = archive.entries()?;
+
+    let mut extracted_files = HashMap::new();
+    let file_names_set: std::collections::HashSet<&str> = file_names.iter().cloned().collect();
 
     while let Some(entry) = entries.next().await {
         let mut owned_entry = entry?;
         let path_str = owned_entry.path()?.to_str().unwrap_or_default().to_owned();
 
-        if path_str == file_name {
+        if file_names_set.contains(path_str.as_str()) {
             let mut file_bytes = Vec::new();
             owned_entry.read_to_end(&mut file_bytes).await?;
+            extracted_files.insert(path_str, file_bytes);
 
-            return Ok(file_bytes);
+            if extracted_files.len() == file_names.len() {
+                break;
+            }
         }
     }
 
-    Err(anyhow::anyhow!(format!(
-        "No file '{}' found in the tarball",
-        file_name
-    )))
+    let missing_files: Vec<&str> = file_names
+        .iter()
+        .filter(|&name| !extracted_files.contains_key(*name))
+        .cloned()
+        .collect();
+
+    if !missing_files.is_empty() {
+        return Err(anyhow::anyhow!(
+            "Files not found in tarball: {:?}",
+            missing_files
+        ));
+    }
+
+    Ok(extracted_files)
 }
 
 pub fn parse_meta(meta_bytes: Vec<u8>) -> anyhow::Result<VersionedBundle> {
@@ -178,6 +195,7 @@ pub async fn parse_meta_from_tarball<R: AsyncBufRead>(input: R) -> anyhow::Resul
     let zstd_decoder = ZstdDecoder::new(Box::pin(input));
     let archive = Archive::new(zstd_decoder);
 
+    // Again, note that the below method specifically is only looking at the first entry in the tarball.
     if let Some(first_entry) = archive.entries()?.next().await {
         let mut owned_first_entry = first_entry?;
         let path_str = owned_first_entry
@@ -196,12 +214,21 @@ pub async fn parse_meta_from_tarball<R: AsyncBufRead>(input: R) -> anyhow::Resul
     Err(anyhow::anyhow!("No meta.json file found in the tarball"))
 }
 
+/// Reads and decompresses a .tar.zstd file from an input stream into just the internal bin file.
 pub async fn parse_internal_bin_from_tarball<R: AsyncBufRead>(
     input: R,
 ) -> anyhow::Result<TestResult> {
-    let internal_bin_bytes = parse_file_from_tarball(input, INTERNAL_BIN_FILENAME).await?;
-    let test_result: TestResult = TestResult::decode(internal_bin_bytes.as_slice())
-        .map_err(|err| anyhow::anyhow!("Failed to decode internal.bin: {}", err))?;
+    let extracted_files = extract_files_from_tarball(input, &[INTERNAL_BIN_FILENAME]).await?;
+    if let Some(internal_bin_bytes) = extracted_files.get(INTERNAL_BIN_FILENAME) {
+        let test_result: TestResult =
+            TestResult::decode(internal_bin_bytes.as_slice()).map_err(|err| {
+                anyhow::anyhow!("Failed to decode {}: {}", INTERNAL_BIN_FILENAME, err)
+            })?;
+        return Ok(test_result);
+    }
 
-    Ok(test_result)
+    Err(anyhow::anyhow!(
+        "No {} file found in the tarball",
+        INTERNAL_BIN_FILENAME
+    ))
 }
