@@ -35,6 +35,8 @@ const JUNIT_GLOB_REQUIRED_UNLESS_PRESENT_ARG: &str = "xcresult_path";
 #[cfg(not(target_os = "macos"))]
 const JUNIT_GLOB_REQUIRED_UNLESS_PRESENT_ARG: &str = "junit_paths";
 
+const MAX_FILE_ISSUES_TO_SHOW: usize = 5;
+
 #[derive(Args, Clone, Debug, Default)]
 pub struct UploadArgs {
     #[arg(
@@ -425,6 +427,7 @@ impl Component for UploadRunResult {
             return Ok(Lines(output));
         }
 
+        let mut perfect_files = 0;
         output.push(Line::from_iter([
             Span::new_unstyled("🔎 ")?,
             Span::new_styled(String::from("File Validation").attribute(Attribute::Bold))?,
@@ -476,7 +479,7 @@ impl Component for UploadRunResult {
                                     String::from("Errors").attribute(Attribute::Bold),
                                 )?,
                             ]));
-                            for error in invalid_issues {
+                            for error in invalid_issues.iter().take(MAX_FILE_ISSUES_TO_SHOW) {
                                 output.push(Line::from_iter([
                                     Span::new_unstyled("   ↪ ")?,
                                     Span::new_unstyled(error.error_message.clone())?,
@@ -488,7 +491,7 @@ impl Component for UploadRunResult {
                                     String::from("Warnings").attribute(Attribute::Bold),
                                 )?,
                             ]));
-                            for warning in sub_optimal_issues {
+                            for warning in sub_optimal_issues.iter().take(MAX_FILE_ISSUES_TO_SHOW) {
                                 output.push(Line::from_iter([
                                     Span::new_unstyled("   ↪ ")?,
                                     Span::new_unstyled(warning.error_message.clone())?,
@@ -502,7 +505,7 @@ impl Component for UploadRunResult {
                                     format!("{file_name} Has Errors").attribute(Attribute::Bold),
                                 )?,
                             ]));
-                            for issue in invalid_issues {
+                            for issue in invalid_issues.iter().take(MAX_FILE_ISSUES_TO_SHOW) {
                                 output.push(Line::from_iter([
                                     Span::new_unstyled(" ↪ ")?,
                                     Span::new_unstyled(issue.error_message.clone())?,
@@ -516,7 +519,7 @@ impl Component for UploadRunResult {
                                     format!("{file_name} Has Warnings").attribute(Attribute::Bold),
                                 )?,
                             ]));
-                            for warning in sub_optimal_issues {
+                            for warning in sub_optimal_issues.iter().take(MAX_FILE_ISSUES_TO_SHOW) {
                                 output.push(Line::from_iter([
                                     Span::new_unstyled(" ↪ ")?,
                                     Span::new_unstyled(warning.error_message.clone())?,
@@ -524,17 +527,26 @@ impl Component for UploadRunResult {
                             }
                         }
                         (true, true) => {
-                            output.push(Line::from_iter([
-                                Span::new_unstyled("✅ ")?,
-                                Span::new_styled(
-                                    format!("{file_name} Is Perfect").attribute(Attribute::Bold),
-                                )?,
-                            ]));
+                            perfect_files += 1;
                         }
                     }
                 }
             }
         }
+
+        if perfect_files > 0 {
+            output.push(Line::from_iter([
+                Span::new_unstyled("✅ ")?,
+                Span::new_styled(
+                    format!(
+                        "{}",
+                        pluralize("perfect file", perfect_files as isize, true)
+                    )
+                    .attribute(Attribute::Bold),
+                )?,
+            ]));
+        }
+        output.push(Line::default());
 
         output.push(Line::from_iter([Span::new_styled(
             String::from("Test Report").attribute(Attribute::Bold),
