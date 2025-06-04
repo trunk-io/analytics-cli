@@ -333,7 +333,7 @@ impl<'a> CIInfoParser<'a> {
     fn parse_buildkite(&mut self) {
         if let (Some(url), Some(id)) = (
             self.get_env_var("BUILDKITE_BUILD_URL"),
-            self.get_env_var("BUILDKITE_STEP_ID"),
+            self.get_env_var("BUILDKITE_JOB_ID"),
         ) {
             self.ci_info.job_url = Some(format!("{}#{}", url, id));
         }

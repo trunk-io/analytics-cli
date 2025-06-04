@@ -8,8 +8,8 @@ use context::env::{
 #[test]
 fn test_simple_buildkite() {
     let job_url = String::from("https://buildkite.com/test/builds/123");
-    let step_id = String::from("step-id");
-    let full_job_url = format!("{}#{}", job_url, step_id);
+    let job_id = String::from("job-id");
+    let full_job_url = format!("{}#{}", job_url, job_id);
     let branch = String::from("some-branch-name");
     let env_vars = EnvVars::from_iter(vec![
         (
@@ -23,7 +23,7 @@ fn test_simple_buildkite() {
             String::from(""),
         ),
         (String::from("BUILDKITE"), String::from("true")),
-        (String::from("BUILDKITE_STEP_ID"), String::from("step-id")),
+        (String::from("BUILDKITE_JOB_ID"), String::from("job-id")),
     ]);
 
     let mut env_parser = EnvParser::new();
