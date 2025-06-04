@@ -419,7 +419,9 @@ impl JunitMock {
                             fake::faker::filesystem::en::FileName().fake_with_rng(&mut self.rng),
                         );
                     std::fs::create_dir_all(path.clone().parent().unwrap()).unwrap();
-                    std::fs::File::create_new(path.clone()).unwrap();
+                    if !path.exists() {
+                        std::fs::File::create_new(path.clone()).unwrap();
+                    }
                     String::from(path.clone().as_os_str().to_str().unwrap())
                 } else {
                     fake::faker::filesystem::en::FilePath().fake_with_rng(&mut self.rng)
