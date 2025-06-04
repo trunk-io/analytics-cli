@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::env;
 
 use api::client::ApiClient;
@@ -7,6 +8,9 @@ use bundle::{BundleMeta, BundlerUtil};
 use clap::{ArgAction, Args};
 use constants::EXIT_SUCCESS;
 use context::bazel_bep::common::BepParseResult;
+use context::junit::validator::{
+    JunitReportValidation, JunitReportValidationFlatIssue, JunitValidationLevel,
+};
 use pluralizer::pluralize;
 use superconsole::{
     style::{style, Attribute, Color, Stylize},
@@ -224,6 +228,7 @@ pub struct UploadRunResult {
     pub error_report: Option<ErrorReport>,
     pub quarantine_context: QuarantineContext,
     pub meta: BundleMeta,
+    pub validations: BTreeMap<String, anyhow::Result<JunitReportValidation>>,
 }
 
 pub async fn run_upload(
@@ -284,8 +289,10 @@ pub async fn run_upload(
         &temp_dir,
         meta.base_props.codeowners.as_ref(),
     );
-    if let Ok(internal_bundled_file) = internal_bundled_file {
+    let mut validations = BTreeMap::new();
+    if let Ok((internal_bundled_file, junit_validations)) = internal_bundled_file {
         meta.internal_bundled_file = Some(internal_bundled_file);
+        validations = junit_validations;
     }
 
     let default_exit_code = if let Some(exit_code) = upload_args.test_process_exit_code {
@@ -374,6 +381,7 @@ pub async fn run_upload(
         quarantine_context,
         error_report,
         meta,
+        validations,
     })
 }
 
@@ -416,6 +424,118 @@ impl Component for UploadRunResult {
             output.extend(error_report.draw_unchecked(dimensions, mode)?);
             return Ok(Lines(output));
         }
+
+        output.push(Line::from_iter([
+            Span::new_unstyled("🔎 ")?,
+            Span::new_styled(String::from("File Validation").attribute(Attribute::Bold))?,
+        ]));
+        output.push(Line::from_iter([Span::new_styled(
+            format!(
+                "  {}",
+                pluralize("file", self.validations.len() as isize, true)
+            )
+            .attribute(Attribute::Italic),
+        )?]));
+
+        for (file_name, validation_reports) in self.validations.iter() {
+            match validation_reports {
+                Err(e) => {
+                    output.push(Line::from_iter([
+                        Span::new_unstyled("❌ ")?,
+                        Span::new_styled(
+                            format!("{file_name} Could Not Be Parsed").attribute(Attribute::Bold),
+                        )?,
+                    ]));
+                    output.push(Line::from_iter([
+                        Span::new_unstyled(" ↪ ")?,
+                        Span::new_unstyled_lossy(format!("{:?}", e)),
+                    ]));
+                }
+                Ok(report) => {
+                    let issues = report.all_issues_flat();
+                    let sub_optimal_issues: Vec<&JunitReportValidationFlatIssue> = issues
+                        .iter()
+                        .filter(|issue| issue.level == JunitValidationLevel::SubOptimal)
+                        .collect();
+                    let invalid_issues: Vec<&JunitReportValidationFlatIssue> = issues
+                        .iter()
+                        .filter(|issue| issue.level == JunitValidationLevel::Invalid)
+                        .collect();
+                    match (sub_optimal_issues.is_empty(), invalid_issues.is_empty()) {
+                        (false, false) => {
+                            output.push(Line::from_iter([
+                                Span::new_unstyled("❌ ")?,
+                                Span::new_styled(
+                                    format!("{file_name} Has Errors And Warnings")
+                                        .attribute(Attribute::Bold),
+                                )?,
+                            ]));
+                            output.push(Line::from_iter([
+                                Span::new_unstyled(" ↪ ❌ ")?,
+                                Span::new_styled(
+                                    String::from("Errors").attribute(Attribute::Bold),
+                                )?,
+                            ]));
+                            for error in invalid_issues {
+                                output.push(Line::from_iter([
+                                    Span::new_unstyled("   ↪ ")?,
+                                    Span::new_unstyled(error.error_message.clone())?,
+                                ]));
+                            }
+                            output.push(Line::from_iter([
+                                Span::new_unstyled(" ↪ ⚠️  ")?,
+                                Span::new_styled(
+                                    String::from("Warnings").attribute(Attribute::Bold),
+                                )?,
+                            ]));
+                            for warning in sub_optimal_issues {
+                                output.push(Line::from_iter([
+                                    Span::new_unstyled("   ↪ ")?,
+                                    Span::new_unstyled(warning.error_message.clone())?,
+                                ]));
+                            }
+                        }
+                        (true, false) => {
+                            output.push(Line::from_iter([
+                                Span::new_unstyled("❌ ")?,
+                                Span::new_styled(
+                                    format!("{file_name} Has Errors").attribute(Attribute::Bold),
+                                )?,
+                            ]));
+                            for issue in invalid_issues {
+                                output.push(Line::from_iter([
+                                    Span::new_unstyled(" ↪ ")?,
+                                    Span::new_unstyled(issue.error_message.clone())?,
+                                ]));
+                            }
+                        }
+                        (false, true) => {
+                            output.push(Line::from_iter([
+                                Span::new_unstyled("⚠️  ")?,
+                                Span::new_styled(
+                                    format!("{file_name} Has Warnings").attribute(Attribute::Bold),
+                                )?,
+                            ]));
+                            for warning in sub_optimal_issues {
+                                output.push(Line::from_iter([
+                                    Span::new_unstyled(" ↪ ")?,
+                                    Span::new_unstyled(warning.error_message.clone())?,
+                                ]));
+                            }
+                        }
+                        (true, true) => {
+                            output.push(Line::from_iter([
+                                Span::new_unstyled("✅ ")?,
+                                Span::new_styled(
+                                    format!("{file_name} Is Perfect").attribute(Attribute::Bold),
+                                )?,
+                            ]));
+                        }
+                    }
+                }
+            }
+        }
+
         output.push(Line::from_iter([Span::new_styled(
             String::from("Test Report").attribute(Attribute::Bold),
         )?]));
