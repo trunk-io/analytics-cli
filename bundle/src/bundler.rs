@@ -232,3 +232,63 @@ pub async fn parse_internal_bin_from_tarball<R: AsyncBufRead>(
         INTERNAL_BIN_FILENAME
     ))
 }
+
+#[cfg(test)]
+mod tests {
+    use std::{
+        collections::HashMap,
+        env,
+        time::{SystemTime, UNIX_EPOCH},
+    };
+
+    use context::repo::BundleRepo;
+    use tempfile::tempdir;
+
+    use super::*;
+    use crate::bundle_meta::{
+        BundleMeta, BundleMetaBaseProps, BundleMetaDebugProps, BundleMetaJunitProps, META_VERSION,
+    };
+
+    #[tokio::test]
+    pub async fn test_bundle_meta_is_first_entry() {
+        let meta = BundleMeta {
+            junit_props: BundleMetaJunitProps::default(),
+            bundle_upload_id_v2: String::with_capacity(0),
+            debug_props: BundleMetaDebugProps {
+                command_line: String::with_capacity(0),
+            },
+            variant: None,
+            base_props: BundleMetaBaseProps {
+                version: META_VERSION.to_string(),
+                org: String::with_capacity(0),
+                repo: BundleRepo::default(),
+                cli_version: String::with_capacity(0),
+                bundle_upload_id: String::with_capacity(0),
+                tags: vec![],
+                file_sets: Vec::with_capacity(0),
+                upload_time_epoch: SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap_or_else(|_| std::time::Duration::from_secs(0))
+                    .as_secs(),
+                test_command: None,
+                quarantined_tests: Vec::with_capacity(0),
+                os_info: Some(env::consts::OS.to_string()),
+                codeowners: None,
+                envs: HashMap::new(),
+            },
+            internal_bundled_file: None,
+        };
+        let bundler_util = BundlerUtil::new(meta, None);
+        let temp_dir = tempdir().unwrap();
+        let bundle_path = temp_dir.path().join("bundle.tar.zstd");
+
+        assert!(bundler_util.make_tarball(&bundle_path).is_ok());
+        assert!(bundle_path.exists());
+
+        let tarball_file = async_std::fs::File::open(&bundle_path).await.unwrap();
+        let reader = async_std::io::BufReader::new(tarball_file);
+
+        let parsed_meta = parse_meta_from_tarball(reader).await;
+        assert!(parsed_meta.is_ok());
+    }
+}

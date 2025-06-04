@@ -691,6 +691,7 @@ dependencies = [
  "serde_json",
  "tar",
  "tempfile",
+ "tokio",
  "tracing",
  "tsify-next",
  "uuid",
