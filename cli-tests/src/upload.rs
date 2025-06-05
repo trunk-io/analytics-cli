@@ -1,3 +1,4 @@
+use std::io::Write;
 use std::sync::{Arc, Mutex};
 use std::{fs, io::BufReader};
 
@@ -1218,7 +1219,7 @@ enum CreateBundleResponse {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn do_not_quarantines_tests_when_quarantine_disabled_set() {
+async fn do_not_quarantine_tests_when_quarantine_disabled_set() {
     let temp_dir = tempdir().unwrap();
     generate_mock_git_repo(&temp_dir);
     generate_mock_valid_junit_xmls(&temp_dir);
@@ -1328,4 +1329,54 @@ async fn do_not_quarantines_tests_when_quarantine_disabled_set() {
     // Fourth run won't quarantine with quarantining disabled in the app
     *QUARANTINE_CONFIG_RESPONSE.lock().unwrap() = QuarantineConfigResponse::Disabled;
     command.assert().failure();
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn uploaded_file_contains_updated_test_files() {
+    let temp_dir = TempDir::with_prefix("not_hidden").unwrap();
+    generate_mock_git_repo(&temp_dir);
+
+    let inner_dir = temp_dir.path().join("inner_dir");
+    fs::create_dir(inner_dir).unwrap();
+
+    let test_location = temp_dir.path().join("inner_dir").join("test_file.ts");
+    let mut test_file = fs::File::create(test_location).unwrap();
+    write!(test_file, r#"it("does stuff", x)"#).unwrap();
+
+    let junit_location = temp_dir.path().join("junit_file.xml");
+    let mut junit_file = fs::File::create(junit_location).unwrap();
+    write!(junit_file, r#"
+        <?xml version="1.0" encoding="UTF-8" ?>
+        <testsuites name="vitest tests" tests="1" failures="0" errors="0" time="1.128069555">
+            <testsuite name="test_file.ts" timestamp="2025-05-27T15:31:07.510Z" hostname="christian-cloudtop" tests="10" failures="0" errors="0" skipped="0" time="0.007118101">
+                <testcase classname="test_file.ts" name="Product Parsers &gt; Server-side parsers &gt; has parsers for all products" time="0.001408508">
+                </testcase>
+            </testsuite>
+        </testsuites>
+    "#).unwrap();
+
+    let state = MockServerBuilder::new().spawn_mock_server().await;
+    let assert = CommandBuilder::upload(temp_dir.path(), state.host.clone())
+        .junit_paths("junit_file.xml")
+        .command()
+        .assert()
+        .success();
+
+    let requests = state.requests.lock().unwrap().clone();
+    assert_eq!(requests.len(), 3);
+
+    let file_upload = assert_matches!(requests.get(1).unwrap(), RequestPayload::S3Upload(d) => d);
+    let file = fs::File::open(file_upload.join("meta.json")).unwrap();
+    let reader = BufReader::new(file);
+    let bundle_meta: BundleMeta = serde_json::from_reader(reader).unwrap();
+    let internal_bundled_file = bundle_meta.internal_bundled_file.as_ref().unwrap();
+    let bin = fs::read(file_upload.join(&internal_bundled_file.path)).unwrap();
+    let report = proto::test_context::test_run::TestResult::decode(&*bin).unwrap();
+
+    assert_eq!(report.test_case_runs.len(), 1);
+    let test_case_run = &report.test_case_runs.first().unwrap();
+    assert_eq!(test_case_run.classname, "test_file.ts");
+    assert_eq!(test_case_run.file, "inner_dir/test_file.ts");
+
+    println!("{assert}");
 }
