@@ -12,7 +12,8 @@ use std::{
 use api::{client::ApiClient, message::CreateBundleUploadResponse};
 use bundle::{
     BundleMeta, BundleMetaBaseProps, BundleMetaDebugProps, BundleMetaJunitProps, BundledFile,
-    FileSet, FileSetBuilder, FileSetType, QuarantineBulkTestStatus, META_VERSION,
+    FileSet, FileSetBuilder, FileSetType, QuarantineBulkTestStatus, INTERNAL_BIN_FILENAME,
+    META_VERSION,
 };
 use codeowners::CodeOwners;
 use constants::ENVS_TO_GET;
@@ -259,15 +260,14 @@ pub fn generate_internal_file(
     };
     let mut buf = Vec::new();
     prost::Message::encode(&test_result, &mut buf)?;
-    let filename = "internal.bin";
-    let test_report_path = temp_dir.path().join(filename);
+    let test_report_path = temp_dir.path().join(INTERNAL_BIN_FILENAME);
     std::fs::write(&test_report_path, buf)?;
     Ok((
         BundledFile {
             original_path: test_report_path.to_string_lossy().to_string(),
             original_path_rel: None,
             owners: vec![],
-            path: filename.to_string(),
+            path: INTERNAL_BIN_FILENAME.to_string(),
             // last_modified_epoch_ns does not serialize so the compiler complains it does not exist
             ..Default::default()
         },

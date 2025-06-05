@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-non-null-assertion */
 import dayjs from "dayjs";
 import fs from "fs";
 import path from "path";
@@ -81,7 +82,9 @@ describe("context-js", () => {
     let parse_result = junit_parse(Buffer.from(validJunitXml, "utf-8"));
     let report = parse_result.report;
 
-    let junitReportValidation = junit_validate(report);
+    expect(report).toBeDefined();
+
+    let junitReportValidation = junit_validate(report!);
 
     expect(junitReportValidation.max_level()).toBe(JunitValidationLevel.Valid);
 
@@ -99,7 +102,9 @@ describe("context-js", () => {
     parse_result = junit_parse(Buffer.from(suboptimalJunitXml, "utf-8"));
     report = parse_result.report;
 
-    junitReportValidation = junit_validate(report);
+    expect(report).toBeDefined();
+
+    junitReportValidation = junit_validate(report!);
 
     expect(junitReportValidation.max_level()).toBe(
       JunitValidationLevel.SubOptimal,
@@ -126,7 +131,9 @@ describe("context-js", () => {
     parse_result = junit_parse(Buffer.from(nestedJunitXml, "utf-8"));
     report = parse_result.report;
 
-    junitReportValidation = junit_validate(report);
+    expect(report).toBeDefined();
+
+    junitReportValidation = junit_validate(report!);
 
     expect(junitReportValidation.max_level()).toBe(JunitValidationLevel.Valid);
   });
@@ -218,7 +225,7 @@ describe("context-js", () => {
     expect(result?.tests).toBe(13);
     expect(result?.test_suites).toHaveLength(2);
 
-    const test_suite = result.test_suites.at(0);
+    const test_suite = result?.test_suites.at(0);
 
     expect(test_suite?.name).toBe("RSpec Expectations");
     expect(test_suite?.test_cases).toHaveLength(8);

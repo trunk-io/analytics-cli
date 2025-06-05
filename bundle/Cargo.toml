@@ -40,6 +40,9 @@ pyo3 = { version = "0.22.5", optional = true, features = [
 [target.'cfg(target_os = "macos")'.dependencies]
 pyo3 = { version = "0.22.5", optional = true, features = ["abi3-py39"] }
 
+[dev-dependencies]
+tokio = { version = "*" }
+
 [features]
 bindings = []
 wasm = [
