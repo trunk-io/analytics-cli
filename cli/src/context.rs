@@ -1,6 +1,6 @@
-use std::io::Read;
 #[cfg(target_os = "macos")]
 use std::io::Write;
+use std::{collections::BTreeMap, io::Read};
 use std::{
     collections::HashMap,
     env,
@@ -21,7 +21,11 @@ use constants::ENVS_TO_GET;
 use context::repo::RepoUrlParts;
 use context::{
     bazel_bep::{binary_parser::BazelBepBinParser, common::BepParseResult, parser::BazelBepParser},
-    junit::{junit_path::JunitReportFileWithStatus, parser::JunitParser},
+    junit::{
+        junit_path::JunitReportFileWithStatus,
+        parser::JunitParser,
+        validator::{validate, JunitReportValidation},
+    },
     repo::BundleRepo,
 };
 use lazy_static::lazy_static;
@@ -209,8 +213,12 @@ pub fn generate_internal_file(
     file_sets: &[FileSet],
     temp_dir: &TempDir,
     codeowners: Option<&CodeOwners>,
-) -> anyhow::Result<BundledFile> {
+) -> anyhow::Result<(
+    BundledFile,
+    BTreeMap<String, anyhow::Result<JunitReportValidation>>,
+)> {
     let mut test_case_runs = Vec::new();
+    let mut junit_validations = BTreeMap::new();
     for file_set in file_sets {
         if file_set.file_set_type == FileSetType::Internal {
             if file_set.files.is_empty() {
@@ -221,8 +229,8 @@ pub fn generate_internal_file(
                     "Internal file set contains more than one file"
                 ));
             }
-            // Internal file set, we should just use that directly
-            return Ok(file_set.files[0].clone());
+            // Internal file set, we should just use that directly and assume it's valid
+            return Ok((file_set.files[0].clone(), BTreeMap::new()));
         } else {
             for file in &file_set.files {
                 let mut junit_parser = JunitParser::new();
@@ -232,7 +240,13 @@ pub fn generate_internal_file(
                         junit_parser.parse(BufReader::new(file_contents.as_bytes()));
                     if let Err(e) = parsed_results {
                         tracing::warn!("Failed to parse JUnit file {:?}: {:?}", file, e);
+                        junit_validations.insert(file.original_path.clone(), Err(e));
                         continue;
+                    }
+                    let reports = junit_parser.reports();
+                    if reports.len() == 1 {
+                        junit_validations
+                            .insert(file.original_path.clone(), Ok(validate(&reports[0])));
                     }
                     test_case_runs.extend(junit_parser.into_test_case_runs(codeowners));
                 }
@@ -248,14 +262,17 @@ pub fn generate_internal_file(
     prost::Message::encode(&test_result, &mut buf)?;
     let test_report_path = temp_dir.path().join(INTERNAL_BIN_FILENAME);
     std::fs::write(&test_report_path, buf)?;
-    Ok(BundledFile {
-        original_path: test_report_path.to_string_lossy().to_string(),
-        original_path_rel: None,
-        owners: vec![],
-        path: INTERNAL_BIN_FILENAME.to_string(),
-        // last_modified_epoch_ns does not serialize so the compiler complains it does not exist
-        ..Default::default()
-    })
+    Ok((
+        BundledFile {
+            original_path: test_report_path.to_string_lossy().to_string(),
+            original_path_rel: None,
+            owners: vec![],
+            path: filename.to_string(),
+            // last_modified_epoch_ns does not serialize so the compiler complains it does not exist
+            ..Default::default()
+        },
+        junit_validations,
+    ))
 }
 
 fn fall_back_to_binary_parse(
