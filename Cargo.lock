@@ -867,6 +867,7 @@ dependencies = [
  "constants",
  "context",
  "escargot",
+ "exitcode",
  "junit-mock",
  "lazy_static",
  "more-asserts",
