@@ -128,13 +128,14 @@ pub struct UploadArgs {
     pub allow_empty_test_results: bool,
     #[arg(
         long,
-        help = "Hide the top-level flaky tests banner",
+        help = "Deprecated (does nothing, left in to avoid breaking existing flows)",
         action = ArgAction::Set,
         required = false,
         require_equals = true,
         num_args = 0..=1,
         default_value = "false",
         default_missing_value = "true",
+        hide = true,
     )]
     pub hide_banner: bool,
     #[arg(
