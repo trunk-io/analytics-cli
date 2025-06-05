@@ -44,7 +44,10 @@ fn file_containing_tests(file_paths: Vec<String>, test_name: &XmlString) -> Opti
     }
 }
 
-// None if is not a file or file does not exist, Some(absolute path) if it does exist in the root
+// None if is not a path in the root,
+// Some(the path) if it's already absolute
+// Some(absolute path) if it does exist in the root
+// Some(relative_path) if we cannot walk the root and the relative path ends in an extension
 fn convert_to_absolute(
     initial: &XmlString,
     repo: &BundleRepo,
@@ -52,9 +55,10 @@ fn convert_to_absolute(
 ) -> Option<String> {
     let initial_str = String::from(initial.as_str());
     let path = Path::new(&initial_str);
+    let repo_root_path = Path::new(&repo.repo_root);
     if path.is_absolute() {
         path.to_str().map(String::from)
-    } else if Path::new(&repo.repo_root).is_absolute() {
+    } else if repo_root_path.is_absolute() && repo_root_path.exists() {
         let mut walk = WalkDir::new(repo.repo_root.clone())
             .into_iter()
             .filter_entry(not_hidden)
@@ -79,8 +83,24 @@ fn convert_to_absolute(
                 test_name,
             ),
         }
+    } else if path
+        .file_name()
+        .iter()
+        .flat_map(|os| os.to_str())
+        .all(|name| name.contains("."))
+    {
+        Some(initial_str)
     } else {
         None
+    }
+}
+
+// If the repo root is in the path, strips it out. If not, returns the original path.
+fn relativise_to_root(base_path: String, repo: &BundleRepo) -> String {
+    let path = Path::new(&base_path);
+    match path.strip_prefix(repo.repo_root.clone()) {
+        Ok(relativised) => relativised.to_str().map(String::from).unwrap_or(base_path),
+        Err(_) => base_path,
     }
 }
 
@@ -92,6 +112,7 @@ pub fn filename_for_test_case(test_case: &TestCase, repo: &BundleRepo) -> String
         .or(test_case.classname.as_ref())
         .iter()
         .flat_map(|s| convert_to_absolute(s, repo, &test_case.name))
+        .map(|base_path| relativise_to_root(base_path, repo))
         .next()
         .unwrap_or_default()
 }
@@ -260,13 +281,27 @@ mod tests {
     }
 
     #[test]
-    fn test_convert_to_absolute_when_no_repo_root() {
+    fn test_convert_to_absolute_when_no_repo_root_but_given_file() {
         let temp_dir = TempDir::with_prefix("not-hidden").unwrap();
         let file_path = temp_dir.as_ref().join("test.txt");
         let text = r#"it("test")"#;
         fs::write(file_path.clone(), text).unwrap();
         let actual = convert_to_absolute(
             &XmlString::new("test.txt"),
+            &BundleRepo::default(),
+            &XmlString::new("test"),
+        );
+        assert_eq!(actual, Some(String::from("test.txt")));
+    }
+
+    #[test]
+    fn test_convert_to_absolute_when_no_repo_root_and_not_a_file() {
+        let temp_dir = TempDir::with_prefix("not-hidden").unwrap();
+        let file_path = temp_dir.as_ref().join("test.txt");
+        let text = r#"it("test")"#;
+        fs::write(file_path.clone(), text).unwrap();
+        let actual = convert_to_absolute(
+            &XmlString::new("not_a_file"),
             &BundleRepo::default(),
             &XmlString::new("test"),
         );
@@ -385,5 +420,27 @@ mod tests {
             &XmlString::new("test"),
         );
         assert_eq!(actual, None);
+    }
+
+    #[test]
+    fn relativise_to_root_if_no_repo() {
+        let initial = String::from("/my/full/path.txt");
+        let actual = relativise_to_root(initial.clone(), &BundleRepo::default());
+        assert_eq!(actual, initial);
+    }
+
+    #[test]
+    fn relativise_to_root_if_repo_not_a_prefix() {
+        let initial = String::from("/my/full/path.txt");
+        let actual =
+            relativise_to_root(initial.clone(), &bundle_repo(Path::new("/something/else")));
+        assert_eq!(actual, initial);
+    }
+
+    #[test]
+    fn relativise_to_root_if_repo_is_a_prefix() {
+        let initial = String::from("/my/full/path.txt");
+        let actual = relativise_to_root(initial.clone(), &bundle_repo(Path::new("/my/full")));
+        assert_eq!(actual, String::from("path.txt"));
     }
 }
