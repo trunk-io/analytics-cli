@@ -1,3 +1,4 @@
+use std::io::Write;
 use std::sync::{Arc, Mutex};
 use std::{fs, io::BufReader};
 
@@ -10,6 +11,7 @@ use axum::http::StatusCode;
 use axum::{extract::State, Json};
 use bundle::{BundleMeta, FileSetType, INTERNAL_BIN_FILENAME};
 use codeowners::CodeOwners;
+use constants::EXIT_FAILURE;
 use context::repo::{BundleRepo, RepoUrlParts};
 use context::{
     bazel_bep::parser::BazelBepParser, junit::parser::JunitParser, repo::RepoUrlParts as Repo,
@@ -1331,4 +1333,115 @@ async fn do_not_quarantines_tests_when_quarantine_disabled_set() {
     // Fourth run won't quarantine with quarantining disabled in the app
     *QUARANTINE_CONFIG_RESPONSE.lock().unwrap() = QuarantineConfigResponse::Disabled;
     command.assert().failure();
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn uses_software_exit_code_if_upload_fails() {
+    let temp_dir = tempdir().unwrap();
+    generate_mock_git_repo(&temp_dir);
+
+    let junit_location = temp_dir.path().join("junit.xml");
+    let mut junit_file = fs::File::create(junit_location).unwrap();
+    write!(junit_file, r#"
+        <?xml version="1.0" encoding="UTF-8" ?>
+        <testsuites name="vitest tests" tests="1" failures="0" errors="0" time="1.128069555">
+            <testsuite name="src/constants/products-parser-server.test.ts" timestamp="2025-05-27T15:31:07.510Z" hostname="christian-cloudtop" tests="10" failures="0" errors="0" skipped="0" time="0.007118101">
+                <testcase classname="src/constants/products-parser-server.test.ts" name="Product Parsers &gt; Server-side parsers &gt; has parsers for all products" time="0.001408508">
+                    <failure>
+                        Test failed
+                    </failure>
+                </testcase>
+            </testsuite>
+        </testsuites">
+    "#).unwrap();
+
+    let mut mock_server_builder = MockServerBuilder::new();
+    mock_server_builder.set_s3_upload_handler(
+        |_: State<SharedMockServerState>, _: Json<CreateBundleUploadRequest>| async {
+            Err::<String, String>(String::from("Upload is broke"))
+        },
+    );
+    let state = mock_server_builder.spawn_mock_server().await;
+
+    let assert = CommandBuilder::upload(temp_dir.path(), state.host.clone())
+        .disable_quarantining(false)
+        .use_quarantining(true)
+        .junit_paths("junit.xml")
+        .command()
+        .assert()
+        .code(predicate::eq(exitcode::SOFTWARE));
+
+    // HINT: View CLI output with `cargo test -- --nocapture`
+    println!("{assert}");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn uses_failure_exit_code_if_unquarantined_tests_fail() {
+    let temp_dir = tempdir().unwrap();
+    generate_mock_git_repo(&temp_dir);
+
+    let junit_location = temp_dir.path().join("junit.xml");
+    let mut junit_file = fs::File::create(junit_location).unwrap();
+    write!(junit_file, r#"
+        <?xml version="1.0" encoding="UTF-8" ?>
+        <testsuites name="vitest tests" tests="1" failures="0" errors="0" time="1.128069555">
+            <testsuite name="src/constants/products-parser-server.test.ts" timestamp="2025-05-27T15:31:07.510Z" hostname="christian-cloudtop" tests="10" failures="0" errors="0" skipped="0" time="0.007118101">
+                <testcase classname="src/constants/products-parser-server.test.ts" name="Product Parsers &gt; Server-side parsers &gt; has parsers for all products" time="0.001408508">
+                    <failure>
+                        Test failed
+                    </failure>
+                </testcase>
+            </testsuite>
+        </testsuites>
+    "#).unwrap();
+
+    let mock_server_builder = MockServerBuilder::new();
+    let state = mock_server_builder.spawn_mock_server().await;
+
+    let assert = CommandBuilder::upload(temp_dir.path(), state.host.clone())
+        .disable_quarantining(false)
+        .use_quarantining(true)
+        .junit_paths("junit.xml")
+        .command()
+        .assert()
+        .code(predicate::eq(EXIT_FAILURE));
+
+    // HINT: View CLI output with `cargo test -- --nocapture`
+    println!("{assert}");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn uses_passed_exit_code_if_unquarantined_tests_fail() {
+    let temp_dir = tempdir().unwrap();
+    generate_mock_git_repo(&temp_dir);
+
+    let junit_location = temp_dir.path().join("junit.xml");
+    let mut junit_file = fs::File::create(junit_location).unwrap();
+    write!(junit_file, r#"
+        <?xml version="1.0" encoding="UTF-8" ?>
+        <testsuites name="vitest tests" tests="1" failures="0" errors="0" time="1.128069555">
+            <testsuite name="src/constants/products-parser-server.test.ts" timestamp="2025-05-27T15:31:07.510Z" hostname="christian-cloudtop" tests="10" failures="0" errors="0" skipped="0" time="0.007118101">
+                <testcase classname="src/constants/products-parser-server.test.ts" name="Product Parsers &gt; Server-side parsers &gt; has parsers for all products" time="0.001408508">
+                    <failure>
+                        Test failed
+                    </failure>
+                </testcase>
+            </testsuite>
+        </testsuites">
+    "#).unwrap();
+
+    let mock_server_builder = MockServerBuilder::new();
+    let state = mock_server_builder.spawn_mock_server().await;
+
+    let assert = CommandBuilder::upload(temp_dir.path(), state.host.clone())
+        .disable_quarantining(false)
+        .use_quarantining(true)
+        .junit_paths("junit.xml")
+        .test_process_exit_code(123)
+        .command()
+        .assert()
+        .code(predicate::eq(123));
+
+    // HINT: View CLI output with `cargo test -- --nocapture`
+    println!("{assert}");
 }
