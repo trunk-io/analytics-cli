@@ -267,7 +267,7 @@ pub fn generate_internal_file(
             original_path: test_report_path.to_string_lossy().to_string(),
             original_path_rel: None,
             owners: vec![],
-            path: filename.to_string(),
+            path: INTERNAL_BIN_FILENAME.to_string(),
             // last_modified_epoch_ns does not serialize so the compiler complains it does not exist
             ..Default::default()
         },

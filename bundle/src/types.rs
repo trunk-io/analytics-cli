@@ -6,6 +6,7 @@ use pyo3_stub_gen::derive::gen_stub_pyclass;
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "wasm")]
 use tsify_next::Tsify;
+use uuid::Uuid;
 #[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::*;
 
@@ -66,8 +67,7 @@ impl Test {
             "JUNIT_TESTCASE",
         ]
         .join("#");
-        self.id =
-            uuid::Uuid::new_v5(&uuid::Uuid::NAMESPACE_URL, info_id_input.as_bytes()).to_string()
+        self.id = Uuid::new_v5(&Uuid::NAMESPACE_URL, info_id_input.as_bytes()).to_string()
     }
 
     pub fn generate_custom_uuid<T: AsRef<str>>(&mut self, org_slug: T, repo: &RepoUrlParts, id: T) {
@@ -75,7 +75,7 @@ impl Test {
             self.set_id(org_slug.as_ref(), repo);
             return;
         }
-        if uuid::Uuid::parse_str(id.as_ref()).is_ok() {
+        if Uuid::parse_str(id.as_ref()).is_ok() {
             self.id = id.as_ref().to_string();
             return;
         }
@@ -85,8 +85,7 @@ impl Test {
             id.as_ref(),
         ]
         .join("#");
-        self.id =
-            uuid::Uuid::new_v5(&uuid::Uuid::NAMESPACE_URL, info_id_input.as_bytes()).to_string();
+        self.id = Uuid::new_v5(&Uuid::NAMESPACE_URL, info_id_input.as_bytes()).to_string();
     }
 }
 
