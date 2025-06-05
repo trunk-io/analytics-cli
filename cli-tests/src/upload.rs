@@ -8,7 +8,7 @@ use api::message::{
 use assert_matches::assert_matches;
 use axum::http::StatusCode;
 use axum::{extract::State, Json};
-use bundle::{BundleMeta, FileSetType};
+use bundle::{BundleMeta, FileSetType, INTERNAL_BIN_FILENAME};
 use codeowners::CodeOwners;
 use context::repo::{BundleRepo, RepoUrlParts};
 use context::{
@@ -168,7 +168,7 @@ async fn upload_bundle() {
 
     // Verify internal bundled file contents
     let internal_bundled_file = bundle_meta.internal_bundled_file.as_ref().unwrap();
-    assert_eq!(internal_bundled_file.path, "internal.bin");
+    assert_eq!(internal_bundled_file.path, INTERNAL_BIN_FILENAME);
     assert_eq!(internal_bundled_file.owners.len(), 0);
     assert_eq!(internal_bundled_file.team, None);
 

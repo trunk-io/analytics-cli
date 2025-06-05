@@ -1,4 +1,5 @@
 use std::{
+    collections::HashMap,
     fs::File,
     io::{Seek, Write},
     path::PathBuf,
@@ -10,6 +11,8 @@ use async_tar_wasm::Archive;
 use codeowners::CodeOwners;
 use context::bazel_bep::common::BepParseResult;
 use futures_io::AsyncBufRead;
+use prost::Message;
+use proto::test_context::test_run::TestResult;
 use tempfile::TempDir;
 #[cfg(feature = "wasm")]
 use tsify_next::Tsify;
@@ -26,7 +29,8 @@ pub struct BundlerUtil {
     bep_result: Option<BepParseResult>,
 }
 
-const META_FILENAME: &str = "meta.json";
+pub const META_FILENAME: &str = "meta.json";
+pub const INTERNAL_BIN_FILENAME: &str = "internal.bin";
 
 impl BundlerUtil {
     const ZSTD_COMPRESSION_LEVEL: i32 = 15; // This gives roughly 10x compression for text, 22 gives 11x.
@@ -69,6 +73,8 @@ impl BundlerUtil {
                 })?;
                 Ok::<(), anyhow::Error>(())
             })?;
+
+        // Add the internal binary file if it exists.
         if let Some(bundled_file) = self.meta.internal_bundled_file.as_ref() {
             let path = std::path::Path::new(&bundled_file.original_path);
             let mut file = File::open(path)?;
@@ -123,12 +129,73 @@ impl BundlerUtil {
     }
 }
 
-/// Reads and decompresses a .tar.zstd file from an input stream into just a `meta.json` file
-///
+/// Reads and decompresses a .tar.zstd file from an input stream into multiple specified files.
+pub async fn extract_files_from_tarball<R: AsyncBufRead>(
+    input: R,
+    file_names: &[&str],
+) -> anyhow::Result<HashMap<String, Vec<u8>>> {
+    let zstd_decoder = ZstdDecoder::new(Box::pin(input));
+    let archive = Archive::new(zstd_decoder);
+    let mut entries = archive.entries()?;
+
+    let mut extracted_files = HashMap::new();
+    let file_names_set: std::collections::HashSet<&str> = file_names.iter().cloned().collect();
+
+    while let Some(entry) = entries.next().await {
+        let mut owned_entry = entry?;
+        let path_str = owned_entry.path()?.to_str().unwrap_or_default().to_owned();
+
+        if file_names_set.contains(path_str.as_str()) {
+            let mut file_bytes = Vec::new();
+            owned_entry.read_to_end(&mut file_bytes).await?;
+            extracted_files.insert(path_str, file_bytes);
+
+            if extracted_files.len() == file_names.len() {
+                break;
+            }
+        }
+    }
+
+    let missing_files: Vec<&str> = file_names
+        .iter()
+        .filter(|&name| !extracted_files.contains_key(*name))
+        .cloned()
+        .collect();
+
+    if !missing_files.is_empty() {
+        return Err(anyhow::anyhow!(
+            "Files not found in tarball: {:?}",
+            missing_files
+        ));
+    }
+
+    Ok(extracted_files)
+}
+
+pub fn parse_meta(meta_bytes: Vec<u8>) -> anyhow::Result<VersionedBundle> {
+    if let Ok(message) = serde_json::from_slice(&meta_bytes) {
+        return Ok(VersionedBundle::V0_6_3(message));
+    }
+
+    if let Ok(message) = serde_json::from_slice(&meta_bytes) {
+        return Ok(VersionedBundle::V0_6_2(message));
+    }
+
+    if let Ok(message) = serde_json::from_slice(&meta_bytes) {
+        return Ok(VersionedBundle::V0_5_34(message));
+    }
+
+    let base_bundle = serde_json::from_slice(&meta_bytes)?;
+    Ok(VersionedBundle::V0_5_29(base_bundle))
+}
+
+/// Reads and decompresses a .tar.zstd file from an input stream into just a `meta.json` file.
+/// This assumes that the `meta.json` file will be the first entry in the tarball.
 pub async fn parse_meta_from_tarball<R: AsyncBufRead>(input: R) -> anyhow::Result<VersionedBundle> {
     let zstd_decoder = ZstdDecoder::new(Box::pin(input));
     let archive = Archive::new(zstd_decoder);
 
+    // Again, note that the below method specifically is only looking at the first entry in the tarball.
     if let Some(first_entry) = archive.entries()?.next().await {
         let mut owned_first_entry = first_entry?;
         let path_str = owned_first_entry
@@ -147,19 +214,81 @@ pub async fn parse_meta_from_tarball<R: AsyncBufRead>(input: R) -> anyhow::Resul
     Err(anyhow::anyhow!("No meta.json file found in the tarball"))
 }
 
-pub fn parse_meta(meta_bytes: Vec<u8>) -> anyhow::Result<VersionedBundle> {
-    if let Ok(message) = serde_json::from_slice(&meta_bytes) {
-        return Ok(VersionedBundle::V0_6_3(message));
+/// Reads and decompresses a .tar.zstd file from an input stream into just the internal bin file.
+pub async fn parse_internal_bin_from_tarball<R: AsyncBufRead>(
+    input: R,
+) -> anyhow::Result<TestResult> {
+    let extracted_files = extract_files_from_tarball(input, &[INTERNAL_BIN_FILENAME]).await?;
+    if let Some(internal_bin_bytes) = extracted_files.get(INTERNAL_BIN_FILENAME) {
+        let test_result: TestResult =
+            TestResult::decode(internal_bin_bytes.as_slice()).map_err(|err| {
+                anyhow::anyhow!("Failed to decode {}: {}", INTERNAL_BIN_FILENAME, err)
+            })?;
+        return Ok(test_result);
     }
 
-    if let Ok(message) = serde_json::from_slice(&meta_bytes) {
-        return Ok(VersionedBundle::V0_6_2(message));
-    }
+    Err(anyhow::anyhow!(
+        "No {} file found in the tarball",
+        INTERNAL_BIN_FILENAME
+    ))
+}
 
-    if let Ok(message) = serde_json::from_slice(&meta_bytes) {
-        return Ok(VersionedBundle::V0_5_34(message));
-    }
+#[cfg(test)]
+mod tests {
+    use std::{
+        collections::HashMap,
+        env,
+        time::{SystemTime, UNIX_EPOCH},
+    };
 
-    let base_bundle = serde_json::from_slice(&meta_bytes)?;
-    Ok(VersionedBundle::V0_5_29(base_bundle))
+    use context::repo::BundleRepo;
+    use tempfile::tempdir;
+
+    use super::*;
+    use crate::bundle_meta::{
+        BundleMeta, BundleMetaBaseProps, BundleMetaDebugProps, BundleMetaJunitProps, META_VERSION,
+    };
+
+    #[tokio::test]
+    pub async fn test_bundle_meta_is_first_entry() {
+        let meta = BundleMeta {
+            junit_props: BundleMetaJunitProps::default(),
+            bundle_upload_id_v2: String::with_capacity(0),
+            debug_props: BundleMetaDebugProps {
+                command_line: String::with_capacity(0),
+            },
+            variant: None,
+            base_props: BundleMetaBaseProps {
+                version: META_VERSION.to_string(),
+                org: String::with_capacity(0),
+                repo: BundleRepo::default(),
+                cli_version: String::with_capacity(0),
+                bundle_upload_id: String::with_capacity(0),
+                tags: vec![],
+                file_sets: Vec::with_capacity(0),
+                upload_time_epoch: SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap_or_else(|_| std::time::Duration::from_secs(0))
+                    .as_secs(),
+                test_command: None,
+                quarantined_tests: Vec::with_capacity(0),
+                os_info: Some(env::consts::OS.to_string()),
+                codeowners: None,
+                envs: HashMap::new(),
+            },
+            internal_bundled_file: None,
+        };
+        let bundler_util = BundlerUtil::new(meta, None);
+        let temp_dir = tempdir().unwrap();
+        let bundle_path = temp_dir.path().join("bundle.tar.zstd");
+
+        assert!(bundler_util.make_tarball(&bundle_path).is_ok());
+        assert!(bundle_path.exists());
+
+        let tarball_file = async_std::fs::File::open(&bundle_path).await.unwrap();
+        let reader = async_std::io::BufReader::new(tarball_file);
+
+        let parsed_meta = parse_meta_from_tarball(reader).await;
+        assert!(parsed_meta.is_ok());
+    }
 }

@@ -105,3 +105,72 @@ def test_parse_meta_from_tarball():
 
     bundle_meta = versioned_bundle.get_v0_5_29()
     assert bundle_meta.base_props.bundle_upload_id == expected_meta["bundle_upload_id"]
+
+
+def test_parse_internal_bin_from_tarball():
+    import io
+    import os
+    import tarfile
+    import tempfile
+
+    import zstandard as zstd
+    from botocore.response import StreamingBody
+    from context_py import parse_internal_bin_from_tarball
+
+    meta_tarball_compressed: bytes = b""
+    with tempfile.TemporaryDirectory() as tempdir:
+        meta_file_path = f"{tempdir}/meta.json"
+        with open(meta_file_path, "wb") as f:
+            f.write("{}".encode())
+
+        internal_bin_current_path = os.path.join(
+            os.path.dirname(__file__), "test_internal.bin"
+        )
+        with open(internal_bin_current_path, "rb") as f:
+            internal_bin_data = f.read()
+
+        internal_bin_path = f"{tempdir}/internal.bin"
+        with open(internal_bin_path, "wb") as f:
+            f.write(internal_bin_data)
+
+        meta_tarball_path = f"{tempdir}/meta.tar"
+        with tarfile.open(meta_tarball_path, "w") as tar:
+            tar.add(meta_file_path, "meta.json")
+            tar.add(internal_bin_path, "internal.bin")
+
+        with open(meta_tarball_path, "rb") as f:
+            encoder = zstd.ZstdCompressor(level=6)
+            meta_tarball_compressed = encoder.compress(f.read())
+
+    raw_stream = StreamingBody(
+        io.BytesIO(meta_tarball_compressed), len(meta_tarball_compressed)
+    )
+
+    internal_bin = parse_internal_bin_from_tarball(raw_stream)
+    assert len(internal_bin) == 1
+
+    bindings_report = internal_bin[0]
+    assert len(bindings_report.test_suites) == 2
+    assert bindings_report.tests == 13
+
+    test_suite_context_ruby = next(
+        (
+            suite
+            for suite in bindings_report.test_suites
+            if suite.name == "context_ruby"
+        ),
+        None,
+    )
+    assert test_suite_context_ruby is not None
+    assert len(test_suite_context_ruby.test_cases) == 5
+
+    test_suite_rspec_expectations = next(
+        (
+            suite
+            for suite in bindings_report.test_suites
+            if suite.name == "RSpec Expectations"
+        ),
+        None,
+    )
+    assert test_suite_rspec_expectations is not None
+    assert len(test_suite_rspec_expectations.test_cases) == 8
