@@ -57,14 +57,6 @@ impl Cli {
         }
     }
 
-    pub fn hide_banner(&self) -> bool {
-        match &self.command {
-            Commands::Test(args) => args.hide_banner(),
-            Commands::Upload(args) => args.hide_banner,
-            Commands::Validate(args) => args.hide_banner(),
-        }
-    }
-
     pub fn repo_root(&self) -> String {
         let explicit_root = match &self.command {
             Commands::Test(args) => args.repo_root(),
