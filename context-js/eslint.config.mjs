@@ -36,6 +36,7 @@ export const createConfig = (
       rules: {
         ...vitest.configs.recommended.rules,
         ...vitest.configs.all.rules,
+        "vitest/max-expects": "off", // Allow any number of expects
       },
     },
   );

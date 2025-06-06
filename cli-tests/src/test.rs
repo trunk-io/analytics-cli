@@ -1,4 +1,7 @@
-use std::{fs, io::BufReader};
+use std::{
+    fs::{self, File},
+    io::BufReader,
+};
 
 use api::message::{
     CreateBundleUploadRequest, CreateBundleUploadResponse, GetQuarantineConfigRequest,
@@ -148,8 +151,8 @@ async fn test_command_fails_with_no_junit_files_no_quarantine_successful_upload(
     .assert()
     .failure()
     .code(128)
-    .stdout(predicate::str::contains(
-        "No test output files found, not quarantining any tests",
+    .stderr(predicate::str::contains(
+        "No tests were found in the provided test results",
     ));
 
     println!("{assert}");
@@ -544,4 +547,48 @@ async fn quarantining_not_active_when_disable_false_but_use_false() {
     .command()
     .assert()
     .failure();
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn returns_exit_code_from_execution_when_failures_not_quarantined() {
+    use std::io::Write;
+    let temp_dir = tempdir().unwrap();
+    generate_mock_git_repo(&temp_dir);
+
+    let junit_location = temp_dir.path().join("junit.xml");
+    let mut junit_file = File::create(junit_location).unwrap();
+    write!(junit_file, r#"
+        <?xml version="1.0" encoding="UTF-8" ?>
+        <testsuites name="vitest tests" tests="1" failures="0" errors="0" time="1.128069555">
+            <testsuite name="src/constants/products-parser-server.test.ts" timestamp="2025-05-27T15:31:07.510Z" hostname="christian-cloudtop" tests="10" failures="0" errors="0" skipped="0" time="0.007118101">
+                <testcase classname="src/constants/products-parser-server.test.ts" name="Product Parsers &gt; Server-side parsers &gt; has parsers for all products" time="0.001408508">
+                    <failure>
+                        Test failed
+                    </failure>
+                </testcase>
+            </testsuite>
+        </testsuites">
+    "#).unwrap();
+
+    let mock_server_builder = MockServerBuilder::new();
+    let state = mock_server_builder.spawn_mock_server().await;
+
+    let assert = CommandBuilder::test(
+        temp_dir.path(),
+        state.host.clone(),
+        vec![
+            String::from("bash"),
+            String::from("-c"),
+            String::from("touch ./*; exit 123"),
+        ],
+    )
+    .disable_quarantining(false)
+    .use_quarantining(true)
+    .junit_paths("junit.xml")
+    .command()
+    .assert()
+    .code(predicate::eq(123));
+
+    // HINT: View CLI output with `cargo test -- --nocapture`
+    println!("{assert}");
 }

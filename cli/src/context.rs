@@ -1,6 +1,6 @@
-use std::io::Read;
 #[cfg(target_os = "macos")]
 use std::io::Write;
+use std::{collections::BTreeMap, io::Read};
 use std::{
     collections::HashMap,
     env,
@@ -12,7 +12,8 @@ use std::{
 use api::{client::ApiClient, message::CreateBundleUploadResponse};
 use bundle::{
     BundleMeta, BundleMetaBaseProps, BundleMetaDebugProps, BundleMetaJunitProps, BundledFile,
-    FileSet, FileSetBuilder, FileSetType, QuarantineBulkTestStatus, META_VERSION,
+    FileSet, FileSetBuilder, FileSetType, QuarantineBulkTestStatus, INTERNAL_BIN_FILENAME,
+    META_VERSION,
 };
 use codeowners::CodeOwners;
 use constants::ENVS_TO_GET;
@@ -20,7 +21,11 @@ use constants::ENVS_TO_GET;
 use context::repo::RepoUrlParts;
 use context::{
     bazel_bep::{binary_parser::BazelBepBinParser, common::BepParseResult, parser::BazelBepParser},
-    junit::{junit_path::JunitReportFileWithStatus, parser::JunitParser},
+    junit::{
+        junit_path::JunitReportFileWithStatus,
+        parser::JunitParser,
+        validator::{validate, JunitReportValidation},
+    },
     repo::BundleRepo,
 };
 use lazy_static::lazy_static;
@@ -209,8 +214,12 @@ pub fn generate_internal_file(
     temp_dir: &TempDir,
     codeowners: Option<&CodeOwners>,
     repo: &BundleRepo,
-) -> anyhow::Result<BundledFile> {
+) -> anyhow::Result<(
+    BundledFile,
+    BTreeMap<String, anyhow::Result<JunitReportValidation>>,
+)> {
     let mut test_case_runs = Vec::new();
+    let mut junit_validations = BTreeMap::new();
     for file_set in file_sets {
         if file_set.file_set_type == FileSetType::Internal {
             if file_set.files.is_empty() {
@@ -221,8 +230,8 @@ pub fn generate_internal_file(
                     "Internal file set contains more than one file"
                 ));
             }
-            // Internal file set, we should just use that directly
-            return Ok(file_set.files[0].clone());
+            // Internal file set, we should just use that directly and assume it's valid
+            return Ok((file_set.files[0].clone(), BTreeMap::new()));
         } else {
             for file in &file_set.files {
                 let mut junit_parser = JunitParser::new();
@@ -232,7 +241,13 @@ pub fn generate_internal_file(
                         junit_parser.parse(BufReader::new(file_contents.as_bytes()));
                     if let Err(e) = parsed_results {
                         tracing::warn!("Failed to parse JUnit file {:?}: {:?}", file, e);
+                        junit_validations.insert(file.original_path.clone(), Err(e));
                         continue;
+                    }
+                    let reports = junit_parser.reports();
+                    if reports.len() == 1 {
+                        junit_validations
+                            .insert(file.original_path.clone(), Ok(validate(&reports[0], repo)));
                     }
                     test_case_runs.extend(junit_parser.into_test_case_runs(codeowners, repo));
                 }
@@ -246,17 +261,19 @@ pub fn generate_internal_file(
     };
     let mut buf = Vec::new();
     prost::Message::encode(&test_result, &mut buf)?;
-    let filename = "internal.bin";
-    let test_report_path = temp_dir.path().join(filename);
+    let test_report_path = temp_dir.path().join(INTERNAL_BIN_FILENAME);
     std::fs::write(&test_report_path, buf)?;
-    Ok(BundledFile {
-        original_path: test_report_path.to_string_lossy().to_string(),
-        original_path_rel: None,
-        owners: vec![],
-        path: filename.to_string(),
-        // last_modified_epoch_ns does not serialize so the compiler complains it does not exist
-        ..Default::default()
-    })
+    Ok((
+        BundledFile {
+            original_path: test_report_path.to_string_lossy().to_string(),
+            original_path_rel: None,
+            owners: vec![],
+            path: INTERNAL_BIN_FILENAME.to_string(),
+            // last_modified_epoch_ns does not serialize so the compiler complains it does not exist
+            ..Default::default()
+        },
+        junit_validations,
+    ))
 }
 
 fn fall_back_to_binary_parse(
@@ -370,21 +387,14 @@ pub async fn gather_exit_code_and_quarantined_tests_context(
     api_client: &ApiClient,
     file_set_builder: &FileSetBuilder,
     default_exit_code: Option<i32>,
-) -> i32 {
+) -> anyhow::Result<QuarantineContext> {
     // Run the quarantine step and update the exit code.
     let failed_tests_extractor = FailedTestsExtractor::new(
         &meta.base_props.repo.repo,
         &meta.base_props.org,
         file_set_builder.file_sets(),
     );
-    let QuarantineContext {
-        exit_code,
-        quarantine_status:
-            QuarantineBulkTestStatus {
-                quarantine_results: quarantined_tests,
-                ..
-            },
-    } = if disable_quarantining {
+    let quarantine_context = if disable_quarantining {
         // use the exit code of the test run result if exists
         if let Some(exit_code) = default_exit_code {
             QuarantineContext {
@@ -422,12 +432,9 @@ pub async fn gather_exit_code_and_quarantined_tests_context(
             Some(failed_tests_extractor),
             default_exit_code,
         )
-        .await
+        .await?
     };
-
-    meta.base_props.quarantined_tests = quarantined_tests;
-
-    exit_code
+    Ok(quarantine_context)
 }
 
 pub async fn gather_upload_id_context(

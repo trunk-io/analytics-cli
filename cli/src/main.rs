@@ -2,11 +2,12 @@ use std::env;
 
 use clap::{Parser, Subcommand};
 use clap_verbosity_flag::{log::LevelFilter, InfoLevel, Verbosity};
+use superconsole::{Dimensions, SuperConsole};
 use third_party::sentry;
 use tracing_subscriber::{filter::FilterFn, prelude::*};
 use trunk_analytics_cli::{
     context::gather_debug_props,
-    error_report::{log_error, Context},
+    error_report::ErrorReport,
     test_command::{run_test, TestArgs},
     upload_command::{run_upload, UploadArgs, UploadRunResult},
     validate_command::{run_validate, ValidateArgs},
@@ -56,14 +57,6 @@ impl Cli {
         }
     }
 
-    pub fn hide_banner(&self) -> bool {
-        match &self.command {
-            Commands::Test(args) => args.hide_banner(),
-            Commands::Upload(args) => args.hide_banner,
-            Commands::Validate(args) => args.hide_banner(),
-        }
-    }
-
     pub fn repo_root(&self) -> String {
         let explicit_root = match &self.command {
             Commands::Test(args) => args.repo_root(),
@@ -108,30 +101,52 @@ fn main() -> anyhow::Result<()> {
                 cli.org_url_slug(),
                 cli.repo_root(),
             )?;
-            if !cli.hide_banner() {
-                tracing::info!("{}", TITLE_CARD);
-            }
+
             tracing::info!(
                 command = cli.debug_props(),
                 "Trunk Flaky Test running command"
             );
+            let mut superconsole = match SuperConsole::new() {
+                Some(console) => console,
+                None => {
+                    tracing::warn!("Failed to create superconsole because of incompatible TTY");
+                    SuperConsole::forced_new(Dimensions {
+                        width: 143,
+                        height: 24,
+                    })
+                }
+            };
             match run(cli).await {
-                Ok(exit_code) => std::process::exit(exit_code),
+                Ok(RunResult::Upload(run_result)) => {
+                    let render_result = superconsole.render(&run_result);
+                    if let Err(e) = render_result {
+                        tracing::error!("Failed to render upload display: {}", e);
+                    }
+                    let exit_code = run_result
+                        .error_report
+                        .map(|e| e.context.exit_code)
+                        .unwrap_or(run_result.quarantine_context.exit_code);
+                    guard.flush(None);
+                    std::process::exit(exit_code)
+                }
+                Ok(RunResult::Test(run_result)) => {
+                    let render_result = superconsole.render(&run_result);
+                    if let Err(e) = render_result {
+                        tracing::error!("Failed to render test display: {}", e);
+                    }
+                    guard.flush(None);
+                    std::process::exit(run_result.quarantine_context.exit_code)
+                }
+                Ok(RunResult::Validate(exit_code)) => {
+                    guard.flush(None);
+                    std::process::exit(exit_code)
+                }
                 Err(error) => {
-                    let exit_code = log_error(
-                        &error,
-                        Context {
-                            base_message: None,
-                            org_url_slug,
-                        },
-                    );
-                    if exit_code != exitcode::OK {
-                        tracing::warn!("Unable to proceed, returning exit code: {}", exit_code);
-                    } else {
-                        tracing::warn!(
-                            "Errors occurred during upload, returning default exit code: {}",
-                            exit_code
-                        );
+                    let error_report = ErrorReport::new(error, org_url_slug, None);
+                    let exit_code = error_report.context.exit_code;
+                    let render_result = superconsole.render(&error_report);
+                    if let Err(e) = render_result {
+                        tracing::error!("Failed to render error display: {}", e);
                     }
                     guard.flush(None);
                     std::process::exit(exit_code);
@@ -140,7 +155,13 @@ fn main() -> anyhow::Result<()> {
         })
 }
 
-async fn run(cli: Cli) -> anyhow::Result<i32> {
+enum RunResult {
+    Upload(UploadRunResult),
+    Test(UploadRunResult),
+    Validate(i32),
+}
+
+async fn run(cli: Cli) -> anyhow::Result<RunResult> {
     tracing::info!(
         "Starting trunk flakytests {} (git={}) rustc={}",
         env!("CARGO_PKG_VERSION"),
@@ -149,17 +170,17 @@ async fn run(cli: Cli) -> anyhow::Result<i32> {
     );
     match cli.command {
         Commands::Upload(upload_args) => {
-            let UploadRunResult {
-                exit_code,
-                upload_bundle_error,
-            } = run_upload(upload_args, None, None).await?;
-            if let Some(upload_bundle_error) = upload_bundle_error {
-                return Err(upload_bundle_error);
-            }
-            Ok(exit_code)
+            let result = run_upload(upload_args, None, None).await?;
+            Ok(RunResult::Upload(result))
         }
-        Commands::Test(test_args) => run_test(test_args).await,
-        Commands::Validate(validate_args) => run_validate(validate_args).await,
+        Commands::Test(test_args) => {
+            let result = run_test(test_args).await?;
+            Ok(RunResult::Test(result))
+        }
+        Commands::Validate(validate_args) => {
+            let result = run_validate(validate_args).await?;
+            Ok(RunResult::Validate(result))
+        }
     }
 }
 
@@ -210,16 +231,17 @@ fn setup_logger(
         }
     });
 
+    // make console layer toggle based on vebosity
     let console_layer = tracing_subscriber::fmt::Layer::new()
-        .without_time()
-        .with_target(false)
-        .with_level(false)
+        .with_target(true)
+        .with_level(true)
         .with_writer(std::io::stdout.with_max_level(to_trace_filter(log_level_filter)))
-        .with_filter(FilterFn::new(|metadata| {
+        .with_filter(FilterFn::new(move |metadata| {
             !metadata
                 .fields()
                 .iter()
                 .any(|field| field.name() == "hidden_in_console")
+                && to_trace_filter(log_level_filter) > tracing::Level::INFO
         }));
 
     tracing_subscriber::registry()
@@ -228,18 +250,3 @@ fn setup_logger(
         .init();
     Ok(())
 }
-
-// Uses a raw string to avoid needing to escape quotes in the title card. This is mostly just so you can see
-// what it looks like in code rather than needing to print.
-const TITLE_CARD: &str = r#"
-%%%%%%%%%%%  %%              %%                        %%%%%%%%%%%%                                        
-%%           %%              %%                             %%                           ,d                
-%%           %%              %%                             %%                           %%                
-%%aaaaa      %%  ,adPPYYba,  %%   ,d%  %b       d%          %%   ,adPPYba,  ,adPPYba,  MM%%MMM  ,adPPYba,  
-%%"""""      %%  ""     `Y%  %% ,a%"   `%b     d%'          %%  a%P_____%%  I%[    ""    %%     I%[    ""  
-%%           %%  ,adPPPPP%%  %%%%[      `%b   d%'           %%  %PP"""""""   `"Y%ba,     %%      `"Y%ba,   
-%%           %%  %%,    ,%%  %%`"Yba,    `%b,d%'            %%  "%b,   ,aa  aa    ]%I    %%,    aa    ]%I  
-%%           %%  `"%bbdP"Y%  %%   `Y%a     Y%%'             %%   `"Ybbd%"'  `"YbbdP"'    "Y%%%  `"YbbdP"'  
-                                           d%'                                                             
-                                          d%'                                                              
-"#;

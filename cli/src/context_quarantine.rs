@@ -17,14 +17,16 @@ use context::{
     },
     repo::RepoUrlParts,
 };
+use pluralizer::pluralize;
 use prost::Message;
-
-use crate::error_report::{log_error, Context};
 
 #[derive(Debug, Default, Clone)]
 pub struct QuarantineContext {
     pub exit_code: i32,
     pub quarantine_status: QuarantineBulkTestStatus,
+    pub failures: Vec<Test>,
+    pub repo: RepoUrlParts,
+    pub org_url_slug: String,
 }
 
 fn convert_case_to_test<T: AsRef<str>>(
@@ -219,7 +221,7 @@ pub async fn gather_quarantine_context(
     file_set_builder: &FileSetBuilder,
     failed_tests_extractor: Option<FailedTestsExtractor>,
     test_run_exit_code: Option<i32>,
-) -> QuarantineContext {
+) -> anyhow::Result<QuarantineContext> {
     let failed_tests_extractor = failed_tests_extractor.unwrap_or_else(|| {
         FailedTestsExtractor::new(
             &request.repo,
@@ -232,10 +234,12 @@ pub async fn gather_quarantine_context(
 
     if file_set_builder.no_files_found() {
         tracing::info!("No test output files found, not quarantining any tests.");
-        return QuarantineContext {
+        return Ok(QuarantineContext {
             exit_code,
+            repo: request.repo.clone(),
+            org_url_slug: request.org_url_slug.clone(),
             ..Default::default()
-        };
+        });
     }
 
     let quarantine_config = if !failed_tests_extractor.failed_tests().is_empty()
@@ -246,19 +250,7 @@ pub async fn gather_quarantine_context(
             .any(|file_set| file_set.file_set_type == FileSetType::Junit)
     {
         tracing::info!("Checking if failed tests can be quarantined");
-        let result = api_client.get_quarantining_config(request).await;
-
-        if let Err(ref err) = result {
-            log_error(
-                err,
-                Context {
-                    base_message: Some("Unable to find quarantine config".into()),
-                    org_url_slug: request.org_url_slug.clone(),
-                },
-            );
-        }
-
-        result.unwrap_or_default()
+        api_client.get_quarantining_config(request).await?
     } else {
         tracing::debug!("Skipping quarantine check.");
         api::message::GetQuarantineConfigResponse::default()
@@ -267,10 +259,13 @@ pub async fn gather_quarantine_context(
     // if quarantining is not enabled, return exit code and empty quarantine status
     if quarantine_config.is_disabled {
         tracing::info!("Quarantining is not enabled, not quarantining any tests");
-        return QuarantineContext {
+        return Ok(QuarantineContext {
             exit_code,
             quarantine_status: QuarantineBulkTestStatus::default(),
-        };
+            failures: failed_tests_extractor.failed_tests().to_vec(),
+            repo: request.repo.clone(),
+            org_url_slug: request.org_url_slug.clone(),
+        });
     } else {
         // quarantining is enabled, continue with quarantine process and update exit code
         exit_code = test_run_exit_code.unwrap_or_else(|| failed_tests_extractor.exit_code());
@@ -297,16 +292,10 @@ pub async fn gather_quarantine_context(
         });
 
     if !quarantined_failures.is_empty() {
-        let plural = if quarantined_failures.len() > 1 {
-            "s"
-        } else {
-            ""
-        };
-        // The hazard emoji consumes the first character after it, which is why it needs two spaces after it.
         tracing::info!(
-            "⚠️  {} test failure{} quarantined:",
+            "{} test {} quarantined:",
             quarantined_failures.len(),
-            plural
+            pluralize("failure", quarantined_failures.len() as isize, false),
         );
         quarantined_failures
             .iter()
@@ -314,16 +303,14 @@ pub async fn gather_quarantine_context(
     }
 
     if !failures.is_empty() {
-        let plural = if failures.len() > 1 { "s" } else { "" };
         tracing::info!(
-            "️❌ {} test failure{} not quarantined:",
+            "️❌ {} test {} not quarantined:",
             failures.len(),
-            plural
+            pluralize("failure", quarantined_failures.len() as isize, false),
         );
         failures
             .iter()
             .for_each(|failure| log_failure(failure, request, api_client));
-        tracing::info!("");
     }
     let quarantined_failure_count = quarantined_failures.len();
     quarantine_results.quarantine_results = quarantined_failures;
@@ -354,12 +341,14 @@ pub async fn gather_quarantine_context(
     } else {
         exit_code
     };
-    tracing::info!("");
 
-    QuarantineContext {
+    Ok(QuarantineContext {
         exit_code,
         quarantine_status: quarantine_results,
-    }
+        failures,
+        repo: request.repo.clone(),
+        org_url_slug: request.org_url_slug.clone(),
+    })
 }
 
 fn log_failure(

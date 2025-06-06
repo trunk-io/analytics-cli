@@ -9,7 +9,6 @@ use constants::EXIT_FAILURE;
 
 use crate::{
     context::{gather_debug_props, gather_initial_test_context},
-    error_report::{log_error, Context},
     upload_command::{run_upload, UploadArgs, UploadRunResult},
 };
 
@@ -38,10 +37,6 @@ impl TestArgs {
     pub fn repo_root(&self) -> Option<String> {
         self.upload_args.repo_root.clone()
     }
-
-    pub fn hide_banner(&self) -> bool {
-        self.upload_args.hide_banner
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -56,7 +51,7 @@ pub async fn run_test(
         upload_args,
         command,
     }: TestArgs,
-) -> anyhow::Result<i32> {
+) -> anyhow::Result<UploadRunResult> {
     let token = upload_args.token.clone();
     let mut test_run_result = run_test_command(&command).await?;
     let test_context = gather_initial_test_context(
@@ -71,32 +66,23 @@ pub async fn run_test(
         test_run_result.exec_start = None;
     }
 
-    let org_url_slug = upload_args.org_url_slug.clone();
-    let upload_run_result =
-        run_upload(upload_args, Some(test_context), Some(test_run_result)).await;
-
-    upload_run_result
-        .and_then(
-            |UploadRunResult {
-                 exit_code,
-                 upload_bundle_error,
-             }| {
-                if let Some(e) = upload_bundle_error {
-                    return Err(e);
-                }
-                Ok(exit_code)
-            },
-        )
-        .or_else(|e| {
-            log_error(
-                &e,
-                Context {
-                    base_message: Some("Error uploading test results".into()),
-                    org_url_slug,
-                },
+    let upload_run_result = run_upload(
+        upload_args,
+        Some(test_context),
+        Some(test_run_result.clone()),
+    )
+    .await;
+    match upload_run_result {
+        Ok(upload_run_result) => {
+            tracing::info!(
+                "Test command '{}' executed with exit code {}",
+                test_run_result.command,
+                test_run_result_exit_code.to_string()
             );
-            Ok(test_run_result_exit_code)
-        })
+            Ok(upload_run_result)
+        }
+        Err(e) => Err(e),
+    }
 }
 
 pub async fn run_test_command<T: AsRef<str>>(command: &[T]) -> anyhow::Result<TestRunResult> {
