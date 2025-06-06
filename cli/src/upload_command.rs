@@ -41,7 +41,7 @@ const MAX_FILE_ISSUES_TO_SHOW: usize = 5;
 pub struct UploadArgs {
     #[arg(
         long,
-        required_unless_present_any = [JUNIT_GLOB_REQUIRED_UNLESS_PRESENT_ARG, "bazel_bep_path"],
+        required_unless_present_any = [JUNIT_GLOB_REQUIRED_UNLESS_PRESENT_ARG, "bazel_bep_path", "test_reports"],
         conflicts_with = "bazel_bep_path",
         value_delimiter = ',',
         value_parser = clap::builder::NonEmptyStringValueParser::new(),
@@ -50,17 +50,25 @@ pub struct UploadArgs {
     pub junit_paths: Vec<String>,
     #[arg(
         long,
-        required_unless_present_any = [JUNIT_GLOB_REQUIRED_UNLESS_PRESENT_ARG, "junit_paths"],
+        required_unless_present_any = [JUNIT_GLOB_REQUIRED_UNLESS_PRESENT_ARG, "junit_paths", "test_reports"],
         help = "Path to bazel build event protocol JSON file."
     )]
     pub bazel_bep_path: Option<String>,
     #[cfg(target_os = "macos")]
     #[arg(long,
-        required_unless_present_any = ["junit_paths", "bazel_bep_path"],
+        required_unless_present_any = ["junit_paths", "bazel_bep_path", "test_reports"],
         conflicts_with_all = ["junit_paths", "bazel_bep_path"],
         required = false, help = "Path of xcresult directory"
     )]
     pub xcresult_path: Option<String>,
+    #[arg(
+        long,
+        required_unless_present_any = [JUNIT_GLOB_REQUIRED_UNLESS_PRESENT_ARG, "junit_paths", "bazel_bep_path"],
+        value_delimiter = ',',
+        value_parser = clap::builder::NonEmptyStringValueParser::new(),
+        help = "Comma-separated list of glob paths to test report files."
+    )]
+    pub test_reports: Vec<String>,
     #[arg(long, help = "Organization url slug.")]
     pub org_url_slug: String,
     #[arg(

@@ -20,14 +20,15 @@ use context::{
 };
 use quick_junit::Report;
 
+use crate::context::fall_back_to_binary_parse;
 use crate::print::print_bep_results;
 
 #[derive(Args, Clone, Debug)]
 pub struct ValidateArgs {
     #[arg(
         long,
-        required_unless_present = "bazel_bep_path",
-        conflicts_with = "bazel_bep_path",
+        required_unless_present_any = ["bazel_bep_path", "test_reports"],
+        conflicts_with_all = ["bazel_bep_path", "test_reports"],
         value_delimiter = ',',
         value_parser = clap::builder::NonEmptyStringValueParser::new(),
         help = "Comma-separated list of glob paths to junit files.",
@@ -35,10 +36,18 @@ pub struct ValidateArgs {
     junit_paths: Vec<String>,
     #[arg(
         long,
-        required_unless_present = "junit_paths",
+        required_unless_present_any = ["junit_paths", "test_reports"],
         help = "Path to bazel build event protocol JSON file."
     )]
     bazel_bep_path: Option<String>,
+    #[arg(
+        long,
+        required_unless_present_any = ["junit_paths", "bazel_bep_path"],
+        value_delimiter = ',',
+        value_parser = clap::builder::NonEmptyStringValueParser::new(),
+        help = "Comma-separated list of paths to test report files."
+    )]
+    pub test_reports: Vec<String>,
     #[arg(long, help = "Show warning-level log messages in output.", hide = true)]
     show_warnings: bool,
     #[arg(long, help = "Value to override CODEOWNERS file or directory path.")]
@@ -57,26 +66,68 @@ pub struct ValidateArgs {
     pub hide_banner: bool,
 }
 
+fn parse_test_report(test_report_path: String) -> Vec<JunitReportFileWithStatus> {
+    let mut json_parser = BazelBepParser::new(test_report_path.clone());
+    let bep_parse_result = fall_back_to_binary_parse(json_parser.parse(), &test_report_path);
+    match bep_parse_result {
+        Ok(result) if !result.errors.is_empty() => {
+            vec![JunitReportFileWithStatus::from(test_report_path)]
+        }
+        Err(_) => {
+            vec![JunitReportFileWithStatus::from(test_report_path)]
+        }
+        Ok(valid_result) => {
+            print_bep_results(&valid_result);
+            valid_result.uncached_xml_files()
+        }
+    }
+}
+
+fn flatten_glob(glob_text: &String) -> Vec<String> {
+    glob::glob(glob_text)
+        .into_iter()
+        .flat_map(|paths| {
+            paths.flat_map(|path_result| {
+                path_result.into_iter().flat_map(|path| {
+                    path.as_os_str()
+                        .to_str()
+                        .map(|ok_str| String::from(ok_str))
+                        .into_iter()
+                })
+            })
+        })
+        .collect()
+}
+
 pub async fn run_validate(validate_args: ValidateArgs) -> anyhow::Result<i32> {
     let ValidateArgs {
         junit_paths,
         bazel_bep_path,
+        test_reports,
         show_warnings: _,
         codeowners_path,
         ..
     } = validate_args;
 
-    let junit_file_paths = match bazel_bep_path {
-        Some(bazel_bep_path) => {
-            let mut parser = BazelBepParser::new(bazel_bep_path);
-            let bep_result = parser.parse()?;
-            print_bep_results(&bep_result);
-            bep_result.uncached_xml_files()
+    let junit_file_paths: Vec<JunitReportFileWithStatus> = if !test_reports.is_empty() {
+        test_reports
+            .iter()
+            .flat_map(|test_report_glob| flatten_glob(test_report_glob))
+            .flat_map(|test_report_str| parse_test_report(String::from(test_report_str)))
+            .collect()
+    } else {
+        match bazel_bep_path {
+            Some(bazel_bep_path) => {
+                let mut parser = BazelBepParser::new(bazel_bep_path);
+                let bep_result = parser.parse()?;
+                print_bep_results(&bep_result);
+                bep_result.uncached_xml_files()
+            }
+            None => junit_paths
+                .into_iter()
+                .map(JunitReportFileWithStatus::from)
+                .collect(),
         }
-        None => junit_paths
-            .into_iter()
-            .map(JunitReportFileWithStatus::from)
-            .collect(),
     };
     validate(junit_file_paths, codeowners_path).await
 }
@@ -437,5 +488,90 @@ fn print_codeowners_validation(
             "  {} - No codeowners file found.",
             print_validation_level(JunitValidationLevel::SubOptimal)
         ),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use context::junit::junit_path::JunitReportStatus;
+    use test_utils::inputs::get_test_file_path;
+
+    use super::*;
+
+    #[test]
+    fn test_flatten_glob_returns_all_matches() {
+        let path = get_test_file_path("test_fixtures/junit0*");
+        let mut actual = flatten_glob(&path);
+        let mut expected = vec![
+            get_test_file_path("test_fixtures/junit0_fail_suite_timestamp.xml"),
+            get_test_file_path("test_fixtures/junit0_fail.xml"),
+            get_test_file_path("test_fixtures/junit0_pass_suite_timestamp.xml"),
+            get_test_file_path("test_fixtures/junit0_pass.xml"),
+        ];
+        actual.sort();
+        expected.sort();
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_parse_test_report_handles_json_bep() {
+        let actual = parse_test_report(get_test_file_path("test_fixtures/bep_example"));
+        let expected = vec![JunitReportFileWithStatus {
+            junit_path: String::from("/tmp/hello_test/test.xml"),
+            status: None,
+        }];
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_parse_test_report_handles_binary_bep() {
+        let mut actual = parse_test_report(get_test_file_path("test_fixtures/bep_binary_file.bin"));
+        let mut expected = vec![
+            JunitReportFileWithStatus {
+                junit_path: String::from("bytestream://buildbarn2.build.trunk-staging.io:1986/blobs/37d45ccef587444393523741a3831f4a1acbeb010f74f33130ab9ba687477558/449"),
+                status: Some(JunitReportStatus::Passed)
+            },
+            JunitReportFileWithStatus {
+                junit_path: String::from("bytestream://buildbarn2.build.trunk-staging.io:1986/blobs/46bbeb038d6f1447f6224a7db4d8a109e133884f2ee6ee78487ca4ce7e073de8/507"),
+                status: Some(JunitReportStatus::Passed)
+            },
+            JunitReportFileWithStatus {
+                junit_path: String::from("bytestream://buildbarn2.build.trunk-staging.io:1986/blobs/d1f48dadf5679f09ce9b9c8f4778281ab25bc1dfdddec943e1255baf468630de/451"),
+                status: Some(JunitReportStatus::Passed)
+            },
+            JunitReportFileWithStatus {
+                junit_path: String::from("bytestream://buildbarn2.build.trunk-staging.io:1986/blobs/38f1d4ce43242ed3cb08aedf1cc0c3133a8aec8e8eee61f5b84b85a5ba718bc8/1204"),
+                status: Some(JunitReportStatus::Passed)
+            },
+            JunitReportFileWithStatus {
+                junit_path: String::from("bytestream://buildbarn2.build.trunk-staging.io:1986/blobs/ac23080b9bf5599b7781e3b62be9bf9a5b6685a8cbe76de4e9e1731a318e9283/607"),
+                status: Some(JunitReportStatus::Passed)
+            },
+            JunitReportFileWithStatus {
+                junit_path: String::from("bytestream://buildbarn2.build.trunk-staging.io:1986/blobs/9c1db1d25ca6a4268be4a8982784c525a4b0ca99cbc7614094ad36c56bb08f2a/463"),
+                status: Some(JunitReportStatus::Passed)
+            },
+            JunitReportFileWithStatus {
+                junit_path: String::from("bytestream://buildbarn2.build.trunk-staging.io:1986/blobs/7b3ed061a782496c7418be853caae863a9ada9618712f92346ea9e8169b8acf0/1120"),
+                status: Some(JunitReportStatus::Passed)
+            },
+            JunitReportFileWithStatus {
+                junit_path: String::from("bytestream://buildbarn2.build.trunk-staging.io:1986/blobs/45ca1eed26b3cf1aafdb51829e32312d3b48452cc144aa041c946e89fa9c6cf6/175"),
+                status: Some(JunitReportStatus::Passed)
+            }
+        ];
+        actual.sort_by_key(|item| item.junit_path.clone());
+        expected.sort_by_key(|item| item.junit_path.clone());
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_parse_test_report_falls_back_to_junit() {
+        let actual = parse_test_report(get_test_file_path("test_fixtures/junit0_pass.xml"));
+        let expected = vec![JunitReportFileWithStatus {
+            junit_path: get_test_file_path("test_fixtures/junit0_pass.xml"),
+            status: None,
+        }];
+        assert_eq!(actual, expected);
     }
 }
