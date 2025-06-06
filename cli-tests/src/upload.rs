@@ -1491,7 +1491,14 @@ async fn uploaded_file_contains_updated_test_files() {
     assert_eq!(report.test_case_runs.len(), 1);
     let test_case_run = &report.test_case_runs.first().unwrap();
     assert_eq!(test_case_run.classname, "test_file.ts");
-    assert_eq!(test_case_run.file, "inner_dir/test_file.ts");
+    let expected_file = temp_dir
+        .path()
+        .join("inner_dir")
+        .join("test_file.ts")
+        .to_str()
+        .unwrap()
+        .to_string();
+    assert_eq!(test_case_run.file, expected_file);
 
     println!("{assert}");
 }
