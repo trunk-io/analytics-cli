@@ -64,8 +64,14 @@ impl File {
     }
 
     pub fn entries_for_path(&self, path: String) -> Vec<Entry> {
+        let stripped_path = path.strip_prefix("./");
         let path = if path.starts_with('/') {
             path
+        } else if stripped_path.is_some() {
+            format!(
+                "/{}",
+                stripped_path.map(|s| s.to_string()).unwrap_or_default()
+            )
         } else {
             format!("/{path}")
         };
