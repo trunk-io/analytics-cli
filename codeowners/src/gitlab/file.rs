@@ -64,6 +64,9 @@ impl File {
     }
 
     pub fn entries_for_path(&self, path: String) -> Vec<Entry> {
+        // NOTE: if the path is relative, we need to strip the leading dot
+        // to match the pattern. We are doing this as a workaround for
+        // cases where the provided path is relative, like `./foo/bar/baz.rs`
         let stripped_path = path.strip_prefix("./");
         let path = if path.starts_with('/') {
             path
