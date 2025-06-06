@@ -11,7 +11,7 @@ fn not_hidden(entry: &DirEntry) -> bool {
     entry
         .file_name()
         .to_str()
-        .map(|file_string| !file_string.starts_with("."))
+        .map(|file_string| !file_string.starts_with('.'))
         .unwrap_or(true)
 }
 
@@ -79,7 +79,7 @@ fn convert_to_absolute(
             (None, _) => None,
             (Some(only_match), None) => Some(only_match),
             (Some(first_match), Some(second_match)) => file_containing_tests(
-                vec![vec![first_match, second_match], walk.collect()].concat(),
+                [vec![first_match, second_match], walk.collect()].concat(),
                 test_name,
             ),
         }
@@ -87,7 +87,7 @@ fn convert_to_absolute(
         .file_name()
         .iter()
         .flat_map(|os| os.to_str())
-        .all(|name| name.contains("."))
+        .all(|name| name.contains('.'))
     {
         Some(initial_str)
     } else {
