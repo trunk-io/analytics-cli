@@ -22,7 +22,7 @@ use context::repo::RepoUrlParts;
 use context::{
     bazel_bep::{binary_parser::BazelBepBinParser, common::BepParseResult, parser::BazelBepParser},
     junit::{
-        junit_path::JunitReportFileWithStatus,
+        junit_path::JunitReportFileWithTestRunnerReport,
         parser::JunitParser,
         validator::{validate, JunitReportValidation},
     },
@@ -45,7 +45,7 @@ use crate::{
 
 pub struct PreTestContext {
     pub meta: BundleMeta,
-    pub junit_path_wrappers: Vec<JunitReportFileWithStatus>,
+    pub junit_path_wrappers: Vec<JunitReportFileWithTestRunnerReport>,
     pub bep_result: Option<BepParseResult>,
     pub junit_path_wrappers_temp_dir: Option<TempDir>,
 }
@@ -171,7 +171,7 @@ pub fn gather_initial_test_context(
 
 pub fn gather_post_test_context<U: AsRef<Path>>(
     meta: &mut BundleMeta,
-    junit_path_wrappers: Vec<JunitReportFileWithStatus>,
+    junit_path_wrappers: Vec<JunitReportFileWithTestRunnerReport>,
     codeowners_path: &Option<U>,
     allow_empty_test_results: bool,
     test_run_result: &Option<TestRunResult>,
@@ -245,8 +245,13 @@ pub fn generate_internal_file(
                     }
                     let reports = junit_parser.reports();
                     if reports.len() == 1 {
-                        junit_validations
-                            .insert(file.original_path.clone(), Ok(validate(&reports[0])));
+                        junit_validations.insert(
+                            file.original_path.clone(),
+                            Ok(validate(
+                                &reports[0],
+                                file_set.test_runner_report.map(|t| t.into()),
+                            )),
+                        );
                     }
                     test_case_runs.extend(junit_parser.into_test_case_runs(codeowners));
                 }
@@ -310,13 +315,13 @@ fn coalesce_junit_path_wrappers(
     #[cfg(target_os = "macos")] use_experimental_failure_summary: bool,
     allow_empty_test_results: bool,
 ) -> anyhow::Result<(
-    Vec<JunitReportFileWithStatus>,
+    Vec<JunitReportFileWithTestRunnerReport>,
     Option<BepParseResult>,
     Option<TempDir>,
 )> {
     let mut junit_path_wrappers = junit_paths
         .into_iter()
-        .map(JunitReportFileWithStatus::from)
+        .map(JunitReportFileWithTestRunnerReport::from)
         .collect();
 
     let mut bep_result: Option<BepParseResult> = None;
@@ -460,7 +465,7 @@ fn handle_xcresult(
     repo: &RepoUrlParts,
     org_url_slug: String,
     use_experimental_failure_summary: bool,
-) -> Result<Vec<JunitReportFileWithStatus>, anyhow::Error> {
+) -> Result<Vec<JunitReportFileWithTestRunnerReport>, anyhow::Error> {
     let mut temp_paths = Vec::new();
     if let Some(xcresult_path) = xcresult_path {
         let xcresult = XCResult::new(
@@ -487,10 +492,9 @@ fn handle_xcresult(
                 .map_err(|e| anyhow::anyhow!("Failed to write junit file: {}", e))?;
             let junit_temp_path_str = junit_temp_path.to_str();
             if let Some(junit_temp_path_string) = junit_temp_path_str {
-                temp_paths.push(JunitReportFileWithStatus {
-                    junit_path: junit_temp_path_string.to_string(),
-                    status: None,
-                });
+                temp_paths.push(JunitReportFileWithTestRunnerReport::from(
+                    junit_temp_path_string.to_string(),
+                ));
             } else {
                 return Err(anyhow::anyhow!(
                     "Failed to convert junit temp path to string."

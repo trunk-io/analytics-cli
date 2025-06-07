@@ -3,13 +3,13 @@ def test_parse_meta_from_tarball():
     import json
     import tarfile
     import tempfile
+    import typing
 
     import zstandard as zstd
     from botocore.response import StreamingBody
     from context_py import parse_meta_from_tarball
 
-    # trunk-ignore(pyright/reportUnknownVariableType)
-    expected_meta = {
+    expected_meta: typing.Any = {
         "version": "1",
         "bundle_upload_id": "59c8ddd9-0a00-4b56-9eea-ef0d60ebcb79",
         "cli_version": "cargo=0.5.11 git=7e5824fa365c63a2d4b38020762be17f4edd6425 rustc=1.80.0-nightly",
