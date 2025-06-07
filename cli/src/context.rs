@@ -213,6 +213,7 @@ pub fn generate_internal_file(
     file_sets: &[FileSet],
     temp_dir: &TempDir,
     codeowners: Option<&CodeOwners>,
+    repo: &BundleRepo,
 ) -> anyhow::Result<(
     BundledFile,
     BTreeMap<String, anyhow::Result<JunitReportValidation>>,
@@ -246,9 +247,9 @@ pub fn generate_internal_file(
                     let reports = junit_parser.reports();
                     if reports.len() == 1 {
                         junit_validations
-                            .insert(file.original_path.clone(), Ok(validate(&reports[0])));
+                            .insert(file.original_path.clone(), Ok(validate(&reports[0], repo)));
                     }
-                    test_case_runs.extend(junit_parser.into_test_case_runs(codeowners));
+                    test_case_runs.extend(junit_parser.into_test_case_runs(codeowners, repo));
                 }
             }
         }

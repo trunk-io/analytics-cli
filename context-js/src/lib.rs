@@ -4,7 +4,10 @@ use bundle::{
     parse_internal_bin_from_tarball as parse_internal_bin,
     parse_meta_from_tarball as parse_tarball, VersionedBundle,
 };
-use context::{env, junit, repo};
+use context::{
+    env, junit,
+    repo::{self, BundleRepo},
+};
 use futures::{future::Either, io::BufReader as BufReaderAsync, stream::TryStreamExt};
 use js_sys::Uint8Array;
 use prost::Message;
@@ -103,6 +106,7 @@ pub fn junit_validate(
 ) -> junit::bindings::BindingsJunitReportValidation {
     junit::bindings::BindingsJunitReportValidation::from(junit::validator::validate(
         &report.clone().into(),
+        &BundleRepo::default(),
     ))
 }
 

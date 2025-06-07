@@ -291,6 +291,7 @@ pub async fn run_upload(
         &meta.base_props.file_sets,
         &temp_dir,
         meta.base_props.codeowners.as_ref(),
+        &meta.base_props.repo,
     );
     let mut validations = BTreeMap::new();
     if let Ok((internal_bundled_file, junit_validations)) = internal_bundled_file {
