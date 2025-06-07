@@ -75,6 +75,7 @@ pub fn gather_initial_test_context(
         #[cfg(target_os = "macos")]
         xcresult_path,
         bazel_bep_path,
+        test_reports,
         org_url_slug,
         repo_root,
         repo_url,
@@ -111,6 +112,7 @@ pub fn gather_initial_test_context(
             org_url_slug.clone(),
             #[cfg(target_os = "macos")]
             use_experimental_failure_summary,
+            test_reports,
             allow_empty_test_results,
         )?;
 
@@ -275,7 +277,7 @@ pub fn generate_internal_file(
     ))
 }
 
-fn fall_back_to_binary_parse(
+pub fn fall_back_to_binary_parse(
     json_parse_result: anyhow::Result<BepParseResult>,
     bazel_bep_path: &String,
 ) -> anyhow::Result<BepParseResult> {
@@ -301,6 +303,16 @@ fn fall_back_to_binary_parse(
     }
 }
 
+fn parse_as_bep(dir: String) -> anyhow::Result<BepParseResult> {
+    let mut parser = BazelBepParser::new(&dir);
+    let result = fall_back_to_binary_parse(parser.parse(), &dir);
+    match result {
+        anyhow::Result::Ok(ref ok_result) => print_bep_results(&ok_result),
+        _ => (),
+    };
+    result
+}
+
 fn coalesce_junit_path_wrappers(
     junit_paths: Vec<String>,
     bazel_bep_path: Option<String>,
@@ -308,6 +320,7 @@ fn coalesce_junit_path_wrappers(
     #[cfg(target_os = "macos")] repo: &RepoUrlParts,
     #[cfg(target_os = "macos")] org_url_slug: String,
     #[cfg(target_os = "macos")] use_experimental_failure_summary: bool,
+    test_reports: Vec<String>,
     allow_empty_test_results: bool,
 ) -> anyhow::Result<(
     Vec<JunitReportFileWithStatus>,
@@ -369,6 +382,49 @@ fn coalesce_junit_path_wrappers(
                 return Err(anyhow::anyhow!(
                     "No tests found in the provided XCResult path."
                 ));
+            }
+        }
+    }
+
+    if !test_reports.is_empty() {
+        for test_report in test_reports {
+            let mut was_other_than_junit = false;
+
+            if let Ok(bazel_result) = parse_as_bep(test_report.clone()) {
+                if bep_result.is_some() {
+                    return Err(anyhow::anyhow!(
+                        "Was given multiple bazel BEP files (can only support one)"
+                    ));
+                }
+                bep_result = Some(bazel_result.clone());
+                junit_path_wrappers =
+                    vec![junit_path_wrappers, bazel_result.uncached_xml_files()].concat();
+                was_other_than_junit = true;
+            }
+
+            #[cfg(target_os = "macos")]
+            {
+                let temp_dir = tempfile::tempdir()?;
+                let temp_paths = handle_xcresult(
+                    &temp_dir,
+                    test_report.clone(),
+                    repo,
+                    org_url_slug,
+                    use_experimental_failure_summary,
+                );
+                if temp_paths.is_ok() {
+                    if _junit_path_wrappers_temp_dir.is_some() {
+                        return Err(anyhow::anyhow!(
+                            "Was given multiple XCResult files (can only support one)"
+                        ));
+                    }
+                    _junit_path_wrappers_temp_dir = Some(xcresult);
+                    was_other_than_junit = true;
+                }
+            }
+
+            if !was_other_than_junit {
+                junit_path_wrappers.push(JunitReportFileWithStatus::from(test_report));
             }
         }
     }
@@ -648,6 +704,7 @@ mod tests {
             "test".into(),
             #[cfg(target_os = "macos")]
             false,
+            Vec::new(),
             false,
         );
         assert!(result_err.is_err());
@@ -662,6 +719,38 @@ mod tests {
             "test".into(),
             #[cfg(target_os = "macos")]
             false,
+            Vec::new(),
+            true,
+        );
+        assert!(result_ok.is_ok());
+        let result = result_ok.unwrap();
+        assert_eq!(result.0.len(), 1);
+        let junit_result = &result.0[0];
+        assert_eq!(junit_result.junit_path, "test");
+        assert!(result.1.is_none());
+        assert!(result.2.is_none());
+    }
+
+    #[test]
+    fn test_coalesce_junit_path_wrappers_with_test_reports() {
+        #[cfg(target_os = "macos")]
+        let repo = RepoUrlParts {
+            host: "github.com".to_string(),
+            owner: "trunk-io".to_string(),
+            name: "analytics-cli".to_string(),
+        };
+        let result_ok = coalesce_junit_path_wrappers(
+            Vec::new(),
+            None,
+            #[cfg(target_os = "macos")]
+            None,
+            #[cfg(target_os = "macos")]
+            &repo,
+            #[cfg(target_os = "macos")]
+            "test".into(),
+            #[cfg(target_os = "macos")]
+            false,
+            vec!["test".into()],
             true,
         );
         assert!(result_ok.is_ok());
