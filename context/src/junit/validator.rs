@@ -1,4 +1,4 @@
-use std::{cmp::Ordering, collections::HashSet};
+use std::{cmp::Ordering, collections::HashSet, fmt};
 
 use chrono::{DateTime, FixedOffset, TimeDelta, Utc};
 #[cfg(feature = "pyo3")]
@@ -40,6 +40,15 @@ impl Default for JunitValidationLevel {
 pub enum JunitValidationIssue<SO, I> {
     SubOptimal(SO),
     Invalid(I),
+}
+
+impl<SO: fmt::Display, I: fmt::Display> fmt::Display for JunitValidationIssue<SO, I> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::SubOptimal(i) => write!(f, "{i}"),
+            Self::Invalid(i) => write!(f, "{i}"),
+        }
+    }
 }
 
 impl<SO, I> From<&JunitValidationIssue<SO, I>> for JunitValidationLevel {
@@ -213,13 +222,13 @@ pub enum JunitValidationIssueType {
     TestCase(JunitTestCaseValidationIssue),
 }
 
-impl ToString for JunitValidationIssueType {
-    fn to_string(&self) -> String {
+impl fmt::Display for JunitValidationIssueType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            JunitValidationIssueType::Report(i) => i.to_string(),
-            JunitValidationIssueType::TestRunnerReport(i) => i.to_string(),
-            JunitValidationIssueType::TestSuite(i) => i.to_string(),
-            JunitValidationIssueType::TestCase(i) => i.to_string(),
+            JunitValidationIssueType::Report(i) => write!(f, "{i}"),
+            JunitValidationIssueType::TestRunnerReport(i) => write!(f, "{i}"),
+            JunitValidationIssueType::TestSuite(i) => write!(f, "{i}"),
+            JunitValidationIssueType::TestCase(i) => write!(f, "{i}"),
         }
     }
 }
@@ -397,15 +406,6 @@ impl JunitReportValidation {
 pub type JunitReportValidationIssue =
     JunitValidationIssue<JunitReportValidationIssueSubOptimal, JunitReportValidationIssueInvalid>;
 
-impl ToString for JunitReportValidationIssue {
-    fn to_string(&self) -> String {
-        match self {
-            Self::SubOptimal(i) => i.to_string(),
-            Self::Invalid(i) => i.to_string(),
-        }
-    }
-}
-
 #[derive(Error, Debug, Clone, PartialEq, Eq, Hash)]
 pub enum TestRunnerReportValidationIssueSubOptimal {
     #[error("test runner report start time has future timestamp")]
@@ -444,15 +444,6 @@ pub type TestRunnerReportValidationIssue = JunitValidationIssue<
     TestRunnerReportValidationIssueInvalid,
 >;
 
-impl ToString for TestRunnerReportValidationIssue {
-    fn to_string(&self) -> String {
-        match self {
-            Self::SubOptimal(i) => i.to_string(),
-            Self::Invalid(i) => i.to_string(),
-        }
-    }
-}
-
 #[derive(Error, Debug, Clone, PartialEq, Eq, Hash)]
 pub enum JunitReportValidationIssueSubOptimal {
     #[error("report has test cases with missing file or filepath")]
@@ -474,15 +465,6 @@ pub type JunitTestSuiteValidationIssue = JunitValidationIssue<
     JunitTestSuiteValidationIssueSubOptimal,
     JunitTestSuiteValidationIssueInvalid,
 >;
-
-impl ToString for JunitTestSuiteValidationIssue {
-    fn to_string(&self) -> String {
-        match self {
-            Self::SubOptimal(i) => i.to_string(),
-            Self::Invalid(i) => i.to_string(),
-        }
-    }
-}
 
 #[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass(eq))]
 #[cfg_attr(feature = "wasm", wasm_bindgen)]
@@ -581,15 +563,6 @@ pub type JunitTestCaseValidationIssue = JunitValidationIssue<
     JunitTestCaseValidationIssueSubOptimal,
     JunitTestCaseValidationIssueInvalid,
 >;
-
-impl ToString for JunitTestCaseValidationIssue {
-    fn to_string(&self) -> String {
-        match self {
-            Self::SubOptimal(i) => i.to_string(),
-            Self::Invalid(i) => i.to_string(),
-        }
-    }
-}
 
 #[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass(eq))]
 #[cfg_attr(feature = "wasm", wasm_bindgen)]

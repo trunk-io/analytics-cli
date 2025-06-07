@@ -951,7 +951,7 @@ impl From<JunitReportValidation> for BindingsJunitReportValidation {
                 .into_iter()
                 .map(BindingsTestSuite::from)
                 .collect(),
-            test_runner_report: test_runner_report,
+            test_runner_report,
         }
     }
 }
