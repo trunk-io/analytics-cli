@@ -226,7 +226,7 @@ describe("context-js", () => {
 
     const test_suite = result?.test_suites.at(0);
 
-    expect(test_suite?.name).toBe("context_ruby");
-    expect(test_suite?.test_cases).toHaveLength(5);
+    expect(test_suite?.name).toBe("RSpec Expectations");
+    expect(test_suite?.test_cases).toHaveLength(8);
   });
 });
