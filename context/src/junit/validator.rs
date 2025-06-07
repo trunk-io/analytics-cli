@@ -15,7 +15,7 @@ use crate::string_safety::{validate_field_len, FieldLen};
 
 pub const MAX_FIELD_LEN: usize = 1_000;
 
-const TIMESTAMP_OLD_DAYS: u32 = 30;
+const TIMESTAMP_OLD_HOURS: u32 = 24;
 const TIMESTAMP_STALE_HOURS: u32 = 1;
 
 #[cfg_attr(feature = "pyo3", gen_stub_pyclass_enum, pyclass(eq, eq_int))]
@@ -161,7 +161,7 @@ pub fn validate(report: &Report) -> JunitReportValidation {
                     test_case_validation.add_issue(JunitValidationIssue::SubOptimal(
                         JunitTestCaseValidationIssueSubOptimal::TestCaseFutureTimestamp(timestamp),
                     ));
-                } else if time_since_timestamp.num_days() > i64::from(TIMESTAMP_OLD_DAYS) {
+                } else if time_since_timestamp.num_hours() > i64::from(TIMESTAMP_OLD_HOURS) {
                     test_case_validation.add_issue(JunitValidationIssue::SubOptimal(
                         JunitTestCaseValidationIssueSubOptimal::TestCaseOldTimestamp(timestamp),
                     ));
@@ -406,7 +406,7 @@ pub enum JunitReportValidationIssueSubOptimal {
     MissingTimestamps,
     #[error("report has test cases with future timestamp")]
     FutureTimestamps,
-    #[error("report has old (> {} day(s)) timestamps", TIMESTAMP_OLD_DAYS)]
+    #[error("report has old (> {} hour(s)) timestamps", TIMESTAMP_OLD_HOURS)]
     OldTimestamps,
     #[error("report has stale (> {} hour(s)) timestamps", TIMESTAMP_STALE_HOURS)]
     StaleTimestamps,
@@ -574,8 +574,8 @@ pub enum JunitTestCaseValidationIssueSubOptimal {
     #[error("test case or parent has future timestamp")]
     TestCaseFutureTimestamp(DateTime<FixedOffset>),
     #[error(
-        "test case or parent has old (> {} day(s)) timestamp",
-        TIMESTAMP_OLD_DAYS
+        "test case or parent has old (> {} hour(s)) timestamp",
+        TIMESTAMP_OLD_HOURS
     )]
     TestCaseOldTimestamp(DateTime<FixedOffset>),
     #[error(
