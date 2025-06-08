@@ -209,18 +209,27 @@ describe("context-js", () => {
 
     const file_path = path.resolve(__dirname, "../tests/test_internal.bin");
     const file = fs.readFileSync(file_path);
-    const results = bin_parse(file);
+    const bindingsReports = bin_parse(file);
 
-    expect(results).toHaveLength(1);
+    expect(bindingsReports).toHaveLength(1);
 
-    const result = results.at(0);
+    const result = bindingsReports.at(0);
 
     expect(result?.tests).toBe(13);
     expect(result?.test_suites).toHaveLength(2);
 
-    const test_suite = result.test_suites.at(0);
+    const contextRubySuite = result?.test_suites.find(
+      ({ name }) => name === "context_ruby",
+    );
 
-    expect(test_suite?.name).toBe("RSpec Expectations");
-    expect(test_suite?.test_cases).toHaveLength(8);
+    expect(contextRubySuite).toBeDefined();
+    expect(contextRubySuite?.test_cases).toHaveLength(5);
+
+    const rspecExpectationsSuite = result?.test_suites.find(
+      ({ name }) => name === "RSpec Expectations",
+    );
+
+    expect(rspecExpectationsSuite).toBeDefined();
+    expect(rspecExpectationsSuite?.test_cases).toHaveLength(8);
   });
 });
