@@ -31,7 +31,7 @@ runs:
       run: |
         cargo llvm-cov --no-report nextest
         cargo llvm-cov --no-report --doc
-        cargo llvm-cov --all-features --lcov --output-path lcov.info
+        cargo llvm-cov report --doctests --lcov --output-path lcov.info
 
     - name: Run tests
       shell: bash

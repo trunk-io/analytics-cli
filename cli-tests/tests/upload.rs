@@ -22,6 +22,7 @@ use context::{
     repo::{BundleRepo, RepoUrlParts as Repo},
 };
 use lazy_static::lazy_static;
+use more_asserts::assert_lt;
 use predicates::prelude::*;
 use pretty_assertions::assert_eq;
 use prost::Message;
@@ -115,7 +116,10 @@ async fn upload_bundle() {
     assert!(!base_props.repo.repo_head_sha.is_empty());
     let repo_head_sha_short = base_props.repo.repo_head_sha_short.unwrap();
     assert!(!repo_head_sha_short.is_empty());
-    assert!(&repo_head_sha_short.len() < &base_props.repo.repo_head_sha.len());
+    assert_lt!(
+        &repo_head_sha_short.len(),
+        &base_props.repo.repo_head_sha.len()
+    );
     assert!(base_props
         .repo
         .repo_head_sha
@@ -138,7 +142,7 @@ async fn upload_bundle() {
     );
     let time_since_upload = chrono::Utc::now()
         - chrono::DateTime::from_timestamp(base_props.upload_time_epoch as i64, 0).unwrap();
-    more_asserts::assert_lt!(time_since_upload.num_minutes(), 5);
+    assert_lt!(time_since_upload.num_minutes(), 5);
     assert_eq!(base_props.test_command, None);
     assert!(base_props.os_info.is_some());
     assert!(base_props.quarantined_tests.is_empty());
