@@ -306,7 +306,7 @@ fn validate_timestamps() {
         }
     }
 
-    let report_validation = junit::validator::validate(&generated_report);
+    let report_validation = junit::validator::validate(&generated_report, &BundleRepo::default());
 
     assert_eq!(
         report_validation.max_level(),
