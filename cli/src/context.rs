@@ -331,6 +331,7 @@ fn coalesce_junit_path_wrappers(
         .into_iter()
         .map(JunitReportFileWithStatus::from)
         .collect();
+    println!("after junit_paths setting: {:?}", junit_path_wrappers);
 
     let mut bep_result: Option<BepParseResult> = None;
     if let Some(bazel_bep_path) = bazel_bep_path {
@@ -361,6 +362,7 @@ fn coalesce_junit_path_wrappers(
         junit_path_wrappers = bep_parse_result.uncached_xml_files();
         bep_result = Some(bep_parse_result);
     }
+    println!("after bep setting: {:?}", junit_path_wrappers);
 
     let mut _junit_path_wrappers_temp_dir = None;
     #[cfg(target_os = "macos")]
@@ -374,8 +376,8 @@ fn coalesce_junit_path_wrappers(
             use_experimental_failure_summary,
         )?;
         println!(
-            "Had a call to set from xcresult arg, temp paths of {:?}",
-            temp_paths
+            "Had a call to set from xcresult arg, temp paths of {:?}, junit_path_wrappers of {:?}",
+            temp_paths, junit_path_wrappers,
         );
         _junit_path_wrappers_temp_dir = Some(temp_dir);
         junit_path_wrappers = [junit_path_wrappers.as_slice(), temp_paths.as_slice()].concat();
@@ -403,6 +405,10 @@ fn coalesce_junit_path_wrappers(
                 bep_result = Some(bazel_result.clone());
                 junit_path_wrappers =
                     vec![junit_path_wrappers, bazel_result.uncached_xml_files()].concat();
+                println!(
+                    "bep test_report was pushed, now at {:?}",
+                    junit_path_wrappers
+                );
                 was_other_than_junit = true;
             }
 
@@ -430,6 +436,7 @@ fn coalesce_junit_path_wrappers(
             }
 
             if !was_other_than_junit {
+                println!("pushed report {:?}", test_report);
                 junit_path_wrappers.push(JunitReportFileWithStatus::from(test_report));
             }
         }
