@@ -412,6 +412,7 @@ fn coalesce_junit_path_wrappers(
                     org_url_slug.clone(),
                     use_experimental_failure_summary,
                 );
+                println!("Temp paths were {:?}", temp_paths);
                 if temp_paths.is_ok() {
                     if _junit_path_wrappers_temp_dir.is_some() {
                         return Err(anyhow::anyhow!(
