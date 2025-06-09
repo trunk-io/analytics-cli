@@ -1,7 +1,4 @@
-use predicates::prelude::*;
-use tempfile::tempdir;
-
-use crate::{
+use cli_tests::{
     command_builder::CommandBuilder,
     utils::{
         generate_mock_codeowners, generate_mock_invalid_junit_xmls,
@@ -9,6 +6,8 @@ use crate::{
         generate_mock_valid_junit_xmls, write_junit_xml_to_dir,
     },
 };
+use predicates::prelude::*;
+use tempfile::tempdir;
 
 #[test]
 fn validate_success() {
