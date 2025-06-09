@@ -409,7 +409,7 @@ fn coalesce_junit_path_wrappers(
                     &temp_dir,
                     Some(test_report.clone()),
                     repo,
-                    org_url_slug,
+                    org_url_slug.clone(),
                     use_experimental_failure_summary,
                 );
                 if temp_paths.is_ok() {
