@@ -9,7 +9,7 @@ use constants::{EXIT_FAILURE, EXIT_SUCCESS};
 use context::{
     bazel_bep::parser::BazelBepParser,
     junit::{
-        junit_path::JunitReportFileWithStatus,
+        junit_path::JunitReportFileWithTestRunnerReport,
         parser::{JunitParseIssue, JunitParseIssueLevel, JunitParser},
         validator::{
             validate as validate_report, JunitReportValidation, JunitReportValidationFlatIssue,
@@ -75,7 +75,7 @@ pub async fn run_validate(validate_args: ValidateArgs) -> anyhow::Result<i32> {
         }
         None => junit_paths
             .into_iter()
-            .map(JunitReportFileWithStatus::from)
+            .map(JunitReportFileWithTestRunnerReport::from)
             .collect(),
     };
     validate(junit_file_paths, codeowners_path).await
@@ -88,7 +88,7 @@ type JunitFileToParseIssues = BTreeMap<String, (anyhow::Result<()>, Vec<JunitPar
 type JunitFileToValidation = BTreeMap<String, JunitReportValidation>;
 
 async fn validate(
-    junit_paths: Vec<JunitReportFileWithStatus>,
+    junit_paths: Vec<JunitReportFileWithTestRunnerReport>,
     codeowners_path: Option<String>,
 ) -> anyhow::Result<i32> {
     // scan files
