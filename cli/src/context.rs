@@ -373,6 +373,10 @@ fn coalesce_junit_path_wrappers(
             org_url_slug.clone(),
             use_experimental_failure_summary,
         )?;
+        println!(
+            "Had a call to set from xcresult arg, temp paths of {:?}",
+            temp_paths
+        );
         _junit_path_wrappers_temp_dir = Some(temp_dir);
         junit_path_wrappers = [junit_path_wrappers.as_slice(), temp_paths.as_slice()].concat();
         if junit_path_wrappers.is_empty() {
@@ -414,6 +418,7 @@ fn coalesce_junit_path_wrappers(
                 );
                 println!("Temp paths were {:?}", temp_paths);
                 if temp_paths.is_ok() {
+                    println!("Went in");
                     if _junit_path_wrappers_temp_dir.is_some() {
                         return Err(anyhow::anyhow!(
                             "Was given multiple XCResult files (can only support one)"
@@ -756,6 +761,7 @@ mod tests {
         );
         assert!(result_ok.is_ok());
         let result = result_ok.unwrap();
+        println!("Result was {:?}", result);
         assert_eq!(result.0.len(), 1);
         let junit_result = &result.0[0];
         assert_eq!(junit_result.junit_path, "test");
