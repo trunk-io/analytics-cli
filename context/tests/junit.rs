@@ -6,10 +6,11 @@ use context::{
         self,
         parser::JunitParser,
         validator::{
+            JunitReportValidationIssue, JunitReportValidationIssueSubOptimal,
             JunitTestCaseValidationIssue, JunitTestCaseValidationIssueInvalid,
             JunitTestCaseValidationIssueSubOptimal, JunitTestSuiteValidationIssue,
             JunitTestSuiteValidationIssueInvalid, JunitTestSuiteValidationIssueSubOptimal,
-            JunitValidationIssue, JunitValidationLevel,
+            JunitValidationIssue, JunitValidationIssueType, JunitValidationLevel,
         },
     },
     repo::BundleRepo,
@@ -268,6 +269,65 @@ fn validate_max_level() {
         vec![JunitValidationIssue::Invalid(
             JunitTestCaseValidationIssueInvalid::TestCaseNameTooShort(String::new()),
         )],
+        "failed to validate with seed `{}`",
+        seed,
+    );
+}
+
+#[test]
+fn validate_timestamps() {
+    let (seed, mut generated_reports) = generate_mock_junit_reports(1, Some(1), Some(4));
+    let mut generated_report = generated_reports.pop().unwrap();
+    let generated_report_timestamp = generated_report.timestamp.unwrap();
+
+    for test_suite in &mut generated_report.test_suites {
+        for (index, test_case) in &mut test_suite.test_cases.iter_mut().enumerate() {
+            match index {
+                0 => {
+                    // future timestamp
+                    test_case.timestamp = Utc::now()
+                        .fixed_offset()
+                        .checked_add_signed(TimeDelta::hours(1));
+                }
+                1 => {
+                    // stale timestamp
+                    test_case.timestamp =
+                        generated_report_timestamp.checked_sub_signed(TimeDelta::hours(1))
+                }
+                2 => {
+                    // old timestamp
+                    test_case.timestamp =
+                        generated_report_timestamp.checked_sub_signed(TimeDelta::hours(24))
+                }
+                _ => {
+                    // valid timestamp
+                }
+            };
+        }
+    }
+
+    let report_validation = junit::validator::validate(&generated_report);
+
+    assert_eq!(
+        report_validation.max_level(),
+        JunitValidationLevel::SubOptimal,
+        "failed to validate with seed `{}`",
+        seed,
+    );
+
+    pretty_assertions::assert_eq!(
+        report_validation.all_issues(),
+        vec![
+            JunitValidationIssueType::Report(JunitReportValidationIssue::SubOptimal(
+                JunitReportValidationIssueSubOptimal::OldTimestamps,
+            )),
+            JunitValidationIssueType::Report(JunitReportValidationIssue::SubOptimal(
+                JunitReportValidationIssueSubOptimal::StaleTimestamps,
+            )),
+            JunitValidationIssueType::Report(JunitReportValidationIssue::SubOptimal(
+                JunitReportValidationIssueSubOptimal::FutureTimestamps,
+            )),
+        ],
         "failed to validate with seed `{}`",
         seed,
     );

@@ -1200,7 +1200,7 @@ mod tests {
                     assert_eq!(issue.1.error_type, JunitValidationType::Report);
                     assert_eq!(
                         issue.1.error_message,
-                        "report has old (> 30 day(s)) timestamps"
+                        "report has old (> 24 hour(s)) timestamps"
                     );
                 } else {
                     assert_eq!(issue.1.error_type, JunitValidationType::TestCase);

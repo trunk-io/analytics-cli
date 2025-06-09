@@ -1,9 +1,8 @@
-/* eslint-disable @typescript-eslint/no-non-null-assertion */
 import dayjs from "dayjs";
 import fs from "fs";
 import path from "path";
 import utc from "dayjs/plugin/utc";
-import { describe, expect, it } from "vitest";
+import { assert, describe, expect, it } from "vitest";
 
 import {
   BundleRepo,
@@ -42,9 +41,7 @@ describe("context-js", () => {
     };
 
     const ciInfo = env_parse(env_vars, ["main", "master"]);
-    // NOTE: Need to narrow type here
-    // eslint-disable-next-line vitest/no-conditional-in-test
-    if (!ciInfo) throw Error("ciInfo is undefined");
+    assert(ciInfo);
     const envValidation = env_validate(ciInfo);
 
     expect(ciInfo.platform).toBe(CIPlatform.GitHubActions);
@@ -80,11 +77,9 @@ describe("context-js", () => {
     `;
 
     let parse_result = junit_parse(Buffer.from(validJunitXml, "utf-8"));
-    let report = parse_result.report;
+    assert(parse_result.report);
 
-    expect(report).toBeDefined();
-
-    let junitReportValidation = junit_validate(report!);
+    let junitReportValidation = junit_validate(parse_result.report);
 
     expect(junitReportValidation.max_level()).toBe(JunitValidationLevel.Valid);
 
@@ -100,11 +95,9 @@ describe("context-js", () => {
     `;
 
     parse_result = junit_parse(Buffer.from(suboptimalJunitXml, "utf-8"));
-    report = parse_result.report;
+    assert(parse_result.report);
 
-    expect(report).toBeDefined();
-
-    junitReportValidation = junit_validate(report!);
+    junitReportValidation = junit_validate(parse_result.report);
 
     expect(junitReportValidation.max_level()).toBe(
       JunitValidationLevel.SubOptimal,
@@ -129,11 +122,9 @@ describe("context-js", () => {
       </testsuites>`;
 
     parse_result = junit_parse(Buffer.from(nestedJunitXml, "utf-8"));
-    report = parse_result.report;
+    assert(parse_result.report);
 
-    expect(report).toBeDefined();
-
-    junitReportValidation = junit_validate(report!);
+    junitReportValidation = junit_validate(parse_result.report);
 
     expect(junitReportValidation.max_level()).toBe(JunitValidationLevel.Valid);
   });
@@ -214,20 +205,29 @@ describe("context-js", () => {
   it("parses internal.bin", () => {
     expect.hasAssertions();
 
-    const file_path = path.resolve(__dirname, "../tests/test_internal.bin");
+    const file_path = path.resolve(__dirname, "./test_internal.bin");
     const file = fs.readFileSync(file_path);
-    const results = bin_parse(file);
+    const bindingsReports = bin_parse(file);
 
-    expect(results).toHaveLength(1);
+    expect(bindingsReports).toHaveLength(1);
 
-    const result = results.at(0);
+    const result = bindingsReports.at(0);
 
     expect(result?.tests).toBe(13);
     expect(result?.test_suites).toHaveLength(2);
 
-    const test_suite = result?.test_suites.at(0);
+    const contextRubySuite = result?.test_suites.find(
+      ({ name }) => name === "context_ruby",
+    );
 
-    expect(test_suite?.name).toBe("RSpec Expectations");
-    expect(test_suite?.test_cases).toHaveLength(8);
+    expect(contextRubySuite).toBeDefined();
+    expect(contextRubySuite?.test_cases).toHaveLength(5);
+
+    const rspecExpectationsSuite = result?.test_suites.find(
+      ({ name }) => name === "RSpec Expectations",
+    );
+
+    expect(rspecExpectationsSuite).toBeDefined();
+    expect(rspecExpectationsSuite?.test_cases).toHaveLength(8);
   });
 });
