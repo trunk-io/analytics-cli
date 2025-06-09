@@ -6,13 +6,13 @@ use api::message::{
     GetQuarantineConfigResponse,
 };
 use assert_matches::assert_matches;
-use axum::http::StatusCode;
-use axum::{extract::State, Json};
+use axum::{extract::State, http::StatusCode, Json};
 use bundle::{BundleMeta, FileSetType};
 use codeowners::CodeOwners;
-use context::repo::{BundleRepo, RepoUrlParts};
 use context::{
-    bazel_bep::parser::BazelBepParser, junit::parser::JunitParser, repo::RepoUrlParts as Repo,
+    bazel_bep::parser::BazelBepParser,
+    junit::{junit_path::JunitReportStatus, parser::JunitParser},
+    repo::{BundleRepo, RepoUrlParts as Repo},
 };
 use lazy_static::lazy_static;
 use predicates::prelude::*;
@@ -208,28 +208,40 @@ async fn upload_bundle() {
 async fn upload_bundle_using_bep() {
     let temp_dir = tempdir().unwrap();
     generate_mock_git_repo(&temp_dir);
-    generate_mock_bazel_bep(&temp_dir);
+    let bep_path = generate_mock_bazel_bep(&temp_dir);
 
     let state = MockServerBuilder::new().spawn_mock_server().await;
 
     let assert = CommandBuilder::upload(temp_dir.path(), state.host.clone())
-        .bazel_bep_path("./bep.json")
+        .bazel_bep_path(bep_path.to_str().unwrap())
         .command()
         .assert()
-        .failure();
+        .success();
 
     let requests = state.requests.lock().unwrap().clone();
-    assert_eq!(requests.len(), 4);
+    assert_eq!(requests.len(), 3);
+    assert_matches!(requests[0], RequestPayload::CreateBundleUpload(_));
+    let tar_extract_directory = assert_matches!(&requests[1], RequestPayload::S3Upload(d) => d);
+    assert_matches!(requests[2], RequestPayload::TelemetryUploadMetrics(_));
 
-    let tar_extract_directory = assert_matches!(&requests[2], RequestPayload::S3Upload(d) => d);
+    let meta_json = fs::File::open(tar_extract_directory.join("meta.json")).unwrap();
+    let bundle_meta: BundleMeta = serde_json::from_reader(meta_json).unwrap();
 
-    let junit_file = fs::File::open(tar_extract_directory.join("junit/0")).unwrap();
-    let junit_reader = BufReader::new(junit_file);
-
-    // Uploaded file is a junit, even when using BEP
-    let mut junit_parser = JunitParser::new();
-    assert!(junit_parser.parse(junit_reader).is_ok());
-    assert!(junit_parser.issues().is_empty());
+    assert!(!bundle_meta.base_props.file_sets.is_empty());
+    bundle_meta
+        .base_props
+        .file_sets
+        .iter()
+        .for_each(|file_set| {
+            assert_eq!(file_set.resolved_status, Some(JunitReportStatus::Passed));
+            assert_eq!(file_set.file_set_type, FileSetType::Junit);
+            let mut junit_parser = JunitParser::new();
+            file_set.files.iter().for_each(|file| {
+                let junit_file = fs::File::open(tar_extract_directory.join(&file.path)).unwrap();
+                assert!(junit_parser.parse(BufReader::new(junit_file)).is_ok());
+                assert!(junit_parser.issues().is_empty());
+            });
+        });
 
     let mut bazel_bep_parser = BazelBepParser::new(tar_extract_directory.join("bazel_bep.json"));
     let parse_result = bazel_bep_parser.parse().ok().unwrap();
@@ -245,8 +257,6 @@ async fn upload_bundle_success_status_code() {
     let temp_dir = tempdir().unwrap();
     generate_mock_git_repo(&temp_dir);
     let test_bep_path = get_test_file_path("test_fixtures/bep_retries");
-    // The test cases need not match up or have timestamps, so long as there is a testSummary
-    // That indicates a flake or pass
     let uri_fail = format!(
         "file://{}",
         get_test_file_path("../cli/test_fixtures/junit1_fail.xml")
@@ -265,17 +275,41 @@ async fn upload_bundle_success_status_code() {
 
     let state = MockServerBuilder::new().spawn_mock_server().await;
 
-    // Even though the junits contain failures, they contain retries that succeeded,
-    // so the upload command should have a successful exit code
     let assert = CommandBuilder::upload(temp_dir.path(), state.host.clone())
+        .bazel_bep_path(bep_path.to_str().unwrap())
         .command()
         .assert()
         .code(0)
         .success();
 
-    // No quarantine request
     let requests = state.requests.lock().unwrap().clone();
     assert_eq!(requests.len(), 3);
+    assert_matches!(requests[0], RequestPayload::CreateBundleUpload(_));
+    let tar_extract_directory = assert_matches!(&requests[1], RequestPayload::S3Upload(d) => d);
+    assert_matches!(requests[2], RequestPayload::TelemetryUploadMetrics(_));
+
+    let mut bazel_bep_parser = BazelBepParser::new(tar_extract_directory.join("bazel_bep.json"));
+    let parse_result = bazel_bep_parser.parse().ok().unwrap();
+    assert_eq!(parse_result.test_results.len(), 2);
+
+    let meta_json = fs::File::open(tar_extract_directory.join("meta.json")).unwrap();
+    let bundle_meta: BundleMeta = serde_json::from_reader(meta_json).unwrap();
+
+    assert!(!bundle_meta.base_props.file_sets.is_empty());
+    bundle_meta
+        .base_props
+        .file_sets
+        .iter()
+        .for_each(|file_set| {
+            assert_eq!(file_set.file_set_type, FileSetType::Junit);
+            let mut junit_parser = JunitParser::new();
+            file_set.files.iter().for_each(|file| {
+                let junit_file = fs::File::open(tar_extract_directory.join(&file.path)).unwrap();
+                assert!(junit_parser.parse(BufReader::new(junit_file)).is_ok());
+                assert!(junit_parser.issues().is_empty());
+            });
+            assert_eq!(file_set.resolved_status, Some(JunitReportStatus::Flaky));
+        });
 
     // HINT: View CLI output with `cargo test -- --nocapture`
     println!("{assert}");
@@ -295,6 +329,19 @@ async fn falls_back_to_binary_file() {
         .assert()
         .success();
 
+    let requests = state.requests.lock().unwrap().clone();
+    assert_eq!(requests.len(), 3);
+    assert_matches!(requests[0], RequestPayload::CreateBundleUpload(_));
+    let tar_extract_directory = assert_matches!(&requests[1], RequestPayload::S3Upload(d) => d);
+    assert_matches!(requests[2], RequestPayload::TelemetryUploadMetrics(_));
+
+    let mut bazel_bep_parser = BazelBepParser::new(tar_extract_directory.join("bazel_bep.json"));
+    let parse_result = bazel_bep_parser.parse().ok().unwrap();
+    assert_eq!(parse_result.test_results.len(), 8);
+
+    let meta_json = fs::File::open(tar_extract_directory.join("meta.json")).unwrap();
+    assert!(serde_json::from_reader::<fs::File, BundleMeta>(meta_json).is_ok());
+
     assert.stdout(predicate::str::contains(
         "Attempting to parse bep file as binary",
     ));
@@ -306,8 +353,6 @@ async fn upload_bundle_success_preceding_failure() {
     let temp_dir = tempdir().unwrap();
     generate_mock_git_repo(&temp_dir);
     let test_bep_path = get_test_file_path("test_fixtures/bep_retries");
-    // The test cases need not match up or have timestamps, so long as there is a testSummary
-    // That indicates a flake or pass
     let uri_fail = format!(
         "file://{}",
         get_test_file_path("../cli/test_fixtures/junit1_fail.xml")
@@ -327,57 +372,42 @@ async fn upload_bundle_success_preceding_failure() {
     let state = MockServerBuilder::new().spawn_mock_server().await;
     let test_process_exit_code = 127;
 
-    // Even though the junits contain failures, they contain retries that succeeded,
-    // so the upload command should have a successful exit code
     let assert = CommandBuilder::upload(temp_dir.path(), state.host.clone())
+        .bazel_bep_path(bep_path.to_str().unwrap())
         .test_process_exit_code(test_process_exit_code)
         .command()
         .assert()
         .code(test_process_exit_code)
         .failure();
 
-    // No quarantine request
     let requests = state.requests.lock().unwrap().clone();
     assert_eq!(requests.len(), 3);
+    assert_matches!(requests[0], RequestPayload::CreateBundleUpload(_));
+    let tar_extract_directory = assert_matches!(&requests[1], RequestPayload::S3Upload(d) => d);
+    assert_matches!(requests[2], RequestPayload::TelemetryUploadMetrics(_));
 
-    // HINT: View CLI output with `cargo test -- --nocapture`
-    println!("{assert}");
-}
+    let mut bazel_bep_parser = BazelBepParser::new(tar_extract_directory.join("bazel_bep.json"));
+    let parse_result = bazel_bep_parser.parse().ok().unwrap();
+    assert_eq!(parse_result.test_results.len(), 2);
 
-#[tokio::test(flavor = "multi_thread")]
-async fn upload_bundle_success_timestamp_status_code() {
-    let temp_dir = tempdir().unwrap();
-    generate_mock_git_repo(&temp_dir);
-    let test_bep_path = get_test_file_path("test_fixtures/bep_retries_timestamp");
-    let uri_fail = format!(
-        "file://{}",
-        get_test_file_path("../cli/test_fixtures/junit0_fail.xml")
-    );
-    let uri_pass = format!(
-        "file://{}",
-        get_test_file_path("../cli/test_fixtures/junit0_pass.xml")
-    );
+    let meta_json = fs::File::open(tar_extract_directory.join("meta.json")).unwrap();
+    let bundle_meta: BundleMeta = serde_json::from_reader(meta_json).unwrap();
 
-    let bep_content = fs::read_to_string(&test_bep_path)
-        .unwrap()
-        .replace("${URI_FAIL}", &uri_fail)
-        .replace("${URI_PASS}", &uri_pass);
-    let bep_path = temp_dir.path().join("bep.json");
-    fs::write(&bep_path, bep_content).unwrap();
-
-    let state = MockServerBuilder::new().spawn_mock_server().await;
-
-    // Even though the junits contain failures, they contain retries that succeeded,
-    // so the upload command should have a successful exit code
-    let assert = CommandBuilder::upload(temp_dir.path(), state.host.clone())
-        .command()
-        .assert()
-        .code(0)
-        .success();
-
-    // No quarantine request
-    let requests = state.requests.lock().unwrap().clone();
-    assert_eq!(requests.len(), 3);
+    assert!(!bundle_meta.base_props.file_sets.is_empty());
+    bundle_meta
+        .base_props
+        .file_sets
+        .iter()
+        .for_each(|file_set| {
+            assert_eq!(file_set.file_set_type, FileSetType::Junit);
+            let mut junit_parser = JunitParser::new();
+            file_set.files.iter().for_each(|file| {
+                let junit_file = fs::File::open(tar_extract_directory.join(&file.path)).unwrap();
+                assert!(junit_parser.parse(BufReader::new(junit_file)).is_ok());
+                assert!(junit_parser.issues().is_empty());
+            });
+            assert_eq!(file_set.resolved_status, Some(JunitReportStatus::Flaky));
+        });
 
     // HINT: View CLI output with `cargo test -- --nocapture`
     println!("{assert}");
@@ -874,10 +904,8 @@ async fn telemetry_does_not_impact_return() {
 
     let requests = state.requests.lock().unwrap().clone();
     assert_eq!(requests.len(), 2);
-
-    // the last request must be s3 since telemetry is disabled
-    // this will error if the last request is not an s3 upload
-    assert_matches!(requests.last().unwrap(), RequestPayload::S3Upload(d) => d);
+    assert_matches!(requests[0], RequestPayload::CreateBundleUpload(_));
+    assert_matches!(requests[1], RequestPayload::S3Upload(_));
 
     // HINT: View CLI output with `cargo test -- --nocapture`
     println!("{assert}");
@@ -902,29 +930,24 @@ async fn test_variant_propagation() {
     assert_eq!(requests.len(), 4);
     let mut requests_iter = requests.into_iter();
 
-    // First request should be quarantine config
     assert_matches!(
         requests_iter.next().unwrap(),
         RequestPayload::GetQuarantineBulkTestStatus(_)
     );
 
-    // Second request should be create bundle upload
     assert_matches!(
         requests_iter.next().unwrap(),
         RequestPayload::CreateBundleUpload(_)
     );
 
-    // Third request should be s3 upload
     let tar_extract_directory =
         assert_matches!(requests_iter.next().unwrap(), RequestPayload::S3Upload(d) => d);
 
-    // Verify variant in meta.json
     let file = fs::File::open(tar_extract_directory.join("meta.json")).unwrap();
     let reader = BufReader::new(file);
     let bundle_meta: BundleMeta = serde_json::from_reader(reader).unwrap();
     assert_eq!(bundle_meta.variant, Some("test-variant".to_string()));
 
-    // Fourth request should be telemetry
     assert_matches!(
         requests_iter.next().unwrap(),
         RequestPayload::TelemetryUploadMetrics(_)
@@ -965,6 +988,7 @@ async fn test_can_upload_with_uncloned_repo() {
     let author_name = "my-gh-username";
 
     let assert = CommandBuilder::upload(temp_dir.path(), state.host.clone())
+        .bazel_bep_path(bep_path.to_str().unwrap())
         .use_uncloned_repo(true)
         .repo_url(repo_url)
         .repo_head_sha(sha)
@@ -979,17 +1003,14 @@ async fn test_can_upload_with_uncloned_repo() {
     assert_eq!(requests.len(), 3);
     let mut requests_iter = requests.into_iter();
 
-    // Second request should be create bundle upload
     assert_matches!(
         requests_iter.next().unwrap(),
         RequestPayload::CreateBundleUpload(_)
     );
 
-    // Third request should be s3 upload
     let tar_extract_directory =
         assert_matches!(requests_iter.next().unwrap(), RequestPayload::S3Upload(d) => d);
 
-    // Verify variant in meta.json
     let file = fs::File::open(tar_extract_directory.join("meta.json")).unwrap();
     let reader = BufReader::new(file);
     let bundle_meta: BundleMeta = serde_json::from_reader(reader).unwrap();
@@ -1002,7 +1023,7 @@ async fn test_can_upload_with_uncloned_repo() {
             .unwrap(),
     );
     let expected = BundleRepo {
-        repo: RepoUrlParts {
+        repo: Repo {
             host: String::from("github.com"),
             owner: String::from("my-org"),
             name: String::from("my-repo"),
@@ -1019,7 +1040,6 @@ async fn test_can_upload_with_uncloned_repo() {
     };
     assert_eq!(bundle_meta.base_props.repo, expected);
 
-    // Fourth request should be telemetry
     assert_matches!(
         requests_iter.next().unwrap(),
         RequestPayload::TelemetryUploadMetrics(_)
@@ -1054,9 +1074,11 @@ async fn test_uncloned_repo_requires_manual_settings() {
     let state = MockServerBuilder::new().spawn_mock_server().await;
 
     let assert = CommandBuilder::upload(temp_dir.path(), state.host.clone())
+        .bazel_bep_path(bep_path.to_str().unwrap())
         .use_uncloned_repo(true)
         .command()
         .assert()
+        .code(predicate::eq(2))
         .failure();
 
     // HINT: View CLI output with `cargo test -- --nocapture`
@@ -1095,6 +1117,7 @@ async fn test_uncloned_repo_conflicts_with_repo_root() {
     let author_name = "my-gh-username";
 
     let assert = CommandBuilder::upload(temp_dir.path(), state.host.clone())
+        .bazel_bep_path(bep_path.to_str().unwrap())
         .use_uncloned_repo(true)
         .repo_root("./")
         .repo_url(repo_url)
@@ -1104,6 +1127,7 @@ async fn test_uncloned_repo_conflicts_with_repo_root() {
         .repo_head_author_name(author_name)
         .command()
         .assert()
+        .code(predicate::eq(2))
         .failure();
 
     // HINT: View CLI output with `cargo test -- --nocapture`
@@ -1142,6 +1166,7 @@ async fn test_can_use_manual_overrides_on_cloned_repo() {
     let author_name = "my-gh-username";
 
     let assert = CommandBuilder::upload(temp_dir.path(), state.host.clone())
+        .bazel_bep_path(bep_path.to_str().unwrap())
         .repo_url(repo_url)
         .repo_head_sha(sha)
         .repo_head_branch(branch)
@@ -1163,7 +1188,6 @@ async fn test_can_use_manual_overrides_on_cloned_repo() {
     let tar_extract_directory =
         assert_matches!(requests_iter.next().unwrap(), RequestPayload::S3Upload(d) => d);
 
-    // Verify variant in meta.json
     let file = fs::File::open(tar_extract_directory.join("meta.json")).unwrap();
     let reader = BufReader::new(file);
     let bundle_meta: BundleMeta = serde_json::from_reader(reader).unwrap();
@@ -1176,7 +1200,7 @@ async fn test_can_use_manual_overrides_on_cloned_repo() {
             .unwrap(),
     );
     let expected = BundleRepo {
-        repo: RepoUrlParts {
+        repo: Repo {
             host: String::from("github.com"),
             owner: String::from("my-org"),
             name: String::from("my-repo"),

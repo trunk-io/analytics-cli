@@ -35,6 +35,20 @@ const generateBundleMeta = (): TestBundleMeta => ({
         },
       ],
       glob: "**/*.xml",
+      resolved_status: "Passed",
+    },
+    {
+      file_set_type: "Junit",
+      files: [
+        {
+          original_path: "/abs/path/junit.xml",
+          original_path_rel: "junit.xml",
+          path: "0.xml",
+          owners: ["owner"],
+          team: "team",
+        },
+      ],
+      glob: "**/*.xml",
       resolved_status: null,
     },
   ],
