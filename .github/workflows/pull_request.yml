@@ -64,6 +64,7 @@ jobs:
         continue-on-error: true
         with:
           target: ${{ matrix.platform.target }}
+          codecov-token: ${{ secrets.CODECOV_TOKEN }}
 
       - name: Build darwin target
         uses: ./.github/actions/build_cli_macos_target
