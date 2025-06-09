@@ -1450,6 +1450,7 @@ async fn uses_passed_exit_code_if_unquarantined_tests_fail() {
 async fn uploaded_file_contains_updated_test_files() {
     let temp_dir = TempDir::with_prefix("not_hidden").unwrap();
     generate_mock_git_repo(&temp_dir);
+    println!("Tmp dir path is {:?}", temp_dir);
 
     let inner_dir = temp_dir.path().join("inner_dir");
     fs::create_dir(inner_dir).unwrap();
@@ -1488,6 +1489,8 @@ async fn uploaded_file_contains_updated_test_files() {
     let bin = fs::read(file_upload.join(&internal_bundled_file.path)).unwrap();
     let report = proto::test_context::test_run::TestResult::decode(&*bin).unwrap();
 
+    println!("{assert}");
+
     assert_eq!(report.test_case_runs.len(), 1);
     let test_case_run = &report.test_case_runs.first().unwrap();
     assert_eq!(test_case_run.classname, "test_file.ts");
@@ -1499,6 +1502,4 @@ async fn uploaded_file_contains_updated_test_files() {
         .unwrap()
         .to_string();
     assert_eq!(test_case_run.file, expected_file);
-
-    println!("{assert}");
 }

@@ -53,6 +53,7 @@ fn convert_to_absolute(
     let initial_str = String::from(initial.as_str());
     let path = Path::new(&initial_str);
     let repo_root_path = Path::new(&repo.repo_root);
+    println!("Had a repo_root of {:?}", repo.repo_root);
     if path.is_absolute() {
         path.to_str().map(String::from)
     } else if repo_root_path.is_absolute() && repo_root_path.exists() {
