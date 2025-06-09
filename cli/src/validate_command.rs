@@ -110,7 +110,7 @@ pub async fn run_validate(validate_args: ValidateArgs) -> anyhow::Result<i32> {
         test_reports
             .iter()
             .flat_map(|test_report_glob| flatten_glob(test_report_glob.as_str()))
-            .flat_map(|test_report_str| parse_test_report(test_report_str))
+            .flat_map(parse_test_report)
             .collect()
     } else {
         match bazel_bep_path {

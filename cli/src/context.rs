@@ -307,7 +307,7 @@ fn parse_as_bep(dir: String) -> anyhow::Result<BepParseResult> {
     let mut parser = BazelBepParser::new(&dir);
     let result = fall_back_to_binary_parse(parser.parse(), &dir);
     if let anyhow::Result::Ok(ref ok_result) = result {
-        print_bep_results(&ok_result);
+        print_bep_results(ok_result);
     }
     result
 }
@@ -396,7 +396,7 @@ fn coalesce_junit_path_wrappers(
                     ));
                 }
                 bep_result = Some(bazel_result.clone());
-                junit_path_wrappers = vec![
+                junit_path_wrappers = [
                     junit_path_wrappers.as_slice(),
                     bazel_result.uncached_xml_files().as_slice(),
                 ]
