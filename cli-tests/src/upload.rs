@@ -1474,7 +1474,11 @@ async fn uses_passed_exit_code_if_unquarantined_tests_fail() {
 async fn uploaded_file_contains_updated_test_files() {
     let temp_dir = TempDir::with_prefix("not_hidden").unwrap();
     generate_mock_git_repo(&temp_dir);
-    println!("Tmp dir path is {:?}", temp_dir);
+    println!(
+        "Tmp dir path is {:?}, canonicalized {:?}",
+        temp_dir,
+        temp_dir.canonicalize()
+    );
 
     let inner_dir = temp_dir.path().join("inner_dir");
     fs::create_dir(inner_dir).unwrap();
@@ -1520,6 +1524,8 @@ async fn uploaded_file_contains_updated_test_files() {
     assert_eq!(test_case_run.classname, "test_file.ts");
     let expected_file = temp_dir
         .path()
+        .canonicalize()
+        .unwrap()
         .join("inner_dir")
         .join("test_file.ts")
         .to_str()
