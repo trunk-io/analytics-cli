@@ -407,7 +407,7 @@ fn coalesce_junit_path_wrappers(
                 let temp_dir = tempfile::tempdir()?;
                 let temp_paths = handle_xcresult(
                     &temp_dir,
-                    test_report.clone(),
+                    Some(test_report.clone()),
                     repo,
                     org_url_slug,
                     use_experimental_failure_summary,
@@ -418,7 +418,7 @@ fn coalesce_junit_path_wrappers(
                             "Was given multiple XCResult files (can only support one)"
                         ));
                     }
-                    _junit_path_wrappers_temp_dir = Some(xcresult);
+                    _junit_path_wrappers_temp_dir = Some(temp_dir);
                     was_other_than_junit = true;
                 }
             }
