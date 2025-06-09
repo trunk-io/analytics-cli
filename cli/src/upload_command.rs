@@ -665,10 +665,23 @@ impl Component for UploadRunResult {
                     EXIT_SUCCESS
                 )).attribute(Attribute::Bold))?
             ]));
-        } else if failures.is_empty() {
+        } else if failures.is_empty() && self.quarantine_context.exit_code == EXIT_SUCCESS {
             output.push(Line::from_iter([Span::new_unstyled(
                 "🎉 No test failures found!",
             )?]));
+        } else if failures.is_empty() && self.quarantine_context.exit_code != EXIT_SUCCESS {
+            // no test failures found but exit code not 0
+            output.push(Line::from_iter([
+                Span::new_unstyled("⚠️  No test failures found, but non zero exit code provided: ")?,
+                Span::new_styled(
+                    style(format!("{}", self.quarantine_context.exit_code))
+                        .attribute(Attribute::Bold),
+                )?,
+            ]));
+            output.push(
+                Line::from_iter([
+                Span::new_unstyled("This may indicate that some tests were not run or that there were other issues during the test run.")?,
+            ]));
         } else {
             output.push(Line::from_iter([
                 Span::new_unstyled(
