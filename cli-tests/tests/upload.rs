@@ -9,6 +9,11 @@ use api::message::{
 use assert_matches::assert_matches;
 use axum::{extract::State, http::StatusCode, Json};
 use bundle::{BundleMeta, FileSetType, INTERNAL_BIN_FILENAME};
+use cli_tests::command_builder::CommandBuilder;
+use cli_tests::utils::{
+    generate_mock_bazel_bep, generate_mock_codeowners, generate_mock_git_repo,
+    generate_mock_valid_junit_xmls,
+};
 use codeowners::CodeOwners;
 use constants::EXIT_FAILURE;
 use context::{
@@ -24,12 +29,6 @@ use tempfile::tempdir;
 use test_utils::{
     inputs::get_test_file_path,
     mock_server::{MockServerBuilder, RequestPayload, SharedMockServerState},
-};
-
-use crate::command_builder::CommandBuilder;
-use crate::utils::{
-    generate_mock_bazel_bep, generate_mock_codeowners, generate_mock_git_repo,
-    generate_mock_valid_junit_xmls,
 };
 
 // NOTE: must be multi threaded to start a mock server
