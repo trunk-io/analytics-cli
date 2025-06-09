@@ -6,9 +6,9 @@ use std::{
 
 use bazel_bep::types::build_event_stream::{
     build_event::Payload,
-    build_event_id::{Id, TestResultId},
+    build_event_id::{Id, TestResultId, TestSummaryId},
     file::File::Uri,
-    BuildEvent, BuildEventId, File, TestResult,
+    BuildEvent, BuildEventId, File, TestResult, TestStatus, TestSummary,
 };
 use chrono::{TimeDelta, Utc};
 use escargot::{CargoBuild, CargoRun};
@@ -33,50 +33,101 @@ pub fn generate_mock_git_repo<T: AsRef<Path>>(directory: T) {
     setup_repo_with_commit(directory).unwrap();
 }
 
-pub fn generate_mock_valid_junit_xmls<T: AsRef<Path> + Clone>(directory: T) -> Vec<PathBuf> {
+fn generate_mock_valid_junit_mocker() -> JunitMock {
     let mut jm_options = junit_mock::Options::default();
     jm_options.global.timestamp = Utc::now()
         .fixed_offset()
         .checked_sub_signed(TimeDelta::minutes(1));
-    let mut jm = JunitMock::new(junit_mock::Options::default());
+    JunitMock::new(junit_mock::Options::default())
+}
+
+pub fn generate_mock_valid_junit_xmls<T: AsRef<Path> + Clone>(directory: T) -> Vec<PathBuf> {
+    let mut jm = generate_mock_valid_junit_mocker();
     let tmp_dir = Some(directory.clone());
     let reports = jm.generate_reports(&tmp_dir);
     jm.write_reports_to_file(directory.as_ref(), reports)
         .unwrap()
 }
 
-pub fn generate_mock_bazel_bep<T: AsRef<Path> + std::fmt::Debug>(directory: T) {
-    let mock_junits = generate_mock_valid_junit_xmls(&directory);
+pub fn generate_mock_bazel_bep<T: AsRef<Path> + Clone>(directory: T) -> PathBuf {
+    let mut jm = generate_mock_valid_junit_mocker();
+    let tmp_dir = Some(directory.clone());
+    let reports = jm.generate_reports(&tmp_dir);
+    let mock_junits = jm
+        .write_reports_to_file(directory.as_ref(), &reports)
+        .unwrap();
 
-    let build_events: Vec<BuildEvent> = mock_junits
+    let build_events = mock_junits
         .iter()
-        .map(|junit| {
-            let mut build_event = BuildEvent::default();
-            let mut payload = TestResult::default();
-            payload.test_action_output = vec![File {
+        .zip(reports.iter())
+        .flat_map(|(junit, report)| {
+            let file = File {
                 name: junit.file_name().unwrap().to_str().unwrap().to_string(),
                 file: Some(Uri(junit.to_string_lossy().to_string())),
                 ..Default::default()
-            }];
-            build_event.payload = Some(Payload::TestResult(payload));
-            build_event.id = Some(BuildEventId {
-                id: Some(Id::TestResult(TestResultId {
-                    label: "//path:test".to_string(),
-                    ..Default::default()
-                })),
-            });
-            build_event
+            };
+            let test_start_time = report.timestamp.map(|ts| ts.to_utc().into());
+            let test_duration = report.time.map(|d| d.into());
+            [
+                BuildEvent {
+                    id: Some(BuildEventId {
+                        id: Some(Id::TestResult(TestResultId {
+                            label: "//path:test".to_string(),
+                            ..Default::default()
+                        })),
+                    }),
+                    children: vec![],
+                    last_message: false,
+                    payload: Some(Payload::TestResult(TestResult {
+                        status: TestStatus::Passed.into(),
+                        test_attempt_start: test_start_time.clone(),
+                        test_attempt_duration: test_duration.clone(),
+                        test_action_output: vec![file.clone()],
+                        ..Default::default()
+                    })),
+                },
+                BuildEvent {
+                    id: Some(BuildEventId {
+                        id: Some(Id::TestSummary(TestSummaryId {
+                            label: "//path:test".to_string(),
+                            ..Default::default()
+                        })),
+                    }),
+                    children: vec![],
+                    last_message: false,
+                    payload: Some(Payload::TestSummary(TestSummary {
+                        overall_status: TestStatus::Passed.into(),
+                        total_run_count: 1,
+                        run_count: 1,
+                        attempt_count: 1,
+                        shard_count: 1,
+                        passed: vec![file],
+                        failed: vec![],
+                        total_num_cached: 0,
+                        first_start_time: test_start_time.clone(),
+                        last_stop_time: Some(
+                            (report.timestamp.unwrap() + report.time.unwrap())
+                                .to_utc()
+                                .into(),
+                        ),
+                        total_run_duration: test_duration,
+                        ..Default::default()
+                    })),
+                },
+            ]
         })
-        .collect();
+        .collect::<Vec<_>>();
 
-    // bep JSON is a list of new-line separated JSON objects
+    // BEP is JSON streaming, delimited by newlines
     let outputs_contents = build_events
         .iter()
-        .map(|be| serde_json::to_string(be).unwrap())
-        .collect::<Vec<String>>()
+        .map(|l| serde_json::to_string(l).unwrap())
+        .collect::<Vec<_>>()
         .join("\n");
-    let mut file = fs::File::create(directory.as_ref().join("bep.json")).unwrap();
+    let file_path = directory.as_ref().join("bep.json");
+    let mut file = fs::File::create(&file_path).unwrap();
     file.write_all(outputs_contents.as_bytes()).unwrap();
+    file_path
 }
 
 pub fn generate_mock_invalid_junit_xmls<T: AsRef<Path> + Clone>(directory: T) {
