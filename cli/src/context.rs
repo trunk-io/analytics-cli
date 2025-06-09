@@ -370,7 +370,7 @@ fn coalesce_junit_path_wrappers(
             &temp_dir,
             xcresult_path,
             repo,
-            org_url_slug,
+            org_url_slug.clone(),
             use_experimental_failure_summary,
         )?;
         _junit_path_wrappers_temp_dir = Some(temp_dir);
