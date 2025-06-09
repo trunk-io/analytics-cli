@@ -83,17 +83,14 @@ fn parse_test_report(test_report_path: String) -> Vec<JunitReportFileWithStatus>
     }
 }
 
-fn flatten_glob(glob_text: &String) -> Vec<String> {
+fn flatten_glob(glob_text: &str) -> Vec<String> {
     glob::glob(glob_text)
         .into_iter()
         .flat_map(|paths| {
             paths.flat_map(|path_result| {
-                path_result.into_iter().flat_map(|path| {
-                    path.as_os_str()
-                        .to_str()
-                        .map(|ok_str| String::from(ok_str))
-                        .into_iter()
-                })
+                path_result
+                    .into_iter()
+                    .flat_map(|path| path.as_os_str().to_str().map(String::from).into_iter())
             })
         })
         .collect()
@@ -112,8 +109,8 @@ pub async fn run_validate(validate_args: ValidateArgs) -> anyhow::Result<i32> {
     let junit_file_paths: Vec<JunitReportFileWithStatus> = if !test_reports.is_empty() {
         test_reports
             .iter()
-            .flat_map(|test_report_glob| flatten_glob(test_report_glob))
-            .flat_map(|test_report_str| parse_test_report(String::from(test_report_str)))
+            .flat_map(|test_report_glob| flatten_glob(test_report_glob.as_str()))
+            .flat_map(|test_report_str| parse_test_report(test_report_str))
             .collect()
     } else {
         match bazel_bep_path {
