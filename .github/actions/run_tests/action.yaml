@@ -30,10 +30,9 @@ runs:
       shell: bash
       run: |
         set +e
-        cargo llvm-cov --no-report nextest --features=bindings --workspace ${{ contains(inputs.target, 'musl') && '--exclude context-js --exclude context-py --exclude context_ruby' || '' }} --profile=ci
+        cargo llvm-cov --all-features --no-report nextest --features=bindings --workspace ${{ contains(inputs.target, 'musl') && '--exclude context-js --exclude context-py --exclude context_ruby' || '' }} --profile=ci
         exitcode="$?"
         cargo llvm-cov --no-report --doc
-        cargo llvm-cov report --doctests --lcov --output-path lcov.info
         exit "$exitcode"
 
     - name: Upload coverage reports to Codecov
