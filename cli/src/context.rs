@@ -366,7 +366,7 @@ fn coalesce_junit_path_wrappers(
 
     let mut _junit_path_wrappers_temp_dir = None;
     #[cfg(target_os = "macos")]
-    {
+    if xcresult_path.is_some() {
         let temp_dir = tempfile::tempdir()?;
         let temp_paths = handle_xcresult(
             &temp_dir,
