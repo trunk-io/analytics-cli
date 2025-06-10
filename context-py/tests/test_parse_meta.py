@@ -2,8 +2,9 @@ def test_parse_meta_valid():
     import json
     import typing as PT
 
-    from context_py import parse_meta
+    from context_py import TestRunnerReportStatus, parse_meta
 
+    resolved_time_epoch_ms = 1749505703092
     valid_meta: PT.Dict[str, PT.Any] = {
         "version": "1",
         "bundle_upload_id": "59c8ddd9-0a00-4b56-9eea-ef0d60ebcb79",
@@ -41,7 +42,72 @@ def test_parse_meta_valid():
                     },
                 ],
                 "glob": "junit.xml",
-            }
+            },
+            {
+                "file_set_type": "Junit",
+                "files": [
+                    {
+                        "original_path": "/home/runner/work/trunk/test/file1.xml",
+                        "path": "junit/0",
+                        "last_modified_epoch_ns": 1721095230341044019,
+                        "owners": [],
+                        "team": "",
+                    },
+                    {
+                        "original_path": "/home/runner/work/trunk/test/file2.xml",
+                        "path": "junit/1",
+                        "last_modified_epoch_ns": 1721095230341044019,
+                        "owners": [],
+                        "team": "",
+                    },
+                ],
+                "glob": "junit.xml",
+                "resolved_status": None,
+            },
+            {
+                "file_set_type": "Junit",
+                "files": [
+                    {
+                        "original_path": "/home/runner/work/trunk/test/file1.xml",
+                        "path": "junit/0",
+                        "last_modified_epoch_ns": 1721095230341044019,
+                        "owners": [],
+                        "team": "",
+                    },
+                    {
+                        "original_path": "/home/runner/work/trunk/test/file2.xml",
+                        "path": "junit/1",
+                        "last_modified_epoch_ns": 1721095230341044019,
+                        "owners": [],
+                        "team": "",
+                    },
+                ],
+                "glob": "junit.xml",
+                "resolved_status": "Passed",
+            },
+            {
+                "file_set_type": "Junit",
+                "files": [
+                    {
+                        "original_path": "/home/runner/work/trunk/test/file1.xml",
+                        "path": "junit/0",
+                        "last_modified_epoch_ns": 1721095230341044019,
+                        "owners": [],
+                        "team": "",
+                    },
+                    {
+                        "original_path": "/home/runner/work/trunk/test/file2.xml",
+                        "path": "junit/1",
+                        "last_modified_epoch_ns": 1721095230341044019,
+                        "owners": [],
+                        "team": "",
+                    },
+                ],
+                "glob": "junit.xml",
+                "resolved_status": "Passed",
+                "resolved_start_time_epoch_ms": resolved_time_epoch_ms,
+                "resolved_end_time_epoch_ms": resolved_time_epoch_ms,
+            },
         ],
         "envs": {},
         "upload_time_epoch": 1721095230,
@@ -58,6 +124,46 @@ def test_parse_meta_valid():
 
     bundle_meta = versioned_bundle.get_v0_5_29()
     assert bundle_meta.base_props.bundle_upload_id == valid_meta["bundle_upload_id"]
+
+    assert len(bundle_meta.base_props.file_sets) == 4
+    assert bundle_meta.base_props.file_sets[0].test_runner_report is None
+    assert bundle_meta.base_props.file_sets[1].test_runner_report is None
+    assert bundle_meta.base_props.file_sets[2].test_runner_report is not None
+    assert (
+        bundle_meta.base_props.file_sets[2].test_runner_report.resolved_status
+        == TestRunnerReportStatus.Passed
+    )
+    assert (
+        bundle_meta.base_props.file_sets[
+            2
+        ].test_runner_report.resolved_start_time_epoch_ms.timestamp()
+        == 0
+    )
+    assert (
+        bundle_meta.base_props.file_sets[
+            2
+        ].test_runner_report.resolved_end_time_epoch_ms.timestamp()
+        == 0
+    )
+    assert bundle_meta.base_props.file_sets[3].test_runner_report is not None
+    assert (
+        bundle_meta.base_props.file_sets[3].test_runner_report.resolved_status
+        == TestRunnerReportStatus.Passed
+    )
+    assert (
+        bundle_meta.base_props.file_sets[
+            3
+        ].test_runner_report.resolved_start_time_epoch_ms.timestamp()
+        * 1000
+        == resolved_time_epoch_ms
+    )
+    assert (
+        bundle_meta.base_props.file_sets[
+            3
+        ].test_runner_report.resolved_end_time_epoch_ms.timestamp()
+        * 1000
+        == resolved_time_epoch_ms
+    )
 
 
 def test_parse_meta_invalid():
