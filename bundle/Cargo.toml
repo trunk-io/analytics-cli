@@ -6,6 +6,7 @@ edition = "2021"
 [dependencies]
 anyhow = "1.0.44"
 codeowners = { path = "../codeowners" }
+chrono = { version = "0.4.38", features = ["serde"] }
 proto = { path = "../proto" }
 constants = { path = "../constants" }
 prost = "0.12.6"
@@ -20,7 +21,7 @@ serde_json = "1.0.133"
 tracing = "0.1.41"
 tsify-next = { version = "0.5.4", optional = true }
 wasm-bindgen = { version = "0.2.95", optional = true }
-pyo3-stub-gen = { version = "0.6.0", optional = true }
+pyo3-stub-gen = { version = "0.6.1", optional = true }
 
 # For encoding
 async-compression = { version = "0.4.17", features = ["futures-io", "zstd"] }
@@ -35,10 +36,14 @@ zstd = { version = "0.13.0", default-features = false }
 pyo3 = { version = "0.22.5", optional = true, features = [
   "abi3-py39",
   "extension-module",
+  "chrono",
 ] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
-pyo3 = { version = "0.22.5", optional = true, features = ["abi3-py39"] }
+pyo3 = { version = "0.22.5", optional = true, features = [
+  "abi3-py39",
+  "chrono",
+] }
 
 [features]
 bindings = []

@@ -4,7 +4,9 @@ use std::{
 };
 
 use api::{client::ApiClient, urls::url_for_test_case};
-use bundle::{FileSet, FileSetBuilder, FileSetType, QuarantineBulkTestStatus, Test};
+use bundle::{
+    FileSet, FileSetBuilder, FileSetTestRunnerReport, FileSetType, QuarantineBulkTestStatus, Test,
+};
 use chrono::TimeDelta;
 use constants::{EXIT_FAILURE, EXIT_SUCCESS};
 use context::{
@@ -12,7 +14,7 @@ use context::{
         bindings::{
             BindingsReport, BindingsTestCase, BindingsTestCaseStatusStatus, BindingsTestSuite,
         },
-        junit_path::JunitReportStatus,
+        junit_path::TestRunnerReportStatus,
         parser::JunitParser,
     },
     repo::RepoUrlParts,
@@ -76,9 +78,12 @@ impl FailedTestsExtractor {
         let mut successes: HashMap<String, i64> = HashMap::new();
 
         for file_set in file_sets {
-            if let Some(resolved_status) = &file_set.resolved_status {
+            if let Some(FileSetTestRunnerReport {
+                resolved_status, ..
+            }) = file_set.test_runner_report
+            {
                 // TODO(TRUNK-13911): We should populate the status for all junits, regardless of the presence of a test runner status.
-                if resolved_status != &JunitReportStatus::Failed {
+                if resolved_status != TestRunnerReportStatus::Failed {
                     continue;
                 }
             }
@@ -414,7 +419,7 @@ mod tests {
                 },
             ],
             glob: String::from("**/*.xml"),
-            resolved_status: None,
+            test_runner_report: None,
         }];
 
         let retried_failures =
@@ -439,7 +444,7 @@ mod tests {
                 },
             ],
             glob: String::from("**/*.xml"),
-            resolved_status: None,
+            test_runner_report: None,
         }];
 
         let retried_failures =
@@ -464,7 +469,7 @@ mod tests {
                 },
             ],
             glob: String::from("**/*.xml"),
-            resolved_status: None,
+            test_runner_report: None,
         }];
 
         let mut multi_failures =
@@ -500,7 +505,7 @@ mod tests {
                 },
             ],
             glob: String::from("**/*.xml"),
-            resolved_status: None,
+            test_runner_report: None,
         }];
 
         let some_failures =
@@ -521,7 +526,10 @@ mod tests {
                     ..BundledFile::default()
                 }],
                 glob: String::from("1/*.xml"),
-                resolved_status: Some(JunitReportStatus::Passed),
+                test_runner_report: Some(FileSetTestRunnerReport {
+                    resolved_status: TestRunnerReportStatus::Passed,
+                    ..Default::default()
+                }),
             },
             FileSet {
                 file_set_type: FileSetType::Junit,
@@ -530,7 +538,10 @@ mod tests {
                     ..BundledFile::default()
                 }],
                 glob: String::from("2/*.xml"),
-                resolved_status: Some(JunitReportStatus::Flaky),
+                test_runner_report: Some(FileSetTestRunnerReport {
+                    resolved_status: TestRunnerReportStatus::Flaky,
+                    ..Default::default()
+                }),
             },
             FileSet {
                 file_set_type: FileSetType::Junit,
@@ -539,7 +550,10 @@ mod tests {
                     ..BundledFile::default()
                 }],
                 glob: String::from("3/*.xml"),
-                resolved_status: Some(JunitReportStatus::Failed),
+                test_runner_report: Some(FileSetTestRunnerReport {
+                    resolved_status: TestRunnerReportStatus::Failed,
+                    ..Default::default()
+                }),
             },
         ];
 

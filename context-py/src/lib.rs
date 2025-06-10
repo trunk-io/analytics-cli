@@ -2,7 +2,6 @@ use std::{collections::HashMap, io::BufReader, sync::Arc};
 
 use bundle::{
     parse_meta as parse_meta_impl, parse_meta_from_tarball as parse_meta_from_tarball_impl,
-    BindingsVersionedBundle,
 };
 use codeowners::{
     associate_codeowners_multithreaded as associate_codeowners, BindingsOwners, CodeOwners, Owners,
@@ -157,7 +156,7 @@ fn repo_validation_level_to_string(
 pub fn parse_meta_from_tarball(
     py: Python<'_>,
     reader: PyObject,
-) -> PyResult<BindingsVersionedBundle> {
+) -> PyResult<bundle::BindingsVersionedBundle> {
     let py_bytes_reader = PyBytesReader::new(reader.into_bound(py))?;
     let rt = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -165,15 +164,15 @@ pub fn parse_meta_from_tarball(
     let versioned_bundle = rt
         .block_on(parse_meta_from_tarball_impl(py_bytes_reader))
         .map_err(|err| PyTypeError::new_err(err.to_string()))?;
-    Ok(BindingsVersionedBundle(versioned_bundle))
+    Ok(bundle::BindingsVersionedBundle(versioned_bundle))
 }
 
 #[gen_stub_pyfunction]
 #[pyfunction]
-pub fn parse_meta(meta_bytes: Vec<u8>) -> PyResult<BindingsVersionedBundle> {
+pub fn parse_meta(meta_bytes: Vec<u8>) -> PyResult<bundle::BindingsVersionedBundle> {
     let versioned_bundle =
         parse_meta_impl(meta_bytes).map_err(|err| PyTypeError::new_err(err.to_string()))?;
-    Ok(BindingsVersionedBundle(versioned_bundle))
+    Ok(bundle::BindingsVersionedBundle(versioned_bundle))
 }
 
 #[gen_stub_pyfunction]
@@ -345,6 +344,8 @@ fn context_py(m: &Bound<'_, PyModule>) -> PyResult<()> {
 
     m.add_class::<junit::bindings::BindingsParseResult>()?;
     m.add_class::<junit::bindings::BindingsReport>()?;
+    m.add_class::<bundle::FileSetTestRunnerReport>()?;
+    m.add_class::<junit::junit_path::TestRunnerReportStatus>()?;
     m.add_class::<junit::bindings::BindingsTestSuite>()?;
     m.add_class::<junit::bindings::BindingsTestCase>()?;
     m.add_class::<junit::bindings::BindingsTestRerun>()?;
