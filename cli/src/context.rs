@@ -245,8 +245,13 @@ pub fn generate_internal_file(
                     }
                     let reports = junit_parser.reports();
                     if reports.len() == 1 {
-                        junit_validations
-                            .insert(file.original_path.clone(), Ok(validate(&reports[0])));
+                        junit_validations.insert(
+                            file.original_path.clone(),
+                            Ok(validate(
+                                &reports[0],
+                                file_set.test_runner_report.map(|t| t.into()),
+                            )),
+                        );
                     }
                     test_case_runs.extend(junit_parser.into_test_case_runs(codeowners));
                 }

@@ -1,6 +1,6 @@
 use std::{collections::BTreeMap, io::BufReader};
 
-use bundle::{FileSet, FileSetBuilder};
+use bundle::{FileSet, FileSetBuilder, FileSetTestRunnerReport};
 use clap::{arg, ArgAction, Args};
 use codeowners::CodeOwners;
 use colored::{ColoredString, Colorize};
@@ -9,7 +9,7 @@ use constants::{EXIT_FAILURE, EXIT_SUCCESS};
 use context::{
     bazel_bep::parser::BazelBepParser,
     junit::{
-        junit_path::JunitReportFileWithTestRunnerReport,
+        junit_path::{JunitReportFileWithTestRunnerReport, TestRunnerReport},
         parser::{JunitParseIssue, JunitParseIssueLevel, JunitParser},
         validator::{
             validate as validate_report, JunitReportValidation, JunitReportValidationFlatIssue,
@@ -81,9 +81,15 @@ pub async fn run_validate(validate_args: ValidateArgs) -> anyhow::Result<i32> {
     validate(junit_file_paths, codeowners_path).await
 }
 
-type JunitFileToReportAndParseIssues =
-    BTreeMap<String, (anyhow::Result<Option<Report>>, Vec<JunitParseIssue>)>;
-type JunitFileToReport = BTreeMap<String, Report>;
+type JunitFileToReportAndParseIssues = BTreeMap<
+    String,
+    (
+        anyhow::Result<Option<Report>>,
+        Vec<JunitParseIssue>,
+        Option<FileSetTestRunnerReport>,
+    ),
+>;
+type JunitFileToReport = BTreeMap<String, (Report, Option<FileSetTestRunnerReport>)>;
 type JunitFileToParseIssues = BTreeMap<String, (anyhow::Result<()>, Vec<JunitParseIssue>)>;
 type JunitFileToValidation = BTreeMap<String, JunitReportValidation>;
 
@@ -110,11 +116,12 @@ async fn validate(
     let num_reports = parse_results.len();
     let (parsed_reports, parse_issues) = parse_results.into_iter().fold(
         (JunitFileToReport::new(), JunitFileToParseIssues::new()),
-        |(mut parsed_reports, mut parse_issues), (file, (parse_result, issues))| {
+        |(mut parsed_reports, mut parse_issues),
+         (file, (parse_result, issues, test_runner_report))| {
             match parse_result {
                 Ok(report) => match report {
                     Some(report) => {
-                        parsed_reports.insert(file, report);
+                        parsed_reports.insert(file, (report, test_runner_report));
                     }
                     None => {
                         parse_issues.insert(file, (Ok(()), issues));
@@ -134,7 +141,12 @@ async fn validate(
     // validate
     let report_validations: JunitFileToValidation = parsed_reports
         .into_iter()
-        .map(|(file, report)| (file, validate_report(&report)))
+        .map(|(file, (report, test_runner_report))| {
+            (
+                file,
+                validate_report(&report, test_runner_report.map(TestRunnerReport::from)),
+            )
+        })
         .collect();
     // print validation results
     let (mut num_invalid_reports, mut num_suboptimal_reports) =
@@ -159,47 +171,64 @@ async fn validate(
 }
 
 fn parse_file_sets(file_sets: &[FileSet]) -> JunitFileToReportAndParseIssues {
-    file_sets.iter().flat_map(|file_set| &file_set.files).fold(
+    file_sets.iter().fold(
         JunitFileToReportAndParseIssues::new(),
-        |mut parse_results, bundled_file| -> JunitFileToReportAndParseIssues {
-            let path = std::path::Path::new(&bundled_file.original_path);
-            let file = match std::fs::File::open(path) {
-                Ok(file) => file,
-                Err(e) => {
+        |parse_results, file_set| -> JunitFileToReportAndParseIssues {
+            file_set
+                .files
+                .iter()
+                .fold(parse_results, |mut parse_results, bundled_file| {
+                    let path = std::path::Path::new(&bundled_file.original_path);
+                    let file = match std::fs::File::open(path) {
+                        Ok(file) => file,
+                        Err(e) => {
+                            parse_results.insert(
+                                bundled_file.get_print_path().to_string(),
+                                (
+                                    Err(anyhow::anyhow!(e)),
+                                    Vec::new(),
+                                    file_set.test_runner_report,
+                                ),
+                            );
+                            return parse_results;
+                        }
+                    };
+
+                    let file_buf_reader = BufReader::new(file);
+                    let mut junit_parser = JunitParser::new();
+                    if let Err(e) = junit_parser.parse(file_buf_reader) {
+                        parse_results.insert(
+                            bundled_file.get_print_path().to_string(),
+                            (
+                                Err(anyhow::anyhow!(e)),
+                                Vec::new(),
+                                file_set.test_runner_report,
+                            ),
+                        );
+                        return parse_results;
+                    }
+
+                    let parse_issues = junit_parser.issues().to_vec();
+                    let mut parsed_reports = junit_parser.into_reports();
+                    if parsed_reports.len() != 1 {
+                        parse_results.insert(
+                            bundled_file.get_print_path().to_string(),
+                            (Ok(None), parse_issues, file_set.test_runner_report),
+                        );
+                        return parse_results;
+                    }
+
                     parse_results.insert(
                         bundled_file.get_print_path().to_string(),
-                        (Err(anyhow::anyhow!(e)), Vec::new()),
+                        (
+                            Ok(Some(parsed_reports.remove(0))),
+                            Vec::new(),
+                            file_set.test_runner_report,
+                        ),
                     );
-                    return parse_results;
-                }
-            };
 
-            let file_buf_reader = BufReader::new(file);
-            let mut junit_parser = JunitParser::new();
-            if let Err(e) = junit_parser.parse(file_buf_reader) {
-                parse_results.insert(
-                    bundled_file.get_print_path().to_string(),
-                    (Err(anyhow::anyhow!(e)), Vec::new()),
-                );
-                return parse_results;
-            }
-
-            let parse_issues = junit_parser.issues().to_vec();
-            let mut parsed_reports = junit_parser.into_reports();
-            if parsed_reports.len() != 1 {
-                parse_results.insert(
-                    bundled_file.get_print_path().to_string(),
-                    (Ok(None), parse_issues),
-                );
-                return parse_results;
-            }
-
-            parse_results.insert(
-                bundled_file.get_print_path().to_string(),
-                (Ok(Some(parsed_reports.remove(0))), Vec::new()),
-            );
-
-            parse_results
+                    parse_results
+                })
         },
     )
 }
