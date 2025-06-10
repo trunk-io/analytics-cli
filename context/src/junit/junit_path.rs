@@ -10,7 +10,9 @@ use tsify_next::Tsify;
 #[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::*;
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize, Default, Hash)]
+#[derive(
+    Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize, Default, Hash, PartialOrd, Ord,
+)]
 #[cfg_attr(feature = "pyo3", gen_stub_pyclass_enum, pyclass(eq, eq_int))]
 #[cfg_attr(feature = "wasm", derive(Tsify))]
 pub enum TestRunnerReportStatus {
@@ -33,7 +35,7 @@ impl TryFrom<TestStatus> for TestRunnerReportStatus {
     }
 }
 
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd)]
 pub struct TestRunnerReport {
     pub status: TestRunnerReportStatus,
     pub start_time: DateTime<Utc>,
