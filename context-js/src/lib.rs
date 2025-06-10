@@ -1,6 +1,6 @@
 use std::{collections::HashMap, io::BufReader};
 
-use bundle::{parse_meta_from_tarball as parse_tarball, VersionedBundle};
+use bundle::{parse_meta_from_tarball as parse_tarball, FileSetTestRunnerReport, VersionedBundle};
 use context::{env, junit, repo};
 use futures::{future::Either, io::BufReader as BufReaderAsync, stream::TryStreamExt};
 use js_sys::Uint8Array;
@@ -97,9 +97,11 @@ pub fn junit_parse(xml: Vec<u8>) -> Result<junit::bindings::BindingsParseResult,
 #[wasm_bindgen]
 pub fn junit_validate(
     report: &junit::bindings::BindingsReport,
+    test_runner_report: Option<FileSetTestRunnerReport>,
 ) -> junit::bindings::BindingsJunitReportValidation {
     junit::bindings::BindingsJunitReportValidation::from(junit::validator::validate(
         &report.clone().into(),
+        test_runner_report.map(junit::junit_path::TestRunnerReport::from),
     ))
 }
 

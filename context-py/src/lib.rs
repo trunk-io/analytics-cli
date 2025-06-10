@@ -2,12 +2,15 @@ use std::{collections::HashMap, io::BufReader, sync::Arc};
 
 use bundle::{
     parse_meta as parse_meta_impl, parse_meta_from_tarball as parse_meta_from_tarball_impl,
-    BindingsVersionedBundle,
 };
 use codeowners::{
     associate_codeowners_multithreaded as associate_codeowners, BindingsOwners, CodeOwners, Owners,
 };
-use context::{env, junit, meta, repo};
+use context::{
+    env,
+    junit::{self, junit_path::TestRunnerReport},
+    meta, repo,
+};
 use prost::Message;
 use pyo3::{exceptions::PyTypeError, prelude::*};
 use pyo3_stub_gen::{define_stub_info_gatherer, derive::gen_stub_pyfunction};
@@ -106,12 +109,21 @@ fn bin_parse(bin: Vec<u8>) -> PyResult<Vec<junit::bindings::BindingsReport>> {
     Ok(vec![junit::bindings::BindingsReport::from(test_result)])
 }
 
+// NOTE: This complains about the deprecation of using `Option<T>` as an auto-variadic
+// function signature, but because we use `gen_stub_pyfunction` it always requires the second
+// argument to be passed. And if you try to implement the suggested fix of using
+// `#[pyo3(signature = (report, test_runner_report=None))]`, `gen_stub_pyfunction` does not work
+// correctly, so it's best to just leave this the way it is.
 #[gen_stub_pyfunction]
 #[pyfunction]
 fn junit_validate(
     report: junit::bindings::BindingsReport,
+    test_runner_report: Option<bundle::FileSetTestRunnerReport>,
 ) -> junit::bindings::BindingsJunitReportValidation {
-    junit::bindings::BindingsJunitReportValidation::from(junit::validator::validate(&report.into()))
+    junit::bindings::BindingsJunitReportValidation::from(junit::validator::validate(
+        &report.into(),
+        test_runner_report.map(TestRunnerReport::from),
+    ))
 }
 
 #[gen_stub_pyfunction]
@@ -133,6 +145,7 @@ fn junit_validation_type_to_string(
 ) -> String {
     match junit_validation_type {
         junit::validator::JunitValidationType::Report => "Report".to_string(),
+        junit::validator::JunitValidationType::TestRunnerReport => "TestRunnerReport".to_string(),
         junit::validator::JunitValidationType::TestSuite => "TestSuite".to_string(),
         junit::validator::JunitValidationType::TestCase => "TestCase".to_string(),
     }
@@ -157,7 +170,7 @@ fn repo_validation_level_to_string(
 pub fn parse_meta_from_tarball(
     py: Python<'_>,
     reader: PyObject,
-) -> PyResult<BindingsVersionedBundle> {
+) -> PyResult<bundle::BindingsVersionedBundle> {
     let py_bytes_reader = PyBytesReader::new(reader.into_bound(py))?;
     let rt = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -165,15 +178,15 @@ pub fn parse_meta_from_tarball(
     let versioned_bundle = rt
         .block_on(parse_meta_from_tarball_impl(py_bytes_reader))
         .map_err(|err| PyTypeError::new_err(err.to_string()))?;
-    Ok(BindingsVersionedBundle(versioned_bundle))
+    Ok(bundle::BindingsVersionedBundle(versioned_bundle))
 }
 
 #[gen_stub_pyfunction]
 #[pyfunction]
-pub fn parse_meta(meta_bytes: Vec<u8>) -> PyResult<BindingsVersionedBundle> {
+pub fn parse_meta(meta_bytes: Vec<u8>) -> PyResult<bundle::BindingsVersionedBundle> {
     let versioned_bundle =
         parse_meta_impl(meta_bytes).map_err(|err| PyTypeError::new_err(err.to_string()))?;
-    Ok(BindingsVersionedBundle(versioned_bundle))
+    Ok(bundle::BindingsVersionedBundle(versioned_bundle))
 }
 
 #[gen_stub_pyfunction]
@@ -345,6 +358,8 @@ fn context_py(m: &Bound<'_, PyModule>) -> PyResult<()> {
 
     m.add_class::<junit::bindings::BindingsParseResult>()?;
     m.add_class::<junit::bindings::BindingsReport>()?;
+    m.add_class::<bundle::FileSetTestRunnerReport>()?;
+    m.add_class::<junit::junit_path::TestRunnerReportStatus>()?;
     m.add_class::<junit::bindings::BindingsTestSuite>()?;
     m.add_class::<junit::bindings::BindingsTestCase>()?;
     m.add_class::<junit::bindings::BindingsTestRerun>()?;

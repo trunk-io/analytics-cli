@@ -2,44 +2,54 @@ use std::collections::HashMap;
 
 use anyhow::{Ok, Result};
 use bazel_bep::types::build_event_stream::{
-    build_event::Payload, build_event_id::Id, file::File::Uri, BuildEvent,
+    build_event::Payload, build_event_id::Id, file::File::Uri, BuildEvent, TestSummary,
 };
+use chrono::DateTime;
 
-use crate::junit::junit_path::{JunitReportFileWithStatus, JunitReportStatus};
+use crate::junit::junit_path::{
+    JunitReportFileWithTestRunnerReport, TestRunnerReport, TestRunnerReportStatus,
+};
 
 const FILE_URI_PREFIX: &str = "file://";
 
 #[derive(Debug, Clone, Default)]
-pub struct TestResult {
+pub struct BepTestResult {
     pub label: String,
     pub cached: bool,
     pub xml_files: Vec<String>,
-    pub summary_status: Option<JunitReportStatus>,
+    pub test_runner_report: Option<TestRunnerReport>,
 }
 
 #[derive(Debug, Clone, Default)]
 pub struct BepParseResult {
     pub bep_test_events: Vec<BuildEvent>,
     pub errors: Vec<String>,
-    pub test_results: Vec<TestResult>,
+    pub test_results: Vec<BepTestResult>,
 }
 
 impl BepParseResult {
     pub fn from_build_events<I: IntoIterator<Item = Result<BuildEvent>>>(
         events: I,
     ) -> Result<Self> {
-        let (errors, test_results, summary_statuses, bep_test_events) = events.into_iter().fold(
-            (
-                Vec::<String>::new(),
-                Vec::<TestResult>::new(),
-                HashMap::<String, JunitReportStatus>::new(),
-                Vec::<BuildEvent>::new(),
-            ),
-            |(mut errors, mut test_results, mut summary_statuses, mut bep_test_events),
-             parse_event| {
+        #[derive(Debug, Default)]
+        struct Acc {
+            errors: Vec<String>,
+            test_results: Vec<BepTestResult>,
+            test_runner_reports: HashMap<String, TestRunnerReport>,
+            bep_test_events: Vec<BuildEvent>,
+        }
+        let Acc {
+            errors,
+            test_results,
+            test_runner_reports,
+            bep_test_events,
+        } = events
+            .into_iter()
+            .fold(Acc::default(), |mut acc, parse_event| {
                 match parse_event {
                     Result::Err(ref err) => {
-                        errors.push(format!("Error parsing build event: {}", err));
+                        acc.errors
+                            .push(format!("Error parsing build event: {}", err));
                     }
                     Result::Ok(build_event) => {
                         let payload = &build_event.payload;
@@ -49,12 +59,13 @@ impl BepParseResult {
                                 Some(Payload::TestSummary(test_summary)),
                                 Some(Id::TestSummary(id)),
                             ) => {
-                                if let Result::Ok(status) =
-                                    JunitReportStatus::try_from(test_summary.overall_status())
+                                if let Result::Ok(test_runner_report) =
+                                    TestRunnerReport::try_from(test_summary)
                                 {
-                                    summary_statuses.insert(id.label.clone(), status);
+                                    acc.test_runner_reports
+                                        .insert(id.label.clone(), test_runner_report);
                                 }
-                                bep_test_events.push(build_event);
+                                acc.bep_test_events.push(build_event);
                             }
                             (Some(Payload::TestResult(test_result)), Some(Id::TestResult(id))) => {
                                 let xml_files = test_result
@@ -86,30 +97,29 @@ impl BepParseResult {
                                         test_result.cached_locally
                                     };
 
-                                test_results.push(TestResult {
+                                acc.test_results.push(BepTestResult {
                                     label: id.label.clone(),
                                     cached,
                                     xml_files,
-                                    summary_status: None,
+                                    test_runner_report: None,
                                 });
-                                bep_test_events.push(build_event);
+                                acc.bep_test_events.push(build_event);
                             }
                             _ => {}
                         }
                     }
                 }
 
-                (errors, test_results, summary_statuses, bep_test_events)
-            },
-        );
+                acc
+            });
 
         Ok(BepParseResult {
             bep_test_events,
             errors,
             test_results: test_results
                 .into_iter()
-                .map(|test_result| TestResult {
-                    summary_status: summary_statuses.get(&test_result.label).cloned(),
+                .map(|test_result| BepTestResult {
+                    test_runner_report: test_runner_reports.get(&test_result.label).cloned(),
                     ..test_result
                 })
                 .collect(),
@@ -130,7 +140,7 @@ impl BepParseResult {
         (xml_count, cached_xml_count)
     }
 
-    pub fn uncached_xml_files(&self) -> Vec<JunitReportFileWithStatus> {
+    pub fn uncached_xml_files(&self) -> Vec<JunitReportFileWithTestRunnerReport> {
         self.test_results
             .iter()
             .filter_map(|r| {
@@ -140,14 +150,40 @@ impl BepParseResult {
                 Some(
                     r.xml_files
                         .iter()
-                        .map(|f| JunitReportFileWithStatus {
+                        .map(|f| JunitReportFileWithTestRunnerReport {
                             junit_path: f.clone(),
-                            status: r.summary_status.clone(),
+                            test_runner_report: r.test_runner_report,
                         })
-                        .collect::<Vec<JunitReportFileWithStatus>>(),
+                        .collect::<Vec<_>>(),
                 )
             })
             .flatten()
             .collect()
+    }
+}
+
+impl TryFrom<&TestSummary> for TestRunnerReport {
+    type Error = anyhow::Error;
+
+    fn try_from(test_summary: &TestSummary) -> Result<Self> {
+        Ok(Self {
+            status: TestRunnerReportStatus::try_from(test_summary.overall_status())?,
+            start_time: test_summary
+                .first_start_time
+                .clone()
+                .ok_or(anyhow::anyhow!("No start time"))
+                .and_then(|ts| {
+                    DateTime::try_from(ts)
+                        .map_err(|e| anyhow::anyhow!("Failed to convert start time: {}", e))
+                })?,
+            end_time: test_summary
+                .last_stop_time
+                .clone()
+                .ok_or(anyhow::anyhow!("No end time"))
+                .and_then(|ts| {
+                    DateTime::try_from(ts)
+                        .map_err(|e| anyhow::anyhow!("Failed to convert end time: {}", e))
+                })?,
+        })
     }
 }

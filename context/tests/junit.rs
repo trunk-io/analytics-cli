@@ -1,14 +1,17 @@
 use std::{fs, io::BufReader, time::Duration};
 
-use chrono::{NaiveTime, TimeDelta, Utc};
+use chrono::{Days, NaiveTime, TimeDelta, Utc};
 use context::junit::{
     self,
+    junit_path::{TestRunnerReport, TestRunnerReportStatus},
     parser::JunitParser,
     validator::{
+        JunitReportValidationIssue, JunitReportValidationIssueSubOptimal,
         JunitTestCaseValidationIssue, JunitTestCaseValidationIssueInvalid,
         JunitTestCaseValidationIssueSubOptimal, JunitTestSuiteValidationIssue,
         JunitTestSuiteValidationIssueInvalid, JunitTestSuiteValidationIssueSubOptimal,
-        JunitValidationIssue, JunitValidationLevel,
+        JunitValidationIssue, JunitValidationIssueType, JunitValidationLevel,
+        TestRunnerReportValidationIssue, TestRunnerReportValidationIssueSubOptimal,
     },
 };
 use junit_mock::JunitMock;
@@ -87,7 +90,7 @@ fn validate_test_suite_name_too_short() {
         test_suite.name = String::new().into();
     }
 
-    let report_validation = junit::validator::validate(&generated_report);
+    let report_validation = junit::validator::validate(&generated_report, None);
 
     assert_eq!(
         report_validation.max_level(),
@@ -123,7 +126,7 @@ fn validate_test_case_name_too_short() {
         }
     }
 
-    let report_validation = junit::validator::validate(&generated_report);
+    let report_validation = junit::validator::validate(&generated_report, None);
 
     assert_eq!(
         report_validation.max_level(),
@@ -156,7 +159,7 @@ fn validate_test_suite_name_too_long() {
         test_suite.name = "a".repeat(junit::validator::MAX_FIELD_LEN + 1).into();
     }
 
-    let report_validation = junit::validator::validate(&generated_report);
+    let report_validation = junit::validator::validate(&generated_report, None);
 
     assert_eq!(
         report_validation.max_level(),
@@ -192,7 +195,7 @@ fn validate_test_case_name_too_long() {
         }
     }
 
-    let report_validation = junit::validator::validate(&generated_report);
+    let report_validation = junit::validator::validate(&generated_report, None);
 
     assert_eq!(
         report_validation.max_level(),
@@ -230,7 +233,7 @@ fn validate_max_level() {
         }
     }
 
-    let report_validation = junit::validator::validate(&generated_report);
+    let report_validation = junit::validator::validate(&generated_report, None);
 
     assert_eq!(
         report_validation.max_level(),
@@ -267,6 +270,286 @@ fn validate_max_level() {
         "failed to validate with seed `{}`",
         seed,
     );
+}
+
+#[test]
+fn validate_timestamps() {
+    let (seed, mut generated_reports) = generate_mock_junit_reports(1, Some(1), Some(4));
+    let mut generated_report = generated_reports.pop().unwrap();
+    let generated_report_timestamp = generated_report.timestamp.unwrap();
+
+    for test_suite in &mut generated_report.test_suites {
+        for (index, test_case) in &mut test_suite.test_cases.iter_mut().enumerate() {
+            match index {
+                0 => {
+                    // future timestamp
+                    test_case.timestamp = Utc::now()
+                        .fixed_offset()
+                        .checked_add_signed(TimeDelta::hours(1));
+                }
+                1 => {
+                    // stale timestamp
+                    test_case.timestamp =
+                        generated_report_timestamp.checked_sub_signed(TimeDelta::hours(1))
+                }
+                2 => {
+                    // old timestamp
+                    test_case.timestamp =
+                        generated_report_timestamp.checked_sub_signed(TimeDelta::hours(24))
+                }
+                _ => {
+                    // valid timestamp
+                }
+            };
+        }
+    }
+
+    let report_validation = junit::validator::validate(&generated_report, None);
+
+    assert_eq!(
+        report_validation.max_level(),
+        JunitValidationLevel::SubOptimal,
+        "failed to validate with seed `{}`",
+        seed,
+    );
+
+    pretty_assertions::assert_eq!(
+        report_validation.all_issues(),
+        vec![
+            JunitValidationIssueType::Report(JunitReportValidationIssue::SubOptimal(
+                JunitReportValidationIssueSubOptimal::OldTimestamps,
+            )),
+            JunitValidationIssueType::Report(JunitReportValidationIssue::SubOptimal(
+                JunitReportValidationIssueSubOptimal::StaleTimestamps,
+            )),
+            JunitValidationIssueType::Report(JunitReportValidationIssue::SubOptimal(
+                JunitReportValidationIssueSubOptimal::FutureTimestamps,
+            )),
+        ],
+        "failed to validate with seed `{}`",
+        seed,
+    );
+}
+
+#[test]
+fn validate_test_runner_report_overrides_timestamp() {
+    let mut options = new_mock_junit_options(1, Some(1), Some(1), true);
+    let old_timestamp = Utc::now().checked_sub_days(Days::new(1)).unwrap();
+    options.global.timestamp = Some(old_timestamp.fixed_offset());
+    let mut jm = JunitMock::new(options);
+    let seed = jm.get_seed();
+    let mut generated_reports = jm.generate_reports();
+
+    let generated_report = generated_reports.pop().unwrap();
+
+    {
+        let start_time = Utc::now().checked_add_signed(TimeDelta::hours(1)).unwrap();
+        let override_report = TestRunnerReport {
+            status: TestRunnerReportStatus::Passed,
+            start_time,
+            end_time: start_time
+                .checked_add_signed(TimeDelta::minutes(1))
+                .unwrap(),
+        };
+        let override_report_validation =
+            junit::validator::validate(&generated_report, Some(override_report));
+        pretty_assertions::assert_eq!(
+            override_report_validation.all_issues(),
+            &[
+                JunitValidationIssueType::Report(JunitReportValidationIssue::SubOptimal(
+                    JunitReportValidationIssueSubOptimal::FutureTimestamps
+                )),
+                JunitValidationIssueType::TestRunnerReport(
+                    TestRunnerReportValidationIssue::SubOptimal(
+                        TestRunnerReportValidationIssueSubOptimal::EndTimeFutureTimestamp(
+                            override_report.end_time.fixed_offset()
+                        )
+                    )
+                ),
+                JunitValidationIssueType::TestRunnerReport(
+                    TestRunnerReportValidationIssue::SubOptimal(
+                        TestRunnerReportValidationIssueSubOptimal::StartTimeFutureTimestamp(
+                            override_report.start_time.fixed_offset()
+                        )
+                    )
+                ),
+            ],
+            "failed to validate with seed `{}`",
+            seed,
+        );
+    }
+
+    {
+        let start_time = Utc::now().checked_sub_days(Days::new(2)).unwrap();
+        let override_report = TestRunnerReport {
+            status: TestRunnerReportStatus::Passed,
+            start_time,
+            end_time: start_time
+                .checked_add_signed(TimeDelta::minutes(1))
+                .unwrap(),
+        };
+        let override_report_validation =
+            junit::validator::validate(&generated_report, Some(override_report));
+        pretty_assertions::assert_eq!(
+            override_report_validation.all_issues(),
+            &[
+                JunitValidationIssueType::Report(JunitReportValidationIssue::SubOptimal(
+                    JunitReportValidationIssueSubOptimal::OldTimestamps
+                )),
+                JunitValidationIssueType::TestRunnerReport(
+                    TestRunnerReportValidationIssue::SubOptimal(
+                        TestRunnerReportValidationIssueSubOptimal::EndTimeOldTimestamp(
+                            override_report.end_time.fixed_offset()
+                        )
+                    )
+                ),
+                JunitValidationIssueType::TestRunnerReport(
+                    TestRunnerReportValidationIssue::SubOptimal(
+                        TestRunnerReportValidationIssueSubOptimal::StartTimeOldTimestamp(
+                            override_report.start_time.fixed_offset()
+                        )
+                    )
+                ),
+            ],
+            "failed to validate with seed `{}`",
+            seed,
+        );
+    }
+
+    {
+        let start_time = Utc::now().checked_sub_signed(TimeDelta::hours(3)).unwrap();
+        let override_report = TestRunnerReport {
+            status: TestRunnerReportStatus::Passed,
+            start_time,
+            end_time: start_time
+                .checked_add_signed(TimeDelta::minutes(1))
+                .unwrap(),
+        };
+        let override_report_validation =
+            junit::validator::validate(&generated_report, Some(override_report));
+        pretty_assertions::assert_eq!(
+            override_report_validation.all_issues(),
+            &[
+                JunitValidationIssueType::Report(JunitReportValidationIssue::SubOptimal(
+                    JunitReportValidationIssueSubOptimal::StaleTimestamps
+                )),
+                JunitValidationIssueType::TestRunnerReport(
+                    TestRunnerReportValidationIssue::SubOptimal(
+                        TestRunnerReportValidationIssueSubOptimal::EndTimeStaleTimestamp(
+                            override_report.end_time.fixed_offset()
+                        )
+                    )
+                ),
+                JunitValidationIssueType::TestRunnerReport(
+                    TestRunnerReportValidationIssue::SubOptimal(
+                        TestRunnerReportValidationIssueSubOptimal::StartTimeStaleTimestamp(
+                            override_report.start_time.fixed_offset()
+                        )
+                    )
+                ),
+            ],
+            "failed to validate with seed `{}`",
+            seed,
+        );
+    }
+
+    {
+        let start_time = Utc::now()
+            .checked_sub_signed(TimeDelta::minutes(3))
+            .unwrap();
+        let override_report = TestRunnerReport {
+            status: TestRunnerReportStatus::Passed,
+            start_time,
+            end_time: start_time
+                .checked_sub_signed(TimeDelta::minutes(1))
+                .unwrap(),
+        };
+        let override_report_validation =
+            junit::validator::validate(&generated_report, Some(override_report));
+        pretty_assertions::assert_eq!(
+            override_report_validation.test_runner_report.issues(),
+            &[TestRunnerReportValidationIssue::SubOptimal(
+                TestRunnerReportValidationIssueSubOptimal::EndTimeBeforeStartTime(override_report)
+            ),],
+            "failed to validate with seed `{}`",
+            seed,
+        );
+    }
+
+    {
+        let start_time = Utc::now()
+            .checked_sub_signed(TimeDelta::minutes(3))
+            .unwrap();
+        let override_report = TestRunnerReport {
+            status: TestRunnerReportStatus::Passed,
+            start_time,
+            end_time: start_time
+                .checked_add_signed(TimeDelta::minutes(1))
+                .unwrap(),
+        };
+        let override_report_validation =
+            junit::validator::validate(&generated_report, Some(override_report));
+        pretty_assertions::assert_eq!(
+            override_report_validation.all_issues(),
+            &[],
+            "failed to validate with seed `{}`",
+            seed,
+        );
+    }
+
+    {
+        let report_validation = junit::validator::validate(&generated_report, None);
+        pretty_assertions::assert_eq!(
+            report_validation.all_issues(),
+            &[JunitValidationIssueType::Report(
+                JunitReportValidationIssue::SubOptimal(
+                    JunitReportValidationIssueSubOptimal::StaleTimestamps
+                )
+            ),],
+            "failed to validate with seed `{}`",
+            seed,
+        );
+    }
+
+    {
+        let start_time = Utc::now()
+            .checked_sub_signed(TimeDelta::minutes(5))
+            .unwrap();
+        let end_time = start_time
+            .checked_add_signed(TimeDelta::minutes(1))
+            .unwrap();
+        let override_report = TestRunnerReport {
+            status: TestRunnerReportStatus::Passed,
+            start_time,
+            end_time,
+        };
+        let test_case_timestamp = end_time
+            .checked_add_signed(TimeDelta::minutes(1))
+            .unwrap()
+            .fixed_offset();
+        let mut generated_report = generated_report.clone();
+        generated_report
+            .test_suites
+            .iter_mut()
+            .for_each(|test_suite| {
+                test_suite.test_cases.iter_mut().for_each(|test_case| {
+                    test_case.timestamp = Some(test_case_timestamp);
+                });
+            });
+        let override_report_validation =
+            junit::validator::validate(&generated_report, Some(override_report));
+        pretty_assertions::assert_eq!(
+            override_report_validation.all_issues(),
+            &[
+                JunitValidationIssueType::Report(JunitReportValidationIssue::SubOptimal(JunitReportValidationIssueSubOptimal::FutureTimestamps)),
+                JunitValidationIssueType::TestCase(JunitTestCaseValidationIssue::SubOptimal(JunitTestCaseValidationIssueSubOptimal::TestCaseTimestampIsAfterTestReportEndTime(test_case_timestamp + (
+                    start_time.signed_duration_since(generated_report.timestamp.unwrap().fixed_offset())
+                )))),
+            ],
+            "failed to validate with seed `{}`",
+            seed,
+        );
+    }
 }
 
 #[test]
@@ -305,7 +588,7 @@ fn parse_round_trip_and_validate_fuzzed() {
     for (index, generated_report) in generated_reports.iter().enumerate() {
         let serialized_generated_report = serialize_report(generated_report);
         let first_parsed_report = parse_report(&serialized_generated_report);
-        let report_validation = junit::validator::validate(&first_parsed_report);
+        let report_validation = junit::validator::validate(&first_parsed_report, None);
 
         assert_eq!(
             report_validation.max_level(),

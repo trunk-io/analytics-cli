@@ -15,7 +15,7 @@ pub const MAX_EMAIL_LEN: usize = 254;
 pub const MAX_FIELD_LEN: usize = 1000;
 pub const MAX_SHA_FIELD_LEN: usize = 40;
 
-const TIMESTAMP_OLD_DAYS: u32 = 30;
+const TIMESTAMP_OLD_HOURS: u32 = 24;
 const TIMESTAMP_STALE_HOURS: u32 = 1;
 
 #[cfg_attr(feature = "pyo3", gen_stub_pyclass_enum, pyclass(eq, eq_int))]
@@ -84,7 +84,10 @@ pub enum RepoValidationIssueSubOptimal {
     RepoCommitMessageTooLong(String),
     #[error("repo head commit has future timestamp")]
     RepoCommitFutureTimestamp(DateTime<Utc>),
-    #[error("repo head commit has old (> {} day(s)) timestamp", TIMESTAMP_OLD_DAYS)]
+    #[error(
+        "repo head commit has old (> {} hour(s)) timestamp",
+        TIMESTAMP_OLD_HOURS
+    )]
     RepoCommitOldTimestamp(DateTime<Utc>),
     #[error(
         "repo head commit has stale (> {} hour(s)) timestamp",
@@ -191,7 +194,7 @@ pub fn validate(bundle_repo: &BundleRepo) -> RepoValidation {
             repo_validation.add_issue(RepoValidationIssue::SubOptimal(
                 RepoValidationIssueSubOptimal::RepoCommitFutureTimestamp(timestamp),
             ));
-        } else if time_since_timestamp.num_days() > i64::from(TIMESTAMP_OLD_DAYS) {
+        } else if time_since_timestamp.num_hours() > i64::from(TIMESTAMP_OLD_HOURS) {
             repo_validation.add_issue(RepoValidationIssue::SubOptimal(
                 RepoValidationIssueSubOptimal::RepoCommitOldTimestamp(timestamp),
             ));

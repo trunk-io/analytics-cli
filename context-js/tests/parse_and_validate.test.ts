@@ -1,3 +1,5 @@
+/* eslint-disable vitest/max-expects */
+
 import dayjs from "dayjs";
 import fs from "fs";
 import path from "path";
@@ -111,6 +113,14 @@ describe("context-js", () => {
         .filter((issue) => issue.error_type === JunitValidationType.Report),
     ).toHaveLength(1);
 
+    junitReportValidation = junit_validate(parse_result.report, {
+      resolved_status: "Passed",
+      resolved_start_time_epoch_ms: dayjs.utc().subtract(5, "minute").valueOf(),
+      resolved_end_time_epoch_ms: dayjs.utc().subtract(2, "minute").valueOf(),
+    });
+
+    expect(junitReportValidation.max_level()).toBe(JunitValidationLevel.Valid);
+
     const nestedJunitXml = `<?xml version="1.0" encoding="UTF-8"?>
       <testsuites>
           <testsuite name="/home/runner/work/flake-farm/flake-farm/php/phpunit/phpunit.xml" tests="2" assertions="2" errors="0" failures="0" skipped="0" timestamp="${validTimestamp}" time="0.001161">
@@ -209,18 +219,27 @@ describe("context-js", () => {
 
     const file_path = path.resolve(__dirname, "../tests/test_internal.bin");
     const file = fs.readFileSync(file_path);
-    const results = bin_parse(file);
+    const bindingsReports = bin_parse(file);
 
-    expect(results).toHaveLength(1);
+    expect(bindingsReports).toHaveLength(1);
 
-    const result = results.at(0);
+    const result = bindingsReports.at(0);
 
     expect(result?.tests).toBe(13);
     expect(result?.test_suites).toHaveLength(2);
 
-    const test_suite = result.test_suites.at(0);
+    const contextRubySuite = result?.test_suites.find(
+      ({ name }) => name === "context_ruby",
+    );
 
-    expect(test_suite?.name).toBe("RSpec Expectations");
-    expect(test_suite?.test_cases).toHaveLength(8);
+    expect(contextRubySuite).toBeDefined();
+    expect(contextRubySuite?.test_cases).toHaveLength(5);
+
+    const rspecExpectationsSuite = result?.test_suites.find(
+      ({ name }) => name === "RSpec Expectations",
+    );
+
+    expect(rspecExpectationsSuite).toBeDefined();
+    expect(rspecExpectationsSuite?.test_cases).toHaveLength(8);
   });
 });

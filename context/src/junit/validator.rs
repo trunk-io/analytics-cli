@@ -1,6 +1,6 @@
-use std::{cmp::Ordering, collections::HashSet};
+use std::{cmp::Ordering, collections::HashSet, fmt};
 
-use chrono::{DateTime, FixedOffset, Utc};
+use chrono::{DateTime, FixedOffset, TimeDelta, Utc};
 #[cfg(feature = "pyo3")]
 use pyo3::prelude::*;
 #[cfg(feature = "pyo3")]
@@ -11,11 +11,14 @@ use thiserror::Error;
 use wasm_bindgen::prelude::*;
 
 use super::parser::extra_attrs;
-use crate::string_safety::{validate_field_len, FieldLen};
+use crate::{
+    junit::junit_path::TestRunnerReport,
+    string_safety::{validate_field_len, FieldLen},
+};
 
 pub const MAX_FIELD_LEN: usize = 1_000;
 
-const TIMESTAMP_OLD_DAYS: u32 = 30;
+const TIMESTAMP_OLD_HOURS: u32 = 24;
 const TIMESTAMP_STALE_HOURS: u32 = 1;
 
 #[cfg_attr(feature = "pyo3", gen_stub_pyclass_enum, pyclass(eq, eq_int))]
@@ -39,6 +42,15 @@ pub enum JunitValidationIssue<SO, I> {
     Invalid(I),
 }
 
+impl<SO: fmt::Display, I: fmt::Display> fmt::Display for JunitValidationIssue<SO, I> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::SubOptimal(i) => write!(f, "{i}"),
+            Self::Invalid(i) => write!(f, "{i}"),
+        }
+    }
+}
+
 impl<SO, I> From<&JunitValidationIssue<SO, I>> for JunitValidationLevel {
     fn from(value: &JunitValidationIssue<SO, I>) -> Self {
         match value {
@@ -53,8 +65,9 @@ impl<SO, I> From<&JunitValidationIssue<SO, I>> for JunitValidationLevel {
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum JunitValidationType {
     Report = 0,
-    TestSuite = 1,
-    TestCase = 2,
+    TestRunnerReport = 1,
+    TestSuite = 2,
+    TestCase = 3,
 }
 
 impl Default for JunitValidationType {
@@ -63,8 +76,20 @@ impl Default for JunitValidationType {
     }
 }
 
-pub fn validate(report: &Report) -> JunitReportValidation {
+pub fn validate(
+    report: &Report,
+    test_runner_report: Option<TestRunnerReport>,
+) -> JunitReportValidation {
     let mut report_validation = JunitReportValidation::default();
+
+    let now = Utc::now().fixed_offset();
+    validate_test_runner_report(test_runner_report, now)
+        .into_iter()
+        .for_each(|i| {
+            report_validation
+                .test_runner_report
+                .add_issue(TestRunnerReportValidationIssue::SubOptimal(i))
+        });
 
     for test_suite in report.test_suites.iter() {
         let mut test_suite_validation = JunitTestSuiteValidation::default();
@@ -149,32 +174,15 @@ pub fn validate(report: &Report) -> JunitReportValidation {
                 ));
             }
 
-            if let Some(timestamp) = test_case
-                .timestamp
-                .or(test_suite.timestamp)
-                .or(report.timestamp)
-            {
-                let now = Utc::now().fixed_offset();
-                let time_since_timestamp = now - timestamp;
-
-                if timestamp > now {
-                    test_case_validation.add_issue(JunitValidationIssue::SubOptimal(
-                        JunitTestCaseValidationIssueSubOptimal::TestCaseFutureTimestamp(timestamp),
-                    ));
-                } else if time_since_timestamp.num_days() > i64::from(TIMESTAMP_OLD_DAYS) {
-                    test_case_validation.add_issue(JunitValidationIssue::SubOptimal(
-                        JunitTestCaseValidationIssueSubOptimal::TestCaseOldTimestamp(timestamp),
-                    ));
-                } else if time_since_timestamp.num_hours() > i64::from(TIMESTAMP_STALE_HOURS) {
-                    test_case_validation.add_issue(JunitValidationIssue::SubOptimal(
-                        JunitTestCaseValidationIssueSubOptimal::TestCaseStaleTimestamp(timestamp),
-                    ));
-                }
-            } else {
-                test_case_validation.add_issue(JunitValidationIssue::SubOptimal(
-                    JunitTestCaseValidationIssueSubOptimal::TestCaseNoTimestamp,
-                ));
-            }
+            validate_test_case_timestamp(
+                test_case.timestamp,
+                test_suite.timestamp,
+                report.timestamp,
+                test_runner_report,
+                now,
+            )
+            .into_iter()
+            .for_each(|i| test_case_validation.add_issue(JunitValidationIssue::SubOptimal(i)));
 
             if test_case_validation.level != JunitValidationLevel::Invalid {
                 valid_test_cases.push(test_case.clone());
@@ -201,6 +209,7 @@ pub fn validate(report: &Report) -> JunitReportValidation {
 pub struct JunitReportValidation {
     pub all_issues: Vec<JunitValidationIssueType>,
     pub level: JunitValidationLevel,
+    pub test_runner_report: TestRunnerReportValidation,
     pub test_suites: Vec<JunitTestSuiteValidation>,
     pub valid_test_suites: Vec<TestSuite>,
 }
@@ -208,16 +217,18 @@ pub struct JunitReportValidation {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum JunitValidationIssueType {
     Report(JunitReportValidationIssue),
+    TestRunnerReport(TestRunnerReportValidationIssue),
     TestSuite(JunitTestSuiteValidationIssue),
     TestCase(JunitTestCaseValidationIssue),
 }
 
-impl ToString for JunitValidationIssueType {
-    fn to_string(&self) -> String {
+impl fmt::Display for JunitValidationIssueType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            JunitValidationIssueType::Report(i) => i.to_string(),
-            JunitValidationIssueType::TestSuite(i) => i.to_string(),
-            JunitValidationIssueType::TestCase(i) => i.to_string(),
+            JunitValidationIssueType::Report(i) => write!(f, "{i}"),
+            JunitValidationIssueType::TestRunnerReport(i) => write!(f, "{i}"),
+            JunitValidationIssueType::TestSuite(i) => write!(f, "{i}"),
+            JunitValidationIssueType::TestCase(i) => write!(f, "{i}"),
         }
     }
 }
@@ -226,6 +237,7 @@ impl From<&JunitValidationIssueType> for JunitValidationType {
     fn from(value: &JunitValidationIssueType) -> Self {
         match value {
             JunitValidationIssueType::Report(..) => JunitValidationType::Report,
+            JunitValidationIssueType::TestRunnerReport(..) => JunitValidationType::TestRunnerReport,
             JunitValidationIssueType::TestSuite(..) => JunitValidationType::TestSuite,
             JunitValidationIssueType::TestCase(..) => JunitValidationType::TestCase,
         }
@@ -236,6 +248,7 @@ impl From<&JunitValidationIssueType> for JunitValidationLevel {
     fn from(value: &JunitValidationIssueType) -> Self {
         match value {
             JunitValidationIssueType::Report(i) => JunitValidationLevel::from(i),
+            JunitValidationIssueType::TestRunnerReport(i) => JunitValidationLevel::from(i),
             JunitValidationIssueType::TestSuite(i) => JunitValidationLevel::from(i),
             JunitValidationIssueType::TestCase(i) => JunitValidationLevel::from(i),
         }
@@ -310,6 +323,10 @@ impl JunitReportValidation {
     fn derive_all_issues(&mut self) {
         let mut report_level_issues: HashSet<JunitReportValidationIssue> = HashSet::new();
         let mut other_issues: Vec<JunitValidationIssueType> = Vec::new();
+
+        for issue in &self.test_runner_report.issues {
+            other_issues.push(JunitValidationIssueType::TestRunnerReport(issue.clone()));
+        }
 
         for test_suite in &self.test_suites {
             for issue in &test_suite.issues {
@@ -389,14 +406,43 @@ impl JunitReportValidation {
 pub type JunitReportValidationIssue =
     JunitValidationIssue<JunitReportValidationIssueSubOptimal, JunitReportValidationIssueInvalid>;
 
-impl ToString for JunitReportValidationIssue {
-    fn to_string(&self) -> String {
-        match self {
-            Self::SubOptimal(i) => i.to_string(),
-            Self::Invalid(i) => i.to_string(),
-        }
-    }
+#[derive(Error, Debug, Clone, PartialEq, Eq, Hash)]
+pub enum TestRunnerReportValidationIssueSubOptimal {
+    #[error("test runner report start time has future timestamp")]
+    StartTimeFutureTimestamp(DateTime<FixedOffset>),
+    #[error(
+        "test runner report start time has old (> {} hour(s)) timestamp",
+        TIMESTAMP_OLD_HOURS
+    )]
+    StartTimeOldTimestamp(DateTime<FixedOffset>),
+    #[error(
+        "test runner report start time has stale (> {} hour(s)) timestamp",
+        TIMESTAMP_STALE_HOURS
+    )]
+    StartTimeStaleTimestamp(DateTime<FixedOffset>),
+    #[error("test runner report end time has future timestamp")]
+    EndTimeFutureTimestamp(DateTime<FixedOffset>),
+    #[error(
+        "test runner report end time has old (> {} hour(s)) timestamp",
+        TIMESTAMP_OLD_HOURS
+    )]
+    EndTimeOldTimestamp(DateTime<FixedOffset>),
+    #[error(
+        "test runner report end time has stale (> {} hour(s)) timestamp",
+        TIMESTAMP_STALE_HOURS
+    )]
+    EndTimeStaleTimestamp(DateTime<FixedOffset>),
+    #[error("test runner report end time is before start time")]
+    EndTimeBeforeStartTime(TestRunnerReport),
 }
+
+#[derive(Error, Debug, Clone, PartialEq, Eq, Hash)]
+pub enum TestRunnerReportValidationIssueInvalid {}
+
+pub type TestRunnerReportValidationIssue = JunitValidationIssue<
+    TestRunnerReportValidationIssueSubOptimal,
+    TestRunnerReportValidationIssueInvalid,
+>;
 
 #[derive(Error, Debug, Clone, PartialEq, Eq, Hash)]
 pub enum JunitReportValidationIssueSubOptimal {
@@ -406,7 +452,7 @@ pub enum JunitReportValidationIssueSubOptimal {
     MissingTimestamps,
     #[error("report has test cases with future timestamp")]
     FutureTimestamps,
-    #[error("report has old (> {} day(s)) timestamps", TIMESTAMP_OLD_DAYS)]
+    #[error("report has old (> {} hour(s)) timestamps", TIMESTAMP_OLD_HOURS)]
     OldTimestamps,
     #[error("report has stale (> {} hour(s)) timestamps", TIMESTAMP_STALE_HOURS)]
     StaleTimestamps,
@@ -420,12 +466,22 @@ pub type JunitTestSuiteValidationIssue = JunitValidationIssue<
     JunitTestSuiteValidationIssueInvalid,
 >;
 
-impl ToString for JunitTestSuiteValidationIssue {
-    fn to_string(&self) -> String {
-        match self {
-            Self::SubOptimal(i) => i.to_string(),
-            Self::Invalid(i) => i.to_string(),
-        }
+#[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass(eq))]
+#[cfg_attr(feature = "wasm", wasm_bindgen)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct TestRunnerReportValidation {
+    level: JunitValidationLevel,
+    issues: Vec<TestRunnerReportValidationIssue>,
+}
+
+impl TestRunnerReportValidation {
+    pub fn issues(&self) -> &[TestRunnerReportValidationIssue] {
+        &self.issues
+    }
+
+    pub fn add_issue(&mut self, issue: TestRunnerReportValidationIssue) {
+        self.level = self.level.max(JunitValidationLevel::from(&issue));
+        self.issues.push(issue);
     }
 }
 
@@ -508,15 +564,6 @@ pub type JunitTestCaseValidationIssue = JunitValidationIssue<
     JunitTestCaseValidationIssueInvalid,
 >;
 
-impl ToString for JunitTestCaseValidationIssue {
-    fn to_string(&self) -> String {
-        match self {
-            Self::SubOptimal(i) => i.to_string(),
-            Self::Invalid(i) => i.to_string(),
-        }
-    }
-}
-
 #[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass(eq))]
 #[cfg_attr(feature = "wasm", wasm_bindgen)]
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -574,8 +621,8 @@ pub enum JunitTestCaseValidationIssueSubOptimal {
     #[error("test case or parent has future timestamp")]
     TestCaseFutureTimestamp(DateTime<FixedOffset>),
     #[error(
-        "test case or parent has old (> {} day(s)) timestamp",
-        TIMESTAMP_OLD_DAYS
+        "test case or parent has old (> {} hour(s)) timestamp",
+        TIMESTAMP_OLD_HOURS
     )]
     TestCaseOldTimestamp(DateTime<FixedOffset>),
     #[error(
@@ -583,10 +630,157 @@ pub enum JunitTestCaseValidationIssueSubOptimal {
         TIMESTAMP_STALE_HOURS
     )]
     TestCaseStaleTimestamp(DateTime<FixedOffset>),
+    #[error("test case timestamp is after test runner report end time")]
+    TestCaseTimestampIsAfterTestReportEndTime(DateTime<FixedOffset>),
 }
 
 #[derive(Error, Debug, Clone, PartialEq, Eq)]
 pub enum JunitTestCaseValidationIssueInvalid {
     #[error("test case name too short")]
     TestCaseNameTooShort(String),
+}
+
+fn validate_test_runner_report(
+    test_runner_report: Option<TestRunnerReport>,
+    now: DateTime<FixedOffset>,
+) -> Vec<TestRunnerReportValidationIssueSubOptimal> {
+    let mut issues: Vec<TestRunnerReportValidationIssueSubOptimal> = Vec::new();
+
+    if let Some(test_runner_report) = test_runner_report {
+        let TestRunnerReport {
+            start_time,
+            end_time,
+            ..
+        } = test_runner_report;
+        if let TimestampValidation::Future(_) = validate_timestamp(start_time, end_time) {
+            issues.push(
+                TestRunnerReportValidationIssueSubOptimal::EndTimeBeforeStartTime(
+                    test_runner_report,
+                ),
+            );
+        }
+        match validate_timestamp(start_time, now) {
+            TimestampValidation::Future(timestamp) => {
+                issues.push(
+                    TestRunnerReportValidationIssueSubOptimal::StartTimeFutureTimestamp(timestamp),
+                );
+            }
+            TimestampValidation::Old(timestamp) => {
+                issues.push(
+                    TestRunnerReportValidationIssueSubOptimal::StartTimeOldTimestamp(timestamp),
+                );
+            }
+            TimestampValidation::Stale(timestamp) => {
+                issues.push(
+                    TestRunnerReportValidationIssueSubOptimal::StartTimeStaleTimestamp(timestamp),
+                );
+            }
+            TimestampValidation::Valid => {}
+        };
+        match validate_timestamp(end_time, now) {
+            TimestampValidation::Future(timestamp) => {
+                issues.push(
+                    TestRunnerReportValidationIssueSubOptimal::EndTimeFutureTimestamp(timestamp),
+                );
+            }
+            TimestampValidation::Old(timestamp) => {
+                issues.push(
+                    TestRunnerReportValidationIssueSubOptimal::EndTimeOldTimestamp(timestamp),
+                );
+            }
+            TimestampValidation::Stale(timestamp) => {
+                issues.push(
+                    TestRunnerReportValidationIssueSubOptimal::EndTimeStaleTimestamp(timestamp),
+                );
+            }
+            TimestampValidation::Valid => {}
+        };
+    }
+
+    issues
+}
+
+fn validate_test_case_timestamp(
+    test_case_timestamp: Option<DateTime<FixedOffset>>,
+    test_suite_timestamp: Option<DateTime<FixedOffset>>,
+    report_timestamp: Option<DateTime<FixedOffset>>,
+    test_runner_report: Option<TestRunnerReport>,
+    now: DateTime<FixedOffset>,
+) -> Vec<JunitTestCaseValidationIssueSubOptimal> {
+    let mut issues: Vec<JunitTestCaseValidationIssueSubOptimal> = Vec::new();
+
+    if let Some(timestamp) = test_case_timestamp
+        .or(test_suite_timestamp)
+        .or(report_timestamp)
+    {
+        let test_runner_report_start_time_override_timestamp_diff =
+            if let Some(test_runner_report) = test_runner_report {
+                let ts_diff_from = report_timestamp
+                    .or(test_suite_timestamp)
+                    .unwrap_or(timestamp);
+                test_runner_report
+                    .start_time
+                    .signed_duration_since(ts_diff_from)
+            } else {
+                TimeDelta::zero()
+            };
+        let timestamp = timestamp
+            .checked_add_signed(test_runner_report_start_time_override_timestamp_diff)
+            .unwrap_or(timestamp);
+
+        match validate_timestamp(timestamp, now) {
+            TimestampValidation::Future(timestamp) => {
+                issues.push(
+                    JunitTestCaseValidationIssueSubOptimal::TestCaseFutureTimestamp(timestamp),
+                );
+            }
+            TimestampValidation::Old(timestamp) => {
+                issues
+                    .push(JunitTestCaseValidationIssueSubOptimal::TestCaseOldTimestamp(timestamp));
+            }
+            TimestampValidation::Stale(timestamp) => {
+                issues.push(
+                    JunitTestCaseValidationIssueSubOptimal::TestCaseStaleTimestamp(timestamp),
+                );
+            }
+            TimestampValidation::Valid => {}
+        };
+
+        if let Some(test_runner_report) = test_runner_report {
+            if let TimestampValidation::Future(timestamp) =
+                validate_timestamp(timestamp, test_runner_report.start_time)
+            {
+                issues.push(JunitTestCaseValidationIssueSubOptimal::TestCaseTimestampIsAfterTestReportEndTime(timestamp));
+            }
+        }
+    } else {
+        issues.push(JunitTestCaseValidationIssueSubOptimal::TestCaseNoTimestamp);
+    }
+
+    issues
+}
+
+#[derive(Debug, Clone)]
+enum TimestampValidation {
+    Valid,
+    Future(DateTime<FixedOffset>),
+    Old(DateTime<FixedOffset>),
+    Stale(DateTime<FixedOffset>),
+}
+
+fn validate_timestamp<T: Into<DateTime<FixedOffset>>, U: Into<DateTime<FixedOffset>>>(
+    timestamp: T,
+    other_timestamp: U,
+) -> TimestampValidation {
+    let timestamp = timestamp.into();
+    let time_since_other_timestamp = other_timestamp.into() - timestamp;
+    if time_since_other_timestamp < TimeDelta::zero() {
+        TimestampValidation::Future(timestamp)
+    } else if time_since_other_timestamp.num_hours() > i64::from(TIMESTAMP_OLD_HOURS) {
+        TimestampValidation::Old(timestamp)
+    } else if time_since_other_timestamp.num_hours() > i64::from(TIMESTAMP_STALE_HOURS) {
+        TimestampValidation::Stale(timestamp)
+    } else {
+        TimestampValidation::Valid
+    }
 }
