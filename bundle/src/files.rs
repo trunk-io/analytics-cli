@@ -185,11 +185,11 @@ pub struct FileSet {
 pub struct FileSetTestRunnerReport {
     /// Added in v0.6.11. Populated when parsing from BEP, not from junit globs
     pub resolved_status: TestRunnerReportStatus,
-    /// Added in v0.9.3. Populated when parsing from BEP, not from junit globs
+    /// Added in v0.9.2. Populated when parsing from BEP, not from junit globs
     #[cfg_attr(feature = "wasm", tsify(type = "number"))]
     #[serde(default, with = "ts_milliseconds")]
     pub resolved_start_time_epoch_ms: DateTime<Utc>,
-    /// Added in v0.9.3. Populated when parsing from BEP, not from junit globs
+    /// Added in v0.9.2. Populated when parsing from BEP, not from junit globs
     #[cfg_attr(feature = "wasm", tsify(type = "number"))]
     #[serde(default, with = "ts_milliseconds")]
     pub resolved_end_time_epoch_ms: DateTime<Utc>,
