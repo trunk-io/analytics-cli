@@ -111,6 +111,14 @@ describe("context-js", () => {
         .filter((issue) => issue.error_type === JunitValidationType.Report),
     ).toHaveLength(1);
 
+    junitReportValidation = junit_validate(parse_result.report, {
+      resolved_status: "Passed",
+      resolved_start_time_epoch_ms: dayjs.utc().subtract(5, "minute").valueOf(),
+      resolved_end_time_epoch_ms: dayjs.utc().subtract(2, "minute").valueOf(),
+    });
+
+    expect(junitReportValidation.max_level()).toBe(JunitValidationLevel.Valid);
+
     const nestedJunitXml = `<?xml version="1.0" encoding="UTF-8"?>
       <testsuites>
           <testsuite name="/home/runner/work/flake-farm/flake-farm/php/phpunit/phpunit.xml" tests="2" assertions="2" errors="0" failures="0" skipped="0" timestamp="${validTimestamp}" time="0.001161">

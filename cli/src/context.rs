@@ -242,7 +242,9 @@ pub fn generate_internal_file(
                         continue;
                     }
                     if let Some(report) = junit_parser.reports().first() {
-                        let issues = validate(report).all_issues_flat();
+                        let issues =
+                            validate(report, file_set.test_runner_report.map(|t| t.into()))
+                                .all_issues_flat();
                         let sub_optimal_issues: Vec<&JunitReportValidationFlatIssue> = issues
                             .iter()
                             .filter(|issue| issue.level == JunitValidationLevel::SubOptimal)

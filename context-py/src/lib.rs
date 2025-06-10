@@ -6,7 +6,11 @@ use bundle::{
 use codeowners::{
     associate_codeowners_multithreaded as associate_codeowners, BindingsOwners, CodeOwners, Owners,
 };
-use context::{env, junit, meta, repo};
+use context::{
+    env,
+    junit::{self, junit_path::TestRunnerReport},
+    meta, repo,
+};
 use prost::Message;
 use pyo3::{exceptions::PyTypeError, prelude::*};
 use pyo3_stub_gen::{define_stub_info_gatherer, derive::gen_stub_pyfunction};
@@ -105,12 +109,21 @@ fn bin_parse(bin: Vec<u8>) -> PyResult<Vec<junit::bindings::BindingsReport>> {
     Ok(vec![junit::bindings::BindingsReport::from(test_result)])
 }
 
+// NOTE: This complains about the deprecation of using `Option<T>` as an auto-variadic
+// function signature, but because we use `gen_stub_pyfunction` it always requires the second
+// argument to be passed. And if you try to implement the suggested fix of using
+// `#[pyo3(signature = (report, test_runner_report=None))]`, `gen_stub_pyfunction` does not work
+// correctly, so it's best to just leave this the way it is.
 #[gen_stub_pyfunction]
 #[pyfunction]
 fn junit_validate(
     report: junit::bindings::BindingsReport,
+    test_runner_report: Option<bundle::FileSetTestRunnerReport>,
 ) -> junit::bindings::BindingsJunitReportValidation {
-    junit::bindings::BindingsJunitReportValidation::from(junit::validator::validate(&report.into()))
+    junit::bindings::BindingsJunitReportValidation::from(junit::validator::validate(
+        &report.into(),
+        test_runner_report.map(TestRunnerReport::from),
+    ))
 }
 
 #[gen_stub_pyfunction]
@@ -132,6 +145,7 @@ fn junit_validation_type_to_string(
 ) -> String {
     match junit_validation_type {
         junit::validator::JunitValidationType::Report => "Report".to_string(),
+        junit::validator::JunitValidationType::TestRunnerReport => "TestRunnerReport".to_string(),
         junit::validator::JunitValidationType::TestSuite => "TestSuite".to_string(),
         junit::validator::JunitValidationType::TestCase => "TestCase".to_string(),
     }
