@@ -1,3 +1,5 @@
+/* eslint-disable vitest/max-expects */
+
 import dayjs from "dayjs";
 import fs from "fs";
 import path from "path";
