@@ -7,6 +7,7 @@ use third_party::sentry;
 use tracing_subscriber::{filter::FilterFn, prelude::*};
 use trunk_analytics_cli::{
     context::gather_debug_props,
+    end_output::display_end,
     error_report::ErrorReport,
     test_command::{run_test, TestArgs},
     upload_command::{run_upload, UploadArgs, UploadRunResult},
@@ -118,7 +119,7 @@ fn main() -> anyhow::Result<()> {
             };
             match run(cli).await {
                 Ok(RunResult::Upload(run_result)) => {
-                    let render_result = superconsole.render(&run_result);
+                    let render_result = display_end(&mut superconsole, &run_result);
                     if let Err(e) = render_result {
                         tracing::error!("Failed to render upload display: {}", e);
                     }
@@ -130,7 +131,7 @@ fn main() -> anyhow::Result<()> {
                     std::process::exit(exit_code)
                 }
                 Ok(RunResult::Test(run_result)) => {
-                    let render_result = superconsole.render(&run_result);
+                    let render_result = display_end(&mut superconsole, &run_result);
                     if let Err(e) = render_result {
                         tracing::error!("Failed to render test display: {}", e);
                     }
@@ -144,7 +145,7 @@ fn main() -> anyhow::Result<()> {
                 Err(error) => {
                     let error_report = ErrorReport::new(error, org_url_slug, None);
                     let exit_code = error_report.context.exit_code;
-                    let render_result = superconsole.render(&error_report);
+                    let render_result = display_end(&mut superconsole, &error_report);
                     if let Err(e) = render_result {
                         tracing::error!("Failed to render error display: {}", e);
                     }
