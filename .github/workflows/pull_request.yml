@@ -45,6 +45,10 @@ jobs:
 
     runs-on: ${{ matrix.platform.runs-on }}
     steps:
+      # we've been hitting out of free space issues
+      - name: Delete unnecessary tools folder
+        run: rm -rf /opt/hostedtoolcache
+
       - name: Checkout
         uses: actions/checkout@v4
         with:
@@ -61,9 +65,11 @@ jobs:
 
       - name: Run tests
         uses: ./.github/actions/run_tests
+        id: tests
         continue-on-error: true
         with:
           target: ${{ matrix.platform.target }}
+          codecov-token: ${{ secrets.CODECOV_TOKEN }}
 
       - name: Build darwin target
         uses: ./.github/actions/build_cli_macos_target
@@ -81,6 +87,16 @@ jobs:
           profile: release
           force-sentry-dev: true
 
+      - name: Extract step outcome
+        shell: bash
+        id: extract
+        run: |
+          if [[ "${{steps.tests.outcome}}" == "failure" ]]; then
+            echo "test-step-outcome=1" >> $GITHUB_OUTPUT
+          else
+            echo "test-step-outcome=0" >> $GITHUB_OUTPUT
+          fi
+
       - name: Upload results to staging using built CLI
         env:
           TRUNK_PUBLIC_API_ADDRESS: https://api.trunk-staging.io
@@ -90,7 +106,8 @@ jobs:
           target/${{ matrix.platform.target }}/release/trunk-analytics-cli upload \
              --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
              --org-url-slug trunk-staging-org \
-             --token ${{ secrets.TRUNK_STAGING_ORG_API_TOKEN }}
+             --token ${{ secrets.TRUNK_STAGING_ORG_API_TOKEN }} \
+             --test-process-exit-code ${{ steps.extract.outputs.test-step-outcome }}
 
       - name: Upload results to prod using built CLI
         shell: bash

@@ -9,11 +9,12 @@ use api::message::{
 use assert_matches::assert_matches;
 use axum::{extract::State, http::StatusCode, Json};
 use bundle::{BundleMeta, FileSetType, INTERNAL_BIN_FILENAME};
+use chrono::TimeDelta;
 use codeowners::CodeOwners;
 use constants::EXIT_FAILURE;
 use context::{
     bazel_bep::parser::BazelBepParser,
-    junit::{junit_path::JunitReportStatus, parser::JunitParser},
+    junit::{junit_path::TestRunnerReportStatus, parser::JunitParser},
     repo::{BundleRepo, RepoUrlParts as Repo},
 };
 use lazy_static::lazy_static;
@@ -235,7 +236,6 @@ async fn upload_bundle_using_bep() {
         .file_sets
         .iter()
         .for_each(|file_set| {
-            assert_eq!(file_set.resolved_status, Some(JunitReportStatus::Passed));
             assert_eq!(file_set.file_set_type, FileSetType::Junit);
             let mut junit_parser = JunitParser::new();
             file_set.files.iter().for_each(|file| {
@@ -243,6 +243,24 @@ async fn upload_bundle_using_bep() {
                 assert!(junit_parser.parse(BufReader::new(junit_file)).is_ok());
                 assert!(junit_parser.issues().is_empty());
             });
+            let report = junit_parser.into_reports().pop().unwrap();
+            let test_runner_report = file_set.test_runner_report.unwrap();
+            assert_eq!(
+                test_runner_report.resolved_status,
+                TestRunnerReportStatus::Passed
+            );
+            assert!(
+                (test_runner_report.resolved_start_time_epoch_ms
+                    - report.timestamp.unwrap().to_utc())
+                .abs()
+                    <= TimeDelta::milliseconds(1)
+            );
+            assert!(
+                (test_runner_report.resolved_end_time_epoch_ms
+                    - (report.timestamp.unwrap().to_utc() + report.time.unwrap()))
+                .abs()
+                    <= TimeDelta::milliseconds(1)
+            );
         });
 
     let mut bazel_bep_parser = BazelBepParser::new(tar_extract_directory.join("bazel_bep.json"));
@@ -291,8 +309,14 @@ async fn upload_bundle_success_status_code() {
     assert_matches!(requests[2], RequestPayload::TelemetryUploadMetrics(_));
 
     let mut bazel_bep_parser = BazelBepParser::new(tar_extract_directory.join("bazel_bep.json"));
-    let parse_result = bazel_bep_parser.parse().ok().unwrap();
+    let mut parse_result = bazel_bep_parser.parse().ok().unwrap();
     assert_eq!(parse_result.test_results.len(), 2);
+    let test_result = parse_result
+        .test_results
+        .pop()
+        .unwrap()
+        .test_runner_report
+        .unwrap();
 
     let meta_json = fs::File::open(tar_extract_directory.join("meta.json")).unwrap();
     let bundle_meta: BundleMeta = serde_json::from_reader(meta_json).unwrap();
@@ -310,7 +334,21 @@ async fn upload_bundle_success_status_code() {
                 assert!(junit_parser.parse(BufReader::new(junit_file)).is_ok());
                 assert!(junit_parser.issues().is_empty());
             });
-            assert_eq!(file_set.resolved_status, Some(JunitReportStatus::Flaky));
+            let test_runner_report = file_set.test_runner_report.unwrap();
+            assert_eq!(
+                test_runner_report.resolved_status,
+                TestRunnerReportStatus::Flaky
+            );
+            assert!(
+                (test_runner_report.resolved_start_time_epoch_ms - test_result.start_time.to_utc())
+                    .abs()
+                    <= TimeDelta::milliseconds(1)
+            );
+            assert!(
+                (test_runner_report.resolved_end_time_epoch_ms - test_result.end_time.to_utc())
+                    .abs()
+                    <= TimeDelta::milliseconds(1)
+            );
         });
 
     // HINT: View CLI output with `cargo test -- --nocapture`
@@ -379,6 +417,7 @@ async fn upload_bundle_success_preceding_failure() {
     let assert = CommandBuilder::upload(temp_dir.path(), state.host.clone())
         .bazel_bep_path(bep_path.to_str().unwrap())
         .test_process_exit_code(test_process_exit_code)
+        .bazel_bep_path(bep_path.to_str().unwrap())
         .command()
         .assert()
         .code(test_process_exit_code)
@@ -391,8 +430,14 @@ async fn upload_bundle_success_preceding_failure() {
     assert_matches!(requests[2], RequestPayload::TelemetryUploadMetrics(_));
 
     let mut bazel_bep_parser = BazelBepParser::new(tar_extract_directory.join("bazel_bep.json"));
-    let parse_result = bazel_bep_parser.parse().ok().unwrap();
+    let mut parse_result = bazel_bep_parser.parse().ok().unwrap();
     assert_eq!(parse_result.test_results.len(), 2);
+    let test_result = parse_result
+        .test_results
+        .pop()
+        .unwrap()
+        .test_runner_report
+        .unwrap();
 
     let meta_json = fs::File::open(tar_extract_directory.join("meta.json")).unwrap();
     let bundle_meta: BundleMeta = serde_json::from_reader(meta_json).unwrap();
@@ -410,7 +455,21 @@ async fn upload_bundle_success_preceding_failure() {
                 assert!(junit_parser.parse(BufReader::new(junit_file)).is_ok());
                 assert!(junit_parser.issues().is_empty());
             });
-            assert_eq!(file_set.resolved_status, Some(JunitReportStatus::Flaky));
+            let test_runner_report = file_set.test_runner_report.unwrap();
+            assert_eq!(
+                test_runner_report.resolved_status,
+                TestRunnerReportStatus::Flaky
+            );
+            assert!(
+                (test_runner_report.resolved_start_time_epoch_ms - test_result.start_time.to_utc())
+                    .abs()
+                    <= TimeDelta::milliseconds(1)
+            );
+            assert!(
+                (test_runner_report.resolved_end_time_epoch_ms - test_result.end_time.to_utc())
+                    .abs()
+                    <= TimeDelta::milliseconds(1)
+            );
         });
 
     // HINT: View CLI output with `cargo test -- --nocapture`

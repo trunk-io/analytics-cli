@@ -19,7 +19,7 @@ use super::{
         JunitValidationLevel, JunitValidationType,
     },
 };
-use crate::junit::parser::extra_attrs;
+use crate::junit::{parser::extra_attrs, validator::TestRunnerReportValidation};
 
 #[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass(get_all))]
 #[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
@@ -921,6 +921,7 @@ impl From<BindingsNonSuccessKind> for NonSuccessKind {
 pub struct BindingsJunitReportValidation {
     all_issues: Vec<JunitReportValidationFlatIssue>,
     level: JunitValidationLevel,
+    test_runner_report: TestRunnerReportValidation,
     test_suites: Vec<JunitTestSuiteValidation>,
     valid_test_suites: Vec<BindingsTestSuite>,
 }
@@ -932,6 +933,7 @@ impl From<JunitReportValidation> for BindingsJunitReportValidation {
             level,
             test_suites,
             valid_test_suites,
+            test_runner_report,
         }: JunitReportValidation,
     ) -> Self {
         Self {
@@ -949,6 +951,7 @@ impl From<JunitReportValidation> for BindingsJunitReportValidation {
                 .into_iter()
                 .map(BindingsTestSuite::from)
                 .collect(),
+            test_runner_report,
         }
     }
 }
@@ -1185,7 +1188,7 @@ mod tests {
         assert_eq!(test_case2.codeowners.clone().unwrap().len(), 0);
 
         // verify that the test report is valid
-        let results = validate(&converted_bindings.clone().into(), &BundleRepo::default());
+        let results = validate(&converted_bindings.clone().into(), None, &BundleRepo::default());
         assert_eq!(results.all_issues_flat().len(), 1);
         results
             .all_issues_flat()
