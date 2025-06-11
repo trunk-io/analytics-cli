@@ -10,7 +10,8 @@ use codeowners::{
 use context::{
     env,
     junit::{self, junit_path::TestRunnerReport},
-    meta, repo,
+    meta,
+    repo::{self, BundleRepo},
 };
 use prost::Message;
 use pyo3::{exceptions::PyTypeError, prelude::*};
@@ -124,6 +125,7 @@ fn junit_validate(
     junit::bindings::BindingsJunitReportValidation::from(junit::validator::validate(
         &report.into(),
         test_runner_report.map(TestRunnerReport::from),
+        &BundleRepo::default(),
     ))
 }
 

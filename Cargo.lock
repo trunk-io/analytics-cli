@@ -1014,6 +1014,7 @@ dependencies = [
  "tracing",
  "tsify-next",
  "uuid",
+ "walkdir",
  "wasm-bindgen",
 ]
 

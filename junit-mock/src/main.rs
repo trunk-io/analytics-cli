@@ -20,7 +20,8 @@ fn main() -> Result<()> {
     let mut jm = JunitMock::new(options);
     println!("Using seed `{}` to generate random data.", jm.get_seed());
 
-    let reports = jm.generate_reports();
+    let tmp_dir: Option<String> = None;
+    let reports = jm.generate_reports(&tmp_dir);
 
     jm.write_reports_to_file(directory, &reports)?;
 

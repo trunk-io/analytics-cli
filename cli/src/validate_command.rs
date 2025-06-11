@@ -17,6 +17,7 @@ use context::{
             JunitValidationLevel,
         },
     },
+    repo::BundleRepo,
 };
 use pluralizer::pluralize;
 use quick_junit::Report;
@@ -140,6 +141,7 @@ async fn validate(
             (parsed_reports, parse_issues)
         },
     );
+    let repo = BundleRepo::new(None, None, None, None, None, None, false).unwrap_or_default();
     // print parse issues
     let (num_unparsable_reports, num_suboptimally_parsable_reports) =
         print_parse_issues(&parse_issues);
@@ -150,7 +152,11 @@ async fn validate(
         .map(|(file, (report, test_runner_report))| {
             (
                 file,
-                validate_report(&report, test_runner_report.map(TestRunnerReport::from)),
+                validate_report(
+                    &report,
+                    test_runner_report.map(TestRunnerReport::from),
+                    &repo,
+                ),
             )
         })
         .collect();

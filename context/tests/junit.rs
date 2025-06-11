@@ -1,18 +1,22 @@
 use std::{fs, io::BufReader, time::Duration};
 
 use chrono::{Days, NaiveTime, TimeDelta, Utc};
-use context::junit::{
+use context::{
     self,
-    junit_path::{TestRunnerReport, TestRunnerReportStatus},
-    parser::JunitParser,
-    validator::{
-        JunitReportValidationIssue, JunitReportValidationIssueSubOptimal,
-        JunitTestCaseValidationIssue, JunitTestCaseValidationIssueInvalid,
-        JunitTestCaseValidationIssueSubOptimal, JunitTestSuiteValidationIssue,
-        JunitTestSuiteValidationIssueInvalid, JunitTestSuiteValidationIssueSubOptimal,
-        JunitValidationIssue, JunitValidationIssueType, JunitValidationLevel,
-        TestRunnerReportValidationIssue, TestRunnerReportValidationIssueSubOptimal,
+    junit::{
+        self,
+        junit_path::{TestRunnerReport, TestRunnerReportStatus},
+        parser::JunitParser,
+        validator::{
+            JunitReportValidationIssue, JunitReportValidationIssueSubOptimal,
+            JunitTestCaseValidationIssue, JunitTestCaseValidationIssueInvalid,
+            JunitTestCaseValidationIssueSubOptimal, JunitTestSuiteValidationIssue,
+            JunitTestSuiteValidationIssueInvalid, JunitTestSuiteValidationIssueSubOptimal,
+            JunitValidationIssue, JunitValidationIssueType, JunitValidationLevel,
+            TestRunnerReportValidationIssue, TestRunnerReportValidationIssueSubOptimal,
+        },
     },
+    repo::BundleRepo,
 };
 use junit_mock::JunitMock;
 use quick_junit::Report;
@@ -57,7 +61,8 @@ fn generate_mock_junit_reports(
 
     let mut jm = JunitMock::new(options);
     let seed = jm.get_seed();
-    let reports = jm.generate_reports();
+    let tmp_dir: Option<String> = None;
+    let reports = jm.generate_reports(&tmp_dir);
     (seed, reports)
 }
 
@@ -90,7 +95,8 @@ fn validate_test_suite_name_too_short() {
         test_suite.name = String::new().into();
     }
 
-    let report_validation = junit::validator::validate(&generated_report, None);
+    let report_validation =
+        junit::validator::validate(&generated_report, None, &BundleRepo::default());
 
     assert_eq!(
         report_validation.max_level(),
@@ -126,7 +132,8 @@ fn validate_test_case_name_too_short() {
         }
     }
 
-    let report_validation = junit::validator::validate(&generated_report, None);
+    let report_validation =
+        junit::validator::validate(&generated_report, None, &BundleRepo::default());
 
     assert_eq!(
         report_validation.max_level(),
@@ -159,7 +166,8 @@ fn validate_test_suite_name_too_long() {
         test_suite.name = "a".repeat(junit::validator::MAX_FIELD_LEN + 1).into();
     }
 
-    let report_validation = junit::validator::validate(&generated_report, None);
+    let report_validation =
+        junit::validator::validate(&generated_report, None, &BundleRepo::default());
 
     assert_eq!(
         report_validation.max_level(),
@@ -195,7 +203,8 @@ fn validate_test_case_name_too_long() {
         }
     }
 
-    let report_validation = junit::validator::validate(&generated_report, None);
+    let report_validation =
+        junit::validator::validate(&generated_report, None, &BundleRepo::default());
 
     assert_eq!(
         report_validation.max_level(),
@@ -233,7 +242,8 @@ fn validate_max_level() {
         }
     }
 
-    let report_validation = junit::validator::validate(&generated_report, None);
+    let report_validation =
+        junit::validator::validate(&generated_report, None, &BundleRepo::default());
 
     assert_eq!(
         report_validation.max_level(),
@@ -304,7 +314,8 @@ fn validate_timestamps() {
         }
     }
 
-    let report_validation = junit::validator::validate(&generated_report, None);
+    let report_validation =
+        junit::validator::validate(&generated_report, None, &BundleRepo::default());
 
     assert_eq!(
         report_validation.max_level(),
@@ -338,7 +349,8 @@ fn validate_test_runner_report_overrides_timestamp() {
     options.global.timestamp = Some(old_timestamp.fixed_offset());
     let mut jm = JunitMock::new(options);
     let seed = jm.get_seed();
-    let mut generated_reports = jm.generate_reports();
+    let tmp_dir: Option<String> = None;
+    let mut generated_reports = jm.generate_reports(&tmp_dir);
 
     let generated_report = generated_reports.pop().unwrap();
 
@@ -351,8 +363,11 @@ fn validate_test_runner_report_overrides_timestamp() {
                 .checked_add_signed(TimeDelta::minutes(1))
                 .unwrap(),
         };
-        let override_report_validation =
-            junit::validator::validate(&generated_report, Some(override_report));
+        let override_report_validation = junit::validator::validate(
+            &generated_report,
+            Some(override_report),
+            &BundleRepo::default(),
+        );
         pretty_assertions::assert_eq!(
             override_report_validation.all_issues(),
             &[
@@ -388,8 +403,11 @@ fn validate_test_runner_report_overrides_timestamp() {
                 .checked_add_signed(TimeDelta::minutes(1))
                 .unwrap(),
         };
-        let override_report_validation =
-            junit::validator::validate(&generated_report, Some(override_report));
+        let override_report_validation = junit::validator::validate(
+            &generated_report,
+            Some(override_report),
+            &BundleRepo::default(),
+        );
         pretty_assertions::assert_eq!(
             override_report_validation.all_issues(),
             &[
@@ -425,8 +443,11 @@ fn validate_test_runner_report_overrides_timestamp() {
                 .checked_add_signed(TimeDelta::minutes(1))
                 .unwrap(),
         };
-        let override_report_validation =
-            junit::validator::validate(&generated_report, Some(override_report));
+        let override_report_validation = junit::validator::validate(
+            &generated_report,
+            Some(override_report),
+            &BundleRepo::default(),
+        );
         pretty_assertions::assert_eq!(
             override_report_validation.all_issues(),
             &[
@@ -464,8 +485,11 @@ fn validate_test_runner_report_overrides_timestamp() {
                 .checked_sub_signed(TimeDelta::minutes(1))
                 .unwrap(),
         };
-        let override_report_validation =
-            junit::validator::validate(&generated_report, Some(override_report));
+        let override_report_validation = junit::validator::validate(
+            &generated_report,
+            Some(override_report),
+            &BundleRepo::default(),
+        );
         pretty_assertions::assert_eq!(
             override_report_validation.test_runner_report.issues(),
             &[TestRunnerReportValidationIssue::SubOptimal(
@@ -487,8 +511,11 @@ fn validate_test_runner_report_overrides_timestamp() {
                 .checked_add_signed(TimeDelta::minutes(1))
                 .unwrap(),
         };
-        let override_report_validation =
-            junit::validator::validate(&generated_report, Some(override_report));
+        let override_report_validation = junit::validator::validate(
+            &generated_report,
+            Some(override_report),
+            &BundleRepo::default(),
+        );
         pretty_assertions::assert_eq!(
             override_report_validation.all_issues(),
             &[],
@@ -498,7 +525,8 @@ fn validate_test_runner_report_overrides_timestamp() {
     }
 
     {
-        let report_validation = junit::validator::validate(&generated_report, None);
+        let report_validation =
+            junit::validator::validate(&generated_report, None, &BundleRepo::default());
         pretty_assertions::assert_eq!(
             report_validation.all_issues(),
             &[JunitValidationIssueType::Report(
@@ -536,8 +564,11 @@ fn validate_test_runner_report_overrides_timestamp() {
                     test_case.timestamp = Some(test_case_timestamp);
                 });
             });
-        let override_report_validation =
-            junit::validator::validate(&generated_report, Some(override_report));
+        let override_report_validation = junit::validator::validate(
+            &generated_report,
+            Some(override_report),
+            &BundleRepo::default(),
+        );
         pretty_assertions::assert_eq!(
             override_report_validation.all_issues(),
             &[
@@ -588,7 +619,8 @@ fn parse_round_trip_and_validate_fuzzed() {
     for (index, generated_report) in generated_reports.iter().enumerate() {
         let serialized_generated_report = serialize_report(generated_report);
         let first_parsed_report = parse_report(&serialized_generated_report);
-        let report_validation = junit::validator::validate(&first_parsed_report, None);
+        let report_validation =
+            junit::validator::validate(&first_parsed_report, None, &BundleRepo::default());
 
         assert_eq!(
             report_validation.max_level(),
@@ -619,7 +651,8 @@ fn parse_round_trip_and_validate_fuzzed() {
 fn parse_without_testsuites_element() {
     let options = new_mock_junit_options(1, Some(1), Some(1), true);
     let mut jm = JunitMock::new(options);
-    let reports = jm.generate_reports();
+    let tmp_dir: Option<String> = None;
+    let reports = jm.generate_reports(&tmp_dir);
 
     let tempdir = TempDir::new().unwrap();
     let xml_path = jm
