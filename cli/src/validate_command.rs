@@ -152,7 +152,11 @@ async fn validate(
         .map(|(file, (report, test_runner_report))| {
             (
                 file,
-                validate_report(&report, test_runner_report.map(TestRunnerReport::from), &repo),
+                validate_report(
+                    &report,
+                    test_runner_report.map(TestRunnerReport::from),
+                    &repo,
+                ),
             )
         })
         .collect();

@@ -10,8 +10,8 @@ use codeowners::{
 use context::{
     env,
     junit::{self, junit_path::TestRunnerReport},
+    meta,
     repo::{self, BundleRepo},
-    meta
 };
 use prost::Message;
 use pyo3::{exceptions::PyTypeError, prelude::*};
