@@ -374,7 +374,7 @@ fn coalesce_junit_path_wrappers(
             &temp_dir,
             xcresult_path,
             repo,
-            org_url_slug.clone(),
+            org_url_slug,
             use_experimental_failure_summary,
         )?;
         _junit_path_wrappers_temp_dir = Some(temp_dir);
@@ -392,8 +392,6 @@ fn coalesce_junit_path_wrappers(
 
     if !test_reports.is_empty() {
         for test_report in test_reports {
-            let mut was_other_than_junit = false;
-
             if let Ok(bazel_result) = parse_as_bep(test_report.clone()) {
                 if bep_result.is_some() {
                     return Err(anyhow::anyhow!(
@@ -406,31 +404,26 @@ fn coalesce_junit_path_wrappers(
                     bazel_result.uncached_xml_files().as_slice(),
                 ]
                 .concat();
-                was_other_than_junit = true;
-            }
-
-            #[cfg(target_os = "macos")]
-            {
-                let temp_dir = tempfile::tempdir()?;
-                let temp_paths = handle_xcresult(
-                    &temp_dir,
-                    Some(test_report.clone()),
-                    repo,
-                    org_url_slug.clone(),
-                    use_experimental_failure_summary,
-                );
-                if temp_paths.is_ok() {
+            } else if let Some(temp_dir) = parse_as_xcresult(
+                #[cfg(target_os = "macos")]
+                test_report,
+                #[cfg(target_os = "macos")]
+                repo,
+                #[cfg(target_os = "macos")]
+                org_url_slug,
+                #[cfg(target_os = "macos")]
+                use_experimental_failure_summary,
+            ) {
+                #[cfg(target_os = "macos")]
+                {
                     if _junit_path_wrappers_temp_dir.is_some() {
                         return Err(anyhow::anyhow!(
                             "Was given multiple XCResult files (can only support one)"
                         ));
                     }
                     _junit_path_wrappers_temp_dir = Some(temp_dir);
-                    was_other_than_junit = true;
                 }
-            }
-
-            if !was_other_than_junit {
+            } else {
                 junit_path_wrappers.push(JunitReportFileWithTestRunnerReport::from(test_report));
             }
         }
@@ -441,6 +434,31 @@ fn coalesce_junit_path_wrappers(
         bep_result,
         _junit_path_wrappers_temp_dir,
     ))
+}
+
+fn parse_as_xcresult(
+    #[cfg(target_os = "macos")] test_report: &String,
+    #[cfg(target_os = "macos")] repo: &RepoUrlParts,
+    #[cfg(target_os = "macos")] org_url_slug: &String,
+    #[cfg(target_os = "macos")] use_experimental_failure_summary: bool,
+) -> Option<tempfile::TempDir> {
+    #[cfg(target_os = "macos")]
+    {
+        let temp_dir = tempfile::tempdir()?;
+        let temp_paths = handle_xcresult(
+            &temp_dir,
+            Some(test_report.clone()),
+            repo,
+            org_url_slug,
+            use_experimental_failure_summary,
+        );
+        if temp_paths.is_ok() {
+            return Some(temp_dir);
+        } else {
+            return None;
+        }
+    }
+    None
 }
 
 pub async fn gather_exit_code_and_quarantined_tests_context(
@@ -521,7 +539,7 @@ fn handle_xcresult(
     junit_temp_dir: &tempfile::TempDir,
     xcresult_path: Option<String>,
     repo: &RepoUrlParts,
-    org_url_slug: String,
+    org_url_slug: &String,
     use_experimental_failure_summary: bool,
 ) -> Result<Vec<JunitReportFileWithTestRunnerReport>, anyhow::Error> {
     let mut temp_paths = Vec::new();
