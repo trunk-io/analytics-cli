@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "build": "wasm-pack build --target nodejs",
-    "test": "vitest --watch false",
+    "test": "vitest --watch false --coverage",
     "build_and_test": "pnpm run build && pnpm run test"
   },
   "devDependencies": {
@@ -14,6 +14,7 @@
     "@types/eslint__js": "^8.42.3",
     "@types/node": "^22.7.9",
     "@types/tar": "^6.1.13",
+    "@vitest/coverage-v8": "2.1.9",
     "@vitest/eslint-plugin": "^1.1.7",
     "dayjs": "^1.11.13",
     "eslint": "^9.13.0",

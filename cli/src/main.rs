@@ -3,6 +3,7 @@ use std::env;
 use clap::{Parser, Subcommand};
 use clap_verbosity_flag::{log::LevelFilter, InfoLevel, Verbosity};
 use superconsole::{Dimensions, SuperConsole};
+use terminal_size::{terminal_size, Height, Width};
 use third_party::sentry;
 use tracing_subscriber::{filter::FilterFn, prelude::*};
 use trunk_analytics_cli::{
@@ -111,10 +112,25 @@ fn main() -> anyhow::Result<()> {
                 Some(console) => console,
                 None => {
                     tracing::warn!("Failed to create superconsole because of incompatible TTY");
-                    SuperConsole::forced_new(Dimensions {
-                        width: 143,
-                        height: 24,
-                    })
+                    let size = terminal_size();
+                    if let Some((Width(width), Height(height))) = size {
+                        SuperConsole::forced_new(Dimensions {
+                            width: width as usize,
+                            height: height as usize,
+                        })
+                    } else {
+                        tracing::warn!("Falling back to default dimensions for superconsole");
+                        // Fallback to a reasonable default size
+                        // This is a fallback for when the terminal size cannot be determined
+                        // or when running in a non-TTY environment.
+                        tracing::warn!("Using default dimensions for superconsole");
+                        tracing::warn!("This may not render correctly in some environments");
+                        tracing::warn!("Please use a TTY compatible terminal for best results");
+                        SuperConsole::forced_new(Dimensions {
+                            width: 143,
+                            height: 24,
+                        })
+                    }
                 }
             };
             match run(cli).await {
