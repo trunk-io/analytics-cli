@@ -112,7 +112,7 @@ pub async fn run_validate(validate_args: ValidateArgs) -> anyhow::Result<i32> {
         ..
     } = validate_args;
 
-    let junit_file_paths: Vec<JunitReportFileWithTestRunnerReport > = if !test_reports.is_empty() {
+    let junit_file_paths: Vec<JunitReportFileWithTestRunnerReport> = if !test_reports.is_empty() {
         test_reports
             .iter()
             .flat_map(|test_report_glob| flatten_glob(test_report_glob.as_str()))
@@ -128,7 +128,7 @@ pub async fn run_validate(validate_args: ValidateArgs) -> anyhow::Result<i32> {
             }
             None => junit_paths
                 .into_iter()
-                .map(JunitReportFileWithTestRunnerReport ::from)
+                .map(JunitReportFileWithTestRunnerReport::from)
                 .collect(),
         }
     };
@@ -702,7 +702,10 @@ impl Component for JunitReportValidations {
 
 #[cfg(test)]
 mod tests {
-    use context::junit::junit_path::JunitReportStatus;
+    use chrono::DateTime;
+    use context::junit::junit_path::{
+        JunitReportFileWithTestRunnerReport, TestRunnerReport, TestRunnerReportStatus,
+    };
     use test_utils::inputs::get_test_file_path;
 
     use super::*;
@@ -725,9 +728,9 @@ mod tests {
     #[test]
     fn test_parse_test_report_handles_json_bep() {
         let actual = parse_test_report(get_test_file_path("test_fixtures/bep_example"));
-        let expected = vec![JunitReportFileWithStatus {
+        let expected = vec![JunitReportFileWithTestRunnerReport {
             junit_path: String::from("/tmp/hello_test/test.xml"),
-            status: None,
+            test_runner_report: None,
         }];
         assert_eq!(actual, expected);
     }
@@ -736,37 +739,69 @@ mod tests {
     fn test_parse_test_report_handles_binary_bep() {
         let mut actual = parse_test_report(get_test_file_path("test_fixtures/bep_binary_file.bin"));
         let mut expected = vec![
-            JunitReportFileWithStatus {
+            JunitReportFileWithTestRunnerReport {
                 junit_path: String::from("bytestream://buildbarn2.build.trunk-staging.io:1986/blobs/37d45ccef587444393523741a3831f4a1acbeb010f74f33130ab9ba687477558/449"),
-                status: Some(JunitReportStatus::Passed)
+                test_runner_report: Some(TestRunnerReport {
+                    status: TestRunnerReportStatus::Passed,
+                    start_time: DateTime::parse_from_rfc3339("2025-05-16T19:27:25.037Z").unwrap().to_utc(),
+                    end_time: DateTime::parse_from_rfc3339("2025-05-16T19:27:27.605Z").unwrap().to_utc(),
+                }),
             },
-            JunitReportFileWithStatus {
+            JunitReportFileWithTestRunnerReport {
                 junit_path: String::from("bytestream://buildbarn2.build.trunk-staging.io:1986/blobs/46bbeb038d6f1447f6224a7db4d8a109e133884f2ee6ee78487ca4ce7e073de8/507"),
-                status: Some(JunitReportStatus::Passed)
+                test_runner_report: Some(TestRunnerReport {
+                    status: TestRunnerReportStatus::Passed,
+                    start_time: DateTime::parse_from_rfc3339("2025-05-16T19:29:32.732Z").unwrap().to_utc(),
+                    end_time: DateTime::parse_from_rfc3339("2025-05-16T19:29:32.853Z").unwrap().to_utc(),
+                }),
             },
-            JunitReportFileWithStatus {
+            JunitReportFileWithTestRunnerReport {
                 junit_path: String::from("bytestream://buildbarn2.build.trunk-staging.io:1986/blobs/d1f48dadf5679f09ce9b9c8f4778281ab25bc1dfdddec943e1255baf468630de/451"),
-                status: Some(JunitReportStatus::Passed)
+                test_runner_report: Some(TestRunnerReport {
+                    status: TestRunnerReportStatus::Passed,
+                    start_time: DateTime::parse_from_rfc3339("2025-05-16T19:32:32.180Z").unwrap().to_utc(),
+                    end_time: DateTime::parse_from_rfc3339("2025-05-16T19:32:34.697Z").unwrap().to_utc(),
+                }),
             },
-            JunitReportFileWithStatus {
+            JunitReportFileWithTestRunnerReport {
                 junit_path: String::from("bytestream://buildbarn2.build.trunk-staging.io:1986/blobs/38f1d4ce43242ed3cb08aedf1cc0c3133a8aec8e8eee61f5b84b85a5ba718bc8/1204"),
-                status: Some(JunitReportStatus::Passed)
+                test_runner_report: Some(TestRunnerReport {
+                    status: TestRunnerReportStatus::Passed,
+                    start_time: DateTime::parse_from_rfc3339("2025-05-16T19:32:31.748Z").unwrap().to_utc(),
+                    end_time: DateTime::parse_from_rfc3339("2025-05-16T19:32:34.797Z").unwrap().to_utc(),
+                }),
             },
-            JunitReportFileWithStatus {
+            JunitReportFileWithTestRunnerReport {
                 junit_path: String::from("bytestream://buildbarn2.build.trunk-staging.io:1986/blobs/ac23080b9bf5599b7781e3b62be9bf9a5b6685a8cbe76de4e9e1731a318e9283/607"),
-                status: Some(JunitReportStatus::Passed)
+                test_runner_report: Some(TestRunnerReport {
+                    status: TestRunnerReportStatus::Passed,
+                    start_time: DateTime::parse_from_rfc3339("2025-05-16T19:33:01.680Z").unwrap().to_utc(),
+                    end_time: DateTime::parse_from_rfc3339("2025-05-16T19:33:01.806Z").unwrap().to_utc(),
+                }),
             },
-            JunitReportFileWithStatus {
+            JunitReportFileWithTestRunnerReport {
                 junit_path: String::from("bytestream://buildbarn2.build.trunk-staging.io:1986/blobs/9c1db1d25ca6a4268be4a8982784c525a4b0ca99cbc7614094ad36c56bb08f2a/463"),
-                status: Some(JunitReportStatus::Passed)
+                test_runner_report: Some(TestRunnerReport {
+                    status: TestRunnerReportStatus::Passed,
+                    start_time: DateTime::parse_from_rfc3339("2025-05-16T19:32:52.714Z").unwrap().to_utc(),
+                    end_time: DateTime::parse_from_rfc3339("2025-05-16T19:33:17.945Z").unwrap().to_utc(),
+                }),
             },
-            JunitReportFileWithStatus {
+            JunitReportFileWithTestRunnerReport {
                 junit_path: String::from("bytestream://buildbarn2.build.trunk-staging.io:1986/blobs/7b3ed061a782496c7418be853caae863a9ada9618712f92346ea9e8169b8acf0/1120"),
-                status: Some(JunitReportStatus::Passed)
+                test_runner_report: Some(TestRunnerReport {
+                    status: TestRunnerReportStatus::Passed,
+                    start_time: DateTime::parse_from_rfc3339("2025-05-16T19:35:16.934Z").unwrap().to_utc(),
+                    end_time: DateTime::parse_from_rfc3339("2025-05-16T19:35:19.361Z").unwrap().to_utc(),
+                }),
             },
-            JunitReportFileWithStatus {
+            JunitReportFileWithTestRunnerReport {
                 junit_path: String::from("bytestream://buildbarn2.build.trunk-staging.io:1986/blobs/45ca1eed26b3cf1aafdb51829e32312d3b48452cc144aa041c946e89fa9c6cf6/175"),
-                status: Some(JunitReportStatus::Passed)
+                test_runner_report: Some(TestRunnerReport {
+                    status: TestRunnerReportStatus::Passed,
+                    start_time: DateTime::parse_from_rfc3339("2025-05-16T19:35:16.929Z").unwrap().to_utc(),
+                    end_time: DateTime::parse_from_rfc3339("2025-05-16T19:35:19.383Z").unwrap().to_utc(),
+                }),
             }
         ];
         actual.sort_by_key(|item| item.junit_path.clone());
@@ -777,9 +812,9 @@ mod tests {
     #[test]
     fn test_parse_test_report_falls_back_to_junit() {
         let actual = parse_test_report(get_test_file_path("test_fixtures/junit0_pass.xml"));
-        let expected = vec![JunitReportFileWithStatus {
+        let expected = vec![JunitReportFileWithTestRunnerReport {
             junit_path: get_test_file_path("test_fixtures/junit0_pass.xml"),
-            status: None,
+            test_runner_report: None,
         }];
         assert_eq!(actual, expected);
     }
