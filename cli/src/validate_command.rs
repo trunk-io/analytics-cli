@@ -26,11 +26,7 @@ use superconsole::{
     Line, Span,
 };
 
-use crate::{
-    context::fall_back_to_binary_parse,
-    end_output::EndOutput,
-    print::print_bep_results,
-};
+use crate::{context::fall_back_to_binary_parse, end_output::EndOutput, print::print_bep_results};
 
 #[derive(Args, Clone, Debug)]
 pub struct ValidateArgs {

@@ -405,7 +405,7 @@ fn coalesce_junit_path_wrappers(
                     bazel_result.uncached_xml_files().as_slice(),
                 ]
                 .concat();
-            } else if let Some(temp_dir) = parse_as_xcresult(
+            } else if let Some(_temp_dir) = parse_as_xcresult(
                 #[cfg(target_os = "macos")]
                 &test_report,
                 #[cfg(target_os = "macos")]
@@ -422,7 +422,7 @@ fn coalesce_junit_path_wrappers(
                             "Was given multiple XCResult files (can only support one)"
                         ));
                     }
-                    _junit_path_wrappers_temp_dir = Some(temp_dir);
+                    _junit_path_wrappers_temp_dir = Some(_temp_dir);
                 }
             } else {
                 junit_path_wrappers.push(JunitReportFileWithTestRunnerReport::from(test_report));
