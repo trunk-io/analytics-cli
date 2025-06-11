@@ -505,7 +505,7 @@ impl JunitReportValidations {
 }
 
 const MAX_FILE_ISSUES_TO_SHOW: usize = 8;
-const MAX_FILES_TO_SHOW: usize = 5;
+const MAX_FILES_TO_SHOW: usize = 8;
 impl Component for JunitReportValidations {
     fn draw_unchecked(&self, _dimensions: Dimensions, _mode: DrawMode) -> anyhow::Result<Lines> {
         let mut output: Vec<Line> = Vec::new();

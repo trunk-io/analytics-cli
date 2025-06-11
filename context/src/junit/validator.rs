@@ -1,4 +1,3 @@
-use std::collections::BTreeMap;
 use std::{cmp::Ordering, collections::HashSet, fmt};
 
 use chrono::{DateTime, FixedOffset, TimeDelta, Utc};
@@ -214,8 +213,6 @@ pub struct JunitReportValidation {
     pub test_suites: Vec<JunitTestSuiteValidation>,
     pub valid_test_suites: Vec<TestSuite>,
 }
-
-pub type JunitFileToValidation = BTreeMap<String, anyhow::Result<JunitReportValidation>>;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum JunitValidationIssueType {
