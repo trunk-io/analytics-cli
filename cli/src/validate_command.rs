@@ -3,6 +3,7 @@ use std::{collections::BTreeMap, io::BufReader};
 use bundle::{FileSet, FileSetBuilder, FileSetTestRunnerReport};
 use clap::{arg, ArgAction, Args};
 use codeowners::CodeOwners;
+use colored::{ColoredString, Colorize};
 use console::Emoji;
 use constants::{EXIT_FAILURE, EXIT_SUCCESS};
 use context::{
@@ -20,7 +21,7 @@ use context::{
 use pluralizer::pluralize;
 use quick_junit::Report;
 use superconsole::{
-    style::{Attribute, StyledContent, Stylize},
+    style::{Attribute, Stylize},
     Line, Span,
 };
 use superconsole::{Component, Dimensions, DrawMode, Lines};
@@ -280,14 +281,14 @@ fn print_parse_issues(parse_issues: &JunitFileToParseIssues) -> (usize, usize) {
             };
 
         let num_parse_errors_str = if num_parse_errors > 0 {
-            num_parse_errors.to_string().red()
+            Colorize::red(num_parse_errors.to_string().as_str())
         } else {
-            num_parse_errors.to_string().green()
+            Colorize::green(num_parse_errors.to_string().as_str())
         };
         let num_parse_warnings_str = if num_parse_warnings > 0 {
             format!(
                 ", {} validation warnings",
-                num_parse_warnings.to_string().yellow()
+                Colorize::yellow(num_parse_warnings.to_string().as_str())
             )
         } else {
             String::from("")
@@ -324,11 +325,11 @@ fn print_parse_issues(parse_issues: &JunitFileToParseIssues) -> (usize, usize) {
     (num_unparsable_reports, num_suboptimally_parsable_reports)
 }
 
-fn print_parse_issue_level(level: JunitParseIssueLevel) -> StyledContent<&'static str> {
+fn print_parse_issue_level(level: JunitParseIssueLevel) -> ColoredString {
     match level {
-        JunitParseIssueLevel::SubOptimal => "OPTIONAL".yellow(),
-        JunitParseIssueLevel::Invalid => "INVALID".red(),
-        JunitParseIssueLevel::Valid => "VALID".green(),
+        JunitParseIssueLevel::SubOptimal => Colorize::yellow("OPTIONAL"),
+        JunitParseIssueLevel::Invalid => Colorize::red("INVALID"),
+        JunitParseIssueLevel::Valid => Colorize::green("VALID"),
     }
 }
 
@@ -340,15 +341,15 @@ fn print_summary_failure(
     let num_validation_warnings_str = if num_suboptimal_reports > 0 {
         format!(
             ", {} files have validation warnings",
-            num_suboptimal_reports.to_string().yellow()
+            Colorize::yellow(num_suboptimal_reports.to_string().as_str())
         )
     } else {
         String::from("")
     };
     println!(
         "\n{} files are valid, {} files are not valid{}{}",
-        (num_reports - num_invalid_reports).to_string().green(),
-        num_invalid_reports.to_string().red(),
+        Colorize::green((num_reports - num_invalid_reports).to_string().as_str()),
+        Colorize::red(num_invalid_reports.to_string().as_str()),
         num_validation_warnings_str,
         Emoji(" ❌", ""),
     );
@@ -358,7 +359,7 @@ fn print_summary_success(num_reports: usize, num_suboptimal_reports: usize) {
     let num_validation_warnings_str = if num_suboptimal_reports > 0 {
         format!(
             " ({} files with validation warnings)",
-            num_suboptimal_reports.to_string().yellow()
+            Colorize::yellow(num_suboptimal_reports.to_string().as_str())
         )
     } else {
         String::from("")
@@ -366,7 +367,7 @@ fn print_summary_success(num_reports: usize, num_suboptimal_reports: usize) {
 
     println!(
         "\nAll {} files are valid!{}{}",
-        num_reports.to_string().green(),
+        Colorize::green(num_reports.to_string().as_str()),
         num_validation_warnings_str,
         Emoji(" ✅", ""),
     );
@@ -387,14 +388,14 @@ fn print_validation_issues(report_validations: &JunitFileToValidation) -> (usize
         let all_issues: Vec<JunitReportValidationFlatIssue> = report_validation.all_issues_flat();
 
         let num_validation_errors_str = if num_validation_errors > 0 {
-            num_validation_errors.to_string().red()
+            Colorize::red(num_validation_errors.to_string().as_str())
         } else {
-            num_validation_errors.to_string().green()
+            Colorize::green(num_validation_errors.to_string().as_str())
         };
         let num_validation_warnings_str = if num_validation_warnings > 0 {
             format!(
                 ", {} validation warnings",
-                num_validation_warnings.to_string().yellow()
+                Colorize::yellow(num_validation_warnings.to_string().as_str()),
             )
         } else {
             String::from("")
@@ -427,11 +428,11 @@ fn print_validation_issues(report_validations: &JunitFileToValidation) -> (usize
     (num_invalid_reports, num_suboptimal_reports)
 }
 
-fn print_validation_level(level: JunitValidationLevel) -> StyledContent<&'static str> {
+fn print_validation_level(level: JunitValidationLevel) -> ColoredString {
     match level {
-        JunitValidationLevel::SubOptimal => "OPTIONAL".yellow(),
-        JunitValidationLevel::Invalid => "INVALID".red(),
-        JunitValidationLevel::Valid => "VALID".green(),
+        JunitValidationLevel::SubOptimal => Colorize::yellow("OPTIONAL"),
+        JunitValidationLevel::Invalid => Colorize::red("INVALID"),
+        JunitValidationLevel::Valid => Colorize::green("VALID"),
     }
 }
 
