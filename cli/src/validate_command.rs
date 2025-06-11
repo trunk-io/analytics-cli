@@ -3,7 +3,6 @@ use std::{collections::BTreeMap, io::BufReader};
 use bundle::{FileSet, FileSetBuilder, FileSetTestRunnerReport};
 use clap::{arg, ArgAction, Args};
 use codeowners::CodeOwners;
-use colored::{ColoredString, Colorize};
 use console::Emoji;
 use constants::{EXIT_FAILURE, EXIT_SUCCESS};
 use context::{
@@ -18,7 +17,13 @@ use context::{
         },
     },
 };
+use pluralizer::pluralize;
 use quick_junit::Report;
+use superconsole::{
+    style::{Attribute, StyledContent, Stylize},
+    Line, Span,
+};
+use superconsole::{Component, Dimensions, DrawMode, Lines};
 
 use crate::print::print_bep_results;
 
@@ -319,7 +324,7 @@ fn print_parse_issues(parse_issues: &JunitFileToParseIssues) -> (usize, usize) {
     (num_unparsable_reports, num_suboptimally_parsable_reports)
 }
 
-fn print_parse_issue_level(level: JunitParseIssueLevel) -> ColoredString {
+fn print_parse_issue_level(level: JunitParseIssueLevel) -> StyledContent<&'static str> {
     match level {
         JunitParseIssueLevel::SubOptimal => "OPTIONAL".yellow(),
         JunitParseIssueLevel::Invalid => "INVALID".red(),
@@ -422,7 +427,7 @@ fn print_validation_issues(report_validations: &JunitFileToValidation) -> (usize
     (num_invalid_reports, num_suboptimal_reports)
 }
 
-fn print_validation_level(level: JunitValidationLevel) -> ColoredString {
+fn print_validation_level(level: JunitValidationLevel) -> StyledContent<&'static str> {
     match level {
         JunitValidationLevel::SubOptimal => "OPTIONAL".yellow(),
         JunitValidationLevel::Invalid => "INVALID".red(),
@@ -466,5 +471,182 @@ fn print_codeowners_validation(
             "  {} - No codeowners file found.",
             print_validation_level(JunitValidationLevel::SubOptimal)
         ),
+    }
+}
+
+#[derive(Debug)]
+pub struct JunitReportValidations {
+    pub validations: BTreeMap<String, anyhow::Result<JunitReportValidation>>,
+    files: Vec<String>,
+    files_without_issues: Vec<String>,
+}
+
+impl JunitReportValidations {
+    pub fn new(validations: BTreeMap<String, anyhow::Result<JunitReportValidation>>) -> Self {
+        let mut files: Vec<String> = validations.keys().cloned().collect();
+        files.sort();
+        let mut files_without_issues: Vec<String> = Vec::new();
+        for (file_name, validation) in validations.iter() {
+            if let Ok(report_validation) = validation {
+                if report_validation.num_invalid_issues() == 0
+                    && report_validation.num_suboptimal_issues() == 0
+                {
+                    files_without_issues.push(file_name.clone());
+                }
+            }
+        }
+        Self {
+            validations,
+            files,
+            files_without_issues,
+        }
+    }
+}
+
+const MAX_FILE_ISSUES_TO_SHOW: usize = 8;
+const MAX_FILES_TO_SHOW: usize = 5;
+impl Component for JunitReportValidations {
+    fn draw_unchecked(&self, _dimensions: Dimensions, _mode: DrawMode) -> anyhow::Result<Lines> {
+        let mut output: Vec<Line> = Vec::new();
+        output.push(Line::from_iter([Span::new_styled(
+            String::from("📂 File Validation").attribute(Attribute::Bold),
+        )?]));
+        output.push(Line::default());
+
+        if self.files.is_empty() {
+            output.push(Line::from_iter([Span::new_styled(
+                "⚠️  No files found".to_string().attribute(Attribute::Bold),
+            )?]));
+            return Ok(Lines::from_iter(output));
+        } else if self.files_without_issues.len() != self.files.len() {
+            // found x number of files with issues
+            output.push(Line::from_iter([Span::new_styled(
+                format!(
+                    "❕ {} found, {} with issues",
+                    pluralize("file", self.files.len() as isize, true),
+                    self.files.len() - self.files_without_issues.len(),
+                )
+                .attribute(Attribute::Bold),
+            )?]));
+        } else {
+            // all files are perfect
+            output.push(Line::from_iter([Span::new_styled(
+                format!(
+                    "✅ {} found, all fully correct",
+                    pluralize("file", self.files.len() as isize, true)
+                )
+                .attribute(Attribute::Bold),
+            )?]));
+        }
+        output.push(Line::default());
+
+        for (file_name, validation_reports) in self.validations.iter().take(MAX_FILES_TO_SHOW) {
+            let mut lines: Vec<Line> = vec![];
+            match validation_reports {
+                Err(e) => {
+                    lines.extend([
+                        Line::from_iter([
+                            Span::new_unstyled("❌ ")?,
+                            Span::new_styled(
+                                format!("{file_name} Could Not Be Parsed")
+                                    .attribute(Attribute::Bold),
+                            )?,
+                        ]),
+                        Line::from_iter([
+                            Span::new_unstyled(" ↪ ")?,
+                            Span::new_unstyled_lossy(format!("{:?}", e)),
+                        ]),
+                    ]);
+                }
+                Ok(report) => {
+                    let issues = report.all_issues_flat();
+                    let sub_optimal_issues: Vec<&JunitReportValidationFlatIssue> = issues
+                        .iter()
+                        .filter(|issue| issue.level == JunitValidationLevel::SubOptimal)
+                        .collect();
+                    let invalid_issues: Vec<&JunitReportValidationFlatIssue> = issues
+                        .iter()
+                        .filter(|issue| issue.level == JunitValidationLevel::Invalid)
+                        .collect();
+                    match (sub_optimal_issues.is_empty(), invalid_issues.is_empty()) {
+                        (false, false) => {
+                            lines.push(Line::from_iter([
+                                Span::new_unstyled("❌ ")?,
+                                Span::new_styled(
+                                    format!("{file_name} Has Errors And Warnings")
+                                        .attribute(Attribute::Bold),
+                                )?,
+                            ]));
+                            lines.push(Line::from_iter([
+                                Span::new_unstyled(" ↪ ❌ ")?,
+                                Span::new_styled(
+                                    String::from("Errors").attribute(Attribute::Bold),
+                                )?,
+                            ]));
+                            for error in invalid_issues.iter().take(MAX_FILE_ISSUES_TO_SHOW) {
+                                lines.push(Line::from_iter([
+                                    Span::new_unstyled("   ↪ ")?,
+                                    Span::new_unstyled(error.error_message.clone())?,
+                                ]));
+                            }
+                            lines.push(Line::from_iter([
+                                Span::new_unstyled(" ↪ ⚠️  ")?,
+                                Span::new_styled(
+                                    String::from("Warnings").attribute(Attribute::Bold),
+                                )?,
+                            ]));
+                            for warning in sub_optimal_issues.iter().take(MAX_FILE_ISSUES_TO_SHOW) {
+                                lines.push(Line::from_iter([
+                                    Span::new_unstyled("   ↪ ")?,
+                                    Span::new_unstyled(warning.error_message.clone())?,
+                                ]));
+                            }
+                        }
+                        (true, false) => {
+                            lines.push(Line::from_iter([
+                                Span::new_unstyled("❌ ")?,
+                                Span::new_styled(
+                                    format!("{file_name} Has Errors").attribute(Attribute::Bold),
+                                )?,
+                            ]));
+                            for issue in invalid_issues.iter().take(MAX_FILE_ISSUES_TO_SHOW) {
+                                lines.push(Line::from_iter([
+                                    Span::new_unstyled(" ↪ ")?,
+                                    Span::new_unstyled(issue.error_message.clone())?,
+                                ]));
+                            }
+                        }
+                        (false, true) => {
+                            lines.push(Line::from_iter([
+                                Span::new_unstyled("⚠️  ")?,
+                                Span::new_styled(
+                                    format!("{file_name} Has Warnings").attribute(Attribute::Bold),
+                                )?,
+                            ]));
+                            for warning in sub_optimal_issues.iter().take(MAX_FILE_ISSUES_TO_SHOW) {
+                                lines.push(Line::from_iter([
+                                    Span::new_unstyled(" ↪ ")?,
+                                    Span::new_unstyled(warning.error_message.clone())?,
+                                ]));
+                            }
+                        }
+                        (true, true) => {
+                            // pass
+                        }
+                    }
+                    let mut output_lines = Lines::from_iter(lines);
+                    output_lines.pad_lines_left(2);
+                    output.extend(output_lines);
+                }
+            }
+        }
+        if self.validations.len() > MAX_FILES_TO_SHOW {
+            output.push(Line::from_iter([Span::new_unstyled(format!(
+                "…and {} more",
+                self.validations.len() - MAX_FILES_TO_SHOW
+            ))?]));
+        }
+
+        Ok(Lines::from_iter(output))
     }
 }

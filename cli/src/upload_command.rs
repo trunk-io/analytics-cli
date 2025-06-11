@@ -8,7 +8,6 @@ use bundle::{BundleMeta, BundlerUtil};
 use clap::{ArgAction, Args};
 use constants::EXIT_SUCCESS;
 use context::bazel_bep::common::BepParseResult;
-use context::junit::validator::JunitReportValidations;
 use pluralizer::pluralize;
 use superconsole::{
     style::{style, Attribute, Color, Stylize},
@@ -18,6 +17,7 @@ use superconsole::{Component, Dimensions, DrawMode, Lines};
 use unicode_ellipsis::truncate_str_leading;
 
 use crate::context_quarantine::QuarantineContext;
+use crate::validate_command::JunitReportValidations;
 use crate::{
     context::{
         gather_debug_props, gather_exit_code_and_quarantined_tests_context,
