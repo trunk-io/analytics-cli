@@ -215,6 +215,7 @@ pub fn generate_internal_file(
     file_sets: &[FileSet],
     temp_dir: &TempDir,
     codeowners: Option<&CodeOwners>,
+    show_warnings: bool,
 ) -> anyhow::Result<(
     BundledFile,
     BTreeMap<String, anyhow::Result<JunitReportValidation>>,
@@ -236,7 +237,7 @@ pub fn generate_internal_file(
         } else {
             for file in &file_set.files {
                 let mut junit_parser = JunitParser::new();
-                if file.original_path.ends_with(".xml") {
+                if file.original_path.ends_with(".xml") && show_warnings {
                     let file_contents = std::fs::read_to_string(&file.original_path)?;
                     let parsed_results =
                         junit_parser.parse(BufReader::new(file_contents.as_bytes()));
