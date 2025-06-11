@@ -1188,7 +1188,11 @@ mod tests {
         assert_eq!(test_case2.codeowners.clone().unwrap().len(), 0);
 
         // verify that the test report is valid
-        let results = validate(&converted_bindings.clone().into(), None, &BundleRepo::default());
+        let results = validate(
+            &converted_bindings.clone().into(),
+            None,
+            &BundleRepo::default(),
+        );
         assert_eq!(results.all_issues_flat().len(), 1);
         results
             .all_issues_flat()
@@ -1231,12 +1235,12 @@ mod tests {
         <xml version="1.0" encoding="UTF-8"?>
         <testsuites>
             <testsuite name="testsuite" time="0.002">
-                <testcase file="/test.java" line="5" timestamp="2023-10-01T12:00:00Z" classname="test" name="test_variant_truncation1" time="0.001">
+                <testcase file="test.java" line="5" timestamp="2023-10-01T12:00:00Z" classname="test" name="test_variant_truncation1" time="0.001">
                     <failure message="Test failed" type="java.lang.AssertionError">
                         <![CDATA[Expected: <true> but was: <false>]]>
                     </failure>
                 </testcase>
-                <testcase file="/test.java" name="test_variant_truncation2" timestamp="2023-10-01T12:00:00Z" time="0.001" />
+                <testcase file="test.java" name="test_variant_truncation2" timestamp="2023-10-01T12:00:00Z" time="0.001" />
             </testsuite>
         </testsuites>
         "#;

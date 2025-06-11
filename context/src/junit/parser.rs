@@ -862,12 +862,12 @@ mod tests {
         <xml version="1.0" encoding="UTF-8"?>
         <testsuites>
             <testsuite name="testsuite" timestamp="2023-10-01T12:00:00Z" time="0.002">
-                <testcase file="/test.java" line="5" classname="test" name="test_variant_truncation1" time="0.001">
+                <testcase file="test.java" line="5" classname="test" name="test_variant_truncation1" time="0.001">
                     <failure message="Test failed" type="java.lang.AssertionError">
                         <![CDATA[Expected: <true> but was: <false>]]>
                     </failure>
                 </testcase>
-                <testcase file="/test.java" name="test_variant_truncation2" time="0.001">
+                <testcase file="test.java" name="test_variant_truncation2" time="0.001">
                     <failure message="Test failed"/>
                 </testcase>
             </testsuite>
@@ -886,7 +886,7 @@ mod tests {
             test_case_run1.status_output_message,
             "Expected: <true> but was: <false>"
         );
-        assert_eq!(test_case_run1.file, "/test.java");
+        assert_eq!(test_case_run1.file, "test.java");
         assert_eq!(test_case_run1.attempt_number, 0);
         assert!(!test_case_run1.is_quarantined);
         assert_eq!(
@@ -911,7 +911,7 @@ mod tests {
         assert_eq!(test_case_run2.classname, "");
         assert_eq!(test_case_run2.status, TestCaseRunStatus::Failure as i32);
         assert_eq!(test_case_run2.status_output_message, "Test failed");
-        assert_eq!(test_case_run2.file, "/test.java");
+        assert_eq!(test_case_run2.file, "test.java");
         assert_eq!(test_case_run2.attempt_number, 0);
         assert!(!test_case_run2.is_quarantined);
         assert_eq!(
