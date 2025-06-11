@@ -22,8 +22,10 @@ use predicates::prelude::*;
 use pretty_assertions::assert_eq;
 use prost::Message;
 use tempfile::tempdir;
+#[cfg(target_os = "macos")]
+use test_utils::inputs::unpack_archive_to_dir;
 use test_utils::{
-    inputs::{get_test_file_path, unpack_archive_to_dir},
+    inputs::get_test_file_path,
     mock_server::{MockServerBuilder, RequestPayload, SharedMockServerState},
 };
 
