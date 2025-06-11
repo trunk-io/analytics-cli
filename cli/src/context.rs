@@ -407,11 +407,11 @@ fn coalesce_junit_path_wrappers(
                 .concat();
             } else if let Some(temp_dir) = parse_as_xcresult(
                 #[cfg(target_os = "macos")]
-                test_report,
+                &test_report,
                 #[cfg(target_os = "macos")]
                 repo,
                 #[cfg(target_os = "macos")]
-                org_url_slug,
+                &org_url_slug,
                 #[cfg(target_os = "macos")]
                 use_experimental_failure_summary,
             ) {
@@ -445,12 +445,12 @@ fn parse_as_xcresult(
 ) -> Option<tempfile::TempDir> {
     #[cfg(target_os = "macos")]
     {
-        let temp_dir = tempfile::tempdir()?;
+        let temp_dir = tempfile::tempdir().ok()?;
         let temp_paths = handle_xcresult(
             &temp_dir,
             Some(test_report.clone()),
             repo,
-            org_url_slug,
+            &org_url_slug,
             use_experimental_failure_summary,
         );
         if temp_paths.is_ok() {
@@ -459,6 +459,7 @@ fn parse_as_xcresult(
             return None;
         }
     }
+    #[cfg(not(target_os = "macos"))]
     None
 }
 
@@ -547,7 +548,7 @@ fn handle_xcresult(
     if let Some(xcresult_path) = xcresult_path {
         let xcresult = XCResult::new(
             xcresult_path,
-            org_url_slug,
+            org_url_slug.clone(),
             repo.repo_full_name(),
             use_experimental_failure_summary,
         )?;
