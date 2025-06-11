@@ -20,16 +20,13 @@ use context::{
 };
 use pluralizer::pluralize;
 use quick_junit::Report;
+use superconsole::Lines;
 use superconsole::{
     style::{Attribute, Stylize},
     Line, Span,
 };
-use superconsole::Lines;
 
-use crate::{
-    print::print_bep_results,
-    end_output::EndOutput,
-};
+use crate::{end_output::EndOutput, print::print_bep_results};
 
 #[derive(Args, Clone, Debug)]
 pub struct ValidateArgs {
