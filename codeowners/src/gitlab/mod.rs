@@ -199,6 +199,10 @@ mod tests {
             owners.of("build/logs/foo/bar.go"),
             Some(vec![GitLabOwner::Name("@doctocat".into())])
         );
+        assert_eq!(
+            owners.of("./build/logs/foo/bar.go"),
+            Some(vec![GitLabOwner::Name("@doctocat".into())])
+        );
         // not relative to root
         assert_eq!(
             owners.of("foo/build/logs/foo.go"),
@@ -266,6 +270,26 @@ mod tests {
         assert_eq!(
             partial_missing_owner.of("foo/bar/baz2.rs"),
             Some(Vec::new())
+        );
+    }
+
+    #[test]
+    fn relative_path_is_parsable() {
+        let relative_path = GitLabOwners::from_reader(
+            "/ @doug\nfoo/bar @doug\nfoo/bar/baz.rs @bob\nfoo/bar/baz2.rs @alice".as_bytes(),
+        )
+        .unwrap();
+        assert_eq!(
+            relative_path.of("./foo/bar/baz.rs"),
+            Some(vec![GitLabOwner::Name("@bob".into())])
+        );
+        assert_eq!(
+            relative_path.of("./foo/bar/baz2.rs"),
+            Some(vec![GitLabOwner::Name("@alice".into())])
+        );
+        assert_eq!(
+            relative_path.of("./"),
+            Some(vec![GitLabOwner::Name("@doug".into())])
         );
     }
 }

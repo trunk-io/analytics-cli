@@ -4,10 +4,14 @@ description: Run tests
 inputs:
   target:
     description: Rust target triple, e.g. x86_64-apple-darwin
+  codecov-token:
+    description: Codecov secret, used for uploads
 
 runs:
   using: composite
   steps:
+    - uses: taiki-e/install-action@cargo-llvm-cov
+
     - name: Install nextest (darwin)
       if: contains(inputs.target, 'darwin')
       uses: taiki-e/install-action@nextest
@@ -22,6 +26,20 @@ runs:
       shell: bash
       run: curl -LsSf https://get.nexte.st/latest/linux-arm | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin
 
+    - name: Collect coverage data (including doctests)
+      shell: bash
+      run: |
+        cargo llvm-cov --no-report nextest
+        cargo llvm-cov --no-report --doc
+        cargo llvm-cov report --doctests --lcov --output-path lcov.info
+
     - name: Run tests
       shell: bash
       run: cargo nextest run --features=bindings --workspace ${{ contains(inputs.target, 'musl') && '--exclude context-js --exclude context-py --exclude context_ruby' || '' }} --profile=ci
+
+    - name: Upload coverage reports to Codecov
+      uses: codecov/codecov-action@v5
+      with:
+        token: ${{ inputs.codecov-token }}
+        slug: trunk-io/analytics-cli
+        files: lcov.info

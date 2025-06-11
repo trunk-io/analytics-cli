@@ -5,14 +5,17 @@ use std::{
     time::SystemTime,
 };
 
+use chrono::{serde::ts_milliseconds, DateTime, Utc};
 use codeowners::{CodeOwners, Owners, OwnersOfPath};
 use constants::ALLOW_LIST;
-use context::junit::junit_path::{JunitReportFileWithStatus, JunitReportStatus};
+use context::junit::junit_path::{
+    JunitReportFileWithTestRunnerReport, TestRunnerReport, TestRunnerReportStatus,
+};
 use glob::glob;
 #[cfg(feature = "pyo3")]
 use pyo3::prelude::*;
 #[cfg(feature = "pyo3")]
-use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pyclass_enum};
+use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pyclass_enum, gen_stub_pymethods};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "wasm")]
@@ -30,7 +33,7 @@ pub struct FileSetBuilder {
 impl FileSetBuilder {
     pub fn build_file_sets<T: AsRef<str>, U: AsRef<Path>>(
         repo_root: T,
-        junit_paths: &[JunitReportFileWithStatus],
+        junit_paths: &[JunitReportFileWithTestRunnerReport],
         codeowners_path: &Option<U>,
         exec_start: Option<SystemTime>,
     ) -> anyhow::Result<Self> {
@@ -75,7 +78,7 @@ impl FileSetBuilder {
 
     fn file_sets_from_glob(
         repo_root: &str,
-        junit_paths: &[JunitReportFileWithStatus],
+        junit_paths: &[JunitReportFileWithTestRunnerReport],
         codeowners: Option<CodeOwners>,
         exec_start: Option<SystemTime>,
     ) -> anyhow::Result<Self> {
@@ -104,22 +107,22 @@ impl FileSetBuilder {
                         Ok(acc)
                     },
                 )?;
-                // If any file is a binary file, set the file set type to internal.
-                let file_set_type = bundled_files.iter().fold(FileSetType::Junit, |acc, file| {
-                    if acc == FileSetType::Internal {
-                        return acc;
-                    }
-                    if file.original_path.ends_with(".bin") {
-                        return FileSetType::Internal;
-                    }
-                    acc
-                });
+                let file_set_type = bundled_files
+                    .iter()
+                    .find_map(|file| {
+                        if file.original_path.ends_with(".bin") {
+                            Some(FileSetType::Internal)
+                        } else {
+                            None
+                        }
+                    })
+                    .unwrap_or(FileSetType::Junit);
                 acc.count = count;
                 acc.file_sets.push(FileSet::new(
+                    file_set_type,
                     bundled_files,
                     junit_wrapper.junit_path.clone(),
-                    junit_wrapper.status.clone(),
-                    file_set_type,
+                    junit_wrapper.test_runner_report,
                 ));
                 Ok(acc)
             },
@@ -172,22 +175,77 @@ pub struct FileSet {
     pub file_set_type: FileSetType,
     pub files: Vec<BundledFile>,
     pub glob: String,
+    #[serde(flatten)]
+    pub test_runner_report: Option<FileSetTestRunnerReport>,
+}
+
+#[derive(Debug, Default, Serialize, Deserialize, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass(get_all))]
+#[cfg_attr(feature = "wasm", derive(Tsify), tsify(into_wasm_abi, from_wasm_abi))]
+pub struct FileSetTestRunnerReport {
     /// Added in v0.6.11. Populated when parsing from BEP, not from junit globs
-    pub resolved_status: Option<JunitReportStatus>,
+    pub resolved_status: TestRunnerReportStatus,
+    /// Added in v0.9.2. Populated when parsing from BEP, not from junit globs
+    #[cfg_attr(feature = "wasm", tsify(type = "number"))]
+    #[serde(default, with = "ts_milliseconds")]
+    pub resolved_start_time_epoch_ms: DateTime<Utc>,
+    /// Added in v0.9.2. Populated when parsing from BEP, not from junit globs
+    #[cfg_attr(feature = "wasm", tsify(type = "number"))]
+    #[serde(default, with = "ts_milliseconds")]
+    pub resolved_end_time_epoch_ms: DateTime<Utc>,
+}
+
+#[cfg(feature = "pyo3")]
+#[gen_stub_pymethods]
+#[pymethods]
+impl FileSetTestRunnerReport {
+    #[cfg(feature = "pyo3")]
+    #[new]
+    pub fn new(
+        resolved_status: TestRunnerReportStatus,
+        resolved_start_time_epoch_ms: DateTime<Utc>,
+        resolved_end_time_epoch_ms: DateTime<Utc>,
+    ) -> Self {
+        Self {
+            resolved_status,
+            resolved_start_time_epoch_ms,
+            resolved_end_time_epoch_ms,
+        }
+    }
+}
+
+impl From<TestRunnerReport> for FileSetTestRunnerReport {
+    fn from(test_runner_report: TestRunnerReport) -> Self {
+        Self {
+            resolved_status: test_runner_report.status,
+            resolved_start_time_epoch_ms: test_runner_report.start_time,
+            resolved_end_time_epoch_ms: test_runner_report.end_time,
+        }
+    }
+}
+
+impl From<FileSetTestRunnerReport> for TestRunnerReport {
+    fn from(test_runner_report: FileSetTestRunnerReport) -> Self {
+        Self {
+            status: test_runner_report.resolved_status,
+            start_time: test_runner_report.resolved_start_time_epoch_ms,
+            end_time: test_runner_report.resolved_end_time_epoch_ms,
+        }
+    }
 }
 
 impl FileSet {
     pub fn new(
+        file_set_type: FileSetType,
         files: Vec<BundledFile>,
         glob: String,
-        resolved_status: Option<JunitReportStatus>,
-        file_set_type: FileSetType,
+        test_runner_report: Option<TestRunnerReport>,
     ) -> Self {
         Self {
             file_set_type,
             files,
             glob,
-            resolved_status,
+            test_runner_report: test_runner_report.map(FileSetTestRunnerReport::from),
         }
     }
 }

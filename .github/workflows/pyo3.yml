@@ -76,7 +76,7 @@ jobs:
           source .venv/bin/activate
           uv pip install -r requirements-dev.txt
           uv pip install context-py --find-links ../dist --force-reinstall
-          pytest
+          pytest --cov
       - name: pytest
         if: ${{ startsWith(matrix.platform.target, 'aarch64') }}
         uses: uraimo/run-on-arch-action@v2
@@ -95,7 +95,15 @@ jobs:
             source .venv/bin/activate
             uv pip install -r requirements-dev.txt
             uv pip install context-py --find-links ../dist --force-reinstall
-            pytest
+            pytest --cov
+
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          slug: trunk-io/analytics-cli
+          directory: ./context-py
+
       - name: Upload wheel package to S3
         uses: ./.github/actions/upload_to_s3
         if: "!cancelled() && github.event_name != 'pull_request'"

@@ -5,16 +5,27 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { compress } from "@mongodb-js/zstd";
 import * as tar from "tar";
+import dayjs from "dayjs";
+import utc from "dayjs/plugin/utc";
 
 import {
   parse_meta_from_tarball,
   parse_internal_bin_from_tarball,
   VersionedBundle,
+  TestRunnerReportStatus,
+  FileSet,
 } from "../pkg/context_js";
 
-type RecursiveOmit<T, K extends PropertyKey> = {
-  [P in keyof Omit<T, K>]: T[P] extends object ? RecursiveOmit<T[P], K> : T[P];
-};
+// eslint-disable-next-line vitest/require-hook
+dayjs.extend(utc);
+
+type RecursiveOmit<T, K extends PropertyKey> = T extends unknown[]
+  ? RecursiveOmit<T[number], K>[]
+  : {
+      [P in keyof Omit<T, K>]: T[P] extends object
+        ? RecursiveOmit<T[P], K>
+        : T[P];
+    };
 
 type TestBundleMeta = Omit<RecursiveOmit<VersionedBundle, "free">, "schema">;
 
@@ -39,7 +50,51 @@ const generateBundleMeta = (): TestBundleMeta => ({
         },
       ],
       glob: "**/*.xml",
-      resolved_status: null,
+      resolved_status: "Passed",
+      resolved_start_time_epoch_ms: dayjs.utc().subtract(5, "minute").valueOf(),
+      resolved_end_time_epoch_ms: dayjs.utc().subtract(2, "minute").valueOf(),
+    },
+    {
+      file_set_type: "Junit",
+      files: [
+        {
+          original_path: "/abs/path/junit.xml",
+          original_path_rel: "junit.xml",
+          path: "0.xml",
+          owners: ["owner"],
+          team: "team",
+        },
+      ],
+      glob: "**/*.xml",
+      resolved_status: "Passed",
+    },
+    {
+      file_set_type: "Junit",
+      files: [
+        {
+          original_path: "/abs/path/junit.xml",
+          original_path_rel: "junit.xml",
+          path: "0.xml",
+          owners: ["owner"],
+          team: "team",
+        },
+      ],
+      glob: "**/*.xml",
+      // NOTE: This is intentional to test backwards compatibility with old bundles
+      resolved_status: null as unknown as TestRunnerReportStatus,
+    },
+    {
+      file_set_type: "Junit",
+      files: [
+        {
+          original_path: "/abs/path/junit.xml",
+          original_path_rel: "junit.xml",
+          path: "0.xml",
+          owners: ["owner"],
+          team: "team",
+        },
+      ],
+      glob: "**/*.xml",
     },
   ],
   org: faker.company.name(),
@@ -153,6 +208,33 @@ describe("context-js", () => {
       const expectedMeta = {
         schema,
         ...uploadMeta,
+        file_sets: uploadMeta.file_sets.map((fileSet): FileSet => {
+          if (!("resolved_status" in fileSet)) {
+            return fileSet;
+          }
+
+          // NOTE: This is intentional to test backwards compatibility with old bundles
+          // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+          if (!fileSet.resolved_status) {
+            // eslint-disable-next-line @typescript-eslint/no-unused-vars
+            const { resolved_status: _, ...restFileSet } = fileSet;
+            return restFileSet;
+          }
+
+          return {
+            ...fileSet,
+            ...(typeof fileSet.resolved_start_time_epoch_ms === "undefined"
+              ? {
+                  resolved_start_time_epoch_ms: 0,
+                }
+              : {}),
+            ...(typeof fileSet.resolved_end_time_epoch_ms === "undefined"
+              ? {
+                  resolved_end_time_epoch_ms: 0,
+                }
+              : {}),
+          };
+        }),
         // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
         upload_time_epoch: expect.any(Number),
       };

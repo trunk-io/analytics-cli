@@ -96,6 +96,14 @@ impl OwnersOfPath for GitHubOwners {
                 if pattern.matches_path_with(path.as_ref(), opts) {
                     Some(owners)
                 } else {
+                    // NOTE: if the path is relative, we need to strip the leading dot
+                    // to match the pattern. We are doing this as a workaround for
+                    // cases where the provided path is relative, like `./foo/bar/baz.rs`
+                    if let Ok(simplified_path) = path.as_ref().strip_prefix("./") {
+                        if pattern.matches_path_with(simplified_path, opts) {
+                            return Some(owners);
+                        }
+                    }
                     // this pattern is only meant to match
                     // direct children
                     if pattern.as_str().ends_with("/*") {
@@ -349,6 +357,10 @@ mod tests {
         assert_eq!(
             owners.of("foo/apps/foo.js"),
             Some(vec![GitHubOwner::Username("@octocat".into())])
+        );
+        assert_eq!(
+            owners.of("./foo/apps/foo.js"),
+            Some(vec![GitHubOwner::Username("@octocat".into())])
         )
     }
 
@@ -359,6 +371,10 @@ mod tests {
         assert_eq!(
             owners.of("docs/foo.js"),
             Some(vec![GitHubOwner::Username("@doctocat".into())])
+        );
+        assert_eq!(
+            owners.of("./docs/foo.js"),
+            Some(vec![GitHubOwner::Username("@doctocat".into())])
         )
     }
 
@@ -367,6 +383,21 @@ mod tests {
         let owners = GitHubOwners::from_reader("foo/bar @doug".as_bytes()).unwrap();
         assert_eq!(
             owners.of("foo/bar/baz.rs"),
+            Some(vec![GitHubOwner::Username("@doug".into())])
+        );
+    }
+
+    #[test]
+    fn relative_path_owners() {
+        let owners = GitHubOwners::from_reader("foo/bar @doug".as_bytes()).unwrap();
+        assert_eq!(
+            owners.of("./foo/bar/baz.rs"),
+            Some(vec![GitHubOwner::Username("@doug".into())])
+        );
+        assert_eq!(owners.of(".foo/bar/baz.rs"), None);
+        assert_eq!(owners.of("./"), None);
+        assert_eq!(
+            owners.of("./foo/bar/baz.rs"),
             Some(vec![GitHubOwner::Username("@doug".into())])
         )
     }
