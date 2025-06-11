@@ -2,8 +2,10 @@ use api::client::get_api_host;
 use http::StatusCode;
 use superconsole::{
     style::{style, Attribute, Stylize},
-    Component, Dimensions, DrawMode, Line, Lines, Span,
+    Line, Span,
 };
+
+use crate::end_output::EndOutput;
 
 const HELP_TEXT: &str = "For more help, contact us at https://slack.trunk.io/";
 const CONNECTION_REFUSED_CONTEXT: &str = concat!("Unable to connect to trunk's server",);
@@ -81,8 +83,8 @@ fn is_unauthorized(error: &anyhow::Error) -> bool {
     }
 }
 
-impl Component for ErrorReport {
-    fn draw_unchecked(&self, _dimensions: Dimensions, _mode: DrawMode) -> anyhow::Result<Lines> {
+impl EndOutput for ErrorReport {
+    fn output(&self) -> anyhow::Result<Vec<Line>> {
         let Context {
             base_message,
             org_url_slug,
@@ -100,7 +102,7 @@ impl Component for ErrorReport {
             lines.push(Line::from_iter([Span::new_unstyled(
                 CONNECTION_REFUSED_CONTEXT,
             )?]));
-            return Ok(Lines(lines));
+            return Ok(lines);
         }
         let api_host = get_api_host();
         if is_unauthorized(&self.error) {
@@ -119,7 +121,7 @@ impl Component for ErrorReport {
                 if let Some(line) = lines.last_mut() {
                     line.pad_left(2);
                 }
-                return Ok(Lines(lines));
+                return Ok(lines);
             }
         }
         if base_message.is_some() {
@@ -152,7 +154,7 @@ impl Component for ErrorReport {
                 Span::new_styled(style(exit_code.to_string()).attribute(Attribute::Bold))?,
             ]));
         }
-        Ok(Lines(lines))
+        Ok(lines)
     }
 }
 

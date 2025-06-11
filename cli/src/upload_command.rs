@@ -11,12 +11,12 @@ use context::bazel_bep::common::BepParseResult;
 use pluralizer::pluralize;
 use superconsole::{
     style::{style, Attribute, Color, Stylize},
-    Line, Span,
+    Line, Lines, Span,
 };
-use superconsole::{Component, Dimensions, DrawMode, Lines};
 use unicode_ellipsis::truncate_str_leading;
 
 use crate::context_quarantine::QuarantineContext;
+use crate::end_output::EndOutput;
 use crate::validate_command::JunitReportValidations;
 use crate::{
     context::{
@@ -421,17 +421,17 @@ async fn upload_bundle(
     Ok(())
 }
 
-impl Component for UploadRunResult {
-    fn draw_unchecked(&self, dimensions: Dimensions, mode: DrawMode) -> anyhow::Result<Lines> {
+impl EndOutput for UploadRunResult {
+    fn output(&self) -> anyhow::Result<Vec<Line>> {
         let mut output: Vec<Line> = Vec::new();
         // If there is an error report, we display it instead
         if let Some(error_report) = self.error_report.as_ref() {
             output.push(Line::default());
-            output.extend(error_report.draw_unchecked(dimensions, mode)?);
-            return Ok(Lines(output));
+            output.extend(error_report.output()?);
+            return Ok(output);
         }
         if !self.validations.validations.is_empty() {
-            output.extend(self.validations.draw_unchecked(dimensions, mode)?);
+            output.extend(self.validations.output()?);
             output.push(Line::default());
         }
 
@@ -581,6 +581,6 @@ impl Component for UploadRunResult {
                 )?,
             ]));
         }
-        Ok(Lines(output))
+        Ok(output)
     }
 }
