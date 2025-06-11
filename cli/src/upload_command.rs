@@ -138,16 +138,14 @@ pub struct UploadArgs {
         long,
         help = "Value to set the variant of the test results uploaded.",
         required = false,
-        num_args = 1,
-        hide = true
+        num_args = 1
     )]
     pub variant: Option<String>,
     #[arg(
         long,
         help = "The exit code to use when not all tests are quarantined.",
         required = false,
-        num_args = 1,
-        hide = true
+        num_args = 1
     )]
     pub test_process_exit_code: Option<i32>,
     #[arg(
