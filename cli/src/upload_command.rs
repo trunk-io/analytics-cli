@@ -287,6 +287,11 @@ pub async fn run_upload(
         &meta.base_props.file_sets,
         &temp_dir,
         meta.base_props.codeowners.as_ref(),
+        // hide warnings on parsed xcresult output
+        #[cfg(target_os = "macos")]
+        upload_args.xcresult_path.is_none(),
+        #[cfg(not(target_os = "macos"))]
+        true,
     );
     let validations = if let Ok((internal_bundled_file, junit_validations)) = internal_bundled_file
     {

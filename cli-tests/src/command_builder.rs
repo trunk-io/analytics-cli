@@ -406,6 +406,7 @@ impl CommandType {
 pub enum PathsState {
     JunitPaths(String),
     BazelBepPath(String),
+    XCResultPath(String),
 }
 
 impl PathsState {
@@ -413,6 +414,7 @@ impl PathsState {
         match self {
             PathsState::JunitPaths(path) => vec![String::from("--junit-paths"), path.clone()],
             PathsState::BazelBepPath(path) => vec![String::from("--bazel-bep-path"), path.clone()],
+            PathsState::XCResultPath(path) => vec![String::from("--xcresult-path"), path.clone()],
         }
     }
 }
@@ -461,6 +463,11 @@ impl<'b> CommandBuilder<'b> {
 
     pub fn junit_paths(&mut self, new_paths: &str) -> &mut Self {
         self.paths_state = Some(PathsState::JunitPaths(String::from(new_paths)));
+        self
+    }
+
+    pub fn xcresult_path(&mut self, new_paths: &str) -> &mut Self {
+        self.paths_state = Some(PathsState::XCResultPath(String::from(new_paths)));
         self
     }
 
