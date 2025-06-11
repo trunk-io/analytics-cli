@@ -5150,6 +5150,7 @@ dependencies = [
  "anyhow",
  "api",
  "axum 0.7.9",
+ "flate2",
  "git2",
  "junit-mock",
  "lazy_static",

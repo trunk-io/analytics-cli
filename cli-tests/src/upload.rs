@@ -22,6 +22,8 @@ use predicates::prelude::*;
 use pretty_assertions::assert_eq;
 use prost::Message;
 use tempfile::{tempdir, TempDir};
+#[cfg(target_os = "macos")]
+use test_utils::inputs::unpack_archive_to_dir;
 use test_utils::{
     inputs::get_test_file_path,
     mock_server::{MockServerBuilder, RequestPayload, SharedMockServerState},
@@ -267,6 +269,55 @@ async fn upload_bundle_using_bep() {
     let parse_result = bazel_bep_parser.parse().ok().unwrap();
     assert!(parse_result.errors.is_empty());
     assert_eq!(parse_result.xml_file_counts(), (1, 0));
+
+    // HINT: View CLI output with `cargo test -- --nocapture`
+    println!("{assert}");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[cfg(target_os = "macos")]
+async fn upload_bundle_using_xcresult() {
+    let temp_dir = tempdir().unwrap();
+    generate_mock_git_repo(&temp_dir);
+    unpack_archive_to_dir(
+        "test_fixtures/test1.xcresult.tar.gz",
+        &temp_dir.path().display().to_string(),
+    );
+
+    let state = MockServerBuilder::new().spawn_mock_server().await;
+
+    let assert = CommandBuilder::upload(temp_dir.path(), state.host.clone())
+        .xcresult_path("test1.xcresult")
+        .command()
+        .assert()
+        .success()
+        .stderr(predicate::str::contains("1 file found, 1 with issues").not());
+
+    let requests = state.requests.lock().unwrap().clone();
+    assert_eq!(requests.len(), 3);
+    assert_matches!(requests[0], RequestPayload::CreateBundleUpload(_));
+    let tar_extract_directory = assert_matches!(&requests[1], RequestPayload::S3Upload(d) => d);
+    assert_matches!(requests[2], RequestPayload::TelemetryUploadMetrics(_));
+
+    let meta_json = fs::File::open(tar_extract_directory.join("meta.json")).unwrap();
+    let bundle_meta: BundleMeta = serde_json::from_reader(meta_json).unwrap();
+
+    assert!(!bundle_meta.base_props.file_sets.is_empty());
+    bundle_meta
+        .base_props
+        .file_sets
+        .iter()
+        .for_each(|file_set| {
+            assert_eq!(file_set.file_set_type, FileSetType::Junit);
+            let mut junit_parser = JunitParser::new();
+            file_set.files.iter().for_each(|file| {
+                let junit_file = fs::File::open(tar_extract_directory.join(&file.path)).unwrap();
+                assert!(junit_parser.parse(BufReader::new(junit_file)).is_ok());
+                assert!(junit_parser.issues().is_empty());
+            });
+            let report = junit_parser.into_reports().pop().unwrap();
+            assert_eq!(report.tests, 17);
+        });
 
     // HINT: View CLI output with `cargo test -- --nocapture`
     println!("{assert}");

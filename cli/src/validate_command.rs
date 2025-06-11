@@ -21,13 +21,13 @@ use context::{
 };
 use pluralizer::pluralize;
 use quick_junit::Report;
+use superconsole::Lines;
 use superconsole::{
     style::{Attribute, Stylize},
     Line, Span,
 };
-use superconsole::{Component, Dimensions, DrawMode, Lines};
 
-use crate::print::print_bep_results;
+use crate::{end_output::EndOutput, print::print_bep_results};
 
 #[derive(Args, Clone, Debug)]
 pub struct ValidateArgs {
@@ -508,8 +508,8 @@ impl JunitReportValidations {
 
 const MAX_FILE_ISSUES_TO_SHOW: usize = 8;
 const MAX_FILES_TO_SHOW: usize = 8;
-impl Component for JunitReportValidations {
-    fn draw_unchecked(&self, _dimensions: Dimensions, _mode: DrawMode) -> anyhow::Result<Lines> {
+impl EndOutput for JunitReportValidations {
+    fn output(&self) -> anyhow::Result<Vec<Line>> {
         let mut output: Vec<Line> = Vec::new();
         output.push(Line::from_iter([Span::new_styled(
             String::from("📂 File Validation").attribute(Attribute::Bold),
@@ -520,7 +520,7 @@ impl Component for JunitReportValidations {
             output.push(Line::from_iter([Span::new_styled(
                 "⚠️  No files found".to_string().attribute(Attribute::Bold),
             )?]));
-            return Ok(Lines::from_iter(output));
+            return Ok(output);
         } else if self.files_without_issues.len() != self.files.len() {
             // found x number of files with issues
             output.push(Line::from_iter([Span::new_styled(
@@ -650,6 +650,6 @@ impl Component for JunitReportValidations {
             ))?]));
         }
 
-        Ok(Lines::from_iter(output))
+        Ok(output)
     }
 }
