@@ -273,6 +273,7 @@ async fn upload_bundle_using_bep() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+#[cfg(target_os = "macos")]
 async fn upload_bundle_using_xcresult() {
     let temp_dir = tempdir().unwrap();
     generate_mock_git_repo(&temp_dir);
