@@ -256,6 +256,10 @@ pub async fn run_upload(
         &meta.base_props.file_sets,
         &temp_dir,
         meta.base_props.codeowners.as_ref(),
+        #[cfg(target_os = "macos")]
+        upload_args.xcresult_path.is_none(),
+        #[cfg(not(target_os = "macos"))]
+        true,
     );
     if let Ok(internal_bundled_file) = internal_bundled_file {
         meta.internal_bundled_file = Some(internal_bundled_file);
