@@ -126,6 +126,7 @@ dependencies = [
  "bundle",
  "constants",
  "context",
+ "display",
  "http 1.2.0",
  "lazy_static",
  "log",
@@ -135,6 +136,7 @@ dependencies = [
  "sentry",
  "serde",
  "serde_json",
+ "superconsole",
  "tempfile",
  "test_utils",
  "tokio",
@@ -1251,6 +1253,15 @@ dependencies = [
  "libc",
  "redox_users",
  "winapi",
+]
+
+[[package]]
+name = "display"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "superconsole",
+ "tracing",
 ]
 
 [[package]]
@@ -5570,6 +5581,7 @@ dependencies = [
  "console",
  "constants",
  "context",
+ "display",
  "env_logger",
  "exitcode",
  "glob",

@@ -1,14 +1,21 @@
-use std::env;
+use std::{
+    env,
+    sync::{
+        mpsc::{channel, Receiver, Sender},
+        Arc,
+    },
+    thread,
+};
 
 use clap::{Parser, Subcommand};
 use clap_verbosity_flag::{log::LevelFilter, InfoLevel, Verbosity};
+use display::message::{send_message, DisplayMessage};
 use superconsole::{Dimensions, SuperConsole};
 use terminal_size::{terminal_size, Height, Width};
 use third_party::sentry;
 use tracing_subscriber::{filter::FilterFn, prelude::*};
 use trunk_analytics_cli::{
     context::gather_debug_props,
-    end_output::display_end,
     error_report::ErrorReport,
     test_command::{run_test, TestArgs},
     upload_command::{run_upload, UploadArgs, UploadRunResult},
@@ -84,6 +91,38 @@ enum Commands {
     Validate(ValidateArgs),
 }
 
+fn output_render_loop(receiver: Receiver<DisplayMessage>) {
+    let mut superconsole = match SuperConsole::new() {
+        Some(console) => console,
+        None => {
+            tracing::warn!("Failed to create superconsole because of incompatible TTY");
+            let size = terminal_size();
+            if let Some((Width(width), Height(height))) = size {
+                SuperConsole::forced_new(Dimensions {
+                    width: width as usize,
+                    height: height as usize,
+                })
+            } else {
+                tracing::warn!("Falling back to default dimensions for superconsole");
+                // Fallback to a reasonable default size
+                // This is a fallback for when the terminal size cannot be determined
+                // or when running in a non-TTY environment.
+                tracing::warn!("Using default dimensions for superconsole");
+                tracing::warn!("This may not render correctly in some environments");
+                tracing::warn!("Please use a TTY compatible terminal for best results");
+                SuperConsole::forced_new(Dimensions {
+                    width: 143,
+                    height: 24,
+                })
+            }
+        }
+    };
+
+    while let Ok(message) = receiver.recv() {
+        message.render(&mut superconsole);
+    }
+}
+
 // "the Sentry client must be initialized before starting an async runtime or spawning threads"
 // https://docs.sentry.io/platforms/rust/#async-main-function
 fn main() -> anyhow::Result<()> {
@@ -108,51 +147,34 @@ fn main() -> anyhow::Result<()> {
                 command = cli.debug_props(),
                 "Trunk Flaky Test running command"
             );
-            let mut superconsole = match SuperConsole::new() {
-                Some(console) => console,
-                None => {
-                    tracing::warn!("Failed to create superconsole because of incompatible TTY");
-                    let size = terminal_size();
-                    if let Some((Width(width), Height(height))) = size {
-                        SuperConsole::forced_new(Dimensions {
-                            width: width as usize,
-                            height: height as usize,
-                        })
-                    } else {
-                        tracing::warn!("Falling back to default dimensions for superconsole");
-                        // Fallback to a reasonable default size
-                        // This is a fallback for when the terminal size cannot be determined
-                        // or when running in a non-TTY environment.
-                        tracing::warn!("Using default dimensions for superconsole");
-                        tracing::warn!("This may not render correctly in some environments");
-                        tracing::warn!("Please use a TTY compatible terminal for best results");
-                        SuperConsole::forced_new(Dimensions {
-                            width: 143,
-                            height: 24,
-                        })
-                    }
-                }
-            };
-            match run(cli).await {
+            let (render_sender, render_receiver) = channel::<DisplayMessage>();
+            thread::spawn(move || {
+                output_render_loop(render_receiver);
+            });
+
+            match run(cli, render_sender.clone()).await {
                 Ok(RunResult::Upload(run_result)) => {
-                    let render_result = display_end(&mut superconsole, &run_result);
-                    if let Err(e) = render_result {
-                        tracing::error!("Failed to render upload display: {}", e);
-                    }
-                    let exit_code = run_result
+                    let result_ptr = Arc::new(run_result);
+                    send_message(
+                        DisplayMessage::Final(result_ptr.clone(), String::from("upload display")),
+                        &render_sender,
+                    );
+                    let exit_code = result_ptr
                         .error_report
+                        .as_ref()
                         .map(|e| e.context.exit_code)
-                        .unwrap_or(run_result.quarantine_context.exit_code);
+                        .unwrap_or(result_ptr.quarantine_context.exit_code);
                     guard.flush(None);
                     std::process::exit(exit_code)
                 }
                 Ok(RunResult::Test(run_result)) => {
-                    let render_result = display_end(&mut superconsole, &run_result);
-                    if let Err(e) = render_result {
-                        tracing::error!("Failed to render test display: {}", e);
-                    }
+                    let result_ptr = Arc::new(run_result);
+                    send_message(
+                        DisplayMessage::Final(result_ptr.clone(), String::from("test display")),
+                        &render_sender,
+                    );
                     guard.flush(None);
-                    std::process::exit(run_result.quarantine_context.exit_code)
+                    std::process::exit(result_ptr.quarantine_context.exit_code)
                 }
                 Ok(RunResult::Validate(exit_code)) => {
                     guard.flush(None);
@@ -161,10 +183,13 @@ fn main() -> anyhow::Result<()> {
                 Err(error) => {
                     let error_report = ErrorReport::new(error, org_url_slug, None);
                     let exit_code = error_report.context.exit_code;
-                    let render_result = display_end(&mut superconsole, &error_report);
-                    if let Err(e) = render_result {
-                        tracing::error!("Failed to render error display: {}", e);
-                    }
+                    send_message(
+                        DisplayMessage::Final(
+                            Arc::new(error_report),
+                            String::from("error display"),
+                        ),
+                        &render_sender,
+                    );
                     guard.flush(None);
                     std::process::exit(exit_code);
                 }
@@ -178,7 +203,7 @@ enum RunResult {
     Validate(i32),
 }
 
-async fn run(cli: Cli) -> anyhow::Result<RunResult> {
+async fn run(cli: Cli, render_sender: Sender<DisplayMessage>) -> anyhow::Result<RunResult> {
     tracing::info!(
         "Starting trunk flakytests {} (git={}) rustc={}",
         env!("CARGO_PKG_VERSION"),
@@ -187,7 +212,7 @@ async fn run(cli: Cli) -> anyhow::Result<RunResult> {
     );
     match cli.command {
         Commands::Upload(upload_args) => {
-            let result = run_upload(upload_args, None, None).await?;
+            let result = run_upload(upload_args, None, None, Some(render_sender)).await?;
             Ok(RunResult::Upload(result))
         }
         Commands::Test(test_args) => {
