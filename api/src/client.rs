@@ -485,7 +485,7 @@ mod tests {
         let state = mock_server_builder.spawn_mock_server().await;
 
         let mut api_client =
-            ApiClient::new(String::from("mock-token"), String::from("mock-org")).unwrap();
+            ApiClient::new(String::from("mock-token"), String::from("mock-org"), None).unwrap();
         api_client.api_host.clone_from(&state.host);
 
         assert!(api_client
@@ -529,7 +529,7 @@ mod tests {
         let state = mock_server_builder.spawn_mock_server().await;
 
         let mut api_client =
-            ApiClient::new(String::from("mock-token"), String::from("mock-org")).unwrap();
+            ApiClient::new(String::from("mock-token"), String::from("mock-org"), None).unwrap();
         api_client.api_host.clone_from(&state.host);
 
         assert!(api_client
@@ -568,7 +568,7 @@ mod tests {
         let state = mock_server_builder.spawn_mock_server().await;
 
         let mut api_client =
-            ApiClient::new(String::from("mock-token"), String::from("mock-org")).unwrap();
+            ApiClient::new(String::from("mock-token"), String::from("mock-org"), None).unwrap();
         api_client.api_host.clone_from(&state.host);
 
         assert!(api_client

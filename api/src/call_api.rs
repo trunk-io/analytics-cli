@@ -248,6 +248,7 @@ mod tests {
                     .push(time_elapsed);
                 String::new()
             },
+            render_sender: None,
         }
         .call_api()
         .await
@@ -303,6 +304,7 @@ mod tests {
                     .push(time_elapsed);
                 String::new()
             },
+            render_sender: None,
         }
         .call_api()
         .await
@@ -330,6 +332,7 @@ mod tests {
             },
             log_progress_message: |_, _| String::new(),
             report_slow_progress_message: |_| String::new(),
+            render_sender: None,
         }
         .call_api()
         .await;
@@ -351,6 +354,7 @@ mod tests {
             },
             log_progress_message: |_, _| String::new(),
             report_slow_progress_message: |_| String::new(),
+            render_sender: None,
         }
         .call_api()
         .await;
@@ -379,6 +383,7 @@ mod tests {
             },
             log_progress_message: |_, _| String::new(),
             report_slow_progress_message: |_| String::new(),
+            render_sender: None,
         }
         .call_api()
         .await;
@@ -399,6 +404,7 @@ mod tests {
             },
             log_progress_message: |_, _| String::new(),
             report_slow_progress_message: |_| String::new(),
+            render_sender: None,
         }
         .call_api()
         .await;
@@ -419,6 +425,7 @@ mod tests {
             },
             log_progress_message: |_, _| String::new(),
             report_slow_progress_message: |_| String::new(),
+            render_sender: None,
         }
         .call_api()
         .await;
