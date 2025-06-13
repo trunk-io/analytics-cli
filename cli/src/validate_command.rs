@@ -443,10 +443,7 @@ fn print_codeowners_validation(
     println!("\nChecking for codeowners file...");
     match codeowners {
         Some(owners) => {
-            println!(
-                "  {} - Found codeowners:",
-                print_validation_level(JunitValidationLevel::Valid)
-            );
+            println!("  Found codeowners:");
             println!("    Path: {:?}", owners.path);
 
             let has_test_cases_without_matching_codeowners_paths = report_validations
