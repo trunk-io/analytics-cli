@@ -1,11 +1,20 @@
 use std::{
     env,
     process::{Command, Stdio},
+    sync::{mpsc::Sender, Arc},
     time::SystemTime,
 };
 
 use clap::Args;
 use constants::EXIT_FAILURE;
+use display::{
+    end_output::EndOutput,
+    message::{send_message, DisplayMessage},
+};
+use superconsole::{
+    style::{Attribute, Stylize},
+    Line, Span,
+};
 
 use crate::{
     context::{gather_debug_props, gather_initial_test_context},
@@ -44,6 +53,38 @@ pub struct TestRunResult {
     pub command: String,
     pub exec_start: Option<SystemTime>,
     pub exit_code: i32,
+    pub command_stdout: String,
+    pub command_stderr: String,
+}
+
+impl EndOutput for TestRunResult {
+    fn output(&self) -> anyhow::Result<Vec<Line>> {
+        let mut output: Vec<Line> = Vec::new();
+
+        output.extend(vec![
+            Line::from_iter([Span::new_styled(
+                String::from("📒 Subcommand outputs").attribute(Attribute::Bold),
+            )?]),
+            Line::default(),
+            Line::from_iter([Span::new_unstyled(String::from("📗 Stdout outputs"))?]),
+        ]);
+
+        for stdout_line in self.command_stdout.lines() {
+            output.push(Line::from_iter([Span::new_unstyled(stdout_line)?]));
+        }
+
+        output.extend(vec![
+            Line::default(),
+            Line::from_iter([Span::new_unstyled(String::from("📙 Stderr outputs"))?]),
+            Line::default(),
+        ]);
+
+        for stderr_line in self.command_stderr.lines() {
+            output.push(Line::from_iter([Span::new_unstyled(stderr_line)?]));
+        }
+
+        Ok(output)
+    }
 }
 
 pub async fn run_test(
@@ -51,9 +92,15 @@ pub async fn run_test(
         upload_args,
         command,
     }: TestArgs,
+    render_sender: Sender<DisplayMessage>,
 ) -> anyhow::Result<UploadRunResult> {
     let token = upload_args.token.clone();
     let mut test_run_result = run_test_command(&command).await?;
+    let run_result_ptr = Arc::new(test_run_result.clone());
+    send_message(
+        DisplayMessage::Final(run_result_ptr, String::from("test output")),
+        &render_sender,
+    );
     let test_context = gather_initial_test_context(
         upload_args.clone(),
         gather_debug_props(env::args().collect::<Vec<String>>(), token),
@@ -88,7 +135,7 @@ pub async fn run_test(
 
 pub async fn run_test_command<T: AsRef<str>>(command: &[T]) -> anyhow::Result<TestRunResult> {
     let exec_start = SystemTime::now();
-    let mut child = Command::new(command.first().map(|s| s.as_ref()).unwrap_or_default())
+    let child = Command::new(command.first().map(|s| s.as_ref()).unwrap_or_default())
         .args(
             command
                 .iter()
@@ -96,19 +143,24 @@ pub async fn run_test_command<T: AsRef<str>>(command: &[T]) -> anyhow::Result<Te
                 .map(|s| s.as_ref())
                 .collect::<Vec<_>>(),
         )
-        .stdout(Stdio::inherit())
-        .stderr(Stdio::inherit())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
         .spawn()?;
-    let exit_code = child
-        .wait()
-        .map_or_else(
-            |e| {
-                tracing::warn!("Error waiting for execution: {}", e);
-                None
-            },
-            |exit_status| exit_status.code(),
-        )
-        .unwrap_or(EXIT_FAILURE);
+    let exit_result = child.wait_with_output().map_err(|e| {
+        tracing::warn!("Error waiting for execution: {}", e);
+        e
+    });
+    let (exit_code, stdout, stderr) = exit_result
+        .map(|result| {
+            (
+                result.status.code().unwrap_or(EXIT_FAILURE),
+                String::from_utf8(result.stdout)
+                    .unwrap_or_else(|_| String::from("Error: Command had non-utf-8 output!")),
+                String::from_utf8(result.stderr)
+                    .unwrap_or_else(|_| String::from("Error: Command had non-utf-8 error output!")),
+            )
+        })
+        .unwrap_or((EXIT_FAILURE, String::from(""), String::from("")));
     tracing::info!("Command exit code: {}", exit_code);
 
     Ok(TestRunResult {
@@ -119,5 +171,7 @@ pub async fn run_test_command<T: AsRef<str>>(command: &[T]) -> anyhow::Result<Te
             .map(|s| s.as_ref())
             .collect::<Vec<_>>()
             .join(" "),
+        command_stdout: stdout,
+        command_stderr: stderr,
     })
 }

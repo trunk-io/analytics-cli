@@ -122,27 +122,27 @@ impl MutTestReport {
     }
 
     fn setup_logger(&self, org_url_slug: String) {
-        let sentry_layer = sentry_tracing::layer().event_mapper(move |event, context| {
-            // trunk-ignore(clippy/match_ref_pats)
-            match event.metadata().level() {
-                &tracing::Level::ERROR => {
-                    let mut event = sentry_tracing::event_from_event(event, context);
-                    event
-                        .tags
-                        .insert(String::from("org_url_slug"), org_url_slug.clone());
-                    sentry_tracing::EventMapping::Event(event)
-                }
-                &tracing::Level::WARN => sentry_tracing::EventMapping::Breadcrumb(
-                    sentry_tracing::breadcrumb_from_event(event, context),
-                ),
-                &tracing::Level::INFO => sentry_tracing::EventMapping::Breadcrumb(
-                    sentry_tracing::breadcrumb_from_event(event, context),
-                ),
-                &tracing::Level::DEBUG => sentry_tracing::EventMapping::Breadcrumb(
-                    sentry_tracing::breadcrumb_from_event(event, context),
-                ),
-                _ => sentry_tracing::EventMapping::Ignore,
+        let sentry_layer = sentry_tracing::layer().event_mapper(move |event, context| match event
+            .metadata()
+            .level()
+        {
+            &tracing::Level::ERROR => {
+                let mut event = sentry_tracing::event_from_event(event, context);
+                event
+                    .tags
+                    .insert(String::from("org_url_slug"), org_url_slug.clone());
+                sentry_tracing::EventMapping::Event(event)
             }
+            &tracing::Level::WARN => sentry_tracing::EventMapping::Breadcrumb(
+                sentry_tracing::breadcrumb_from_event(event, context),
+            ),
+            &tracing::Level::INFO => sentry_tracing::EventMapping::Breadcrumb(
+                sentry_tracing::breadcrumb_from_event(event, context),
+            ),
+            &tracing::Level::DEBUG => sentry_tracing::EventMapping::Breadcrumb(
+                sentry_tracing::breadcrumb_from_event(event, context),
+            ),
+            _ => sentry_tracing::EventMapping::Ignore,
         });
         let console_layer = tracing_subscriber::fmt::Layer::new()
             .without_time()
@@ -326,6 +326,8 @@ impl MutTestReport {
             command: self.0.borrow().command.clone(),
             exec_start: Some(self.0.borrow().started_at),
             exit_code: 0,
+            command_stdout: String::from(""),
+            command_stderr: String::from(""),
         };
         let result = match gather_initial_test_context(upload_args.clone(), debug_props) {
             Ok(pre_test_context) => {
@@ -424,7 +426,6 @@ impl MutTestReport {
         }
         test.name = name;
         test.classname = classname;
-        // trunk-ignore(clippy/assigning_clones)
         test.file = file.clone();
         if !test.file.is_empty() {
             let codeowners: Option<Vec<String>> = self
