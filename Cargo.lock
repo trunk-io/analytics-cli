@@ -5596,6 +5596,7 @@ dependencies = [
  "quick-junit",
  "regex",
  "reqwest",
+ "sentry",
  "sentry-tracing",
  "serde_json",
  "superconsole",

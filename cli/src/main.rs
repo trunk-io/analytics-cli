@@ -4,15 +4,15 @@ use std::{
         mpsc::{channel, Receiver, Sender},
         Arc,
     },
-    thread,
+    thread::{self, JoinHandle},
 };
 
 use clap::{Parser, Subcommand};
 use clap_verbosity_flag::{log::LevelFilter, InfoLevel, Verbosity};
 use display::message::{send_message, DisplayMessage};
+use sentry::ClientInitGuard;
 use superconsole::{Dimensions, SuperConsole};
 use terminal_size::{terminal_size, Height, Width};
-use third_party::sentry;
 use tracing_subscriber::{filter::FilterFn, prelude::*};
 use trunk_analytics_cli::{
     context::gather_debug_props,
@@ -123,11 +123,23 @@ fn output_render_loop(receiver: Receiver<DisplayMessage>) {
     }
 }
 
+fn close_out_and_exit<T>(
+    exit_code: i32,
+    guard: ClientInitGuard,
+    render_sender: Sender<DisplayMessage>,
+    render_handle: JoinHandle<T>,
+) -> ! {
+    guard.flush(None);
+    drop(render_sender);
+    let _ = render_handle.join();
+    std::process::exit(exit_code)
+}
+
 // "the Sentry client must be initialized before starting an async runtime or spawning threads"
 // https://docs.sentry.io/platforms/rust/#async-main-function
 fn main() -> anyhow::Result<()> {
     let release_name = format!("analytics-cli@{}", env!("CARGO_PKG_VERSION"));
-    let guard = sentry::init(release_name.into(), None);
+    let guard = third_party::sentry::init(release_name.into(), None);
 
     tokio::runtime::Builder::new_multi_thread()
         .enable_all()
@@ -148,7 +160,7 @@ fn main() -> anyhow::Result<()> {
                 "Trunk Flaky Test running command"
             );
             let (render_sender, render_receiver) = channel::<DisplayMessage>();
-            thread::spawn(move || {
+            let render_handle = thread::spawn(move || {
                 output_render_loop(render_receiver);
             });
 
@@ -164,8 +176,7 @@ fn main() -> anyhow::Result<()> {
                         .as_ref()
                         .map(|e| e.context.exit_code)
                         .unwrap_or(result_ptr.quarantine_context.exit_code);
-                    guard.flush(None);
-                    std::process::exit(exit_code)
+                    close_out_and_exit(exit_code, guard, render_sender, render_handle)
                 }
                 Ok(RunResult::Test(run_result)) => {
                     let result_ptr = Arc::new(run_result);
@@ -173,12 +184,15 @@ fn main() -> anyhow::Result<()> {
                         DisplayMessage::Final(result_ptr.clone(), String::from("test display")),
                         &render_sender,
                     );
-                    guard.flush(None);
-                    std::process::exit(result_ptr.quarantine_context.exit_code)
+                    close_out_and_exit(
+                        result_ptr.quarantine_context.exit_code,
+                        guard,
+                        render_sender,
+                        render_handle,
+                    )
                 }
                 Ok(RunResult::Validate(exit_code)) => {
-                    guard.flush(None);
-                    std::process::exit(exit_code)
+                    close_out_and_exit(exit_code, guard, render_sender, render_handle)
                 }
                 Err(error) => {
                     let error_report = ErrorReport::new(error, org_url_slug, None);
@@ -190,8 +204,7 @@ fn main() -> anyhow::Result<()> {
                         ),
                         &render_sender,
                     );
-                    guard.flush(None);
-                    std::process::exit(exit_code);
+                    close_out_and_exit(exit_code, guard, render_sender, render_handle)
                 }
             }
         })
