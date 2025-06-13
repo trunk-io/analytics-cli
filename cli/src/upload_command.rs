@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 use std::env;
+use std::sync::mpsc::Sender;
 
 use api::client::ApiClient;
 use api::{client::get_api_host, urls::url_for_test_case};
@@ -8,6 +9,7 @@ use bundle::{BundleMeta, BundlerUtil};
 use clap::{ArgAction, Args};
 use constants::EXIT_SUCCESS;
 use context::bazel_bep::common::BepParseResult;
+use display::{end_output::EndOutput, message::DisplayMessage};
 use pluralizer::pluralize;
 use superconsole::{
     style::{style, Attribute, Color, Stylize},
@@ -16,7 +18,6 @@ use superconsole::{
 use unicode_ellipsis::truncate_str_leading;
 
 use crate::context_quarantine::QuarantineContext;
-use crate::end_output::EndOutput;
 use crate::validate_command::JunitReportValidations;
 use crate::{
     context::{
@@ -232,6 +233,7 @@ pub async fn run_upload(
     upload_args: UploadArgs,
     pre_test_context: Option<PreTestContext>,
     test_run_result: Option<TestRunResult>,
+    render_sender: Option<Sender<DisplayMessage>>,
 ) -> anyhow::Result<UploadRunResult> {
     // grab the exec start if provided (`test` subcommand) or use the current time
     let cli_started_at = if let Some(test_run_result) = test_run_result.as_ref() {
@@ -256,7 +258,7 @@ pub async fn run_upload(
         }
     }
 
-    let api_client = ApiClient::new(&upload_args.token, &upload_args.org_url_slug)?;
+    let api_client = ApiClient::new(&upload_args.token, &upload_args.org_url_slug, render_sender)?;
 
     let PreTestContext {
         mut meta,

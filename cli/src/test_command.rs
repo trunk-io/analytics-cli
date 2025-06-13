@@ -70,6 +70,7 @@ pub async fn run_test(
         upload_args,
         Some(test_context),
         Some(test_run_result.clone()),
+        None,
     )
     .await;
     match upload_run_result {

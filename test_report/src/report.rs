@@ -187,7 +187,7 @@ impl MutTestReport {
             tracing::warn!("Not checking quarantine status because TRUNK_ORG_URL_SLUG is empty");
             return false;
         }
-        let api_client = ApiClient::new(token, org_url_slug.clone());
+        let api_client = ApiClient::new(token, org_url_slug.clone(), None);
         let bundle_repo = BundleRepo::new(None, None, None, None, None, None, false);
         match (api_client, bundle_repo) {
             (Ok(api_client), Ok(bundle_repo)) => {
@@ -337,6 +337,7 @@ impl MutTestReport {
                         upload_args,
                         Some(pre_test_context),
                         Some(test_run_result),
+                        None,
                     )) {
                     Ok(upload_result) => {
                         if let Some(upload_bundle_error) =

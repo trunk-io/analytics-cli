@@ -1,6 +1,9 @@
+use std::sync::mpsc::Sender;
+use std::sync::Arc;
 use std::{env, time::Duration};
 
 use constants::TRUNK_API_CLIENT_RETRY_COUNT_ENV;
+use display::message::{send_message, DisplayMessage, ProgressMessage};
 use http::StatusCode;
 use tokio::time::{self, Instant};
 use tokio_retry::{strategy::ExponentialBackoff, Action, RetryIf};
@@ -118,6 +121,7 @@ where
     pub action: A,
     pub log_progress_message: L,
     pub report_slow_progress_message: R,
+    pub render_sender: Option<Sender<DisplayMessage>>,
 }
 
 impl<A, L, R> CallApi<A, L, R>
@@ -130,16 +134,29 @@ where
     pub async fn call_api(&mut self) -> Result<A::Item, A::Error> {
         let report_slow_progress_start = time::Instant::now();
         let report_slow_progress_message = self.report_slow_progress_message;
+        let mut slow_progress_sender = self.render_sender.clone();
         let report_slow_progress_handle = tokio::spawn(async move {
             let duration = Duration::from_secs(REPORT_SLOW_PROGRESS_TIMEOUT_SECS);
             time::sleep(duration).await;
             let time_elapsed = Instant::now().duration_since(report_slow_progress_start);
             let message = report_slow_progress_message(time_elapsed);
+            slow_progress_sender.iter_mut().for_each(|s| {
+                send_message(
+                    DisplayMessage::Progress(
+                        Arc::new(ProgressMessage {
+                            message: message.clone(),
+                        }),
+                        String::from("slow progress message"),
+                    ),
+                    s,
+                );
+            });
             tracing::debug!("{:?}", message);
         });
 
         let check_progress_start = time::Instant::now();
         let log_progress_message = self.log_progress_message;
+        let mut check_progress_sender = self.render_sender.clone();
         let check_progress_handle = tokio::spawn(async move {
             let mut log_count = 0;
             let duration = Duration::from_secs(CHECK_PROGRESS_INTERVAL_SECS);
@@ -149,6 +166,17 @@ where
                 let instant = interval.tick().await;
                 let time_elapsed = instant.duration_since(check_progress_start);
                 let log_message = log_progress_message(time_elapsed, log_count);
+                check_progress_sender.iter_mut().for_each(|s| {
+                    send_message(
+                        DisplayMessage::Progress(
+                            Arc::new(ProgressMessage {
+                                message: log_message.clone(),
+                            }),
+                            String::from("progress message"),
+                        ),
+                        s,
+                    );
+                });
                 tracing::debug!("{}", log_message);
                 log_count += 1;
             }
@@ -220,6 +248,7 @@ mod tests {
                     .push(time_elapsed);
                 String::new()
             },
+            render_sender: None,
         }
         .call_api()
         .await
@@ -275,6 +304,7 @@ mod tests {
                     .push(time_elapsed);
                 String::new()
             },
+            render_sender: None,
         }
         .call_api()
         .await
@@ -302,6 +332,7 @@ mod tests {
             },
             log_progress_message: |_, _| String::new(),
             report_slow_progress_message: |_| String::new(),
+            render_sender: None,
         }
         .call_api()
         .await;
@@ -323,6 +354,7 @@ mod tests {
             },
             log_progress_message: |_, _| String::new(),
             report_slow_progress_message: |_| String::new(),
+            render_sender: None,
         }
         .call_api()
         .await;
@@ -351,6 +383,7 @@ mod tests {
             },
             log_progress_message: |_, _| String::new(),
             report_slow_progress_message: |_| String::new(),
+            render_sender: None,
         }
         .call_api()
         .await;
@@ -371,6 +404,7 @@ mod tests {
             },
             log_progress_message: |_, _| String::new(),
             report_slow_progress_message: |_| String::new(),
+            render_sender: None,
         }
         .call_api()
         .await;
@@ -391,6 +425,7 @@ mod tests {
             },
             log_progress_message: |_, _| String::new(),
             report_slow_progress_message: |_| String::new(),
+            render_sender: None,
         }
         .call_api()
         .await;

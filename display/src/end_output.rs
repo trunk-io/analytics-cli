@@ -15,7 +15,10 @@ impl Component for EmptyComponent {
 }
 
 // Clears out any renders, and outputs the entire output of result, scrolling the terminal and wrapping long lines (you know, normal terminal output)
-pub fn display_end(superconsole: &mut SuperConsole, result: &impl EndOutput) -> Result<()> {
+pub fn display_end(
+    superconsole: &mut SuperConsole,
+    result: &(impl EndOutput + ?Sized),
+) -> Result<()> {
     let lines = result.output()?;
     // Superconsole truncates line emission if you emit more lines than the console has rows in a single render loop.
     // We could batch these based on tty rows, but the performance is fine without doing so, and we're not exactly running
