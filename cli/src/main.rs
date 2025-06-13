@@ -225,11 +225,11 @@ async fn run(cli: Cli, render_sender: Sender<DisplayMessage>) -> anyhow::Result<
     );
     match cli.command {
         Commands::Upload(upload_args) => {
-            let result = run_upload(upload_args, None, None, Some(render_sender)).await?;
+            let result = run_upload(upload_args, None, None, Some(render_sender.clone())).await?;
             Ok(RunResult::Upload(result))
         }
         Commands::Test(test_args) => {
-            let result = run_test(test_args).await?;
+            let result = run_test(test_args, render_sender).await?;
             Ok(RunResult::Test(result))
         }
         Commands::Validate(validate_args) => {
