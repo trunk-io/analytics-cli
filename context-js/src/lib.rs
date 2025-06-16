@@ -117,7 +117,7 @@ pub fn repo_validate(bundle_repo: repo::BundleRepo) -> repo::validator::RepoVali
 
 async fn get_buf_reader_from_stream(
     input: sys::ReadableStream,
-) -> BufReaderAsync<Either<impl futures::io::AsyncRead, impl futures::io::AsyncRead>> {
+) -> BufReaderAsync<impl futures::io::AsyncRead> {
     let readable_stream = ReadableStream::from_raw(input);
 
     // Many platforms do not support readable byte streams
