@@ -11,6 +11,7 @@ import utc from "dayjs/plugin/utc";
 import {
   parse_meta_from_tarball,
   parse_internal_bin_from_tarball,
+  parse_internal_bin_and_meta_from_tarball,
   VersionedBundle,
   TestRunnerReportStatus,
   FileSet,
@@ -127,20 +128,30 @@ const generateBundleMeta = (): TestBundleMeta => ({
 const bundleMetaJsonSerializer = (_key: unknown, value: unknown) =>
   typeof value === "bigint" ? Number(value) : value;
 
-const compressAndUploadMetaWithInternalBin = async (metaInfoJson: string) => {
+const compressAndUploadMeta = async ({
+  metaInfoJson,
+  includeInternalBin,
+}: {
+  metaInfoJson: string;
+  includeInternalBin?: boolean;
+}): Promise<ReadableStream> => {
   const tmpDir = await fs.mkdtemp(
     path.resolve(os.tmpdir(), "bundle-upload-extract-"),
   );
   const metaInfoFilePath = path.resolve(tmpDir, "meta.json");
   await fs.writeFile(metaInfoFilePath, metaInfoJson);
 
-  const internalBinSourcePath = path.resolve(
-    __dirname,
-    "../tests/test_internal.bin",
-  );
-  const internalBinFile = await fs.readFile(internalBinSourcePath);
-  const internalBinDestPath = path.resolve(tmpDir, "internal.bin");
-  await fs.writeFile(internalBinDestPath, internalBinFile);
+  const fileList: string[] = [path.basename(metaInfoFilePath)];
+  if (includeInternalBin) {
+    const internalBinSourcePath = path.resolve(
+      __dirname,
+      "../tests/test_internal.bin",
+    );
+    const internalBinFile = await fs.readFile(internalBinSourcePath);
+    const internalBinDestPath = path.resolve(tmpDir, "internal.bin");
+    await fs.writeFile(internalBinDestPath, internalBinFile);
+    fileList.push(path.basename(internalBinDestPath));
+  }
 
   const tarPath = path.resolve(tmpDir, `bundle.tar`);
   await tar.create(
@@ -148,17 +159,26 @@ const compressAndUploadMetaWithInternalBin = async (metaInfoJson: string) => {
       cwd: tmpDir,
       file: tarPath,
     },
-    [path.basename(metaInfoFilePath), path.basename(internalBinDestPath)],
+    fileList,
   );
 
   const tarBuffer = await fs.readFile(tarPath);
   await fs.rm(tmpDir, { recursive: true, force: true });
-  return await compress(tarBuffer);
+  const compressedBuffer = await compress(tarBuffer);
+
+  const readableStream = new ReadableStream({
+    start(controller) {
+      controller.enqueue(compressedBuffer);
+      controller.close();
+    },
+  });
+
+  return readableStream;
 };
 
 describe("context-js", () => {
-  type versions = Pick<VersionedBundle, "schema">["schema"];
-  const versionTests: [versions, Partial<VersionedBundle>][] = [
+  type Versions = Pick<VersionedBundle, "schema">["schema"];
+  const versionTests: [Versions, Partial<VersionedBundle>][] = [
     ["V0_5_29", {}],
     [
       "V0_5_34",
@@ -183,6 +203,50 @@ describe("context-js", () => {
     ],
   ];
 
+  const createExpectedVersionedBundle = (
+    schema: Versions,
+    uploadMeta: TestBundleMeta,
+  ) => {
+    const expectedMeta = {
+      schema,
+      ...uploadMeta,
+      file_sets: uploadMeta.file_sets.map((fileSet) => {
+        if (!("resolved_status" in fileSet)) {
+          return fileSet;
+        }
+
+        // NOTE: This is intentional to test backwards compatibility with old bundles
+        // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+        if (!fileSet.resolved_status) {
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          const { resolved_status: _, ...restFileSet } = fileSet;
+          return restFileSet;
+        }
+
+        return {
+          ...fileSet,
+          ...(typeof fileSet.resolved_start_time_epoch_ms === "undefined"
+            ? {
+                resolved_start_time_epoch_ms: 0,
+              }
+            : {}),
+          ...(typeof fileSet.resolved_end_time_epoch_ms === "undefined"
+            ? {
+                resolved_end_time_epoch_ms: 0,
+              }
+            : {}),
+        };
+      }) as FileSet[],
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+      upload_time_epoch: expect.any(Number),
+    };
+
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+    expectedMeta.repo.repo_head_commit_epoch = expect.any(Number);
+
+    return expectedMeta;
+  };
+
   it.each(versionTests)(
     "decompresses and parses meta.json %s",
     async (schema, extras) => {
@@ -194,52 +258,13 @@ describe("context-js", () => {
         bundleMetaJsonSerializer,
         2,
       );
-      const compressedBuffer =
-        await compressAndUploadMetaWithInternalBin(metaInfoJson);
-
-      const readableStream = new ReadableStream({
-        start(controller) {
-          controller.enqueue(compressedBuffer);
-          controller.close();
-        },
+      const readableStream = await compressAndUploadMeta({
+        metaInfoJson,
+        includeInternalBin: true,
       });
 
       const res = await parse_meta_from_tarball(readableStream);
-      const expectedMeta = {
-        schema,
-        ...uploadMeta,
-        file_sets: uploadMeta.file_sets.map((fileSet): FileSet => {
-          if (!("resolved_status" in fileSet)) {
-            return fileSet;
-          }
-
-          // NOTE: This is intentional to test backwards compatibility with old bundles
-          // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-          if (!fileSet.resolved_status) {
-            // eslint-disable-next-line @typescript-eslint/no-unused-vars
-            const { resolved_status: _, ...restFileSet } = fileSet;
-            return restFileSet;
-          }
-
-          return {
-            ...fileSet,
-            ...(typeof fileSet.resolved_start_time_epoch_ms === "undefined"
-              ? {
-                  resolved_start_time_epoch_ms: 0,
-                }
-              : {}),
-            ...(typeof fileSet.resolved_end_time_epoch_ms === "undefined"
-              ? {
-                  resolved_end_time_epoch_ms: 0,
-                }
-              : {}),
-          };
-        }),
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-        upload_time_epoch: expect.any(Number),
-      };
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-      expectedMeta.repo.repo_head_commit_epoch = expect.any(Number);
+      const expectedMeta = createExpectedVersionedBundle(schema, uploadMeta);
 
       expect(res).toStrictEqual(expectedMeta);
     },
@@ -248,15 +273,9 @@ describe("context-js", () => {
   it("empty meta.json", async () => {
     expect.hasAssertions();
 
-    const emptyJson = "{}";
-    const compressedBuffer =
-      await compressAndUploadMetaWithInternalBin(emptyJson);
-
-    const readableStream = new ReadableStream({
-      start(controller) {
-        controller.enqueue(compressedBuffer);
-        controller.close();
-      },
+    const readableStream = await compressAndUploadMeta({
+      metaInfoJson: "{}",
+      includeInternalBin: true,
     });
 
     await expect(
@@ -267,13 +286,9 @@ describe("context-js", () => {
   it("decompresses and parses internal.bin", async () => {
     expect.hasAssertions();
 
-    const compressedBuffer = await compressAndUploadMetaWithInternalBin("{}");
-
-    const readableStream = new ReadableStream({
-      start(controller) {
-        controller.enqueue(compressedBuffer);
-        controller.close();
-      },
+    const readableStream = await compressAndUploadMeta({
+      metaInfoJson: "{}",
+      includeInternalBin: true,
     });
 
     const bindingsReports =
@@ -299,5 +314,84 @@ describe("context-js", () => {
 
     expect(rspecExpectationsSuite).toBeDefined();
     expect(rspecExpectationsSuite?.test_cases).toHaveLength(8);
+  });
+
+  it("decompresses and parses both meta.json and internal.bin", async () => {
+    expect.hasAssertions();
+
+    const uploadMeta = {
+      ...generateBundleMeta(),
+      ...{
+        num_tests: faker.number.int(100),
+        num_files: faker.number.int(100),
+        command_line: "trunk-analytics-cli upload --token=***",
+        bundle_upload_id_v2: "SOME ID",
+      },
+    };
+    const metaInfoJson = JSON.stringify(
+      uploadMeta,
+      bundleMetaJsonSerializer,
+      2,
+    );
+    const readableStream = await compressAndUploadMeta({
+      metaInfoJson,
+      includeInternalBin: true,
+    });
+
+    const { bindings_report, versioned_bundle } =
+      await parse_internal_bin_and_meta_from_tarball(readableStream);
+
+    const expectedMeta = createExpectedVersionedBundle("V0_6_3", uploadMeta);
+
+    expect(versioned_bundle).toStrictEqual(expectedMeta);
+
+    expect(bindings_report).toHaveLength(1);
+
+    const result = bindings_report.at(0);
+
+    expect(result?.tests).toBe(13);
+    expect(result?.test_suites).toHaveLength(2);
+
+    const contextRubySuite = result?.test_suites.find(
+      ({ name }) => name === "context_ruby",
+    );
+
+    expect(contextRubySuite).toBeDefined();
+    expect(contextRubySuite?.test_cases).toHaveLength(5);
+
+    const rspecExpectationsSuite = result?.test_suites.find(
+      ({ name }) => name === "RSpec Expectations",
+    );
+
+    expect(rspecExpectationsSuite).toBeDefined();
+    expect(rspecExpectationsSuite?.test_cases).toHaveLength(8);
+  });
+
+  it("throws an error if internal bundle or meta.json is missing when expecting both", async () => {
+    expect.hasAssertions();
+
+    const uploadMeta = {
+      ...generateBundleMeta(),
+      ...{
+        num_tests: faker.number.int(100),
+        num_files: faker.number.int(100),
+        command_line: "trunk-analytics-cli upload --token=***",
+        bundle_upload_id_v2: "SOME ID",
+      },
+    };
+    const metaInfoJson = JSON.stringify(
+      uploadMeta,
+      bundleMetaJsonSerializer,
+      2,
+    );
+
+    const readableStream = await compressAndUploadMeta({
+      metaInfoJson,
+      includeInternalBin: false,
+    });
+
+    await expect(
+      parse_internal_bin_and_meta_from_tarball(readableStream),
+    ).rejects.toThrow('Files not found in tarball: ["internal.bin"]');
   });
 });
