@@ -6,7 +6,7 @@
 use std::collections::HashMap;
 
 use codeowners::CodeOwners;
-use context::repo::BundleRepo;
+use context::{junit, repo::BundleRepo};
 #[cfg(feature = "pyo3")]
 use pyo3::{exceptions::PyTypeError, prelude::*};
 #[cfg(feature = "pyo3")]
@@ -204,7 +204,7 @@ impl From<BundleMetaV0_7_7> for BundleMetaV0_7_6 {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 #[cfg_attr(feature = "wasm", derive(Tsify))]
 #[cfg_attr(feature = "wasm", tsify(into_wasm_abi, from_wasm_abi))]
 #[serde(tag = "schema")]
@@ -215,6 +215,13 @@ pub enum VersionedBundle {
     V0_6_3(BundleMetaV0_6_3),
     V0_7_6(BundleMetaV0_7_6),
     V0_7_7(BundleMetaV0_7_7),
+}
+
+#[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
+#[derive(Debug, Clone)]
+pub struct VersionedBundleWithBindingsReport {
+    pub versioned_bundle: VersionedBundle,
+    pub bindings_report: Vec<junit::bindings::BindingsReport>,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
