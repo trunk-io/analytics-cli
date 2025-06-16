@@ -1,8 +1,10 @@
 use std::{collections::HashMap, io::BufReader};
 
 use bundle::{
+    parse_internal_bin_and_meta_from_tarball as parse_internal_bin_and_meta,
     parse_internal_bin_from_tarball as parse_internal_bin,
-    parse_meta_from_tarball as parse_tarball, FileSetTestRunnerReport, VersionedBundle,
+    parse_meta_from_tarball as parse_tarball_meta, FileSetTestRunnerReport, VersionedBundle,
+    VersionedBundleWithBindingsReport,
 };
 use context::{env, junit, repo};
 use futures::{future::Either, io::BufReader as BufReaderAsync, stream::TryStreamExt};
@@ -113,10 +115,9 @@ pub fn repo_validate(bundle_repo: repo::BundleRepo) -> repo::validator::RepoVali
     repo::validator::validate(&bundle_repo)
 }
 
-#[wasm_bindgen()]
-pub async fn parse_meta_from_tarball(
+async fn get_buf_reader_from_stream(
     input: sys::ReadableStream,
-) -> Result<VersionedBundle, JsError> {
+) -> BufReaderAsync<impl futures::io::AsyncRead> {
     let readable_stream = ReadableStream::from_raw(input);
 
     // Many platforms do not support readable byte streams
@@ -133,9 +134,16 @@ pub async fn parse_meta_from_tarball(
         ),
     };
 
-    let buf_reader = BufReaderAsync::new(async_read);
+    BufReaderAsync::new(async_read)
+}
 
-    parse_tarball(buf_reader)
+#[wasm_bindgen()]
+pub async fn parse_meta_from_tarball(
+    input: sys::ReadableStream,
+) -> Result<VersionedBundle, JsError> {
+    let buf_reader = get_buf_reader_from_stream(input).await;
+
+    parse_tarball_meta(buf_reader)
         .await
         .map_err(|err| JsError::new(&err.to_string()))
 }
@@ -144,26 +152,26 @@ pub async fn parse_meta_from_tarball(
 pub async fn parse_internal_bin_from_tarball(
     input: sys::ReadableStream,
 ) -> Result<Vec<junit::bindings::BindingsReport>, JsError> {
-    let readable_stream = ReadableStream::from_raw(input);
-
-    // Many platforms do not support readable byte streams
-    // https://github.com/MattiasBuelens/wasm-streams/issues/19#issuecomment-1447294077
-    let async_read = match readable_stream.try_into_async_read() {
-        Ok(async_read) => Either::Left(async_read),
-        Err((_err, body)) => Either::Right(
-            body.into_stream()
-                .map_ok(|js_value| js_value.dyn_into::<Uint8Array>().unwrap_throw().to_vec())
-                .map_err(|_js_error| {
-                    std::io::Error::new(std::io::ErrorKind::Other, "failed to read")
-                })
-                .into_async_read(),
-        ),
-    };
-
-    let buf_reader = BufReaderAsync::new(async_read);
+    let buf_reader = get_buf_reader_from_stream(input).await;
     let test_result = parse_internal_bin(buf_reader)
         .await
         .map_err(|err| JsError::new(&err.to_string()))?;
 
     Ok(vec![junit::bindings::BindingsReport::from(test_result)])
+}
+
+#[wasm_bindgen()]
+pub async fn parse_internal_bin_and_meta_from_tarball(
+    input: sys::ReadableStream,
+) -> Result<VersionedBundleWithBindingsReport, JsError> {
+    let buf_reader = get_buf_reader_from_stream(input).await;
+
+    let (test_result, versioned_bundle) = parse_internal_bin_and_meta(buf_reader)
+        .await
+        .map_err(|err| JsError::new(&err.to_string()))?;
+
+    Ok(VersionedBundleWithBindingsReport {
+        bindings_report: vec![junit::bindings::BindingsReport::from(test_result)],
+        versioned_bundle,
+    })
 }
