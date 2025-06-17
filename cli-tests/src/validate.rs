@@ -20,10 +20,10 @@ fn validate_success() {
         .command()
         .assert()
         .success()
-        .stdout(predicate::str::contains("0 validation errors"))
-        .stdout(predicate::str::contains("All 1 files are valid"))
-        .stdout(predicate::str::contains("Checking for codeowners file..."))
-        .stdout(predicate::str::contains("Found codeowners:"));
+        .stderr(predicate::str::contains("\u{1b}[38;5;9m0\u{1b}[39m errors"))
+        .stderr(predicate::str::contains("\u{1b}[38;5;10m0\u{1b}[39m valid files, \u{1b}[38;5;11m1\u{1b}[39m file with warnings, and \u{1b}[38;5;9m0\u{1b}[39m files with errors, with 1 file total"))
+        .stderr(predicate::str::contains("Checking for codeowners file..."))
+        .stderr(predicate::str::contains("Found codeowners path:"));
 
     println!("{assert}");
 }
@@ -84,14 +84,12 @@ fn validate_invalid_junits_no_codeowners() {
         .command()
         .assert()
         .failure()
-        .stdout(predicate::str::contains("1 validation error"))
-        .stdout(predicate::str::contains(
-            "INVALID - test suite names are missing",
+        .stderr(predicate::str::contains(
+            "\u{1b}[38;5;11m0\u{1b}[39m warnings, and \u{1b}[38;5;9m1\u{1b}[39m error",
         ))
-        .stdout(predicate::str::contains("Checking for codeowners file..."))
-        .stdout(predicate::str::contains(
-            "OPTIONAL - No codeowners file found",
-        ));
+        .stderr(predicate::str::contains("test suite names are missing"))
+        .stderr(predicate::str::contains("Checking for codeowners file..."))
+        .stderr(predicate::str::contains("No codeowners file found"));
 
     println!("{assert}");
 }
@@ -106,8 +104,10 @@ fn validate_empty_xml() {
         .command()
         .assert()
         .success()
-        .stdout(predicate::str::contains("1 validation warning"))
-        .stdout(predicate::str::contains("OPTIONAL - no reports found"));
+        .stderr(predicate::str::contains(
+            "\u{1b}[38;5;11m1\u{1b}[39m warning, and \u{1b}[38;5;9m0\u{1b}[39m errors",
+        ))
+        .stderr(predicate::str::contains("no reports found"));
 
     println!("{assert}");
 }
@@ -122,10 +122,10 @@ fn validate_invalid_xml() {
         .command()
         .assert()
         .failure()
-        .stdout(predicate::str::contains("1 validation error"))
-        .stdout(predicate::str::contains(
-            "INVALID - syntax error: tag not closed",
-        ));
+        .stderr(predicate::str::contains(
+            "\u{1b}[38;5;11m0\u{1b}[39m warnings, and \u{1b}[38;5;9m1\u{1b}[39m error",
+        ))
+        .stderr(predicate::str::contains("syntax error: tag not closed"));
 
     println!("{assert}");
 }
@@ -139,11 +139,11 @@ fn validate_suboptimal_junits() {
         .command()
         .assert()
         .success()
-        .stdout(predicate::str::contains(
-            "0 validation errors, 1 validation warning",
+        .stderr(predicate::str::contains(
+            "\u{1b}[38;5;11m1\u{1b}[39m warning, and \u{1b}[38;5;9m0\u{1b}[39m errors",
         ))
-        .stdout(predicate::str::contains(
-            "OPTIONAL - report has stale (> 1 hour(s)) timestamps",
+        .stderr(predicate::str::contains(
+            "report has stale (> 1 hour(s)) timestamps",
         ));
 
     println!("{assert}");
@@ -159,14 +159,14 @@ fn validate_missing_filepath_suboptimal_junits() {
         .command()
         .assert()
         .success()
-        .stdout(predicate::str::contains(
-            "0 validation errors, 2 validation warning",
+        .stderr(predicate::str::contains(
+            "\u{1b}[38;5;11m2\u{1b}[39m warnings, and \u{1b}[38;5;9m0\u{1b}[39m errors",
         ))
-        .stdout(predicate::str::contains(
-            "OPTIONAL - report has test cases with missing file or filepath",
+        .stderr(predicate::str::contains(
+            "report has test cases with missing file or filepath",
         ))
-        .stdout(predicate::str::contains(
-            "OPTIONAL - CODEOWNERS found but test cases are missing filepaths. We will not be able to correlate flaky tests with owners.",
+        .stderr(predicate::str::contains(
+            "CODEOWNERS found but test cases are missing filepaths. We will not be able to correlate flaky tests with owners.",
         ));
 
     println!("{assert}");

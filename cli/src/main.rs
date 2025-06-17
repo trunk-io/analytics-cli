@@ -17,7 +17,7 @@ use trunk_analytics_cli::{
     error_report::ErrorReport,
     test_command::{run_test, TestArgs},
     upload_command::{run_upload, UploadArgs, UploadRunResult},
-    validate_command::{run_validate, ValidateArgs},
+    validate_command::{run_validate, ValidateArgs, ValidateRunResult},
 };
 
 #[derive(Debug, Parser)]
@@ -85,7 +85,7 @@ enum Commands {
     Test(TestArgs),
     /// Upload data to Trunk Flaky Tests
     Upload(UploadArgs),
-    /// Validate that your test runner output is suitable for Trunk Flaky Tests
+    /// Validate that your test runner output is suitable for Trunk Flaky Tests (does not call to servers)
     Validate(ValidateArgs),
 }
 
@@ -154,8 +154,13 @@ fn main() -> anyhow::Result<()> {
                         render_handle,
                     )
                 }
-                Ok(RunResult::Validate(exit_code)) => {
-                    close_out_and_exit(exit_code, guard, render_sender, render_handle)
+                Ok(RunResult::Validate(run_result)) => {
+                    let result_ptr = Arc::new(run_result);
+                    send_message(
+                        DisplayMessage::Final(result_ptr.clone(), String::from("validate display")),
+                        &render_sender,
+                    );
+                    close_out_and_exit(result_ptr.exit_code(), guard, render_sender, render_handle)
                 }
                 Err(error) => {
                     let error_report = ErrorReport::new(error, org_url_slug, None);
@@ -176,7 +181,7 @@ fn main() -> anyhow::Result<()> {
 enum RunResult {
     Upload(UploadRunResult),
     Test(UploadRunResult),
-    Validate(i32),
+    Validate(ValidateRunResult),
 }
 
 async fn run(cli: Cli, render_sender: Sender<DisplayMessage>) -> anyhow::Result<RunResult> {
