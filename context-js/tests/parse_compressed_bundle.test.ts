@@ -193,12 +193,14 @@ describe("context-js", () => {
       },
     ],
     [
-      "V0_6_3",
+      "V0_7_7",
       {
         num_tests: faker.number.int(100),
         num_files: faker.number.int(100),
         command_line: "trunk-analytics-cli upload --token=***",
         bundle_upload_id_v2: "SOME ID",
+        variant: null,
+        internal_bundled_file: null,
       },
     ],
   ];
@@ -326,6 +328,8 @@ describe("context-js", () => {
         num_files: faker.number.int(100),
         command_line: "trunk-analytics-cli upload --token=***",
         bundle_upload_id_v2: "SOME ID",
+        variant: "some-variant",
+        internal_bundled_file: null,
       },
     };
     const metaInfoJson = JSON.stringify(
@@ -341,7 +345,7 @@ describe("context-js", () => {
     const { bindings_report, versioned_bundle } =
       await parse_internal_bin_and_meta_from_tarball(readableStream);
 
-    const expectedMeta = createExpectedVersionedBundle("V0_6_3", uploadMeta);
+    const expectedMeta = createExpectedVersionedBundle("V0_7_7", uploadMeta);
 
     expect(versioned_bundle).toStrictEqual(expectedMeta);
 
