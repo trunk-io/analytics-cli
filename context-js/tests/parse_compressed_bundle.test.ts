@@ -401,6 +401,8 @@ describe("context-js", () => {
   });
 
   it("correctly gets and sets variant", async () => {
+    expect.hasAssertions();
+
     const readableStream = await compressAndUploadMeta({
       metaInfoJson: "{}",
       includeInternalBin: VARIANT_INTERNAL_BIN,
@@ -412,6 +414,7 @@ describe("context-js", () => {
     expect(bindingsReports).toHaveLength(1);
 
     const result = bindingsReports.at(0);
+
     expect(result?.variant).toBe("test-variant");
   });
 });
