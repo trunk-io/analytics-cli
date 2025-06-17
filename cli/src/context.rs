@@ -261,16 +261,13 @@ pub fn generate_internal_file(
         }
     }
     // Write test case runs to a temporary file
-    let mut test_result = TestResult {
+    let test_result = TestResult {
         test_case_runs,
-        ..Default::default()
+        uploader_metadata: Some(UploaderMetadata {
+            variant: variant.clone(),
+            ..Default::default()
+        }),
     };
-    if test_result.uploader_metadata.is_none() {
-        test_result.uploader_metadata = Some(UploaderMetadata::default());
-    }
-    if let Some(ref mut metadata) = test_result.uploader_metadata {
-        metadata.variant = variant;
-    }
     let mut buf = Vec::new();
     prost::Message::encode(&test_result, &mut buf)?;
     let test_report_path = temp_dir.path().join(INTERNAL_BIN_FILENAME);
