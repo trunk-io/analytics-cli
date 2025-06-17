@@ -489,10 +489,10 @@ impl From<MutTestReport> for String {
 #[cfg(feature = "ruby")]
 pub fn ruby_init(ruby: &magnus::Ruby) -> Result<(), magnus::Error> {
     let status = ruby.define_class("Status", ruby.class_object())?;
-    status.define_singleton_method("new", magnus::function!(Status::new, 2))?;
+    status.define_singleton_method("new", magnus::function!(Status::new, 1))?;
     status.define_method("to_s", magnus::method!(Status::to_string, 0))?;
     let test_report = ruby.define_class("TestReport", ruby.class_object())?;
-    test_report.define_singleton_method("new", magnus::function!(MutTestReport::new, 2))?;
+    test_report.define_singleton_method("new", magnus::function!(MutTestReport::new, 3))?;
     test_report.define_method("to_s", magnus::method!(MutTestReport::to_string, 0))?;
     test_report.define_method("publish", magnus::method!(MutTestReport::publish, 0))?;
     test_report.define_method("add_test", magnus::method!(MutTestReport::add_test, 12))?;
