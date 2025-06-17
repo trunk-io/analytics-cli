@@ -42,6 +42,7 @@ pub struct BindingsReport {
     pub failures: usize,
     pub errors: usize,
     pub test_suites: Vec<BindingsTestSuite>,
+    pub variant: Option<String>,
 }
 
 impl From<TestCaseRunStatus> for BindingsTestCaseStatusStatus {
@@ -118,7 +119,7 @@ impl From<TestResult> for BindingsReport {
                     acc.2 + ts.tests,
                 )
             });
-        let (name, timestamp, timestamp_micros) = match uploader_metadata {
+        let (name, timestamp, timestamp_micros, variant) = match uploader_metadata {
             Some(t) => {
                 let upload_time = t.upload_time.clone().unwrap_or_default();
                 (
@@ -129,9 +130,10 @@ impl From<TestResult> for BindingsReport {
                             .num_microseconds()
                             .unwrap_or_default(),
                     ),
+                    t.variant,
                 )
             }
-            None => ("Unknown".to_string(), None, None),
+            None => ("Unknown".to_string(), None, None, None),
         };
         BindingsReport {
             name,
@@ -143,6 +145,7 @@ impl From<TestResult> for BindingsReport {
             errors: 0,
             failures: report_failures,
             tests: report_tests,
+            variant,
         }
     }
 }
@@ -261,6 +264,7 @@ impl From<Report> for BindingsReport {
                 .into_iter()
                 .map(BindingsTestSuite::from)
                 .collect(),
+            variant: None,
         }
     }
 }
@@ -277,6 +281,7 @@ impl From<BindingsReport> for Report {
             failures,
             errors,
             test_suites,
+            variant: _,
         } = val;
         // NOTE: Cannot make a UUID without a `&'static str`
         let _ = uuid;

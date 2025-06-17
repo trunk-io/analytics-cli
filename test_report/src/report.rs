@@ -25,6 +25,7 @@ pub struct TestReport {
     started_at: SystemTime,
     quarantined_tests: Option<HashMap<String, Test>>,
     codeowners: Option<CodeOwners>,
+    variant: Option<String>,
 }
 
 #[cfg_attr(feature = "wasm", wasm_bindgen)]
@@ -94,13 +95,14 @@ pub struct MutTestReport(RefCell<TestReport>);
 
 #[cfg_attr(feature = "wasm", wasm_bindgen)]
 impl MutTestReport {
-    pub fn new(origin: String, command: String) -> Self {
+    pub fn new(origin: String, command: String, variant: Option<String>) -> Self {
         let started_at = SystemTime::now();
         let mut test_result = TestResult::default();
         test_result.uploader_metadata = Some(UploaderMetadata {
             origin: origin.clone(),
             version: env!("CARGO_PKG_VERSION").to_string(),
             upload_time: None,
+            variant: variant.clone(),
         });
         let codeowners = BundleRepo::new(None, None, None, None, None, None, false)
             .ok()
@@ -114,6 +116,7 @@ impl MutTestReport {
             started_at,
             quarantined_tests: None,
             codeowners,
+            variant: variant.clone(),
         }))
     }
 
