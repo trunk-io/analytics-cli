@@ -102,7 +102,7 @@ impl MutTestReport {
             origin: origin.clone(),
             version: env!("CARGO_PKG_VERSION").to_string(),
             upload_time: None,
-            variant: variant.clone(),
+            variant: variant.clone().unwrap_or_default(),
         });
         let codeowners = BundleRepo::new(None, None, None, None, None, None, false)
             .ok()

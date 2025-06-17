@@ -264,7 +264,7 @@ pub fn generate_internal_file(
     let test_result = TestResult {
         test_case_runs,
         uploader_metadata: Some(UploaderMetadata {
-            variant: variant.clone(),
+            variant: variant.unwrap_or_default(),
             ..Default::default()
         }),
     };

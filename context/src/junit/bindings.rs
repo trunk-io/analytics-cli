@@ -130,7 +130,7 @@ impl From<TestResult> for BindingsReport {
                             .num_microseconds()
                             .unwrap_or_default(),
                     ),
-                    t.variant,
+                    Some(t.variant),
                 )
             }
             None => ("Unknown".to_string(), None, None, None),
