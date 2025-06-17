@@ -18,6 +18,7 @@ use context::{
         },
     },
 };
+use display::end_output::EndOutput;
 use pluralizer::pluralize;
 use quick_junit::Report;
 use superconsole::Lines;
@@ -26,7 +27,7 @@ use superconsole::{
     Line, Span,
 };
 
-use crate::{end_output::EndOutput, print::print_bep_results};
+use crate::print::print_bep_results;
 
 #[derive(Args, Clone, Debug)]
 pub struct ValidateArgs {

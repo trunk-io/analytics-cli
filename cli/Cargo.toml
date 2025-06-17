@@ -21,6 +21,7 @@ chrono = { version = "0.4.33", default-features = false, features = ["clock"] }
 clap = { version = "4.4.18", features = ["derive", "env"] }
 context = { path = "../context", features = ["bindings"] }
 third-party = { path = "../third-party" }
+display = { path = "../display" }
 env_logger = { version = "0.11.0", default-features = false }
 log = "0.4.14"
 exitcode = "1.1.1"
@@ -42,6 +43,7 @@ reqwest = { version = "0.12.5", default-features = false, features = [
 ] }
 codeowners = { path = "../codeowners" }
 xcresult = { path = "../xcresult" }
+sentry = "=0.36.0"
 sentry-tracing = "0.36.0"
 openssl = { version = "0.10.72", features = ["vendored"] }
 openssl-src = { version = "=300.3.1", optional = true }
@@ -58,7 +60,6 @@ superconsole = "0.2.0"
 console = "0.15.11"
 unicode-ellipsis = "0.3.0"
 pluralizer = "0.5.0"
-terminal_size = "0.4.2"
 
 [dev-dependencies]
 test_utils = { version = "0.1.0", path = "../test_utils" }

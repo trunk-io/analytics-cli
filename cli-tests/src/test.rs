@@ -147,6 +147,7 @@ async fn test_command_fails_with_no_junit_files_no_quarantine_successful_upload(
             String::from("exit 128"),
         ],
     )
+    .verbose(true)
     .command()
     .assert()
     .failure()
