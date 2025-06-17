@@ -66,18 +66,13 @@ impl EndOutput for TestRunResult {
                 String::from("📒 Subcommand outputs").attribute(Attribute::Bold),
             )?]),
             Line::default(),
-            Line::from_iter([Span::new_unstyled(String::from("📗 Stdout outputs"))?]),
         ]);
 
         for stdout_line in self.command_stdout.lines() {
             output.push(Line::from_iter([Span::new_unstyled(stdout_line)?]));
         }
 
-        output.extend(vec![
-            Line::default(),
-            Line::from_iter([Span::new_unstyled(String::from("📙 Stderr outputs"))?]),
-            Line::default(),
-        ]);
+        output.push(Line::default());
 
         for stderr_line in self.command_stderr.lines() {
             output.push(Line::from_iter([Span::new_unstyled(stderr_line)?]));
