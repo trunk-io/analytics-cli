@@ -25,6 +25,7 @@ pub struct TestReport {
     started_at: SystemTime,
     quarantined_tests: Option<HashMap<String, Test>>,
     codeowners: Option<CodeOwners>,
+    variant: Option<String>,
 }
 
 #[cfg_attr(feature = "wasm", wasm_bindgen)]
@@ -94,13 +95,14 @@ pub struct MutTestReport(RefCell<TestReport>);
 
 #[cfg_attr(feature = "wasm", wasm_bindgen)]
 impl MutTestReport {
-    pub fn new(origin: String, command: String) -> Self {
+    pub fn new(origin: String, command: String, variant: Option<String>) -> Self {
         let started_at = SystemTime::now();
         let mut test_result = TestResult::default();
         test_result.uploader_metadata = Some(UploaderMetadata {
             origin: origin.clone(),
             version: env!("CARGO_PKG_VERSION").to_string(),
             upload_time: None,
+            variant: variant.clone().unwrap_or_default(),
         });
         let codeowners = BundleRepo::new(None, None, None, None, None, None, false)
             .ok()
@@ -114,6 +116,7 @@ impl MutTestReport {
             started_at,
             quarantined_tests: None,
             codeowners,
+            variant: variant.clone(),
         }))
     }
 
@@ -489,7 +492,7 @@ pub fn ruby_init(ruby: &magnus::Ruby) -> Result<(), magnus::Error> {
     status.define_singleton_method("new", magnus::function!(Status::new, 1))?;
     status.define_method("to_s", magnus::method!(Status::to_string, 0))?;
     let test_report = ruby.define_class("TestReport", ruby.class_object())?;
-    test_report.define_singleton_method("new", magnus::function!(MutTestReport::new, 2))?;
+    test_report.define_singleton_method("new", magnus::function!(MutTestReport::new, 3))?;
     test_report.define_method("to_s", magnus::method!(MutTestReport::to_string, 0))?;
     test_report.define_method("publish", magnus::method!(MutTestReport::publish, 0))?;
     test_report.define_method("add_test", magnus::method!(MutTestReport::add_test, 12))?;
