@@ -149,6 +149,7 @@ def test_parse_internal_bin_from_tarball():
     bindings_report = internal_bin[0]
     assert len(bindings_report.test_suites) == 2
     assert bindings_report.tests == 13
+    assert bindings_report.variant == ""
 
     test_suite_context_ruby = next(
         (

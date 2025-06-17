@@ -302,7 +302,7 @@ describe("context-js", () => {
 
     expect(result?.tests).toBe(13);
     expect(result?.test_suites).toHaveLength(2);
-    expect(result?.variant).toBeUndefined();
+    expect(result?.variant).toBe("");
 
     const contextRubySuite = result?.test_suites.find(
       ({ name }) => name === "context_ruby",
@@ -356,7 +356,7 @@ describe("context-js", () => {
 
     expect(result?.tests).toBe(13);
     expect(result?.test_suites).toHaveLength(2);
-    expect(result?.variant).toBeUndefined();
+    expect(result?.variant).toBe("");
 
     const contextRubySuite = result?.test_suites.find(
       ({ name }) => name === "context_ruby",
