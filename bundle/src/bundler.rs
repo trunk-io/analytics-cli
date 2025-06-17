@@ -174,6 +174,14 @@ pub async fn extract_files_from_tarball<R: AsyncBufRead>(
 
 pub fn parse_meta(meta_bytes: Vec<u8>) -> anyhow::Result<VersionedBundle> {
     if let Ok(message) = serde_json::from_slice(&meta_bytes) {
+        return Ok(VersionedBundle::V0_7_7(message));
+    }
+
+    if let Ok(message) = serde_json::from_slice(&meta_bytes) {
+        return Ok(VersionedBundle::V0_7_6(message));
+    }
+
+    if let Ok(message) = serde_json::from_slice(&meta_bytes) {
         return Ok(VersionedBundle::V0_6_3(message));
     }
 
