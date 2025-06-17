@@ -30,7 +30,7 @@ use context::{
 };
 use lazy_static::lazy_static;
 use prost::Message;
-use proto::test_context::test_run::TestResult;
+use proto::test_context::test_run::{TestResult, UploaderMetadata};
 use regex::Regex;
 use tempfile::TempDir;
 #[cfg(target_os = "macos")]
@@ -214,6 +214,7 @@ pub fn generate_internal_file(
     temp_dir: &TempDir,
     codeowners: Option<&CodeOwners>,
     show_warnings: bool,
+    variant: Option<String>,
 ) -> anyhow::Result<(
     BundledFile,
     BTreeMap<String, anyhow::Result<JunitReportValidation>>,
@@ -262,7 +263,10 @@ pub fn generate_internal_file(
     // Write test case runs to a temporary file
     let test_result = TestResult {
         test_case_runs,
-        ..Default::default()
+        uploader_metadata: Some(UploaderMetadata {
+            variant: variant.unwrap_or_default(),
+            ..Default::default()
+        }),
     };
     let mut buf = Vec::new();
     prost::Message::encode(&test_result, &mut buf)?;

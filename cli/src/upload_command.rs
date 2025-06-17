@@ -292,6 +292,7 @@ pub async fn run_upload(
         upload_args.xcresult_path.is_none(),
         #[cfg(not(target_os = "macos"))]
         true,
+        upload_args.variant,
     );
     let validations = if let Ok((internal_bundled_file, junit_validations)) = internal_bundled_file
     {
@@ -321,7 +322,6 @@ pub async fn run_upload(
             QuarantineContext::default()
         }
     };
-    // trunk-ignore(clippy/assigning_clones)
     meta.base_props.quarantined_tests = quarantine_context
         .quarantine_status
         .quarantine_results
