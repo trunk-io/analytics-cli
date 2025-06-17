@@ -35,7 +35,7 @@ message UploaderMetadata {
   string version = 1;
   string origin = 2; // RSpec, jest, etc..
   google.protobuf.Timestamp upload_time = 3;
-  optional string variant = 4;
+  string variant = 4;
 }
 
 message TestResult {
