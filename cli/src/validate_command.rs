@@ -9,7 +9,10 @@ use clap::{arg, ArgAction, Args};
 use codeowners::CodeOwners;
 use constants::{EXIT_FAILURE, EXIT_SUCCESS};
 use context::{
-    bazel_bep::parser::BazelBepParser,
+    bazel_bep::{
+        common::BepParseResult,
+        parser::BazelBepParser,
+    },
     junit::{
         junit_path::{JunitReportFileWithTestRunnerReport, TestRunnerReport},
         parser::{JunitParseIssue, JunitParseIssueLevel, JunitParser},
@@ -28,14 +31,14 @@ use superconsole::{
     Line, Lines, Span,
 };
 
-use crate::print::print_bep_results;
+use crate::context::fall_back_to_binary_parse;
 
 #[derive(Args, Clone, Debug)]
 pub struct ValidateArgs {
     #[arg(
         long,
-        required_unless_present = "bazel_bep_path",
-        conflicts_with = "bazel_bep_path",
+        required_unless_present_any = ["bazel_bep_path", "test_reports"],
+        conflicts_with_all = ["bazel_bep_path", "test_reports"],
         value_delimiter = ',',
         value_parser = clap::builder::NonEmptyStringValueParser::new(),
         help = "Comma-separated list of glob paths to junit files.",
@@ -43,10 +46,18 @@ pub struct ValidateArgs {
     junit_paths: Vec<String>,
     #[arg(
         long,
-        required_unless_present = "junit_paths",
+        required_unless_present_any = ["junit_paths", "test_reports"],
         help = "Path to bazel build event protocol JSON file."
     )]
     bazel_bep_path: Option<String>,
+    #[arg(
+        long,
+        required_unless_present_any = ["junit_paths", "bazel_bep_path"],
+        value_delimiter = ',',
+        value_parser = clap::builder::NonEmptyStringValueParser::new(),
+        help = "Comma-separated list of paths to test report files."
+    )]
+    pub test_reports: Vec<String>,
     #[arg(long, help = "Show warning-level log messages in output.", hide = true)]
     show_warnings: bool,
     #[arg(long, help = "Value to override CODEOWNERS file or directory path.")]
@@ -394,34 +405,83 @@ impl EndOutput for ValidateRunResult {
     }
 }
 
+fn parse_test_report(test_report_path: String) -> (Vec<JunitReportFileWithTestRunnerReport>, Option<BepParseResult>) {
+    let mut json_parser = BazelBepParser::new(test_report_path.clone());
+    let bep_parse_result = fall_back_to_binary_parse(json_parser.parse(), &test_report_path);
+    match bep_parse_result {
+        Ok(result) if !result.errors.is_empty() => {
+            (
+                vec![JunitReportFileWithTestRunnerReport::from(test_report_path)],
+                Some(result),
+            )
+        }
+        Err(_) => {
+            (
+                vec![JunitReportFileWithTestRunnerReport::from(test_report_path)],
+                None,
+            )
+        }
+        Ok(valid_result) => {
+            (
+                valid_result.uncached_xml_files(),
+                Some(valid_result),
+            )
+        }
+    }
+}
+
+fn flatten_glob(glob_text: &str) -> Vec<String> {
+    glob::glob(glob_text)
+        .into_iter()
+        .flat_map(|paths| {
+            paths.flat_map(|path_result| {
+                path_result
+                    .into_iter()
+                    .flat_map(|path| path.as_os_str().to_str().map(String::from).into_iter())
+            })
+        })
+        .collect()
+}
+
 pub async fn run_validate(validate_args: ValidateArgs) -> anyhow::Result<ValidateRunResult> {
     let ValidateArgs {
         junit_paths,
         bazel_bep_path,
+        test_reports,
         show_warnings: _,
         codeowners_path,
         ..
     } = validate_args;
 
-    let (junit_file_paths, bep_validate_result) = match bazel_bep_path {
-        Some(bazel_bep_path) => {
-            let mut parser = BazelBepParser::new(bazel_bep_path);
-            let bep_result = parser.parse()?;
-            print_bep_results(&bep_result);
-            (
-                bep_result.uncached_xml_files(),
-                Some(BepValidateResult {
-                    errors: bep_result.errors,
-                }),
-            )
+    let (junit_file_paths, bep_validate_result): (Vec<JunitReportFileWithTestRunnerReport>, Option<BepValidateResult>) = if !test_reports.is_empty() {
+        let mut parse_results = test_reports
+            .iter()
+            .flat_map(|test_report_glob| flatten_glob(test_report_glob.as_str()))
+            .map(parse_test_report);
+        
+        let file_paths = parse_results.clone().flat_map(|(files, _)| files).collect();
+        let bep_result = parse_results.find_map(|(_, bep_result)| bep_result.map(|result| BepValidateResult { errors: result.errors }));
+        (file_paths, bep_result)
+    } else {
+        match bazel_bep_path {
+            Some(bazel_bep_path) => {
+                let mut parser = BazelBepParser::new(bazel_bep_path);
+                let bep_result = parser.parse()?;
+                (
+                    bep_result.uncached_xml_files(),
+                    Some(BepValidateResult {
+                        errors: bep_result.errors,
+                    }),
+                )
+            }
+            None => (
+                junit_paths
+                    .into_iter()
+                    .map(JunitReportFileWithTestRunnerReport::from)
+                    .collect(),
+                None,
+            ),
         }
-        None => (
-            junit_paths
-                .into_iter()
-                .map(JunitReportFileWithTestRunnerReport::from)
-                .collect(),
-            None,
-        ),
     };
     validate(junit_file_paths, codeowners_path, bep_validate_result).await
 }
@@ -851,5 +911,131 @@ impl EndOutput for JunitReportValidations {
         }
 
         Ok(output)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use chrono::DateTime;
+    use context::junit::junit_path::{
+        JunitReportFileWithTestRunnerReport, TestRunnerReport, TestRunnerReportStatus,
+    };
+    use test_utils::inputs::get_test_file_path;
+
+    use super::*;
+
+    #[test]
+    fn test_flatten_glob_returns_all_matches() {
+        let path = get_test_file_path("test_fixtures/junit0*");
+        let mut actual = flatten_glob(&path);
+        let mut expected = vec![
+            get_test_file_path("test_fixtures/junit0_fail_suite_timestamp.xml"),
+            get_test_file_path("test_fixtures/junit0_fail.xml"),
+            get_test_file_path("test_fixtures/junit0_pass_suite_timestamp.xml"),
+            get_test_file_path("test_fixtures/junit0_pass.xml"),
+        ];
+        actual.sort();
+        expected.sort();
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_parse_test_report_handles_json_bep() {
+        let (actual, actual_bep) = parse_test_report(get_test_file_path("test_fixtures/bep_example"));
+        let expected = vec![JunitReportFileWithTestRunnerReport {
+            junit_path: String::from("/tmp/hello_test/test.xml"),
+            test_runner_report: None,
+        }];
+        assert_eq!(actual, expected);
+        assert_eq!(actual_bep.map(|bep| bep.errors), Some(Vec::new()));
+    }
+
+    #[test]
+    fn test_parse_test_report_handles_binary_bep() {
+        let (mut actual, actual_bep) = parse_test_report(get_test_file_path("test_fixtures/bep_binary_file.bin"));
+        let mut expected = vec![
+            JunitReportFileWithTestRunnerReport {
+                junit_path: String::from("bytestream://buildbarn2.build.trunk-staging.io:1986/blobs/37d45ccef587444393523741a3831f4a1acbeb010f74f33130ab9ba687477558/449"),
+                test_runner_report: Some(TestRunnerReport {
+                    status: TestRunnerReportStatus::Passed,
+                    start_time: DateTime::parse_from_rfc3339("2025-05-16T19:27:25.037Z").unwrap().to_utc(),
+                    end_time: DateTime::parse_from_rfc3339("2025-05-16T19:27:27.605Z").unwrap().to_utc(),
+                }),
+            },
+            JunitReportFileWithTestRunnerReport {
+                junit_path: String::from("bytestream://buildbarn2.build.trunk-staging.io:1986/blobs/46bbeb038d6f1447f6224a7db4d8a109e133884f2ee6ee78487ca4ce7e073de8/507"),
+                test_runner_report: Some(TestRunnerReport {
+                    status: TestRunnerReportStatus::Passed,
+                    start_time: DateTime::parse_from_rfc3339("2025-05-16T19:29:32.732Z").unwrap().to_utc(),
+                    end_time: DateTime::parse_from_rfc3339("2025-05-16T19:29:32.853Z").unwrap().to_utc(),
+                }),
+            },
+            JunitReportFileWithTestRunnerReport {
+                junit_path: String::from("bytestream://buildbarn2.build.trunk-staging.io:1986/blobs/d1f48dadf5679f09ce9b9c8f4778281ab25bc1dfdddec943e1255baf468630de/451"),
+                test_runner_report: Some(TestRunnerReport {
+                    status: TestRunnerReportStatus::Passed,
+                    start_time: DateTime::parse_from_rfc3339("2025-05-16T19:32:32.180Z").unwrap().to_utc(),
+                    end_time: DateTime::parse_from_rfc3339("2025-05-16T19:32:34.697Z").unwrap().to_utc(),
+                }),
+            },
+            JunitReportFileWithTestRunnerReport {
+                junit_path: String::from("bytestream://buildbarn2.build.trunk-staging.io:1986/blobs/38f1d4ce43242ed3cb08aedf1cc0c3133a8aec8e8eee61f5b84b85a5ba718bc8/1204"),
+                test_runner_report: Some(TestRunnerReport {
+                    status: TestRunnerReportStatus::Passed,
+                    start_time: DateTime::parse_from_rfc3339("2025-05-16T19:32:31.748Z").unwrap().to_utc(),
+                    end_time: DateTime::parse_from_rfc3339("2025-05-16T19:32:34.797Z").unwrap().to_utc(),
+                }),
+            },
+            JunitReportFileWithTestRunnerReport {
+                junit_path: String::from("bytestream://buildbarn2.build.trunk-staging.io:1986/blobs/ac23080b9bf5599b7781e3b62be9bf9a5b6685a8cbe76de4e9e1731a318e9283/607"),
+                test_runner_report: Some(TestRunnerReport {
+                    status: TestRunnerReportStatus::Passed,
+                    start_time: DateTime::parse_from_rfc3339("2025-05-16T19:33:01.680Z").unwrap().to_utc(),
+                    end_time: DateTime::parse_from_rfc3339("2025-05-16T19:33:01.806Z").unwrap().to_utc(),
+                }),
+            },
+            JunitReportFileWithTestRunnerReport {
+                junit_path: String::from("bytestream://buildbarn2.build.trunk-staging.io:1986/blobs/9c1db1d25ca6a4268be4a8982784c525a4b0ca99cbc7614094ad36c56bb08f2a/463"),
+                test_runner_report: Some(TestRunnerReport {
+                    status: TestRunnerReportStatus::Passed,
+                    start_time: DateTime::parse_from_rfc3339("2025-05-16T19:32:52.714Z").unwrap().to_utc(),
+                    end_time: DateTime::parse_from_rfc3339("2025-05-16T19:33:17.945Z").unwrap().to_utc(),
+                }),
+            },
+            JunitReportFileWithTestRunnerReport {
+                junit_path: String::from("bytestream://buildbarn2.build.trunk-staging.io:1986/blobs/7b3ed061a782496c7418be853caae863a9ada9618712f92346ea9e8169b8acf0/1120"),
+                test_runner_report: Some(TestRunnerReport {
+                    status: TestRunnerReportStatus::Passed,
+                    start_time: DateTime::parse_from_rfc3339("2025-05-16T19:35:16.934Z").unwrap().to_utc(),
+                    end_time: DateTime::parse_from_rfc3339("2025-05-16T19:35:19.361Z").unwrap().to_utc(),
+                }),
+            },
+            JunitReportFileWithTestRunnerReport {
+                junit_path: String::from("bytestream://buildbarn2.build.trunk-staging.io:1986/blobs/45ca1eed26b3cf1aafdb51829e32312d3b48452cc144aa041c946e89fa9c6cf6/175"),
+                test_runner_report: Some(TestRunnerReport {
+                    status: TestRunnerReportStatus::Passed,
+                    start_time: DateTime::parse_from_rfc3339("2025-05-16T19:35:16.929Z").unwrap().to_utc(),
+                    end_time: DateTime::parse_from_rfc3339("2025-05-16T19:35:19.383Z").unwrap().to_utc(),
+                }),
+            }
+        ];
+        actual.sort_by_key(|item| item.junit_path.clone());
+        expected.sort_by_key(|item| item.junit_path.clone());
+        assert_eq!(actual, expected);
+        assert_eq!(actual_bep.map(|bep| bep.errors), Some(Vec::new()));
+    }
+
+    #[test]
+    fn test_parse_test_report_falls_back_to_junit() {
+        let (actual, actual_bep) = parse_test_report(get_test_file_path("test_fixtures/junit0_pass.xml"));
+        let expected = vec![JunitReportFileWithTestRunnerReport {
+            junit_path: get_test_file_path("test_fixtures/junit0_pass.xml"),
+            test_runner_report: None,
+        }];
+        assert_eq!(actual, expected);
+        assert_eq!(
+            actual_bep.map(|bep| bep.errors),
+            Some(vec![String::from("Error parsing build event: expected value at line 1 column 1")])
+        );
     }
 }

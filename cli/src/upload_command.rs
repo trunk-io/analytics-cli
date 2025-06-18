@@ -38,7 +38,7 @@ const JUNIT_GLOB_REQUIRED_UNLESS_PRESENT_ARG: &str = "junit_paths";
 pub struct UploadArgs {
     #[arg(
         long,
-        required_unless_present_any = [JUNIT_GLOB_REQUIRED_UNLESS_PRESENT_ARG, "bazel_bep_path"],
+        required_unless_present_any = [JUNIT_GLOB_REQUIRED_UNLESS_PRESENT_ARG, "bazel_bep_path", "test_reports"],
         conflicts_with = "bazel_bep_path",
         value_delimiter = ',',
         value_parser = clap::builder::NonEmptyStringValueParser::new(),
@@ -47,17 +47,25 @@ pub struct UploadArgs {
     pub junit_paths: Vec<String>,
     #[arg(
         long,
-        required_unless_present_any = [JUNIT_GLOB_REQUIRED_UNLESS_PRESENT_ARG, "junit_paths"],
+        required_unless_present_any = [JUNIT_GLOB_REQUIRED_UNLESS_PRESENT_ARG, "junit_paths", "test_reports"],
         help = "Path to bazel build event protocol JSON file."
     )]
     pub bazel_bep_path: Option<String>,
     #[cfg(target_os = "macos")]
     #[arg(long,
-        required_unless_present_any = ["junit_paths", "bazel_bep_path"],
+        required_unless_present_any = ["junit_paths", "bazel_bep_path", "test_reports"],
         conflicts_with_all = ["junit_paths", "bazel_bep_path"],
         required = false, help = "Path of xcresult directory"
     )]
     pub xcresult_path: Option<String>,
+    #[arg(
+        long,
+        required_unless_present_any = [JUNIT_GLOB_REQUIRED_UNLESS_PRESENT_ARG, "junit_paths", "bazel_bep_path"],
+        value_delimiter = ',',
+        value_parser = clap::builder::NonEmptyStringValueParser::new(),
+        help = "Comma-separated list of glob paths to test report files."
+    )]
+    pub test_reports: Vec<String>,
     #[arg(long, help = "Organization url slug.")]
     pub org_url_slug: String,
     #[arg(
@@ -292,6 +300,7 @@ pub async fn run_upload(
         upload_args.xcresult_path.is_none(),
         #[cfg(not(target_os = "macos"))]
         true,
+        upload_args.variant,
     );
     let validations = if let Ok((internal_bundled_file, junit_validations)) = internal_bundled_file
     {
@@ -321,7 +330,6 @@ pub async fn run_upload(
             QuarantineContext::default()
         }
     };
-    // trunk-ignore(clippy/assigning_clones)
     meta.base_props.quarantined_tests = quarantine_context
         .quarantine_status
         .quarantine_results

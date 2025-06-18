@@ -35,7 +35,11 @@ async fn publish_test_report() {
     env::set_var("TRUNK_ORG_URL_SLUG", "test-org");
 
     let thread_join_handle = thread::spawn(|| {
-        let test_report = MutTestReport::new("test".into(), "test-command 123".into());
+        let test_report = MutTestReport::new(
+            "test".into(),
+            "test-command 123".into(),
+            Some("test-variant".into()),
+        );
         test_report.add_test(
             Some("1".into()),
             "test-name".into(),
@@ -209,7 +213,11 @@ fn test_mut_test_report_try_save() {
     use test_report::report::MutTestReport;
 
     let temp_dir = tempdir().unwrap();
-    let report = MutTestReport::new("test-origin".into(), "test-command".into());
+    let report = MutTestReport::new(
+        "test-origin".into(),
+        "test-command".into(),
+        Some("test-variant".into()),
+    );
     let result = report.try_save(temp_dir.path().to_str().unwrap().to_string());
     assert!(result, "try_save should return true on success");
 

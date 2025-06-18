@@ -20,6 +20,9 @@ import {
 // eslint-disable-next-line vitest/require-hook
 dayjs.extend(utc);
 
+const RUBY_INTERNAL_BIN = "../tests/test_internal.bin";
+const VARIANT_INTERNAL_BIN = "../tests/test_internal_with_variant.bin";
+
 type RecursiveOmit<T, K extends PropertyKey> = T extends unknown[]
   ? RecursiveOmit<T[number], K>[]
   : {
@@ -133,7 +136,7 @@ const compressAndUploadMeta = async ({
   includeInternalBin,
 }: {
   metaInfoJson: string;
-  includeInternalBin?: boolean;
+  includeInternalBin?: string;
 }): Promise<ReadableStream> => {
   const tmpDir = await fs.mkdtemp(
     path.resolve(os.tmpdir(), "bundle-upload-extract-"),
@@ -143,10 +146,7 @@ const compressAndUploadMeta = async ({
 
   const fileList: string[] = [path.basename(metaInfoFilePath)];
   if (includeInternalBin) {
-    const internalBinSourcePath = path.resolve(
-      __dirname,
-      "../tests/test_internal.bin",
-    );
+    const internalBinSourcePath = path.resolve(__dirname, includeInternalBin);
     const internalBinFile = await fs.readFile(internalBinSourcePath);
     const internalBinDestPath = path.resolve(tmpDir, "internal.bin");
     await fs.writeFile(internalBinDestPath, internalBinFile);
@@ -262,7 +262,7 @@ describe("context-js", () => {
       );
       const readableStream = await compressAndUploadMeta({
         metaInfoJson,
-        includeInternalBin: true,
+        includeInternalBin: RUBY_INTERNAL_BIN,
       });
 
       const res = await parse_meta_from_tarball(readableStream);
@@ -277,7 +277,7 @@ describe("context-js", () => {
 
     const readableStream = await compressAndUploadMeta({
       metaInfoJson: "{}",
-      includeInternalBin: true,
+      includeInternalBin: RUBY_INTERNAL_BIN,
     });
 
     await expect(
@@ -290,7 +290,7 @@ describe("context-js", () => {
 
     const readableStream = await compressAndUploadMeta({
       metaInfoJson: "{}",
-      includeInternalBin: true,
+      includeInternalBin: RUBY_INTERNAL_BIN,
     });
 
     const bindingsReports =
@@ -302,6 +302,7 @@ describe("context-js", () => {
 
     expect(result?.tests).toBe(13);
     expect(result?.test_suites).toHaveLength(2);
+    expect(result?.variant).toBe("");
 
     const contextRubySuite = result?.test_suites.find(
       ({ name }) => name === "context_ruby",
@@ -339,7 +340,7 @@ describe("context-js", () => {
     );
     const readableStream = await compressAndUploadMeta({
       metaInfoJson,
-      includeInternalBin: true,
+      includeInternalBin: RUBY_INTERNAL_BIN,
     });
 
     const { bindings_report, versioned_bundle } =
@@ -355,6 +356,7 @@ describe("context-js", () => {
 
     expect(result?.tests).toBe(13);
     expect(result?.test_suites).toHaveLength(2);
+    expect(result?.variant).toBe("");
 
     const contextRubySuite = result?.test_suites.find(
       ({ name }) => name === "context_ruby",
@@ -391,11 +393,28 @@ describe("context-js", () => {
 
     const readableStream = await compressAndUploadMeta({
       metaInfoJson,
-      includeInternalBin: false,
     });
 
     await expect(
       parse_internal_bin_and_meta_from_tarball(readableStream),
     ).rejects.toThrow('Files not found in tarball: ["internal.bin"]');
+  });
+
+  it("correctly gets and sets variant", async () => {
+    expect.hasAssertions();
+
+    const readableStream = await compressAndUploadMeta({
+      metaInfoJson: "{}",
+      includeInternalBin: VARIANT_INTERNAL_BIN,
+    });
+
+    const bindingsReports =
+      await parse_internal_bin_from_tarball(readableStream);
+
+    expect(bindingsReports).toHaveLength(1);
+
+    const result = bindingsReports.at(0);
+
+    expect(result?.variant).toBe("test-variant");
   });
 });
