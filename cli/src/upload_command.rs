@@ -26,6 +26,7 @@ use crate::{
         generate_internal_file, PreTestContext,
     },
     error_report::ErrorReport,
+    report_limiting::ValidationReport,
     test_command::TestRunResult,
 };
 
@@ -182,6 +183,15 @@ pub struct UploadArgs {
         hide = true
     )]
     pub use_experimental_failure_summary: bool,
+    #[arg(
+        long,
+        help = "Change how many validation errors and warnings in your test reports we will show.",
+        required = false,
+        num_args = 1,
+        default_value = "limited",
+        default_missing_value = "limited"
+    )]
+    pub validation_report: ValidationReport,
 }
 
 impl UploadArgs {
@@ -227,6 +237,7 @@ pub struct UploadRunResult {
     pub quarantine_context: QuarantineContext,
     pub meta: BundleMeta,
     pub validations: JunitReportValidations,
+    pub validation_report: ValidationReport,
 }
 
 pub async fn run_upload(
@@ -388,6 +399,7 @@ pub async fn run_upload(
         error_report,
         meta,
         validations,
+        validation_report: upload_args.validation_report,
     })
 }
 
@@ -431,7 +443,10 @@ impl EndOutput for UploadRunResult {
             return Ok(output);
         }
         if !self.validations.validations.is_empty() {
-            output.extend(self.validations.output()?);
+            output.extend(
+                self.validations
+                    .output_with_report_limits(&self.validation_report)?,
+            );
             output.push(Line::default());
         }
 
