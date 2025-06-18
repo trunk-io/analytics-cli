@@ -63,7 +63,7 @@ impl EndOutput for TestRunResult {
 
         output.extend(vec![
             Line::from_iter([Span::new_styled(
-                String::from("📒 Subcommand outputs").attribute(Attribute::Bold),
+                String::from("📒 Test command outputs").attribute(Attribute::Bold),
             )?]),
             Line::default(),
         ]);
