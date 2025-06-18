@@ -9,10 +9,7 @@ use clap::{arg, ArgAction, Args};
 use codeowners::CodeOwners;
 use constants::{EXIT_FAILURE, EXIT_SUCCESS};
 use context::{
-    bazel_bep::{
-        common::BepParseResult,
-        parser::BazelBepParser,
-    },
+    bazel_bep::{common::BepParseResult, parser::BazelBepParser},
     junit::{
         junit_path::{JunitReportFileWithTestRunnerReport, TestRunnerReport},
         parser::{JunitParseIssue, JunitParseIssueLevel, JunitParser},
@@ -405,28 +402,24 @@ impl EndOutput for ValidateRunResult {
     }
 }
 
-fn parse_test_report(test_report_path: String) -> (Vec<JunitReportFileWithTestRunnerReport>, Option<BepParseResult>) {
+fn parse_test_report(
+    test_report_path: String,
+) -> (
+    Vec<JunitReportFileWithTestRunnerReport>,
+    Option<BepParseResult>,
+) {
     let mut json_parser = BazelBepParser::new(test_report_path.clone());
     let bep_parse_result = fall_back_to_binary_parse(json_parser.parse(), &test_report_path);
     match bep_parse_result {
-        Ok(result) if !result.errors.is_empty() => {
-            (
-                vec![JunitReportFileWithTestRunnerReport::from(test_report_path)],
-                Some(result),
-            )
-        }
-        Err(_) => {
-            (
-                vec![JunitReportFileWithTestRunnerReport::from(test_report_path)],
-                None,
-            )
-        }
-        Ok(valid_result) => {
-            (
-                valid_result.uncached_xml_files(),
-                Some(valid_result),
-            )
-        }
+        Ok(result) if !result.errors.is_empty() => (
+            vec![JunitReportFileWithTestRunnerReport::from(test_report_path)],
+            Some(result),
+        ),
+        Err(_) => (
+            vec![JunitReportFileWithTestRunnerReport::from(test_report_path)],
+            None,
+        ),
+        Ok(valid_result) => (valid_result.uncached_xml_files(), Some(valid_result)),
     }
 }
 
@@ -453,14 +446,21 @@ pub async fn run_validate(validate_args: ValidateArgs) -> anyhow::Result<Validat
         ..
     } = validate_args;
 
-    let (junit_file_paths, bep_validate_result): (Vec<JunitReportFileWithTestRunnerReport>, Option<BepValidateResult>) = if !test_reports.is_empty() {
+    let (junit_file_paths, bep_validate_result): (
+        Vec<JunitReportFileWithTestRunnerReport>,
+        Option<BepValidateResult>,
+    ) = if !test_reports.is_empty() {
         let mut parse_results = test_reports
             .iter()
             .flat_map(|test_report_glob| flatten_glob(test_report_glob.as_str()))
             .map(parse_test_report);
-        
+
         let file_paths = parse_results.clone().flat_map(|(files, _)| files).collect();
-        let bep_result = parse_results.find_map(|(_, bep_result)| bep_result.map(|result| BepValidateResult { errors: result.errors }));
+        let bep_result = parse_results.find_map(|(_, bep_result)| {
+            bep_result.map(|result| BepValidateResult {
+                errors: result.errors,
+            })
+        });
         (file_paths, bep_result)
     } else {
         match bazel_bep_path {
@@ -941,7 +941,8 @@ mod tests {
 
     #[test]
     fn test_parse_test_report_handles_json_bep() {
-        let (actual, actual_bep) = parse_test_report(get_test_file_path("test_fixtures/bep_example"));
+        let (actual, actual_bep) =
+            parse_test_report(get_test_file_path("test_fixtures/bep_example"));
         let expected = vec![JunitReportFileWithTestRunnerReport {
             junit_path: String::from("/tmp/hello_test/test.xml"),
             test_runner_report: None,
@@ -952,7 +953,8 @@ mod tests {
 
     #[test]
     fn test_parse_test_report_handles_binary_bep() {
-        let (mut actual, actual_bep) = parse_test_report(get_test_file_path("test_fixtures/bep_binary_file.bin"));
+        let (mut actual, actual_bep) =
+            parse_test_report(get_test_file_path("test_fixtures/bep_binary_file.bin"));
         let mut expected = vec![
             JunitReportFileWithTestRunnerReport {
                 junit_path: String::from("bytestream://buildbarn2.build.trunk-staging.io:1986/blobs/37d45ccef587444393523741a3831f4a1acbeb010f74f33130ab9ba687477558/449"),
@@ -1027,7 +1029,8 @@ mod tests {
 
     #[test]
     fn test_parse_test_report_falls_back_to_junit() {
-        let (actual, actual_bep) = parse_test_report(get_test_file_path("test_fixtures/junit0_pass.xml"));
+        let (actual, actual_bep) =
+            parse_test_report(get_test_file_path("test_fixtures/junit0_pass.xml"));
         let expected = vec![JunitReportFileWithTestRunnerReport {
             junit_path: get_test_file_path("test_fixtures/junit0_pass.xml"),
             test_runner_report: None,
@@ -1035,7 +1038,9 @@ mod tests {
         assert_eq!(actual, expected);
         assert_eq!(
             actual_bep.map(|bep| bep.errors),
-            Some(vec![String::from("Error parsing build event: expected value at line 1 column 1")])
+            Some(vec![String::from(
+                "Error parsing build event: expected value at line 1 column 1"
+            )])
         );
     }
 }
