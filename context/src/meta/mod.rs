@@ -12,6 +12,7 @@ use crate::{
 
 #[cfg(feature = "bindings")]
 pub mod bindings;
+pub mod id;
 pub mod validator;
 
 #[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass(get_all))]
