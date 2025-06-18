@@ -25,6 +25,7 @@ pub struct UploadArgs {
     use_uncloned_repo: Option<bool>,
     repo_head_author_name: Option<String>,
     verbose: Option<bool>,
+    validation_report: Option<String>,
 }
 
 impl UploadArgs {
@@ -47,6 +48,7 @@ impl UploadArgs {
             use_uncloned_repo: None,
             repo_head_author_name: None,
             verbose: None,
+            validation_report: None,
         }
     }
 
@@ -197,6 +199,14 @@ impl UploadArgs {
                 vec![]
             }
         }))
+        .chain(
+            self.validation_report
+                .clone()
+                .into_iter()
+                .flat_map(|validation_report: String| {
+                    vec![String::from("--validation-report"), validation_report]
+                }),
+        )
         .collect()
     }
 }
@@ -391,6 +401,19 @@ impl CommandType {
         }
         self
     }
+
+    pub fn validation_report(&mut self, new_value: &str) -> &mut Self {
+        match self {
+            CommandType::Upload { upload_args, .. } => {
+                upload_args.validation_report = Some(String::from(new_value))
+            }
+            CommandType::Test { upload_args, .. } => {
+                upload_args.validation_report = Some(String::from(new_value))
+            }
+            CommandType::Validate { .. } => (),
+        }
+        self
+    }
 }
 
 #[derive(Clone)]
@@ -539,6 +562,11 @@ impl<'b> CommandBuilder<'b> {
             }
             CommandType::Validate { .. } => {}
         }
+        self
+    }
+
+    pub fn validation_report(&mut self, new_value: &str) -> &mut Self {
+        self.command_type.validation_report(new_value);
         self
     }
 
