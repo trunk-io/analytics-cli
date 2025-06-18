@@ -407,6 +407,13 @@ fn context_py(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<meta::validator::MetaValidationLevel>()?;
     m.add_function(wrap_pyfunction!(parse_meta_from_tarball, m)?)?;
     m.add_function(wrap_pyfunction!(parse_meta, m)?)?;
+    m.add_class::<bundle::BindingsVersionedBundle>()?;
+    m.add_class::<bundle::BundleMetaV0_5_29>()?;
+    m.add_class::<bundle::BundleMetaV0_5_34>()?;
+    m.add_class::<bundle::BundleMetaV0_6_2>()?;
+    m.add_class::<bundle::BundleMetaV0_6_3>()?;
+    m.add_class::<bundle::BundleMetaV0_7_6>()?;
+    m.add_class::<bundle::BundleMetaV0_7_7>()?;
     m.add_function(wrap_pyfunction!(meta_validate, m)?)?;
     m.add_function(wrap_pyfunction!(meta_validation_level_to_string, m)?)?;
     m.add_function(wrap_pyfunction!(parse_internal_bin_from_tarball, m)?)?;

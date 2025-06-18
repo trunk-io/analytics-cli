@@ -18,6 +18,7 @@ use context::{
         },
     },
 };
+use display::end_output::EndOutput;
 use pluralizer::pluralize;
 use quick_junit::Report;
 use superconsole::Lines;
@@ -26,7 +27,7 @@ use superconsole::{
     Line, Span,
 };
 
-use crate::{context::fall_back_to_binary_parse, end_output::EndOutput, print::print_bep_results};
+use crate::{context::fall_back_to_binary_parse, print::print_bep_results};
 
 #[derive(Args, Clone, Debug)]
 pub struct ValidateArgs {
@@ -490,10 +491,7 @@ fn print_codeowners_validation(
     println!("\nChecking for codeowners file...");
     match codeowners {
         Some(owners) => {
-            println!(
-                "  {} - Found codeowners:",
-                print_validation_level(JunitValidationLevel::Valid)
-            );
+            println!("  Found codeowners:");
             println!("    Path: {:?}", owners.path);
 
             let has_test_cases_without_matching_codeowners_paths = report_validations

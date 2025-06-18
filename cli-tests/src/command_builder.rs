@@ -24,6 +24,7 @@ pub struct UploadArgs {
     test_process_exit_code: Option<i32>,
     use_uncloned_repo: Option<bool>,
     repo_head_author_name: Option<String>,
+    verbose: Option<bool>,
 }
 
 impl UploadArgs {
@@ -45,6 +46,7 @@ impl UploadArgs {
             test_process_exit_code: None,
             use_uncloned_repo: None,
             repo_head_author_name: None,
+            verbose: None,
         }
     }
 
@@ -188,6 +190,13 @@ impl UploadArgs {
                 ]
             },
         ))
+        .chain(self.verbose.into_iter().flat_map(|verbose: bool| {
+            if verbose {
+                vec![String::from("--verbose")]
+            } else {
+                vec![]
+            }
+        }))
         .collect()
     }
 }
@@ -196,7 +205,6 @@ pub enum CommandType {
     Upload {
         upload_args: UploadArgs,
         server_host: String,
-        verbose: Option<bool>,
     },
     Test {
         upload_args: UploadArgs,
@@ -220,24 +228,7 @@ impl CommandType {
 
     pub fn build_args(&self) -> Vec<String> {
         match self {
-            CommandType::Upload {
-                verbose,
-                upload_args,
-                ..
-            } => {
-                // append the verbose flag if set
-                upload_args
-                    .build_args()
-                    .into_iter()
-                    .chain(verbose.iter().flat_map(|verbose: &bool| {
-                        if *verbose {
-                            vec![String::from("--verbose")]
-                        } else {
-                            vec![]
-                        }
-                    }))
-                    .collect()
-            }
+            CommandType::Upload { upload_args, .. } => upload_args.build_args(),
             CommandType::Test {
                 upload_args,
                 command,
@@ -394,8 +385,8 @@ impl CommandType {
 
     pub fn verbose(&mut self, new_flag: bool) -> &mut Self {
         match self {
-            CommandType::Upload { verbose, .. } => *verbose = Some(new_flag),
-            CommandType::Test { .. } => (), // Verbose is not applicable for test command
+            CommandType::Upload { upload_args, .. } => upload_args.verbose = Some(new_flag),
+            CommandType::Test { upload_args, .. } => upload_args.verbose = Some(new_flag),
             CommandType::Validate { .. } => (), // Verbose is not applicable for validate command
         }
         self
@@ -431,7 +422,6 @@ impl<'b> CommandBuilder<'b> {
             command_type: CommandType::Upload {
                 upload_args: UploadArgs::empty(),
                 server_host,
-                verbose: None,
             },
             current_dir,
             paths_state: None,

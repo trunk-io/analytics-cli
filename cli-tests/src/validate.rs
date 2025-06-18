@@ -23,7 +23,7 @@ fn validate_success() {
         .stdout(predicate::str::contains("0 validation errors"))
         .stdout(predicate::str::contains("All 1 files are valid"))
         .stdout(predicate::str::contains("Checking for codeowners file..."))
-        .stdout(predicate::str::contains("VALID - Found codeowners:"));
+        .stdout(predicate::str::contains("Found codeowners:"));
 
     println!("{assert}");
 }

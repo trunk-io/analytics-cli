@@ -174,6 +174,14 @@ pub async fn extract_files_from_tarball<R: AsyncBufRead>(
 
 pub fn parse_meta(meta_bytes: Vec<u8>) -> anyhow::Result<VersionedBundle> {
     if let Ok(message) = serde_json::from_slice(&meta_bytes) {
+        return Ok(VersionedBundle::V0_7_7(message));
+    }
+
+    if let Ok(message) = serde_json::from_slice(&meta_bytes) {
+        return Ok(VersionedBundle::V0_7_6(message));
+    }
+
+    if let Ok(message) = serde_json::from_slice(&meta_bytes) {
         return Ok(VersionedBundle::V0_6_3(message));
     }
 
@@ -231,6 +239,28 @@ pub async fn parse_internal_bin_from_tarball<R: AsyncBufRead>(
         "No {} file found in the tarball",
         INTERNAL_BIN_FILENAME
     ))
+}
+
+pub async fn parse_internal_bin_and_meta_from_tarball<R: AsyncBufRead>(
+    input: R,
+) -> anyhow::Result<(TestResult, VersionedBundle)> {
+    let extracted_files =
+        extract_files_from_tarball(input, &[META_FILENAME, INTERNAL_BIN_FILENAME]).await?;
+
+    let internal_bin_bytes = extracted_files
+        .get(INTERNAL_BIN_FILENAME)
+        .ok_or_else(|| anyhow::anyhow!("No {} file found in the tarball", INTERNAL_BIN_FILENAME))?;
+
+    let test_result: TestResult = TestResult::decode(internal_bin_bytes.as_slice())
+        .map_err(|err| anyhow::anyhow!("Failed to decode {}: {}", INTERNAL_BIN_FILENAME, err))?;
+
+    let meta_bytes = extracted_files
+        .get(META_FILENAME)
+        .ok_or_else(|| anyhow::anyhow!("No {} file found in the tarball", META_FILENAME))?;
+
+    let versioned_bundle = parse_meta(meta_bytes.to_vec())?;
+
+    Ok((test_result, versioned_bundle))
 }
 
 #[cfg(test)]
