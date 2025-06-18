@@ -1261,6 +1261,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "superconsole",
+ "terminal_size",
  "tracing",
 ]
 
@@ -5601,7 +5602,6 @@ dependencies = [
  "serde_json",
  "superconsole",
  "tempfile",
- "terminal_size",
  "test_utils",
  "third-party",
  "tokio",
