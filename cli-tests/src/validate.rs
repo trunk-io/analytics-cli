@@ -1,4 +1,8 @@
 use predicates::prelude::*;
+use superconsole::{
+    style::{style, Color, Stylize},
+    Line, Span,
+};
 use tempfile::tempdir;
 
 use crate::{
@@ -20,8 +24,24 @@ fn validate_success() {
         .command()
         .assert()
         .success()
-        .stderr(predicate::str::contains("\u{1b}[38;5;9m0\u{1b}[39m errors"))
-        .stderr(predicate::str::contains("\u{1b}[38;5;10m0\u{1b}[39m valid files, \u{1b}[38;5;11m1\u{1b}[39m file with warnings, and \u{1b}[38;5;9m0\u{1b}[39m files with errors, with 1 file total"))
+        .stderr(predicate::str::contains(
+            Line::from_iter([
+                Span::new_styled(style(String::from("0")).with(Color::Red)).unwrap(),
+                Span::new_unstyled(String::from(" errors")).unwrap(),
+            ])
+            .render(),
+        ))
+        .stderr(predicate::str::contains(
+            Line::from_iter([
+                Span::new_styled(style(String::from("0")).with(Color::Green)).unwrap(),
+                Span::new_unstyled(String::from(" valid files, ")).unwrap(),
+                Span::new_styled(style(String::from("1")).with(Color::Yellow)).unwrap(),
+                Span::new_unstyled(String::from(" file with warnings, and ")).unwrap(),
+                Span::new_styled(style(String::from("0")).with(Color::Red)).unwrap(),
+                Span::new_unstyled(String::from(" files with errors, with 1 file total")).unwrap(),
+            ])
+            .render(),
+        ))
         .stderr(predicate::str::contains("Checking for codeowners file..."))
         .stderr(predicate::str::contains("Found codeowners path:"));
 
@@ -85,7 +105,13 @@ fn validate_invalid_junits_no_codeowners() {
         .assert()
         .failure()
         .stderr(predicate::str::contains(
-            "\u{1b}[38;5;11m0\u{1b}[39m warnings, and \u{1b}[38;5;9m1\u{1b}[39m error",
+            Line::from_iter([
+                Span::new_styled(style(String::from("0")).with(Color::Yellow)).unwrap(),
+                Span::new_unstyled(String::from(" warnings, and ")).unwrap(),
+                Span::new_styled(style(String::from("1")).with(Color::Red)).unwrap(),
+                Span::new_unstyled(String::from(" error")).unwrap(),
+            ])
+            .render(),
         ))
         .stderr(predicate::str::contains("test suite names are missing"))
         .stderr(predicate::str::contains("Checking for codeowners file..."))
@@ -105,7 +131,13 @@ fn validate_empty_xml() {
         .assert()
         .success()
         .stderr(predicate::str::contains(
-            "\u{1b}[38;5;11m1\u{1b}[39m warning, and \u{1b}[38;5;9m0\u{1b}[39m errors",
+            Line::from_iter([
+                Span::new_styled(style(String::from("1")).with(Color::Yellow)).unwrap(),
+                Span::new_unstyled(String::from(" warning, and ")).unwrap(),
+                Span::new_styled(style(String::from("0")).with(Color::Red)).unwrap(),
+                Span::new_unstyled(String::from(" errors")).unwrap(),
+            ])
+            .render(),
         ))
         .stderr(predicate::str::contains("no reports found"));
 
@@ -123,7 +155,13 @@ fn validate_invalid_xml() {
         .assert()
         .failure()
         .stderr(predicate::str::contains(
-            "\u{1b}[38;5;11m0\u{1b}[39m warnings, and \u{1b}[38;5;9m1\u{1b}[39m error",
+            Line::from_iter([
+                Span::new_styled(style(String::from("0")).with(Color::Yellow)).unwrap(),
+                Span::new_unstyled(String::from(" warnings, and ")).unwrap(),
+                Span::new_styled(style(String::from("1")).with(Color::Red)).unwrap(),
+                Span::new_unstyled(String::from(" error")).unwrap(),
+            ])
+            .render(),
         ))
         .stderr(predicate::str::contains("syntax error: tag not closed"));
 
@@ -140,7 +178,13 @@ fn validate_suboptimal_junits() {
         .assert()
         .success()
         .stderr(predicate::str::contains(
-            "\u{1b}[38;5;11m1\u{1b}[39m warning, and \u{1b}[38;5;9m0\u{1b}[39m errors",
+            Line::from_iter([
+                Span::new_styled(style(String::from("1")).with(Color::Yellow)).unwrap(),
+                Span::new_unstyled(String::from(" warning, and ")).unwrap(),
+                Span::new_styled(style(String::from("0")).with(Color::Red)).unwrap(),
+                Span::new_unstyled(String::from(" errors")).unwrap(),
+            ])
+            .render(),
         ))
         .stderr(predicate::str::contains(
             "report has stale (> 1 hour(s)) timestamps",
@@ -160,7 +204,12 @@ fn validate_missing_filepath_suboptimal_junits() {
         .assert()
         .success()
         .stderr(predicate::str::contains(
-            "\u{1b}[38;5;11m2\u{1b}[39m warnings, and \u{1b}[38;5;9m0\u{1b}[39m errors",
+            Line::from_iter([
+                Span::new_styled(style(String::from("2")).with(Color::Yellow)).unwrap(),
+                Span::new_unstyled(String::from(" warnings, and ")).unwrap(),
+                Span::new_styled(style(String::from("0")).with(Color::Red)).unwrap(),
+                Span::new_unstyled(String::from(" errors")).unwrap(),
+            ]).render(),
         ))
         .stderr(predicate::str::contains(
             "report has test cases with missing file or filepath",
