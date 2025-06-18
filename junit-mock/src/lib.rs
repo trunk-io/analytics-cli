@@ -254,7 +254,7 @@ impl JunitMock {
         self.timestamp += duration;
     }
 
-    pub fn generate_reports(&mut self) -> Vec<Report> {
+    pub fn generate_reports<T: AsRef<Path>>(&mut self, tmp_dir: &Option<T>) -> Vec<Report> {
         self.timestamp = self
             .options
             .global
@@ -280,7 +280,7 @@ impl JunitMock {
                 let mut report = Report::new(report_name);
                 report.set_timestamp(self.timestamp);
                 self.total_duration = Duration::new(0, 0);
-                report.add_test_suites(self.generate_test_suites());
+                report.add_test_suites(self.generate_test_suites(tmp_dir));
                 report.set_time(self.total_duration);
                 let duration =
                     self.fake_duration(self.options.report.report_duration_range.clone());
@@ -337,7 +337,7 @@ impl JunitMock {
         Ok(())
     }
 
-    fn generate_test_suites(&mut self) -> Vec<TestSuite> {
+    fn generate_test_suites<T: AsRef<Path>>(&mut self, tmp_dir: &Option<T>) -> Vec<TestSuite> {
         self.options
             .test_suite
             .test_suite_names
@@ -357,7 +357,7 @@ impl JunitMock {
                 let mut test_suite = TestSuite::new(test_suite_name);
                 test_suite.set_timestamp(self.timestamp);
                 let last_duration = self.total_duration;
-                test_suite.add_test_cases(self.generate_test_cases());
+                test_suite.add_test_cases(self.generate_test_cases(tmp_dir));
                 test_suite.set_time(self.total_duration - last_duration);
                 if self.rand_bool(self.options.test_suite.test_suite_sys_out_percentage) {
                     test_suite.set_system_out(self.fake_paragraphs());
@@ -370,7 +370,7 @@ impl JunitMock {
             .collect()
     }
 
-    fn generate_test_cases(&mut self) -> Vec<TestCase> {
+    fn generate_test_cases<T: AsRef<Path>>(&mut self, tmp_dir: &Option<T>) -> Vec<TestCase> {
         let classnames = self
             .options
             .test_case
@@ -383,7 +383,7 @@ impl JunitMock {
             })
             .unwrap_or_else(|| {
                 (0..self.options.test_case.test_case_random_count)
-                    .map(|_| fake::faker::filesystem::en::DirPath().fake_with_rng(&mut self.rng))
+                    .map(|_| fake::faker::lorem::en::Word().fake_with_rng(&mut self.rng))
                     .collect()
             });
 
@@ -411,8 +411,21 @@ impl JunitMock {
                 let is_skipped = matches!(&test_case_status, TestCaseStatus::Skipped { .. });
 
                 let mut test_case = TestCase::new(test_case_name, test_case_status);
-                let file: String =
-                    fake::faker::filesystem::en::FilePath().fake_with_rng(&mut self.rng);
+                let file: String = if let Some(parent_dir) = tmp_dir {
+                    let path = parent_dir
+                        .as_ref()
+                        .join::<String>(fake::faker::lorem::en::Word().fake_with_rng(&mut self.rng))
+                        .join::<String>(
+                            fake::faker::filesystem::en::FileName().fake_with_rng(&mut self.rng),
+                        );
+                    std::fs::create_dir_all(path.clone().parent().unwrap()).unwrap();
+                    if !path.exists() {
+                        std::fs::File::create_new(path.clone()).unwrap();
+                    }
+                    String::from(path.clone().as_os_str().to_str().unwrap())
+                } else {
+                    fake::faker::filesystem::en::FilePath().fake_with_rng(&mut self.rng)
+                };
                 test_case.extra.insert("file".into(), file.into());
                 test_case.set_classname(format!("{test_case_classname}/{test_case_name}"));
                 test_case.set_assertions(self.rng.gen_range(1..10));

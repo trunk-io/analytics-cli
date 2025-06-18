@@ -1067,8 +1067,11 @@ mod tests {
     #[test]
     fn parse_test_report_to_bindings() {
         use prost_wkt_types::Timestamp;
+        use tempfile::TempDir;
 
-        use crate::junit::validator::validate;
+        use crate::{junit::validator::validate, repo::BundleRepo};
+
+        let temp_dir = TempDir::with_prefix("not-hidden").unwrap();
         let test_started_at = Timestamp {
             seconds: 1000,
             nanos: 0,
@@ -1080,11 +1083,13 @@ mod tests {
         let codeowner1 = CodeOwner {
             name: "@user".into(),
         };
+        let test_file = temp_dir.path().join("test_file");
+        let file_str = String::from(test_file.as_os_str().to_str().unwrap());
         let test1 = TestCaseRun {
             id: "test_id1".into(),
             name: "test_name".into(),
             classname: "test_classname".into(),
-            file: "test_file".into(),
+            file: file_str.clone(),
             parent_name: "test_parent_name1".into(),
             line: 1,
             status: TestCaseRunStatus::Success.into(),
@@ -1100,7 +1105,7 @@ mod tests {
             id: "test_id2".into(),
             name: "test_name".into(),
             classname: "test_classname".into(),
-            file: "test_file".into(),
+            file: file_str,
             parent_name: "test_parent_name2".into(),
             line: 1,
             status: TestCaseRunStatus::Failure.into(),
@@ -1188,7 +1193,11 @@ mod tests {
         assert_eq!(test_case2.codeowners.clone().unwrap().len(), 0);
 
         // verify that the test report is valid
-        let results = validate(&converted_bindings.clone().into(), None);
+        let results = validate(
+            &converted_bindings.clone().into(),
+            None,
+            &BundleRepo::default(),
+        );
         assert_eq!(results.all_issues_flat().len(), 1);
         results
             .all_issues_flat()
@@ -1224,6 +1233,8 @@ mod tests {
     #[cfg(feature = "bindings")]
     #[test]
     fn test_junit_conversion_paths() {
+        use crate::repo::BundleRepo;
+
         let mut junit_parser = JunitParser::new();
         let file_contents = r#"
         <xml version="1.0" encoding="UTF-8"?>
@@ -1242,7 +1253,7 @@ mod tests {
         assert!(parsed_results.is_ok());
 
         // Get test case runs from parser
-        let test_case_runs = junit_parser.into_test_case_runs(None);
+        let test_case_runs = junit_parser.into_test_case_runs(None, &BundleRepo::default());
         assert_eq!(test_case_runs.len(), 2);
 
         // Convert test case runs to bindings

@@ -21,6 +21,7 @@ use thiserror::Error;
 use wasm_bindgen::prelude::*;
 
 use super::date_parser::JunitDateParser;
+use crate::{junit::file_extractor::filename_for_test_case, repo::BundleRepo};
 
 const TAG_REPORT: &[u8] = b"testsuites";
 const TAG_TEST_SUITE: &[u8] = b"testsuite";
@@ -192,11 +193,16 @@ impl JunitParser {
         self.reports
     }
 
-    pub fn into_test_case_runs(self, codeowners: Option<&CodeOwners>) -> Vec<TestCaseRun> {
+    pub fn into_test_case_runs(
+        self,
+        codeowners: Option<&CodeOwners>,
+        repo: &BundleRepo,
+    ) -> Vec<TestCaseRun> {
         let mut test_case_runs = Vec::new();
         for report in self.reports {
             for test_suite in report.test_suites {
                 for test_case in test_suite.test_cases {
+                    let file = filename_for_test_case(&test_case, repo);
                     let mut test_case_run = TestCaseRun {
                         name: test_case.name.into(),
                         parent_name: test_suite.name.to_string(),
@@ -259,12 +265,6 @@ impl JunitParser {
                             TestCaseRunStatus::Failure.into()
                         }
                     };
-                    let file = test_case
-                        .extra
-                        .get(extra_attrs::FILE)
-                        .or_else(|| test_case.extra.get(extra_attrs::FILEPATH))
-                        .map(|v| v.to_string())
-                        .unwrap_or_default();
                     if !file.is_empty() && codeowners.is_some() {
                         let codeowners: Option<Vec<String>> = codeowners
                             .as_ref()
@@ -854,7 +854,7 @@ mod tests {
     use prost_wkt_types::Timestamp;
     use proto::test_context::test_run::TestCaseRunStatus;
 
-    use crate::junit::parser::JunitParser;
+    use crate::{junit::parser::JunitParser, repo::BundleRepo};
     #[test]
     fn test_into_test_case_runs() {
         let mut junit_parser = JunitParser::new();
@@ -875,7 +875,7 @@ mod tests {
         "#;
         let parsed_results = junit_parser.parse(BufReader::new(file_contents.as_bytes()));
         assert!(parsed_results.is_ok());
-        let test_case_runs = junit_parser.into_test_case_runs(None);
+        let test_case_runs = junit_parser.into_test_case_runs(None, &BundleRepo::default());
         assert_eq!(test_case_runs.len(), 2);
         let test_case_run1 = &test_case_runs[0];
         assert_eq!(test_case_run1.name, "test_variant_truncation1");
