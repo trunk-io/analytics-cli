@@ -450,13 +450,13 @@ impl EndOutput for UploadRunResult {
             output.extend(error_report.output()?);
             return Ok(output);
         }
-        if !self.validations.validations.is_empty() {
-            output.extend(
-                self.validations
-                    .output_with_report_limits(&self.validation_report)?,
-            );
-            output.push(Line::default());
-        }
+        //if !self.validations.validations.is_empty() {
+        output.extend(
+            self.validations
+                .output_with_report_limits(&self.validation_report)?,
+        );
+        output.push(Line::default());
+        //}
 
         output.push(Line::from_iter([Span::new_styled(
             String::from("📚 Test Report").attribute(Attribute::Bold),
