@@ -880,6 +880,7 @@ dependencies = [
  "prost-wkt-types",
  "proto",
  "serde_json",
+ "superconsole",
  "tempfile",
  "test_utils",
  "tokio",

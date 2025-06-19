@@ -1,13 +1,15 @@
-use std::{collections::BTreeMap, io::BufReader};
+use std::{
+    collections::{BTreeMap, HashSet},
+    io::BufReader,
+    path::PathBuf,
+};
 
 use bundle::{FileSet, FileSetBuilder, FileSetTestRunnerReport};
 use clap::{arg, ArgAction, Args};
 use codeowners::CodeOwners;
-use colored::{ColoredString, Colorize};
-use console::Emoji;
 use constants::{EXIT_FAILURE, EXIT_SUCCESS};
 use context::{
-    bazel_bep::parser::BazelBepParser,
+    bazel_bep::{common::BepParseResult, parser::BazelBepParser},
     junit::{
         junit_path::{JunitReportFileWithTestRunnerReport, TestRunnerReport},
         parser::{JunitParseIssue, JunitParseIssueLevel, JunitParser},
@@ -18,17 +20,15 @@ use context::{
         },
     },
 };
+use display::end_output::EndOutput;
 use pluralizer::pluralize;
 use quick_junit::Report;
-use superconsole::Lines;
 use superconsole::{
-    style::{Attribute, Stylize},
-    Line, Span,
+    style::{style, Attribute, Color, Stylize},
+    Line, Lines, Span,
 };
 
-use crate::{
-    context::fall_back_to_binary_parse, print::print_bep_results, report_limiting::ValidationReport,
-};
+use crate::{context::fall_back_to_binary_parse, report_limiting::ValidationReport};
 
 #[derive(Args, Clone, Debug)]
 pub struct ValidateArgs {
@@ -73,20 +73,353 @@ pub struct ValidateArgs {
     pub hide_banner: bool,
 }
 
-fn parse_test_report(test_report_path: String) -> Vec<JunitReportFileWithTestRunnerReport> {
+#[derive(Debug)]
+pub struct BepValidateResult {
+    errors: Vec<String>,
+}
+
+#[derive(Debug)]
+pub struct FileSetResult {
+    glob: String,
+    file_paths: Vec<String>,
+}
+
+#[derive(Debug)]
+pub struct ParseIssues {
+    file_path: String,
+    fatal_error: Option<anyhow::Error>,
+    errors: Vec<JunitParseIssue>,
+    warnings: Vec<JunitParseIssue>,
+}
+
+#[derive(Debug)]
+pub struct TestIssues {
+    file_path: String,
+    num_test_suites: usize,
+    num_test_cases: usize,
+    errors: Vec<JunitReportValidationFlatIssue>,
+    warnings: Vec<JunitReportValidationFlatIssue>,
+}
+
+#[derive(Debug)]
+pub struct CodeownersIssues {
+    file_path: PathBuf,
+    warnings: Vec<String>,
+}
+
+#[derive(Debug)]
+pub struct ValidateRunResult {
+    bep_result: Option<BepValidateResult>,
+    file_sets: Vec<FileSetResult>,
+    file_parse_issues: Vec<ParseIssues>,
+    test_issues: Vec<TestIssues>,
+    codeowners_issues: Option<CodeownersIssues>,
+}
+
+impl ValidateRunResult {
+    pub fn exit_code(&self) -> i32 {
+        let has_errors = self.file_parse_issues.iter().any(|file_parse_issue| {
+            file_parse_issue.fatal_error.is_some() || !file_parse_issue.errors.is_empty()
+        }) || self
+            .test_issues
+            .iter()
+            .any(|test_issue| !test_issue.errors.is_empty());
+        if has_errors {
+            EXIT_FAILURE
+        } else {
+            EXIT_SUCCESS
+        }
+    }
+
+    fn num_files(&self) -> usize {
+        let mut num = 0;
+        for file_set in self.file_sets.iter() {
+            num += file_set.file_paths.len();
+        }
+        num
+    }
+}
+
+impl EndOutput for ValidateRunResult {
+    fn output(&self) -> anyhow::Result<Vec<Line>> {
+        let mut output: Vec<Line> = Vec::new();
+
+        if let Some(bep_results) = &self.bep_result {
+            if !bep_results.errors.is_empty() {
+                output.push(Line::from_iter([
+                    Span::new_unstyled("⚠️  BEP file had parse errors: ")?,
+                    Span::new_unstyled(format!("{:?}", bep_results.errors))?,
+                ]));
+                output.push(Line::default());
+            }
+        }
+
+        output.push(Line::from_iter([Span::new_unstyled(format!(
+            "📚 Validating {} files:",
+            self.num_files()
+        ))?]));
+        for file_set in self.file_sets.iter() {
+            output.push(Line::from_iter([Span::new_unstyled(format!(
+                "  Files matching: {}:",
+                file_set.glob
+            ))?]));
+            for file_path in file_set.file_paths.iter() {
+                output.push(Line::from_iter([Span::new_unstyled(format!(
+                    "    {}",
+                    file_path
+                ))?]))
+            }
+            output.push(Line::default());
+        }
+
+        output.push(Line::from_iter([Span::new_styled(
+            style(String::from("File parse issues")).attribute(Attribute::Bold),
+        )?]));
+        for file_parse_issue in self.file_parse_issues.iter() {
+            let has_errors =
+                file_parse_issue.fatal_error.is_some() || !file_parse_issue.errors.is_empty();
+            let has_warnings = !file_parse_issue.warnings.is_empty();
+
+            let title_colour = if has_errors {
+                Color::Red
+            } else if has_warnings {
+                Color::Yellow
+            } else {
+                Color::Green
+            };
+            output.push(Line::from_iter([Span::new_styled(
+                style(file_parse_issue.file_path.clone()).with(title_colour),
+            )?]));
+
+            let num_errors = if file_parse_issue.fatal_error.is_some() {
+                file_parse_issue.errors.len() + 1
+            } else {
+                file_parse_issue.errors.len()
+            };
+            output.push(Line::from_iter([Span::new_styled(
+                style(format!(
+                    "{} errors, {} warnings",
+                    num_errors,
+                    file_parse_issue.warnings.len()
+                ))
+                .attribute(Attribute::Italic),
+            )?]));
+
+            if has_errors {
+                output.push(Line::from_iter([Span::new_unstyled(" ❌ Errors:")?]));
+                if let Some(e) = &file_parse_issue.fatal_error {
+                    output.push(Line::from_iter([Span::new_unstyled_lossy(format!(
+                        "  {:?}",
+                        e
+                    ))]));
+                }
+                for error in file_parse_issue.errors.iter() {
+                    output.push(Line::from_iter([Span::new_unstyled(format!(
+                        "  {}",
+                        error
+                    ))?]));
+                }
+            }
+
+            if has_warnings {
+                output.push(Line::from_iter([Span::new_unstyled(" ⚠️  Warnings:")?]));
+                for warning in file_parse_issue.warnings.iter() {
+                    output.push(Line::from_iter([Span::new_unstyled(format!(
+                        "  {}",
+                        warning.clone()
+                    ))?]));
+                }
+            }
+
+            output.push(Line::default());
+        }
+
+        output.push(Line::from_iter([Span::new_styled(
+            style(String::from("Test Validation Issues")).attribute(Attribute::Bold),
+        )?]));
+        for test_issue in self.test_issues.iter() {
+            let has_errors = !test_issue.errors.is_empty();
+            let has_warnings = !test_issue.warnings.is_empty();
+
+            let title_colour = if has_errors {
+                Color::Red
+            } else if has_warnings {
+                Color::Yellow
+            } else {
+                Color::Green
+            };
+            output.push(Line::from_iter([Span::new_styled(
+                style(test_issue.file_path.clone()).with(title_colour),
+            )?]));
+
+            output.push(Line::from_iter([Span::new_styled(
+                style(format!(
+                    "{} test suites, {} test cases, {} errors, {} warnings",
+                    test_issue.num_test_suites,
+                    test_issue.num_test_cases,
+                    test_issue.errors.len(),
+                    test_issue.warnings.len(),
+                ))
+                .attribute(Attribute::Italic),
+            )?]));
+
+            if has_errors {
+                output.push(Line::from_iter([Span::new_unstyled(String::from(
+                    " ❌ Errors:",
+                ))?]));
+                for error in test_issue.errors.iter() {
+                    output.push(Line::from_iter([Span::new_unstyled(format!(
+                        "  {}",
+                        error.error_message
+                    ))?]));
+                }
+            }
+
+            if has_warnings {
+                output.push(Line::from_iter([Span::new_unstyled(" ⚠️  Warnings:")?]));
+                for warning in test_issue.warnings.iter() {
+                    output.push(Line::from_iter([Span::new_unstyled(format!(
+                        "  {}",
+                        warning.error_message
+                    ))?]));
+                }
+            }
+        }
+
+        output.push(Line::default());
+        output.push(Line::from_iter([Span::new_styled(
+            style(String::from("Checking for codeowners file...")).attribute(Attribute::Bold),
+        )?]));
+        match &self.codeowners_issues {
+            None => {
+                output.push(Line::from_iter([Span::new_unstyled(
+                    "  No codeowners file found",
+                )?]));
+            }
+            Some(codeowners_issues) => {
+                output.push(Line::from_iter([Span::new_styled(
+                    style(format!(
+                        "  Found codeowners path: {:?}",
+                        codeowners_issues.file_path
+                    ))
+                    .attribute(Attribute::Italic),
+                )?]));
+                for warning in codeowners_issues.warnings.iter() {
+                    output.push(Line::from_iter([Span::new_unstyled(format!(
+                        "  {}",
+                        warning.clone()
+                    ))?]));
+                }
+            }
+        }
+        output.push(Line::default());
+
+        let mut num_warnings = 0;
+        let mut num_errors = 0;
+
+        let mut files_with_no_issues: HashSet<String> = HashSet::new();
+        let mut files_with_warnings: HashSet<String> = HashSet::new();
+        let mut files_with_errors: HashSet<String> = HashSet::new();
+
+        for file_set in self.file_sets.iter() {
+            for file_path in file_set.file_paths.iter() {
+                files_with_no_issues.insert(file_path.clone());
+            }
+        }
+
+        let num_files = files_with_no_issues.len();
+
+        for parse_issues in self.file_parse_issues.iter() {
+            if parse_issues.fatal_error.is_some() {
+                num_errors += 1;
+                files_with_errors.insert(parse_issues.file_path.clone());
+                files_with_no_issues.remove(&parse_issues.file_path);
+            }
+            if !parse_issues.errors.is_empty() {
+                num_errors += parse_issues.errors.len();
+                files_with_errors.insert(parse_issues.file_path.clone());
+                files_with_no_issues.remove(&parse_issues.file_path);
+            }
+            if !parse_issues.warnings.is_empty() {
+                num_warnings += parse_issues.warnings.len();
+                files_with_warnings.insert(parse_issues.file_path.clone());
+                files_with_no_issues.remove(&parse_issues.file_path);
+            }
+        }
+
+        for test_issues in self.test_issues.iter() {
+            if !test_issues.errors.is_empty() {
+                num_errors += test_issues.errors.len();
+                files_with_errors.insert(test_issues.file_path.clone());
+                files_with_no_issues.remove(&test_issues.file_path);
+            }
+            if !test_issues.warnings.is_empty() {
+                num_warnings += test_issues.warnings.len();
+                files_with_warnings.insert(test_issues.file_path.clone());
+                files_with_no_issues.remove(&test_issues.file_path);
+            }
+        }
+
+        let num_files_with_no_issues = files_with_no_issues.len();
+        let num_files_with_warnings = files_with_warnings.len();
+        let num_files_with_errors = files_with_errors.len();
+
+        output.push(Line::from_iter([
+            Span::new_styled(style(format!("{}", num_files_with_no_issues)).with(Color::Green))?,
+            Span::new_unstyled(format!(
+                " {}, ",
+                pluralize("valid file", num_files_with_no_issues as isize, false)
+            ))?,
+            Span::new_styled(style(format!("{}", num_files_with_warnings)).with(Color::Yellow))?,
+            Span::new_unstyled(format!(
+                " {} with warnings, and ",
+                pluralize("file", num_files_with_warnings as isize, false)
+            ))?,
+            Span::new_styled(style(format!("{}", num_files_with_errors)).with(Color::Red))?,
+            Span::new_unstyled(format!(
+                " {} with errors, ",
+                pluralize("file", num_files_with_errors as isize, false)
+            ))?,
+            Span::new_unstyled(format!(
+                "with {} total (a file is double counted if it has both errors and warnings)",
+                pluralize("file", num_files as isize, true)
+            ))?,
+        ]));
+        output.push(Line::from_iter([
+            Span::new_styled(style(format!("{}", num_warnings)).with(Color::Yellow))?,
+            Span::new_unstyled(format!(
+                " {}, and ",
+                pluralize("warning", num_warnings as isize, false)
+            ))?,
+            Span::new_styled(style(format!("{}", num_errors as isize)).with(Color::Red))?,
+            Span::new_unstyled(format!(
+                " {}",
+                pluralize("error", num_errors as isize, false)
+            ))?,
+        ]));
+
+        Ok(output)
+    }
+}
+
+fn parse_test_report(
+    test_report_path: String,
+) -> (
+    Vec<JunitReportFileWithTestRunnerReport>,
+    Option<BepParseResult>,
+) {
     let mut json_parser = BazelBepParser::new(test_report_path.clone());
     let bep_parse_result = fall_back_to_binary_parse(json_parser.parse(), &test_report_path);
     match bep_parse_result {
-        Ok(result) if !result.errors.is_empty() => {
-            vec![JunitReportFileWithTestRunnerReport::from(test_report_path)]
-        }
-        Err(_) => {
-            vec![JunitReportFileWithTestRunnerReport::from(test_report_path)]
-        }
-        Ok(valid_result) => {
-            print_bep_results(&valid_result);
-            valid_result.uncached_xml_files()
-        }
+        Ok(result) if !result.errors.is_empty() => (
+            vec![JunitReportFileWithTestRunnerReport::from(test_report_path)],
+            Some(result),
+        ),
+        Err(_) => (
+            vec![JunitReportFileWithTestRunnerReport::from(test_report_path)],
+            None,
+        ),
+        Ok(valid_result) => (valid_result.uncached_xml_files(), Some(valid_result)),
     }
 }
 
@@ -103,7 +436,7 @@ fn flatten_glob(glob_text: &str) -> Vec<String> {
         .collect()
 }
 
-pub async fn run_validate(validate_args: ValidateArgs) -> anyhow::Result<i32> {
+pub async fn run_validate(validate_args: ValidateArgs) -> anyhow::Result<ValidateRunResult> {
     let ValidateArgs {
         junit_paths,
         bazel_bep_path,
@@ -113,27 +446,44 @@ pub async fn run_validate(validate_args: ValidateArgs) -> anyhow::Result<i32> {
         ..
     } = validate_args;
 
-    let junit_file_paths: Vec<JunitReportFileWithTestRunnerReport> = if !test_reports.is_empty() {
-        test_reports
+    let (junit_file_paths, bep_validate_result): (
+        Vec<JunitReportFileWithTestRunnerReport>,
+        Option<BepValidateResult>,
+    ) = if !test_reports.is_empty() {
+        let mut parse_results = test_reports
             .iter()
             .flat_map(|test_report_glob| flatten_glob(test_report_glob.as_str()))
-            .flat_map(parse_test_report)
-            .collect()
+            .map(parse_test_report);
+
+        let file_paths = parse_results.clone().flat_map(|(files, _)| files).collect();
+        let bep_result = parse_results.find_map(|(_, bep_result)| {
+            bep_result.map(|result| BepValidateResult {
+                errors: result.errors,
+            })
+        });
+        (file_paths, bep_result)
     } else {
         match bazel_bep_path {
             Some(bazel_bep_path) => {
                 let mut parser = BazelBepParser::new(bazel_bep_path);
                 let bep_result = parser.parse()?;
-                print_bep_results(&bep_result);
-                bep_result.uncached_xml_files()
+                (
+                    bep_result.uncached_xml_files(),
+                    Some(BepValidateResult {
+                        errors: bep_result.errors,
+                    }),
+                )
             }
-            None => junit_paths
-                .into_iter()
-                .map(JunitReportFileWithTestRunnerReport::from)
-                .collect(),
+            None => (
+                junit_paths
+                    .into_iter()
+                    .map(JunitReportFileWithTestRunnerReport::from)
+                    .collect(),
+                None,
+            ),
         }
     };
-    validate(junit_file_paths, codeowners_path).await
+    validate(junit_file_paths, codeowners_path, bep_validate_result).await
 }
 
 type JunitFileToReportAndParseIssues = BTreeMap<
@@ -151,8 +501,8 @@ type JunitFileToValidation = BTreeMap<String, JunitReportValidation>;
 async fn validate(
     junit_paths: Vec<JunitReportFileWithTestRunnerReport>,
     codeowners_path: Option<String>,
-) -> anyhow::Result<i32> {
-    // scan files
+    bep_result: Option<BepValidateResult>,
+) -> anyhow::Result<ValidateRunResult> {
     let current_dir = std::env::current_dir()
         .ok()
         .and_then(|p| p.to_str().map(String::from))
@@ -164,11 +514,9 @@ async fn validate(
         tracing::warn!(msg);
         return Err(anyhow::anyhow!(msg));
     }
-    print_matched_files(&file_set_builder);
+    let file_set_results = gen_file_set_results(&file_set_builder);
 
-    // parse
     let parse_results = parse_file_sets(file_set_builder.file_sets());
-    let num_reports = parse_results.len();
     let (parsed_reports, parse_issues) = parse_results.into_iter().fold(
         (JunitFileToReport::new(), JunitFileToParseIssues::new()),
         |(mut parsed_reports, mut parse_issues),
@@ -189,11 +537,8 @@ async fn validate(
             (parsed_reports, parse_issues)
         },
     );
-    // print parse issues
-    let (num_unparsable_reports, num_suboptimally_parsable_reports) =
-        print_parse_issues(&parse_issues);
+    let file_parse_issues = gen_parse_issues(parse_issues);
 
-    // validate
     let report_validations: JunitFileToValidation = parsed_reports
         .into_iter()
         .map(|(file, (report, test_runner_report))| {
@@ -203,26 +548,18 @@ async fn validate(
             )
         })
         .collect();
-    // print validation results
-    let (mut num_invalid_reports, mut num_suboptimal_reports) =
-        print_validation_issues(&report_validations);
-
-    // print summary
-    num_invalid_reports += num_unparsable_reports;
-    num_suboptimal_reports += num_suboptimally_parsable_reports;
-    let exit = if num_invalid_reports == 0 {
-        print_summary_success(num_reports, num_suboptimal_reports);
-        EXIT_SUCCESS
-    } else {
-        print_summary_failure(num_reports, num_invalid_reports, num_suboptimal_reports);
-        EXIT_FAILURE
-    };
+    let test_issues = gen_test_issues(&report_validations);
 
     let codeowners = CodeOwners::find_file(&current_dir, &codeowners_path);
+    let codeowners_issues = gen_codeowners_issues(codeowners, &report_validations);
 
-    print_codeowners_validation(codeowners, &report_validations);
-
-    Ok(exit)
+    Ok(ValidateRunResult {
+        bep_result,
+        file_sets: file_set_results,
+        file_parse_issues,
+        test_issues,
+        codeowners_issues,
+    })
 }
 
 fn parse_file_sets(file_sets: &[FileSet]) -> JunitFileToReportAndParseIssues {
@@ -288,237 +625,116 @@ fn parse_file_sets(file_sets: &[FileSet]) -> JunitFileToReportAndParseIssues {
     )
 }
 
-fn print_matched_files(file_set_builder: &FileSetBuilder) {
-    println!(
-        "\nValidating the following {} files:",
-        file_set_builder.count()
-    );
-    for file_set in file_set_builder.file_sets() {
-        println!("  File set matching {}:", file_set.glob);
-        for file in &file_set.files {
-            println!("    {}", file.get_print_path());
-        }
-    }
+fn gen_file_set_results(file_set_builder: &FileSetBuilder) -> Vec<FileSetResult> {
+    file_set_builder
+        .file_sets()
+        .iter()
+        .map(|file_set| FileSetResult {
+            glob: file_set.glob.clone(),
+            file_paths: file_set
+                .files
+                .iter()
+                .map(|file| String::from(file.get_print_path()))
+                .collect(),
+        })
+        .collect()
 }
 
-fn print_parse_issues(parse_issues: &JunitFileToParseIssues) -> (usize, usize) {
-    let mut num_unparsable_reports: usize = 0;
-    let mut num_suboptimally_parsable_reports: usize = 0;
-    for (i, (file, (parse_result, parse_issues))) in parse_issues.iter().enumerate() {
-        if i == 0 {
-            println!();
-        }
-
-        let (fatal_parse_error, issues, num_parse_errors, num_parse_warnings) =
+fn gen_parse_issues(parse_issues: JunitFileToParseIssues) -> Vec<ParseIssues> {
+    parse_issues
+        .into_iter()
+        .map(|(file_path, (parse_result, file_issues))| {
             if let Err(e) = parse_result {
-                (Some(e), &Vec::new(), 1, 0)
+                ParseIssues {
+                    file_path,
+                    fatal_error: Some(e),
+                    errors: Vec::new(),
+                    warnings: Vec::new(),
+                }
             } else {
-                let (num_parse_errors, num_parse_warnings) =
-                    parse_issues.iter().fold((0, 0), |mut acc, issue| {
-                        match JunitParseIssueLevel::from(issue) {
-                            JunitParseIssueLevel::Invalid => {
-                                acc.0 += 1;
-                            }
-                            JunitParseIssueLevel::SubOptimal => {
-                                acc.1 += 1;
-                            }
-                            _ => (),
-                        }
-                        acc
-                    });
-                (None, parse_issues, num_parse_errors, num_parse_warnings)
-            };
+                let errors = file_issues
+                    .clone()
+                    .into_iter()
+                    .filter(|issue| {
+                        JunitParseIssueLevel::from(issue) == JunitParseIssueLevel::Invalid
+                    })
+                    .collect();
 
-        let num_parse_errors_str = if num_parse_errors > 0 {
-            Colorize::red(num_parse_errors.to_string().as_str())
-        } else {
-            Colorize::green(num_parse_errors.to_string().as_str())
-        };
-        let num_parse_warnings_str = if num_parse_warnings > 0 {
-            format!(
-                ", {} validation warnings",
-                Colorize::yellow(num_parse_warnings.to_string().as_str())
-            )
-        } else {
-            String::from("")
-        };
-        println!(
-            "{} - {} validation errors{}",
-            file, num_parse_errors_str, num_parse_warnings_str,
-        );
+                let warnings = file_issues
+                    .clone()
+                    .into_iter()
+                    .filter(|issue| {
+                        JunitParseIssueLevel::from(issue) == JunitParseIssueLevel::SubOptimal
+                    })
+                    .collect();
 
-        if let Some(parse_error) = fatal_parse_error {
-            println!(
-                "  {} - {}",
-                print_parse_issue_level(JunitParseIssueLevel::Invalid),
-                parse_error,
-            );
-        }
-
-        for issue in issues {
-            println!(
-                "  {} - {}",
-                print_parse_issue_level(JunitParseIssueLevel::from(issue)),
-                issue,
-            );
-        }
-
-        if num_parse_errors > 0 {
-            num_unparsable_reports += 1;
-        }
-        if num_parse_warnings > 0 {
-            num_suboptimally_parsable_reports += 1;
-        }
-    }
-
-    (num_unparsable_reports, num_suboptimally_parsable_reports)
+                ParseIssues {
+                    file_path: file_path.clone(),
+                    fatal_error: None,
+                    errors,
+                    warnings,
+                }
+            }
+        })
+        .collect()
 }
 
-fn print_parse_issue_level(level: JunitParseIssueLevel) -> ColoredString {
-    match level {
-        JunitParseIssueLevel::SubOptimal => Colorize::yellow("OPTIONAL"),
-        JunitParseIssueLevel::Invalid => Colorize::red("INVALID"),
-        JunitParseIssueLevel::Valid => Colorize::green("VALID"),
-    }
+fn gen_test_issues(report_validations: &JunitFileToValidation) -> Vec<TestIssues> {
+    report_validations
+        .iter()
+        .map(|(file_path, report_validation)| {
+            let all_issues = report_validation.all_issues_flat();
+            let errors = all_issues
+                .clone()
+                .into_iter()
+                .filter(|issue| issue.level == JunitValidationLevel::Invalid)
+                .collect();
+            let warnings = all_issues
+                .clone()
+                .into_iter()
+                .filter(|issue| issue.level == JunitValidationLevel::SubOptimal)
+                .collect();
+
+            TestIssues {
+                file_path: file_path.clone(),
+                num_test_suites: report_validation.test_suites().len(),
+                num_test_cases: report_validation.test_cases().len(),
+                errors,
+                warnings,
+            }
+        })
+        .collect()
 }
 
-fn print_summary_failure(
-    num_reports: usize,
-    num_invalid_reports: usize,
-    num_suboptimal_reports: usize,
-) {
-    let num_validation_warnings_str = if num_suboptimal_reports > 0 {
-        format!(
-            ", {} files have validation warnings",
-            Colorize::yellow(num_suboptimal_reports.to_string().as_str())
-        )
-    } else {
-        String::from("")
-    };
-    println!(
-        "\n{} files are valid, {} files are not valid{}{}",
-        Colorize::green((num_reports - num_invalid_reports).to_string().as_str()),
-        Colorize::red(num_invalid_reports.to_string().as_str()),
-        num_validation_warnings_str,
-        Emoji(" ❌", ""),
-    );
-}
-
-fn print_summary_success(num_reports: usize, num_suboptimal_reports: usize) {
-    let num_validation_warnings_str = if num_suboptimal_reports > 0 {
-        format!(
-            " ({} files with validation warnings)",
-            Colorize::yellow(num_suboptimal_reports.to_string().as_str())
-        )
-    } else {
-        String::from("")
-    };
-
-    println!(
-        "\nAll {} files are valid!{}{}",
-        Colorize::green(num_reports.to_string().as_str()),
-        num_validation_warnings_str,
-        Emoji(" ✅", ""),
-    );
-}
-
-fn print_validation_issues(report_validations: &JunitFileToValidation) -> (usize, usize) {
-    let mut num_invalid_reports: usize = 0;
-    let mut num_suboptimal_reports: usize = 0;
-    for (i, (file, report_validation)) in report_validations.iter().enumerate() {
-        if i == 0 {
-            println!();
-        }
-
-        let num_test_suites = report_validation.test_suites().len();
-        let num_test_cases = report_validation.test_cases().len();
-        let num_validation_errors = report_validation.num_invalid_issues();
-        let num_validation_warnings = report_validation.num_suboptimal_issues();
-        let all_issues: Vec<JunitReportValidationFlatIssue> = report_validation.all_issues_flat();
-
-        let num_validation_errors_str = if num_validation_errors > 0 {
-            Colorize::red(num_validation_errors.to_string().as_str())
-        } else {
-            Colorize::green(num_validation_errors.to_string().as_str())
-        };
-        let num_validation_warnings_str = if num_validation_warnings > 0 {
-            format!(
-                ", {} validation warnings",
-                Colorize::yellow(num_validation_warnings.to_string().as_str()),
-            )
-        } else {
-            String::from("")
-        };
-        println!(
-            "{} - {} test suites, {} test cases, {} validation errors{}",
-            file,
-            num_test_suites,
-            num_test_cases,
-            num_validation_errors_str,
-            num_validation_warnings_str,
-        );
-
-        for issue in all_issues {
-            println!(
-                "  {} - {}",
-                print_validation_level(issue.level),
-                issue.error_message,
-            );
-        }
-
-        if num_validation_errors > 0 {
-            num_invalid_reports += 1;
-        }
-        if num_validation_warnings > 0 {
-            num_suboptimal_reports += 1;
-        }
-    }
-
-    (num_invalid_reports, num_suboptimal_reports)
-}
-
-fn print_validation_level(level: JunitValidationLevel) -> ColoredString {
-    match level {
-        JunitValidationLevel::SubOptimal => Colorize::yellow("OPTIONAL"),
-        JunitValidationLevel::Invalid => Colorize::red("INVALID"),
-        JunitValidationLevel::Valid => Colorize::green("VALID"),
-    }
-}
-
-fn print_codeowners_validation(
+fn gen_codeowners_issues(
     codeowners: Option<CodeOwners>,
     report_validations: &JunitFileToValidation,
-) {
-    println!("\nChecking for codeowners file...");
-    match codeowners {
-        Some(owners) => {
-            println!("  Found codeowners:");
-            println!("    Path: {:?}", owners.path);
+) -> Option<CodeownersIssues> {
+    codeowners.map(|owners| {
+        let has_test_cases_without_matching_codeowners_paths = report_validations
+            .iter()
+            .flat_map(|(_, report_validation)| report_validation.all_issues())
+            .any(|issue| {
+                matches!(
+                    issue,
+                    JunitValidationIssueType::Report(JunitValidationIssue::SubOptimal(
+                        JunitReportValidationIssueSubOptimal::TestCasesFileOrFilepathMissing
+                    ))
+                )
+            });
+        let warnings = if has_test_cases_without_matching_codeowners_paths {
+            vec![
+                String::from("CODEOWNERS found but test cases are missing filepaths. We will not be able to correlate flaky tests with owners."),
+            ]
+        } else {
+            Vec::new()
+        };
 
-            let has_test_cases_without_matching_codeowners_paths = report_validations
-                .iter()
-                .flat_map(|(_, report_validation)| report_validation.all_issues())
-                .any(|issue| {
-                    matches!(
-                        issue,
-                        JunitValidationIssueType::Report(JunitValidationIssue::SubOptimal(
-                            JunitReportValidationIssueSubOptimal::TestCasesFileOrFilepathMissing
-                        ))
-                    )
-                });
-
-            if has_test_cases_without_matching_codeowners_paths {
-                println!(
-                    "    {} - CODEOWNERS found but test cases are missing filepaths. We will not be able to correlate flaky tests with owners.",
-                    print_validation_level(JunitValidationLevel::SubOptimal)
-                );
-            }
+        CodeownersIssues {
+            file_path: owners.path,
+            warnings,
         }
-        None => println!(
-            "  {} - No codeowners file found.",
-            print_validation_level(JunitValidationLevel::SubOptimal)
-        ),
-    }
+    })
 }
 
 #[derive(Debug)]
@@ -728,17 +944,20 @@ mod tests {
 
     #[test]
     fn test_parse_test_report_handles_json_bep() {
-        let actual = parse_test_report(get_test_file_path("test_fixtures/bep_example"));
+        let (actual, actual_bep) =
+            parse_test_report(get_test_file_path("test_fixtures/bep_example"));
         let expected = vec![JunitReportFileWithTestRunnerReport {
             junit_path: String::from("/tmp/hello_test/test.xml"),
             test_runner_report: None,
         }];
         assert_eq!(actual, expected);
+        assert_eq!(actual_bep.map(|bep| bep.errors), Some(Vec::new()));
     }
 
     #[test]
     fn test_parse_test_report_handles_binary_bep() {
-        let mut actual = parse_test_report(get_test_file_path("test_fixtures/bep_binary_file.bin"));
+        let (mut actual, actual_bep) =
+            parse_test_report(get_test_file_path("test_fixtures/bep_binary_file.bin"));
         let mut expected = vec![
             JunitReportFileWithTestRunnerReport {
                 junit_path: String::from("bytestream://buildbarn2.build.trunk-staging.io:1986/blobs/37d45ccef587444393523741a3831f4a1acbeb010f74f33130ab9ba687477558/449"),
@@ -808,15 +1027,23 @@ mod tests {
         actual.sort_by_key(|item| item.junit_path.clone());
         expected.sort_by_key(|item| item.junit_path.clone());
         assert_eq!(actual, expected);
+        assert_eq!(actual_bep.map(|bep| bep.errors), Some(Vec::new()));
     }
 
     #[test]
     fn test_parse_test_report_falls_back_to_junit() {
-        let actual = parse_test_report(get_test_file_path("test_fixtures/junit0_pass.xml"));
+        let (actual, actual_bep) =
+            parse_test_report(get_test_file_path("test_fixtures/junit0_pass.xml"));
         let expected = vec![JunitReportFileWithTestRunnerReport {
             junit_path: get_test_file_path("test_fixtures/junit0_pass.xml"),
             test_runner_report: None,
         }];
         assert_eq!(actual, expected);
+        assert_eq!(
+            actual_bep.map(|bep| bep.errors),
+            Some(vec![String::from(
+                "Error parsing build event: expected value at line 1 column 1"
+            )])
+        );
     }
 }
