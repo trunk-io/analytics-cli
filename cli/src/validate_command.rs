@@ -28,7 +28,7 @@ use superconsole::{
     Line, Lines, Span,
 };
 
-use crate::context::fall_back_to_binary_parse;
+use crate::{context::fall_back_to_binary_parse, report_limiting::ValidationReport};
 
 #[derive(Args, Clone, Debug)]
 pub struct ValidateArgs {
@@ -764,13 +764,16 @@ impl JunitReportValidations {
             files_without_issues,
         }
     }
-}
 
-const MAX_FILE_ISSUES_TO_SHOW: usize = 8;
-const MAX_FILES_TO_SHOW: usize = 8;
-impl EndOutput for JunitReportValidations {
-    fn output(&self) -> anyhow::Result<Vec<Line>> {
+    pub fn output_with_report_limits(
+        &self,
+        limits: &ValidationReport,
+    ) -> anyhow::Result<Vec<Line>> {
         let mut output: Vec<Line> = Vec::new();
+        if limits == &ValidationReport::None {
+            return Ok(output);
+        }
+
         output.push(Line::from_iter([Span::new_styled(
             String::from("📂 File Validation").attribute(Attribute::Bold),
         )?]));
@@ -803,7 +806,7 @@ impl EndOutput for JunitReportValidations {
         }
         output.push(Line::default());
 
-        for (file_name, validation_reports) in self.validations.iter().take(MAX_FILES_TO_SHOW) {
+        for (file_name, validation_reports) in limits.limit_files(self.validations.iter()) {
             let mut lines: Vec<Line> = vec![];
             match validation_reports {
                 Err(e) => {
@@ -846,7 +849,7 @@ impl EndOutput for JunitReportValidations {
                                     String::from("Errors").attribute(Attribute::Bold),
                                 )?,
                             ]));
-                            for error in invalid_issues.iter().take(MAX_FILE_ISSUES_TO_SHOW) {
+                            for error in limits.limit_issues(invalid_issues.iter()) {
                                 lines.push(Line::from_iter([
                                     Span::new_unstyled("   ↪ ")?,
                                     Span::new_unstyled(error.error_message.clone())?,
@@ -858,7 +861,7 @@ impl EndOutput for JunitReportValidations {
                                     String::from("Warnings").attribute(Attribute::Bold),
                                 )?,
                             ]));
-                            for warning in sub_optimal_issues.iter().take(MAX_FILE_ISSUES_TO_SHOW) {
+                            for warning in limits.limit_issues(sub_optimal_issues.iter()) {
                                 lines.push(Line::from_iter([
                                     Span::new_unstyled("   ↪ ")?,
                                     Span::new_unstyled(warning.error_message.clone())?,
@@ -872,7 +875,7 @@ impl EndOutput for JunitReportValidations {
                                     format!("{file_name} Has Errors").attribute(Attribute::Bold),
                                 )?,
                             ]));
-                            for issue in invalid_issues.iter().take(MAX_FILE_ISSUES_TO_SHOW) {
+                            for issue in limits.limit_issues(invalid_issues.iter()) {
                                 lines.push(Line::from_iter([
                                     Span::new_unstyled(" ↪ ")?,
                                     Span::new_unstyled(issue.error_message.clone())?,
@@ -886,7 +889,7 @@ impl EndOutput for JunitReportValidations {
                                     format!("{file_name} Has Warnings").attribute(Attribute::Bold),
                                 )?,
                             ]));
-                            for warning in sub_optimal_issues.iter().take(MAX_FILE_ISSUES_TO_SHOW) {
+                            for warning in limits.limit_issues(sub_optimal_issues.iter()) {
                                 lines.push(Line::from_iter([
                                     Span::new_unstyled(" ↪ ")?,
                                     Span::new_unstyled(warning.error_message.clone())?,
@@ -903,10 +906,10 @@ impl EndOutput for JunitReportValidations {
                 }
             }
         }
-        if self.validations.len() > MAX_FILES_TO_SHOW {
+        if let Some(extra_files) = limits.num_exceeding_files_limit(self.validations.len()) {
             output.push(Line::from_iter([Span::new_unstyled(format!(
                 "…and {} more",
-                self.validations.len() - MAX_FILES_TO_SHOW
+                extra_files
             ))?]));
         }
 

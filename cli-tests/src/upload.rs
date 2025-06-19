@@ -32,7 +32,7 @@ use test_utils::{
 use crate::command_builder::CommandBuilder;
 use crate::utils::{
     generate_mock_bazel_bep, generate_mock_codeowners, generate_mock_git_repo,
-    generate_mock_valid_junit_xmls,
+    generate_mock_invalid_junit_xmls, generate_mock_valid_junit_xmls,
 };
 
 // NOTE: must be multi threaded to start a mock server
@@ -1577,5 +1577,23 @@ async fn uses_passed_exit_code_if_unquarantined_tests_fail() {
         .code(predicate::eq(123));
 
     // HINT: View CLI output with `cargo test -- --nocapture`
+    println!("{assert}");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn does_not_print_exit_code_with_validation_reports_none() {
+    let temp_dir = tempdir().unwrap();
+    generate_mock_git_repo(&temp_dir);
+    generate_mock_invalid_junit_xmls(&temp_dir);
+
+    let state = MockServerBuilder::new().spawn_mock_server().await;
+
+    let assert = CommandBuilder::upload(temp_dir.path(), state.host.clone())
+        .validation_report("none")
+        .command()
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("File Validation").not());
+
     println!("{assert}");
 }
