@@ -192,7 +192,7 @@ async fn run(cli: Cli, render_sender: Sender<DisplayMessage>) -> anyhow::Result<
             Ok(RunResult::Upload(result))
         }
         Commands::Test(test_args) => {
-            let result = run_test(test_args).await?;
+            let result = run_test(test_args, render_sender).await?;
             Ok(RunResult::Test(result))
         }
         Commands::Validate(validate_args) => {
