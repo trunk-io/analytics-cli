@@ -57,6 +57,18 @@ pub struct TestRunResult {
     pub command_stderr: String,
 }
 
+fn lines_of(output: String) -> impl Iterator<Item = String> {
+    output
+        .lines()
+        .flat_map(|lf_line| {
+            lf_line
+                .split('\r')
+                .map(|crlf_line| crlf_line.replace('\t', "    "))
+        })
+        .collect::<Vec<String>>()
+        .into_iter()
+}
+
 impl EndOutput for TestRunResult {
     fn output(&self) -> anyhow::Result<Vec<Line>> {
         let mut output: Vec<Line> = Vec::new();
@@ -68,14 +80,14 @@ impl EndOutput for TestRunResult {
             Line::default(),
         ]);
 
-        for stdout_line in self.command_stdout.lines() {
-            output.push(Line::from_iter([Span::new_unstyled(stdout_line)?]));
+        for stdout_line in lines_of(self.command_stdout.clone()) {
+            output.push(Line::from_iter([Span::new_unstyled_lossy(stdout_line)]));
         }
 
         output.push(Line::default());
 
-        for stderr_line in self.command_stderr.lines() {
-            output.push(Line::from_iter([Span::new_unstyled(stderr_line)?]));
+        for stderr_line in lines_of(self.command_stderr.clone()) {
+            output.push(Line::from_iter([Span::new_unstyled_lossy(stderr_line)]));
         }
 
         Ok(output)
