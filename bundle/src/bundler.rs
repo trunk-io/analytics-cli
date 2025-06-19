@@ -278,33 +278,55 @@ mod tests {
     use crate::bundle_meta::{
         BundleMeta, BundleMetaBaseProps, BundleMetaDebugProps, BundleMetaJunitProps, META_VERSION,
     };
+    use crate::files::{FileSet, FileSetType};
+    use crate::Test;
 
     #[tokio::test]
     pub async fn test_bundle_meta_is_first_entry() {
+        let mut repo = BundleRepo::default();
+        let upload_time_epoch = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_else(|_| std::time::Duration::from_secs(0))
+            .as_secs();
+        repo.repo.owner = "org".to_string();
+        repo.repo.name = "repo".to_string();
+        let mut envs: HashMap<String, String> = HashMap::new();
+        envs.insert("key".to_string(), "value".to_string());
         let meta = BundleMeta {
             junit_props: BundleMetaJunitProps::default(),
             bundle_upload_id_v2: String::with_capacity(0),
             debug_props: BundleMetaDebugProps {
                 command_line: String::with_capacity(0),
             },
-            variant: None,
+            variant: Some("variant".to_string()),
             base_props: BundleMetaBaseProps {
                 version: META_VERSION.to_string(),
-                org: String::with_capacity(0),
-                repo: BundleRepo::default(),
-                cli_version: String::with_capacity(0),
-                bundle_upload_id: String::with_capacity(0),
+                org: "org".to_string(),
+                repo: repo.clone(),
+                cli_version: "0.0.1".to_string(),
+                bundle_upload_id: "00".to_string(),
                 tags: vec![],
-                file_sets: Vec::with_capacity(0),
-                upload_time_epoch: SystemTime::now()
-                    .duration_since(UNIX_EPOCH)
-                    .unwrap_or_else(|_| std::time::Duration::from_secs(0))
-                    .as_secs(),
-                test_command: None,
-                quarantined_tests: Vec::with_capacity(0),
+                file_sets: vec![FileSet::new(
+                    FileSetType::Junit,
+                    vec![],
+                    "test*.xml".to_string(),
+                    None,
+                )],
+                upload_time_epoch,
+                test_command: Some("exit 1".to_string()),
+                quarantined_tests: vec![Test::new(
+                    None,
+                    "name".to_string(),
+                    "parent_name".to_string(),
+                    Some("class_name".to_string()),
+                    None,
+                    "org".to_string(),
+                    &repo.repo,
+                    None,
+                )],
                 os_info: Some(env::consts::OS.to_string()),
                 codeowners: None,
-                envs: HashMap::new(),
+                envs,
             },
             internal_bundled_file: None,
         };
@@ -320,5 +342,25 @@ mod tests {
 
         let parsed_meta = parse_meta_from_tarball(reader).await;
         assert!(parsed_meta.is_ok());
+        match parsed_meta.unwrap() {
+            VersionedBundle::V0_7_7(meta) => {
+                assert_eq!(meta.base_props.version, META_VERSION.to_string());
+                assert_eq!(meta.variant, Some("variant".to_string()));
+                assert_eq!(meta.base_props.org, "org");
+                assert_eq!(meta.base_props.repo.repo.name, "repo");
+                assert_eq!(meta.base_props.repo.repo.owner, "org");
+                assert_eq!(meta.base_props.cli_version, "0.0.1");
+                assert_eq!(meta.base_props.bundle_upload_id, "00");
+                assert_eq!(meta.base_props.file_sets.len(), 1);
+                assert_eq!(meta.base_props.upload_time_epoch, upload_time_epoch);
+                assert_eq!(meta.base_props.test_command, Some("exit 1".to_string()));
+                assert_eq!(meta.base_props.quarantined_tests.len(), 1);
+                assert_eq!(meta.base_props.os_info, Some(env::consts::OS.to_string()));
+                assert!(meta.base_props.codeowners.is_none());
+                assert!(meta.internal_bundled_file.is_none());
+                assert!(meta.base_props.envs.contains_key("key"));
+            }
+            _ => panic!("Expected V0_7_7 versioned bundle"),
+        }
     }
 }
