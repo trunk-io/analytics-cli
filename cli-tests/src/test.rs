@@ -590,3 +590,57 @@ async fn returns_exit_code_from_execution_when_failures_not_quarantined() {
     // HINT: View CLI output with `cargo test -- --nocapture`
     println!("{assert}");
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn test_command_can_print_subcommand_output_with_special_characters() {
+    let temp_dir = tempdir().unwrap();
+    generate_mock_git_repo(&temp_dir);
+    generate_mock_valid_junit_xmls(&temp_dir);
+    generate_mock_codeowners(&temp_dir);
+
+    let state = MockServerBuilder::new().spawn_mock_server().await;
+
+    CommandBuilder::test(
+        temp_dir.path(),
+        state.host.clone(),
+        vec![
+            String::from("bash"),
+            String::from("-c"),
+            String::from("echo \"Firstline\nAfterNewline\r\tindented\""),
+        ],
+    )
+    .use_quarantining(false)
+    .command()
+    .assert()
+    .success()
+    .stderr(predicate::str::contains("Firstline"))
+    .stderr(predicate::str::contains("AfterNewline"))
+    .stderr(predicate::str::contains("    indented"));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn test_command_can_print_subcommand_output_with_faux_html() {
+    let temp_dir = tempdir().unwrap();
+    generate_mock_git_repo(&temp_dir);
+    generate_mock_valid_junit_xmls(&temp_dir);
+    generate_mock_codeowners(&temp_dir);
+
+    let state = MockServerBuilder::new().spawn_mock_server().await;
+
+    CommandBuilder::test(
+        temp_dir.path(),
+        state.host.clone(),
+        vec![
+            String::from("bash"),
+            String::from("-c"),
+            String::from("echo \"<head>This breaks superconsole</head>\""),
+        ],
+    )
+    .use_quarantining(false)
+    .command()
+    .assert()
+    .success()
+    .stderr(predicate::str::contains(
+        "<head>This breaks superconsole</head>",
+    ));
+}
