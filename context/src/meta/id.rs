@@ -114,6 +114,26 @@ mod tests {
 
     #[cfg(feature = "bindings")]
     #[test]
+    fn test_gen_info_id_real_staging_test() {
+        // This test legitimately exists - checking to see that this code generates the
+        // expected ID.
+        let result = gen_info_id(
+            "trunk-staging-org",
+            "github.com/trunk-io/trunk",
+            None,
+            Some("modules/settings/repoName/__tests__/ticketing-integration.vitest.tsx"),
+            Some("modules/settings/repoName/__tests__/ticketing-integration.vitest.tsx"),
+            Some("Ticketing Integration > should allow you to select a ticketing system"),
+            None,
+            "",
+        );
+
+        // https://app.trunk-staging.io/trunk-staging-org/flaky-tests/test/3f507aef-e834-523b-a8ad-edaba6b137be?repo=trunk-io%2Ftrunk
+        assert_eq!(result, "3f507aef-e834-523b-a8ad-edaba6b137be")
+    }
+
+    #[cfg(feature = "bindings")]
+    #[test]
     fn test_gen_info_id_existing_v5_uuid() {
         let org_url_slug = "example_org";
         let repo_full_name = "example_repo";
