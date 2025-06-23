@@ -6,7 +6,7 @@ use bundle::{
     parse_meta_from_tarball as parse_tarball_meta, FileSetTestRunnerReport, VersionedBundle,
     VersionedBundleWithBindingsReport,
 };
-use context::{env, junit, repo};
+use context::{env, junit, meta::id::gen_info_id as gen_info_id_impl, repo};
 use futures::{future::Either, io::BufReader as BufReaderAsync, stream::TryStreamExt};
 use js_sys::Uint8Array;
 use prost::Message;
@@ -174,4 +174,29 @@ pub async fn parse_internal_bin_and_meta_from_tarball(
         bindings_report: vec![junit::bindings::BindingsReport::from(test_result)],
         versioned_bundle,
     })
+}
+
+#[wasm_bindgen]
+// trunk-ignore(clippy/too_many_arguments)
+pub fn gen_info_id(
+    org_url_slug: String,
+    repo_full_name: String,
+    file: Option<String>,
+    classname: Option<String>,
+    parent_fact_path: Option<String>,
+    name: Option<String>,
+    info_id: Option<String>,
+    variant: String,
+) -> Result<String, JsError> {
+    let info_id = gen_info_id_impl(
+        &org_url_slug,
+        &repo_full_name,
+        file.as_deref(),
+        classname.as_deref(),
+        parent_fact_path.as_deref(),
+        name.as_deref(),
+        info_id.as_deref(),
+        &variant,
+    );
+    Ok(info_id)
 }

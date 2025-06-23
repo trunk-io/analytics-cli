@@ -6,7 +6,6 @@
 use std::collections::HashMap;
 
 use codeowners::CodeOwners;
-use context::{junit::bindings, repo::BundleRepo};
 #[cfg(feature = "bindings")]
 use context::junit;
 use context::repo::BundleRepo;
