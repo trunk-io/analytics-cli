@@ -7,6 +7,9 @@ use std::collections::HashMap;
 
 use codeowners::CodeOwners;
 use context::{junit::bindings, repo::BundleRepo};
+#[cfg(feature = "bindings")]
+use context::junit;
+use context::repo::BundleRepo;
 #[cfg(feature = "pyo3")]
 use pyo3::{exceptions::PyTypeError, prelude::*};
 #[cfg(feature = "pyo3")]
@@ -221,7 +224,8 @@ pub enum VersionedBundle {
 #[derive(Debug, Clone)]
 pub struct VersionedBundleWithBindingsReport {
     pub versioned_bundle: VersionedBundle,
-    pub bindings_report: Vec<bindings::BindingsReport>,
+    #[cfg(feature = "bindings")]
+    pub bindings_report: Vec<junit::bindings::BindingsReport>,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
