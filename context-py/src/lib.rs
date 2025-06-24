@@ -363,26 +363,17 @@ fn associate_codeowners_multithreaded_impl(
 
 #[gen_stub_pyfunction]
 #[pyfunction]
-#[pyo3(signature = (
-    org_url_slug,
-    repo_full_name,
-    file=None,
-    classname=None,
-    parent_fact_path=None,
-    name=None,
-    info_id=None,
-    variant=None
-))]
 // trunk-ignore(clippy/too_many_arguments)
+// trunk-ignore(clippy/deprecated)
 pub fn gen_info_id(
     org_url_slug: String,
     repo_full_name: String,
+    variant: String,
     file: Option<String>,
     classname: Option<String>,
     parent_fact_path: Option<String>,
     name: Option<String>,
     info_id: Option<String>,
-    variant: Option<String>,
 ) -> PyResult<String> {
     let info_id = id::gen_info_id(
         &org_url_slug,
@@ -392,7 +383,7 @@ pub fn gen_info_id(
         parent_fact_path.as_deref(),
         name.as_deref(),
         info_id.as_deref(),
-        &variant.unwrap_or_default(),
+        &variant,
     );
     Ok(info_id)
 }

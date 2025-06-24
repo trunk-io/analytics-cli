@@ -6,12 +6,12 @@ def test_generates_id_properly_for_trunk():
         return gen_info_id(
             "example_org",
             "example_repo",
+            "unix",
             "src/lib.rs",
             "ExampleClass",
             "parent/fact/path",
             "example_name",
             "trunk:12345",
-            "unix",
         )
 
     result = generate_id_for_test()
@@ -29,12 +29,12 @@ def test_works_properly_with_existing_v5_uuid():
         return gen_info_id(
             "example_org",
             "example_repo",
+            variant,
             "src/lib.rs",
             "ExampleClass",
             "parent/fact/path",
             "example_name",
             existing_info_id,
-            variant,
         )
 
     result = generate_id_for_test()
@@ -54,12 +54,12 @@ def test_works_properly_without_existing_v5_uuid():
         return gen_info_id(
             "example_org",
             "example_repo",
+            "unix",
             "src/lib.rs",
             "ExampleClass",
             "parent/fact/path",
             "example_name",
             info_id,
-            "unix",
         )
 
     result = generate_id_for_test()

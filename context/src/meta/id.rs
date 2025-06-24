@@ -30,6 +30,7 @@ fn generate_info_id(
     generate_checksum_uuid(base_values)
 }
 
+// trunk-ignore(clippy/too_many_arguments)
 pub fn gen_info_id(
     org_url_slug: &str,
     repo_full_name: &str,
@@ -155,7 +156,7 @@ mod tests {
             variant,
         );
 
-        assert_eq!(result, info_id.unwrap());
+        assert_eq!(result, info_id.map_or(String::new(), |id| id.to_string()));
 
         // Run again to ensure deterministic output
         let result_again = gen_info_id(
@@ -182,7 +183,10 @@ mod tests {
             info_id,
             variant,
         );
-        assert_ne!(result_with_variant, info_id.unwrap());
+        assert_ne!(
+            result_with_variant,
+            info_id.map_or(String::new(), |id| id.to_string())
+        );
         assert_eq!(result_with_variant, "8057218b-95e4-5373-afbe-c366d4058615");
     }
 
@@ -236,7 +240,10 @@ mod tests {
             info_id_v4,
             variant,
         );
-        assert_ne!(result_v4, info_id_v4.unwrap());
+        assert_ne!(
+            result_v4,
+            info_id_v4.map_or(String::new(), |id| id.to_string())
+        );
         assert_eq!(result_v4, result_again);
     }
 }
