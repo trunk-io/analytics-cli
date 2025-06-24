@@ -10,7 +10,8 @@ use codeowners::{
 use context::{
     env,
     junit::{self, junit_path::TestRunnerReport},
-    meta, repo,
+    meta::{bindings, id, validator},
+    repo,
 };
 use prost::Message;
 use pyo3::{exceptions::PyTypeError, prelude::*};
@@ -209,16 +210,14 @@ pub fn parse_meta(meta_bytes: Vec<u8>) -> PyResult<bundle::BindingsVersionedBund
 
 #[gen_stub_pyfunction]
 #[pyfunction]
-fn meta_validate(
-    meta_context: meta::bindings::BindingsMetaContext,
-) -> meta::validator::MetaValidation {
-    meta::validator::validate(&meta::bindings::BindingsMetaContext::into(meta_context))
+fn meta_validate(meta_context: bindings::BindingsMetaContext) -> validator::MetaValidation {
+    validator::validate(&bindings::BindingsMetaContext::into(meta_context))
 }
 
 #[gen_stub_pyfunction]
 #[pyfunction]
 fn meta_validation_level_to_string(
-    meta_validation_level: meta::validator::MetaValidationLevel,
+    meta_validation_level: validator::MetaValidationLevel,
 ) -> String {
     meta_validation_level.to_string()
 }
@@ -362,6 +361,32 @@ fn associate_codeowners_multithreaded_impl(
     Ok(results)
 }
 
+#[gen_stub_pyfunction]
+#[pyfunction]
+// trunk-ignore(clippy/too_many_arguments)
+// trunk-ignore(clippy/deprecated)
+pub fn gen_info_id(
+    org_url_slug: String,
+    repo_full_name: String,
+    variant: String,
+    file: Option<String>,
+    classname: Option<String>,
+    parent_fact_path: Option<String>,
+    name: Option<String>,
+    info_id: Option<String>,
+) -> String {
+    id::gen_info_id(
+        &org_url_slug,
+        &repo_full_name,
+        file.as_deref(),
+        classname.as_deref(),
+        parent_fact_path.as_deref(),
+        name.as_deref(),
+        info_id.as_deref(),
+        &variant,
+    )
+}
+
 #[pymodule]
 fn context_py(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<env::parser::CIInfo>()?;
@@ -402,9 +427,9 @@ fn context_py(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(repo_validate, m)?)?;
     m.add_function(wrap_pyfunction!(repo_validation_level_to_string, m)?)?;
 
-    m.add_class::<meta::bindings::BindingsMetaContext>()?;
-    m.add_class::<meta::validator::MetaValidation>()?;
-    m.add_class::<meta::validator::MetaValidationLevel>()?;
+    m.add_class::<bindings::BindingsMetaContext>()?;
+    m.add_class::<validator::MetaValidation>()?;
+    m.add_class::<validator::MetaValidationLevel>()?;
     m.add_function(wrap_pyfunction!(parse_meta_from_tarball, m)?)?;
     m.add_function(wrap_pyfunction!(parse_meta, m)?)?;
     m.add_class::<bundle::BindingsVersionedBundle>()?;
@@ -417,6 +442,7 @@ fn context_py(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(meta_validate, m)?)?;
     m.add_function(wrap_pyfunction!(meta_validation_level_to_string, m)?)?;
     m.add_function(wrap_pyfunction!(parse_internal_bin_from_tarball, m)?)?;
+    m.add_function(wrap_pyfunction!(gen_info_id, m)?)?;
 
     m.add_class::<codeowners::BindingsOwners>()?;
     m.add_function(wrap_pyfunction!(codeowners_parse, m)?)?;
