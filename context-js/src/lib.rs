@@ -187,8 +187,8 @@ pub fn gen_info_id(
     name: Option<String>,
     info_id: Option<String>,
     variant: String,
-) -> Result<String, JsError> {
-    let info_id = gen_info_id_impl(
+) -> String {
+    gen_info_id_impl(
         &org_url_slug,
         &repo_full_name,
         file.as_deref(),
@@ -197,6 +197,5 @@ pub fn gen_info_id(
         name.as_deref(),
         info_id.as_deref(),
         &variant,
-    );
-    Ok(info_id)
+    )
 }

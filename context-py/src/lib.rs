@@ -374,8 +374,8 @@ pub fn gen_info_id(
     parent_fact_path: Option<String>,
     name: Option<String>,
     info_id: Option<String>,
-) -> PyResult<String> {
-    let info_id = id::gen_info_id(
+) -> String {
+    id::gen_info_id(
         &org_url_slug,
         &repo_full_name,
         file.as_deref(),
@@ -384,8 +384,7 @@ pub fn gen_info_id(
         name.as_deref(),
         info_id.as_deref(),
         &variant,
-    );
-    Ok(info_id)
+    )
 }
 
 #[pymodule]
