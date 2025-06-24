@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { gen_info_id } from "../pkg/context_js";
 
 describe("context-js", () => {
-  // Tese tests match the tests in context/src/meta/id.rs.
+  // These tests match the tests in context/src/meta/id.rs.
   // While they don't need to match, it proves both the bindings and
   // rust code are generating the same IDs.
   describe("gen_info_id", () => {
