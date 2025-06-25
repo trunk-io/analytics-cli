@@ -21,6 +21,22 @@ use crate::{
     upload_command::{run_upload, UploadArgs, UploadRunResult},
 };
 
+enum RunOutput {
+    Title,
+}
+impl EndOutput for RunOutput {
+    fn output(&self) -> anyhow::Result<Vec<Line>> {
+        match self {
+            RunOutput::Title => Ok(vec![
+                Line::from_iter([Span::new_styled(
+                    String::from("📒 Test command outputs").attribute(Attribute::Bold),
+                )?]),
+                Line::default(),
+            ]),
+        }
+    }
+}
+
 #[derive(Args, Clone, Debug)]
 pub struct TestArgs {
     #[command(flatten)]
@@ -102,12 +118,7 @@ pub async fn run_test(
     render_sender: Sender<DisplayMessage>,
 ) -> anyhow::Result<UploadRunResult> {
     let token = upload_args.token.clone();
-    let mut test_run_result = run_test_command(&command).await?;
-    let run_result_ptr = Arc::new(test_run_result.clone());
-    send_message(
-        DisplayMessage::Final(run_result_ptr, String::from("test output")),
-        &render_sender,
-    );
+    let mut test_run_result = run_test_command(&command, render_sender.clone()).await?;
     let test_context = gather_initial_test_context(
         upload_args.clone(),
         gather_debug_props(env::args().collect::<Vec<String>>(), token),
@@ -140,8 +151,16 @@ pub async fn run_test(
     }
 }
 
-pub async fn run_test_command<T: AsRef<str>>(command: &[T]) -> anyhow::Result<TestRunResult> {
+pub async fn run_test_command<T: AsRef<str>>(
+    command: &[T],
+    render_sender: Sender<DisplayMessage>,
+) -> anyhow::Result<TestRunResult> {
     let exec_start = SystemTime::now();
+    let title_ptr = Arc::new(RunOutput::Title);
+    send_message(
+        DisplayMessage::Final(title_ptr, String::from("test command title")),
+        &render_sender,
+    );
     let child = Command::new(command.first().map(|s| s.as_ref()).unwrap_or_default())
         .args(
             command
@@ -150,8 +169,8 @@ pub async fn run_test_command<T: AsRef<str>>(command: &[T]) -> anyhow::Result<Te
                 .map(|s| s.as_ref())
                 .collect::<Vec<_>>(),
         )
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
+        .stdout(Stdio::inherit())
+        .stderr(Stdio::inherit())
         .spawn()?;
     let exit_result = child.wait_with_output().map_err(|e| {
         tracing::warn!("Error waiting for execution: {}", e);

@@ -613,9 +613,9 @@ async fn test_command_can_print_subcommand_output_with_special_characters() {
     .command()
     .assert()
     .success()
-    .stderr(predicate::str::contains("Firstline"))
-    .stderr(predicate::str::contains("AfterNewline"))
-    .stderr(predicate::str::contains("    indented"));
+    .stdout(predicate::str::contains("Firstline"))
+    .stdout(predicate::str::contains("AfterNewline"))
+    .stdout(predicate::str::contains("\r\tindented"));
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -640,7 +640,7 @@ async fn test_command_can_print_subcommand_output_with_faux_html() {
     .command()
     .assert()
     .success()
-    .stderr(predicate::str::contains(
+    .stdout(predicate::str::contains(
         "<head>This breaks superconsole</head>",
     ));
 }
