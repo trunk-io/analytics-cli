@@ -80,14 +80,14 @@ impl EndOutput for TestRunResult {
             Line::default(),
         ]);
 
-        for stdout_line in lines_of(self.command_stdout.clone()) {
-            output.push(Line::from_iter([Span::new_unstyled_lossy(stdout_line)]));
+        for stderr_line in lines_of(self.command_stderr.clone()) {
+            output.push(Line::from_iter([Span::new_unstyled_lossy(stderr_line)]));
         }
 
         output.push(Line::default());
 
-        for stderr_line in lines_of(self.command_stderr.clone()) {
-            output.push(Line::from_iter([Span::new_unstyled_lossy(stderr_line)]));
+        for stdout_line in lines_of(self.command_stdout.clone()) {
+            output.push(Line::from_iter([Span::new_unstyled_lossy(stdout_line)]));
         }
 
         Ok(output)
