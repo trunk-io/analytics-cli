@@ -31,6 +31,15 @@ pub struct BundlerUtil {
 
 pub const META_FILENAME: &str = "meta.json";
 pub const INTERNAL_BIN_FILENAME: &str = "internal.bin";
+pub const BUNDLE_FILE_NAME: &str = "bundle.tar.zstd";
+
+pub fn unzip_tarball(bundle_path: &PathBuf, unpack_dir: &PathBuf) -> anyhow::Result<()> {
+    let tar_file = File::open(bundle_path)?;
+    let zstd_decoder = zstd::Decoder::new(tar_file)?;
+    let mut archive = tar::Archive::new(zstd_decoder);
+    archive.unpack(unpack_dir)?;
+    Ok(())
+}
 
 impl BundlerUtil {
     const ZSTD_COMPRESSION_LEVEL: i32 = 15; // This gives roughly 10x compression for text, 22 gives 11x.
@@ -123,7 +132,7 @@ impl BundlerUtil {
 
     pub fn make_tarball_in_temp_dir(&self) -> anyhow::Result<(PathBuf, TempDir)> {
         let bundle_temp_dir = tempfile::tempdir()?;
-        let bundle_temp_file = bundle_temp_dir.path().join("bundle.tar.zstd");
+        let bundle_temp_file = bundle_temp_dir.path().join(BUNDLE_FILE_NAME);
         self.make_tarball(&bundle_temp_file)?;
         Ok((bundle_temp_file, bundle_temp_dir))
     }
@@ -332,7 +341,7 @@ mod tests {
         };
         let bundler_util = BundlerUtil::new(meta, None);
         let temp_dir = tempdir().unwrap();
-        let bundle_path = temp_dir.path().join("bundle.tar.zstd");
+        let bundle_path = temp_dir.path().join(BUNDLE_FILE_NAME);
 
         assert!(bundler_util.make_tarball(&bundle_path).is_ok());
         assert!(bundle_path.exists());
