@@ -526,7 +526,11 @@ pub async fn gather_exit_code_and_quarantined_tests_context(
 pub async fn gather_upload_id_context(
     meta: &mut BundleMeta,
     api_client: &ApiClient,
+    dry_run: bool,
 ) -> anyhow::Result<CreateBundleUploadResponse> {
+    if dry_run {
+        return Err(anyhow::anyhow!("Dry run mode enabled, unable to upload"));
+    }
     let upload = api_client
         .create_bundle_upload(&api::message::CreateBundleUploadRequest {
             repo: meta.base_props.repo.repo.clone(),
