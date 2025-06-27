@@ -26,6 +26,7 @@ pub struct UploadArgs {
     repo_head_author_name: Option<String>,
     verbose: Option<bool>,
     validation_report: Option<String>,
+    dry_run: bool,
 }
 
 impl UploadArgs {
@@ -49,6 +50,7 @@ impl UploadArgs {
             repo_head_author_name: None,
             verbose: None,
             validation_report: None,
+            dry_run: false,
         }
     }
 
@@ -207,6 +209,11 @@ impl UploadArgs {
                     vec![String::from("--validation-report"), validation_report]
                 }),
         )
+        .chain(if self.dry_run {
+            vec![String::from("--dry-run")]
+        } else {
+            vec![]
+        })
         .collect()
     }
 }
@@ -414,6 +421,15 @@ impl CommandType {
         }
         self
     }
+
+    pub fn dry_run(&mut self, new_flag: bool) -> &mut Self {
+        match self {
+            CommandType::Upload { upload_args, .. } => upload_args.dry_run = new_flag,
+            CommandType::Test { upload_args, .. } => upload_args.dry_run = new_flag,
+            CommandType::Validate { .. } => (), // Dry run is not applicable for validate command
+        }
+        self
+    }
 }
 
 #[derive(Clone)]
@@ -562,6 +578,11 @@ impl<'b> CommandBuilder<'b> {
             }
             CommandType::Validate { .. } => {}
         }
+        self
+    }
+
+    pub fn dry_run(&mut self, new_flag: bool) -> &mut Self {
+        self.command_type.dry_run(new_flag);
         self
     }
 

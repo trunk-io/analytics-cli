@@ -5,8 +5,8 @@ use std::sync::mpsc::Sender;
 
 use api::client::ApiClient;
 use api::{client::get_api_host, urls::url_for_test_case};
-use bundle::Test;
 use bundle::{BundleMeta, BundlerUtil};
+use bundle::{Test, BUNDLE_FILE_NAME};
 use clap::{ArgAction, Args};
 use constants::EXIT_SUCCESS;
 use context::bazel_bep::common::BepParseResult;
@@ -412,10 +412,9 @@ pub async fn run_upload(
     let error_report = match upload_bundle_result {
         Ok(upload_bundle_result) => {
             if upload_args.dry_run {
-                // make the tempdir permanent and log the path
                 let curr_dir = env::current_dir()?;
-                let bundle_file = curr_dir.join("bundle.tar.zstd");
-                std::fs::copy(upload_bundle_result.0, &bundle_file)?;
+                let bundle_file = curr_dir.join(BUNDLE_FILE_NAME);
+                std::fs::copy(upload_bundle_result.0, bundle_file)?;
             }
             None
         }

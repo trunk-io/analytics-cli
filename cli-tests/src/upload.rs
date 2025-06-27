@@ -8,7 +8,7 @@ use api::message::{
 };
 use assert_matches::assert_matches;
 use axum::{extract::State, http::StatusCode, Json};
-use bundle::{BundleMeta, FileSetType, INTERNAL_BIN_FILENAME};
+use bundle::{unzip_tarball, BundleMeta, FileSetType, BUNDLE_FILE_NAME, INTERNAL_BIN_FILENAME};
 use chrono::TimeDelta;
 use codeowners::CodeOwners;
 use constants::EXIT_FAILURE;
@@ -312,6 +312,57 @@ async fn upload_bundle_using_xcresult() {
             let mut junit_parser = JunitParser::new();
             file_set.files.iter().for_each(|file| {
                 let junit_file = fs::File::open(tar_extract_directory.join(&file.path)).unwrap();
+                assert!(junit_parser.parse(BufReader::new(junit_file)).is_ok());
+                assert!(junit_parser.issues().is_empty());
+            });
+            let report = junit_parser.into_reports().pop().unwrap();
+            assert_eq!(report.tests, 17);
+        });
+
+    // HINT: View CLI output with `cargo test -- --nocapture`
+    println!("{assert}");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[cfg(target_os = "macos")]
+async fn upload_bundle_using_dry_run() {
+    let temp_dir = tempdir().unwrap();
+    generate_mock_git_repo(&temp_dir);
+    unpack_archive_to_dir(
+        "test_fixtures/test1.xcresult.tar.gz",
+        &temp_dir.path().display().to_string(),
+    );
+
+    let state = MockServerBuilder::new().spawn_mock_server().await;
+
+    let assert = CommandBuilder::upload(temp_dir.path(), state.host.clone())
+        .xcresult_path("test1.xcresult")
+        .dry_run(true)
+        .command()
+        .assert()
+        .success()
+        .stderr(predicate::str::contains("1 file found, 1 with issues").not());
+
+    let requests = state.requests.lock().unwrap().clone();
+    // dry run means no upload or telemetry requests should be made
+    assert_eq!(requests.len(), 0);
+
+    let tar_extract_directory = temp_dir.path().join(BUNDLE_FILE_NAME);
+    let output_dir = temp_dir.path().join("output");
+    unzip_tarball(&tar_extract_directory, &output_dir.to_path_buf()).unwrap();
+    let meta_json = fs::File::open(output_dir.join("meta.json")).unwrap();
+    let bundle_meta: BundleMeta = serde_json::from_reader(meta_json).unwrap();
+
+    assert!(!bundle_meta.base_props.file_sets.is_empty());
+    bundle_meta
+        .base_props
+        .file_sets
+        .iter()
+        .for_each(|file_set| {
+            assert_eq!(file_set.file_set_type, FileSetType::Junit);
+            let mut junit_parser = JunitParser::new();
+            file_set.files.iter().for_each(|file| {
+                let junit_file = fs::File::open(output_dir.join(&file.path)).unwrap();
                 assert!(junit_parser.parse(BufReader::new(junit_file)).is_ok());
                 assert!(junit_parser.issues().is_empty());
             });
