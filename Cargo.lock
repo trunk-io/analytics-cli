@@ -5610,7 +5610,6 @@ dependencies = [
  "tracing",
  "tracing-log",
  "tracing-subscriber",
- "unicode-ellipsis",
  "url",
  "vergen",
  "xcresult",
@@ -5750,16 +5749,6 @@ name = "unicode-bom"
 version = "2.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7eec5d1121208364f6793f7d2e222bf75a915c19557537745b195b253dd64217"
-
-[[package]]
-name = "unicode-ellipsis"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "34ed7a61d66ae6471dc2fa895bc9c30c3351760c95e8c7afeb978acab3ccf04b"
-dependencies = [
- "unicode-segmentation",
- "unicode-width 0.2.0",
-]
 
 [[package]]
 name = "unicode-ident"

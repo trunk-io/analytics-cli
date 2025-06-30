@@ -15,7 +15,6 @@ use superconsole::{
     style::{style, Attribute, Color, Stylize},
     Line, Lines, Span,
 };
-use unicode_ellipsis::truncate_str_leading;
 
 use crate::context_quarantine::QuarantineContext;
 use crate::validate_command::JunitReportValidations;
@@ -481,7 +480,6 @@ impl EndOutput for UploadRunResult {
                     if test.parent_name.is_empty() { "" } else { "/" },
                     test.name
                 );
-                let truncated = truncate_str_leading(&output_name, 60);
                 let link = url_for_test_case(
                     &get_api_host(),
                     &self.quarantine_context.org_url_slug,
@@ -489,7 +487,7 @@ impl EndOutput for UploadRunResult {
                     test,
                 )?;
                 output.push(Line::from_iter([Span::new_styled(
-                    style(truncated.to_string()).attribute(Attribute::Italic),
+                    style(output_name.to_string()).attribute(Attribute::Italic),
                 )?]));
                 let mut link_output = Line::from_iter([
                     Span::new_unstyled("⤷ ")?,
