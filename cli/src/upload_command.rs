@@ -1,11 +1,11 @@
 use std::collections::BTreeMap;
 use std::env;
+use std::path::PathBuf;
 use std::sync::mpsc::Sender;
 
 use api::client::ApiClient;
 use api::{client::get_api_host, urls::url_for_test_case};
-use bundle::Test;
-use bundle::{BundleMeta, BundlerUtil};
+use bundle::{unzip_tarball, BundleMeta, BundlerUtil, Test};
 use clap::{ArgAction, Args};
 use constants::EXIT_SUCCESS;
 use context::bazel_bep::common::BepParseResult;
@@ -15,6 +15,7 @@ use superconsole::{
     style::{style, Attribute, Color, Stylize},
     Line, Lines, Span,
 };
+use tempfile::TempDir;
 
 use crate::context_quarantine::QuarantineContext;
 use crate::validate_command::JunitReportValidations;
@@ -33,6 +34,7 @@ use crate::{
 const JUNIT_GLOB_REQUIRED_UNLESS_PRESENT_ARG: &str = "xcresult_path";
 #[cfg(not(target_os = "macos"))]
 const JUNIT_GLOB_REQUIRED_UNLESS_PRESENT_ARG: &str = "junit_paths";
+pub const DRY_RUN_OUTPUT_DIR: &str = "bundle_upload";
 
 #[derive(Args, Clone, Debug, Default)]
 pub struct UploadArgs {
@@ -143,6 +145,16 @@ pub struct UploadArgs {
         hide = true,
     )]
     pub hide_banner: bool,
+    #[arg(
+        long,
+        help = "Write the bundle locally to a file instead of uploading it.",
+        required = false,
+        num_args = 0,
+        default_value = "false",
+        default_missing_value = "true",
+        hide = true
+    )]
+    pub dry_run: bool,
     #[arg(
         long,
         help = "Value to set the variant of the test results uploaded.",
@@ -352,6 +364,7 @@ pub async fn run_upload(
         &api_client,
         bep_result,
         quarantine_context.exit_code,
+        upload_args.dry_run,
     )
     .await;
     let upload_metrics = proto::upload_metrics::trunk::UploadMetrics {
@@ -373,28 +386,37 @@ pub async fn run_upload(
         failure_reason: "".into(),
     };
     let mut request = api::message::TelemetryUploadMetricsRequest { upload_metrics };
-    let telemetry_response;
-    if let Some(err) = upload_bundle_result.as_ref().err() {
-        request.upload_metrics.failed = true;
-        request.upload_metrics.failure_reason = error_reason(err);
-        telemetry_response = api_client.telemetry_upload_metrics(&request).await;
-    } else {
-        request.upload_metrics.failed = false;
-        telemetry_response = api_client.telemetry_upload_metrics(&request).await;
-    }
-    if let Err(e) = telemetry_response {
-        tracing::error!(
-            hidden_in_console = true,
-            "Failed to send telemetry: {:?}",
-            e
-        );
+    if !upload_args.dry_run {
+        let telemetry_response;
+        if let Some(err) = upload_bundle_result.as_ref().err() {
+            request.upload_metrics.failed = true;
+            request.upload_metrics.failure_reason = error_reason(err);
+            telemetry_response = api_client.telemetry_upload_metrics(&request).await;
+        } else {
+            request.upload_metrics.failed = false;
+            telemetry_response = api_client.telemetry_upload_metrics(&request).await;
+        }
+        if let Err(e) = telemetry_response {
+            tracing::error!(
+                hidden_in_console = true,
+                "Failed to send telemetry: {:?}",
+                e
+            );
+        }
     }
 
     if upload_bundle_result.is_err() {
         tracing::error!("Failed to upload bundle");
     }
     let error_report = match upload_bundle_result {
-        Ok(_) => None,
+        Ok(upload_bundle_result) => {
+            if upload_args.dry_run {
+                let curr_dir = env::current_dir()?;
+                let bundle_file = curr_dir.join(DRY_RUN_OUTPUT_DIR);
+                unzip_tarball(&upload_bundle_result.0, &bundle_file)?;
+            }
+            None
+        }
         Err(e) => Some(ErrorReport::new(
             e,
             upload_args.org_url_slug.clone(),
@@ -415,29 +437,43 @@ async fn upload_bundle(
     api_client: &ApiClient,
     bep_result: Option<BepParseResult>,
     exit_code: i32,
-) -> anyhow::Result<()> {
-    let upload = gather_upload_id_context(&mut meta, api_client).await?;
+    dry_run: bool,
+) -> anyhow::Result<(PathBuf, TempDir)> {
+    let upload_result = gather_upload_id_context(&mut meta, api_client, dry_run).await;
 
     let (
         bundle_temp_file,
         // directory is removed on drop
-        _bundle_temp_dir,
+        bundle_temp_dir,
     ) = BundlerUtil::new(meta, bep_result).make_tarball_in_temp_dir()?;
     tracing::info!("Flushed temporary tarball to {:?}", bundle_temp_file);
 
-    api_client
-        .put_bundle_to_s3(&upload.url, &bundle_temp_file)
-        .await?;
-    if exit_code == EXIT_SUCCESS {
-        tracing::info!("Upload successful");
-    } else {
-        tracing::info!(
-            "Upload successful; returning unsuccessful exit code of test run: {}",
-            exit_code
-        );
+    if dry_run {
+        tracing::info!("Dry run enabled, not uploading bundle to S3");
+        return Ok((bundle_temp_file, bundle_temp_dir));
     }
 
-    Ok(())
+    match upload_result {
+        Ok(upload) => {
+            api_client
+                .put_bundle_to_s3(&upload.url, &bundle_temp_file)
+                .await?;
+            if exit_code == EXIT_SUCCESS {
+                tracing::info!("Upload successful");
+            } else {
+                tracing::info!(
+                    "Upload successful; returning unsuccessful exit code of test run: {}",
+                    exit_code
+                );
+            }
+
+            Ok((bundle_temp_file, bundle_temp_dir))
+        }
+        Err(e) => {
+            tracing::error!("Failed to gather upload ID: {}", e);
+            Err(e)
+        }
+    }
 }
 
 impl EndOutput for UploadRunResult {
