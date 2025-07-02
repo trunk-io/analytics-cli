@@ -1,4 +1,4 @@
-use context::repo::RepoUrlParts;
+use context::{meta::id::gen_info_id, repo::RepoUrlParts};
 #[cfg(feature = "pyo3")]
 use pyo3::prelude::*;
 #[cfg(feature = "pyo3")]
@@ -57,17 +57,16 @@ impl Test {
     }
 
     pub fn set_id<T: AsRef<str>>(&mut self, org_slug: T, repo: &RepoUrlParts) {
-        let info_id_input = [
+        self.id = gen_info_id(
             org_slug.as_ref(),
             repo.repo_full_name().as_str(),
-            self.file.as_deref().unwrap_or(""),
-            self.class_name.as_deref().unwrap_or(""),
-            &self.parent_name,
-            &self.name,
-            "JUNIT_TESTCASE",
-        ]
-        .join("#");
-        self.id = Uuid::new_v5(&Uuid::NAMESPACE_URL, info_id_input.as_bytes()).to_string()
+            self.file.as_deref(),
+            self.class_name.as_deref(),
+            Some(self.parent_name.as_str()),
+            Some(self.name.as_str()),
+            None,
+            "",
+        );
     }
 
     pub fn generate_custom_uuid<T: AsRef<str>>(&mut self, org_slug: T, repo: &RepoUrlParts, id: T) {

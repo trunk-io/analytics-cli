@@ -6,9 +6,11 @@
 use std::collections::HashMap;
 
 use codeowners::CodeOwners;
+#[cfg(feature = "bindings")]
+use context::junit;
 use context::repo::BundleRepo;
 #[cfg(feature = "pyo3")]
-use pyo3::prelude::*;
+use pyo3::{exceptions::PyTypeError, prelude::*};
 #[cfg(feature = "pyo3")]
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 use serde::{Deserialize, Serialize};
@@ -204,7 +206,7 @@ impl From<BundleMetaV0_7_7> for BundleMetaV0_7_6 {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 #[cfg_attr(feature = "wasm", derive(Tsify))]
 #[cfg_attr(feature = "wasm", tsify(into_wasm_abi, from_wasm_abi))]
 #[serde(tag = "schema")]
@@ -217,6 +219,14 @@ pub enum VersionedBundle {
     V0_7_7(BundleMetaV0_7_7),
 }
 
+#[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
+#[derive(Debug, Clone)]
+pub struct VersionedBundleWithBindingsReport {
+    pub versioned_bundle: VersionedBundle,
+    #[cfg(feature = "bindings")]
+    pub bindings_report: Vec<junit::bindings::BindingsReport>,
+}
+
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
 #[cfg(feature = "pyo3")]
 #[gen_stub_pyclass]
@@ -227,6 +237,10 @@ pub struct BindingsVersionedBundle(pub VersionedBundle);
 #[gen_stub_pymethods]
 #[pymethods]
 impl BindingsVersionedBundle {
+    pub fn dump_json(&self) -> PyResult<String> {
+        serde_json::to_string(&self.0).map_err(|err| PyTypeError::new_err(err.to_string()))
+    }
+
     pub fn get_v0_5_29(&self) -> BundleMetaV0_5_29 {
         match &self.0 {
             VersionedBundle::V0_7_7(bundle_meta) => BundleMetaV0_5_29::from(

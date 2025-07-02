@@ -25,6 +25,7 @@ pub struct TestReport {
     started_at: SystemTime,
     quarantined_tests: Option<HashMap<String, Test>>,
     codeowners: Option<CodeOwners>,
+    variant: Option<String>,
 }
 
 #[cfg_attr(feature = "wasm", wasm_bindgen)]
@@ -94,13 +95,14 @@ pub struct MutTestReport(RefCell<TestReport>);
 
 #[cfg_attr(feature = "wasm", wasm_bindgen)]
 impl MutTestReport {
-    pub fn new(origin: String, command: String) -> Self {
+    pub fn new(origin: String, command: String, variant: Option<String>) -> Self {
         let started_at = SystemTime::now();
         let mut test_result = TestResult::default();
         test_result.uploader_metadata = Some(UploaderMetadata {
             origin: origin.clone(),
             version: env!("CARGO_PKG_VERSION").to_string(),
             upload_time: None,
+            variant: variant.clone().unwrap_or_default(),
         });
         let codeowners = BundleRepo::new(None, None, None, None, None, None, false)
             .ok()
@@ -114,6 +116,7 @@ impl MutTestReport {
             started_at,
             quarantined_tests: None,
             codeowners,
+            variant: variant.clone(),
         }))
     }
 
@@ -122,28 +125,28 @@ impl MutTestReport {
     }
 
     fn setup_logger(&self, org_url_slug: String) {
-        let sentry_layer = sentry_tracing::layer().event_mapper(move |event, context| {
-            // trunk-ignore(clippy/match_ref_pats)
-            match event.metadata().level() {
-                &tracing::Level::ERROR => {
-                    let mut event = sentry_tracing::event_from_event(event, context);
-                    event
-                        .tags
-                        .insert(String::from("org_url_slug"), org_url_slug.clone());
-                    sentry_tracing::EventMapping::Event(event)
+        let sentry_layer =
+            sentry_tracing::layer().event_mapper(move |event, context| {
+                match *(event.metadata().level()) {
+                    tracing::Level::ERROR => {
+                        let mut event = sentry_tracing::event_from_event(event, context);
+                        event
+                            .tags
+                            .insert(String::from("org_url_slug"), org_url_slug.clone());
+                        sentry_tracing::EventMapping::Event(event)
+                    }
+                    tracing::Level::WARN => sentry_tracing::EventMapping::Breadcrumb(
+                        sentry_tracing::breadcrumb_from_event(event, context),
+                    ),
+                    tracing::Level::INFO => sentry_tracing::EventMapping::Breadcrumb(
+                        sentry_tracing::breadcrumb_from_event(event, context),
+                    ),
+                    tracing::Level::DEBUG => sentry_tracing::EventMapping::Breadcrumb(
+                        sentry_tracing::breadcrumb_from_event(event, context),
+                    ),
+                    _ => sentry_tracing::EventMapping::Ignore,
                 }
-                &tracing::Level::WARN => sentry_tracing::EventMapping::Breadcrumb(
-                    sentry_tracing::breadcrumb_from_event(event, context),
-                ),
-                &tracing::Level::INFO => sentry_tracing::EventMapping::Breadcrumb(
-                    sentry_tracing::breadcrumb_from_event(event, context),
-                ),
-                &tracing::Level::DEBUG => sentry_tracing::EventMapping::Breadcrumb(
-                    sentry_tracing::breadcrumb_from_event(event, context),
-                ),
-                _ => sentry_tracing::EventMapping::Ignore,
-            }
-        });
+            });
         let console_layer = tracing_subscriber::fmt::Layer::new()
             .without_time()
             .with_target(false)
@@ -187,7 +190,7 @@ impl MutTestReport {
             tracing::warn!("Not checking quarantine status because TRUNK_ORG_URL_SLUG is empty");
             return false;
         }
-        let api_client = ApiClient::new(token, org_url_slug.clone());
+        let api_client = ApiClient::new(token, org_url_slug.clone(), None);
         let bundle_repo = BundleRepo::new(None, None, None, None, None, None, false);
         match (api_client, bundle_repo) {
             (Ok(api_client), Ok(bundle_repo)) => {
@@ -326,6 +329,8 @@ impl MutTestReport {
             command: self.0.borrow().command.clone(),
             exec_start: Some(self.0.borrow().started_at),
             exit_code: 0,
+            command_stdout: String::from(""),
+            command_stderr: String::from(""),
         };
         let result = match gather_initial_test_context(upload_args.clone(), debug_props) {
             Ok(pre_test_context) => {
@@ -337,6 +342,7 @@ impl MutTestReport {
                         upload_args,
                         Some(pre_test_context),
                         Some(test_run_result),
+                        None,
                     )) {
                     Ok(upload_result) => {
                         if let Some(upload_bundle_error) =
@@ -423,7 +429,6 @@ impl MutTestReport {
         }
         test.name = name;
         test.classname = classname;
-        // trunk-ignore(clippy/assigning_clones)
         test.file = file.clone();
         if !test.file.is_empty() {
             let codeowners: Option<Vec<String>> = self
@@ -488,7 +493,7 @@ pub fn ruby_init(ruby: &magnus::Ruby) -> Result<(), magnus::Error> {
     status.define_singleton_method("new", magnus::function!(Status::new, 1))?;
     status.define_method("to_s", magnus::method!(Status::to_string, 0))?;
     let test_report = ruby.define_class("TestReport", ruby.class_object())?;
-    test_report.define_singleton_method("new", magnus::function!(MutTestReport::new, 2))?;
+    test_report.define_singleton_method("new", magnus::function!(MutTestReport::new, 3))?;
     test_report.define_method("to_s", magnus::method!(MutTestReport::to_string, 0))?;
     test_report.define_method("publish", magnus::method!(MutTestReport::publish, 0))?;
     test_report.define_method("add_test", magnus::method!(MutTestReport::add_test, 12))?;

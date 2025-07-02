@@ -28,11 +28,12 @@ use test_utils::{
     inputs::get_test_file_path,
     mock_server::{MockServerBuilder, RequestPayload, SharedMockServerState},
 };
+use trunk_analytics_cli::upload_command::DRY_RUN_OUTPUT_DIR;
 
 use crate::command_builder::CommandBuilder;
 use crate::utils::{
     generate_mock_bazel_bep, generate_mock_codeowners, generate_mock_git_repo,
-    generate_mock_valid_junit_xmls,
+    generate_mock_invalid_junit_xmls, generate_mock_valid_junit_xmls,
 };
 
 // NOTE: must be multi threaded to start a mock server
@@ -317,6 +318,51 @@ async fn upload_bundle_using_xcresult() {
             });
             let report = junit_parser.into_reports().pop().unwrap();
             assert_eq!(report.tests, 17);
+        });
+
+    // HINT: View CLI output with `cargo test -- --nocapture`
+    println!("{assert}");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn upload_bundle_using_dry_run() {
+    let temp_dir = tempdir().unwrap();
+    generate_mock_git_repo(&temp_dir);
+    generate_mock_valid_junit_xmls(&temp_dir);
+    generate_mock_codeowners(&temp_dir);
+
+    let state = MockServerBuilder::new().spawn_mock_server().await;
+
+    let assert = CommandBuilder::upload(temp_dir.path(), state.host.clone())
+        .dry_run(true)
+        .use_quarantining(false)
+        .command()
+        .assert()
+        .success();
+
+    let requests = state.requests.lock().unwrap().clone();
+    // dry run means no upload or telemetry requests should be made
+    assert_eq!(requests.len(), 0);
+
+    let output_dir = temp_dir.path().join(DRY_RUN_OUTPUT_DIR);
+    let meta_json = fs::File::open(output_dir.join("meta.json")).unwrap();
+    let bundle_meta: BundleMeta = serde_json::from_reader(meta_json).unwrap();
+
+    assert!(!bundle_meta.base_props.file_sets.is_empty());
+    bundle_meta
+        .base_props
+        .file_sets
+        .iter()
+        .for_each(|file_set| {
+            assert_eq!(file_set.file_set_type, FileSetType::Junit);
+            let mut junit_parser = JunitParser::new();
+            file_set.files.iter().for_each(|file| {
+                let junit_file = fs::File::open(output_dir.join(&file.path)).unwrap();
+                assert!(junit_parser.parse(BufReader::new(junit_file)).is_ok());
+                assert!(junit_parser.issues().is_empty());
+            });
+            let report = junit_parser.into_reports().pop().unwrap();
+            assert_eq!(report.tests, 500);
         });
 
     // HINT: View CLI output with `cargo test -- --nocapture`
@@ -1635,6 +1681,24 @@ async fn uploaded_file_contains_updated_test_files() {
         .unwrap()
         .to_string();
     assert_eq!(test_case_run.file, expected_file);
+
+    println!("{assert}");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn does_not_print_exit_code_with_validation_reports_none() {
+    let temp_dir = tempdir().unwrap();
+    generate_mock_git_repo(&temp_dir);
+    generate_mock_invalid_junit_xmls(&temp_dir);
+
+    let state = MockServerBuilder::new().spawn_mock_server().await;
+
+    let assert = CommandBuilder::upload(temp_dir.path(), state.host.clone())
+        .validation_report("none")
+        .command()
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("File Validation").not());
 
     println!("{assert}");
 }

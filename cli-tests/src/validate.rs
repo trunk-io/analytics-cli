@@ -1,5 +1,9 @@
 use predicates::prelude::*;
 use tempfile::{tempdir, TempDir};
+use superconsole::{
+    style::{style, Color, Stylize},
+    Line, Span,
+};
 
 use crate::{
     command_builder::CommandBuilder,
@@ -20,10 +24,26 @@ fn validate_success() {
         .command()
         .assert()
         .success()
-        .stdout(predicate::str::contains("0 validation errors"))
-        .stdout(predicate::str::contains("All 1 files are valid"))
-        .stdout(predicate::str::contains("Checking for codeowners file..."))
-        .stdout(predicate::str::contains("VALID - Found codeowners:"));
+        .stderr(predicate::str::contains(
+            Line::from_iter([
+                Span::new_styled(style(String::from("0")).with(Color::Red)).unwrap(),
+                Span::new_unstyled(String::from(" errors")).unwrap(),
+            ])
+            .render(),
+        ))
+        .stderr(predicate::str::contains(
+            Line::from_iter([
+                Span::new_styled(style(String::from("0")).with(Color::Green)).unwrap(),
+                Span::new_unstyled(String::from(" valid files, ")).unwrap(),
+                Span::new_styled(style(String::from("1")).with(Color::Yellow)).unwrap(),
+                Span::new_unstyled(String::from(" file with warnings, and ")).unwrap(),
+                Span::new_styled(style(String::from("0")).with(Color::Red)).unwrap(),
+                Span::new_unstyled(String::from(" files with errors, with 1 file total")).unwrap(),
+            ])
+            .render(),
+        ))
+        .stderr(predicate::str::contains("Checking for codeowners file..."))
+        .stderr(predicate::str::contains("Found codeowners path:"));
 
     println!("{assert}");
 }
@@ -84,14 +104,18 @@ fn validate_invalid_junits_no_codeowners() {
         .command()
         .assert()
         .failure()
-        .stdout(predicate::str::contains("1 validation error"))
-        .stdout(predicate::str::contains(
-            "INVALID - test suite names are missing",
+        .stderr(predicate::str::contains(
+            Line::from_iter([
+                Span::new_styled(style(String::from("0")).with(Color::Yellow)).unwrap(),
+                Span::new_unstyled(String::from(" warnings, and ")).unwrap(),
+                Span::new_styled(style(String::from("1")).with(Color::Red)).unwrap(),
+                Span::new_unstyled(String::from(" error")).unwrap(),
+            ])
+            .render(),
         ))
-        .stdout(predicate::str::contains("Checking for codeowners file..."))
-        .stdout(predicate::str::contains(
-            "OPTIONAL - No codeowners file found",
-        ));
+        .stderr(predicate::str::contains("test suite names are missing"))
+        .stderr(predicate::str::contains("Checking for codeowners file..."))
+        .stderr(predicate::str::contains("No codeowners file found"));
 
     println!("{assert}");
 }
@@ -106,8 +130,16 @@ fn validate_empty_xml() {
         .command()
         .assert()
         .success()
-        .stdout(predicate::str::contains("1 validation warning"))
-        .stdout(predicate::str::contains("OPTIONAL - no reports found"));
+        .stderr(predicate::str::contains(
+            Line::from_iter([
+                Span::new_styled(style(String::from("1")).with(Color::Yellow)).unwrap(),
+                Span::new_unstyled(String::from(" warning, and ")).unwrap(),
+                Span::new_styled(style(String::from("0")).with(Color::Red)).unwrap(),
+                Span::new_unstyled(String::from(" errors")).unwrap(),
+            ])
+            .render(),
+        ))
+        .stderr(predicate::str::contains("no reports found"));
 
     println!("{assert}");
 }
@@ -122,10 +154,16 @@ fn validate_invalid_xml() {
         .command()
         .assert()
         .failure()
-        .stdout(predicate::str::contains("1 validation error"))
-        .stdout(predicate::str::contains(
-            "INVALID - syntax error: tag not closed",
-        ));
+        .stderr(predicate::str::contains(
+            Line::from_iter([
+                Span::new_styled(style(String::from("0")).with(Color::Yellow)).unwrap(),
+                Span::new_unstyled(String::from(" warnings, and ")).unwrap(),
+                Span::new_styled(style(String::from("1")).with(Color::Red)).unwrap(),
+                Span::new_unstyled(String::from(" error")).unwrap(),
+            ])
+            .render(),
+        ))
+        .stderr(predicate::str::contains("syntax error: tag not closed"));
 
     println!("{assert}");
 }
@@ -139,11 +177,17 @@ fn validate_suboptimal_junits() {
         .command()
         .assert()
         .success()
-        .stdout(predicate::str::contains(
-            "0 validation errors, 1 validation warning",
+        .stderr(predicate::str::contains(
+            Line::from_iter([
+                Span::new_styled(style(String::from("1")).with(Color::Yellow)).unwrap(),
+                Span::new_unstyled(String::from(" warning, and ")).unwrap(),
+                Span::new_styled(style(String::from("0")).with(Color::Red)).unwrap(),
+                Span::new_unstyled(String::from(" errors")).unwrap(),
+            ])
+            .render(),
         ))
-        .stdout(predicate::str::contains(
-            "OPTIONAL - report has stale (> 1 hour(s)) timestamps",
+        .stderr(predicate::str::contains(
+            "report has stale (> 1 hour(s)) timestamps",
         ));
 
     println!("{assert}");
@@ -160,14 +204,19 @@ fn validate_missing_filepath_suboptimal_junits() {
         .command()
         .assert()
         .success()
-        .stdout(predicate::str::contains(
-            "0 validation errors, 2 validation warning",
+        .stderr(predicate::str::contains(
+            Line::from_iter([
+                Span::new_styled(style(String::from("2")).with(Color::Yellow)).unwrap(),
+                Span::new_unstyled(String::from(" warnings, and ")).unwrap(),
+                Span::new_styled(style(String::from("0")).with(Color::Red)).unwrap(),
+                Span::new_unstyled(String::from(" errors")).unwrap(),
+            ]).render(),
         ))
-        .stdout(predicate::str::contains(
-            "OPTIONAL - report has test cases with missing file or filepath",
+        .stderr(predicate::str::contains(
+            "report has test cases with missing file or filepath",
         ))
-        .stdout(predicate::str::contains(
-            "OPTIONAL - CODEOWNERS found but test cases are missing filepaths. We will not be able to correlate flaky tests with owners.",
+        .stderr(predicate::str::contains(
+            "CODEOWNERS found but test cases are missing filepaths. We will not be able to correlate flaky tests with owners.",
         ));
 
     println!("{assert}");

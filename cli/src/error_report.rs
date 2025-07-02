@@ -1,11 +1,10 @@
 use api::client::get_api_host;
+use display::end_output::EndOutput;
 use http::StatusCode;
 use superconsole::{
     style::{style, Attribute, Stylize},
     Line, Span,
 };
-
-use crate::end_output::EndOutput;
 
 const HELP_TEXT: &str = "For more help, contact us at https://slack.trunk.io/";
 const CONNECTION_REFUSED_CONTEXT: &str = concat!("Unable to connect to trunk's server",);

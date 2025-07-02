@@ -1,18 +1,23 @@
-use std::env;
+use std::{
+    env,
+    sync::{mpsc::Sender, Arc},
+    thread::JoinHandle,
+};
 
 use clap::{Parser, Subcommand};
 use clap_verbosity_flag::{log::LevelFilter, InfoLevel, Verbosity};
-use superconsole::{Dimensions, SuperConsole};
-use terminal_size::{terminal_size, Height, Width};
-use third_party::sentry;
+use display::{
+    message::{send_message, DisplayMessage},
+    render::spin_up_renderer,
+};
+use sentry::ClientInitGuard;
 use tracing_subscriber::{filter::FilterFn, prelude::*};
 use trunk_analytics_cli::{
     context::gather_debug_props,
-    end_output::display_end,
     error_report::ErrorReport,
     test_command::{run_test, TestArgs},
     upload_command::{run_upload, UploadArgs, UploadRunResult},
-    validate_command::{run_validate, ValidateArgs},
+    validate_command::{run_validate, ValidateArgs, ValidateRunResult},
 };
 
 #[derive(Debug, Parser)]
@@ -80,15 +85,27 @@ enum Commands {
     Test(TestArgs),
     /// Upload data to Trunk Flaky Tests
     Upload(UploadArgs),
-    /// Validate that your test runner output is suitable for Trunk Flaky Tests
+    /// Validate that your test runner output is suitable for Trunk Flaky Tests (does not call to servers)
     Validate(ValidateArgs),
+}
+
+fn close_out_and_exit(
+    exit_code: i32,
+    guard: ClientInitGuard,
+    render_sender: Sender<DisplayMessage>,
+    render_handle: JoinHandle<()>,
+) -> ! {
+    guard.flush(None);
+    drop(render_sender);
+    let _ = render_handle.join();
+    std::process::exit(exit_code)
 }
 
 // "the Sentry client must be initialized before starting an async runtime or spawning threads"
 // https://docs.sentry.io/platforms/rust/#async-main-function
 fn main() -> anyhow::Result<()> {
     let release_name = format!("analytics-cli@{}", env!("CARGO_PKG_VERSION"));
-    let guard = sentry::init(release_name.into(), None);
+    let guard = third_party::sentry::init(release_name.into(), None);
 
     tokio::runtime::Builder::new_multi_thread()
         .enable_all()
@@ -108,65 +125,54 @@ fn main() -> anyhow::Result<()> {
                 command = cli.debug_props(),
                 "Trunk Flaky Test running command"
             );
-            let mut superconsole = match SuperConsole::new() {
-                Some(console) => console,
-                None => {
-                    tracing::warn!("Failed to create superconsole because of incompatible TTY");
-                    let size = terminal_size();
-                    if let Some((Width(width), Height(height))) = size {
-                        SuperConsole::forced_new(Dimensions {
-                            width: width as usize,
-                            height: height as usize,
-                        })
-                    } else {
-                        tracing::warn!("Falling back to default dimensions for superconsole");
-                        // Fallback to a reasonable default size
-                        // This is a fallback for when the terminal size cannot be determined
-                        // or when running in a non-TTY environment.
-                        tracing::warn!("Using default dimensions for superconsole");
-                        tracing::warn!("This may not render correctly in some environments");
-                        tracing::warn!("Please use a TTY compatible terminal for best results");
-                        SuperConsole::forced_new(Dimensions {
-                            width: 143,
-                            height: 24,
-                        })
-                    }
-                }
-            };
-            match run(cli).await {
+            let (render_handle, render_sender) = spin_up_renderer();
+
+            match run(cli, render_sender.clone()).await {
                 Ok(RunResult::Upload(run_result)) => {
-                    let render_result = display_end(&mut superconsole, &run_result);
-                    if let Err(e) = render_result {
-                        tracing::error!("Failed to render upload display: {}", e);
-                    }
-                    let exit_code = run_result
+                    let result_ptr = Arc::new(run_result);
+                    send_message(
+                        DisplayMessage::Final(result_ptr.clone(), String::from("upload display")),
+                        &render_sender,
+                    );
+                    let exit_code = result_ptr
                         .error_report
+                        .as_ref()
                         .map(|e| e.context.exit_code)
-                        .unwrap_or(run_result.quarantine_context.exit_code);
-                    guard.flush(None);
-                    std::process::exit(exit_code)
+                        .unwrap_or(result_ptr.quarantine_context.exit_code);
+                    close_out_and_exit(exit_code, guard, render_sender, render_handle)
                 }
                 Ok(RunResult::Test(run_result)) => {
-                    let render_result = display_end(&mut superconsole, &run_result);
-                    if let Err(e) = render_result {
-                        tracing::error!("Failed to render test display: {}", e);
-                    }
-                    guard.flush(None);
-                    std::process::exit(run_result.quarantine_context.exit_code)
+                    let result_ptr = Arc::new(run_result);
+                    send_message(
+                        DisplayMessage::Final(result_ptr.clone(), String::from("test display")),
+                        &render_sender,
+                    );
+                    close_out_and_exit(
+                        result_ptr.quarantine_context.exit_code,
+                        guard,
+                        render_sender,
+                        render_handle,
+                    )
                 }
-                Ok(RunResult::Validate(exit_code)) => {
-                    guard.flush(None);
-                    std::process::exit(exit_code)
+                Ok(RunResult::Validate(run_result)) => {
+                    let result_ptr = Arc::new(run_result);
+                    send_message(
+                        DisplayMessage::Final(result_ptr.clone(), String::from("validate display")),
+                        &render_sender,
+                    );
+                    close_out_and_exit(result_ptr.exit_code(), guard, render_sender, render_handle)
                 }
                 Err(error) => {
                     let error_report = ErrorReport::new(error, org_url_slug, None);
                     let exit_code = error_report.context.exit_code;
-                    let render_result = display_end(&mut superconsole, &error_report);
-                    if let Err(e) = render_result {
-                        tracing::error!("Failed to render error display: {}", e);
-                    }
-                    guard.flush(None);
-                    std::process::exit(exit_code);
+                    send_message(
+                        DisplayMessage::Final(
+                            Arc::new(error_report),
+                            String::from("error display"),
+                        ),
+                        &render_sender,
+                    );
+                    close_out_and_exit(exit_code, guard, render_sender, render_handle)
                 }
             }
         })
@@ -175,10 +181,10 @@ fn main() -> anyhow::Result<()> {
 enum RunResult {
     Upload(UploadRunResult),
     Test(UploadRunResult),
-    Validate(i32),
+    Validate(ValidateRunResult),
 }
 
-async fn run(cli: Cli) -> anyhow::Result<RunResult> {
+async fn run(cli: Cli, render_sender: Sender<DisplayMessage>) -> anyhow::Result<RunResult> {
     tracing::info!(
         "Starting trunk flakytests {} (git={}) rustc={}",
         env!("CARGO_PKG_VERSION"),
@@ -187,11 +193,11 @@ async fn run(cli: Cli) -> anyhow::Result<RunResult> {
     );
     match cli.command {
         Commands::Upload(upload_args) => {
-            let result = run_upload(upload_args, None, None).await?;
+            let result = run_upload(upload_args, None, None, Some(render_sender)).await?;
             Ok(RunResult::Upload(result))
         }
         Commands::Test(test_args) => {
-            let result = run_test(test_args).await?;
+            let result = run_test(test_args, render_sender).await?;
             Ok(RunResult::Test(result))
         }
         Commands::Validate(validate_args) => {

@@ -1,6 +1,8 @@
 use std::path::Path;
+use std::sync::mpsc::Sender;
 
 use constants::{DEFAULT_ORIGIN, TRUNK_PUBLIC_API_ADDRESS_ENV};
+use display::message::DisplayMessage;
 use http::{header::HeaderMap, HeaderValue};
 use reqwest::{header, Client, Response, StatusCode};
 use serde::de::DeserializeOwned;
@@ -17,6 +19,7 @@ pub struct ApiClient {
     telemetry_client: Client,
     version_path_prefix: String,
     org_url_slug: String,
+    render_sender: Option<Sender<DisplayMessage>>,
 }
 
 pub fn get_api_host() -> String {
@@ -32,7 +35,11 @@ impl ApiClient {
     const TRUNK_TELEMETRY_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(1);
     const TRUNK_API_TOKEN_HEADER: &'static str = "x-api-token";
 
-    pub fn new<T: AsRef<str>>(api_token: T, org_url_slug: T) -> anyhow::Result<Self> {
+    pub fn new<T: AsRef<str>>(
+        api_token: T,
+        org_url_slug: T,
+        render_sender: Option<Sender<DisplayMessage>>,
+    ) -> anyhow::Result<ApiClient> {
         let org_url_slug = String::from(org_url_slug.as_ref());
         let api_token = api_token.as_ref();
         if api_token.trim().is_empty() {
@@ -97,7 +104,7 @@ impl ApiClient {
             String::from("/v1")
         };
 
-        Ok(Self {
+        Ok(ApiClient {
             telemetry_host,
             api_host,
             s3_client,
@@ -105,6 +112,7 @@ impl ApiClient {
             telemetry_client,
             version_path_prefix,
             org_url_slug,
+            render_sender,
         })
     }
 
@@ -138,6 +146,7 @@ impl ApiClient {
             report_slow_progress_message: |time_elapsed| {
                 format!("Creating a Trunk upload intent is taking longer than {} seconds", time_elapsed.as_secs())
             },
+            render_sender: self.render_sender.clone(),
         }
         .call_api()
         .await
@@ -179,6 +188,7 @@ impl ApiClient {
             report_slow_progress_message: |time_elapsed| {
                 format!("Getting a Trunk quarantine configuration is taking longer than {} seconds", time_elapsed.as_secs())
             },
+            render_sender: self.render_sender.clone(),
         }
         .call_api()
         .await
@@ -214,6 +224,7 @@ impl ApiClient {
             report_slow_progress_message: |time_elapsed| {
                 format!("Listing quarantined tests from Trunk services is taking longer than {} seconds", time_elapsed.as_secs())
             },
+            render_sender: self.render_sender.clone(),
         }
         .call_api()
         .await
@@ -252,6 +263,7 @@ impl ApiClient {
             report_slow_progress_message: |time_elapsed| {
                 format!("Uploading bundle to S3 is taking longer than {} seconds", time_elapsed.as_secs())
             },
+            render_sender: self.render_sender.clone(),
         }
         .call_api()
         .await
@@ -305,6 +317,7 @@ impl ApiClient {
                     format!("Reporting telemetry metrics to Trunk services is taking longer than {} seconds", time_elapsed.as_secs())
                 }
             },
+            render_sender: self.render_sender.clone(),
         }
         .call_api()
         .await
@@ -472,7 +485,7 @@ mod tests {
         let state = mock_server_builder.spawn_mock_server().await;
 
         let mut api_client =
-            ApiClient::new(String::from("mock-token"), String::from("mock-org")).unwrap();
+            ApiClient::new(String::from("mock-token"), String::from("mock-org"), None).unwrap();
         api_client.api_host.clone_from(&state.host);
 
         assert!(api_client
@@ -516,7 +529,7 @@ mod tests {
         let state = mock_server_builder.spawn_mock_server().await;
 
         let mut api_client =
-            ApiClient::new(String::from("mock-token"), String::from("mock-org")).unwrap();
+            ApiClient::new(String::from("mock-token"), String::from("mock-org"), None).unwrap();
         api_client.api_host.clone_from(&state.host);
 
         assert!(api_client
@@ -555,7 +568,7 @@ mod tests {
         let state = mock_server_builder.spawn_mock_server().await;
 
         let mut api_client =
-            ApiClient::new(String::from("mock-token"), String::from("mock-org")).unwrap();
+            ApiClient::new(String::from("mock-token"), String::from("mock-org"), None).unwrap();
         api_client.api_host.clone_from(&state.host);
 
         assert!(api_client

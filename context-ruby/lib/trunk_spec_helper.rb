@@ -33,7 +33,7 @@ def trunk_disabled
 end
 
 # we want to cache the test report so we can add to it as we go and reduce the number of API calls
-$test_report = TestReport.new('rspec', "#{$PROGRAM_NAME} #{ARGV.join(' ')}")
+$test_report = TestReport.new('rspec', "#{$PROGRAM_NAME} #{ARGV.join(' ')}", nil)
 
 module RSpec
   module Core

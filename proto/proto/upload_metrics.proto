@@ -14,3 +14,11 @@ message UploadMetrics {
   bool failed = 6;
   string failure_reason = 7;
 }
+
+// Used by the analytics-uploader, kept here to avoid collisions in the future.
+message UploaderUploadMetrics {
+  Semver uploader_version = 1;
+  Repo repo = 2;
+  bool failed = 3;
+  string failure_reason = 4;
+}

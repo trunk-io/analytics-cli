@@ -24,6 +24,9 @@ pub struct UploadArgs {
     test_process_exit_code: Option<i32>,
     use_uncloned_repo: Option<bool>,
     repo_head_author_name: Option<String>,
+    verbose: Option<bool>,
+    validation_report: Option<String>,
+    dry_run: bool,
 }
 
 impl UploadArgs {
@@ -45,6 +48,9 @@ impl UploadArgs {
             test_process_exit_code: None,
             use_uncloned_repo: None,
             repo_head_author_name: None,
+            verbose: None,
+            validation_report: None,
+            dry_run: false,
         }
     }
 
@@ -188,6 +194,26 @@ impl UploadArgs {
                 ]
             },
         ))
+        .chain(self.verbose.into_iter().flat_map(|verbose: bool| {
+            if verbose {
+                vec![String::from("--verbose")]
+            } else {
+                vec![]
+            }
+        }))
+        .chain(
+            self.validation_report
+                .clone()
+                .into_iter()
+                .flat_map(|validation_report: String| {
+                    vec![String::from("--validation-report"), validation_report]
+                }),
+        )
+        .chain(if self.dry_run {
+            vec![String::from("--dry-run")]
+        } else {
+            vec![]
+        })
         .collect()
     }
 }
@@ -196,7 +222,6 @@ pub enum CommandType {
     Upload {
         upload_args: UploadArgs,
         server_host: String,
-        verbose: Option<bool>,
     },
     Test {
         upload_args: UploadArgs,
@@ -220,24 +245,7 @@ impl CommandType {
 
     pub fn build_args(&self) -> Vec<String> {
         match self {
-            CommandType::Upload {
-                verbose,
-                upload_args,
-                ..
-            } => {
-                // append the verbose flag if set
-                upload_args
-                    .build_args()
-                    .into_iter()
-                    .chain(verbose.iter().flat_map(|verbose: &bool| {
-                        if *verbose {
-                            vec![String::from("--verbose")]
-                        } else {
-                            vec![]
-                        }
-                    }))
-                    .collect()
-            }
+            CommandType::Upload { upload_args, .. } => upload_args.build_args(),
             CommandType::Test {
                 upload_args,
                 command,
@@ -394,9 +402,31 @@ impl CommandType {
 
     pub fn verbose(&mut self, new_flag: bool) -> &mut Self {
         match self {
-            CommandType::Upload { verbose, .. } => *verbose = Some(new_flag),
-            CommandType::Test { .. } => (), // Verbose is not applicable for test command
+            CommandType::Upload { upload_args, .. } => upload_args.verbose = Some(new_flag),
+            CommandType::Test { upload_args, .. } => upload_args.verbose = Some(new_flag),
             CommandType::Validate { .. } => (), // Verbose is not applicable for validate command
+        }
+        self
+    }
+
+    pub fn validation_report(&mut self, new_value: &str) -> &mut Self {
+        match self {
+            CommandType::Upload { upload_args, .. } => {
+                upload_args.validation_report = Some(String::from(new_value))
+            }
+            CommandType::Test { upload_args, .. } => {
+                upload_args.validation_report = Some(String::from(new_value))
+            }
+            CommandType::Validate { .. } => (),
+        }
+        self
+    }
+
+    pub fn dry_run(&mut self, new_flag: bool) -> &mut Self {
+        match self {
+            CommandType::Upload { upload_args, .. } => upload_args.dry_run = new_flag,
+            CommandType::Test { upload_args, .. } => upload_args.dry_run = new_flag,
+            CommandType::Validate { .. } => (), // Dry run is not applicable for validate command
         }
         self
     }
@@ -431,7 +461,6 @@ impl<'b> CommandBuilder<'b> {
             command_type: CommandType::Upload {
                 upload_args: UploadArgs::empty(),
                 server_host,
-                verbose: None,
             },
             current_dir,
             paths_state: None,
@@ -549,6 +578,16 @@ impl<'b> CommandBuilder<'b> {
             }
             CommandType::Validate { .. } => {}
         }
+        self
+    }
+
+    pub fn dry_run(&mut self, new_flag: bool) -> &mut Self {
+        self.command_type.dry_run(new_flag);
+        self
+    }
+
+    pub fn validation_report(&mut self, new_value: &str) -> &mut Self {
+        self.command_type.validation_report(new_value);
         self
     }
 
