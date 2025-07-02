@@ -1,9 +1,9 @@
 use predicates::prelude::*;
-use tempfile::{tempdir, TempDir};
 use superconsole::{
     style::{style, Color, Stylize},
     Line, Span,
 };
+use tempfile::{tempdir, TempDir};
 
 use crate::{
     command_builder::CommandBuilder,

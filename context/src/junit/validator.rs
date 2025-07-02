@@ -10,7 +10,7 @@ use thiserror::Error;
 #[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::*;
 
-use crate::junit::file_extractor::filename_for_test_case;
+use crate::junit::file_extractor::detected_file_for_test_case;
 use crate::repo::BundleRepo;
 use crate::{
     junit::junit_path::TestRunnerReport,
@@ -128,7 +128,9 @@ pub fn validate(
                 }
             };
 
-            match validate_field_len::<MAX_FIELD_LEN, _>(filename_for_test_case(test_case, repo)) {
+            match validate_field_len::<MAX_FIELD_LEN, _>(detected_file_for_test_case(
+                test_case, repo,
+            )) {
                 FieldLen::Valid => (),
                 FieldLen::TooShort(s) => {
                     test_case_validation.add_issue(JunitValidationIssue::SubOptimal(

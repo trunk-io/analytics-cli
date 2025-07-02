@@ -166,6 +166,7 @@ impl From<TestCaseRun> for BindingsTestCase {
             attempt_number,
             is_quarantined,
             codeowners,
+            detected_file: _detected_file,
         }: TestCaseRun,
     ) -> Self {
         let started_at = started_at.unwrap_or_default();

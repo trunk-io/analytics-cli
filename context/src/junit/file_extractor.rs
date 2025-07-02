@@ -92,7 +92,29 @@ fn convert_to_absolute(
     }
 }
 
-pub fn filename_for_test_case(test_case: &TestCase, repo: &BundleRepo) -> String {
+fn validate_as_filename(initial: &XmlString) -> Option<String> {
+    let initial_str = String::from(initial.as_str());
+    let path = Path::new(&initial_str);
+    if path.extension().is_some() {
+        Some(initial_str)
+    } else {
+        None
+    }
+}
+
+pub fn filename_for_test_case(test_case: &TestCase) -> String {
+    test_case
+        .extra
+        .get(extra_attrs::FILE)
+        .or(test_case.extra.get(extra_attrs::FILEPATH))
+        .or(test_case.classname.as_ref())
+        .iter()
+        .flat_map(|s| validate_as_filename(s))
+        .next()
+        .unwrap_or_default()
+}
+
+pub fn detected_file_for_test_case(test_case: &TestCase, repo: &BundleRepo) -> String {
     test_case
         .extra
         .get(extra_attrs::FILE)

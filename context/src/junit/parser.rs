@@ -21,7 +21,10 @@ use thiserror::Error;
 use wasm_bindgen::prelude::*;
 
 use super::date_parser::JunitDateParser;
-use crate::{junit::file_extractor::filename_for_test_case, repo::BundleRepo};
+use crate::{
+    junit::file_extractor::{detected_file_for_test_case, filename_for_test_case},
+    repo::BundleRepo,
+};
 
 const TAG_REPORT: &[u8] = b"testsuites";
 const TAG_TEST_SUITE: &[u8] = b"testsuite";
@@ -202,7 +205,8 @@ impl JunitParser {
         for report in self.reports {
             for test_suite in report.test_suites {
                 for test_case in test_suite.test_cases {
-                    let file = filename_for_test_case(&test_case, repo);
+                    let file = filename_for_test_case(&test_case);
+                    let detected_file = detected_file_for_test_case(&test_case, repo);
                     let mut test_case_run = TestCaseRun {
                         name: test_case.name.into(),
                         parent_name: test_suite.name.to_string(),
@@ -277,6 +281,7 @@ impl JunitParser {
                         }
                     }
                     test_case_run.file = file;
+                    test_case_run.detected_file = detected_file;
                     test_case_run.line = test_case
                         .extra
                         .get(extra_attrs::LINE)

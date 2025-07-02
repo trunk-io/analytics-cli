@@ -1680,7 +1680,8 @@ async fn uploaded_file_contains_updated_test_files() {
         .to_str()
         .unwrap()
         .to_string();
-    assert_eq!(test_case_run.file, expected_file);
+    assert_eq!(test_case_run.file, String::from("test_file.ts"));
+    assert_eq!(test_case_run.detected_file, expected_file);
 
     println!("{assert}");
 }
