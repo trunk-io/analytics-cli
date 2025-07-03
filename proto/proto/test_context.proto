@@ -29,6 +29,7 @@ message TestCaseRun {
   string status_output_message = 11;
   bool is_quarantined = 12;
   repeated CodeOwner codeowners = 13;
+  string detected_file = 14;
 }
 
 message UploaderMetadata {

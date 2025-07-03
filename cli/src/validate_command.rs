@@ -19,6 +19,7 @@ use context::{
             JunitValidationLevel,
         },
     },
+    repo::BundleRepo,
 };
 use display::end_output::EndOutput;
 use pluralizer::pluralize;
@@ -537,6 +538,7 @@ async fn validate(
             (parsed_reports, parse_issues)
         },
     );
+    let repo = BundleRepo::new(None, None, None, None, None, None, false).unwrap_or_default();
     let file_parse_issues = gen_parse_issues(parse_issues);
 
     let report_validations: JunitFileToValidation = parsed_reports
@@ -544,7 +546,11 @@ async fn validate(
         .map(|(file, (report, test_runner_report))| {
             (
                 file,
-                validate_report(&report, test_runner_report.map(TestRunnerReport::from)),
+                validate_report(
+                    &report,
+                    test_runner_report.map(TestRunnerReport::from),
+                    &repo,
+                ),
             )
         })
         .collect();

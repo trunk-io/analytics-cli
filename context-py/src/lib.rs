@@ -125,6 +125,7 @@ fn junit_validate(
     junit::bindings::BindingsJunitReportValidation::from(junit::validator::validate(
         &report.into(),
         test_runner_report.map(TestRunnerReport::from),
+        &repo::BundleRepo::default(),
     ))
 }
 
