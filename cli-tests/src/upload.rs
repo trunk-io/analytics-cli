@@ -62,7 +62,7 @@ async fn upload_bundle() {
     assert_matches!(quarantine_request, RequestPayload::GetQuarantineBulkTestStatus(req) => {
         assert_eq!(req.repo.host, "github.com");
         assert_eq!(req.repo.owner, "trunk-io");
-        assert_eq!(req.repo.name, "analytics-cli");
+        assert_eq!(req.repo.name, "analytics-cli2");
         assert_eq!(req.org_url_slug, "test-org");
         assert!(
             !req.test_identifiers.is_empty(),
