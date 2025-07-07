@@ -8,7 +8,7 @@ runs:
       uses: ./.github/actions/setup_rust_cargo
 
     - name: Setup ruby
-      uses: ./.github/setup_ruby
+      uses: ./.github/actions/setup_ruby
 
     - name: Install nextest (darwin)
       if: runner.os == 'macOS'
