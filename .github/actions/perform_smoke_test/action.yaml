@@ -71,6 +71,13 @@ runs:
         --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
         --token ${{ inputs.production-api-token }}
 
+    - name: Build ruby version
+      uses: oxidize-rb/actions/cross-gem@v1
+      with:
+        platform: ${{ inputs.platform-name }}
+        working-directory: context-ruby
+        ruby-versions: "3.4"
+
     - name: Test rspec on staging
       if: inputs.environment-type == 'staging' || inputs.environment-type == 'both'
       uses: ./.github/actions/test_ruby_gem_uploads
