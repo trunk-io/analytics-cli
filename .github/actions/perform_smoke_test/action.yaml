@@ -106,4 +106,4 @@ runs:
         ruby-version: "3.4"
         trunk-token: ${{ inputs.production-api-token }}
         platform: ${{ inputs.platform-name }}
-        artifact-pattern: ${{ rspect-helper-location }}
+        artifact-pattern: ${{ inputs.rspec-helper-location }}
