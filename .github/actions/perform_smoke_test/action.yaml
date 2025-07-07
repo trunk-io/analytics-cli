@@ -83,6 +83,7 @@ runs:
         gem unpack ${{ inputs.rspec-helper-location }}/rspec_trunk_flaky_tests* --spec --target=${{ inputs.rspec-helper-location }}/rspec_trunk_flaky_tests
         gem unpack ${{ inputs.rspec-helper-location }}/rspec_trunk_flaky_tests* --target=${{ inputs.rspec-helper-location }}/rspec_trunk_flaky_tests
         mv ${{ inputs.rspec-helper-location }}/rspec_trunk_flaky_tests/rspec_trunk_flaky_tests*/lib rspec_trunk_flaky_tests/lib
+        echo "gem 'rspec_trunk_flaky_tests', :path => '${{ inputs.rspec-helper-location }}/rspec_trunk_flaky_tests'" >> Gemfile
     - name: Test rspec on staging
       if: inputs.environment-type == 'staging' || inputs.environment-type == 'both'
       shell: bash
@@ -95,7 +96,6 @@ runs:
         gem install rspec
         bundle install
         bundle lock --remove-platform ruby || true
-        echo "gem 'rspec_trunk_flaky_tests', :path => './rspec_trunk_flaky_tests'" >> Gemfile
         bundle install --gemfile Gemfile --local
         bundle exec rspec spec/test_spec.rb
 
