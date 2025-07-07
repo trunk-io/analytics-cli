@@ -47,6 +47,13 @@ fn convert_case_to_test<T: AsRef<str>>(
             .or(suite.timestamp_micros)
             .unwrap_or(0),
     )));
+    let failure_message = match &case.status.non_success {
+        Some(non_success) => non_success
+            .description
+            .clone()
+            .or_else(|| non_success.message.clone()),
+        _ => None,
+    };
     let mut test = Test {
         name,
         parent_name,
@@ -55,6 +62,7 @@ fn convert_case_to_test<T: AsRef<str>>(
         id: String::with_capacity(0),
         timestamp_millis,
         is_quarantined: case.is_quarantined(),
+        failure_message,
     };
     if let Some(id) = case.extra().get("id") {
         if id.is_empty() {

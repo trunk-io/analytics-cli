@@ -24,6 +24,7 @@ pub struct Test {
     /// Added in v0.6.9
     pub timestamp_millis: Option<i64>,
     pub is_quarantined: bool,
+    pub failure_message: Option<String>,
 }
 
 impl Test {
@@ -45,6 +46,7 @@ impl Test {
             id: String::with_capacity(0),
             timestamp_millis,
             is_quarantined: false,
+            failure_message: None,
         };
 
         if let Some(id) = id {
@@ -182,6 +184,7 @@ mod tests {
             id: String::from("da5b8893-d6ca-5c1c-9a9c-91f40a2a3649"),
             timestamp_millis: Some(0),
             is_quarantined: false,
+            failure_message: None,
         };
         assert_eq!(result.name, name);
         assert_eq!(result.parent_name, parent_name);
