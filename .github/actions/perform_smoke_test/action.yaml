@@ -78,7 +78,7 @@ runs:
         ruby-version: "3.4"
         trunk-token: ${{ inputs.staging-api-token }}
         platform: ${{ inputs.platform-name }}
-        artifact-pattern: cross-gem-${{ inputs-platform-name }}
+        artifact-pattern: cross-gem-${{ inputs.platform-name }}
 
     - name: Test rspec on production
       if: inputs.environment-type == 'production' || inputs.environment-type == 'both'
@@ -87,4 +87,4 @@ runs:
         ruby-version: "3.4"
         trunk-token: ${{ inputs.production-api-token }}
         platform: ${{ inputs.platform-name }}
-        artifact-pattern: cross-gem-${{ inputs-platform-name }}
+        artifact-pattern: cross-gem-${{ inputs.platform-name }}

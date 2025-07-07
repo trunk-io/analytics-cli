@@ -22,10 +22,12 @@ jobs:
             os: ubuntu-latest
             target: x86_64-unknown-linux-musl
             download-target: x86_64-unknown-linux
+            ruby-target: x86_64-linux
           - name: macos
             os: macos-latest
             target: arm64-apple-darwin
             download-target: aarch64-apple-darwin
+            ruby-target: arm64-darwin
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -46,6 +48,7 @@ jobs:
           staging-api-token: ${{ secrets.TRUNK_STAGING_ORG_API_TOKEN }}
           production-api-token: ${{ secrets.TRUNK_PROD_ORG_API_TOKEN }}
           environment-type: ${{ (github.event.action == 'production-release' && 'production') || (github.event.action == 'staging-release' && 'staging') || 'both' }}
+          platform-name: ${{ matrix.platform.ruby-target }}
 #  slack-workflow-status:
 #    if: always() && needs.build_cli.result != 'success'
 #    name: Post Smoke Test Failure

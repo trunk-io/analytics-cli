@@ -19,9 +19,11 @@ jobs:
           - name: linux
             os: ubuntu-latest
             target: x86_64-unknown-linux-musl
+            ruby-target: x86_64-linux
           - name: darwin
             os: macos-latest
             target: aarch64-apple-darwin
+            ruby-target: arm64-darwin
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -50,6 +52,7 @@ jobs:
           staging-api-token: ${{ secrets.TRUNK_STAGING_ORG_API_TOKEN }}
           production-api-token: ${{ secrets.TRUNK_PROD_ORG_API_TOKEN }}
           environment-type: ${{ (github.event.action == 'production-release' && 'production') || (github.event.action == 'staging-release' && 'staging') || 'both' }}
+          platform-name: ${{ matrix.platform.ruby-target }}
 
       - name: Run Smoke Tests With Gitlab
         uses: ./.github/actions/perform_gitlab_smoke_test
