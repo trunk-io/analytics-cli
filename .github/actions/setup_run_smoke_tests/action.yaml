@@ -7,7 +7,22 @@ runs:
     - name: Setup Rust & Cargo
       uses: ./.github/actions/setup_rust_cargo
 
-    - name: Setup ruby
+    - name: Setup ruby in context-ruby (darwin)
+      if: runner.os == 'macOS'
+      uses: ruby/setup-ruby@v1
+      with:
+        ruby-version: "3.1"
+        working-directory: context-ruby
+
+    - name: Setup ruby in smoke-test (darwin)
+      if: runner.os == 'macOS'
+      uses: ruby/setup-ruby@v1
+      with:
+        ruby-version: "3.1"
+        working-directory: smoke-test
+
+    - name: Setup ruby (linux x86)
+      if: runner.os == 'Linux'
       uses: ./.github/actions/setup_ruby
 
     - name: Install nextest (darwin)
