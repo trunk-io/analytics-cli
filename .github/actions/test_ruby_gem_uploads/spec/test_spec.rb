@@ -19,3 +19,9 @@ describe 'random_test' do
     expect(a).to eq(a)
   end
 end
+
+describe 'deliberately broken test' do
+  it 'is broken on purpose, and should be quarantined' do
+    expect(true).to eq(false)
+  end
+end

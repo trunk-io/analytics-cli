@@ -10,6 +10,8 @@ inputs:
     description: Api token for the trunk org on trunk (should be available in secrets)
   environment-type:
     description: staging if you only want to run for staging, production if you only want production, both for both
+  platform-name:
+    description: Name of the platform being used, eg 'x86_64-linux', 'x86_64-darwin', 'arm64-darwin'
 
 runs:
   using: composite
@@ -68,3 +70,21 @@ runs:
         --org-url-slug trunk \
         --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
         --token ${{ inputs.production-api-token }}
+
+    - name: Test rspec on staging
+      if: inputs.environment-type == 'staging' || inputs.environment-type == 'both'
+      uses: ./.github/actions/test_ruby_gem_uploads
+      with:
+        ruby-version: "3.4"
+        trunk-token: ${{ inputs.staging-api-token }}
+        platform: ${{ inputs.platform-name }}
+        artifact-pattern: cross-gem-${{ inputs-platform-name }}
+
+    - name: Test rspec on production
+      if: inputs.environment-type == 'production' || inputs.environment-type == 'both'
+      uses: ./.github/actions/test_ruby_gem_uploads
+      with:
+        ruby-version: "3.4"
+        trunk-token: ${{ inputs.production-api-token }}
+        platform: ${{ inputs.platform-name }}
+        artifact-pattern: cross-gem-${{ inputs-platform-name }}
