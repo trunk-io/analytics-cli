@@ -80,8 +80,8 @@ runs:
       working-directory: context-ruby
       run: |
         gem install ${{ inputs.rspec-helper-location }}/rspec_trunk_flaky_tests-*.gem --local
-        gem unpack ${{ inputs.rspec-helper-location }}/rspec_trunk_flaky_tests* --spec --target=rspec_trunk_flaky_tests
-        gem unpack ${{ inputs.rspec-helper-location }}/rspec_trunk_flaky_tests* --target=rspec_trunk_flaky_tests
+        gem unpack ${{ inputs.rspec-helper-location }}/rspec_trunk_flaky_tests* --spec --target=${{ inputs.rspec-helper-location }}/rspec_trunk_flaky_tests
+        gem unpack ${{ inputs.rspec-helper-location }}/rspec_trunk_flaky_tests* --target=${{ inputs.rspec-helper-location }}/rspec_trunk_flaky_tests
         mv ${{ inputs.rspec-helper-location }}/rspec_trunk_flaky_tests/rspec_trunk_flaky_tests*/lib rspec_trunk_flaky_tests/lib
     - name: Test rspec on staging
       if: inputs.environment-type == 'staging' || inputs.environment-type == 'both'
