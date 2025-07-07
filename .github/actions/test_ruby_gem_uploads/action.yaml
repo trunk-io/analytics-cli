@@ -34,18 +34,18 @@ runs:
       with:
         ruby-version: ${{ inputs.ruby-version }}
         bundler-cache: true
-        working-directory: ${{ github.action_path }}
+        working-directory: smoke-test
 
     - uses: actions/download-artifact@v4
       with:
         pattern: ${{ inputs.artifact-pattern }}
-        path: ${{ github.action_path }}
+        path: smoke-test
         merge-multiple: true
 
     - name: Run tests
       id: run-tests
       shell: bash
-      working-directory: ${{ github.action_path }}
+      working-directory: smoke-test
       run: |
         gem install rspec
         gem install rspec_trunk_flaky_tests-*.gem --local

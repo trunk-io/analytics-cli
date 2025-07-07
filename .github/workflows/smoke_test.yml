@@ -37,6 +37,12 @@ jobs:
           curl -fsSLO --retry 3 https://github.com/trunk-io/analytics-cli/releases/download/${{ env.RELEASE }}/trunk-analytics-cli-${{ matrix.platform.download-target }}.tar.gz
           tar -zxf trunk-analytics-cli-${{ matrix.platform.download-target }}.tar.gz
           chmod +x trunk-analytics-cli
+      
+      - name: Get Ruby Helper
+        uses: actions/download-artifact@v4
+        with:
+          name: cross-gem-${{ matrix.platform.ruby-target }}
+          path: context-ruby/ruby-helper
 
       - name: Setup Run Smoke Tests - ${{ matrix.platform.name }}
         uses: ./.github/actions/setup_run_smoke_tests
@@ -48,7 +54,7 @@ jobs:
           staging-api-token: ${{ secrets.TRUNK_STAGING_ORG_API_TOKEN }}
           production-api-token: ${{ secrets.TRUNK_PROD_ORG_API_TOKEN }}
           environment-type: ${{ (github.event.action == 'production-release' && 'production') || (github.event.action == 'staging-release' && 'staging') || 'both' }}
-          platform-name: ${{ matrix.platform.ruby-target }}
+          ruby-helper-location: ruby-helper
 #  slack-workflow-status:
 #    if: always() && needs.build_cli.result != 'success'
 #    name: Post Smoke Test Failure

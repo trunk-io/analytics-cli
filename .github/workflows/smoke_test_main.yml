@@ -45,6 +45,13 @@ jobs:
           target: ${{ matrix.platform.target }}
           profile: release
 
+      - name: Build ruby helper darwin
+        uses: oxidize-rb/actions/cross-gem@v1
+        with:
+          platform: ${{ matrix.platform.ruby-target }}
+          working-directory: context-ruby
+          ruby-versions: 3.0,3.1,3.2,3.3,3.4
+
       - name: Run Smoke Tests
         uses: ./.github/actions/perform_smoke_test
         with:
@@ -52,7 +59,7 @@ jobs:
           staging-api-token: ${{ secrets.TRUNK_STAGING_ORG_API_TOKEN }}
           production-api-token: ${{ secrets.TRUNK_PROD_ORG_API_TOKEN }}
           environment-type: ${{ (github.event.action == 'production-release' && 'production') || (github.event.action == 'staging-release' && 'staging') || 'both' }}
-          platform-name: ${{ matrix.platform.ruby-target }}
+          ruby-helper-location: ../context-ruby/pkg
 
       - name: Run Smoke Tests With Gitlab
         uses: ./.github/actions/perform_gitlab_smoke_test
