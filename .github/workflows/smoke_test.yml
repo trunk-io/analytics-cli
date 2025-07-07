@@ -42,7 +42,6 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: cross-gem-${{ matrix.platform.ruby-target }}
-          path: context-ruby/ruby-helper
 
       - name: Setup Run Smoke Tests - ${{ matrix.platform.name }}
         uses: ./.github/actions/setup_run_smoke_tests
