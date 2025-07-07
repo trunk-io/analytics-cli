@@ -13,7 +13,8 @@ inputs:
   platform-name:
     description: Name of the platform being used, eg 'x86_64-linux', 'x86_64-darwin', 'arm64-darwin'
   rspec-helper-location:
-    description: Location for the built rspec helper, relative to current directory.
+    description: Location for the built rspec helper, relative to current directory. If not present, will use most recent version on rubygems
+    required: false
 
 runs:
   using: composite
@@ -73,14 +74,30 @@ runs:
         --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
         --token ${{ inputs.production-api-token }}
 
+    - name: Install ruby helper
+      if: inputs.rspec-helper-location
+      shell: bash
+      working-directory: smoke-test
+      run: |
+        gem install rspec_trunk_flaky_tests-*.gem --local
+        gem unpack rspec_trunk_flaky_tests* --spec --target=rspec_trunk_flaky_tests
+        gem unpack rspec_trunk_flaky_tests* --target=rspec_trunk_flaky_tests
+        mv rspec_trunk_flaky_tests/rspec_trunk_flaky_tests*/lib rspec_trunk_flaky_tests/lib
     - name: Test rspec on staging
       if: inputs.environment-type == 'staging' || inputs.environment-type == 'both'
-      uses: ./.github/actions/test_ruby_gem_uploads
-      with:
-        ruby-version: "3.4"
-        trunk-token: ${{ inputs.staging-api-token }}
-        platform: ${{ inputs.platform-name }}
-        artifact-pattern: ${{ rspec-helper-location }}
+      shell: bash
+      working-directory: smoke-test
+      env:
+        TRUNK_PUBLIC_API_ADDRESS: https://api.trunk-staging.io
+        TRUNK_ORG_URL_SLUG: trunk-staging-org
+        TRUNK_API_TOKEN: ${{ inputs.staging-api-token }}
+      run: |
+        gem install rspec
+        bundle install
+        bundle lock --remove-platform ruby || true
+        echo "gem 'rspec_trunk_flaky_tests', :path => './rspec_trunk_flaky_tests'" >> Gemfile
+        bundle install --gemfile Gemfile --local
+        bundle exec rspec spec/test_spec.rb
 
     - name: Test rspec on production
       if: inputs.environment-type == 'production' || inputs.environment-type == 'both'
