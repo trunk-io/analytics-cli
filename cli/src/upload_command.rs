@@ -211,6 +211,15 @@ pub struct UploadArgs {
         default_missing_value = "limited"
     )]
     pub validation_report: ValidationReport,
+    #[arg(
+        long,
+        help = "Show failure messages in the output.",
+        required = false,
+        num_args = 0,
+        default_value = "false",
+        default_missing_value = "true"
+    )]
+    pub show_failure_messages: bool,
 }
 
 impl UploadArgs {
@@ -230,6 +239,7 @@ impl UploadArgs {
             allow_empty_test_results: true,
             use_quarantining,
             disable_quarantining,
+            show_failure_messages: false,
             ..Default::default()
         }
     }
@@ -257,6 +267,7 @@ pub struct UploadRunResult {
     pub meta: BundleMeta,
     pub validations: JunitReportValidations,
     pub validation_report: ValidationReport,
+    pub show_failure_messages: bool,
 }
 
 pub async fn run_upload(
@@ -429,6 +440,7 @@ pub async fn run_upload(
         meta,
         validations,
         validation_report: upload_args.validation_report,
+        show_failure_messages: upload_args.show_failure_messages,
     })
 }
 
@@ -492,10 +504,27 @@ impl EndOutput for UploadRunResult {
             );
             output.push(Line::default());
         }
-
+        // Summary statistics
+        let total_tests = self.meta.junit_props.num_tests;
+        let quarantined = self
+            .quarantine_context
+            .quarantine_status
+            .quarantine_results
+            .len();
+        let failures = self.quarantine_context.failures.len();
+        let passes = total_tests.saturating_sub(quarantined + failures);
+        let pass_ratio = if total_tests > 0 {
+            format!("{:.1}%", (passes as f64 / total_tests as f64) * 100.0)
+        } else {
+            "N/A".to_string()
+        };
         output.push(Line::from_iter([Span::new_styled(
-            String::from("📚 Test Report").attribute(Attribute::Bold),
+            style("📚 Test Report".to_string()).attribute(Attribute::Bold),
         )?]));
+        output.push(Line::from_iter([Span::new_unstyled(format!(
+            "   Total: {}   Pass: {}   Fail: {}   Quarantined: {}   Pass Ratio: {}",
+            total_tests, passes, failures, quarantined, pass_ratio
+        ))?]));
         output.push(Line::default());
         let qc = &self.quarantine_context;
         let quarantined = &qc.quarantine_status.quarantine_results;
@@ -506,40 +535,127 @@ impl EndOutput for UploadRunResult {
 
         // Helper closure to render the test table
         let render_test_table = |tests: &[Test]| -> anyhow::Result<Lines> {
+            use std::collections::BTreeMap;
             let mut output = Vec::new();
-            // look at the first 12 tests
-            let max_take = 12;
-            for test in tests.iter().take(max_take) {
-                let output_name = format!(
-                    "{}{}{}",
-                    test.parent_name,
-                    if test.parent_name.is_empty() { "" } else { "/" },
-                    test.name
-                );
-                let link = url_for_test_case(
-                    &get_api_host(),
-                    &self.quarantine_context.org_url_slug,
-                    &self.quarantine_context.repo,
-                    test,
-                )?;
+            // Group tests by file path, then by suite, then standalone
+            let mut groups: BTreeMap<String, Vec<&Test>> = BTreeMap::new();
+            let mut suite_groups: BTreeMap<String, Vec<&Test>> = BTreeMap::new();
+            let mut standalone: Vec<&Test> = Vec::new();
+            for test in tests.iter() {
+                if let Some(file) = &test.file {
+                    groups.entry(file.clone()).or_default().push(test);
+                } else if !test.parent_name.is_empty() {
+                    suite_groups
+                        .entry(test.parent_name.clone())
+                        .or_default()
+                        .push(test);
+                } else {
+                    standalone.push(test);
+                }
+            }
+            // Helper to render a group
+            let mut render_group = |header: &str,
+                                    color: Color,
+                                    group: &Vec<&Test>|
+             -> anyhow::Result<()> {
                 output.push(Line::from_iter([Span::new_styled(
-                    style(output_name.to_string()).attribute(Attribute::Italic),
+                    style(header.to_string())
+                        .with(color)
+                        .attribute(Attribute::Bold),
                 )?]));
-                let mut link_output = Line::from_iter([
-                    Span::new_unstyled("⤷ ")?,
-                    Span::new_styled(style(link).attribute(Attribute::Underlined))?,
-                ]);
-                link_output.pad_left(2);
-                output.push(link_output);
+                for test in group.iter().take(3) {
+                    let output_name = format!(
+                        "{}{}{}",
+                        test.parent_name,
+                        if test.parent_name.is_empty() { "" } else { "/" },
+                        test.name
+                    );
+                    let mut test_line = Line::from_iter([Span::new_styled(
+                        style(output_name.to_string()).attribute(Attribute::Bold),
+                    )?]);
+                    test_line.pad_left(2);
+                    output.push(test_line);
+                    let link = url_for_test_case(
+                        &get_api_host(),
+                        &self.quarantine_context.org_url_slug,
+                        &self.quarantine_context.repo,
+                        test,
+                    )?;
+                    let mut link_output = Line::from_iter([
+                        Span::new_unstyled("⤷ ")?,
+                        Span::new_styled(style(link.to_string()).attribute(Attribute::Underlined))?,
+                    ]);
+                    link_output.pad_left(4);
+                    output.push(link_output);
+                    // Display failure message if present and enabled
+                    // TODO: show_failure_messages is a temporary flag to show failure messages
+                    // in the output. It should be removed once we are confident in this flow
+                    // and we should use the validation report flag instead.
+                    if self.show_failure_messages && test.failure_message.is_some() {
+                        let failure_message = test.failure_message.as_ref().unwrap();
+                        let lines: Vec<&str> = failure_message.split('\n').collect();
+                        let max_lines = 10;
+                        let shown_lines = lines.iter().take(max_lines);
+                        let mut failure_header = Line::from_iter([Span::new_styled(
+                            style("Failure: ".to_string()).with(Color::DarkGrey),
+                        )?]);
+                        failure_header.pad_left(4);
+                        output.push(failure_header);
+                        for (j, line) in shown_lines.enumerate() {
+                            let sanitized_line = line.replace('\t', "    ").replace('\r', "");
+                            if !sanitized_line.trim().is_empty() || j == 0 {
+                                let mut failure_output = Line::from_iter([
+                                    Span::new_unstyled("   ")?,
+                                    Span::new_styled_lossy(
+                                        style(sanitized_line.to_string())
+                                            .with(Color::Grey)
+                                            .attribute(Attribute::Italic),
+                                    ),
+                                ]);
+                                failure_output.pad_left(4);
+                                output.push(failure_output);
+                            }
+                        }
+                        if lines.len() > max_lines {
+                            let omitted = lines.len() - max_lines;
+                            let mut more_output = Line::from_iter([
+                                Span::new_unstyled("   ")?,
+                                Span::new_styled(
+                                    style(format!("…and {omitted} more lines not shown"))
+                                        .with(Color::Grey)
+                                        .attribute(Attribute::Italic),
+                                )?,
+                            ]);
+                            more_output.pad_left(4);
+                            output.push(more_output);
+                        }
+                    }
+                }
+                if group.len() > 3 {
+                    let mut more_failures = Line::from_iter([Span::new_unstyled(format!(
+                        "…and {} more failures in this group",
+                        group.len() - 3
+                    ))?]);
+                    more_failures.pad_left(2);
+                    output.push(more_failures);
+                }
+                output.push(Line::default());
+                Ok(())
+            };
+            // Render file path groups (cyan)
+            for (file, group) in &groups {
+                render_group(&format!("📁 {}", file), Color::Cyan, group)?;
+            }
+            // Render suite groups (magenta)
+            for (suite, group) in &suite_groups {
+                render_group(&format!("📦 {}", suite), Color::Magenta, group)?;
+            }
+            // Render standalone (yellow)
+            if !standalone.is_empty() {
+                render_group("🔍 Other", Color::Yellow, &standalone)?;
             }
             let mut output = Lines(output);
             output.pad_lines_left(2);
-            if tests.len() > max_take {
-                output.push(Line::from_iter([Span::new_unstyled(format!(
-                    "…and {} more",
-                    tests.len() - max_take
-                ))?]));
-            }
             output.pad_lines_bottom(1);
             Ok(output)
         };
