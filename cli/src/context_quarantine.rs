@@ -47,6 +47,13 @@ fn convert_case_to_test<T: AsRef<str>>(
             .or(suite.timestamp_micros)
             .unwrap_or(0),
     )));
+    let failure_message = match &case.status.non_success {
+        Some(non_success) => non_success
+            .description
+            .clone()
+            .or_else(|| non_success.message.clone()),
+        _ => None,
+    };
     let mut test = Test {
         name,
         parent_name,
@@ -55,6 +62,7 @@ fn convert_case_to_test<T: AsRef<str>>(
         id: String::with_capacity(0),
         timestamp_millis,
         is_quarantined: case.is_quarantined(),
+        failure_message,
     };
     if let Some(id) = case.extra().get("id") {
         if id.is_empty() {
@@ -553,5 +561,42 @@ mod tests {
         multi_failures.sort_by(|a, b| a.name.cmp(&b.name));
         assert_eq!(multi_failures.len(), 1);
         assert_eq!(multi_failures[0].name, "Hello");
+    }
+
+    #[test]
+    fn test_convert_case_to_test_populates_failure_message() {
+        use quick_junit::{NonSuccessKind, TestCase, TestCaseStatus, TestSuite};
+
+        let repo = RepoUrlParts {
+            host: "github.com".to_string(),
+            owner: "test-owner".to_string(),
+            name: "test-repo".to_string(),
+        };
+        let org_slug = "test-org";
+        let parent_name = "TestSuite".to_string();
+
+        // Create the underlying types first
+        let mut test_case = TestCase::new(
+            String::from("test_case"),
+            TestCaseStatus::NonSuccess {
+                kind: NonSuccessKind::Failure,
+                message: Some("Failure message".into()),
+                ty: None,
+                description: Some("This is a failure".into()),
+                reruns: vec![],
+            },
+        );
+        test_case.classname = Some("TestClass".into());
+
+        let test_suite = TestSuite::new(parent_name.clone());
+
+        // Convert to bindings
+        let case = BindingsTestCase::from(test_case);
+        let suite = BindingsTestSuite::from(test_suite);
+
+        let test = super::convert_case_to_test(&repo, org_slug, parent_name, &case, &suite);
+
+        assert_eq!(test.name, "test_case");
+        assert_eq!(test.failure_message, Some("This is a failure".to_string()));
     }
 }
