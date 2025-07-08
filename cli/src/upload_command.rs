@@ -588,6 +588,9 @@ impl EndOutput for UploadRunResult {
                     link_output.pad_left(4);
                     output.push(link_output);
                     // Display failure message if present and enabled
+                    // TODO: show_failure_messages is a temporary flag to show failure messages
+                    // in the output. It should be removed once we are confident in this flow
+                    // and we should use the validation report flag instead.
                     if self.show_failure_messages && test.failure_message.is_some() {
                         let failure_message = test.failure_message.as_ref().unwrap();
                         let lines: Vec<&str> = failure_message.split('\n').collect();
@@ -603,11 +606,11 @@ impl EndOutput for UploadRunResult {
                             if !sanitized_line.trim().is_empty() || j == 0 {
                                 let mut failure_output = Line::from_iter([
                                     Span::new_unstyled("   ")?,
-                                    Span::new_styled(
+                                    Span::new_styled_lossy(
                                         style(sanitized_line.to_string())
                                             .with(Color::Grey)
                                             .attribute(Attribute::Italic),
-                                    )?,
+                                    ),
                                 ]);
                                 failure_output.pad_left(4);
                                 output.push(failure_output);
