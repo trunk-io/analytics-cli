@@ -14,7 +14,7 @@ inputs:
     description: Name of the platform being used, eg 'x86_64-linux', 'x86_64-darwin', 'arm64-darwin'
   use-local-rspec:
     description: True if we should use a locally built rspec, false if we should use the rubygems version
-    default: false
+    default: 'false'
     required: false
 
 runs:
@@ -76,7 +76,7 @@ runs:
         --token ${{ inputs.production-api-token }}
 
     - name: Install ruby helper
-      if: inputs.use-local-rspec
+      if: inputs.use-local-rspec == 'true'
       shell: bash
       working-directory: context-ruby
       run: |
@@ -85,15 +85,15 @@ runs:
         gem unpack rspec_trunk_flaky_tests* --target=rspec_trunk_flaky_tests
         mv rspec_trunk_flaky_tests/rspec_trunk_flaky_tests*/lib ../smoke-test/rspec_trunk_flaky_tests/lib
 
-    - name: Add ruby helper to gemfile when built
-      if: inputs.use-local-rspec
+    - name: Add ruby helper to gemfile when using local
+      if: inputs.use-local-rspec == 'true'
       shell: bash
       working-directory: smoke-test
       run: |
         echo "gem 'rspec_trunk_flaky_tests', :path => './rspec_trunk_flaky_tests'" >> Gemfile
 
-    - name: Add ruby helper to gemfile when built
-      if: not inputs.use-local-rspec
+    - name: Add ruby helper to gemfile when using remote
+      if: inputs.use-local-rspec == 'false'
       shell: bash
       working-directory: smoke-test
       run: |
