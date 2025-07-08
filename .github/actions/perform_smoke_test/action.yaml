@@ -12,8 +12,9 @@ inputs:
     description: staging if you only want to run for staging, production if you only want production, both for both
   platform-name:
     description: Name of the platform being used, eg 'x86_64-linux', 'x86_64-darwin', 'arm64-darwin'
-  rspec-helper-location:
-    description: Location for the built rspec helper, relative to current directory. If not present, will use most recent version on rubygems
+  use-local-rspec:
+    description: True if we should use a locally built rspec, false if we should use the rubygems version
+    default: false
     required: false
 
 runs:
@@ -75,15 +76,29 @@ runs:
         --token ${{ inputs.production-api-token }}
 
     - name: Install ruby helper
-      if: inputs.rspec-helper-location
+      if: inputs.use-local-rspec
       shell: bash
       working-directory: context-ruby
       run: |
-        gem install ${{ inputs.rspec-helper-location }}/rspec_trunk_flaky_tests-*.gem --local
-        gem unpack ${{ inputs.rspec-helper-location }}/rspec_trunk_flaky_tests* --spec --target=${{ inputs.rspec-helper-location }}/rspec_trunk_flaky_tests
-        gem unpack ${{ inputs.rspec-helper-location }}/rspec_trunk_flaky_tests* --target=${{ inputs.rspec-helper-location }}/rspec_trunk_flaky_tests
-        mv ${{ inputs.rspec-helper-location }}/rspec_trunk_flaky_tests/rspec_trunk_flaky_tests*/lib rspec_trunk_flaky_tests/lib
-        echo "gem 'rspec_trunk_flaky_tests', :path => '${{ inputs.rspec-helper-location }}/rspec_trunk_flaky_tests'" >> Gemfile
+        gem install rspec_trunk_flaky_tests-*.gem --local
+        gem unpack rspec_trunk_flaky_tests* --spec --target=rspec_trunk_flaky_tests
+        gem unpack rspec_trunk_flaky_tests* --target=rspec_trunk_flaky_tests
+        mv rspec_trunk_flaky_tests/rspec_trunk_flaky_tests*/lib ../smoke-test/rspec_trunk_flaky_tests/lib
+
+    - name: Add ruby helper to gemfile when built
+      if: inputs.use-local-rspec
+      shell: bash
+      working-directory: smoke-test
+      run: |
+        echo "gem 'rspec_trunk_flaky_tests', :path => './rspec_trunk_flaky_tests'" >> Gemfile
+
+    - name: Add ruby helper to gemfile when built
+      if: not inputs.use-local-rspec
+      shell: bash
+      working-directory: smoke-test
+      run: |
+        echo "gem 'rspec_trunk_flaky_tests'" >> Gemfile
+
     - name: Test rspec on staging
       if: inputs.environment-type == 'staging' || inputs.environment-type == 'both'
       shell: bash
