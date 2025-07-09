@@ -594,7 +594,7 @@ impl EndOutput for UploadRunResult {
                     if self.show_failure_messages && test.failure_message.is_some() {
                         let failure_message = test.failure_message.as_ref().unwrap();
                         let lines: Vec<&str> = failure_message.split('\n').collect();
-                        let max_lines = 10;
+                        let max_lines = 20;
                         let shown_lines = lines.iter().take(max_lines);
                         let mut failure_header = Line::from_iter([Span::new_styled(
                             style("Failure: ".to_string()).with(Color::DarkGrey),
