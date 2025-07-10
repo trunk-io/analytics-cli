@@ -106,9 +106,17 @@ fn junit_parse_issue_level_to_string(
 #[gen_stub_pyfunction]
 #[pyfunction]
 fn bin_parse(bin: Vec<u8>) -> PyResult<Vec<junit::bindings::BindingsReport>> {
-    let test_result = proto::test_context::test_run::TestResult::decode(bin.as_slice())
-        .map_err(|err| PyTypeError::new_err(err.to_string()))?;
-    Ok(vec![junit::bindings::BindingsReport::from(test_result)])
+    if let Ok(test_report) = proto::test_context::test_run::TestReport::decode(bin.as_slice()) {
+        Ok(test_report
+            .test_results
+            .into_iter()
+            .map(junit::bindings::BindingsReport::from)
+            .collect())
+    } else {
+        let test_result = proto::test_context::test_run::TestResult::decode(bin.as_slice())
+            .map_err(|err| PyTypeError::new_err(err.to_string()))?;
+        Ok(vec![junit::bindings::BindingsReport::from(test_result)])
+    }
 }
 
 // NOTE: This complains about the deprecation of using `Option<T>` as an auto-variadic
@@ -193,11 +201,15 @@ pub fn parse_internal_bin_from_tarball(
     let rt = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()?;
-    let test_result = rt
+    let test_report = rt
         .block_on(parse_internal_bin_from_tarball_impl(py_bytes_reader))
         .map_err(|err| PyTypeError::new_err(err.to_string()))?;
 
-    Ok(vec![junit::bindings::BindingsReport::from(test_result)])
+    Ok(test_report
+        .test_results
+        .into_iter()
+        .map(junit::bindings::BindingsReport::from)
+        .collect())
 }
 
 #[gen_stub_pyfunction]

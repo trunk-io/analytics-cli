@@ -15,9 +15,17 @@ use wasm_streams::{readable::sys, readable::ReadableStream};
 
 #[wasm_bindgen]
 pub fn bin_parse(bin: Vec<u8>) -> Result<Vec<junit::bindings::BindingsReport>, JsError> {
-    let test_result = proto::test_context::test_run::TestResult::decode(bin.as_slice())
-        .map_err(|err| JsError::new(&err.to_string()))?;
-    Ok(vec![junit::bindings::BindingsReport::from(test_result)])
+    if let Ok(test_report) = proto::test_context::test_run::TestReport::decode(bin.as_slice()) {
+        Ok(test_report
+            .test_results
+            .into_iter()
+            .map(junit::bindings::BindingsReport::from)
+            .collect())
+    } else {
+        let test_result = proto::test_context::test_run::TestResult::decode(bin.as_slice())
+            .map_err(|err| JsError::new(&err.to_string()))?;
+        Ok(vec![junit::bindings::BindingsReport::from(test_result)])
+    }
 }
 
 #[wasm_bindgen]
@@ -153,11 +161,15 @@ pub async fn parse_internal_bin_from_tarball(
     input: sys::ReadableStream,
 ) -> Result<Vec<junit::bindings::BindingsReport>, JsError> {
     let buf_reader = get_buf_reader_from_stream(input).await;
-    let test_result = parse_internal_bin(buf_reader)
+    let test_report = parse_internal_bin(buf_reader)
         .await
         .map_err(|err| JsError::new(&err.to_string()))?;
 
-    Ok(vec![junit::bindings::BindingsReport::from(test_result)])
+    Ok(test_report
+        .test_results
+        .into_iter()
+        .map(junit::bindings::BindingsReport::from)
+        .collect())
 }
 
 #[wasm_bindgen()]
@@ -166,18 +178,21 @@ pub async fn parse_internal_bin_and_meta_from_tarball(
 ) -> Result<VersionedBundleWithBindingsReport, JsError> {
     let buf_reader = get_buf_reader_from_stream(input).await;
 
-    let (test_result, versioned_bundle) = parse_internal_bin_and_meta(buf_reader)
+    let (test_report, versioned_bundle) = parse_internal_bin_and_meta(buf_reader)
         .await
         .map_err(|err| JsError::new(&err.to_string()))?;
 
     Ok(VersionedBundleWithBindingsReport {
-        bindings_report: vec![junit::bindings::BindingsReport::from(test_result)],
+        bindings_report: test_report
+            .test_results
+            .into_iter()
+            .map(junit::bindings::BindingsReport::from)
+            .collect(),
         versioned_bundle,
     })
 }
 
 #[wasm_bindgen]
-// trunk-ignore(clippy/too_many_arguments)
 pub fn gen_info_id(
     org_url_slug: String,
     repo_full_name: String,

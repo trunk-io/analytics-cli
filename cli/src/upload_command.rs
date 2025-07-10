@@ -328,6 +328,7 @@ pub async fn run_upload(
         &meta.base_props.file_sets,
         &temp_dir,
         meta.base_props.codeowners.as_ref(),
+        &bep_result,
         // hide warnings on parsed xcresult output
         #[cfg(target_os = "macos")]
         upload_args.xcresult_path.is_none(),
