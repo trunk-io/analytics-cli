@@ -106,16 +106,12 @@ fn junit_parse_issue_level_to_string(
 #[gen_stub_pyfunction]
 #[pyfunction]
 fn bin_parse(bin: Vec<u8>) -> PyResult<Vec<junit::bindings::BindingsReport>> {
-    if let Ok(test_report) = proto::test_context::test_run::TestReport::decode(bin.as_slice()) {
-        Ok(test_report
-            .test_results
+    match context::junit::parser::bin_parse(&bin) {
+        Ok(reports) => Ok(reports
             .into_iter()
             .map(junit::bindings::BindingsReport::from)
-            .collect())
-    } else {
-        let test_result = proto::test_context::test_run::TestResult::decode(bin.as_slice())
-            .map_err(|err| PyTypeError::new_err(err.to_string()))?;
-        Ok(vec![junit::bindings::BindingsReport::from(test_result)])
+            .collect()),
+        Err(e) => Err(PyTypeError::new_err(e.to_string())),
     }
 }
 

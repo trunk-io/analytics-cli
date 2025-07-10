@@ -22,7 +22,7 @@ use context::repo::RepoUrlParts;
 use context::{
     bazel_bep::{binary_parser::BazelBepBinParser, common::BepParseResult, parser::BazelBepParser},
     junit::{
-        junit_path::JunitReportFileWithTestRunnerReport,
+        junit_path::{JunitReportFileWithTestRunnerReport, TestRunnerReport},
         parser::JunitParser,
         validator::{validate, JunitReportValidation},
     },
@@ -214,11 +214,43 @@ pub fn gather_post_test_context<U: AsRef<Path>>(
     Ok(file_set_builder)
 }
 
-pub fn generate_internal_file(
-    file_sets: &[FileSet],
+fn validate_junit_file(
+    junit_path: &str,
+    junit_parser: &mut JunitParser,
+    test_runner_report: Option<&TestRunnerReport>,
+    show_warnings: bool,
+    junit_validations: &mut BTreeMap<String, anyhow::Result<JunitReportValidation>>,
+) {
+    if !junit_path.ends_with(".xml") || !show_warnings {
+        return;
+    }
+
+    let file_contents = match std::fs::read_to_string(junit_path) {
+        Ok(contents) => contents,
+        Err(e) => {
+            junit_validations.insert(junit_path.to_string(), Err(e.into()));
+            return;
+        }
+    };
+    let parsed_results = junit_parser.parse(BufReader::new(file_contents.as_bytes()));
+    if let Err(e) = parsed_results {
+        tracing::warn!("Failed to parse JUnit file {:?}: {:?}", junit_path, e);
+        junit_validations.insert(junit_path.to_string(), Err(e));
+        return;
+    }
+    let reports = junit_parser.reports();
+    if reports.len() == 1 {
+        junit_validations.insert(
+            junit_path.to_string(),
+            Ok(validate(&reports[0], test_runner_report.cloned())),
+        );
+    }
+}
+
+pub fn generate_internal_file_from_bep(
+    bep_result: &BepParseResult,
     temp_dir: &TempDir,
     codeowners: Option<&CodeOwners>,
-    bep_result: &Option<BepParseResult>,
     show_warnings: bool,
     variant: Option<String>,
 ) -> anyhow::Result<(
@@ -226,143 +258,142 @@ pub fn generate_internal_file(
     BTreeMap<String, anyhow::Result<JunitReportValidation>>,
 )> {
     let mut junit_validations = BTreeMap::new();
-    // create a vec of test results grouped on target
-    if let Some(bep_result) = bep_result {
-        let labels_map = bep_result.uncached_labels();
-        let mut test_results = vec![];
-        for (label, file_with_test_runner_report) in labels_map.into_iter() {
-            let mut test_case_runs = Vec::new();
-            for JunitReportFileWithTestRunnerReport {
-                junit_path,
-                test_runner_report,
-            } in file_with_test_runner_report
-            {
+    let labels_map = bep_result.uncached_labels();
+    let mut test_results = vec![];
+
+    for (label, file_with_test_runner_report) in labels_map.into_iter() {
+        let mut test_case_runs = Vec::new();
+        for JunitReportFileWithTestRunnerReport {
+            junit_path,
+            test_runner_report,
+        } in file_with_test_runner_report
+        {
+            let mut junit_parser = JunitParser::new();
+            if junit_path.ends_with(".xml") && show_warnings {
+                validate_junit_file(
+                    &junit_path,
+                    &mut junit_parser,
+                    test_runner_report.as_ref(),
+                    show_warnings,
+                    &mut junit_validations,
+                );
+                test_case_runs.extend(junit_parser.into_test_case_runs(codeowners));
+            }
+        }
+        test_results.push(TestResult {
+            test_case_runs,
+            // trunk-ignore(clippy/deprecated)
+            uploader_metadata: Some(UploaderMetadata {
+                variant: variant.clone().unwrap_or_default(),
+                ..Default::default()
+            }),
+            test_build_information: Some(BazelBuildInformationEnum(BazelBuildInformation {
+                label,
+                result: TestBuildResult::Success as i32,
+            })),
+        });
+    }
+
+    // Write test case runs to a temporary file
+    let test_report = TestReport {
+        uploader_metadata: Some(UploaderMetadata {
+            variant: variant.clone().unwrap_or_default(),
+            ..Default::default()
+        }),
+        test_results,
+    };
+    let mut buf = Vec::new();
+    prost::Message::encode(&test_report, &mut buf)?;
+    let test_report_path = temp_dir.path().join(INTERNAL_BIN_FILENAME);
+    std::fs::write(&test_report_path, buf)?;
+
+    Ok((
+        BundledFile {
+            original_path: test_report_path.to_string_lossy().to_string(),
+            original_path_rel: None,
+            owners: vec![],
+            path: INTERNAL_BIN_FILENAME.to_string(),
+            // last_modified_epoch_ns does not serialize so the compiler complains it does not exist
+            ..Default::default()
+        },
+        junit_validations,
+    ))
+}
+
+pub fn generate_internal_file(
+    file_sets: &[FileSet],
+    temp_dir: &TempDir,
+    codeowners: Option<&CodeOwners>,
+    show_warnings: bool,
+    variant: Option<String>,
+) -> anyhow::Result<(
+    BundledFile,
+    BTreeMap<String, anyhow::Result<JunitReportValidation>>,
+)> {
+    let mut junit_validations = BTreeMap::new();
+    let mut test_case_runs = Vec::new();
+
+    for file_set in file_sets {
+        if file_set.file_set_type == FileSetType::Internal {
+            if file_set.files.is_empty() {
+                return Err(anyhow::anyhow!("Internal file set is empty"));
+            }
+            if file_set.files.len() > 1 {
+                return Err(anyhow::anyhow!(
+                    "Internal file set contains more than one file"
+                ));
+            }
+            // Internal file set, we should just use that directly and assume it's valid
+            return Ok((file_set.files[0].clone(), BTreeMap::new()));
+        } else {
+            for file in &file_set.files {
                 let mut junit_parser = JunitParser::new();
-                if junit_path.ends_with(".xml") && show_warnings {
-                    let file_contents = std::fs::read_to_string(&junit_path)?;
-                    let parsed_results =
-                        junit_parser.parse(BufReader::new(file_contents.as_bytes()));
-                    if let Err(e) = parsed_results {
-                        tracing::warn!("Failed to parse JUnit file {:?}: {:?}", junit_path, e);
-                        junit_validations.insert(junit_path, Err(e));
-                        continue;
-                    }
-                    let reports = junit_parser.reports();
-                    if reports.len() == 1 {
-                        junit_validations
-                            .insert(junit_path, Ok(validate(&reports[0], test_runner_report)));
-                    }
+                if file.original_path.ends_with(".xml") && show_warnings {
+                    let test_runner_report = file_set.test_runner_report.map(|t| t.into());
+                    validate_junit_file(
+                        &file.original_path,
+                        &mut junit_parser,
+                        test_runner_report.as_ref(),
+                        show_warnings,
+                        &mut junit_validations,
+                    );
                     test_case_runs.extend(junit_parser.into_test_case_runs(codeowners));
                 }
             }
-            test_results.push(TestResult {
-                test_case_runs,
-                // trunk-ignore(clippy/deprecated)
-                uploader_metadata: Some(UploaderMetadata {
-                    variant: variant.clone().unwrap_or_default(),
-                    ..Default::default()
-                }),
-                test_build_information: Some(BazelBuildInformationEnum(BazelBuildInformation {
-                    label,
-                    result: TestBuildResult::Success as i32,
-                })),
-            });
         }
-        // Write test case runs to a temporary file
-        let test_report = TestReport {
-            uploader_metadata: Some(UploaderMetadata {
-                variant: variant.clone().unwrap_or_default(),
-                ..Default::default()
-            }),
-            test_results,
-        };
-        let mut buf = Vec::new();
-        prost::Message::encode(&test_report, &mut buf)?;
-        let test_report_path = temp_dir.path().join(INTERNAL_BIN_FILENAME);
-        std::fs::write(&test_report_path, buf)?;
-        Ok((
-            BundledFile {
-                original_path: test_report_path.to_string_lossy().to_string(),
-                original_path_rel: None,
-                owners: vec![],
-                path: INTERNAL_BIN_FILENAME.to_string(),
-                // last_modified_epoch_ns does not serialize so the compiler complains it does not exist
-                ..Default::default()
-            },
-            junit_validations,
-        ))
-    } else {
-        let mut test_case_runs = Vec::new();
-        for file_set in file_sets {
-            if file_set.file_set_type == FileSetType::Internal {
-                if file_set.files.is_empty() {
-                    return Err(anyhow::anyhow!("Internal file set is empty"));
-                }
-                if file_set.files.len() > 1 {
-                    return Err(anyhow::anyhow!(
-                        "Internal file set contains more than one file"
-                    ));
-                }
-                // Internal file set, we should just use that directly and assume it's valid
-                return Ok((file_set.files[0].clone(), BTreeMap::new()));
-            } else {
-                for file in &file_set.files {
-                    let mut junit_parser = JunitParser::new();
-                    if file.original_path.ends_with(".xml") && show_warnings {
-                        let file_contents = std::fs::read_to_string(&file.original_path)?;
-                        let parsed_results =
-                            junit_parser.parse(BufReader::new(file_contents.as_bytes()));
-                        if let Err(e) = parsed_results {
-                            tracing::warn!("Failed to parse JUnit file {:?}: {:?}", file, e);
-                            junit_validations.insert(file.original_path.clone(), Err(e));
-                            continue;
-                        }
-                        let reports = junit_parser.reports();
-                        if reports.len() == 1 {
-                            junit_validations.insert(
-                                file.original_path.clone(),
-                                Ok(validate(
-                                    &reports[0],
-                                    file_set.test_runner_report.map(|t| t.into()),
-                                )),
-                            );
-                        }
-                        test_case_runs.extend(junit_parser.into_test_case_runs(codeowners));
-                    }
-                }
-            }
-        }
-        // Write test case runs to a temporary file
-        let test_report = TestReport {
-            uploader_metadata: Some(UploaderMetadata {
-                variant: variant.clone().unwrap_or_default(),
-                ..Default::default()
-            }),
-            test_results: vec![TestResult {
-                test_case_runs,
-                uploader_metadata: Some(UploaderMetadata {
-                    variant: variant.unwrap_or_default(),
-                    ..Default::default()
-                }),
-                test_build_information: None,
-            }],
-        };
-        let mut buf = Vec::new();
-        prost::Message::encode(&test_report, &mut buf)?;
-        let test_report_path = temp_dir.path().join(INTERNAL_BIN_FILENAME);
-        std::fs::write(&test_report_path, buf)?;
-        Ok((
-            BundledFile {
-                original_path: test_report_path.to_string_lossy().to_string(),
-                original_path_rel: None,
-                owners: vec![],
-                path: INTERNAL_BIN_FILENAME.to_string(),
-                // last_modified_epoch_ns does not serialize so the compiler complains it does not exist
-                ..Default::default()
-            },
-            junit_validations,
-        ))
     }
+
+    // Write test case runs to a temporary file
+    let test_report = TestReport {
+        uploader_metadata: Some(UploaderMetadata {
+            variant: variant.clone().unwrap_or_default(),
+            ..Default::default()
+        }),
+        test_results: vec![TestResult {
+            test_case_runs,
+            uploader_metadata: Some(UploaderMetadata {
+                variant: variant.unwrap_or_default(),
+                ..Default::default()
+            }),
+            test_build_information: None,
+        }],
+    };
+    let mut buf = Vec::new();
+    prost::Message::encode(&test_report, &mut buf)?;
+    let test_report_path = temp_dir.path().join(INTERNAL_BIN_FILENAME);
+    std::fs::write(&test_report_path, buf)?;
+
+    Ok((
+        BundledFile {
+            original_path: test_report_path.to_string_lossy().to_string(),
+            original_path_rel: None,
+            owners: vec![],
+            path: INTERNAL_BIN_FILENAME.to_string(),
+            // last_modified_epoch_ns does not serialize so the compiler complains it does not exist
+            ..Default::default()
+        },
+        junit_validations,
+    ))
 }
 
 pub fn fall_back_to_binary_parse(

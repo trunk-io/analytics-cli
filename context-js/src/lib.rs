@@ -15,16 +15,12 @@ use wasm_streams::{readable::sys, readable::ReadableStream};
 
 #[wasm_bindgen]
 pub fn bin_parse(bin: Vec<u8>) -> Result<Vec<junit::bindings::BindingsReport>, JsError> {
-    if let Ok(test_report) = proto::test_context::test_run::TestReport::decode(bin.as_slice()) {
-        Ok(test_report
-            .test_results
+    match context::junit::parser::bin_parse(&bin) {
+        Ok(reports) => Ok(reports
             .into_iter()
             .map(junit::bindings::BindingsReport::from)
-            .collect())
-    } else {
-        let test_result = proto::test_context::test_run::TestResult::decode(bin.as_slice())
-            .map_err(|err| JsError::new(&err.to_string()))?;
-        Ok(vec![junit::bindings::BindingsReport::from(test_result)])
+            .collect()),
+        Err(e) => Err(JsError::new(&e.to_string())),
     }
 }
 

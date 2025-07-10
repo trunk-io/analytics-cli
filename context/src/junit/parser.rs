@@ -5,6 +5,7 @@ use std::{
 };
 
 use codeowners::CodeOwners;
+use prost::Message;
 use prost_wkt_types::Timestamp;
 use proto::test_context::test_run::{CodeOwner, TestCaseRun, TestCaseRunStatus};
 #[cfg(feature = "pyo3")]
@@ -21,6 +22,7 @@ use thiserror::Error;
 use wasm_bindgen::prelude::*;
 
 use super::date_parser::JunitDateParser;
+use crate::junit::bindings::BindingsReport;
 
 const TAG_REPORT: &[u8] = b"testsuites";
 const TAG_TEST_SUITE: &[u8] = b"testsuite";
@@ -844,6 +846,20 @@ mod unescape_and_truncate {
             Cow::Borrowed(b) => Cow::Borrowed(safe_truncate_str::<MAX_LEN>(b)),
             Cow::Owned(b) => Cow::Owned(String::from(safe_truncate_str::<MAX_LEN>(b.as_str()))),
         }
+    }
+}
+
+/// Parse a binary buffer as either a TestReport or TestResult, returning a vector of quick_junit::Report.
+pub fn bin_parse(bin: &[u8]) -> anyhow::Result<Vec<BindingsReport>> {
+    if let Ok(test_report) = proto::test_context::test_run::TestReport::decode(bin) {
+        Ok(test_report
+            .test_results
+            .into_iter()
+            .map(BindingsReport::from)
+            .collect())
+    } else {
+        let test_result = proto::test_context::test_run::TestResult::decode(bin)?;
+        Ok(vec![BindingsReport::from(test_result)])
     }
 }
 
