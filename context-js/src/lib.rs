@@ -107,6 +107,7 @@ pub fn junit_validate(
     junit::bindings::BindingsJunitReportValidation::from(junit::validator::validate(
         &report.clone().into(),
         test_runner_report.map(junit::junit_path::TestRunnerReport::from),
+        &repo::BundleRepo::default(),
     ))
 }
 

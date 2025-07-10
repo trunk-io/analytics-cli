@@ -10,7 +10,8 @@ use thiserror::Error;
 #[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::*;
 
-use super::parser::extra_attrs;
+use crate::junit::file_extractor::detected_file_for_test_case;
+use crate::repo::BundleRepo;
 use crate::{
     junit::junit_path::TestRunnerReport,
     string_safety::{validate_field_len, FieldLen},
@@ -79,6 +80,7 @@ impl Default for JunitValidationType {
 pub fn validate(
     report: &Report,
     test_runner_report: Option<TestRunnerReport>,
+    repo: &BundleRepo,
 ) -> JunitReportValidation {
     let mut report_validation = JunitReportValidation::default();
 
@@ -126,15 +128,9 @@ pub fn validate(
                 }
             };
 
-            match validate_field_len::<MAX_FIELD_LEN, _>(
-                test_case
-                    .extra
-                    .get(extra_attrs::FILE)
-                    .or(test_case.extra.get(extra_attrs::FILEPATH))
-                    .as_ref()
-                    .map(|s| s.as_str())
-                    .unwrap_or_default(),
-            ) {
+            match validate_field_len::<MAX_FIELD_LEN, _>(detected_file_for_test_case(
+                test_case, repo,
+            )) {
                 FieldLen::Valid => (),
                 FieldLen::TooShort(s) => {
                     test_case_validation.add_issue(JunitValidationIssue::SubOptimal(

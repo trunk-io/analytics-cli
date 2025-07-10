@@ -215,6 +215,7 @@ pub fn generate_internal_file(
     file_sets: &[FileSet],
     temp_dir: &TempDir,
     codeowners: Option<&CodeOwners>,
+    repo: &BundleRepo,
     show_warnings: bool,
     variant: Option<String>,
 ) -> anyhow::Result<(
@@ -254,10 +255,11 @@ pub fn generate_internal_file(
                             Ok(validate(
                                 &reports[0],
                                 file_set.test_runner_report.map(|t| t.into()),
+                                repo,
                             )),
                         );
                     }
-                    test_case_runs.extend(junit_parser.into_test_case_runs(codeowners));
+                    test_case_runs.extend(junit_parser.into_test_case_runs(codeowners, repo));
                 }
             }
         }

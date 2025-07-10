@@ -3,12 +3,12 @@ use superconsole::{
     style::{style, Color, Stylize},
     Line, Span,
 };
-use tempfile::tempdir;
+use tempfile::{tempdir, TempDir};
 
 use crate::{
     command_builder::CommandBuilder,
     utils::{
-        generate_mock_codeowners, generate_mock_invalid_junit_xmls,
+        generate_mock_codeowners, generate_mock_git_repo, generate_mock_invalid_junit_xmls,
         generate_mock_missing_filepath_suboptimal_junit_xmls, generate_mock_suboptimal_junit_xmls,
         generate_mock_valid_junit_xmls, write_junit_xml_to_dir,
     },
@@ -170,7 +170,7 @@ fn validate_invalid_xml() {
 
 #[test]
 fn validate_suboptimal_junits() {
-    let temp_dir = tempdir().unwrap();
+    let temp_dir = TempDir::with_prefix("not-hidden").unwrap();
     generate_mock_suboptimal_junit_xmls(&temp_dir);
 
     let assert = CommandBuilder::validate(temp_dir.path())
@@ -196,6 +196,7 @@ fn validate_suboptimal_junits() {
 #[test]
 fn validate_missing_filepath_suboptimal_junits() {
     let temp_dir = tempdir().unwrap();
+    generate_mock_git_repo(&temp_dir);
     generate_mock_missing_filepath_suboptimal_junit_xmls(&temp_dir);
     generate_mock_codeowners(&temp_dir);
 
