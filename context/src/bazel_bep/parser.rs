@@ -188,4 +188,55 @@ mod tests {
         );
         assert_eq!(parse_result.xml_file_counts(), (4, 0));
     }
+
+    #[test]
+    fn test_uncached_labels() {
+        use itertools::Itertools;
+        let input_file = get_test_file_path(FLAKY_SUMMARY_EXAMPLE);
+        let mut parser = BazelBepParser::new(input_file);
+        let parse_result = parser.parse().unwrap();
+
+        let uncached_labels = parse_result.uncached_labels();
+
+        // Should have 2 labels
+        assert_eq!(uncached_labels.len(), 2);
+
+        // Get the first label (hello_test)
+        let first_label = uncached_labels.keys().sorted().next().unwrap();
+        assert_eq!(first_label, "//trunk/hello_world/cc:hello_test");
+        let first_label_files = uncached_labels.get(first_label).unwrap();
+        assert_eq!(first_label_files.len(), 1);
+
+        let first_label_file = &first_label_files[0];
+        assert_eq!(first_label_file.junit_path, "/tmp/hello_test/test.xml");
+        assert!(first_label_file.test_runner_report.is_some());
+        if let Some(report) = &first_label_file.test_runner_report {
+            assert_eq!(report.status, TestRunnerReportStatus::Flaky);
+        }
+
+        // Get the second label (client_test)
+        let second_label = uncached_labels.keys().sorted().nth(1).unwrap();
+        assert_eq!(second_label, "//trunk/hello_world/cc_grpc:client_test");
+        let second_label_files = uncached_labels.get(second_label).unwrap();
+        assert_eq!(second_label_files.len(), 1);
+
+        let expected_second_label_paths = [
+            "/tmp/client_test/test.xml",
+            "/tmp/hello_test/test_attempts/attempt_1.xml",
+            "/tmp/hello_test/test_attempts/attempt_2.xml",
+        ];
+
+        for (i, file) in second_label_files.iter().enumerate() {
+            assert_eq!(file.junit_path, expected_second_label_paths[i]);
+            assert!(file.test_runner_report.is_some());
+            println!("i: {}, file: {:?}", i, file.junit_path);
+            if let Some(report) = &file.test_runner_report {
+                if i > 1 {
+                    assert_eq!(report.status, TestRunnerReportStatus::Flaky);
+                } else {
+                    assert_eq!(report.status, TestRunnerReportStatus::Failed);
+                }
+            }
+        }
+    }
 }
