@@ -38,7 +38,29 @@ message UploaderMetadata {
   string variant = 4;
 }
 
+message BazelBuildInformation {
+  string label = 1; // test label for the execution 
+  TestBuildResult result = 2; // result of the build
+}
+
 message TestResult {
   repeated TestCaseRun test_case_runs = 1;
+  // use the uplaoder metadata in test report instead
+  UploaderMetadata uploader_metadata = 2 [deprecated = true];;
+  oneof test_build_information {
+    BazelBuildInformation bazel_build_information = 3;
+    // Other build information can be added here in the future
+  }
+}
+
+enum TestBuildResult {
+  TEST_BUILD_RESULT_UNSPECIFIED = 0;
+  TEST_BUILD_RESULT_SUCCESS = 1;
+  TEST_BUILD_RESULT_FAILURE = 2;
+  TEST_BUILD_RESULT_SKIPPED = 3;
+}
+
+message TestReport {
+  repeated TestResult test_results = 1;
   UploaderMetadata uploader_metadata = 2;
 }
