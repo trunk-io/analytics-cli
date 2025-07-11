@@ -19,9 +19,11 @@ jobs:
           - name: linux
             os: ubuntu-latest
             target: x86_64-unknown-linux-musl
+            ruby-target: x86_64-linux
           - name: darwin
             os: macos-latest
             target: aarch64-apple-darwin
+            ruby-target: arm64-darwin
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -43,6 +45,13 @@ jobs:
           target: ${{ matrix.platform.target }}
           profile: release
 
+      - name: Build ruby helper darwin
+        uses: oxidize-rb/actions/cross-gem@v1
+        with:
+          platform: ${{ matrix.platform.ruby-target }}
+          working-directory: context-ruby
+          ruby-versions: 3.0,3.1,3.2,3.3,3.4
+
       - name: Run Smoke Tests
         uses: ./.github/actions/perform_smoke_test
         with:
@@ -50,6 +59,7 @@ jobs:
           staging-api-token: ${{ secrets.TRUNK_STAGING_ORG_API_TOKEN }}
           production-api-token: ${{ secrets.TRUNK_PROD_ORG_API_TOKEN }}
           environment-type: ${{ (github.event.action == 'production-release' && 'production') || (github.event.action == 'staging-release' && 'staging') || 'both' }}
+          ruby-helper-location: ../context-ruby/pkg
 
       - name: Run Smoke Tests With Gitlab
         uses: ./.github/actions/perform_gitlab_smoke_test
@@ -58,30 +68,30 @@ jobs:
           staging-api-token: ${{ secrets.TRUNK_STAGING_ORG_API_TOKEN }}
           production-api-token: ${{ secrets.TRUNK_PROD_ORG_API_TOKEN }}
           environment-type: ${{ (github.event.action == 'production-release' && 'production') || (github.event.action == 'staging-release' && 'staging') || 'both' }}
-  slack-workflow-status:
-    if: always() && needs.build_cli.result != 'success'
-    name: Post Smoke Test Failure
-    needs:
-      - build_cli
-    runs-on: ubuntu-latest
-    permissions:
-      actions: read
-    env:
-      SLACK_BOT_TOKEN: ${{ secrets.TRUNKBOT_SLACK_BOT_TOKEN }}
-    steps:
-      - name: Analytics Cli Smoke Test Failure
-        uses: slackapi/slack-github-action@v1
-        with:
-          channel-id: staging-notifications
-          payload: |
-            {
-              "blocks": [
-                {
-                  "type": "section",
-                  "text": {
-                    "type": "mrkdwn",
-                    "text": "The main branch of the analytics cli is broken! The job attempting a simple upload had a result of ${{ needs.build_cli.result }}. Runs can be found at https://github.com/trunk-io/analytics-cli/actions/workflows/smoke_test_main.yml"
-                  }
-                }
-              ]
-            }
+#  slack-workflow-status:
+#    if: always() && needs.build_cli.result != 'success'
+#    name: Post Smoke Test Failure
+#    needs:
+#      - build_cli
+#    runs-on: ubuntu-latest
+#    permissions:
+#      actions: read
+#    env:
+#      SLACK_BOT_TOKEN: ${{ secrets.TRUNKBOT_SLACK_BOT_TOKEN }}
+#    steps:
+#      - name: Analytics Cli Smoke Test Failure
+#        uses: slackapi/slack-github-action@v1
+#        with:
+#          channel-id: staging-notifications
+#          payload: |
+#            {
+#              "blocks": [
+#                {
+#                  "type": "section",
+#                  "text": {
+#                    "type": "mrkdwn",
+#                    "text": "The main branch of the analytics cli is broken! The job attempting a simple upload had a result of ${{ needs.build_cli.result }}. Runs can be found at https://github.com/trunk-io/analytics-cli/actions/workflows/smoke_test_main.yml"
+#                  }
+#                }
+#              ]
+#            }
