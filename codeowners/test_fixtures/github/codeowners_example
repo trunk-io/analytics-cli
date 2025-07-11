@@ -35,3 +35,10 @@ apps/ @octocat
 # In this example, @doctocat owns any file in the `/docs`
 # directory in the root of your repository.
 /docs/ @doctocat
+
+# @actocat owns any file in any `etc` directory in the repo
+**/etc/ @actocat
+
+# @actocat owns any file in any `another` directory in the repo, AND ALSO
+# any file called `another`
+**/another @bctocat
