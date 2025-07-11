@@ -65,7 +65,7 @@ fn branch_class_to_string(branch_class: env::parser::BranchClass) -> String {
 #[gen_stub_pyfunction]
 #[pyfunction]
 fn ci_platform_to_string(ci_platform: env::parser::CIPlatform) -> String {
-    ci_platform.to_string()
+    String::from(Into::<&str>::into(ci_platform))
 }
 
 #[gen_stub_pyfunction]

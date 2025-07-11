@@ -5,26 +5,17 @@ edition = "2021"
 
 [dev-dependencies]
 api = { path = "../api" }
-assert_cmd = "2.0.16"
 assert_matches = "1.5.0"
 axum = { version = "0.7.5", features = ["macros"] }
-bazel-bep = { path = "../bazel-bep" }
 bundle = { path = "../bundle" }
-chrono = "0.4.33"
 codeowners = { path = "../codeowners" }
-constants = { path = "../constants" }
 context = { path = "../context" }
-escargot = "0.5.12"
 exitcode = "1.1.1"
-junit-mock = { path = "../junit-mock" }
-lazy_static = "1.4"
 more-asserts = "0.3.1"
 predicates = "3.0.3"
-serde_json = "1.0.133"
 tempfile = "3.2.0"
 prost-wkt-types = { version = "0.5.1", features = ["vendored-protox"] }
 prost = "0.12.6"
-test_utils = { path = "../test_utils" }
 tokio = { version = "*" }
 trunk-analytics-cli = { path = "../cli", features = ["force-sentry-env-dev"] }
 pretty_assertions = "0.6"
@@ -34,6 +25,15 @@ default = []
 wasm = []
 
 [dependencies]
+chrono = "0.4.33"
+constants = { path = "../constants" }
+bazel-bep = { path = "../bazel-bep" }
+escargot = "0.5.12"
+lazy_static = "1.4"
+test_utils = { path = "../test_utils" }
+junit-mock = { path = "../junit-mock" }
+assert_cmd = "2.0.16"
+serde_json = "1.0.133"
 anyhow = "1.0.96"
 proto = { version = "0.0.0", path = "../proto" }
 superconsole = "0.2.0"
