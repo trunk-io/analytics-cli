@@ -231,7 +231,7 @@ pub async fn parse_meta_from_tarball<R: AsyncBufRead>(input: R) -> anyhow::Resul
     Err(anyhow::anyhow!("No meta.json file found in the tarball"))
 }
 
-fn bin_parse(bin: &Vec<u8>) -> anyhow::Result<TestReport> {
+pub fn bin_parse(bin: &Vec<u8>) -> anyhow::Result<TestReport> {
     if let Ok(test_report) = proto::test_context::test_run::TestReport::decode(bin.as_slice()) {
         Ok(test_report)
     } else {
