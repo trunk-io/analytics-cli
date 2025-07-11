@@ -8,6 +8,7 @@ use std::{
 
 use glob::{MatchOptions, Pattern};
 use lazy_static::lazy_static;
+use once_cell::sync::Lazy;
 #[cfg(feature = "pyo3")]
 use pyo3::prelude::*;
 #[cfg(feature = "pyo3")]
@@ -195,11 +196,12 @@ impl PatternWithFallback {
     pub fn new(base: &str) -> anyhow::Result<Self> {
         // Matches anything that ends with neither a slash nor a period nor an asterisk,
         // see test pattern_with_fallback for cases
-        let fallback_needed_regex = Regex::new(r"^\/?([a-zA-Z0-9_*\-]*\/)*([a-zA-Z0-9_\-]+)$")?;
+        static FALLBACK_NEEDED_REGEX: Lazy<Regex> =
+            Lazy::new(|| Regex::new(r"^\/?([a-zA-Z0-9_*\-\.]*\/)*(\.?[a-zA-Z0-9_\-]+)$").unwrap());
 
         let base_pattern = Pattern::new(base).map_err(anyhow::Error::msg)?;
         let mut fallback_pattern = None;
-        if fallback_needed_regex.is_match(base) {
+        if FALLBACK_NEEDED_REGEX.is_match(base) {
             let mut subdir_match = base.to_string();
             subdir_match.push_str("/**");
             fallback_pattern = Pattern::new(&subdir_match).ok();
@@ -264,6 +266,7 @@ mod tests {
                 fallback: None,
             },
         );
+
         assert_eq!(
             PatternWithFallback::new("*.js").unwrap(),
             PatternWithFallback {
@@ -271,6 +274,7 @@ mod tests {
                 fallback: None,
             },
         );
+
         assert_eq!(
             PatternWithFallback::new("abc/**").unwrap(),
             PatternWithFallback {
@@ -278,6 +282,95 @@ mod tests {
                 fallback: None,
             },
         );
+
+        assert_eq!(
+            PatternWithFallback::new(".xyz").unwrap(),
+            PatternWithFallback {
+                base: Pattern::new(".xyz").unwrap(),
+                fallback: Some(Pattern::new(".xyz/**").unwrap()),
+            },
+        );
+        assert_eq!(
+            PatternWithFallback::new(".xyz/").unwrap(),
+            PatternWithFallback {
+                base: Pattern::new(".xyz/").unwrap(),
+                fallback: None,
+            },
+        );
+        assert_eq!(
+            PatternWithFallback::new(".xyz.js").unwrap(),
+            PatternWithFallback {
+                base: Pattern::new(".xyz.js").unwrap(),
+                fallback: None,
+            },
+        );
+
+        assert_eq!(
+            PatternWithFallback::new("/.abc/xyz").unwrap(),
+            PatternWithFallback {
+                base: Pattern::new("/.abc/xyz").unwrap(),
+                fallback: Some(Pattern::new("/.abc/xyz/**").unwrap()),
+            },
+        );
+        assert_eq!(
+            PatternWithFallback::new("/.abc/xyz/").unwrap(),
+            PatternWithFallback {
+                base: Pattern::new("/.abc/xyz/").unwrap(),
+                fallback: None,
+            },
+        );
+        assert_eq!(
+            PatternWithFallback::new("/.abc/xyz.js").unwrap(),
+            PatternWithFallback {
+                base: Pattern::new("/.abc/xyz.js").unwrap(),
+                fallback: None,
+            },
+        );
+
+        assert_eq!(
+            PatternWithFallback::new(".xyz").unwrap(),
+            PatternWithFallback {
+                base: Pattern::new(".xyz").unwrap(),
+                fallback: Some(Pattern::new(".xyz/**").unwrap()),
+            },
+        );
+        assert_eq!(
+            PatternWithFallback::new(".xyz/").unwrap(),
+            PatternWithFallback {
+                base: Pattern::new(".xyz/").unwrap(),
+                fallback: None,
+            },
+        );
+        assert_eq!(
+            PatternWithFallback::new(".xyz.js").unwrap(),
+            PatternWithFallback {
+                base: Pattern::new(".xyz.js").unwrap(),
+                fallback: None,
+            },
+        );
+
+        assert_eq!(
+            PatternWithFallback::new("/abc/.xyz").unwrap(),
+            PatternWithFallback {
+                base: Pattern::new("/abc/.xyz").unwrap(),
+                fallback: Some(Pattern::new("/abc/.xyz/**").unwrap()),
+            },
+        );
+        assert_eq!(
+            PatternWithFallback::new("/abc/.xyz/").unwrap(),
+            PatternWithFallback {
+                base: Pattern::new("/abc/.xyz/").unwrap(),
+                fallback: None,
+            },
+        );
+        assert_eq!(
+            PatternWithFallback::new("/abc/.xyz.js").unwrap(),
+            PatternWithFallback {
+                base: Pattern::new("/abc/.xyz.js").unwrap(),
+                fallback: None,
+            },
+        );
+
         assert_eq!(
             PatternWithFallback::new("abc/**/xyz").unwrap(),
             PatternWithFallback {
@@ -293,10 +386,18 @@ mod tests {
             },
         );
         assert_eq!(
-            PatternWithFallback::new("abc/**/xyz").unwrap(),
+            PatternWithFallback::new("abc/**/xyz.js").unwrap(),
             PatternWithFallback {
-                base: Pattern::new("abc/**/xyz").unwrap(),
-                fallback: Some(Pattern::new("abc/**/xyz/**").unwrap()),
+                base: Pattern::new("abc/**/xyz.js").unwrap(),
+                fallback: None,
+            },
+        );
+
+        assert_eq!(
+            PatternWithFallback::new("/abc/xyz").unwrap(),
+            PatternWithFallback {
+                base: Pattern::new("/abc/xyz").unwrap(),
+                fallback: Some(Pattern::new("/abc/xyz/**").unwrap()),
             },
         );
         assert_eq!(
@@ -313,6 +414,7 @@ mod tests {
                 fallback: None,
             },
         );
+
         assert_eq!(
             PatternWithFallback::new("xyz").unwrap(),
             PatternWithFallback {
@@ -334,6 +436,7 @@ mod tests {
                 fallback: None,
             },
         );
+
         assert_eq!(
             PatternWithFallback::new("abc/xyz").unwrap(),
             PatternWithFallback {
