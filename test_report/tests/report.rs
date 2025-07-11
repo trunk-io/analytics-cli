@@ -6,6 +6,7 @@ use context::repo::RepoUrlParts;
 use prost::Message;
 use prost_wkt_types::Timestamp;
 use proto::test_context::test_run::TestCaseRunStatus;
+use proto::test_context::test_run::TestReport;
 use tempfile::tempdir;
 use test_report::report::{MutTestReport, Status};
 use test_utils::mock_git_repo::setup_repo_with_commit;
@@ -162,7 +163,7 @@ async fn publish_test_report() {
     assert_eq!(internal_bundled_file.path, bundled_file.path);
 
     let bin = fs::read(tar_extract_directory.join(&bundled_file.path)).unwrap();
-    let report = proto::test_context::test_run::TestResult::decode(&*bin).unwrap();
+    let report = TestReport::decode(&*bin).unwrap();
 
     let test_started_at = Timestamp {
         seconds: 1000,
@@ -172,8 +173,10 @@ async fn publish_test_report() {
         seconds: 1001,
         nanos: 0,
     };
-    assert_eq!(report.test_case_runs.len(), 2);
-    let test_case_run = &report.test_case_runs[0];
+    assert_eq!(report.test_results.len(), 1);
+    let result = report.test_results.first().unwrap();
+    assert_eq!(result.test_case_runs.len(), 2);
+    let test_case_run = &result.test_case_runs[0];
     assert_eq!(test_case_run.id, "1");
     assert_eq!(test_case_run.name, "test-name");
     assert_eq!(test_case_run.classname, "test-classname");
@@ -188,7 +191,7 @@ async fn publish_test_report() {
     assert_eq!(test_case_run.status_output_message, "test-message");
     assert_eq!(test_case_run.codeowners.len(), 1);
 
-    let test_case_run = &report.test_case_runs[1];
+    let test_case_run = &result.test_case_runs[1];
     assert_eq!(test_case_run.id, "2");
     assert_eq!(test_case_run.name, "test-name");
     assert_eq!(test_case_run.classname, "test-classname");
@@ -206,12 +209,6 @@ async fn publish_test_report() {
 
 #[test]
 fn test_mut_test_report_try_save() {
-    use std::fs;
-
-    use proto::test_context::test_run::TestResult;
-    use tempfile::tempdir;
-    use test_report::report::MutTestReport;
-
     let temp_dir = tempdir().unwrap();
     let report = MutTestReport::new(
         "test-origin".into(),
@@ -225,7 +222,9 @@ fn test_mut_test_report_try_save() {
     assert!(file_path.exists(), "Saved file does not exist");
     let data = fs::read(&file_path).expect("Failed to read saved file");
     assert!(!data.is_empty(), "Saved file is empty");
-    let deserialized = TestResult::decode(&*data).expect("Failed to decode TestResult");
+    let deserialized = TestReport::decode(&*data).expect("Failed to decode TestResult");
     // The default TestResult should have no test_case_runs
-    assert_eq!(deserialized.test_case_runs.len(), 0);
+    assert_eq!(deserialized.test_results.len(), 1);
+    let test_result = &deserialized.test_results[0];
+    assert_eq!(test_result.test_case_runs.len(), 0);
 }

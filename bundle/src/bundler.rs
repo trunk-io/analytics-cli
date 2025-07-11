@@ -12,7 +12,7 @@ use codeowners::CodeOwners;
 use context::bazel_bep::common::BepParseResult;
 use futures_io::AsyncBufRead;
 use prost::Message;
-use proto::test_context::test_run::TestResult;
+use proto::test_context::test_run::TestReport;
 use tempfile::TempDir;
 #[cfg(feature = "wasm")]
 use tsify_next::Tsify;
@@ -231,17 +231,28 @@ pub async fn parse_meta_from_tarball<R: AsyncBufRead>(input: R) -> anyhow::Resul
     Err(anyhow::anyhow!("No meta.json file found in the tarball"))
 }
 
+pub fn bin_parse(bin: &Vec<u8>) -> anyhow::Result<TestReport> {
+    if let Ok(test_report) = proto::test_context::test_run::TestReport::decode(bin.as_slice()) {
+        Ok(test_report)
+    } else {
+        let test_result = proto::test_context::test_run::TestResult::decode(bin.as_slice())
+            .map_err(|err| {
+                anyhow::anyhow!("Failed to decode {}: {}", INTERNAL_BIN_FILENAME, err)
+            })?;
+        Ok(TestReport {
+            test_results: vec![test_result],
+            ..Default::default()
+        })
+    }
+}
+
 /// Reads and decompresses a .tar.zstd file from an input stream into just the internal bin file.
 pub async fn parse_internal_bin_from_tarball<R: AsyncBufRead>(
     input: R,
-) -> anyhow::Result<TestResult> {
+) -> anyhow::Result<TestReport> {
     let extracted_files = extract_files_from_tarball(input, &[INTERNAL_BIN_FILENAME]).await?;
     if let Some(internal_bin_bytes) = extracted_files.get(INTERNAL_BIN_FILENAME) {
-        let test_result: TestResult =
-            TestResult::decode(internal_bin_bytes.as_slice()).map_err(|err| {
-                anyhow::anyhow!("Failed to decode {}: {}", INTERNAL_BIN_FILENAME, err)
-            })?;
-        return Ok(test_result);
+        return bin_parse(internal_bin_bytes);
     }
 
     Err(anyhow::anyhow!(
@@ -252,7 +263,7 @@ pub async fn parse_internal_bin_from_tarball<R: AsyncBufRead>(
 
 pub async fn parse_internal_bin_and_meta_from_tarball<R: AsyncBufRead>(
     input: R,
-) -> anyhow::Result<(TestResult, VersionedBundle)> {
+) -> anyhow::Result<(TestReport, VersionedBundle)> {
     let extracted_files =
         extract_files_from_tarball(input, &[META_FILENAME, INTERNAL_BIN_FILENAME]).await?;
 
@@ -260,7 +271,7 @@ pub async fn parse_internal_bin_and_meta_from_tarball<R: AsyncBufRead>(
         .get(INTERNAL_BIN_FILENAME)
         .ok_or_else(|| anyhow::anyhow!("No {} file found in the tarball", INTERNAL_BIN_FILENAME))?;
 
-    let test_result: TestResult = TestResult::decode(internal_bin_bytes.as_slice())
+    let test_report = bin_parse(internal_bin_bytes)
         .map_err(|err| anyhow::anyhow!("Failed to decode {}: {}", INTERNAL_BIN_FILENAME, err))?;
 
     let meta_bytes = extracted_files
@@ -269,7 +280,7 @@ pub async fn parse_internal_bin_and_meta_from_tarball<R: AsyncBufRead>(
 
     let versioned_bundle = parse_meta(meta_bytes.to_vec())?;
 
-    Ok((test_result, versioned_bundle))
+    Ok((test_report, versioned_bundle))
 }
 
 #[cfg(test)]
