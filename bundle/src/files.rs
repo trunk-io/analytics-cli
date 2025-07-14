@@ -122,7 +122,7 @@ impl FileSetBuilder {
                     file_set_type,
                     bundled_files,
                     junit_wrapper.junit_path.clone(),
-                    junit_wrapper.test_runner_report,
+                    junit_wrapper.test_runner_report.clone(),
                 ));
                 Ok(acc)
             },
@@ -179,7 +179,7 @@ pub struct FileSet {
     pub test_runner_report: Option<FileSetTestRunnerReport>,
 }
 
-#[derive(Debug, Default, Serialize, Deserialize, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass(get_all))]
 #[cfg_attr(feature = "wasm", derive(Tsify), tsify(into_wasm_abi, from_wasm_abi))]
 pub struct FileSetTestRunnerReport {
@@ -193,6 +193,8 @@ pub struct FileSetTestRunnerReport {
     #[cfg_attr(feature = "wasm", tsify(type = "number"))]
     #[serde(default, with = "ts_milliseconds")]
     pub resolved_end_time_epoch_ms: DateTime<Utc>,
+    /// Added in v0.10.5. Populated when parsing from BEP, not from junit globs
+    pub resolved_label: Option<String>,
 }
 
 #[cfg(feature = "pyo3")]
@@ -205,11 +207,13 @@ impl FileSetTestRunnerReport {
         resolved_status: TestRunnerReportStatus,
         resolved_start_time_epoch_ms: DateTime<Utc>,
         resolved_end_time_epoch_ms: DateTime<Utc>,
+        resolved_label: Option<String>,
     ) -> Self {
         Self {
             resolved_status,
             resolved_start_time_epoch_ms,
             resolved_end_time_epoch_ms,
+            resolved_label,
         }
     }
 }
@@ -220,6 +224,7 @@ impl From<TestRunnerReport> for FileSetTestRunnerReport {
             resolved_status: test_runner_report.status,
             resolved_start_time_epoch_ms: test_runner_report.start_time,
             resolved_end_time_epoch_ms: test_runner_report.end_time,
+            resolved_label: test_runner_report.label,
         }
     }
 }
@@ -230,6 +235,7 @@ impl From<FileSetTestRunnerReport> for TestRunnerReport {
             status: test_runner_report.resolved_status,
             start_time: test_runner_report.resolved_start_time_epoch_ms,
             end_time: test_runner_report.resolved_end_time_epoch_ms,
+            label: test_runner_report.resolved_label,
         }
     }
 }
