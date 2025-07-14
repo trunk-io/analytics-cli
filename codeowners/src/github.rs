@@ -197,7 +197,7 @@ impl PatternWithFallback {
         // Matches anything that ends with neither a slash nor a period nor an asterisk,
         // see test pattern_with_fallback for cases
         static FALLBACK_NEEDED_REGEX: Lazy<Regex> =
-            Lazy::new(|| Regex::new(r"^\/?([a-zA-Z0-9_*\-\.]*\/)*(\.?[a-zA-Z0-9_\-]+)$").unwrap());
+            Lazy::new(|| Regex::new(r"^\/?(.*\/)*((\.?)[^\/\.\*]+)$").unwrap());
 
         let base_pattern = Pattern::new(base).map_err(anyhow::Error::msg)?;
         let mut fallback_pattern = None;
@@ -455,6 +455,50 @@ mod tests {
             PatternWithFallback::new("abc/xyz.js").unwrap(),
             PatternWithFallback {
                 base: Pattern::new("abc/xyz.js").unwrap(),
+                fallback: None,
+            },
+        );
+
+        assert_eq!(
+            PatternWithFallback::new("/a bc/xyz").unwrap(),
+            PatternWithFallback {
+                base: Pattern::new("/a bc/xyz").unwrap(),
+                fallback: Some(Pattern::new("/a bc/xyz/**").unwrap()),
+            },
+        );
+        assert_eq!(
+            PatternWithFallback::new("/a bc/xyz/").unwrap(),
+            PatternWithFallback {
+                base: Pattern::new("/a bc/xyz/").unwrap(),
+                fallback: None,
+            },
+        );
+        assert_eq!(
+            PatternWithFallback::new("/a bc/xyz.js").unwrap(),
+            PatternWithFallback {
+                base: Pattern::new("/a bc/xyz.js").unwrap(),
+                fallback: None,
+            },
+        );
+
+        assert_eq!(
+            PatternWithFallback::new("/abc/x yz").unwrap(),
+            PatternWithFallback {
+                base: Pattern::new("/abc/x yz").unwrap(),
+                fallback: Some(Pattern::new("/abc/x yz/**").unwrap()),
+            },
+        );
+        assert_eq!(
+            PatternWithFallback::new("/abc/x yz/").unwrap(),
+            PatternWithFallback {
+                base: Pattern::new("/abc/x yz/").unwrap(),
+                fallback: None,
+            },
+        );
+        assert_eq!(
+            PatternWithFallback::new("/abc/x yz.js").unwrap(),
+            PatternWithFallback {
+                base: Pattern::new("/abc/x yz.js").unwrap(),
                 fallback: None,
             },
         );
