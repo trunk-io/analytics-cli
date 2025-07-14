@@ -60,7 +60,7 @@ impl BepParseResult {
                                 Some(Id::TestSummary(id)),
                             ) => {
                                 if let Result::Ok(test_runner_report) =
-                                    TestRunnerReport::try_from(&WrappedTestSummary {
+                                    TestRunnerReport::try_from(&LabelledTestSummary {
                                         test_summary,
                                         label: Some(id.label.clone()),
                                     })
@@ -165,15 +165,15 @@ impl BepParseResult {
     }
 }
 
-struct WrappedTestSummary<'a> {
+struct LabelledTestSummary<'a> {
     test_summary: &'a TestSummary,
     label: Option<String>,
 }
 
-impl<'a> TryFrom<&WrappedTestSummary<'a>> for TestRunnerReport {
+impl<'a> TryFrom<&LabelledTestSummary<'a>> for TestRunnerReport {
     type Error = anyhow::Error;
 
-    fn try_from(wrapped_test_summary: &WrappedTestSummary) -> Result<Self> {
+    fn try_from(wrapped_test_summary: &LabelledTestSummary) -> Result<Self> {
         Ok(Self {
             status: TestRunnerReportStatus::try_from(
                 wrapped_test_summary.test_summary.overall_status(),
