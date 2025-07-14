@@ -247,7 +247,7 @@ async fn upload_bundle_using_bep() {
                 assert!(junit_parser.issues().is_empty());
             });
             let report = junit_parser.into_reports().pop().unwrap();
-            let test_runner_report = file_set.test_runner_report.unwrap();
+            let test_runner_report = file_set.test_runner_report.clone().unwrap();
             assert_eq!(
                 test_runner_report.resolved_status,
                 TestRunnerReportStatus::Passed
@@ -263,6 +263,10 @@ async fn upload_bundle_using_bep() {
                     - (report.timestamp.unwrap().to_utc() + report.time.unwrap()))
                 .abs()
                     <= TimeDelta::milliseconds(1)
+            );
+            assert_eq!(
+                test_runner_report.resolved_label,
+                Some("//path:test".to_string())
             );
         });
 
@@ -431,7 +435,7 @@ async fn upload_bundle_success_status_code() {
                 assert!(junit_parser.parse(BufReader::new(junit_file)).is_ok());
                 assert!(junit_parser.issues().is_empty());
             });
-            let test_runner_report = file_set.test_runner_report.unwrap();
+            let test_runner_report = file_set.test_runner_report.clone().unwrap();
             assert_eq!(
                 test_runner_report.resolved_status,
                 TestRunnerReportStatus::Flaky
@@ -445,6 +449,10 @@ async fn upload_bundle_success_status_code() {
                 (test_runner_report.resolved_end_time_epoch_ms - test_result.end_time.to_utc())
                     .abs()
                     <= TimeDelta::milliseconds(1)
+            );
+            assert_eq!(
+                test_runner_report.resolved_label,
+                Some("//trunk/hello_world/cc:hello_test".to_string())
             );
         });
 
@@ -552,7 +560,7 @@ async fn upload_bundle_success_preceding_failure() {
                 assert!(junit_parser.parse(BufReader::new(junit_file)).is_ok());
                 assert!(junit_parser.issues().is_empty());
             });
-            let test_runner_report = file_set.test_runner_report.unwrap();
+            let test_runner_report = file_set.test_runner_report.clone().unwrap();
             assert_eq!(
                 test_runner_report.resolved_status,
                 TestRunnerReportStatus::Flaky
@@ -566,6 +574,10 @@ async fn upload_bundle_success_preceding_failure() {
                 (test_runner_report.resolved_end_time_epoch_ms - test_result.end_time.to_utc())
                     .abs()
                     <= TimeDelta::milliseconds(1)
+            );
+            assert_eq!(
+                test_runner_report.resolved_label,
+                Some("//trunk/hello_world/cc:hello_test".to_string())
             );
         });
 

@@ -350,9 +350,10 @@ fn validate_test_runner_report_overrides_timestamp() {
             end_time: start_time
                 .checked_add_signed(TimeDelta::minutes(1))
                 .unwrap(),
+            label: None,
         };
         let override_report_validation =
-            junit::validator::validate(&generated_report, Some(override_report));
+            junit::validator::validate(&generated_report, Some(override_report.clone()));
         pretty_assertions::assert_eq!(
             override_report_validation.all_issues(),
             &[
@@ -387,9 +388,10 @@ fn validate_test_runner_report_overrides_timestamp() {
             end_time: start_time
                 .checked_add_signed(TimeDelta::minutes(1))
                 .unwrap(),
+            label: None,
         };
         let override_report_validation =
-            junit::validator::validate(&generated_report, Some(override_report));
+            junit::validator::validate(&generated_report, Some(override_report.clone()));
         pretty_assertions::assert_eq!(
             override_report_validation.all_issues(),
             &[
@@ -424,9 +426,10 @@ fn validate_test_runner_report_overrides_timestamp() {
             end_time: start_time
                 .checked_add_signed(TimeDelta::minutes(1))
                 .unwrap(),
+            label: None,
         };
         let override_report_validation =
-            junit::validator::validate(&generated_report, Some(override_report));
+            junit::validator::validate(&generated_report, Some(override_report.clone()));
         pretty_assertions::assert_eq!(
             override_report_validation.all_issues(),
             &[
@@ -463,13 +466,16 @@ fn validate_test_runner_report_overrides_timestamp() {
             end_time: start_time
                 .checked_sub_signed(TimeDelta::minutes(1))
                 .unwrap(),
+            label: None,
         };
         let override_report_validation =
-            junit::validator::validate(&generated_report, Some(override_report));
+            junit::validator::validate(&generated_report, Some(override_report.clone()));
         pretty_assertions::assert_eq!(
             override_report_validation.test_runner_report.issues(),
             &[TestRunnerReportValidationIssue::SubOptimal(
-                TestRunnerReportValidationIssueSubOptimal::EndTimeBeforeStartTime(override_report)
+                TestRunnerReportValidationIssueSubOptimal::EndTimeBeforeStartTime(
+                    override_report.clone()
+                )
             ),],
             "failed to validate with seed `{}`",
             seed,
@@ -486,9 +492,10 @@ fn validate_test_runner_report_overrides_timestamp() {
             end_time: start_time
                 .checked_add_signed(TimeDelta::minutes(1))
                 .unwrap(),
+            label: None,
         };
         let override_report_validation =
-            junit::validator::validate(&generated_report, Some(override_report));
+            junit::validator::validate(&generated_report, Some(override_report.clone()));
         pretty_assertions::assert_eq!(
             override_report_validation.all_issues(),
             &[],
@@ -522,6 +529,7 @@ fn validate_test_runner_report_overrides_timestamp() {
             status: TestRunnerReportStatus::Passed,
             start_time,
             end_time,
+            label: None,
         };
         let test_case_timestamp = end_time
             .checked_add_signed(TimeDelta::minutes(1))
@@ -537,7 +545,7 @@ fn validate_test_runner_report_overrides_timestamp() {
                 });
             });
         let override_report_validation =
-            junit::validator::validate(&generated_report, Some(override_report));
+            junit::validator::validate(&generated_report, Some(override_report.clone()));
         pretty_assertions::assert_eq!(
             override_report_validation.all_issues(),
             &[

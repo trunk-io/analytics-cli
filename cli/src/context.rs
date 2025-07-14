@@ -253,7 +253,7 @@ pub fn generate_internal_file(
                             file.original_path.clone(),
                             Ok(validate(
                                 &reports[0],
-                                file_set.test_runner_report.map(|t| t.into()),
+                                file_set.test_runner_report.clone().map(|t| t.into()),
                             )),
                         );
                     }

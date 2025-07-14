@@ -83,7 +83,7 @@ pub fn validate(
     let mut report_validation = JunitReportValidation::default();
 
     let now = Utc::now().fixed_offset();
-    validate_test_runner_report(test_runner_report, now)
+    validate_test_runner_report(test_runner_report.clone(), now)
         .into_iter()
         .for_each(|i| {
             report_validation
@@ -178,7 +178,7 @@ pub fn validate(
                 test_case.timestamp,
                 test_suite.timestamp,
                 report.timestamp,
-                test_runner_report,
+                test_runner_report.clone(),
                 now,
             )
             .into_iter()
@@ -714,7 +714,7 @@ fn validate_test_case_timestamp(
         .or(report_timestamp)
     {
         let test_runner_report_start_time_override_timestamp_diff =
-            if let Some(test_runner_report) = test_runner_report {
+            if let Some(ref test_runner_report) = test_runner_report {
                 let ts_diff_from = report_timestamp
                     .or(test_suite_timestamp)
                     .unwrap_or(timestamp);
@@ -746,7 +746,7 @@ fn validate_test_case_timestamp(
             TimestampValidation::Valid => {}
         };
 
-        if let Some(test_runner_report) = test_runner_report {
+        if let Some(ref test_runner_report) = test_runner_report {
             if let TimestampValidation::Future(timestamp) =
                 validate_timestamp(timestamp, test_runner_report.start_time)
             {

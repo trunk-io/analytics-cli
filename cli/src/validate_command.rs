@@ -579,7 +579,7 @@ fn parse_file_sets(file_sets: &[FileSet]) -> JunitFileToReportAndParseIssues {
                                 (
                                     Err(anyhow::anyhow!(e)),
                                     Vec::new(),
-                                    file_set.test_runner_report,
+                                    file_set.test_runner_report.clone(),
                                 ),
                             );
                             return parse_results;
@@ -594,7 +594,7 @@ fn parse_file_sets(file_sets: &[FileSet]) -> JunitFileToReportAndParseIssues {
                             (
                                 Err(anyhow::anyhow!(e)),
                                 Vec::new(),
-                                file_set.test_runner_report,
+                                file_set.test_runner_report.clone(),
                             ),
                         );
                         return parse_results;
@@ -605,7 +605,7 @@ fn parse_file_sets(file_sets: &[FileSet]) -> JunitFileToReportAndParseIssues {
                     if parsed_reports.len() != 1 {
                         parse_results.insert(
                             bundled_file.get_print_path().to_string(),
-                            (Ok(None), parse_issues, file_set.test_runner_report),
+                            (Ok(None), parse_issues, file_set.test_runner_report.clone()),
                         );
                         return parse_results;
                     }
@@ -615,7 +615,7 @@ fn parse_file_sets(file_sets: &[FileSet]) -> JunitFileToReportAndParseIssues {
                         (
                             Ok(Some(parsed_reports.remove(0))),
                             Vec::new(),
-                            file_set.test_runner_report,
+                            file_set.test_runner_report.clone(),
                         ),
                     );
 
@@ -965,6 +965,7 @@ mod tests {
                     status: TestRunnerReportStatus::Passed,
                     start_time: DateTime::parse_from_rfc3339("2025-05-16T19:27:25.037Z").unwrap().to_utc(),
                     end_time: DateTime::parse_from_rfc3339("2025-05-16T19:27:27.605Z").unwrap().to_utc(),
+                    label: Some("//trunk/hello_world/bazel_pnpm:test".into()),
                 }),
             },
             JunitReportFileWithTestRunnerReport {
@@ -973,6 +974,7 @@ mod tests {
                     status: TestRunnerReportStatus::Passed,
                     start_time: DateTime::parse_from_rfc3339("2025-05-16T19:29:32.732Z").unwrap().to_utc(),
                     end_time: DateTime::parse_from_rfc3339("2025-05-16T19:29:32.853Z").unwrap().to_utc(),
+                    label: Some("//trunk/hello_world/cc:hello_test".into()),
                 }),
             },
             JunitReportFileWithTestRunnerReport {
@@ -981,6 +983,7 @@ mod tests {
                     status: TestRunnerReportStatus::Passed,
                     start_time: DateTime::parse_from_rfc3339("2025-05-16T19:32:32.180Z").unwrap().to_utc(),
                     end_time: DateTime::parse_from_rfc3339("2025-05-16T19:32:34.697Z").unwrap().to_utc(),
+                    label: Some("//trunk/hello_world/ts_proto:test".into()),
                 }),
             },
             JunitReportFileWithTestRunnerReport {
@@ -989,6 +992,7 @@ mod tests {
                     status: TestRunnerReportStatus::Passed,
                     start_time: DateTime::parse_from_rfc3339("2025-05-16T19:32:31.748Z").unwrap().to_utc(),
                     end_time: DateTime::parse_from_rfc3339("2025-05-16T19:32:34.797Z").unwrap().to_utc(),
+                    label: Some("//trunk/hello_world/ts_grpc:test".into()),
                 }),
             },
             JunitReportFileWithTestRunnerReport {
@@ -997,6 +1001,7 @@ mod tests {
                     status: TestRunnerReportStatus::Passed,
                     start_time: DateTime::parse_from_rfc3339("2025-05-16T19:33:01.680Z").unwrap().to_utc(),
                     end_time: DateTime::parse_from_rfc3339("2025-05-16T19:33:01.806Z").unwrap().to_utc(),
+                    label: Some("//trunk/hello_world/cdk:lib_typecheck_test".into()),
                 }),
             },
             JunitReportFileWithTestRunnerReport {
@@ -1005,6 +1010,7 @@ mod tests {
                     status: TestRunnerReportStatus::Passed,
                     start_time: DateTime::parse_from_rfc3339("2025-05-16T19:32:52.714Z").unwrap().to_utc(),
                     end_time: DateTime::parse_from_rfc3339("2025-05-16T19:33:17.945Z").unwrap().to_utc(),
+                    label: Some("//trunk/hello_world/prisma/app:test".into()),
                 }),
             },
             JunitReportFileWithTestRunnerReport {
@@ -1013,6 +1019,7 @@ mod tests {
                     status: TestRunnerReportStatus::Passed,
                     start_time: DateTime::parse_from_rfc3339("2025-05-16T19:35:16.934Z").unwrap().to_utc(),
                     end_time: DateTime::parse_from_rfc3339("2025-05-16T19:35:19.361Z").unwrap().to_utc(),
+                    label: Some("//trunk/hello_world/cc_grpc:client_test".into()),
                 }),
             },
             JunitReportFileWithTestRunnerReport {
@@ -1021,11 +1028,13 @@ mod tests {
                     status: TestRunnerReportStatus::Passed,
                     start_time: DateTime::parse_from_rfc3339("2025-05-16T19:35:16.929Z").unwrap().to_utc(),
                     end_time: DateTime::parse_from_rfc3339("2025-05-16T19:35:19.383Z").unwrap().to_utc(),
+                    label: Some("//trunk/hello_world/cc_grpc:server_test".into()),
                 }),
             }
         ];
         actual.sort_by_key(|item| item.junit_path.clone());
         expected.sort_by_key(|item| item.junit_path.clone());
+        println!("actual: {:#?}", actual);
         assert_eq!(actual, expected);
         assert_eq!(actual_bep.map(|bep| bep.errors), Some(Vec::new()));
     }
