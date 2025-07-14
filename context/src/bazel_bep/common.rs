@@ -60,7 +60,10 @@ impl BepParseResult {
                                 Some(Id::TestSummary(id)),
                             ) => {
                                 if let Result::Ok(test_runner_report) =
-                                    TestRunnerReport::try_from(test_summary)
+                                    TestRunnerReport::try_from(&LabelledTestSummary {
+                                        test_summary,
+                                        label: Some(id.label.clone()),
+                                    })
                                 {
                                     acc.test_runner_reports
                                         .insert(id.label.clone(), test_runner_report);
@@ -152,7 +155,7 @@ impl BepParseResult {
                         .iter()
                         .map(|f| JunitReportFileWithTestRunnerReport {
                             junit_path: f.clone(),
-                            test_runner_report: r.test_runner_report,
+                            test_runner_report: r.test_runner_report.clone(),
                         })
                         .collect::<Vec<_>>(),
                 )
@@ -162,13 +165,21 @@ impl BepParseResult {
     }
 }
 
-impl TryFrom<&TestSummary> for TestRunnerReport {
+struct LabelledTestSummary<'a> {
+    test_summary: &'a TestSummary,
+    label: Option<String>,
+}
+
+impl<'a> TryFrom<&LabelledTestSummary<'a>> for TestRunnerReport {
     type Error = anyhow::Error;
 
-    fn try_from(test_summary: &TestSummary) -> Result<Self> {
+    fn try_from(wrapped_test_summary: &LabelledTestSummary) -> Result<Self> {
         Ok(Self {
-            status: TestRunnerReportStatus::try_from(test_summary.overall_status())?,
-            start_time: test_summary
+            status: TestRunnerReportStatus::try_from(
+                wrapped_test_summary.test_summary.overall_status(),
+            )?,
+            start_time: wrapped_test_summary
+                .test_summary
                 .first_start_time
                 .clone()
                 .ok_or(anyhow::anyhow!("No start time"))
@@ -176,7 +187,8 @@ impl TryFrom<&TestSummary> for TestRunnerReport {
                     DateTime::try_from(ts)
                         .map_err(|e| anyhow::anyhow!("Failed to convert start time: {}", e))
                 })?,
-            end_time: test_summary
+            end_time: wrapped_test_summary
+                .test_summary
                 .last_stop_time
                 .clone()
                 .ok_or(anyhow::anyhow!("No end time"))
@@ -184,6 +196,7 @@ impl TryFrom<&TestSummary> for TestRunnerReport {
                     DateTime::try_from(ts)
                         .map_err(|e| anyhow::anyhow!("Failed to convert end time: {}", e))
                 })?,
+            label: wrapped_test_summary.label.clone(),
         })
     }
 }

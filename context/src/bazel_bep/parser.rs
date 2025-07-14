@@ -98,6 +98,7 @@ mod tests {
                         end_time: DateTime::parse_from_rfc3339("2024-12-02T20:27:17.627Z")
                             .unwrap()
                             .into(),
+                        label: Some("//trunk/hello_world/cc:hello_test".into())
                     })
                 },
                 JunitReportFileWithTestRunnerReport {
@@ -110,6 +111,7 @@ mod tests {
                         end_time: DateTime::parse_from_rfc3339("2024-12-02T20:50:02.100Z")
                             .unwrap()
                             .into(),
+                        label: Some("//trunk/hello_world/cc_grpc:client_test".into())
                     })
                 }
             ]
@@ -140,6 +142,7 @@ mod tests {
                         end_time: DateTime::parse_from_rfc3339("2024-12-17T04:10:55.466Z")
                             .unwrap()
                             .into(),
+                        label: Some("//trunk/hello_world/cc:hello_test".into())
                     })
                 },
                 JunitReportFileWithTestRunnerReport {
@@ -152,6 +155,7 @@ mod tests {
                         end_time: DateTime::parse_from_rfc3339("2024-12-17T04:10:55.466Z")
                             .unwrap()
                             .into(),
+                        label: Some("//trunk/hello_world/cc:hello_test".into())
                     })
                 },
                 JunitReportFileWithTestRunnerReport {
@@ -164,6 +168,7 @@ mod tests {
                         end_time: DateTime::parse_from_rfc3339("2024-12-17T04:10:55.466Z")
                             .unwrap()
                             .into(),
+                        label: Some("//trunk/hello_world/cc:hello_test".into())
                     })
                 },
                 JunitReportFileWithTestRunnerReport {
@@ -176,6 +181,7 @@ mod tests {
                         end_time: DateTime::parse_from_rfc3339("2024-12-17T04:10:56.383Z")
                             .unwrap()
                             .into(),
+                        label: Some("//trunk/hello_world/cc_grpc:client_test".into())
                     })
                 }
             ]

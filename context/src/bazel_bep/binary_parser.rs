@@ -69,6 +69,7 @@ mod tests {
             status: TestRunnerReportStatus::Passed,
             start_time: DateTime::parse_from_rfc3339("2025-05-16T19:27:25.037Z").unwrap().into(),
             end_time: DateTime::parse_from_rfc3339("2025-05-16T19:27:27.605Z").unwrap().into(),
+            label: Some("//trunk/hello_world/bazel_pnpm:test".into())
           })
         },
         JunitReportFileWithTestRunnerReport {
@@ -77,6 +78,7 @@ mod tests {
             status: TestRunnerReportStatus::Passed,
             start_time: DateTime::parse_from_rfc3339("2025-05-16T19:29:32.732Z").unwrap().into(),
             end_time: DateTime::parse_from_rfc3339("2025-05-16T19:29:32.853Z").unwrap().into(),
+            label: Some("//trunk/hello_world/cc:hello_test".into()),
           })
         },
         JunitReportFileWithTestRunnerReport {
@@ -85,6 +87,7 @@ mod tests {
             status: TestRunnerReportStatus::Passed,
             start_time: DateTime::parse_from_rfc3339("2025-05-16T19:32:32.180Z").unwrap().into(),
             end_time: DateTime::parse_from_rfc3339("2025-05-16T19:32:34.697Z").unwrap().into(),
+            label: Some("//trunk/hello_world/ts_proto:test".into()),
           })
         },
         JunitReportFileWithTestRunnerReport {
@@ -93,6 +96,7 @@ mod tests {
             status: TestRunnerReportStatus::Passed,
             start_time: DateTime::parse_from_rfc3339("2025-05-16T19:32:31.748Z").unwrap().into(),
             end_time: DateTime::parse_from_rfc3339("2025-05-16T19:32:34.797Z").unwrap().into(),
+            label: Some("//trunk/hello_world/ts_grpc:test".into()),
           })
         },
         JunitReportFileWithTestRunnerReport {
@@ -101,6 +105,7 @@ mod tests {
             status: TestRunnerReportStatus::Passed,
             start_time: DateTime::parse_from_rfc3339("2025-05-16T19:33:01.680Z").unwrap().into(),
             end_time: DateTime::parse_from_rfc3339("2025-05-16T19:33:01.806Z").unwrap().into(),
+            label: Some("//trunk/hello_world/cdk:lib_typecheck_test".into()),
           })
         },
         JunitReportFileWithTestRunnerReport {
@@ -109,6 +114,7 @@ mod tests {
             status: TestRunnerReportStatus::Passed,
             start_time: DateTime::parse_from_rfc3339("2025-05-16T19:32:52.714Z").unwrap().into(),
             end_time: DateTime::parse_from_rfc3339("2025-05-16T19:33:17.945Z").unwrap().into(),
+            label: Some("//trunk/hello_world/prisma/app:test".into()),
           })
         },
         JunitReportFileWithTestRunnerReport {
@@ -117,6 +123,7 @@ mod tests {
             status: TestRunnerReportStatus::Passed,
             start_time: DateTime::parse_from_rfc3339("2025-05-16T19:35:16.934Z").unwrap().into(),
             end_time: DateTime::parse_from_rfc3339("2025-05-16T19:35:19.361Z").unwrap().into(),
+            label: Some("//trunk/hello_world/cc_grpc:client_test".into()),
           })
         },
         JunitReportFileWithTestRunnerReport {
@@ -125,6 +132,7 @@ mod tests {
             status: TestRunnerReportStatus::Passed,
             start_time: DateTime::parse_from_rfc3339("2025-05-16T19:35:16.929Z").unwrap().into(),
             end_time: DateTime::parse_from_rfc3339("2025-05-16T19:35:19.383Z").unwrap().into(),
+            label: Some("//trunk/hello_world/cc_grpc:server_test".into()),
           })
         }
       ]
