@@ -194,23 +194,38 @@ pub struct PatternWithFallback {
 
 impl PatternWithFallback {
     pub fn new(base: &str) -> anyhow::Result<Self> {
-        // Matches anything that ends with neither a slash nor a period nor an asterisk,
-        // see test pattern_with_fallback for cases
-        static FALLBACK_NEEDED_REGEX: Lazy<Regex> =
-            Lazy::new(|| Regex::new(r"^\/?(.*\/)*((\.?)[^\/\.\*]+)$").unwrap());
+        let result = if base.ends_with("**") && !base.ends_with("/**") && base.len() > 2 {
+            let un_wildcarded = base.strip_suffix("**").unwrap_or(base);
+            let base_pattern =
+                Pattern::new(format!("{}*", un_wildcarded).as_str()).map_err(anyhow::Error::msg)?;
+            let fallback_pattern = Pattern::new(format!("{}*/**", un_wildcarded).as_str())
+                .map_err(anyhow::Error::msg)?;
 
-        let base_pattern = Pattern::new(base).map_err(anyhow::Error::msg)?;
-        let mut fallback_pattern = None;
-        if FALLBACK_NEEDED_REGEX.is_match(base) {
-            let mut subdir_match = base.to_string();
-            subdir_match.push_str("/**");
-            fallback_pattern = Pattern::new(&subdir_match).ok();
-        }
+            Self {
+                base: base_pattern,
+                fallback: Some(fallback_pattern),
+            }
+        } else {
+            // Matches anything that ends with neither a slash nor a period nor an asterisk,
+            // see test pattern_with_fallback for cases
+            static FALLBACK_NEEDED_REGEX: Lazy<Regex> =
+                Lazy::new(|| Regex::new(r"^\/?(.*\/)*((\.?)[^\/\.\*]+)$").unwrap());
 
-        Ok(Self {
-            base: base_pattern,
-            fallback: fallback_pattern,
-        })
+            let base_pattern = Pattern::new(base).map_err(anyhow::Error::msg)?;
+            let mut fallback_pattern = None;
+            if FALLBACK_NEEDED_REGEX.is_match(base) {
+                let mut subdir_match = base.to_string();
+                subdir_match.push_str("/**");
+                fallback_pattern = Pattern::new(&subdir_match).ok();
+            }
+
+            Self {
+                base: base_pattern,
+                fallback: fallback_pattern,
+            }
+        };
+
+        Ok(result)
     }
 
     pub fn matches_path_with(&self, path: &Path, options: MatchOptions) -> bool {
@@ -499,6 +514,30 @@ mod tests {
             PatternWithFallback::new("/abc/x yz.js").unwrap(),
             PatternWithFallback {
                 base: Pattern::new("/abc/x yz.js").unwrap(),
+                fallback: None,
+            },
+        );
+
+        assert_eq!(
+            PatternWithFallback::new("/abc**").unwrap(),
+            PatternWithFallback {
+                base: Pattern::new("/abc*").unwrap(),
+                fallback: Some(Pattern::new("/abc*/**").unwrap()),
+            },
+        );
+
+        assert_eq!(
+            PatternWithFallback::new("/**").unwrap(),
+            PatternWithFallback {
+                base: Pattern::new("/**").unwrap(),
+                fallback: None,
+            },
+        );
+
+        assert_eq!(
+            PatternWithFallback::new("**").unwrap(),
+            PatternWithFallback {
+                base: Pattern::new("**").unwrap(),
                 fallback: None,
             },
         );
