@@ -170,7 +170,7 @@ impl BindingsOwners {
     }
 }
 
-fn associate_codeowners<T: AsRef<Path>>(owners: &Owners, file: T) -> Vec<String> {
+pub fn associate_codeowners<T: AsRef<Path>>(owners: &Owners, file: T) -> Vec<String> {
     match owners {
         Owners::GitHubOwners(gho) => gho
             .of(file)
