@@ -259,20 +259,20 @@ where
 mod tests {
     use super::*;
 
-    fn make_codeowners_bytes(i: usize) -> CodeOwnersFile {
+    fn make_codeowners_bytes(i: usize, owners_source: Option<OwnersSource>) -> CodeOwnersFile {
         CodeOwnersFile {
             bytes: format!("{i}.txt @user{i}").into_bytes(),
-            owners_source: OwnersSource::Unknown,
+            owners_source: owners_source.unwrap_or(OwnersSource::Unknown),
         }
     }
 
     #[tokio::test]
-    pub async fn test_multithreaded_parsing_and_association() {
+    pub async fn test_multithreaded_parsing_and_association_default() {
         let num_codeowners_files = 100;
         let num_files_to_associate_owners = 1000;
 
         let codeowners_files: Vec<CodeOwnersFile> = (0..num_codeowners_files)
-            .map(make_codeowners_bytes)
+            .map(|i| make_codeowners_bytes(i, None))
             .collect();
 
         let codeowners_matchers = CodeOwners::parse_many_multithreaded(codeowners_files)
@@ -311,6 +311,61 @@ mod tests {
             } else {
                 assert_eq!(owners.len(), 0);
             }
+        }
+    }
+
+    #[tokio::test]
+    pub async fn test_multithreaded_parsing_and_association_specified() {
+        let num_codeowners_files = 100;
+        let num_files_to_associate_owners = 1000;
+
+        let codeowners_files = (0..num_codeowners_files)
+            .map(|i| {
+                // use syntax specific to each codeowners file type
+                if i % 2 == 0 {
+                    CodeOwnersFile {
+                        bytes: format!("{i}.txt** @user{i}").into_bytes(),
+                        owners_source: OwnersSource::GitHub,
+                    }
+                } else {
+                    CodeOwnersFile {
+                        bytes: format!("^[User{i}] @user{i}\n{i}.txt").into_bytes(),
+                        owners_source: OwnersSource::GitLab,
+                    }
+                }
+            })
+            .collect();
+
+        let codeowners_matchers = CodeOwners::parse_many_multithreaded(codeowners_files)
+            .await
+            .unwrap();
+
+        let to_associate: Vec<(Arc<Owners>, String)> = (0..num_files_to_associate_owners)
+            .map(|i| {
+                let file_prefix = i % num_codeowners_files;
+                let file = format!("{file_prefix}.txt");
+                (
+                    Arc::new(
+                        codeowners_matchers[i % num_codeowners_files]
+                            .owners
+                            .clone()
+                            .unwrap(),
+                    ),
+                    file,
+                )
+            })
+            .collect();
+
+        let owners = crate::associate_codeowners_multithreaded(to_associate)
+            .await
+            .unwrap();
+
+        assert_eq!(owners.len(), num_files_to_associate_owners);
+        for (i, owners) in owners.iter().enumerate() {
+            println!("i: {i}, owners: {:?}", owners);
+            assert_eq!(owners.len(), 1);
+            let user_id = i % num_codeowners_files;
+            assert_eq!(owners[0], format!("@user{user_id}"));
         }
     }
 }

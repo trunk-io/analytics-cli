@@ -479,5 +479,7 @@ fn context_py(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(parse_many_codeowners_n_threads, m)?)?;
     m.add_function(wrap_pyfunction!(make_codeowners_file, m)?)?;
 
+    m.add_class::<codeowners::CodeOwnersFile>()?;
+
     Ok(())
 }
