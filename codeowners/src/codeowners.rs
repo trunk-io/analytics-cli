@@ -80,7 +80,6 @@ pub fn flatten_code_owners(codeowners: &CodeOwners, file: &String) -> Vec<String
 }
 
 impl CodeOwners {
-    // used by cli for finding CODEOWNERS file during validation invocations
     pub fn find_file<T: AsRef<Path>, U: AsRef<Path>>(
         repo_root: T,
         codeowners_path_cli_option: &Option<U>,
@@ -362,7 +361,6 @@ mod tests {
 
         assert_eq!(owners.len(), num_files_to_associate_owners);
         for (i, owners) in owners.iter().enumerate() {
-            println!("i: {i}, owners: {:?}", owners);
             assert_eq!(owners.len(), 1);
             let user_id = i % num_codeowners_files;
             assert_eq!(owners[0], format!("@user{user_id}"));

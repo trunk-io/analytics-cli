@@ -158,7 +158,7 @@ def test_parse_and_associate_multithreaded():
     )
 
     def make_codeowners_bytes(i: int) -> bytes:
-        return make_codeowners_file(f"{i}.txt @user{i}".encode(), "unknown")
+        return make_codeowners_file(f"{i}.txt @user{i}".encode())
 
     num_codeowners_files = 100
     num_files_to_associate_owners = 1000
