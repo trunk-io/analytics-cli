@@ -5,8 +5,8 @@ use bundle::{
     parse_meta as parse_meta_impl, parse_meta_from_tarball as parse_meta_from_tarball_impl,
 };
 use codeowners::{
-    associate_codeowners_multithreaded as associate_codeowners, BindingsOwners, CodeOwners, Owners,
-    OwnersKind,
+    associate_codeowners_multithreaded as associate_codeowners, BindingsOwners, CodeOwners,
+    CodeOwnersFile, Owners, OwnersSource,
 };
 use context::{
     env,
@@ -41,6 +41,16 @@ fn env_parse(
     env_parser
         .into_ci_info_parser()
         .map(|ci_info_parser| ci_info_parser.info_ci_info())
+}
+
+#[gen_stub_pyfunction]
+#[pyfunction]
+#[pyo3(signature = (bytes, owners_source=None))]
+pub fn make_codeowners_file(bytes: Vec<u8>, owners_source: Option<&str>) -> CodeOwnersFile {
+    CodeOwnersFile {
+        bytes,
+        owners_source: parse_owners_source(owners_source),
+    }
 }
 
 #[gen_stub_pyfunction]
@@ -225,70 +235,67 @@ fn meta_validation_level_to_string(
 
 #[gen_stub_pyfunction]
 #[pyfunction]
+#[pyo3(signature = (codeowners_bytes, owners_source_str=None))]
 fn codeowners_parse(
     codeowners_bytes: Vec<u8>,
-    owners_kind_str: Option<&str>,
+    owners_source_str: Option<&str>,
 ) -> PyResult<BindingsOwners> {
-    let codeowners = CodeOwners::parse(codeowners_bytes, &parse_owners_kind(owners_kind_str));
+    let codeowners = CodeOwners::parse(codeowners_bytes, &parse_owners_source(owners_source_str));
     match codeowners.owners {
         Some(owners) => Ok(BindingsOwners(owners)),
         None => Err(PyTypeError::new_err("Failed to parse CODEOWNERS file")),
     }
 }
 
-fn parse_owners_kind(s: Option<&str>) -> OwnersKind {
+fn parse_owners_source(s: Option<&str>) -> OwnersSource {
     if let Some(s) = s {
         match s.to_lowercase().as_str() {
-            "github" => OwnersKind::GitHub,
-            "gitlab" => OwnersKind::GitLab,
-            _ => OwnersKind::Unknown,
+            "github" => OwnersSource::GitHub,
+            "gitlab" => OwnersSource::GitLab,
+            _ => OwnersSource::Unknown,
         }
     } else {
-        OwnersKind::Unknown
+        OwnersSource::Unknown
     }
 }
 
 #[gen_stub_pyfunction]
 #[pyfunction]
 fn parse_many_codeowners_n_threads(
-    to_parse: Vec<Option<Vec<u8>>>,
+    to_parse: Vec<Option<CodeOwnersFile>>,
     num_threads: usize,
-    owners_kind_str: Option<&str>,
 ) -> PyResult<Vec<Option<BindingsOwners>>> {
     let rt = tokio::runtime::Builder::new_multi_thread()
         .worker_threads(num_threads)
         .enable_all()
         .build()?;
-    parse_many_codeowners_multithreaded_impl(rt, to_parse, parse_owners_kind(owners_kind_str))
+    parse_many_codeowners_multithreaded_impl(rt, to_parse)
 }
 
 #[gen_stub_pyfunction]
 #[pyfunction]
 fn parse_many_codeowners_multithreaded(
-    to_parse: Vec<Option<Vec<u8>>>,
-    owners_kind_str: Option<&str>,
+    to_parse: Vec<Option<CodeOwnersFile>>,
 ) -> PyResult<Vec<Option<BindingsOwners>>> {
     let rt = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()?;
-    parse_many_codeowners_multithreaded_impl(rt, to_parse, parse_owners_kind(owners_kind_str))
+    parse_many_codeowners_multithreaded_impl(rt, to_parse)
 }
 
 fn parse_many_codeowners_multithreaded_impl(
     rt: tokio::runtime::Runtime,
-    to_parse: Vec<Option<Vec<u8>>>,
-    owners_kind: OwnersKind,
+    to_parse: Vec<Option<CodeOwnersFile>>,
 ) -> PyResult<Vec<Option<BindingsOwners>>> {
     let to_parse_len = to_parse.len();
     let parsed_indexes = to_parse
         .iter()
         .enumerate()
-        .filter_map(|(i, bytes)| -> Option<usize> { bytes.as_ref().map(|_bytes| i) })
+        .filter_map(|(i, file)| -> Option<usize> { file.as_ref().map(|_file| i) })
         .collect::<Vec<_>>();
     let parsed_codeowners = rt
         .block_on(CodeOwners::parse_many_multithreaded(
             to_parse.into_iter().flatten().collect(),
-            owners_kind,
         ))
         .map_err(|err| PyTypeError::new_err(err.to_string()))?;
 
@@ -470,6 +477,7 @@ fn context_py(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(associate_codeowners_n_threads, m)?)?;
     m.add_function(wrap_pyfunction!(parse_many_codeowners_multithreaded, m)?)?;
     m.add_function(wrap_pyfunction!(parse_many_codeowners_n_threads, m)?)?;
+    m.add_function(wrap_pyfunction!(make_codeowners_file, m)?)?;
 
     Ok(())
 }

@@ -35,13 +35,20 @@ pub struct CodeOwners {
     pub owners: Option<Owners>,
 }
 
-#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq)]
 #[cfg_attr(feature = "pyo3", pyclass(eq, eq_int))]
 #[cfg_attr(feature = "wasm", derive(Tsify))]
-pub enum OwnersKind {
+pub enum OwnersSource {
     Unknown,
     GitHub,
     GitLab,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass)]
+pub struct CodeOwnersFile {
+    pub bytes: Vec<u8>,
+    pub owners_source: OwnersSource,
 }
 
 pub fn flatten_code_owners(codeowners: &CodeOwners, file: &String) -> Vec<String> {
@@ -119,15 +126,15 @@ impl CodeOwners {
     // TODO(TRUNK-13783): take in origin path and parse CODEOWNERS based on location
     // which informs which parser to use (GitHub or GitLab)
     // used by etl
-    pub fn parse(codeowners: Vec<u8>, owners_kind: &OwnersKind) -> Self {
-        let owners_result = match owners_kind {
-            OwnersKind::GitHub => {
+    pub fn parse(codeowners: Vec<u8>, owners_source: &OwnersSource) -> Self {
+        let owners_result = match owners_source {
+            OwnersSource::GitHub => {
                 GitHubOwners::from_reader(codeowners.as_slice()).map(Owners::GitHubOwners)
             }
-            OwnersKind::GitLab => {
+            OwnersSource::GitLab => {
                 GitLabOwners::from_reader(codeowners.as_slice()).map(Owners::GitLabOwners)
             }
-            OwnersKind::Unknown => GitLabOwners::from_reader(codeowners.as_slice())
+            OwnersSource::Unknown => GitLabOwners::from_reader(codeowners.as_slice())
                 .map(Owners::GitLabOwners)
                 .or_else(|_| {
                     GitHubOwners::from_reader(codeowners.as_slice()).map(Owners::GitHubOwners)
@@ -139,16 +146,21 @@ impl CodeOwners {
         }
     }
 
-    pub async fn parse_many_multithreaded(
-        to_parse: Vec<Vec<u8>>,
-        owners_kind: OwnersKind,
-    ) -> Result<Vec<Self>> {
+    pub async fn parse_many_multithreaded(to_parse: Vec<CodeOwnersFile>) -> Result<Vec<Self>> {
         let tasks = to_parse
             .into_iter()
             .enumerate()
-            .map(|(i, codeowners_bytes)| {
-                task::spawn(async move { (i, Self::parse(codeowners_bytes, &owners_kind)) })
-            })
+            .map(
+                |(
+                    i,
+                    CodeOwnersFile {
+                        bytes,
+                        owners_source,
+                    },
+                )| {
+                    task::spawn(async move { (i, Self::parse(bytes, &owners_source)) })
+                },
+            )
             .collect::<Vec<_>>();
 
         let mut results = vec![None; tasks.len()];
@@ -247,8 +259,11 @@ where
 mod tests {
     use super::*;
 
-    fn make_codeowners_bytes(i: usize) -> Vec<u8> {
-        format!("{i}.txt @user{i}").into_bytes()
+    fn make_codeowners_bytes(i: usize) -> CodeOwnersFile {
+        CodeOwnersFile {
+            bytes: format!("{i}.txt @user{i}").into_bytes(),
+            owners_source: OwnersSource::Unknown,
+        }
     }
 
     #[tokio::test]
@@ -256,14 +271,13 @@ mod tests {
         let num_codeowners_files = 100;
         let num_files_to_associate_owners = 1000;
 
-        let codeowners_files: Vec<Vec<u8>> = (0..num_codeowners_files)
+        let codeowners_files: Vec<CodeOwnersFile> = (0..num_codeowners_files)
             .map(make_codeowners_bytes)
             .collect();
 
-        let codeowners_matchers =
-            CodeOwners::parse_many_multithreaded(codeowners_files, OwnersKind::GitHub)
-                .await
-                .unwrap();
+        let codeowners_matchers = CodeOwners::parse_many_multithreaded(codeowners_files)
+            .await
+            .unwrap();
 
         let to_associate: Vec<(Arc<Owners>, String)> = (0..num_files_to_associate_owners)
             .map(|i| {
