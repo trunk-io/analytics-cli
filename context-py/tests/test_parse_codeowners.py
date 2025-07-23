@@ -152,12 +152,15 @@ def test_parse_codeowners_from_bytes_gitlab_sections():
 
 def test_parse_and_associate_multithreaded():
     from context_py import (
+        make_codeowners_file,  # trunk-ignore(pyright/reportUnknownVariableType)
+    )
+    from context_py import (
+        CodeOwnersFile,
         associate_codeowners_n_threads,
-        make_codeowners_file,
         parse_many_codeowners_n_threads,
     )
 
-    def make_codeowners_bytes(i: int) -> bytes:
+    def make_codeowners_bytes(i: int) -> CodeOwnersFile:
         return make_codeowners_file(f"{i}.txt @user{i}".encode())
 
     num_codeowners_files = 100
