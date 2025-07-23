@@ -2,7 +2,7 @@ def test_parse_codeowners_from_bytes_basic():
     from context_py import codeowners_parse
 
     codeowners_text = b"""* @trunk/test"""
-    codeowners = codeowners_parse(codeowners_text)
+    codeowners = codeowners_parse(codeowners_text, "GITLAB")
 
     assert codeowners is not None
 
@@ -42,7 +42,7 @@ def test_parse_codeowners_from_bytes_gitlab_sections():
         README.md  @gl-docs
         model/db   @gl-docs
     """
-    codeowners = codeowners_parse(codeowners_text)
+    codeowners = codeowners_parse(codeowners_text, "GITLAB")
 
     assert codeowners is not None
 
@@ -125,7 +125,7 @@ def test_parse_codeowners_from_bytes_gitlab_sections():
         [DOCUMENTATION]
         README.md  @docs
     """
-    codeowners = codeowners_parse(codeowners_text)
+    codeowners = codeowners_parse(codeowners_text, "GITLAB")
 
     assert codeowners is not None
 
@@ -174,7 +174,9 @@ def test_parse_and_associate_multithreaded():
         for i in range(0, num_files_to_associate_owners)
     ]
 
-    parsed_codeowners = parse_many_codeowners_n_threads(codeowners_files, num_threads)
+    parsed_codeowners = parse_many_codeowners_n_threads(
+        codeowners_files, num_threads, "GITHUB"
+    )
     codeowners_matchers = {
         f"{i}": codeowners_matcher
         for i, codeowners_matcher in enumerate(parsed_codeowners)

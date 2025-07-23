@@ -5,7 +5,7 @@ mod traits;
 
 pub use codeowners::{
     associate_codeowners, associate_codeowners_multithreaded, flatten_code_owners, BindingsOwners,
-    CodeOwners, Owners,
+    CodeOwners, Owners, OwnersKind,
 };
 pub use github::{BindingsGitHubOwners, GitHubOwner, GitHubOwners};
 pub use gitlab::{BindingsGitLabOwners, GitLabOwner, GitLabOwners};

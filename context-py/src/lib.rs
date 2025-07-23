@@ -6,6 +6,7 @@ use bundle::{
 };
 use codeowners::{
     associate_codeowners_multithreaded as associate_codeowners, BindingsOwners, CodeOwners, Owners,
+    OwnersKind,
 };
 use context::{
     env,
@@ -224,11 +225,26 @@ fn meta_validation_level_to_string(
 
 #[gen_stub_pyfunction]
 #[pyfunction]
-fn codeowners_parse(codeowners_bytes: Vec<u8>) -> PyResult<BindingsOwners> {
-    let codeowners = CodeOwners::parse(codeowners_bytes);
+fn codeowners_parse(
+    codeowners_bytes: Vec<u8>,
+    owners_kind_str: Option<&str>,
+) -> PyResult<BindingsOwners> {
+    let codeowners = CodeOwners::parse(codeowners_bytes, &parse_owners_kind(owners_kind_str));
     match codeowners.owners {
         Some(owners) => Ok(BindingsOwners(owners)),
         None => Err(PyTypeError::new_err("Failed to parse CODEOWNERS file")),
+    }
+}
+
+fn parse_owners_kind(s: Option<&str>) -> OwnersKind {
+    if let Some(s) = s {
+        match s.to_lowercase().as_str() {
+            "github" => OwnersKind::GitHub,
+            "gitlab" => OwnersKind::GitLab,
+            _ => OwnersKind::Unknown,
+        }
+    } else {
+        OwnersKind::Unknown
     }
 }
 
@@ -237,28 +253,31 @@ fn codeowners_parse(codeowners_bytes: Vec<u8>) -> PyResult<BindingsOwners> {
 fn parse_many_codeowners_n_threads(
     to_parse: Vec<Option<Vec<u8>>>,
     num_threads: usize,
+    owners_kind_str: Option<&str>,
 ) -> PyResult<Vec<Option<BindingsOwners>>> {
     let rt = tokio::runtime::Builder::new_multi_thread()
         .worker_threads(num_threads)
         .enable_all()
         .build()?;
-    parse_many_codeowners_multithreaded_impl(rt, to_parse)
+    parse_many_codeowners_multithreaded_impl(rt, to_parse, parse_owners_kind(owners_kind_str))
 }
 
 #[gen_stub_pyfunction]
 #[pyfunction]
 fn parse_many_codeowners_multithreaded(
     to_parse: Vec<Option<Vec<u8>>>,
+    owners_kind_str: Option<&str>,
 ) -> PyResult<Vec<Option<BindingsOwners>>> {
     let rt = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()?;
-    parse_many_codeowners_multithreaded_impl(rt, to_parse)
+    parse_many_codeowners_multithreaded_impl(rt, to_parse, parse_owners_kind(owners_kind_str))
 }
 
 fn parse_many_codeowners_multithreaded_impl(
     rt: tokio::runtime::Runtime,
     to_parse: Vec<Option<Vec<u8>>>,
+    owners_kind: OwnersKind,
 ) -> PyResult<Vec<Option<BindingsOwners>>> {
     let to_parse_len = to_parse.len();
     let parsed_indexes = to_parse
@@ -269,6 +288,7 @@ fn parse_many_codeowners_multithreaded_impl(
     let parsed_codeowners = rt
         .block_on(CodeOwners::parse_many_multithreaded(
             to_parse.into_iter().flatten().collect(),
+            owners_kind,
         ))
         .map_err(|err| PyTypeError::new_err(err.to_string()))?;
 
