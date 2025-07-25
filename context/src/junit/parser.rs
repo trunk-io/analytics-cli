@@ -756,6 +756,10 @@ mod parse_attr {
         parse_string_attr(e, "name")
     }
 
+    fn is_legal_seconds(candidate: &f64) -> bool {
+        candidate.is_finite() && (candidate.is_sign_positive() || *candidate == 0.0)
+    }
+
     pub fn timestamp(
         e: &BytesStart,
         date_parser: &mut JunitDateParser,
@@ -765,7 +769,15 @@ mod parse_attr {
 
     pub fn time(e: &BytesStart) -> Option<Duration> {
         parse_string_attr_into_other_type(e, "time")
-            .map(|seconds: f64| Duration::from_secs_f64(seconds))
+            .iter()
+            .filter_map(|seconds: &f64| {
+                if is_legal_seconds(seconds) {
+                    Some(Duration::from_secs_f64(*seconds))
+                } else {
+                    None
+                }
+            })
+            .next()
     }
 
     pub fn assertions(e: &BytesStart) -> Option<usize> {
@@ -815,6 +827,59 @@ mod parse_attr {
         attr_name: &'static str,
     ) -> Option<T> {
         parse_string_attr(e, attr_name).and_then(|value| value.parse::<T>().ok())
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use std::{borrow::Cow, time::Duration};
+
+        use quick_xml::{
+            events::{attributes::Attribute, BytesStart},
+            name::QName,
+        };
+
+        use super::{is_legal_seconds, time};
+
+        #[test]
+        fn test_is_legal_seconds() {
+            assert!(is_legal_seconds(&2.0e64));
+            assert!(is_legal_seconds(&2.0));
+
+            assert!(is_legal_seconds(&0.0));
+            assert!(is_legal_seconds(&-0.0));
+
+            assert!(!is_legal_seconds(&-2.0));
+            assert!(!is_legal_seconds(&-2.0e64));
+
+            assert!(!is_legal_seconds(&f64::MIN));
+            assert!(is_legal_seconds(&f64::MIN_POSITIVE));
+            assert!(is_legal_seconds(&f64::MAX));
+
+            assert!(!is_legal_seconds(&f64::NAN));
+
+            assert!(!is_legal_seconds(&f64::INFINITY));
+            assert!(!is_legal_seconds(&f64::NEG_INFINITY));
+        }
+
+        #[test]
+        fn test_legal_time() {
+            let mut legal_time = BytesStart::new(Cow::from("legal_time"));
+            legal_time.push_attribute(Attribute {
+                key: QName(b"time"),
+                value: Cow::from(b"1.0"),
+            });
+            assert_eq!(time(&legal_time), Some(Duration::from_secs_f64(1.0)));
+        }
+
+        #[test]
+        fn test_illegal_time() {
+            let mut illegal_time = BytesStart::new(Cow::from("legal_time"));
+            illegal_time.push_attribute(Attribute {
+                key: QName(b"time"),
+                value: Cow::from(b"-1.0"),
+            });
+            assert_eq!(time(&illegal_time), None);
+        }
     }
 }
 
