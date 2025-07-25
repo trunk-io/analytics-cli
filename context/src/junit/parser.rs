@@ -770,11 +770,11 @@ mod parse_attr {
     pub fn time(e: &BytesStart) -> Option<Duration> {
         parse_string_attr_into_other_type(e, "time")
             .iter()
-            .flat_map(|seconds: &f64| {
+            .filter_map(|seconds: &f64| {
                 if is_legal_seconds(seconds) {
-                    vec![Duration::from_secs_f64(*seconds)]
+                    Some(Duration::from_secs_f64(*seconds))
                 } else {
-                    Vec::new()
+                    None
                 }
             })
             .next()
@@ -831,7 +831,14 @@ mod parse_attr {
 
     #[cfg(test)]
     mod tests {
-        use super::is_legal_seconds;
+        use std::{borrow::Cow, time::Duration};
+
+        use quick_xml::{
+            events::{attributes::Attribute, BytesStart},
+            name::QName,
+        };
+
+        use super::{is_legal_seconds, time};
 
         #[test]
         fn test_is_legal_seconds() {
@@ -852,6 +859,26 @@ mod parse_attr {
 
             assert!(!is_legal_seconds(&f64::INFINITY));
             assert!(!is_legal_seconds(&f64::NEG_INFINITY));
+        }
+
+        #[test]
+        fn test_legal_time() {
+            let mut legal_time = BytesStart::new(Cow::from("legal_time"));
+            legal_time.push_attribute(Attribute {
+                key: QName(b"time"),
+                value: Cow::from(b"1.0"),
+            });
+            assert_eq!(time(&legal_time), Some(Duration::from_secs_f64(1.0)));
+        }
+
+        #[test]
+        fn test_illegal_time() {
+            let mut illegal_time = BytesStart::new(Cow::from("legal_time"));
+            illegal_time.push_attribute(Attribute {
+                key: QName(b"time"),
+                value: Cow::from(b"-1.0"),
+            });
+            assert_eq!(time(&illegal_time), None);
         }
     }
 }
