@@ -29,6 +29,14 @@ pub struct BindingsParseResult {
     pub issues: Vec<JunitParseFlatIssue>,
 }
 
+// Ideally this would be an enum, but enums are not directly supportted by wasm conversions, so we have to manually map out the options. See: https://github.com/rustwasm/wasm-bindgen/issues/2407
+#[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass(get_all))]
+#[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
+#[derive(Clone, Debug)]
+pub struct BazelBuildInformation {
+    pub label: String,
+}
+
 #[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass(get_all))]
 #[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
 #[derive(Clone, Debug)]
@@ -43,6 +51,7 @@ pub struct BindingsReport {
     pub errors: usize,
     pub test_suites: Vec<BindingsTestSuite>,
     pub variant: Option<String>,
+    pub bazel_build_information: Option<BazelBuildInformation>,
 }
 
 impl From<TestCaseRunStatus> for BindingsTestCaseStatusStatus {
@@ -61,6 +70,7 @@ impl From<TestResult> for BindingsReport {
         TestResult {
             test_case_runs,
             uploader_metadata,
+            test_build_information,
         }: TestResult,
     ) -> Self {
         let test_cases: Vec<BindingsTestCase> = test_case_runs
@@ -135,6 +145,14 @@ impl From<TestResult> for BindingsReport {
             }
             None => ("Unknown".to_string(), None, None, None),
         };
+        let bazel_build_information = match test_build_information {
+            Some(proto::test_context::test_run::test_result::TestBuildInformation::BazelBuildInformation(
+                bazel_build_information,
+            )) => Some(BazelBuildInformation {
+                label: bazel_build_information.label,
+            }),
+            _ => None,
+        };
         BindingsReport {
             name,
             test_suites,
@@ -146,6 +164,7 @@ impl From<TestResult> for BindingsReport {
             failures: report_failures,
             tests: report_tests,
             variant,
+            bazel_build_information,
         }
     }
 }
@@ -265,6 +284,7 @@ impl From<Report> for BindingsReport {
                 .map(BindingsTestSuite::from)
                 .collect(),
             variant: None,
+            bazel_build_information: None,
         }
     }
 }
@@ -282,6 +302,7 @@ impl From<BindingsReport> for Report {
             errors,
             test_suites,
             variant: _,
+            bazel_build_information: _,
         } = val;
         // NOTE: Cannot make a UUID without a `&'static str`
         let _ = uuid;
