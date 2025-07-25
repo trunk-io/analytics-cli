@@ -756,6 +756,10 @@ mod parse_attr {
         parse_string_attr(e, "name")
     }
 
+    fn is_legal_seconds(candidate: &f64) -> bool {
+        candidate.is_finite() && (candidate.is_sign_positive() || *candidate == 0.0)
+    }
+
     pub fn timestamp(
         e: &BytesStart,
         date_parser: &mut JunitDateParser,
@@ -765,7 +769,15 @@ mod parse_attr {
 
     pub fn time(e: &BytesStart) -> Option<Duration> {
         parse_string_attr_into_other_type(e, "time")
-            .map(|seconds: f64| Duration::from_secs_f64(seconds))
+            .iter()
+            .flat_map(|seconds: &f64| {
+                if is_legal_seconds(seconds) {
+                    vec![Duration::from_secs_f64(*seconds)]
+                } else {
+                    Vec::new()
+                }
+            })
+            .next()
     }
 
     pub fn assertions(e: &BytesStart) -> Option<usize> {
@@ -815,6 +827,32 @@ mod parse_attr {
         attr_name: &'static str,
     ) -> Option<T> {
         parse_string_attr(e, attr_name).and_then(|value| value.parse::<T>().ok())
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::is_legal_seconds;
+
+        #[test]
+        fn test_is_legal_seconds() {
+            assert!(is_legal_seconds(&2.0e64));
+            assert!(is_legal_seconds(&2.0));
+
+            assert!(is_legal_seconds(&0.0));
+            assert!(is_legal_seconds(&-0.0));
+
+            assert!(!is_legal_seconds(&-2.0));
+            assert!(!is_legal_seconds(&-2.0e64));
+
+            assert!(!is_legal_seconds(&f64::MIN));
+            assert!(is_legal_seconds(&f64::MIN_POSITIVE));
+            assert!(is_legal_seconds(&f64::MAX));
+
+            assert!(!is_legal_seconds(&f64::NAN));
+
+            assert!(!is_legal_seconds(&f64::INFINITY));
+            assert!(!is_legal_seconds(&f64::NEG_INFINITY));
+        }
     }
 }
 
