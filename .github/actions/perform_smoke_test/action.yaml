@@ -12,8 +12,12 @@ inputs:
     description: staging if you only want to run for staging, production if you only want production, both for both
 
 outputs:
-  production-success: ${{ steps.production-result.outputs.production-success }}
-  staging-success: ${{ steps.staging-result.outputs.staging-success }}
+  production-success:
+    description: True if we ran and uploaded to production
+    value: ${{ steps.production-result.outputs.production-success }}
+  staging-success:
+    description: True if we ran and uploaded to staging
+    value: ${{ steps.staging-result.outputs.staging-success }}
 
 runs:
   using: composite
