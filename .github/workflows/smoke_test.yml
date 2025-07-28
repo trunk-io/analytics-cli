@@ -16,10 +16,8 @@ jobs:
     name: Smoke test ${{ matrix.platform.name }} cli from release
     runs-on: ${{ matrix.platform.os }}
     outputs:
-      production-result:
-        description: If we were able to upload to production, success, otherwise failure. Set to 'success' if environment-type is 'staging'.
-      staging-result:
-        description: If we were able to upload to staging, success, otherwise failure. Set to 'success' if environment-type is 'production'.
+      production-result: $
+      staging-result: $
 
     strategy:
       matrix:
@@ -56,11 +54,10 @@ jobs:
           environment-type: ${{ (github.event.action == 'production-release' && 'production') || (github.event.action == 'staging-release' && 'staging') || 'both' }}
 
       - name: Set outputs - ${{ matrix.platform.name }}
-        needs: run-tests
         shell: bash
         run: |
-          echo "production-result=${{ needs.run-tests-production-result }}" >> $GITHUB_OUTPUT
-          echo "staging-result=${{ needs.run-tests-staging-result }}" >> $GITHUB_OUTPUT
+          echo "production-result=${{ steps.run-tests.outputs.production-result }}" >> $GITHUB_OUTPUT
+          echo "staging-result=${{ steps.run-tests.outputs.staging-result }}" >> $GITHUB_OUTPUT
 
   production-workflow-status:
     if: always() && needs.build_cli.outputs.production-result != 'success'
