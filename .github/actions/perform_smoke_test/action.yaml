@@ -32,7 +32,7 @@ runs:
 
     - name: Run tests on staging
       id: staging-test-run
-      if: always() && steps.make-exe.result == 'success' && (inputs.environment-type == 'staging' || inputs.environment-type == 'both')
+      if: always() && (inputs.environment-type == 'staging' || inputs.environment-type == 'both')
       env:
         TRUNK_PUBLIC_API_ADDRESS: https://api.trunk-staging.io
         FAIL_TEST: true
@@ -63,7 +63,7 @@ runs:
 
     - name: Run tests on production
       id: production-test-run
-      if: always() && steps.make-exe.result == 'success' && (inputs.environment-type == 'production' || inputs.environment-type == 'both')
+      if: always() && (inputs.environment-type == 'production' || inputs.environment-type == 'both')
       env:
         TRUNK_PUBLIC_API_ADDRESS: https://api.trunk.io
         FAIL_TEST: true
