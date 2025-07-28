@@ -16,8 +16,8 @@ jobs:
     name: Smoke test ${{ matrix.platform.name }} cli from release
     runs-on: ${{ matrix.platform.os }}
     outputs:
-      production-result: $
-      staging-result: $
+      production-success: ${{ steps.run-tests.outputs.production-success }}
+      staging-success: ${{ steps.run-tests.outputs.staging-success }}
 
     strategy:
       matrix:
@@ -53,14 +53,8 @@ jobs:
           production-api-token: ${{ secrets.TRUNK_PROD_ORG_API_TOKEN }}
           environment-type: ${{ (github.event.action == 'production-release' && 'production') || (github.event.action == 'staging-release' && 'staging') || 'both' }}
 
-      - name: Set outputs - ${{ matrix.platform.name }}
-        shell: bash
-        run: |
-          echo "production-result=${{ steps.run-tests.outputs.production-result }}" >> $GITHUB_OUTPUT
-          echo "staging-result=${{ steps.run-tests.outputs.staging-result }}" >> $GITHUB_OUTPUT
-
   production-workflow-status:
-    if: always() && needs.build_cli.outputs.production-result != 'success'
+    if: always() && needs.build_cli.outputs.production-success != 'true'
     name: Post Production Smoke Test Failure
     needs:
       - build_cli
@@ -73,7 +67,7 @@ jobs:
         run: echo "Prod fail"
 
   staging-workflow-status:
-    if: always() && needs.build_cli.outputs.staging-result != 'success'
+    if: always() && needs.build_cli.outputs.staging-success != 'true'
     name: Post staging Smoke Test Failure
     needs:
       - build_cli
@@ -83,7 +77,7 @@ jobs:
     steps:
       - name: Analytics Cli Smoke Test Failure
         shell: bash
-        run: echo "Prod fail"
+        run: echo "Stag fail"
 #  production-slack-workflow-status:
 #    if: always() && needs.build_cli.outputs.production-result != 'success'
 #    name: Post Production Smoke Test Failure

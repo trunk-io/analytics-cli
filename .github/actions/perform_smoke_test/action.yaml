@@ -12,10 +12,8 @@ inputs:
     description: staging if you only want to run for staging, production if you only want production, both for both
 
 outputs:
-  production-result:
-    description: If we were able to upload to production, success, otherwise failure. Set to 'success' if environment-type is 'staging'.
-  staging-result:
-    description: If we were able to upload to staging, success, otherwise failure. Set to 'success' if environment-type is 'production'.
+  production-success: ${{ steps.production-upload.result == 'success' && (inputs.environment-type == 'production' || inputs.environment-type == 'both') }}
+  staging-success: ${{ steps.staging-upload.result == 'success' && (inputs.environment-type == 'staging' || inputs.environment-type == 'both') }}
 
 runs:
   using: composite
@@ -54,16 +52,6 @@ runs:
         --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
         --token ${{ inputs.staging-api-token }}
 
-    - name: Set staging success status
-      if: always() && steps.staging-upload.result == 'success' && (inputs.environment-type == 'staging' || inputs.environment-type == 'both')
-      shell: bash
-      run: echo "staging-result=success" >> $GITHUB_OUTPUT
-
-    - name: Set staging failure status
-      if: always() && steps.staging-upload.result != 'success' && (inputs.environment-type == 'staging' || inputs.environment-type == 'both')
-      shell: bash
-      run: echo "staging-result=failure" >> $GITHUB_OUTPUT
-
     - name: Run tests on production
       id: production-test-run
       if: always() && steps.make-exe.result == 'success' && (inputs.environment-type == 'production' || inputs.environment-type == 'both')
@@ -89,13 +77,3 @@ runs:
         --org-url-slug trunk \
         --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
         --token ${{ inputs.production-api-token }}
-
-    - name: Set production success status
-      if: always() && steps.production-upload.result == 'success' && (inputs.environment-type == 'production' || inputs.environment-type == 'both')
-      shell: bash
-      run: echo "production-result=success" >> $GITHUB_OUTPUT
-
-    - name: Set production failure status
-      if: always() && steps.production-upload.result != 'success' && (inputs.environment-type == 'production' || inputs.environment-type == 'both')
-      shell: bash
-      run: echo "production-result=failure" >> $GITHUB_OUTPUT
