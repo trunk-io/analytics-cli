@@ -59,7 +59,7 @@ runs:
     - name: Staging result
       id: staging-result
       shell: bash
-      run: echo "staging-success=${{ steps.staging-upload.result == 'success' && (inputs.environment-type == 'staging' || inputs.environment-type == 'both') }}" >> $GITHUB_OUTPUTS
+      run: echo "staging-success=${{ steps.staging-upload.result == 'success' && (inputs.environment-type == 'staging' || inputs.environment-type == 'both') }}" >> $GITHUB_OUTPUT
 
     - name: Run tests on production
       id: production-test-run
@@ -90,4 +90,4 @@ runs:
     - name: Production result
       id: production-result
       shell: bash
-      run: echo "production-success=${{ steps.production-upload.result == 'success' && (inputs.environment-type == 'production' || inputs.environment-type == 'both') }}" >> $GITHUB_OUTPUTS
+      run: echo "production-success=${{ steps.production-upload.result == 'success' && (inputs.environment-type == 'production' || inputs.environment-type == 'both') }}" >> $GITHUB_OUTPUT
