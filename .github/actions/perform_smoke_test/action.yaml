@@ -12,8 +12,8 @@ inputs:
     description: staging if you only want to run for staging, production if you only want production, both for both
 
 outputs:
-  production-success: ${{ steps.production-upload.result == 'success' && (inputs.environment-type == 'production' || inputs.environment-type == 'both') }}
-  staging-success: ${{ steps.staging-upload.result == 'success' && (inputs.environment-type == 'staging' || inputs.environment-type == 'both') }}
+  production-success: ${{ steps.production-result.outputs.production-success }}
+  staging-success: ${{ steps.staging-result.outputs.staging-success }}
 
 runs:
   using: composite
@@ -52,6 +52,11 @@ runs:
         --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
         --token ${{ inputs.staging-api-token }}
 
+    - name: Staging result
+      id: staging-result
+      shell: bash
+      run: echo "staging-success=${{ steps.staging-upload.result == 'success' && (inputs.environment-type == 'staging' || inputs.environment-type == 'both') }}" >> $GITHUB_OUTPUTS
+
     - name: Run tests on production
       id: production-test-run
       if: always() && steps.make-exe.result == 'success' && (inputs.environment-type == 'production' || inputs.environment-type == 'both')
@@ -77,3 +82,8 @@ runs:
         --org-url-slug trunk \
         --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
         --token ${{ inputs.production-api-token }}
+
+    - name: Production result
+      id: production-result
+      shell: bash
+      run: echo "production-success=${{ steps.production-upload.result == 'success' && (inputs.environment-type == 'production' || inputs.environment-type == 'both') }}" >> $GITHUB_OUTPUTS
