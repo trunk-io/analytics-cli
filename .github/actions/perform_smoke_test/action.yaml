@@ -30,8 +30,7 @@ runs:
 
     - name: Run tests on staging
       id: staging-test-run
-      needs: make-exe
-      if: always() && needs.make-exe.result == 'success' && (inputs.environment-type == 'staging' || inputs.environment-type == 'both')
+      if: always() && steps.make-exe.result == 'success' && (inputs.environment-type == 'staging' || inputs.environment-type == 'both')
       env:
         TRUNK_PUBLIC_API_ADDRESS: https://api.trunk-staging.io
         FAIL_TEST: true
@@ -45,8 +44,7 @@ runs:
 
     - name: Upload to staging
       id: staging-upload
-      needs: staging-test-run
-      if: always() && needs.staging-test-run.result == 'success' && (inputs.environment-type == 'staging' || inputs.environment-type == 'both')
+      if: always() && steps.staging-test-run.result == 'success' && (inputs.environment-type == 'staging' || inputs.environment-type == 'both')
       env:
         TRUNK_PUBLIC_API_ADDRESS: https://api.trunk-staging.io
       shell: bash
@@ -57,21 +55,18 @@ runs:
         --token ${{ inputs.staging-api-token }}
 
     - name: Set staging success status
-      needs: staging-upload
-      if: always() && needs.staging-upload.result == 'success' && (inputs.environment-type == 'staging' || inputs.environment-type == 'both')
+      if: always() && steps.staging-upload.result == 'success' && (inputs.environment-type == 'staging' || inputs.environment-type == 'both')
       shell: bash
       run: echo "staging-result=success" >> $GITHUB_OUTPUT
 
     - name: Set staging failure status
-      needs: staging-upload
-      if: always() && needs.staging-upload.result != 'success' && (inputs.environment-type == 'staging' || inputs.environment-type == 'both')
+      if: always() && steps.staging-upload.result != 'success' && (inputs.environment-type == 'staging' || inputs.environment-type == 'both')
       shell: bash
       run: echo "staging-result=failure" >> $GITHUB_OUTPUT
 
     - name: Run tests on production
       id: production-test-run
-      needs: make-exe
-      if: always() && needs.make-exe.result == 'success' && (inputs.environment-type == 'production' || inputs.environment-type == 'both')
+      if: always() && steps.make-exe.result == 'success' && (inputs.environment-type == 'production' || inputs.environment-type == 'both')
       env:
         TRUNK_PUBLIC_API_ADDRESS: https://api.trunk.io
         FAIL_TEST: true
@@ -85,8 +80,7 @@ runs:
 
     - name: Upload to production
       id: production-upload
-      needs: production-test-run
-      if: always() && needs.production-upload.result == 'success' && (inputs.environment-type == 'production' || inputs.environment-type == 'both')
+      if: always() && steps.production-upload.result == 'success' && (inputs.environment-type == 'production' || inputs.environment-type == 'both')
       env:
         TRUNK_PUBLIC_API_ADDRESS: https://api.trunk.io
       shell: bash
@@ -97,13 +91,11 @@ runs:
         --token ${{ inputs.production-api-token }}
 
     - name: Set production success status
-      needs: production-upload
-      if: always() && needs.production-upload.result == 'success' && (inputs.environment-type == 'production' || inputs.environment-type == 'both')
+      if: always() && steps.production-upload.result == 'success' && (inputs.environment-type == 'production' || inputs.environment-type == 'both')
       shell: bash
       run: echo "production-result=success" >> $GITHUB_OUTPUT
 
     - name: Set production failure status
-      needs: production-upload
-      if: always() && needs.production-upload.result != 'success' && (inputs.environment-type == 'production' || inputs.environment-type == 'both')
+      if: always() && steps.production-upload.result != 'success' && (inputs.environment-type == 'production' || inputs.environment-type == 'both')
       shell: bash
       run: echo "production-result=failure" >> $GITHUB_OUTPUT
