@@ -11,10 +11,17 @@ inputs:
   environment-type:
     description: staging if you only want to run for staging, production if you only want production, both for both
 
+outputs:
+  production-result:
+    description: If we were able to upload to production, success, otherwise failure. Set to 'success' if environment-type is 'staging'.
+  staging-result:
+    description: If we were able to upload to staging, success, otherwise failure. Set to 'success' if environment-type is 'production'.
+
 runs:
   using: composite
   steps:
     - name: Make executable
+      id: make-exe
       shell: bash
       run: |
         chmod +x ${{ inputs.cli-binary-location }}
@@ -22,7 +29,9 @@ runs:
         ls -l ${{ inputs.cli-binary-location }}
 
     - name: Run tests on staging
-      if: inputs.environment-type == 'staging' || inputs.environment-type == 'both'
+      id: staging-test-run
+      needs: make-exe
+      if: always() && needs.make-exe.result == 'success' && (inputs.environment-type == 'staging' || inputs.environment-type == 'both')
       env:
         TRUNK_PUBLIC_API_ADDRESS: https://api.trunk-staging.io
         FAIL_TEST: true
@@ -34,8 +43,35 @@ runs:
         --token ${{ inputs.staging-api-token }} \
         cargo nextest run -p smoke-test --profile ci
 
+    - name: Upload to staging
+      id: staging-upload
+      needs: staging-test-run
+      if: always() && needs.staging-test-run.result == 'success' && (inputs.environment-type == 'staging' || inputs.environment-type == 'both')
+      env:
+        TRUNK_PUBLIC_API_ADDRESS: https://api.trunk-staging.io
+      shell: bash
+      run: |
+        ./${{ inputs.cli-binary-location }} upload \
+        --org-url-slug trunk-staging-org \
+        --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
+        --token ${{ inputs.staging-api-token }}
+
+    - name: Set staging success status
+      needs: staging-upload
+      if: always() && needs.staging-upload.result == 'success' && (inputs.environment-type == 'staging' || inputs.environment-type == 'both')
+      shell: bash
+      run: echo "staging-result=success" >> $GITHUB_OUTPUT
+
+    - name: Set staging failure status
+      needs: staging-upload
+      if: always() && needs.staging-upload.result != 'success' && (inputs.environment-type == 'staging' || inputs.environment-type == 'both')
+      shell: bash
+      run: echo "staging-result=failure" >> $GITHUB_OUTPUT
+
     - name: Run tests on production
-      if: inputs.environment-type == 'production' || inputs.environment-type == 'both'
+      id: production-test-run
+      needs: make-exe
+      if: always() && needs.make-exe.result == 'success' && (inputs.environment-type == 'production' || inputs.environment-type == 'both')
       env:
         TRUNK_PUBLIC_API_ADDRESS: https://api.trunk.io
         FAIL_TEST: true
@@ -47,19 +83,10 @@ runs:
         --token ${{ inputs.production-api-token }} \
         cargo nextest run -p smoke-test --profile ci
 
-    - name: Upload to staging
-      if: inputs.environment-type == 'staging' || inputs.environment-type == 'both'
-      env:
-        TRUNK_PUBLIC_API_ADDRESS: https://api.trunk-staging.io
-      shell: bash
-      run: |
-        ./${{ inputs.cli-binary-location }} upload \
-        --org-url-slug trunk-staging-org \
-        --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
-        --token ${{ inputs.staging-api-token }}
-
     - name: Upload to production
-      if: inputs.environment-type == 'production' || inputs.environment-type == 'both'
+      id: production-upload
+      needs: production-test-run
+      if: always() && needs.production-upload.result == 'success' && (inputs.environment-type == 'production' || inputs.environment-type == 'both')
       env:
         TRUNK_PUBLIC_API_ADDRESS: https://api.trunk.io
       shell: bash
@@ -68,3 +95,15 @@ runs:
         --org-url-slug trunk \
         --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
         --token ${{ inputs.production-api-token }}
+
+    - name: Set production success status
+      needs: production-upload
+      if: always() && needs.production-upload.result == 'success' && (inputs.environment-type == 'production' || inputs.environment-type == 'both')
+      shell: bash
+      run: echo "production-result=success" >> $GITHUB_OUTPUT
+
+    - name: Set production failure status
+      needs: production-upload
+      if: always() && needs.production-upload.result != 'success' && (inputs.environment-type == 'production' || inputs.environment-type == 'both')
+      shell: bash
+      run: echo "production-result=failure" >> $GITHUB_OUTPUT
