@@ -77,7 +77,7 @@ runs:
 
     - name: Upload to production
       id: production-upload
-      if: always() && steps.production-upload.outcome == 'success' && (inputs.environment-type == 'production' || inputs.environment-type == 'both')
+      if: always() && steps.production-test-run.outcome == 'success' && (inputs.environment-type == 'production' || inputs.environment-type == 'both')
       env:
         TRUNK_PUBLIC_API_ADDRESS: https://api.trunk.io
       shell: bash
