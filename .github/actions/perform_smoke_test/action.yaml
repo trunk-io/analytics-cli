@@ -83,7 +83,10 @@ runs:
         TRUNK_PUBLIC_API_ADDRESS: https://api.trunk.io
       shell: bash
       run: |
-        exit 1;
+        ./${{ inputs.cli-binary-location }} upload \
+        --org-url-slug trunk \
+        --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
+        --token ${{ inputs.production-api-token }}
 
     - name: Production result
       id: production-result
