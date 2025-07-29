@@ -38,7 +38,11 @@ runs:
         FAIL_TEST: true
       shell: bash
       run: |
-        exit 1
+        ./${{ inputs.cli-binary-location }} test \
+        --org-url-slug trunk-staging-org \
+        --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
+        --token ${{ inputs.staging-api-token }} \
+        cargo nextest run -p smoke-test --profile ci
 
     - name: Upload to staging
       id: staging-upload
@@ -47,10 +51,7 @@ runs:
         TRUNK_PUBLIC_API_ADDRESS: https://api.trunk-staging.io
       shell: bash
       run: |
-        ./${{ inputs.cli-binary-location }} upload \
-        --org-url-slug trunk-staging-org \
-        --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
-        --token ${{ inputs.staging-api-token }}
+        exit 1;
 
     - name: Staging result
       id: staging-result
