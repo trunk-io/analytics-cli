@@ -17,8 +17,6 @@ use bundle::{
 };
 use codeowners::CodeOwners;
 use constants::ENVS_TO_GET;
-#[cfg(target_os = "macos")]
-use context::repo::RepoUrlParts;
 use context::{
     bazel_bep::{binary_parser::BazelBepBinParser, common::BepParseResult, parser::BazelBepParser},
     junit::{
@@ -26,7 +24,7 @@ use context::{
         parser::JunitParser,
         validator::{validate, JunitReportValidation},
     },
-    repo::BundleRepo,
+    repo::{BundleRepo, RepoUrlParts},
 };
 use lazy_static::lazy_static;
 use prost::Message;
@@ -37,7 +35,9 @@ use tempfile::TempDir;
 use xcresult::xcresult::XCResult;
 
 use crate::{
-    context_quarantine::{gather_quarantine_context, FailedTestsExtractor, QuarantineContext},
+    context_quarantine::{
+        gather_quarantine_context, FailedTestsExtractor, QuarantineContext, QuarantineFetchStatus,
+    },
     print::print_bep_results,
     test_command::TestRunResult,
     upload_command::UploadArgs,
@@ -499,11 +499,14 @@ pub async fn gather_exit_code_and_quarantined_tests_context(
                         .collect(),
                     ..Default::default()
                 },
-                ..Default::default()
+                failures: Vec::default(),
+                repo: RepoUrlParts::default(),
+                org_url_slug: String::default(),
+                fetch_status: QuarantineFetchStatus::FetchSkipped,
             }
         } else {
             // default to success if no test run result (i.e. `upload`)
-            QuarantineContext::default()
+            QuarantineContext::skip_fetch()
         }
     } else {
         gather_quarantine_context(

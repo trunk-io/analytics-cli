@@ -34,6 +34,7 @@ use crate::command_builder::CommandBuilder;
 use crate::utils::{
     generate_mock_bazel_bep, generate_mock_codeowners, generate_mock_git_repo,
     generate_mock_invalid_junit_xmls, generate_mock_valid_junit_xmls,
+    generate_mock_valid_junit_xmls_with_failures,
 };
 
 // NOTE: must be multi threaded to start a mock server
@@ -1652,6 +1653,30 @@ async fn does_not_print_exit_code_with_validation_reports_none() {
         .assert()
         .failure()
         .stderr(predicate::str::contains("File Validation").not());
+
+    println!("{assert}");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn reports_failures_even_if_cannot_get_quarantine_context() {
+    let temp_dir = tempdir().unwrap();
+    generate_mock_git_repo(&temp_dir);
+    generate_mock_valid_junit_xmls_with_failures(&temp_dir);
+
+    let mut mock_server_builder = MockServerBuilder::new();
+
+    mock_server_builder.set_get_quarantining_config_handler(
+        |Json(_): Json<GetQuarantineConfigRequest>| async {
+            Err::<Json<GetQuarantineConfigResponse>, StatusCode>(StatusCode::INTERNAL_SERVER_ERROR)
+        },
+    );
+    let state = mock_server_builder.spawn_mock_server().await;
+
+    let mut command = CommandBuilder::upload(temp_dir.path(), state.host.clone()).command();
+
+    let assert = command.assert().failure().stderr(predicate::str::contains(
+        "We were not able to fetch quarantine states for tests",
+    ));
 
     println!("{assert}");
 }

@@ -22,13 +22,53 @@ use context::{
 use pluralizer::pluralize;
 use prost::Message;
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug)]
+pub enum QuarantineFetchStatus {
+    FetchSucceeded,
+    FetchSkipped,
+    FetchFailed(anyhow::Error),
+}
+impl QuarantineFetchStatus {
+    pub fn is_failure(&self) -> bool {
+        match self {
+            Self::FetchSucceeded => false,
+            Self::FetchSkipped => false,
+            Self::FetchFailed(_) => true,
+        }
+    }
+}
+
+#[derive(Debug)]
 pub struct QuarantineContext {
     pub exit_code: i32,
     pub quarantine_status: QuarantineBulkTestStatus,
     pub failures: Vec<Test>,
     pub repo: RepoUrlParts,
     pub org_url_slug: String,
+    pub fetch_status: QuarantineFetchStatus,
+}
+impl QuarantineContext {
+    pub fn skip_fetch() -> Self {
+        Self {
+            exit_code: i32::default(),
+            quarantine_status: QuarantineBulkTestStatus::default(),
+            failures: Vec::default(),
+            repo: RepoUrlParts::default(),
+            org_url_slug: String::default(),
+            fetch_status: QuarantineFetchStatus::FetchSkipped,
+        }
+    }
+
+    pub fn fail_fetch(error: anyhow::Error) -> Self {
+        Self {
+            exit_code: i32::default(),
+            quarantine_status: QuarantineBulkTestStatus::default(),
+            failures: Vec::default(),
+            repo: RepoUrlParts::default(),
+            org_url_slug: String::default(),
+            fetch_status: QuarantineFetchStatus::FetchFailed(error),
+        }
+    }
 }
 
 fn convert_case_to_test<T: AsRef<str>>(
@@ -251,11 +291,15 @@ pub async fn gather_quarantine_context(
             exit_code,
             repo: request.repo.clone(),
             org_url_slug: request.org_url_slug.clone(),
-            ..Default::default()
+            quarantine_status: QuarantineBulkTestStatus::default(),
+            failures: Vec::default(),
+            fetch_status: QuarantineFetchStatus::FetchSkipped,
         });
     }
 
-    let quarantine_config = if !failed_tests_extractor.failed_tests().is_empty()
+    let (quarantine_config, quarantine_fetch_status) = if !failed_tests_extractor
+        .failed_tests()
+        .is_empty()
         && file_set_builder
             .file_sets()
             .iter()
@@ -263,14 +307,21 @@ pub async fn gather_quarantine_context(
             .any(|file_set| file_set.file_set_type == FileSetType::Junit)
     {
         tracing::info!("Checking if failed tests can be quarantined");
-        api_client.get_quarantining_config(request).await?
+        match api_client.get_quarantining_config(request).await {
+            anyhow::Result::Ok(response) => (Some(response), QuarantineFetchStatus::FetchSucceeded),
+            anyhow::Result::Err(error) => (None, QuarantineFetchStatus::FetchFailed(error)),
+        }
     } else {
         tracing::debug!("Skipping quarantine check.");
-        api::message::GetQuarantineConfigResponse::default()
+        (None, QuarantineFetchStatus::FetchSkipped)
     };
 
     // if quarantining is not enabled, return exit code and empty quarantine status
-    if quarantine_config.is_disabled {
+    if quarantine_config
+        .as_ref()
+        .map(|q| q.is_disabled)
+        .unwrap_or_default()
+    {
         tracing::info!("Quarantining is not enabled, not quarantining any tests");
         return Ok(QuarantineContext {
             exit_code,
@@ -278,6 +329,7 @@ pub async fn gather_quarantine_context(
             failures: failed_tests_extractor.failed_tests().to_vec(),
             repo: request.repo.clone(),
             org_url_slug: request.org_url_slug.clone(),
+            fetch_status: quarantine_fetch_status,
         });
     } else {
         // quarantining is enabled, continue with quarantine process and update exit code
@@ -286,7 +338,9 @@ pub async fn gather_quarantine_context(
 
     // quarantine the failed tests
     let mut quarantine_results = QuarantineBulkTestStatus::default();
-    let quarantined = &quarantine_config.quarantined_tests;
+    let quarantined = &(quarantine_config
+        .map(|q| q.quarantined_tests)
+        .unwrap_or_default());
 
     let total_failures = failed_tests_extractor.failed_tests().len();
     let mut failures: Vec<Test> = vec![];
@@ -361,6 +415,7 @@ pub async fn gather_quarantine_context(
         failures,
         repo: request.repo.clone(),
         org_url_slug: request.org_url_slug.clone(),
+        fetch_status: quarantine_fetch_status,
     })
 }
 
