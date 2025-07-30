@@ -11,10 +11,19 @@ inputs:
   environment-type:
     description: staging if you only want to run for staging, production if you only want production, both for both
 
+outputs:
+  production-success:
+    description: True if we ran and uploaded to production
+    value: ${{ steps.production-result.outputs.production-success }}
+  staging-success:
+    description: True if we ran and uploaded to staging
+    value: ${{ steps.staging-result.outputs.staging-success }}
+
 runs:
   using: composite
   steps:
     - name: Make executable
+      id: make-exe
       shell: bash
       run: |
         chmod +x ${{ inputs.cli-binary-location }}
@@ -22,7 +31,8 @@ runs:
         ls -l ${{ inputs.cli-binary-location }}
 
     - name: Run tests on staging
-      if: inputs.environment-type == 'staging' || inputs.environment-type == 'both'
+      id: staging-test-run
+      if: always() && steps.make-exe.outcome == 'success' && (inputs.environment-type == 'staging' || inputs.environment-type == 'both')
       env:
         TRUNK_PUBLIC_API_ADDRESS: https://api.trunk-staging.io
         FAIL_TEST: true
@@ -34,8 +44,27 @@ runs:
         --token ${{ inputs.staging-api-token }} \
         cargo nextest run -p smoke-test --profile ci
 
+    - name: Upload to staging
+      id: staging-upload
+      if: always() && steps.staging-test-run.outcome == 'success' && (inputs.environment-type == 'staging' || inputs.environment-type == 'both')
+      env:
+        TRUNK_PUBLIC_API_ADDRESS: https://api.trunk-staging.io
+      shell: bash
+      run: |
+        ./${{ inputs.cli-binary-location }} upload \
+        --org-url-slug trunk-staging-org \
+        --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
+        --token ${{ inputs.staging-api-token }}
+
+    - name: Staging result
+      id: staging-result
+      if: always()
+      shell: bash
+      run: echo "staging-success=${{ (steps.staging-upload.outcome == 'success' && (inputs.environment-type == 'staging' || inputs.environment-type == 'both')) || inputs.environment-type == 'production' }}" >> $GITHUB_OUTPUT
+
     - name: Run tests on production
-      if: inputs.environment-type == 'production' || inputs.environment-type == 'both'
+      id: production-test-run
+      if: always() && steps.make-exe.outcome == 'success' && (inputs.environment-type == 'production' || inputs.environment-type == 'both')
       env:
         TRUNK_PUBLIC_API_ADDRESS: https://api.trunk.io
         FAIL_TEST: true
@@ -47,19 +76,9 @@ runs:
         --token ${{ inputs.production-api-token }} \
         cargo nextest run -p smoke-test --profile ci
 
-    - name: Upload to staging
-      if: inputs.environment-type == 'staging' || inputs.environment-type == 'both'
-      env:
-        TRUNK_PUBLIC_API_ADDRESS: https://api.trunk-staging.io
-      shell: bash
-      run: |
-        ./${{ inputs.cli-binary-location }} upload \
-        --org-url-slug trunk-staging-org \
-        --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
-        --token ${{ inputs.staging-api-token }}
-
     - name: Upload to production
-      if: inputs.environment-type == 'production' || inputs.environment-type == 'both'
+      id: production-upload
+      if: always() && steps.production-test-run.outcome == 'success' && (inputs.environment-type == 'production' || inputs.environment-type == 'both')
       env:
         TRUNK_PUBLIC_API_ADDRESS: https://api.trunk.io
       shell: bash
@@ -68,3 +87,9 @@ runs:
         --org-url-slug trunk \
         --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
         --token ${{ inputs.production-api-token }}
+
+    - name: Production result
+      id: production-result
+      if: always()
+      shell: bash
+      run: echo "production-success=${{ (steps.production-upload.outcome == 'success' && (inputs.environment-type == 'production' || inputs.environment-type == 'both')) || inputs.environment-type == 'staging' }}" >> $GITHUB_OUTPUT
