@@ -303,7 +303,9 @@ impl<'a> CIInfoParser<'a> {
 
         self.ci_info.actor = self.get_env_var("GITHUB_ACTOR");
         self.ci_info.title = self.get_env_var("PR_TITLE");
-        if let (Some(repo_name), Some(run_id)) = (
+        if let Some(job_url) = self.get_env_var("JOB_URL") {
+            self.ci_info.job_url = Some(job_url);
+        } else if let (Some(repo_name), Some(run_id)) = (
             self.get_env_var("GITHUB_REPOSITORY"),
             self.get_env_var("GITHUB_RUN_ID"),
         ) {
