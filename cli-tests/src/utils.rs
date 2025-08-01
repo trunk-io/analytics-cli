@@ -2,6 +2,7 @@ use std::{
     env, fs,
     io::Write,
     path::{Path, PathBuf},
+    time::Duration,
 };
 
 use bazel_bep::types::build_event_stream::{
@@ -34,10 +35,6 @@ pub fn generate_mock_git_repo<T: AsRef<Path>>(directory: T) {
 }
 
 fn generate_mock_valid_junit_mocker() -> JunitMock {
-    let mut jm_options = junit_mock::Options::default();
-    jm_options.global.timestamp = Utc::now()
-        .fixed_offset()
-        .checked_sub_signed(TimeDelta::minutes(1));
     JunitMock::new(junit_mock::Options::default())
 }
 
@@ -45,6 +42,26 @@ pub fn generate_mock_valid_junit_xmls<T: AsRef<Path>>(directory: T) -> Vec<PathB
     let mut jm = generate_mock_valid_junit_mocker();
     let reports = jm.generate_reports();
     jm.write_reports_to_file(directory.as_ref(), reports)
+        .unwrap()
+}
+
+pub fn generate_mock_valid_junit_xmls_with_failures<T: AsRef<Path>>(directory: T) -> Vec<PathBuf> {
+    let test_case_options = junit_mock::TestCaseOptions {
+        test_case_names: Some(vec![String::from("test_case")]),
+        test_case_classnames: Some(vec![String::from("TestClass")]),
+        test_case_random_count: 0 as usize,
+        test_case_sys_out_percentage: 0 as u8,
+        test_case_sys_err_percentage: 0 as u8,
+        test_case_duration_range: vec![Duration::new(10, 0).into(), Duration::new(20, 0).into()],
+        test_case_success_to_skip_to_fail_to_error_percentage: vec![vec![
+            0 as u8, 0 as u8, 100 as u8, 0 as u8,
+        ]],
+    };
+    let mut options = junit_mock::Options::default();
+    options.test_case = test_case_options;
+    let mut mock = JunitMock::new(options);
+    let reports = mock.generate_reports();
+    mock.write_reports_to_file(directory.as_ref(), reports)
         .unwrap()
 }
 
