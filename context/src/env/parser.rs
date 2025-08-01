@@ -303,18 +303,22 @@ impl<'a> CIInfoParser<'a> {
 
         self.ci_info.actor = self.get_env_var("GITHUB_ACTOR");
         self.ci_info.title = self.get_env_var("PR_TITLE");
-        if let Some(job_url) = self.get_env_var("JOB_URL") {
-            self.ci_info.job_url = Some(job_url);
-        } else if let (Some(repo_name), Some(run_id)) = (
+        let job_url = match (
+            self.get_env_var("JOB_URL"),
             self.get_env_var("GITHUB_REPOSITORY"),
             self.get_env_var("GITHUB_RUN_ID"),
         ) {
-            let mut job_url = format!("https://github.com/{repo_name}/actions/runs/{run_id}");
-            if let Some(pr_number) = self.ci_info.pr_number {
-                job_url = format!("{job_url}?pr={pr_number}");
+            (Some(job_url), _, _) => Some(job_url),
+            (None, Some(repo_name), Some(run_id)) => {
+                let mut job_url = format!("https://github.com/{repo_name}/actions/runs/{run_id}");
+                if let Some(pr_number) = self.ci_info.pr_number {
+                    job_url = format!("{job_url}?pr={pr_number}");
+                }
+                Some(job_url)
             }
-            self.ci_info.job_url = Some(job_url);
-        }
+            _ => None,
+        };
+        self.ci_info.job_url = job_url;
         self.ci_info.workflow = self.get_env_var("GITHUB_WORKFLOW");
         self.ci_info.job = self.get_env_var("GITHUB_JOB");
     }
