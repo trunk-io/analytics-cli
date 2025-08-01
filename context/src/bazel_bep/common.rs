@@ -163,6 +163,27 @@ impl BepParseResult {
             .flatten()
             .collect()
     }
+
+    pub fn uncached_labels(&self) -> HashMap<String, Vec<JunitReportFileWithTestRunnerReport>> {
+        self.test_results
+            .iter()
+            .filter_map(|r| {
+                if r.cached {
+                    return None;
+                }
+                Some((
+                    r.label.clone(),
+                    r.xml_files
+                        .iter()
+                        .map(|f| JunitReportFileWithTestRunnerReport {
+                            junit_path: f.clone(),
+                            test_runner_report: r.test_runner_report.clone(),
+                        })
+                        .collect::<Vec<_>>(),
+                ))
+            })
+            .collect()
+    }
 }
 
 struct LabelledTestSummary<'a> {

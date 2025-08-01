@@ -10,7 +10,8 @@ use context::repo::{BundleRepo, RepoUrlParts};
 use magnus::{value::ReprValue, Module, Object};
 use prost_wkt_types::Timestamp;
 use proto::test_context::test_run::{
-    CodeOwner, TestCaseRun, TestCaseRunStatus, TestResult, UploaderMetadata,
+    CodeOwner, TestCaseRun, TestCaseRunStatus, TestReport as TestReportProto, TestResult,
+    UploaderMetadata,
 };
 use third_party::sentry;
 use tracing_subscriber::{filter::FilterFn, prelude::*};
@@ -20,7 +21,7 @@ use wasm_bindgen::prelude::wasm_bindgen;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct TestReport {
-    test_result: TestResult,
+    test_report: TestReportProto,
     command: String,
     started_at: SystemTime,
     quarantined_tests: Option<HashMap<String, Test>>,
@@ -104,6 +105,11 @@ impl MutTestReport {
             upload_time: None,
             variant: variant.clone().unwrap_or_default(),
         });
+        let test_report = TestReportProto {
+            // trunk-ignore(clippy/deprecated)
+            uploader_metadata: test_result.uploader_metadata.clone(),
+            test_results: vec![test_result],
+        };
         let codeowners = BundleRepo::new(None, None, None, None, None, None, false)
             .ok()
             .map(|repo| repo.repo_root)
@@ -111,7 +117,7 @@ impl MutTestReport {
             .map(Path::new::<String>)
             .and_then(|repo_root| CodeOwners::find_file(repo_root, &None::<&Path>));
         Self(RefCell::new(TestReport {
-            test_result,
+            test_report,
             command,
             started_at,
             quarantined_tests: None,
@@ -120,8 +126,8 @@ impl MutTestReport {
         }))
     }
 
-    fn serialize_test_result(&self) -> Vec<u8> {
-        prost::Message::encode_to_vec(&self.0.borrow().test_result)
+    fn serialize_test_report(&self) -> Vec<u8> {
+        prost::Message::encode_to_vec(&self.0.borrow().test_report)
     }
 
     fn setup_logger(&self, org_url_slug: String) {
@@ -308,11 +314,20 @@ impl MutTestReport {
             tracing::warn!("Not publishing results because TRUNK_ORG_URL_SLUG is empty");
             return false;
         }
-        if let Some(uploader_metadata) = &mut self.0.borrow_mut().test_result.uploader_metadata {
-            uploader_metadata.upload_time = Some(Timestamp {
-                seconds: Utc::now().timestamp(),
-                nanos: Utc::now().timestamp_subsec_nanos() as i32,
-            });
+        // move into separate scope so that we drop borrow_mut
+        {
+            let test_report = &mut self.0.borrow_mut().test_report;
+            if let Some(uploader_metadata) = &mut test_report.uploader_metadata {
+                uploader_metadata.upload_time = Some(Timestamp {
+                    seconds: Utc::now().timestamp(),
+                    nanos: Utc::now().timestamp_subsec_nanos() as i32,
+                });
+            }
+            let test_result = test_report.test_results.get_mut(0);
+            if let Some(test_result) = test_result {
+                // trunk-ignore(clippy/deprecated,clippy/assigning_clones)
+                test_result.uploader_metadata = test_report.uploader_metadata.clone();
+            }
         }
         let upload_args = trunk_analytics_cli::upload_command::UploadArgs::new(
             token,
@@ -385,7 +400,7 @@ impl MutTestReport {
                 fs::create_dir_all(parent)?;
             }
         }
-        let buf = self.serialize_test_result();
+        let buf = self.serialize_test_report();
         fs::write(&path_buf, buf)?;
         // file modification uses filetime which is less precise than systemTime
         // we need to update it to the current time to avoid race conditions later down the line
@@ -471,9 +486,12 @@ impl MutTestReport {
         test.is_quarantined = is_quarantined;
         self.0
             .borrow_mut()
-            .test_result
-            .test_case_runs
-            .push(test.clone());
+            .test_report
+            .test_results
+            .get_mut(0)
+            .map(|tr| {
+                tr.test_case_runs.push(test);
+            });
     }
 
     pub fn to_string(&self) -> String {
@@ -483,7 +501,7 @@ impl MutTestReport {
 
 impl From<MutTestReport> for String {
     fn from(val: MutTestReport) -> Self {
-        serde_json::to_string(&val.0.borrow().test_result).unwrap_or_default()
+        serde_json::to_string(&val.0.borrow().test_report).unwrap_or_default()
     }
 }
 
