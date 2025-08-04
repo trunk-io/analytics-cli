@@ -12,6 +12,7 @@ use bazel_bep::types::build_event_stream::{
     BuildEvent, BuildEventId, File, TestResult, TestStatus, TestSummary,
 };
 use chrono::{TimeDelta, Utc};
+use clap::Parser;
 use escargot::{CargoBuild, CargoRun};
 use junit_mock::JunitMock;
 use lazy_static::lazy_static;
@@ -55,8 +56,13 @@ pub fn generate_mock_valid_junit_xmls_with_failures<T: AsRef<Path>>(directory: T
         test_case_duration_range: vec![Duration::new(10, 0).into(), Duration::new(20, 0).into()],
         test_case_success_to_skip_to_fail_to_error_percentage: vec![vec![0u8, 0u8, 100u8, 0u8]],
     };
-    let mut options = junit_mock::Options::default();
-    options.test_case = test_case_options;
+    let options = junit_mock::Options {
+        global: junit_mock::GlobalOptions::try_parse_from([""]).unwrap(),
+        report: junit_mock::ReportOptions::try_parse_from([""]).unwrap(),
+        test_suite: junit_mock::TestSuiteOptions::try_parse_from([""]).unwrap(),
+        test_case: test_case_options,
+        test_rerun: junit_mock::TestRerunOptions::try_parse_from([""]).unwrap(),
+    };
     let mut mock = JunitMock::new(options);
     let reports = mock.generate_reports();
     mock.write_reports_to_file(directory.as_ref(), reports)
