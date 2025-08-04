@@ -52,7 +52,7 @@ runs:
       run: |
         gem install rspec
         gem install rspec_trunk_flaky_tests-*.gem --local
-        gem unpack rspec_trunk_flaky_tests* --spec --target=rspec_trunk_flaky_tests
+        gem unpack rspec_trunk_flaky_tests* --spec --version=${{ inputs.release-tag }} --target=rspec_trunk_flaky_tests
         gem unpack rspec_trunk_flaky_tests* --version=${{ inputs.release-tag }} --target=rspec_trunk_flaky_tests
         echo "finding rspec folder"
         find rspec_trunk_flaky_tests -maxdepth 4 -type d
