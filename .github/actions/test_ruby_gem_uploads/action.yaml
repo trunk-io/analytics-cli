@@ -24,6 +24,9 @@ inputs:
   platform:
     description: The platform that the gem was built for
     required: true
+  release-tag:
+    description: The tag being released
+    required: true
 
 runs:
   using: composite
@@ -59,7 +62,7 @@ runs:
         echo "unpack main"
         ls rspec_trunk_flaky_tests*
         echo "endls"
-        echo "UNPACK OUTPUT $(gem unpack rspec_trunk_flaky_tests* --target=rspec_trunk_flaky_tests)"
+        echo "UNPACK OUTPUT $(gem unpack rspec_trunk_flaky_tests* --version=${{ inputs.release-tag }} --target=rspec_trunk_flaky_tests)"
         echo "--- DONE ---"
         ls rspec_trunk_flaky_tests*
         echo "endls"
