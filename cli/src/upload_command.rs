@@ -360,7 +360,7 @@ pub async fn run_upload(
         Ok(context) => context,
         Err(e) => {
             tracing::error!("Failed to gather quarantine context: {}", e);
-            QuarantineContext::default()
+            QuarantineContext::fail_fetch(e)
         }
     };
     meta.base_props.quarantined_tests = quarantine_context
@@ -525,6 +525,11 @@ impl EndOutput for UploadRunResult {
             "   Total: {}   Pass: {}   Fail: {}   Quarantined: {}   Pass Ratio: {}",
             total_tests, passes, failures, quarantined, pass_ratio
         ))?]));
+        if self.quarantine_context.fetch_status.is_failure() {
+            output.push(Line::from_iter([Span::new_styled(
+                style("   We were unable to determine the quarantine status for tests. Any failing tests will be reported as failures".to_string()).attribute(Attribute::Dim),
+            )?]));
+        }
         output.push(Line::default());
         let qc = &self.quarantine_context;
         let quarantined = &qc.quarantine_status.quarantine_results;
