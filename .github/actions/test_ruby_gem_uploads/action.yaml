@@ -59,18 +59,22 @@ runs:
         echo "end find"
         mv rspec_trunk_flaky_tests/rspec_trunk_flaky_tests*/lib rspec_trunk_flaky_tests/lib
         echo "b install"
-        bundle install
+        bundle install &> outputfile
+        cat outputfile
         echo "b lock remove platform ruby"
-        bundle lock --remove-platform ruby || true
+        bundle lock --remove-platform ruby &> outputfile || true
+        cat outputfile
         echo "echo to gemfile"
         echo "gem 'rspec_trunk_flaky_tests', :path => './rspec_trunk_flaky_tests'" >> Gemfile
         echo "catting gemfile"
         cat Gemfile
         echo "EOF"
         echo "bundle install"
-        bundle install --gemfile Gemfile --local
+        bundle install --gemfile Gemfile --local &> outputfile
+        cat outputfile
         echo "bundle exec"
-        bundle exec rspec spec/test_spec.rb
+        bundle exec rspec spec/test_spec.rb &> outputfile
+        cat outputfile
       env:
         TRUNK_PUBLIC_API_ADDRESS: ${{ inputs.trunk-public-api-address }}
         TRUNK_ORG_URL_SLUG: ${{ inputs.trunk-org-slug }}
