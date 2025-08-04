@@ -1659,6 +1659,8 @@ async fn does_not_print_exit_code_with_validation_reports_none() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn reports_failures_even_if_cannot_get_quarantine_context() {
+    // In the event we cannot get quarantine context, we want to fail for the failing tests
+    // (ie, the upload becomes a no-op in terms of how your ci status is affected).
     let temp_dir = tempdir().unwrap();
     generate_mock_git_repo(&temp_dir);
     generate_mock_valid_junit_xmls_with_failures(&temp_dir);
@@ -1675,7 +1677,7 @@ async fn reports_failures_even_if_cannot_get_quarantine_context() {
     let mut command = CommandBuilder::upload(temp_dir.path(), state.host.clone()).command();
 
     let assert = command.assert().failure().stderr(predicate::str::contains(
-        "We were not able to fetch quarantine states for tests",
+        "We were unable to determine the quarantine status for tests.",
     ));
 
     println!("{assert}");

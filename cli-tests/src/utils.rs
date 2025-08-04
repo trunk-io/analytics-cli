@@ -49,13 +49,11 @@ pub fn generate_mock_valid_junit_xmls_with_failures<T: AsRef<Path>>(directory: T
     let test_case_options = junit_mock::TestCaseOptions {
         test_case_names: Some(vec![String::from("test_case")]),
         test_case_classnames: Some(vec![String::from("TestClass")]),
-        test_case_random_count: 0 as usize,
-        test_case_sys_out_percentage: 0 as u8,
-        test_case_sys_err_percentage: 0 as u8,
+        test_case_random_count: 0usize,
+        test_case_sys_out_percentage: 0u8,
+        test_case_sys_err_percentage: 0u8,
         test_case_duration_range: vec![Duration::new(10, 0).into(), Duration::new(20, 0).into()],
-        test_case_success_to_skip_to_fail_to_error_percentage: vec![vec![
-            0 as u8, 0 as u8, 100 as u8, 0 as u8,
-        ]],
+        test_case_success_to_skip_to_fail_to_error_percentage: vec![vec![0u8, 0u8, 100u8, 0u8]],
     };
     let mut options = junit_mock::Options::default();
     options.test_case = test_case_options;
