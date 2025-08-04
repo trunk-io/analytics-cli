@@ -48,9 +48,21 @@ runs:
       working-directory: ${{ github.action_path }}
       run: |
         gem install rspec
+        echo "install local"
+        ls rspec_trunk_flaky_tests*
+        echo "endls"
         gem install rspec_trunk_flaky_tests-*.gem --local
+        echo "unpack spec"
+        ls rspec_trunk_flaky_tests*
+        echo "endls"
         gem unpack rspec_trunk_flaky_tests* --spec --target=rspec_trunk_flaky_tests
+        echo "unpack main"
+        ls rspec_trunk_flaky_tests*
+        echo "endls"
         gem unpack rspec_trunk_flaky_tests* --target=rspec_trunk_flaky_tests
+        echo "--- DONE ---"
+        ls rspec_trunk_flaky_tests*
+        echo "endls"
         mv rspec_trunk_flaky_tests/rspec_trunk_flaky_tests*/lib rspec_trunk_flaky_tests/lib
         bundle install
         bundle lock --remove-platform ruby || true

@@ -114,25 +114,24 @@ jobs:
           trunk-token: ${{ secrets.TRUNK_STAGING_ORG_API_TOKEN }}
           platform: ${{ matrix.platform.name }}
           artifact-pattern: cross-gem-${{ matrix.platform.name }}
-
-  publish_ruby_gem:
-    runs-on: ubuntu-latest
-    needs: test-ruby-gem
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: rubygems/configure-rubygems-credentials@main
-        with:
-          role-to-assume: rg_oidc_akr_vxb9d9w6dob8q6sr6jz5
-      - uses: actions/download-artifact@v4
-        with:
-          pattern: cross-gem-*
-          path: context-ruby/pkg/
-          merge-multiple: true
-      - working-directory: context-ruby
-        run: |
-          set -euxo pipefail
-          find pkg
-          for i in $(ls pkg/*.gem); do
-            gem push $i
-          done
+#  publish_ruby_gem:
+#    runs-on: ubuntu-latest
+#    needs: test-ruby-gem
+#    steps:
+#      - uses: actions/checkout@v4
+#
+#      - uses: rubygems/configure-rubygems-credentials@main
+#        with:
+#          role-to-assume: rg_oidc_akr_vxb9d9w6dob8q6sr6jz5
+#      - uses: actions/download-artifact@v4
+#        with:
+#          pattern: cross-gem-*
+#          path: context-ruby/pkg/
+#          merge-multiple: true
+#      - working-directory: context-ruby
+#        run: |
+#          set -euxo pipefail
+#          find pkg
+#          for i in $(ls pkg/*.gem); do
+#            gem push $i
+#          done
