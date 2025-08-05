@@ -52,29 +52,25 @@ runs:
       run: |
         gem install rspec
         gem install rspec_trunk_flaky_tests-*.gem --local
-        gem unpack rspec_trunk_flaky_tests* --spec --version=${{ inputs.release-tag }} --target=rspec_trunk_flaky_tests
-        gem unpack rspec_trunk_flaky_tests* --version=${{ inputs.release-tag }} --target=rspec_trunk_flaky_tests
+        gem unpack rspec_trunk_flaky_tests* --spec --target=rspec_trunk_flaky_tests
+        gem unpack rspec_trunk_flaky_tests* --target=rspec_trunk_flaky_tests
         echo "finding rspec folder"
         find rspec_trunk_flaky_tests -maxdepth 4 -type d
         echo "end find"
         mv rspec_trunk_flaky_tests/rspec_trunk_flaky_tests*/lib rspec_trunk_flaky_tests/lib
         echo "b install"
-        bundle install &> outputfile
-        cat outputfile
+        bundle install
         echo "b lock remove platform ruby"
-        bundle lock --remove-platform ruby &> outputfile || true
-        cat outputfile
+        bundle lock --remove-platform ruby || true
         echo "echo to gemfile"
         echo "gem 'rspec_trunk_flaky_tests', :path => './rspec_trunk_flaky_tests'" >> Gemfile
         echo "catting gemfile"
         cat Gemfile
         echo "EOF"
         echo "bundle install"
-        bundle install --gemfile Gemfile --local &> outputfile
-        cat outputfile
+        bundle install --gemfile Gemfile --local
         echo "bundle exec"
-        bundle exec rspec spec/test_spec.rb &> outputfile
-        cat outputfile
+        bundle exec rspec spec/test_spec.rb
       env:
         TRUNK_PUBLIC_API_ADDRESS: ${{ inputs.trunk-public-api-address }}
         TRUNK_ORG_URL_SLUG: ${{ inputs.trunk-org-slug }}
