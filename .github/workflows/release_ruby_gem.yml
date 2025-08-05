@@ -100,7 +100,7 @@ jobs:
           - name: x86_64-linux
             os: ubuntu-latest
           - name: aarch64-linux
-            os: ubuntu-latest
+            os: ubuntu-24.04-arm
           - name: arm64-darwin
             os: macos-latest
           - name: x86_64-darwin
