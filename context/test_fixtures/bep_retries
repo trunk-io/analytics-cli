@@ -1,0 +1,113 @@
+{
+  "id": {
+    "testResult": {
+      "label": "//trunk/hello_world/cc:hello_test",
+      "run": 1,
+      "shard": 1,
+      "attempt": 1,
+      "configuration": {
+        "id": "2136e65c67d9ba6b2652accfbf6533486c16692a484f4dc7ea7756de0edc13a6"
+      }
+    }
+  },
+  "children": [
+    {
+      "testResult": {
+        "label": "//trunk/hello_world/cc:hello_test",
+        "run": 1,
+        "shard": 1,
+        "attempt": 2,
+        "configuration": {
+          "id": "2136e65c67d9ba6b2652accfbf6533486c16692a484f4dc7ea7756de0edc13a6"
+        }
+      }
+    }
+  ],
+  "testResult": {
+    "testActionOutput": [
+      {
+        "name": "test.xml",
+        "uri": "${URI_FAIL}"
+      }
+    ],
+    "testAttemptDurationMillis": "43",
+    "status": "FAILED",
+    "testAttemptStartMillisEpoch": "1733811443963",
+    "executionInfo": {
+      "strategy": "linux-sandbox",
+      "timingBreakdown": {
+        "child": [],
+        "name": "totalTime",
+        "time": "0.043s"
+      }
+    },
+    "testAttemptStart": "2024-12-10T06:17:23.963Z",
+    "testAttemptDuration": "0.043s"
+  }
+}
+{
+  "id": {
+    "testResult": {
+      "label": "//trunk/hello_world/cc:hello_test",
+      "run": 1,
+      "shard": 1,
+      "attempt": 2,
+      "configuration": {
+        "id": "2136e65c67d9ba6b2652accfbf6533486c16692a484f4dc7ea7756de0edc13a6"
+      }
+    }
+  },
+  "testResult": {
+    "testActionOutput": [
+      {
+        "name": "test.xml",
+        "uri": "${URI_PASS}"
+      }
+    ],
+    "testAttemptDurationMillis": "44",
+    "status": "PASSED",
+    "testAttemptStartMillisEpoch": "1733811444011",
+    "executionInfo": {
+      "strategy": "linux-sandbox",
+      "timingBreakdown": {
+        "child": [],
+        "name": "totalTime",
+        "time": "0.044s"
+      }
+    },
+    "testAttemptStart": "2024-12-10T06:17:24.011Z",
+    "testAttemptDuration": "0.044s"
+  }
+}
+{
+  "id": {
+    "testSummary": {
+      "label": "//trunk/hello_world/cc:hello_test",
+      "configuration": {
+        "id": "2136e65c67d9ba6b2652accfbf6533486c16692a484f4dc7ea7756de0edc13a6"
+      }
+    }
+  },
+  "testSummary": {
+    "totalRunCount": 2,
+    "passed": [
+      {
+        "uri": "file:///repos/trunk/trunk/hello_world/cc/hello_test/test.log"
+      }
+    ],
+    "failed": [
+      {
+        "uri": "file:///repos/trunk/trunk/hello_world/cc/hello_test/test_attempts/attempt_1.log"
+      }
+    ],
+    "overallStatus": "FLAKY",
+    "firstStartTimeMillis": "1734408655425",
+    "lastStopTimeMillis": "1734408655466",
+    "totalRunDurationMillis": "41",
+    "runCount": 1,
+    "totalRunDuration": "0.041s",
+    "firstStartTime": "2024-12-17T04:10:55.425Z",
+    "lastStopTime": "2024-12-17T04:10:55.466Z",
+    "attemptCount": 2
+  }
+}

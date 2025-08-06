@@ -58,6 +58,7 @@ enum TestBuildResult {
   TEST_BUILD_RESULT_SUCCESS = 1;
   TEST_BUILD_RESULT_FAILURE = 2;
   TEST_BUILD_RESULT_SKIPPED = 3;
+  TEST_BUILD_RESULT_FLAKY = 4;
 }
 
 message TestReport {
