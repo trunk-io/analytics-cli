@@ -5,12 +5,27 @@ use bazel_bep::types::build_event_stream::{
     build_event::Payload, build_event_id::Id, file::File::Uri, BuildEvent, TestStatus, TestSummary,
 };
 use chrono::DateTime;
+use proto::test_context::test_run::TestBuildResult;
 
 use crate::junit::junit_path::{
     JunitReportFileWithTestRunnerReport, TestRunnerReport, TestRunnerReportStatus,
 };
 
 const FILE_URI_PREFIX: &str = "file://";
+
+pub fn map_test_status_to_build_result(test_status: BepTestStatus) -> TestBuildResult {
+    match test_status {
+        BepTestStatus::Passed => TestBuildResult::Success,
+        BepTestStatus::Flaky => TestBuildResult::Flaky,
+        BepTestStatus::Timeout => TestBuildResult::Failure,
+        BepTestStatus::Failed => TestBuildResult::Failure,
+        BepTestStatus::Incomplete => TestBuildResult::Failure,
+        BepTestStatus::RemoteFailure => TestBuildResult::Failure,
+        BepTestStatus::FailedToBuild => TestBuildResult::Failure,
+        BepTestStatus::ToolHaltedBeforeTesting => TestBuildResult::Failure,
+        BepTestStatus::NoStatus => TestBuildResult::Unspecified,
+    }
+}
 
 pub fn map_i32_test_status_to_bep_test_status(test_status: i32) -> Result<BepTestStatus> {
     if test_status == TestStatus::Passed as i32 {

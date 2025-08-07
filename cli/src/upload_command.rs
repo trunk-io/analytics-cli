@@ -23,7 +23,7 @@ use crate::{
     context::{
         gather_debug_props, gather_exit_code_and_quarantined_tests_context,
         gather_initial_test_context, gather_post_test_context, gather_upload_id_context,
-        generate_internal_file, PreTestContext,
+        generate_internal_file, generate_internal_file_from_bep, PreTestContext,
     },
     error_report::ErrorReport,
     report_limiting::ValidationReport,
@@ -324,17 +324,31 @@ pub async fn run_upload(
         &test_run_result,
     )?;
     let temp_dir = tempfile::tempdir()?;
-    let internal_bundled_file = generate_internal_file(
-        &meta.base_props.file_sets,
-        &temp_dir,
-        meta.base_props.codeowners.as_ref(),
-        // hide warnings on parsed xcresult output
-        #[cfg(target_os = "macos")]
-        upload_args.xcresult_path.is_none(),
-        #[cfg(not(target_os = "macos"))]
-        true,
-        upload_args.variant,
-    );
+    let internal_bundled_file = if let Some(ref bep_result) = bep_result {
+        generate_internal_file_from_bep(
+            bep_result,
+            &temp_dir,
+            meta.base_props.codeowners.as_ref(),
+            // hide warnings on parsed xcresult output
+            #[cfg(target_os = "macos")]
+            upload_args.xcresult_path.is_none(),
+            #[cfg(not(target_os = "macos"))]
+            true,
+            upload_args.variant,
+        )
+    } else {
+        generate_internal_file(
+            &meta.base_props.file_sets,
+            &temp_dir,
+            meta.base_props.codeowners.as_ref(),
+            // hide warnings on parsed xcresult output
+            #[cfg(target_os = "macos")]
+            upload_args.xcresult_path.is_none(),
+            #[cfg(not(target_os = "macos"))]
+            true,
+            upload_args.variant,
+        )
+    };
     let validations = if let Ok((internal_bundled_file, junit_validations)) = internal_bundled_file
     {
         meta.internal_bundled_file = Some(internal_bundled_file);
