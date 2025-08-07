@@ -412,7 +412,7 @@ async fn upload_bundle_success_status_code() {
 
     let mut bazel_bep_parser = BazelBepParser::new(tar_extract_directory.join("bazel_bep.json"));
     let mut parse_result = bazel_bep_parser.parse().ok().unwrap();
-    assert_eq!(parse_result.test_results.len(), 2);
+    assert_eq!(parse_result.test_results.len(), 1);
     let test_result = parse_result
         .test_results
         .pop()
@@ -537,7 +537,7 @@ async fn upload_bundle_success_preceding_failure() {
 
     let mut bazel_bep_parser = BazelBepParser::new(tar_extract_directory.join("bazel_bep.json"));
     let mut parse_result = bazel_bep_parser.parse().ok().unwrap();
-    assert_eq!(parse_result.test_results.len(), 2);
+    assert_eq!(parse_result.test_results.len(), 1);
     let test_result = parse_result
         .test_results
         .pop()

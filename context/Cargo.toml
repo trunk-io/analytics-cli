@@ -9,6 +9,7 @@ junit-mock = { path = "../junit-mock" }
 test_utils = { path = "../test_utils" }
 tempfile = "3.2.0"
 codeowners = { path = "../codeowners" }
+itertools = "0.14.0"
 
 [dependencies]
 anyhow = "1.0.44"
