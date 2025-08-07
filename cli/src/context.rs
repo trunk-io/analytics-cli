@@ -11,9 +11,9 @@ use std::{
 
 use api::{client::ApiClient, message::CreateBundleUploadResponse};
 use bundle::{
-    BundleMeta, BundleMetaBaseProps, BundleMetaDebugProps, BundleMetaJunitProps, BundledFile,
-    FileSet, FileSetBuilder, FileSetType, QuarantineBulkTestStatus, INTERNAL_BIN_FILENAME,
-    META_VERSION,
+    bin_parse, BundleMeta, BundleMetaBaseProps, BundleMetaDebugProps, BundleMetaJunitProps,
+    BundledFile, FileSet, FileSetBuilder, FileSetType, QuarantineBulkTestStatus,
+    INTERNAL_BIN_FILENAME, META_VERSION,
 };
 use codeowners::CodeOwners;
 use constants::ENVS_TO_GET;
@@ -31,7 +31,6 @@ use context::{
     repo::{BundleRepo, RepoUrlParts},
 };
 use lazy_static::lazy_static;
-use prost::Message;
 use proto::test_context::test_run::{
     BazelBuildInformation, TestBuildResult, TestReport, TestResult, UploaderMetadata,
 };
@@ -745,8 +744,79 @@ fn handle_xcresult(
     Ok(temp_paths)
 }
 
+// Helper function to count unique tests from binary files
+fn count_unique_tests_from_binary_files(bundled_files: &[(std::fs::File, &BundledFile)]) -> usize {
+    bundled_files
+        .iter()
+        .filter_map(|(file, bundled_file)| {
+            if !bundled_file.original_path.ends_with(".bin") {
+                return None;
+            }
+            let mut file_buf_reader = BufReader::new(file);
+            let mut buffer = Vec::new();
+            let result = file_buf_reader.read_to_end(&mut buffer);
+            if let Err(ref e) = result {
+                tracing::warn!(
+                    "Encountered error while reading file {}: {}",
+                    bundled_file.get_print_path(),
+                    e
+                );
+                return None;
+            }
+            let test_report = bin_parse(&buffer);
+            if let Ok(test_report) = test_report {
+                let unique_test_ids: std::collections::HashSet<String> = test_report
+                    .test_results
+                    .iter()
+                    .flat_map(|tr| &tr.test_case_runs)
+                    .map(|tcr| tcr.id.clone())
+                    .collect();
+                Some(unique_test_ids.len())
+            } else {
+                None
+            }
+        })
+        .sum::<usize>()
+}
+
+// Helper function to count unique tests from XML files
+fn count_unique_tests_from_xml_files(bundled_files: &[(std::fs::File, &BundledFile)]) -> usize {
+    bundled_files
+        .iter()
+        .filter_map(|(file, bundled_file)| {
+            if !bundled_file.original_path.ends_with(".xml") {
+                return None;
+            }
+            let file_buf_reader = BufReader::new(file);
+            let mut junit_parser = JunitParser::new();
+            if let Err(e) = junit_parser.parse(file_buf_reader) {
+                tracing::warn!(
+                    "Encountered error while parsing file {}: {}",
+                    bundled_file.get_print_path(),
+                    e
+                );
+                return None;
+            }
+            Some(junit_parser)
+        })
+        .flat_map(|junit_parser| junit_parser.into_reports())
+        .flat_map(|report| report.test_suites)
+        .flat_map(|test_suite| test_suite.test_cases)
+        .fold(
+            std::collections::HashSet::new(),
+            |mut unique_tests, test_case| {
+                // Use a combination of classname and name to identify unique tests
+                let classname = test_case.classname.as_deref().unwrap_or("unknown");
+                let test_id = format!("{}::{}", classname, test_case.name.to_string());
+                unique_tests.insert(test_id);
+                unique_tests
+            },
+        )
+        .len()
+}
+
 fn parse_num_tests(file_sets: &[FileSet]) -> usize {
-    let bundled_files = file_sets
+    let bundled_files: Vec<_> = file_sets
         .iter()
         .flat_map(|file_set| &file_set.files)
         .filter_map(|bundled_file| {
@@ -760,57 +830,17 @@ fn parse_num_tests(file_sets: &[FileSet]) -> usize {
                 );
             }
             file.ok().map(|f| (f, bundled_file))
-        });
-
-    let junit_num_tests = bundled_files
-        .clone()
-        .filter_map(|(file, bundled_file)| {
-            let file_buf_reader = BufReader::new(file);
-            let mut junit_parser = JunitParser::new();
-            // skip non xml files
-            if !bundled_file.original_path.ends_with(".xml") {
-                return None;
-            }
-            if let Err(e) = junit_parser.parse(file_buf_reader) {
-                tracing::warn!(
-                    "Encountered error while parsing file {}: {}",
-                    bundled_file.get_print_path(),
-                    e
-                );
-                return None;
-            }
-            Some(junit_parser)
         })
-        .flat_map(|junit_parser| junit_parser.into_reports())
-        .fold(0, |num_tests, report| num_tests + report.tests);
+        .collect();
 
-    let internal_num_tests = bundled_files
-        .filter_map(|(file, bundled_file)| {
-            let mut file_buf_reader = BufReader::new(file);
-            // skip non bin files
-            if !bundled_file.original_path.ends_with(".bin") {
-                return None;
-            }
-            let mut buffer = Vec::new();
-            let result = file_buf_reader.read_to_end(&mut buffer);
-            if let Err(ref e) = result {
-                tracing::warn!(
-                    "Encountered error while reading file {}: {}",
-                    bundled_file.get_print_path(),
-                    e
-                );
-                return None;
-            }
-            let test_result = proto::test_context::test_run::TestResult::decode(buffer.as_slice());
-            if let Ok(test_result) = test_result {
-                let num_tests = test_result.test_case_runs.len();
-                Some(num_tests)
-            } else {
-                None
-            }
-        })
-        .sum::<usize>();
-    junit_num_tests + internal_num_tests
+    // First, try to count from binary files (which have deduplicated test case runs)
+    let binary_count = count_unique_tests_from_binary_files(&bundled_files);
+    if binary_count > 0 {
+        return binary_count;
+    }
+
+    // Fallback to counting from XML files
+    count_unique_tests_from_xml_files(&bundled_files)
 }
 
 #[cfg(test)]
@@ -978,5 +1008,93 @@ mod tests {
         let args: Vec<String> = vec!["trunk flakytests".into(), "token".into()];
         let debug_props = super::gather_debug_props(args, "token".to_string());
         assert_eq!(debug_props.command_line, "trunk flakytests");
+    }
+
+    #[test]
+    fn test_parse_num_tests_with_retries() {
+        // Create a temporary directory for test files
+        let temp_dir = TempDir::new().unwrap();
+
+        // Create a simple internal binary file with test case runs
+        let test_case_runs = vec![
+            proto::test_context::test_run::TestCaseRun {
+                id: "test1".to_string(),
+                name: "Test1".to_string(),
+                classname: "TestClass".to_string(),
+                file: "test.py".to_string(),
+                parent_name: "TestClass".to_string(),
+                line: 1,
+                status: TestCaseRunStatus::Success as i32,
+                attempt_number: 1, // First attempt
+                ..Default::default()
+            },
+            proto::test_context::test_run::TestCaseRun {
+                id: "test1".to_string(),
+                name: "Test1".to_string(),
+                classname: "TestClass".to_string(),
+                file: "test.py".to_string(),
+                parent_name: "TestClass".to_string(),
+                line: 1,
+                status: TestCaseRunStatus::Success as i32,
+                attempt_number: 2, // Second attempt (retry)
+                ..Default::default()
+            },
+            proto::test_context::test_run::TestCaseRun {
+                id: "test2".to_string(),
+                name: "Test2".to_string(),
+                classname: "TestClass".to_string(),
+                file: "test.py".to_string(),
+                parent_name: "TestClass".to_string(),
+                line: 2,
+                status: TestCaseRunStatus::Success as i32,
+                attempt_number: 1, // Only one attempt
+                ..Default::default()
+            },
+        ];
+
+        let test_result = TestResult {
+            test_case_runs,
+            uploader_metadata: Some(UploaderMetadata {
+                variant: "test".to_string(),
+                ..Default::default()
+            }),
+            test_build_information: None,
+        };
+
+        let test_report = TestReport {
+            test_results: vec![test_result],
+            uploader_metadata: Some(UploaderMetadata {
+                variant: "test".to_string(),
+                ..Default::default()
+            }),
+        };
+
+        // Write the test report to a binary file
+        let mut buf = Vec::new();
+        prost::Message::encode(&test_report, &mut buf).unwrap();
+        let bin_path = temp_dir.path().join("test.bin");
+        std::fs::write(&bin_path, buf).unwrap();
+
+        // Create a FileSet with the binary file
+        let bundled_file = BundledFile {
+            original_path: bin_path.to_string_lossy().to_string(),
+            original_path_rel: None,
+            owners: vec![],
+            path: "test.bin".to_string(),
+            ..Default::default()
+        };
+
+        let file_set = FileSet {
+            file_set_type: FileSetType::Junit,
+            files: vec![bundled_file],
+            test_runner_report: None,
+            glob: String::new(),
+        };
+
+        // Test that parse_num_tests returns the correct count (should count unique tests, not attempts)
+        let num_tests = parse_num_tests(&[file_set]);
+
+        // Should count unique tests (not including retries)
+        assert_eq!(num_tests, 2, "Should count unique tests, not retries");
     }
 }
