@@ -1,7 +1,7 @@
 use std::{collections::HashMap, time::Duration};
 
 use chrono::{DateTime, TimeDelta};
-use proto::test_context::test_run::{TestCaseRun, TestCaseRunStatus, TestResult};
+use proto::test_context::test_run::{TestBuildResult, TestCaseRun, TestCaseRunStatus, TestResult};
 #[cfg(feature = "pyo3")]
 use pyo3::prelude::*;
 #[cfg(feature = "pyo3")]
@@ -29,6 +29,26 @@ pub struct BindingsParseResult {
     pub issues: Vec<JunitParseFlatIssue>,
 }
 
+#[cfg_attr(feature = "pyo3", gen_stub_pyclass_enum, pyclass(eq, eq_int))]
+#[cfg_attr(feature = "wasm", wasm_bindgen)]
+#[derive(Clone, Debug, Copy, PartialEq, Eq)]
+pub enum BindingsTestBuildResult {
+    Unspecified,
+    Success,
+    Failure,
+    Skipped,
+    Flaky,
+}
+
+// Ideally this would be an enum, but enums are not directly supportted by wasm conversions, so we have to manually map out the options. See: https://github.com/rustwasm/wasm-bindgen/issues/2407
+#[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass(get_all))]
+#[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
+#[derive(Clone, Debug)]
+pub struct BazelBuildInformation {
+    pub label: String,
+    pub result: BindingsTestBuildResult,
+}
+
 #[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass(get_all))]
 #[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
 #[derive(Clone, Debug)]
@@ -43,6 +63,25 @@ pub struct BindingsReport {
     pub errors: usize,
     pub test_suites: Vec<BindingsTestSuite>,
     pub variant: Option<String>,
+    pub bazel_build_information: Option<BazelBuildInformation>,
+}
+
+pub fn map_i32_to_bindings_test_build_result(
+    result: i32,
+) -> anyhow::Result<BindingsTestBuildResult> {
+    if result == TestBuildResult::Unspecified as i32 {
+        Ok(BindingsTestBuildResult::Unspecified)
+    } else if result == TestBuildResult::Success as i32 {
+        Ok(BindingsTestBuildResult::Success)
+    } else if result == TestBuildResult::Failure as i32 {
+        Ok(BindingsTestBuildResult::Failure)
+    } else if result == TestBuildResult::Skipped as i32 {
+        Ok(BindingsTestBuildResult::Skipped)
+    } else if result == TestBuildResult::Flaky as i32 {
+        Ok(BindingsTestBuildResult::Flaky)
+    } else {
+        Err(anyhow::anyhow!("Unknown TestBuildResult: {}", result))
+    }
 }
 
 impl From<TestCaseRunStatus> for BindingsTestCaseStatusStatus {
@@ -61,7 +100,7 @@ impl From<TestResult> for BindingsReport {
         TestResult {
             test_case_runs,
             uploader_metadata,
-            ..
+            test_build_information,
         }: TestResult,
     ) -> Self {
         let test_cases: Vec<BindingsTestCase> = test_case_runs
@@ -136,6 +175,16 @@ impl From<TestResult> for BindingsReport {
             }
             None => ("Unknown".to_string(), None, None, None),
         };
+        let bazel_build_information = match test_build_information {
+            Some(proto::test_context::test_run::test_result::TestBuildInformation::BazelBuildInformation(
+                bazel_build_information,
+            )) => Some(BazelBuildInformation {
+                label: bazel_build_information.label,
+                result: map_i32_to_bindings_test_build_result(bazel_build_information.result)
+                    .unwrap_or(BindingsTestBuildResult::Unspecified),
+            }),
+            _ => None,
+        };
         BindingsReport {
             name,
             test_suites,
@@ -147,6 +196,7 @@ impl From<TestResult> for BindingsReport {
             failures: report_failures,
             tests: report_tests,
             variant,
+            bazel_build_information,
         }
     }
 }
@@ -266,6 +316,7 @@ impl From<Report> for BindingsReport {
                 .map(BindingsTestSuite::from)
                 .collect(),
             variant: None,
+            bazel_build_information: None,
         }
     }
 }
@@ -283,6 +334,7 @@ impl From<BindingsReport> for Report {
             errors,
             test_suites,
             variant: _,
+            bazel_build_information: _,
         } = val;
         // NOTE: Cannot make a UUID without a `&'static str`
         let _ = uuid;
