@@ -11,24 +11,29 @@ use std::{
 
 use api::{client::ApiClient, message::CreateBundleUploadResponse};
 use bundle::{
-    BundleMeta, BundleMetaBaseProps, BundleMetaDebugProps, BundleMetaJunitProps, BundledFile,
-    FileSet, FileSetBuilder, FileSetType, QuarantineBulkTestStatus, INTERNAL_BIN_FILENAME,
-    META_VERSION,
+    bin_parse, BundleMeta, BundleMetaBaseProps, BundleMetaDebugProps, BundleMetaJunitProps,
+    BundledFile, FileSet, FileSetBuilder, FileSetType, QuarantineBulkTestStatus,
+    INTERNAL_BIN_FILENAME, META_VERSION,
 };
 use codeowners::CodeOwners;
 use constants::ENVS_TO_GET;
 use context::{
-    bazel_bep::{binary_parser::BazelBepBinParser, common::BepParseResult, parser::BazelBepParser},
+    bazel_bep::{
+        binary_parser::BazelBepBinParser,
+        common::{map_test_status_to_build_result, BepParseResult},
+        parser::BazelBepParser,
+    },
     junit::{
-        junit_path::JunitReportFileWithTestRunnerReport,
+        junit_path::{JunitReportFileWithTestRunnerReport, TestRunnerReport},
         parser::JunitParser,
         validator::{validate, JunitReportValidation},
     },
     repo::{BundleRepo, RepoUrlParts},
 };
 use lazy_static::lazy_static;
-use prost::Message;
-use proto::test_context::test_run::{TestResult, UploaderMetadata};
+use proto::test_context::test_run::{
+    BazelBuildInformation, TestBuildResult, TestReport, TestResult, UploaderMetadata,
+};
 use regex::Regex;
 use tempfile::TempDir;
 #[cfg(target_os = "macos")]
@@ -211,6 +216,175 @@ pub fn gather_post_test_context<U: AsRef<Path>>(
     Ok(file_set_builder)
 }
 
+fn validate_junit_file(
+    junit_path: &str,
+    junit_parser: &mut JunitParser,
+    test_runner_report: Option<&TestRunnerReport>,
+    show_warnings: bool,
+    junit_validations: &mut BTreeMap<String, anyhow::Result<JunitReportValidation>>,
+) {
+    if !junit_path.ends_with(".xml") || !show_warnings {
+        return;
+    }
+
+    let file_contents = match std::fs::read_to_string(junit_path) {
+        Ok(contents) => contents,
+        Err(e) => {
+            junit_validations.insert(junit_path.to_string(), Err(e.into()));
+            return;
+        }
+    };
+    let parsed_results = junit_parser.parse(BufReader::new(file_contents.as_bytes()));
+    if let Err(e) = parsed_results {
+        tracing::warn!("Failed to parse JUnit file {:?}: {:?}", junit_path, e);
+        junit_validations.insert(junit_path.to_string(), Err(e));
+        return;
+    }
+    let reports = junit_parser.reports();
+    if reports.len() == 1 {
+        junit_validations.insert(
+            junit_path.to_string(),
+            Ok(validate(&reports[0], test_runner_report.cloned())),
+        );
+    }
+}
+
+fn create_test_result(
+    test_case_runs: Vec<proto::test_context::test_run::TestCaseRun>,
+    variant: Option<String>,
+    build_information: Option<proto::test_context::test_run::test_result::TestBuildInformation>,
+) -> TestResult {
+    TestResult {
+        test_case_runs,
+        // trunk-ignore(clippy/deprecated)
+        uploader_metadata: Some(UploaderMetadata {
+            variant: variant.unwrap_or_default(),
+            ..Default::default()
+        }),
+        test_build_information: build_information,
+    }
+}
+
+fn write_test_report_to_file(
+    test_results: Vec<TestResult>,
+    variant: Option<String>,
+    temp_dir: &TempDir,
+) -> anyhow::Result<BundledFile> {
+    let test_report = TestReport {
+        uploader_metadata: Some(UploaderMetadata {
+            variant: variant.unwrap_or_default(),
+            ..Default::default()
+        }),
+        test_results,
+    };
+
+    let mut buf = Vec::new();
+    prost::Message::encode(&test_report, &mut buf)?;
+    let test_report_path = temp_dir.path().join(INTERNAL_BIN_FILENAME);
+    std::fs::write(&test_report_path, buf)?;
+
+    Ok(BundledFile {
+        original_path: test_report_path.to_string_lossy().to_string(),
+        original_path_rel: None,
+        owners: vec![],
+        path: INTERNAL_BIN_FILENAME.to_string(),
+        // last_modified_epoch_ns does not serialize so the compiler complains it does not exist
+        ..Default::default()
+    })
+}
+
+fn get_build_result_from_bep(bep_result: &BepParseResult, label: &str) -> i32 {
+    bep_result
+        .test_results
+        .iter()
+        .find(|test_result| test_result.label == label)
+        .and_then(|test_result| test_result.build_status)
+        .map(|status| map_test_status_to_build_result(status) as i32)
+        .unwrap_or(TestBuildResult::Unspecified as i32)
+}
+
+pub fn generate_internal_file_from_bep(
+    bep_result: &BepParseResult,
+    temp_dir: &TempDir,
+    codeowners: Option<&CodeOwners>,
+    show_warnings: bool,
+    variant: Option<String>,
+) -> anyhow::Result<(
+    BundledFile,
+    BTreeMap<String, anyhow::Result<JunitReportValidation>>,
+)> {
+    let mut junit_validations = BTreeMap::new();
+    let labels_map = bep_result.uncached_labels();
+    let mut test_results = vec![];
+
+    for (label, file_with_test_runner_report) in labels_map.into_iter() {
+        let mut test_case_runs = Vec::new();
+
+        let bep_test_result = bep_result
+            .test_results
+            .iter()
+            .find(|test_result| test_result.label == label);
+
+        if let Some(bep_result) = bep_test_result {
+            for (attempt_index, &attempt_number) in bep_result.attempt_numbers.iter().enumerate() {
+                if let Some(xml_file) = bep_result.xml_files.get(attempt_index) {
+                    let mut junit_parser = JunitParser::new();
+                    if xml_file.ends_with(".xml") && show_warnings {
+                        validate_junit_file(
+                            xml_file,
+                            &mut junit_parser,
+                            None, // No test runner report for individual attempts
+                            show_warnings,
+                            &mut junit_validations,
+                        );
+
+                        let mut xml_test_case_runs = junit_parser.into_test_case_runs(codeowners);
+                        for test_case_run in &mut xml_test_case_runs {
+                            test_case_run.attempt_number = attempt_number;
+                        }
+                        test_case_runs.extend(xml_test_case_runs);
+                    }
+                }
+            }
+        } else {
+            for JunitReportFileWithTestRunnerReport {
+                junit_path,
+                test_runner_report,
+            } in file_with_test_runner_report
+            {
+                let mut junit_parser = JunitParser::new();
+                if junit_path.ends_with(".xml") && show_warnings {
+                    validate_junit_file(
+                        &junit_path,
+                        &mut junit_parser,
+                        test_runner_report.as_ref(),
+                        show_warnings,
+                        &mut junit_validations,
+                    );
+                    test_case_runs.extend(junit_parser.into_test_case_runs(codeowners));
+                }
+            }
+        }
+
+        let build_result = get_build_result_from_bep(bep_result, &label);
+
+        test_results.push(create_test_result(
+            test_case_runs,
+            variant.clone(),
+            Some(proto::test_context::test_run::test_result::TestBuildInformation::BazelBuildInformation(
+                BazelBuildInformation {
+                    label,
+                    result: build_result,
+                }
+            )),
+        ));
+    }
+
+    let bundled_file = write_test_report_to_file(test_results, variant, temp_dir)?;
+
+    Ok((bundled_file, junit_validations))
+}
+
 pub fn generate_internal_file(
     file_sets: &[FileSet],
     temp_dir: &TempDir,
@@ -221,8 +395,9 @@ pub fn generate_internal_file(
     BundledFile,
     BTreeMap<String, anyhow::Result<JunitReportValidation>>,
 )> {
-    let mut test_case_runs = Vec::new();
     let mut junit_validations = BTreeMap::new();
+    let mut test_case_runs = Vec::new();
+
     for file_set in file_sets {
         if file_set.file_set_type == FileSetType::Internal {
             if file_set.files.is_empty() {
@@ -239,53 +414,29 @@ pub fn generate_internal_file(
             for file in &file_set.files {
                 let mut junit_parser = JunitParser::new();
                 if file.original_path.ends_with(".xml") && show_warnings {
-                    let file_contents = std::fs::read_to_string(&file.original_path)?;
-                    let parsed_results =
-                        junit_parser.parse(BufReader::new(file_contents.as_bytes()));
-                    if let Err(e) = parsed_results {
-                        tracing::warn!("Failed to parse JUnit file {:?}: {:?}", file, e);
-                        junit_validations.insert(file.original_path.clone(), Err(e));
-                        continue;
-                    }
-                    let reports = junit_parser.reports();
-                    if reports.len() == 1 {
-                        junit_validations.insert(
-                            file.original_path.clone(),
-                            Ok(validate(
-                                &reports[0],
-                                file_set.test_runner_report.clone().map(|t| t.into()),
-                            )),
-                        );
-                    }
+                    let test_runner_report = file_set.test_runner_report.clone().map(|t| t.into());
+                    validate_junit_file(
+                        &file.original_path,
+                        &mut junit_parser,
+                        test_runner_report.as_ref(),
+                        show_warnings,
+                        &mut junit_validations,
+                    );
                     test_case_runs.extend(junit_parser.into_test_case_runs(codeowners));
                 }
             }
         }
     }
-    // Write test case runs to a temporary file
-    let test_result = TestResult {
+
+    let test_results = vec![create_test_result(
         test_case_runs,
-        uploader_metadata: Some(UploaderMetadata {
-            variant: variant.unwrap_or_default(),
-            ..Default::default()
-        }),
-        test_build_information: None,
-    };
-    let mut buf = Vec::new();
-    prost::Message::encode(&test_result, &mut buf)?;
-    let test_report_path = temp_dir.path().join(INTERNAL_BIN_FILENAME);
-    std::fs::write(&test_report_path, buf)?;
-    Ok((
-        BundledFile {
-            original_path: test_report_path.to_string_lossy().to_string(),
-            original_path_rel: None,
-            owners: vec![],
-            path: INTERNAL_BIN_FILENAME.to_string(),
-            // last_modified_epoch_ns does not serialize so the compiler complains it does not exist
-            ..Default::default()
-        },
-        junit_validations,
-    ))
+        variant.clone(),
+        None, // No build information for non-BEP files
+    )];
+
+    let bundled_file = write_test_report_to_file(test_results, variant, temp_dir)?;
+
+    Ok((bundled_file, junit_validations))
 }
 
 pub fn fall_back_to_binary_parse(
@@ -595,8 +746,79 @@ fn handle_xcresult(
     Ok(temp_paths)
 }
 
+// Helper function to count unique tests from binary files
+fn count_unique_tests_from_binary_files(bundled_files: &[(std::fs::File, &BundledFile)]) -> usize {
+    bundled_files
+        .iter()
+        .filter_map(|(file, bundled_file)| {
+            if !bundled_file.original_path.ends_with(".bin") {
+                return None;
+            }
+            let mut file_buf_reader = BufReader::new(file);
+            let mut buffer = Vec::new();
+            let result = file_buf_reader.read_to_end(&mut buffer);
+            if let Err(ref e) = result {
+                tracing::warn!(
+                    "Encountered error while reading file {}: {}",
+                    bundled_file.get_print_path(),
+                    e
+                );
+                return None;
+            }
+            let test_report = bin_parse(&buffer);
+            if let Ok(test_report) = test_report {
+                let unique_test_ids: std::collections::HashSet<String> = test_report
+                    .test_results
+                    .iter()
+                    .flat_map(|tr| &tr.test_case_runs)
+                    .map(|tcr| tcr.id.clone())
+                    .collect();
+                Some(unique_test_ids.len())
+            } else {
+                None
+            }
+        })
+        .sum::<usize>()
+}
+
+// Helper function to count unique tests from XML files
+fn count_unique_tests_from_xml_files(bundled_files: &[(std::fs::File, &BundledFile)]) -> usize {
+    bundled_files
+        .iter()
+        .filter_map(|(file, bundled_file)| {
+            if !bundled_file.original_path.ends_with(".xml") {
+                return None;
+            }
+            let file_buf_reader = BufReader::new(file);
+            let mut junit_parser = JunitParser::new();
+            if let Err(e) = junit_parser.parse(file_buf_reader) {
+                tracing::warn!(
+                    "Encountered error while parsing file {}: {}",
+                    bundled_file.get_print_path(),
+                    e
+                );
+                return None;
+            }
+            Some(junit_parser)
+        })
+        .flat_map(|junit_parser| junit_parser.into_reports())
+        .flat_map(|report| report.test_suites)
+        .flat_map(|test_suite| test_suite.test_cases)
+        .fold(
+            std::collections::HashSet::new(),
+            |mut unique_tests, test_case| {
+                // Use a combination of classname and name to identify unique tests
+                let classname = test_case.classname.as_deref().unwrap_or("unknown");
+                let test_id = format!("{}::{}", classname, test_case.name.to_string());
+                unique_tests.insert(test_id);
+                unique_tests
+            },
+        )
+        .len()
+}
+
 fn parse_num_tests(file_sets: &[FileSet]) -> usize {
-    let bundled_files = file_sets
+    let bundled_files: Vec<_> = file_sets
         .iter()
         .flat_map(|file_set| &file_set.files)
         .filter_map(|bundled_file| {
@@ -610,67 +832,35 @@ fn parse_num_tests(file_sets: &[FileSet]) -> usize {
                 );
             }
             file.ok().map(|f| (f, bundled_file))
-        });
-
-    let junit_num_tests = bundled_files
-        .clone()
-        .filter_map(|(file, bundled_file)| {
-            let file_buf_reader = BufReader::new(file);
-            let mut junit_parser = JunitParser::new();
-            // skip non xml files
-            if !bundled_file.original_path.ends_with(".xml") {
-                return None;
-            }
-            if let Err(e) = junit_parser.parse(file_buf_reader) {
-                tracing::warn!(
-                    "Encountered error while parsing file {}: {}",
-                    bundled_file.get_print_path(),
-                    e
-                );
-                return None;
-            }
-            Some(junit_parser)
         })
-        .flat_map(|junit_parser| junit_parser.into_reports())
-        .fold(0, |num_tests, report| num_tests + report.tests);
+        .collect();
 
-    let internal_num_tests = bundled_files
-        .filter_map(|(file, bundled_file)| {
-            let mut file_buf_reader = BufReader::new(file);
-            // skip non bin files
-            if !bundled_file.original_path.ends_with(".bin") {
-                return None;
-            }
-            let mut buffer = Vec::new();
-            let result = file_buf_reader.read_to_end(&mut buffer);
-            if let Err(ref e) = result {
-                tracing::warn!(
-                    "Encountered error while reading file {}: {}",
-                    bundled_file.get_print_path(),
-                    e
-                );
-                return None;
-            }
-            let test_result = proto::test_context::test_run::TestResult::decode(buffer.as_slice());
-            if let Ok(test_result) = test_result {
-                let num_tests = test_result.test_case_runs.len();
-                Some(num_tests)
-            } else {
-                None
-            }
-        })
-        .sum::<usize>();
-    junit_num_tests + internal_num_tests
+    // First, try to count from binary files (which have deduplicated test case runs)
+    let binary_count = count_unique_tests_from_binary_files(&bundled_files);
+    if binary_count > 0 {
+        return binary_count;
+    }
+
+    // Fallback to counting from XML files
+    count_unique_tests_from_xml_files(&bundled_files)
 }
 
 #[cfg(test)]
 mod tests {
+
     use bundle::BundleMetaDebugProps;
+    use bundle::{BundledFile, FileSet, FileSetType};
+    use context::bazel_bep::parser::BazelBepParser;
     #[cfg(target_os = "macos")]
     use context::repo::RepoUrlParts;
+    use proto::test_context::test_run::{
+        TestCaseRunStatus, TestReport, TestResult, UploaderMetadata,
+    };
+    use tempfile::TempDir;
 
-    use crate::context::coalesce_junit_path_wrappers;
-    use crate::context::gather_initial_test_context;
+    use crate::context::{
+        coalesce_junit_path_wrappers, gather_initial_test_context, parse_num_tests,
+    };
     use crate::upload_command::UploadArgs;
 
     #[test]
@@ -828,5 +1018,124 @@ mod tests {
         let args: Vec<String> = vec!["trunk flakytests".into(), "token".into()];
         let debug_props = super::gather_debug_props(args, "token".to_string());
         assert_eq!(debug_props.command_line, "trunk flakytests");
+    }
+
+    #[test]
+    fn test_attempt_numbers_in_internal_bin() {
+        let _temp_dir = TempDir::new().unwrap(); // Not used in simplified test
+        let current_dir = std::env::current_dir().unwrap();
+        let input_file = current_dir.join("../context/test_fixtures/bep_retries");
+        let mut parser = BazelBepParser::new(input_file);
+        let bep_result = parser.parse().unwrap();
+
+        let bep_test_result = bep_result
+            .test_results
+            .iter()
+            .find(|r| r.label == "//trunk/hello_world/cc:hello_test")
+            .unwrap();
+
+        assert_eq!(
+            bep_test_result.attempt_numbers.len(),
+            2,
+            "Should have 2 attempt numbers"
+        );
+        assert!(
+            bep_test_result.attempt_numbers.contains(&1),
+            "Should have attempt 1"
+        );
+        assert!(
+            bep_test_result.attempt_numbers.contains(&2),
+            "Should have attempt 2"
+        );
+
+        assert_eq!(bep_test_result.build_status.unwrap() as i32, 1); // PASSED = 1
+    }
+
+    #[test]
+    fn test_parse_num_tests_with_retries() {
+        // Create a temporary directory for test files
+        let temp_dir = TempDir::new().unwrap();
+
+        // Create a simple internal binary file with test case runs
+        let test_case_runs = vec![
+            proto::test_context::test_run::TestCaseRun {
+                id: "test1".to_string(),
+                name: "Test1".to_string(),
+                classname: "TestClass".to_string(),
+                file: "test.py".to_string(),
+                parent_name: "TestClass".to_string(),
+                line: 1,
+                status: TestCaseRunStatus::Success as i32,
+                attempt_number: 1, // First attempt
+                ..Default::default()
+            },
+            proto::test_context::test_run::TestCaseRun {
+                id: "test1".to_string(),
+                name: "Test1".to_string(),
+                classname: "TestClass".to_string(),
+                file: "test.py".to_string(),
+                parent_name: "TestClass".to_string(),
+                line: 1,
+                status: TestCaseRunStatus::Success as i32,
+                attempt_number: 2, // Second attempt (retry)
+                ..Default::default()
+            },
+            proto::test_context::test_run::TestCaseRun {
+                id: "test2".to_string(),
+                name: "Test2".to_string(),
+                classname: "TestClass".to_string(),
+                file: "test.py".to_string(),
+                parent_name: "TestClass".to_string(),
+                line: 2,
+                status: TestCaseRunStatus::Success as i32,
+                attempt_number: 1, // Only one attempt
+                ..Default::default()
+            },
+        ];
+
+        let test_result = TestResult {
+            test_case_runs,
+            uploader_metadata: Some(UploaderMetadata {
+                variant: "test".to_string(),
+                ..Default::default()
+            }),
+            test_build_information: None,
+        };
+
+        let test_report = TestReport {
+            test_results: vec![test_result],
+            uploader_metadata: Some(UploaderMetadata {
+                variant: "test".to_string(),
+                ..Default::default()
+            }),
+        };
+
+        // Write the test report to a binary file
+        let mut buf = Vec::new();
+        prost::Message::encode(&test_report, &mut buf).unwrap();
+        let bin_path = temp_dir.path().join("test.bin");
+        std::fs::write(&bin_path, buf).unwrap();
+
+        // Create a FileSet with the binary file
+        let bundled_file = BundledFile {
+            original_path: bin_path.to_string_lossy().to_string(),
+            original_path_rel: None,
+            owners: vec![],
+            path: "test.bin".to_string(),
+            ..Default::default()
+        };
+
+        let file_set = FileSet {
+            file_set_type: FileSetType::Junit,
+            files: vec![bundled_file],
+            test_runner_report: None,
+            glob: String::new(),
+        };
+
+        // Test that parse_num_tests returns the correct count (should count unique tests, not attempts)
+        let num_tests = parse_num_tests(&[file_set]);
+
+        // Should count unique tests (not including retries)
+        assert_eq!(num_tests, 2, "Should count unique tests, not retries");
     }
 }
