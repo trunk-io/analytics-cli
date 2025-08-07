@@ -269,6 +269,7 @@ pub fn generate_internal_file(
             variant: variant.unwrap_or_default(),
             ..Default::default()
         }),
+        test_build_information: None,
     };
     let mut buf = Vec::new();
     prost::Message::encode(&test_result, &mut buf)?;

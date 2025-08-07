@@ -61,6 +61,7 @@ impl From<TestResult> for BindingsReport {
         TestResult {
             test_case_runs,
             uploader_metadata,
+            ..
         }: TestResult,
     ) -> Self {
         let test_cases: Vec<BindingsTestCase> = test_case_runs
