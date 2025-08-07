@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use bazel_bep::types::build_event_stream::BuildEvent;
 use serde_json::Deserializer;
 
-use crate::bazel_bep::common::BepParseResult;
+use crate::bazel_bep::common::{BepParseResult, BepTestStatus};
 
 /// Uses proto spec
 /// https://github.com/TylerJang27/bazel-bep/blob/master/proto/build_event_stream.proto based on
@@ -47,6 +47,7 @@ mod tests {
     const EMPTY_EXAMPLE: &str = "test_fixtures/bep_empty";
     const PARTIAL_EXAMPLE: &str = "test_fixtures/bep_partially_valid";
     const FLAKY_SUMMARY_EXAMPLE: &str = "test_fixtures/bep_flaky_summary";
+    const RETRIES_EXAMPLE: &str = "test_fixtures/bep_retries";
 
     #[test]
     fn test_parse_simple_bep() {
@@ -64,6 +65,78 @@ mod tests {
         );
         assert_eq!(parse_result.xml_file_counts(), (1, 0));
         assert_eq!(*parse_result.errors, empty_vec);
+    }
+
+    #[test]
+    fn test_parse_retries_bep() {
+        let input_file = get_test_file_path(RETRIES_EXAMPLE);
+        let mut parser = BazelBepParser::new(input_file);
+        let parse_result = parser.parse().unwrap();
+
+        let uncached_xml_files = parse_result.uncached_xml_files();
+        assert_eq!(
+            uncached_xml_files.len(),
+            2,
+            "Should have 2 XML files from retries"
+        );
+
+        let xml_paths: Vec<String> = uncached_xml_files
+            .iter()
+            .map(|f| f.junit_path.clone())
+            .collect();
+        assert!(
+            xml_paths.iter().any(|path| path.contains("URI_FAIL")),
+            "Should have fail XML"
+        );
+        assert!(
+            xml_paths.iter().any(|path| path.contains("URI_PASS")),
+            "Should have pass XML"
+        );
+
+        // Test that we have the correct number of test results (should be 1 since we merge by label)
+        assert_eq!(
+            parse_result.test_results.len(),
+            1,
+            "Should have 1 test result (merged by label)"
+        );
+
+        // Test that the merged result has both XML files
+        let test_result = &parse_result.test_results[0];
+        assert_eq!(
+            test_result.xml_files.len(),
+            2,
+            "Should have 2 XML files in merged result"
+        );
+        assert_eq!(test_result.label, "//trunk/hello_world/cc:hello_test");
+
+        // Test that the build status reflects the latest status (should be Success since the last attempt was PASSED)
+        assert!(test_result.build_status.is_some());
+        // Verify that the status is PASSED (the latest attempt) not FAILED (the most severe)
+        assert_eq!(
+            test_result.build_status.as_ref().unwrap(),
+            &BepTestStatus::Passed
+        );
+
+        // Test that attempt numbers are captured correctly
+        assert_eq!(
+            test_result.attempt_numbers.len(),
+            2,
+            "Should have 2 attempt numbers"
+        );
+        assert!(
+            test_result.attempt_numbers.contains(&1),
+            "Should have attempt 1"
+        );
+        assert!(
+            test_result.attempt_numbers.contains(&2),
+            "Should have attempt 2"
+        );
+
+        assert_eq!(
+            parse_result.errors.len(),
+            0,
+            "Should have no parsing errors"
+        );
     }
 
     #[test]
@@ -187,5 +260,83 @@ mod tests {
             ]
         );
         assert_eq!(parse_result.xml_file_counts(), (4, 0));
+
+        // Test that attempt numbers are captured for the flaky test
+        let hello_test_result = parse_result
+            .test_results
+            .iter()
+            .find(|r| r.label == "//trunk/hello_world/cc:hello_test")
+            .expect("Should find hello_test result");
+        assert_eq!(
+            hello_test_result.attempt_numbers.len(),
+            3,
+            "Should have 3 attempt numbers for flaky test"
+        );
+        assert!(
+            hello_test_result.attempt_numbers.contains(&1),
+            "Should have attempt 1"
+        );
+        assert!(
+            hello_test_result.attempt_numbers.contains(&2),
+            "Should have attempt 2"
+        );
+        assert!(
+            hello_test_result.attempt_numbers.contains(&3),
+            "Should have attempt 3"
+        );
+    }
+
+    #[test]
+    fn test_uncached_labels() {
+        use itertools::Itertools;
+        let input_file = get_test_file_path(FLAKY_SUMMARY_EXAMPLE);
+        let mut parser = BazelBepParser::new(input_file);
+        let parse_result = parser.parse().unwrap();
+
+        let uncached_labels = parse_result.uncached_labels();
+
+        // Should have 2 labels
+        assert_eq!(uncached_labels.len(), 2);
+
+        // Get the first label (hello_test)
+        let first_label = uncached_labels.keys().sorted().next().unwrap();
+        assert_eq!(first_label, "//trunk/hello_world/cc:hello_test");
+        let first_label_files = uncached_labels.get(first_label).unwrap();
+        assert_eq!(
+            first_label_files.len(),
+            3,
+            "Should have 3 XML files from retries"
+        );
+
+        // Check that we have all the expected XML files from the retries
+        let xml_paths: Vec<String> = first_label_files
+            .iter()
+            .map(|f| f.junit_path.clone())
+            .collect();
+
+        assert!(xml_paths.contains(&"/tmp/hello_test/test_attempts/attempt_1.xml".to_string()));
+        assert!(xml_paths.contains(&"/tmp/hello_test/test_attempts/attempt_2.xml".to_string()));
+        assert!(xml_paths.contains(&"/tmp/hello_test/test.xml".to_string()));
+
+        // All files should have the same test runner report
+        for file in first_label_files {
+            assert!(file.test_runner_report.is_some());
+            if let Some(report) = &file.test_runner_report {
+                assert_eq!(report.status, TestRunnerReportStatus::Flaky);
+            }
+        }
+
+        // Get the second label (client_test)
+        let second_label = uncached_labels.keys().sorted().nth(1).unwrap();
+        assert_eq!(second_label, "//trunk/hello_world/cc_grpc:client_test");
+        let second_label_files = uncached_labels.get(second_label).unwrap();
+        assert_eq!(second_label_files.len(), 1);
+
+        let second_label_file = &second_label_files[0];
+        assert_eq!(second_label_file.junit_path, "/tmp/client_test/test.xml");
+        assert!(second_label_file.test_runner_report.is_some());
+        if let Some(report) = &second_label_file.test_runner_report {
+            assert_eq!(report.status, TestRunnerReportStatus::Failed);
+        }
     }
 }

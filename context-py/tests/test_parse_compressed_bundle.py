@@ -204,6 +204,11 @@ def test_parse_internal_bin_v2_from_tarball():
     assert len(bindings_report.test_suites) == 1
     assert bindings_report.tests == 1
     assert bindings_report.variant == ""
+    assert bindings_report.bazel_build_information is not None
+    assert (
+        bindings_report.bazel_build_information.label
+        == "//trunk/hello_world/cc:hello_test"
+    )
 
     test_suite = next(
         (suite for suite in bindings_report.test_suites if suite.name == "HelloTest"),

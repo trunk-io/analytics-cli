@@ -13,7 +13,7 @@ use chrono::TimeDelta;
 use codeowners::CodeOwners;
 use constants::EXIT_FAILURE;
 use context::{
-    bazel_bep::parser::BazelBepParser,
+    bazel_bep::{common::BepTestStatus, parser::BazelBepParser},
     junit::{junit_path::TestRunnerReportStatus, parser::JunitParser},
     repo::{BundleRepo, RepoUrlParts as Repo},
 };
@@ -412,13 +412,15 @@ async fn upload_bundle_success_status_code() {
 
     let mut bazel_bep_parser = BazelBepParser::new(tar_extract_directory.join("bazel_bep.json"));
     let mut parse_result = bazel_bep_parser.parse().ok().unwrap();
-    assert_eq!(parse_result.test_results.len(), 2);
-    let test_result = parse_result
-        .test_results
-        .pop()
-        .unwrap()
-        .test_runner_report
-        .unwrap();
+    assert_eq!(parse_result.test_results.len(), 1);
+    let test_result = parse_result.test_results.pop().unwrap();
+    assert_eq!(test_result.xml_files.len(), 2);
+    assert_eq!(
+        test_result.build_status.as_ref().unwrap(),
+        &BepTestStatus::Passed
+    );
+    let test_result = test_result.test_runner_report.unwrap();
+    assert_eq!(test_result.status, TestRunnerReportStatus::Flaky);
 
     let meta_json = fs::File::open(tar_extract_directory.join("meta.json")).unwrap();
     let bundle_meta: BundleMeta = serde_json::from_reader(meta_json).unwrap();
@@ -537,13 +539,15 @@ async fn upload_bundle_success_preceding_failure() {
 
     let mut bazel_bep_parser = BazelBepParser::new(tar_extract_directory.join("bazel_bep.json"));
     let mut parse_result = bazel_bep_parser.parse().ok().unwrap();
-    assert_eq!(parse_result.test_results.len(), 2);
-    let test_result = parse_result
-        .test_results
-        .pop()
-        .unwrap()
-        .test_runner_report
-        .unwrap();
+    assert_eq!(parse_result.test_results.len(), 1);
+    let test_result = parse_result.test_results.pop().unwrap();
+    assert_eq!(test_result.xml_files.len(), 2);
+    assert_eq!(
+        test_result.build_status.as_ref().unwrap(),
+        &BepTestStatus::Passed
+    );
+    let test_result = test_result.test_runner_report.unwrap();
+    assert_eq!(test_result.status, TestRunnerReportStatus::Flaky);
 
     let meta_json = fs::File::open(tar_extract_directory.join("meta.json")).unwrap();
     let bundle_meta: BundleMeta = serde_json::from_reader(meta_json).unwrap();
