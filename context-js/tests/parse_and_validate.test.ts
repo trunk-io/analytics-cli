@@ -210,7 +210,7 @@ describe("context-js", () => {
     ).toBe(BranchClass.ProtectedBranch);
   });
 
-  it("parses internal.bin", () => {
+  it("parses test_internal.bin", () => {
     expect.hasAssertions();
 
     const file_path = path.resolve(__dirname, "./test_internal.bin");
@@ -237,5 +237,25 @@ describe("context-js", () => {
 
     expect(rspecExpectationsSuite).toBeDefined();
     expect(rspecExpectationsSuite?.test_cases).toHaveLength(8);
+  });
+
+  it("parses test_internal_v2.bin", () => {
+    expect.hasAssertions();
+
+    const file_path = path.resolve(__dirname, "./test_internal_v2.bin");
+    const file = fs.readFileSync(file_path);
+    const bindingsReports = bin_parse(file);
+
+    expect(bindingsReports).toHaveLength(1);
+
+    const result = bindingsReports.at(0);
+
+    expect(result?.tests).toBe(1);
+    expect(result?.test_suites).toHaveLength(1);
+
+    const testSuite = result?.test_suites.at(0);
+
+    expect(testSuite).toBeDefined();
+    expect(testSuite?.test_cases).toHaveLength(1);
   });
 });

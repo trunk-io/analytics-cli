@@ -5,6 +5,8 @@ use std::{
 };
 
 use codeowners::CodeOwners;
+#[cfg(feature = "bindings")]
+use prost::Message;
 use prost_wkt_types::Timestamp;
 use proto::test_context::test_run::{CodeOwner, TestCaseRun, TestCaseRunStatus};
 #[cfg(feature = "pyo3")]
@@ -21,6 +23,8 @@ use thiserror::Error;
 use wasm_bindgen::prelude::*;
 
 use super::date_parser::JunitDateParser;
+#[cfg(feature = "bindings")]
+use crate::junit::bindings::BindingsReport;
 
 const TAG_REPORT: &[u8] = b"testsuites";
 const TAG_TEST_SUITE: &[u8] = b"testsuite";
@@ -912,6 +916,20 @@ mod unescape_and_truncate {
     }
 }
 
+#[cfg(feature = "bindings")]
+pub fn bin_parse(bin: &[u8]) -> anyhow::Result<Vec<BindingsReport>> {
+    if let Ok(test_report) = proto::test_context::test_run::TestReport::decode(bin) {
+        Ok(test_report
+            .test_results
+            .into_iter()
+            .map(BindingsReport::from)
+            .collect())
+    } else {
+        let test_result = proto::test_context::test_run::TestResult::decode(bin)?;
+        Ok(vec![BindingsReport::from(test_result)])
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::io::BufReader;
@@ -994,5 +1012,73 @@ mod tests {
             })
         );
         assert_eq!(test_case_run2.line, 0);
+    }
+
+    #[cfg(feature = "bindings")]
+    #[test]
+    fn test_bin_parse() {
+        use prost::Message;
+        use proto::test_context::test_run::{
+            TestCaseRun, TestCaseRunStatus, TestReport, TestResult,
+        };
+
+        use crate::junit::parser::bin_parse;
+
+        // Parse TestReport
+        let test_case_run = TestCaseRun {
+            name: "test_case_1".to_string(),
+            parent_name: "test_suite_1".to_string(),
+            classname: "TestClass".to_string(),
+            status: TestCaseRunStatus::Success as i32,
+            status_output_message: "Test passed".to_string(),
+            file: "test_file.java".to_string(),
+            attempt_number: 1,
+            is_quarantined: false,
+            started_at: None,
+            finished_at: None,
+            line: 42,
+            ..Default::default()
+        };
+
+        let test_report = TestReport {
+            test_results: vec![TestResult {
+                test_case_runs: vec![test_case_run.clone()],
+                ..Default::default()
+            }],
+            ..Default::default()
+        };
+
+        let mut bin_data = Vec::new();
+        test_report.encode(&mut bin_data).unwrap();
+
+        let result = bin_parse(&bin_data);
+        assert!(result.is_ok());
+        let reports = result.unwrap();
+        assert_eq!(reports.len(), 1);
+        assert_eq!(reports[0].test_suites.len(), 1);
+        assert_eq!(reports[0].test_suites[0].test_cases.len(), 1);
+        assert_eq!(reports[0].test_suites[0].test_cases[0].name, "test_case_1");
+
+        // Parse TestResult directly
+        let test_result = TestResult {
+            test_case_runs: vec![test_case_run],
+            ..Default::default()
+        };
+
+        let mut bin_data = Vec::new();
+        test_result.encode(&mut bin_data).unwrap();
+
+        let result = bin_parse(&bin_data);
+        assert!(result.is_ok());
+        let reports = result.unwrap();
+        assert_eq!(reports.len(), 1);
+        assert_eq!(reports[0].test_suites.len(), 1);
+        assert_eq!(reports[0].test_suites[0].test_cases.len(), 1);
+        assert_eq!(reports[0].test_suites[0].test_cases[0].name, "test_case_1");
+
+        // Invalid binary data should return an error
+        let invalid_data = b"invalid binary data";
+        let result = bin_parse(invalid_data);
+        assert!(result.is_err());
     }
 }
