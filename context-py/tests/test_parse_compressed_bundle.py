@@ -187,3 +187,27 @@ def test_parse_internal_bin_with_variant_from_tarball():
 
     bindings_report = internal_bin[0]
     assert bindings_report.variant == "test-variant"
+
+
+def test_parse_internal_bin_v2_from_tarball():
+    from context_py import parse_internal_bin_from_tarball
+
+    raw_stream, _ = create_stream_from_meta(
+        expected_meta="{}",
+        internal_bin_filepath="test_internal_v2.bin",
+    )
+
+    internal_bin = parse_internal_bin_from_tarball(raw_stream)
+    assert len(internal_bin) == 1
+
+    bindings_report = internal_bin[0]
+    assert len(bindings_report.test_suites) == 1
+    assert bindings_report.tests == 1
+    assert bindings_report.variant == ""
+
+    test_suite = next(
+        (suite for suite in bindings_report.test_suites if suite.name == "HelloTest"),
+        None,
+    )
+    assert test_suite is not None
+    assert len(test_suite.test_cases) == 1
