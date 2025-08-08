@@ -250,6 +250,9 @@ describe("context-js", () => {
 
     const result = bindingsReports.at(0);
 
+    expect(result?.bazel_build_information?.label).toBe(
+      "//trunk/hello_world/cc:hello_test",
+    );
     expect(result?.tests).toBe(1);
     expect(result?.test_suites).toHaveLength(1);
 

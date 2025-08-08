@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use anyhow::{Ok, Result};
 use bazel_bep::types::build_event_stream::{
-    build_event::Payload, build_event_id::Id, file::File::Uri, BuildEvent, TestSummary,
+    build_event::Payload, build_event_id::Id, file::File::Uri, BuildEvent, TestStatus, TestSummary,
 };
 use chrono::DateTime;
 
@@ -12,12 +12,54 @@ use crate::junit::junit_path::{
 
 const FILE_URI_PREFIX: &str = "file://";
 
+pub fn map_i32_test_status_to_bep_test_status(test_status: i32) -> Result<BepTestStatus> {
+    if test_status == TestStatus::Passed as i32 {
+        Ok(BepTestStatus::Passed)
+    } else if test_status == TestStatus::Flaky as i32 {
+        Ok(BepTestStatus::Flaky)
+    } else if test_status == TestStatus::Timeout as i32 {
+        Ok(BepTestStatus::Timeout)
+    } else if test_status == TestStatus::Failed as i32 {
+        Ok(BepTestStatus::Failed)
+    } else if test_status == TestStatus::Incomplete as i32 {
+        Ok(BepTestStatus::Incomplete)
+    } else if test_status == TestStatus::RemoteFailure as i32 {
+        Ok(BepTestStatus::RemoteFailure)
+    } else if test_status == TestStatus::FailedToBuild as i32 {
+        Ok(BepTestStatus::FailedToBuild)
+    } else if test_status == TestStatus::ToolHaltedBeforeTesting as i32 {
+        Ok(BepTestStatus::ToolHaltedBeforeTesting)
+    } else {
+        Err(anyhow::anyhow!("Unknown test status: {}", test_status))
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Copy)]
+pub enum BepTestStatus {
+    Passed,
+    Failed,
+    Flaky,
+    Timeout,
+    Incomplete,
+    RemoteFailure,
+    FailedToBuild,
+    ToolHaltedBeforeTesting,
+    NoStatus,
+}
+
+#[derive(Debug, Clone)]
+pub struct BepXMLFile {
+    pub file: String,
+    pub attempt: i32,
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct BepTestResult {
     pub label: String,
     pub cached: bool,
-    pub xml_files: Vec<String>,
+    pub xml_files: Vec<BepXMLFile>,
     pub test_runner_report: Option<TestRunnerReport>,
+    pub build_status: Option<BepTestStatus>, // TestStatus from Bazel BEP
 }
 
 #[derive(Debug, Clone, Default)]
@@ -78,11 +120,13 @@ impl BepParseResult {
                                         if action_output.name.ends_with(".xml") {
                                             action_output.file.clone().and_then(|f| {
                                                 if let Uri(uri) = f {
-                                                    Some(
-                                                        uri.strip_prefix(FILE_URI_PREFIX)
+                                                    Some(BepXMLFile {
+                                                        file: uri
+                                                            .strip_prefix(FILE_URI_PREFIX)
                                                             .unwrap_or(&uri)
                                                             .to_string(),
-                                                    )
+                                                        attempt: id.attempt,
+                                                    })
                                                 } else {
                                                     None
                                                 }
@@ -92,7 +136,6 @@ impl BepParseResult {
                                         }
                                     })
                                     .collect();
-
                                 let cached =
                                     if let Some(execution_info) = &test_result.execution_info {
                                         execution_info.cached_remotely || test_result.cached_locally
@@ -100,12 +143,32 @@ impl BepParseResult {
                                         test_result.cached_locally
                                     };
 
-                                acc.test_results.push(BepTestResult {
-                                    label: id.label.clone(),
-                                    cached,
-                                    xml_files,
-                                    test_runner_report: None,
-                                });
+                                let new_status = match map_i32_test_status_to_bep_test_status(
+                                    test_result.status,
+                                ) {
+                                    std::result::Result::Ok(status) => status,
+                                    Err(err) => {
+                                        acc.errors.push(format!(
+                                            "Error mapping test status for label {}: {}",
+                                            id.label, err
+                                        ));
+                                        BepTestStatus::NoStatus
+                                    }
+                                };
+                                if let Some(existing_result) =
+                                    acc.test_results.iter_mut().find(|r| r.label == id.label)
+                                {
+                                    existing_result.xml_files.extend(xml_files);
+                                    existing_result.build_status = Some(new_status);
+                                } else {
+                                    acc.test_results.push(BepTestResult {
+                                        label: id.label.clone(),
+                                        cached,
+                                        xml_files,
+                                        test_runner_report: None,
+                                        build_status: Some(new_status),
+                                    });
+                                }
                                 acc.bep_test_events.push(build_event);
                             }
                             _ => {}
@@ -154,13 +217,34 @@ impl BepParseResult {
                     r.xml_files
                         .iter()
                         .map(|f| JunitReportFileWithTestRunnerReport {
-                            junit_path: f.clone(),
+                            junit_path: f.file.clone(),
                             test_runner_report: r.test_runner_report.clone(),
                         })
                         .collect::<Vec<_>>(),
                 )
             })
             .flatten()
+            .collect()
+    }
+
+    pub fn uncached_labels(&self) -> HashMap<String, Vec<JunitReportFileWithTestRunnerReport>> {
+        self.test_results
+            .iter()
+            .filter_map(|r| {
+                if r.cached {
+                    return None;
+                }
+                Some((
+                    r.label.clone(),
+                    r.xml_files
+                        .iter()
+                        .map(|f| JunitReportFileWithTestRunnerReport {
+                            junit_path: f.file.clone(),
+                            test_runner_report: r.test_runner_report.clone(),
+                        })
+                        .collect::<Vec<_>>(),
+                ))
+            })
             .collect()
     }
 }
