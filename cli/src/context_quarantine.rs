@@ -15,7 +15,7 @@ use context::{
             BindingsReport, BindingsTestCase, BindingsTestCaseStatusStatus, BindingsTestSuite,
         },
         junit_path::TestRunnerReportStatus,
-        parser::JunitParser,
+        parser::{bin_parse, JunitParser},
     },
     repo::RepoUrlParts,
 };
@@ -181,10 +181,9 @@ impl FailedTestsExtractor {
                             );
                             continue;
                         }
-                        let test_result =
-                            proto::test_context::test_run::TestResult::decode(buffer.as_slice());
+                        let test_result = bin_parse(buffer.as_slice());
                         if let Ok(test_result) = test_result {
-                            vec![BindingsReport::from(test_result)]
+                            test_result
                         } else {
                             tracing::warn!(
                                 "Failed to decode file {:?} for reading: {}",
