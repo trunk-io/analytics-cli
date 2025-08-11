@@ -180,8 +180,11 @@ async fn upload_bundle() {
     assert_eq!(internal_bundled_file.team, None);
 
     let bin = fs::read(tar_extract_directory.join(&internal_bundled_file.path)).unwrap();
-    let report = proto::test_context::test_run::TestResult::decode(&*bin).unwrap();
+    let report = proto::test_context::test_run::TestReport::decode(&*bin).unwrap();
 
+    assert_eq!(report.test_results.len(), 1);
+    let report = report.test_results.first().unwrap();
+    assert_eq!(report.test_build_information, None);
     assert_eq!(report.test_case_runs.len(), 500);
     let test_case_run = &report.test_case_runs[0];
     assert!(test_case_run.id.is_empty());
@@ -275,6 +278,42 @@ async fn upload_bundle_using_bep() {
     let parse_result = bazel_bep_parser.parse().ok().unwrap();
     assert!(parse_result.errors.is_empty());
     assert_eq!(parse_result.xml_file_counts(), (1, 0));
+
+    // Verify internal bundled file contents
+    let internal_bundled_file = bundle_meta.internal_bundled_file.as_ref().unwrap();
+    assert_eq!(internal_bundled_file.path, INTERNAL_BIN_FILENAME);
+    assert_eq!(internal_bundled_file.owners.len(), 0);
+    assert_eq!(internal_bundled_file.team, None);
+
+    let bin = fs::read(tar_extract_directory.join(&internal_bundled_file.path)).unwrap();
+    let report = proto::test_context::test_run::TestReport::decode(&*bin).unwrap();
+
+    assert_eq!(report.test_results.len(), 1);
+    let report = report.test_results.first().unwrap();
+    assert_eq!(report.test_case_runs.len(), 500);
+    assert!(report.test_build_information.is_some());
+    let test_build_information = match report.test_build_information.as_ref() {
+        Some(
+            proto::test_context::test_run::test_result::TestBuildInformation::BazelBuildInformation(
+                bazel_build_information,
+            ),
+        ) => bazel_build_information,
+        _ => panic!("Expected BazelBuildInformation"),
+    };
+    assert_eq!(test_build_information.label, "//path:test");
+
+    let test_case_run = &report.test_case_runs[0];
+    assert!(test_case_run.id.is_empty());
+    assert!(!test_case_run.name.is_empty());
+    assert!(!test_case_run.classname.is_empty());
+    assert!(!test_case_run.file.is_empty());
+    assert!(!test_case_run.parent_name.is_empty());
+    assert_eq!(test_case_run.line, 0);
+    assert_eq!(test_case_run.attempt_number, 0);
+    assert!(test_case_run.started_at.is_some());
+    assert!(test_case_run.finished_at.is_some());
+    assert!(!test_case_run.is_quarantined);
+    assert_eq!(test_case_run.codeowners.len(), 0);
 
     // HINT: View CLI output with `cargo test -- --nocapture`
     println!("{assert}");
