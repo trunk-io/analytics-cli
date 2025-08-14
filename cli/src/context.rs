@@ -11,9 +11,9 @@ use std::{
 
 use api::{client::ApiClient, message::CreateBundleUploadResponse};
 use bundle::{
-    BundleMeta, BundleMetaBaseProps, BundleMetaDebugProps, BundleMetaJunitProps, BundledFile,
-    FileSet, FileSetBuilder, FileSetType, QuarantineBulkTestStatus, INTERNAL_BIN_FILENAME,
-    META_VERSION,
+    bin_parse, BundleMeta, BundleMetaBaseProps, BundleMetaDebugProps, BundleMetaJunitProps,
+    BundledFile, FileSet, FileSetBuilder, FileSetType, QuarantineBulkTestStatus,
+    INTERNAL_BIN_FILENAME, META_VERSION,
 };
 use codeowners::CodeOwners;
 use constants::ENVS_TO_GET;
@@ -801,9 +801,12 @@ fn parse_num_tests(file_sets: &[FileSet]) -> usize {
                 );
                 return None;
             }
-            let test_result = proto::test_context::test_run::TestResult::decode(buffer.as_slice());
-            if let Ok(test_result) = test_result {
-                let num_tests = test_result.test_case_runs.len();
+            let test_report = bin_parse(&buffer);
+            if let Ok(test_report) = test_report {
+                let num_tests = test_report
+                    .test_results
+                    .iter()
+                    .fold(0, |acc, test_result| acc + test_result.test_case_runs.len());
                 Some(num_tests)
             } else {
                 None
