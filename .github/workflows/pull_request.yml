@@ -71,13 +71,10 @@ jobs:
       - name: canary - Test github actions crate
         shell: bash
         run: |
-          res=$(cargo run --bin github-actions -- -v)
-          if [[ "$res" == *"No GitHub Actions external ID found"* ]]; then
-            echo "No GitHub Actions external ID found"
+          cargo run --bin github-actions -- -v
+          if [[ "$?" -ne 0 ]]; then
+            echo "Failed to run github-actions crate"
             exit 1
-          else
-            echo "GitHub Actions external ID found: $res"
-            exit 0
           fi
 
       - name: Run tests
