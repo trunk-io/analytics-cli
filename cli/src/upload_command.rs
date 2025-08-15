@@ -471,7 +471,7 @@ async fn upload_bundle(
         bundle_temp_file,
         // directory is removed on drop
         bundle_temp_dir,
-    ) = BundlerUtil::new(meta.clone(), bep_result).make_tarball_in_temp_dir()?;
+    ) = BundlerUtil::new(meta, bep_result).make_tarball_in_temp_dir()?;
     tracing::info!("Flushed temporary tarball to {:?}", bundle_temp_file);
 
     if dry_run {
