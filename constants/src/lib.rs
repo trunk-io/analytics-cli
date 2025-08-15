@@ -48,6 +48,7 @@ pub const ENVS_TO_GET: &[&str] = &[
     "GITHUB_SHA",
     "GITHUB_WORKFLOW",
     "GITHUB_REF_PROTECTED",
+    "GITHUB_EXTERNAL_ID",
     "RUNNER_ARCH",
     "RUNNER_OS",
     // GitLab

@@ -17,6 +17,7 @@ anyhow = "1.0.44"
 api = { path = "../api" }
 bundle = { path = "../bundle" }
 constants = { path = "../constants" }
+github-actions = { path = "../github-actions" }
 chrono = { version = "0.4.33", default-features = false, features = ["clock"] }
 clap = { version = "4.4.18", features = ["derive", "env"] }
 context = { path = "../context", features = ["bindings"] }

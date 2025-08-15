@@ -7,6 +7,7 @@ members = [
   "context",
   "context-js",
   "context-py",
+  "github-actions",
   "junit-mock",
   "proto",
   "smoke-test",
