@@ -30,6 +30,7 @@ use context::{
     },
     repo::{BundleRepo, RepoUrlParts},
 };
+use github_actions::extract_github_external_id;
 use lazy_static::lazy_static;
 use prost::Message;
 use proto::test_context::test_run::{
@@ -70,6 +71,31 @@ pub fn gather_debug_props(args: Vec<String>, token: String) -> BundleMetaDebugPr
             .trim()
             .to_string(),
     }
+}
+
+fn capture_env_vars() -> HashMap<String, String> {
+    // Extract GitHub Actions external ID if running in GitHub Actions
+    match extract_github_external_id() {
+        Ok(Some(external_id)) => {
+            tracing::info!("Extracted GitHub Actions external ID: {}", external_id);
+            // Set the environment variable for upstream use
+            std::env::set_var("GITHUB_EXTERNAL_ID", &external_id);
+        }
+        Ok(None) => {
+            tracing::debug!("Not running in GitHub Actions or no external ID found");
+        }
+        Err(e) => {
+            tracing::warn!("Failed to extract GitHub Actions external ID: {}", e);
+        }
+    }
+    ENVS_TO_GET
+        .iter()
+        .filter_map(|&env_var| {
+            env::var(env_var)
+                .map(|env_var_value| (env_var.to_string(), env_var_value))
+                .ok()
+        })
+        .collect()
 }
 
 pub fn gather_initial_test_context(
@@ -122,14 +148,7 @@ pub fn gather_initial_test_context(
             allow_empty_test_results,
         )?;
 
-    let envs: HashMap<String, String> = ENVS_TO_GET
-        .iter()
-        .filter_map(|&env_var| {
-            env::var(env_var)
-                .map(|env_var_value| (env_var.to_string(), env_var_value))
-                .ok()
-        })
-        .collect();
+    let envs = capture_env_vars();
 
     let meta = BundleMeta {
         junit_props: BundleMetaJunitProps::default(),

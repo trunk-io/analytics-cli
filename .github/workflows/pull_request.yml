@@ -63,6 +63,20 @@ jobs:
       - name: Setup Rust & Cargo
         uses: ./.github/actions/setup_rust_cargo
 
+      # This is a canary test to ensure that the github actions crate is working
+      # as expected in a real environment.
+      - name: canary - Test github actions crate
+        shell: bash
+        run: |
+          res=$(cargo run --bin github-actions -- -v)
+          if [[ "$res" == *"No GitHub Actions external ID found"* ]]; then
+            echo "No GitHub Actions external ID found"
+            exit 1
+          else
+            echo "GitHub Actions external ID found"
+            exit 0
+          fi
+
       - name: Run tests
         uses: ./.github/actions/run_tests
         id: tests

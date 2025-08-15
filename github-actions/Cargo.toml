@@ -1,0 +1,28 @@
+[package]
+name = "github-actions"
+version = "0.1.0"
+edition = "2021"
+description = "GitHub Actions external ID extraction utilities"
+license = "MIT"
+repository = "https://github.com/trunk-io/analytics-cli"
+keywords = ["github", "actions", "ci", "automation"]
+categories = ["development-tools"]
+
+[[bin]]
+name = "github-actions"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1.0.44"
+clap = { version = "4.4.18", features = ["derive"] }
+glob = "0.3.0"
+regex = "1.10.0"
+sysinfo = "0.30.0"
+tracing = "0.1.41"
+tracing-subscriber = "0.3.19"
+
+[dev-dependencies]
+tempfile = "3.2.0"
+
+[features]
+default = []
