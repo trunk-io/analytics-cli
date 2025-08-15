@@ -24,8 +24,8 @@ use crate::bundle_meta::{BundleMeta, VersionedBundle};
 /// Utility type for packing files into tarball.
 ///
 #[cfg_attr(feature = "wasm", derive(Tsify))]
-pub struct BundlerUtil {
-    meta: BundleMeta,
+pub struct BundlerUtil<'a> {
+    meta: &'a BundleMeta,
     bep_result: Option<BepParseResult>,
 }
 
@@ -41,10 +41,10 @@ pub fn unzip_tarball(bundle_path: &PathBuf, unpack_dir: &PathBuf) -> anyhow::Res
     Ok(())
 }
 
-impl BundlerUtil {
+impl<'a> BundlerUtil<'a> {
     const ZSTD_COMPRESSION_LEVEL: i32 = 15; // This gives roughly 10x compression for text, 22 gives 11x.
 
-    pub fn new(meta: BundleMeta, bep_result: Option<BepParseResult>) -> Self {
+    pub fn new(meta: &'a BundleMeta, bep_result: Option<BepParseResult>) -> Self {
         Self { meta, bep_result }
     }
 
@@ -350,7 +350,7 @@ mod tests {
             },
             internal_bundled_file: None,
         };
-        let bundler_util = BundlerUtil::new(meta, None);
+        let bundler_util = BundlerUtil::new(&meta, None);
         let temp_dir = tempdir().unwrap();
         let bundle_path = temp_dir.path().join(BUNDLE_FILE_NAME);
 

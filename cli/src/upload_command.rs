@@ -385,7 +385,7 @@ pub async fn run_upload(
     let upload_started_at = chrono::Utc::now();
     tracing::info!("Uploading test results...");
     let upload_bundle_result = upload_bundle(
-        meta.clone(),
+        &mut meta,
         &api_client,
         bep_result,
         quarantine_context.exit_code,
@@ -459,13 +459,13 @@ pub async fn run_upload(
 }
 
 async fn upload_bundle(
-    mut meta: BundleMeta,
+    meta: &mut BundleMeta,
     api_client: &ApiClient,
     bep_result: Option<BepParseResult>,
     exit_code: i32,
     dry_run: bool,
 ) -> anyhow::Result<(PathBuf, TempDir)> {
-    let upload_result = gather_upload_id_context(&mut meta, api_client, dry_run).await;
+    let upload_result = gather_upload_id_context(meta, api_client, dry_run).await;
 
     let (
         bundle_temp_file,
@@ -502,6 +502,8 @@ async fn upload_bundle(
     }
 }
 
+pub const BUNDLE_UPLOAD_ID_MESSAGE: &str = "Test results uploaded to Trunk with bundle upload ID:";
+
 impl EndOutput for UploadRunResult {
     fn output(&self) -> anyhow::Result<Vec<Line>> {
         let mut output: Vec<Line> = Vec::new();
@@ -511,6 +513,13 @@ impl EndOutput for UploadRunResult {
             output.extend(error_report.output()?);
             return Ok(output);
         }
+        output.push(Line::from_iter([Span::new_styled(
+            style(format!(
+                "{} {}",
+                BUNDLE_UPLOAD_ID_MESSAGE, self.meta.base_props.bundle_upload_id,
+            ))
+            .attribute(Attribute::Bold),
+        )?]));
         if !self.validations.validations.is_empty() {
             output.extend(
                 self.validations
