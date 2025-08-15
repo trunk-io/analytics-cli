@@ -63,6 +63,20 @@ jobs:
       - name: Setup Rust & Cargo
         uses: ./.github/actions/setup_rust_cargo
 
+      # This is a canary test to ensure that the github actions crate is working
+      # as expected in a real environment. If this fails, we should investigate
+      # why the github actions crate is not working as expected. This test relies
+      # on the github actions crate to be able to extract the job ID from the logs,
+      # which is an undocumented feature that can break at any moment.
+      - name: canary - Test github actions crate
+        shell: bash
+        run: |
+          cargo run --bin github-actions -- -v
+          if [[ "$?" -ne 0 ]]; then
+            echo "Failed to run github-actions crate"
+            exit 1
+          fi
+
       - name: Run tests
         uses: ./.github/actions/run_tests
         id: tests
