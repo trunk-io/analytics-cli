@@ -385,7 +385,7 @@ pub async fn run_upload(
     let upload_started_at = chrono::Utc::now();
     tracing::info!("Uploading test results...");
     let upload_bundle_result = upload_bundle(
-        meta.clone(),
+        &mut meta,
         &api_client,
         bep_result,
         quarantine_context.exit_code,
@@ -459,19 +459,19 @@ pub async fn run_upload(
 }
 
 async fn upload_bundle(
-    mut meta: BundleMeta,
+    meta: &mut BundleMeta,
     api_client: &ApiClient,
     bep_result: Option<BepParseResult>,
     exit_code: i32,
     dry_run: bool,
 ) -> anyhow::Result<(PathBuf, TempDir)> {
-    let upload_result = gather_upload_id_context(&mut meta, api_client, dry_run).await;
+    let upload_result = gather_upload_id_context(meta, api_client, dry_run).await;
 
     let (
         bundle_temp_file,
         // directory is removed on drop
         bundle_temp_dir,
-    ) = BundlerUtil::new(meta, bep_result).make_tarball_in_temp_dir()?;
+    ) = BundlerUtil::new(meta.clone(), bep_result).make_tarball_in_temp_dir()?;
     tracing::info!("Flushed temporary tarball to {:?}", bundle_temp_file);
 
     if dry_run {
@@ -515,8 +515,8 @@ impl EndOutput for UploadRunResult {
         }
         output.push(Line::from_iter([Span::new_styled(
             style(format!(
-                "\x1b[8m{} {}\x1b[0m",
-                BUNDLE_UPLOAD_ID_MESSAGE, self.meta.bundle_upload_id_v2
+                "{} {}",
+                BUNDLE_UPLOAD_ID_MESSAGE, self.meta.base_props.bundle_upload_id,
             ))
             .attribute(Attribute::Bold),
         )?]));
