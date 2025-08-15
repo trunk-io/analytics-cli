@@ -64,7 +64,10 @@ jobs:
         uses: ./.github/actions/setup_rust_cargo
 
       # This is a canary test to ensure that the github actions crate is working
-      # as expected in a real environment.
+      # as expected in a real environment. If this fails, we should investigate
+      # why the github actions crate is not working as expected. This test relies
+      # on the github actions crate to be able to extract the job ID from the logs,
+      # which is an undocumented feature that can break at any moment.
       - name: canary - Test github actions crate
         shell: bash
         run: |
@@ -73,7 +76,7 @@ jobs:
             echo "No GitHub Actions external ID found"
             exit 1
           else
-            echo "GitHub Actions external ID found"
+            echo "GitHub Actions external ID found: $res"
             exit 0
           fi
 

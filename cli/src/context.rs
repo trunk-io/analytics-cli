@@ -74,12 +74,20 @@ pub fn gather_debug_props(args: Vec<String>, token: String) -> BundleMetaDebugPr
 }
 
 fn capture_env_vars() -> HashMap<String, String> {
-    // Extract GitHub Actions external ID if running in GitHub Actions
+    let mut envs: HashMap<String, String> = ENVS_TO_GET
+        .iter()
+        .filter_map(|&env_var| {
+            env::var(env_var)
+                .map(|env_var_value| (env_var.to_string(), env_var_value))
+                .ok()
+        })
+        .collect();
+
     match extract_github_external_id() {
         Ok(Some(external_id)) => {
             tracing::info!("Extracted GitHub Actions external ID: {}", external_id);
             // Set the environment variable for upstream use
-            std::env::set_var("GITHUB_EXTERNAL_ID", &external_id);
+            envs.insert("GITHUB_EXTERNAL_ID".to_string(), external_id);
         }
         Ok(None) => {
             tracing::debug!("Not running in GitHub Actions or no external ID found");
@@ -87,15 +95,9 @@ fn capture_env_vars() -> HashMap<String, String> {
         Err(e) => {
             tracing::warn!("Failed to extract GitHub Actions external ID: {}", e);
         }
-    }
-    ENVS_TO_GET
-        .iter()
-        .filter_map(|&env_var| {
-            env::var(env_var)
-                .map(|env_var_value| (env_var.to_string(), env_var_value))
-                .ok()
-        })
-        .collect()
+    };
+
+    envs
 }
 
 pub fn gather_initial_test_context(

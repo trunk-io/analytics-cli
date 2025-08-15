@@ -50,7 +50,7 @@ fn find_runner_worker_process() -> Result<String> {
     sys.refresh_all();
 
     // Look for processes containing "Runner.Worker" in their command
-    for (_, process) in sys.processes() {
+    for (_, process) in sys.processes().iter() {
         let cmd = process.cmd();
         if cmd.iter().any(|arg| arg.contains("Runner.Worker")) {
             tracing::debug!("Found Runner.Worker process via sysinfo: {:?}", cmd);
@@ -93,11 +93,11 @@ fn find_worker_log_files(runner_dir: &Path) -> Result<Vec<PathBuf>> {
         let b_time = b
             .metadata()
             .and_then(|m| m.modified())
-            .unwrap_or_else(|_| std::time::SystemTime::UNIX_EPOCH);
+            .unwrap_or(std::time::SystemTime::UNIX_EPOCH);
         let a_time = a
             .metadata()
             .and_then(|m| m.modified())
-            .unwrap_or_else(|_| std::time::SystemTime::UNIX_EPOCH);
+            .unwrap_or(std::time::SystemTime::UNIX_EPOCH);
         b_time.cmp(&a_time)
     });
 
