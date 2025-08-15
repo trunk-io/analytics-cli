@@ -502,6 +502,9 @@ async fn upload_bundle(
     }
 }
 
+pub const BUNDLE_UPLOAD_ID_MESSAGE: &str =
+    "Test results uploaded to Trunk with bundle upload ID: {}";
+
 impl EndOutput for UploadRunResult {
     fn output(&self) -> anyhow::Result<Vec<Line>> {
         let mut output: Vec<Line> = Vec::new();
@@ -511,6 +514,13 @@ impl EndOutput for UploadRunResult {
             output.extend(error_report.output()?);
             return Ok(output);
         }
+        output.push(Line::from_iter([Span::new_styled(
+            style(format!(
+                "\x1b[8m{} {}\x1b[0m",
+                BUNDLE_UPLOAD_ID_MESSAGE, self.meta.bundle_upload_id_v2
+            ))
+            .attribute(Attribute::Bold),
+        )?]));
         if !self.validations.validations.is_empty() {
             output.extend(
                 self.validations
