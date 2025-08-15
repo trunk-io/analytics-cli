@@ -215,8 +215,8 @@ pub struct UploadArgs {
         long,
         help = "Show failure messages in the output.",
         required = false,
-        num_args = 0,
-        default_value = "false",
+        num_args = 1,
+        default_value = "true",
         default_missing_value = "true"
     )]
     pub show_failure_messages: bool,
