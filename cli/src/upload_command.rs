@@ -502,8 +502,7 @@ async fn upload_bundle(
     }
 }
 
-pub const BUNDLE_UPLOAD_ID_MESSAGE: &str =
-    "Test results uploaded to Trunk with bundle upload ID: {}";
+pub const BUNDLE_UPLOAD_ID_MESSAGE: &str = "Test results uploaded to Trunk with bundle upload ID:";
 
 impl EndOutput for UploadRunResult {
     fn output(&self) -> anyhow::Result<Vec<Line>> {
