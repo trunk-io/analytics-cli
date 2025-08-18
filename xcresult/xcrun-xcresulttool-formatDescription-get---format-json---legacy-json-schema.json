@@ -140,7 +140,7 @@
         }
       },
       "additionalProperties": false,
-      "required": ["runDestination", "actionResult", "buildResult"]
+      "required": ["actionResult", "runDestination", "buildResult"]
     },
     "ActionResult": {
       "type": "object",
@@ -180,7 +180,7 @@
         }
       },
       "additionalProperties": false,
-      "required": ["metrics", "coverage", "issues"]
+      "required": ["metrics", "issues", "coverage"]
     },
     "ActionRunDestinationRecord": {
       "type": "object",
@@ -511,6 +511,9 @@
         },
         "timestamp": {
           "$ref": "#/$defs/Date"
+        },
+        "isTopLevel": {
+          "$ref": "#/$defs/Bool"
         }
       },
       "additionalProperties": false

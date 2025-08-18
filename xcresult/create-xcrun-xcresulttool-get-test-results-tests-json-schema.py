@@ -5,12 +5,11 @@ import subprocess
 
 def main():
     result = subprocess.run(
-        ["xcrun", "xcresulttool", "help", "get", "test-results", "tests"],
+        ["xcrun", "xcresulttool", "get", "test-results", "tests", "--schema"],
         capture_output=True,
         text=True,
     ).stdout.replace("#/schemas", "#/$defs")
-    json_schema_lines = result.split("\n")[3:148]
-    json_schema = json.loads("\n".join(json_schema_lines))
+    json_schema = json.loads(result)
 
     json_schema["$defs"] = json_schema["schemas"]
     del json_schema["schemas"]

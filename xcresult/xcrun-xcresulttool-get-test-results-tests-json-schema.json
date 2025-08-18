@@ -56,9 +56,18 @@
         },
         "osVersion": {
           "type": "string"
+        },
+        "osBuildNumber": {
+          "type": "string"
         }
       },
-      "required": ["deviceName", "architecture", "modelName", "osVersion"]
+      "required": [
+        "deviceId",
+        "deviceName",
+        "architecture",
+        "modelName",
+        "osVersion"
+      ]
     },
     "TestNode": {
       "type": "object",
@@ -76,7 +85,13 @@
           "type": "string"
         },
         "duration": {
-          "type": "string"
+          "type": "string",
+          "description": "Human-readable duration with optional components of days, hours, minutes and seconds"
+        },
+        "durationInSeconds": {
+          "type": "number",
+          "format": "double",
+          "description": "Time interval in seconds"
         },
         "result": {
           "$ref": "#/$defs/TestResult"
@@ -117,9 +132,9 @@
         "Source Code Reference",
         "Attachment",
         "Expression",
-        "Test Value"
+        "Test Value",
+        "Runtime Warning"
       ]
     }
-  },
-  "$ref": "#/$defs/Tests"
+  }
 }
