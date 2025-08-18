@@ -1,6 +1,5 @@
 import json
 import pathlib
-import re
 import subprocess
 
 
