@@ -28,7 +28,7 @@ use test_utils::{
     inputs::get_test_file_path,
     mock_server::{MockServerBuilder, RequestPayload, SharedMockServerState},
 };
-use trunk_analytics_cli::upload_command::{BUNDLE_UPLOAD_ID_MESSAGE, DRY_RUN_OUTPUT_DIR};
+use trunk_analytics_cli::upload_command::{get_bundle_upload_id_message, DRY_RUN_OUTPUT_DIR};
 
 use crate::command_builder::CommandBuilder;
 use crate::utils::{
@@ -212,9 +212,11 @@ async fn upload_bundle() {
 
     // HINT: View CLI output with `cargo test -- --nocapture`
     println!("{assert}");
-
     // Verify that the bundle upload ID message is printed
-    assert.stderr(predicate::str::contains(BUNDLE_UPLOAD_ID_MESSAGE));
+    let bundle_upload_id = base_props.bundle_upload_id.clone();
+    assert.stderr(predicate::str::contains(
+        get_bundle_upload_id_message(&bundle_upload_id).as_str(),
+    ));
 }
 
 #[tokio::test(flavor = "multi_thread")]
