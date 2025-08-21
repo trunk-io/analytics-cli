@@ -503,7 +503,7 @@ async fn upload_bundle(
 }
 
 pub fn get_bundle_upload_id_message(bundle_upload_id: &str) -> String {
-    format!("🏷️ Bundle Upload ID: {}", bundle_upload_id)
+    format!("🏷️  Bundle Upload ID: {}", bundle_upload_id)
 }
 
 impl EndOutput for UploadRunResult {
