@@ -678,6 +678,7 @@ dependencies = [
  "async-std",
  "async-tar-wasm",
  "chrono",
+ "clap",
  "codeowners",
  "constants",
  "context",
@@ -3902,8 +3903,6 @@ dependencies = [
 name = "proto"
 version = "0.0.0"
 dependencies = [
- "anyhow",
- "clap",
  "prost",
  "prost-build",
  "prost-types",
