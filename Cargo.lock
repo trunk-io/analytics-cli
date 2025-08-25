@@ -678,6 +678,7 @@ dependencies = [
  "async-std",
  "async-tar-wasm",
  "chrono",
+ "clap",
  "codeowners",
  "constants",
  "context",
