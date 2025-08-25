@@ -1682,3 +1682,23 @@ async fn reports_failures_even_if_cannot_get_quarantine_context() {
 
     println!("{assert}");
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn fails_if_sha_is_too_long() {
+    let temp_dir = tempdir().unwrap();
+    generate_mock_git_repo(&temp_dir);
+    generate_mock_valid_junit_xmls_with_failures(&temp_dir);
+
+    let mock_server_builder = MockServerBuilder::new();
+    let state = mock_server_builder.spawn_mock_server().await;
+
+    let mut command = CommandBuilder::upload(temp_dir.path(), state.host.clone())
+        .repo_head_sha("12345678901234567890123456789012345678901")
+        .command();
+
+    let assert = command.assert().failure().stderr(predicate::str::contains(
+        "Sha code must be at most 40 characters, was 41",
+    ));
+
+    println!("{assert}");
+}
