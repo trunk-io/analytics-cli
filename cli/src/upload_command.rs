@@ -81,7 +81,7 @@ pub struct UploadArgs {
     pub repo_root: Option<String>,
     #[arg(long, help = "Value to override URL of repository.")]
     pub repo_url: Option<String>,
-    #[arg(long, help = "Value to override SHA of repository head.")]
+    #[arg(long, help = "Value to override SHA of repository head.", value_parser = parse_sha)]
     pub repo_head_sha: Option<String>,
     #[arg(long, help = "Value to override branch of repository head.")]
     pub repo_head_branch: Option<String>,
@@ -220,6 +220,17 @@ pub struct UploadArgs {
         default_missing_value = "true"
     )]
     pub show_failure_messages: bool,
+}
+
+fn parse_sha(s: &str) -> anyhow::Result<String> {
+    if s.len() > 40 {
+        anyhow::bail!(anyhow::Error::msg(format!(
+            "Sha code must be at most 40 characters, was {}",
+            s.len()
+        )))
+    } else {
+        anyhow::Ok(s.into())
+    }
 }
 
 impl UploadArgs {
