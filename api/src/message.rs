@@ -11,6 +11,8 @@ pub struct CreateBundleUploadRequest {
     pub client_version: String,
     #[serde(rename = "remoteUrls")]
     pub remote_urls: Vec<String>,
+    #[serde(rename = "externalId")]
+    pub external_id: Option<String>,
 }
 
 #[derive(Debug, Serialize, Clone, Deserialize)]

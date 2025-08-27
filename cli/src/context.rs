@@ -706,12 +706,14 @@ pub async fn gather_upload_id_context(
     if dry_run {
         return Err(anyhow::anyhow!("Dry run mode enabled, unable to upload"));
     }
+    let external_id = meta.base_props.envs.get("GITHUB_EXTERNAL_ID").cloned();
     let upload = api_client
         .create_bundle_upload(&api::message::CreateBundleUploadRequest {
             repo: meta.base_props.repo.repo.clone(),
             org_url_slug: meta.base_props.org.clone(),
             client_version: format!("trunk-analytics-cli {}", meta.base_props.cli_version),
             remote_urls: vec![meta.base_props.repo.repo_url.clone()],
+            external_id,
         })
         .await?;
     meta.base_props.bundle_upload_id.clone_from(&upload.id);
