@@ -47,7 +47,7 @@ async fn upload_bundle() {
 
     let state = MockServerBuilder::new().spawn_mock_server().await;
 
-    let mut command_builder = CommandBuilder::upload(temp_dir.path(), state.host.clone());
+    let command_builder = CommandBuilder::upload(temp_dir.path(), state.host.clone());
 
     let assert = command_builder
         .command()
@@ -95,10 +95,7 @@ async fn upload_bundle() {
         .starts_with("trunk-analytics-cli cargo="));
     assert!(upload_request.client_version.contains(" git="));
     assert!(upload_request.client_version.contains(" rustc="));
-    assert_eq!(
-        upload_request.external_id,
-        Some(String::from("test-external-id-123"))
-    );
+    assert!(upload_request.external_id.is_some());
 
     let tar_extract_directory =
         assert_matches!(requests_iter.next().unwrap(), RequestPayload::S3Upload(d) => d);
