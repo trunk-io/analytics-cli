@@ -389,7 +389,7 @@ async fn upload_bundle_using_dry_run() {
         .use_quarantining(false)
         .command()
         .assert()
-        .success();
+        .failure();
 
     let requests = state.requests.lock().unwrap().clone();
     // dry run means no upload or telemetry requests should be made
@@ -1090,7 +1090,7 @@ async fn telemetry_upload_metrics_on_upload_success() {
         .disable_quarantining(true)
         .command()
         .assert()
-        .success();
+        .failure();
 
     let requests = state.requests.lock().unwrap().clone();
     assert_eq!(requests.len(), 3);
@@ -1124,7 +1124,7 @@ async fn telemetry_does_not_impact_return() {
         .disable_quarantining(true)
         .command()
         .assert()
-        .success();
+        .failure();
 
     let requests = state.requests.lock().unwrap().clone();
     assert_eq!(requests.len(), 2);

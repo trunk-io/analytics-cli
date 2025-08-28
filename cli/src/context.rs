@@ -652,49 +652,20 @@ pub async fn gather_exit_code_and_quarantined_tests_context(
         &meta.base_props.org,
         file_set_builder.file_sets(),
     );
-    let quarantine_context = if disable_quarantining {
-        // use the exit code of the test run result if exists
-        if let Some(exit_code) = default_exit_code {
-            QuarantineContext {
-                exit_code,
-                quarantine_status: QuarantineBulkTestStatus {
-                    quarantine_results: failed_tests_extractor
-                        .failed_tests()
-                        .iter()
-                        .filter_map(|test| {
-                            if test.is_quarantined {
-                                Some(test.clone())
-                            } else {
-                                None
-                            }
-                        })
-                        .collect(),
-                    ..Default::default()
-                },
-                failures: Vec::default(),
-                repo: RepoUrlParts::default(),
-                org_url_slug: String::default(),
-                fetch_status: QuarantineFetchStatus::FetchSkipped,
-            }
-        } else {
-            // default to success if no test run result (i.e. `upload`)
-            QuarantineContext::skip_fetch()
-        }
-    } else {
-        gather_quarantine_context(
-            api_client,
-            &api::message::GetQuarantineConfigRequest {
-                repo: meta.base_props.repo.repo.clone(),
-                org_url_slug: meta.base_props.org.clone(),
-                test_identifiers: failed_tests_extractor.failed_tests().to_vec(),
-                remote_urls: vec![meta.base_props.repo.repo_url.clone()],
-            },
-            file_set_builder,
-            Some(failed_tests_extractor),
-            default_exit_code,
-        )
-        .await?
-    };
+    let quarantine_context = gather_quarantine_context(
+        api_client,
+        &api::message::GetQuarantineConfigRequest {
+            repo: meta.base_props.repo.repo.clone(),
+            org_url_slug: meta.base_props.org.clone(),
+            test_identifiers: failed_tests_extractor.failed_tests().to_vec(),
+            remote_urls: vec![meta.base_props.repo.repo_url.clone()],
+        },
+        file_set_builder,
+        Some(failed_tests_extractor),
+        default_exit_code,
+        disable_quarantining,
+    )
+    .await?;
     Ok(quarantine_context)
 }
 

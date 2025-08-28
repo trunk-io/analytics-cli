@@ -267,12 +267,27 @@ impl FailedTestsExtractor {
     }
 }
 
+fn should_fetch_quarantine(
+    file_set_builder: &FileSetBuilder,
+    failed_tests_extractor: &FailedTestsExtractor,
+    disable_quarantining: bool,
+) -> bool {
+    !disable_quarantining
+        && (!failed_tests_extractor.failed_tests().is_empty()
+            && file_set_builder
+                .file_sets()
+                .iter()
+                // internal files track quarantine status directly, so we don't need to check them
+                .any(|file_set| file_set.file_set_type == FileSetType::Junit))
+}
+
 pub async fn gather_quarantine_context(
     api_client: &ApiClient,
     request: &api::message::GetQuarantineConfigRequest,
     file_set_builder: &FileSetBuilder,
     failed_tests_extractor: Option<FailedTestsExtractor>,
     test_run_exit_code: Option<i32>,
+    disable_quarantining: bool,
 ) -> anyhow::Result<QuarantineContext> {
     let failed_tests_extractor = failed_tests_extractor.unwrap_or_else(|| {
         FailedTestsExtractor::new(
@@ -296,15 +311,11 @@ pub async fn gather_quarantine_context(
         });
     }
 
-    let (quarantine_config, quarantine_fetch_status) = if !failed_tests_extractor
-        .failed_tests()
-        .is_empty()
-        && file_set_builder
-            .file_sets()
-            .iter()
-            // internal files track quarantine status directly, so we don't need to check them
-            .any(|file_set| file_set.file_set_type == FileSetType::Junit)
-    {
+    let (quarantine_config, quarantine_fetch_status) = if should_fetch_quarantine(
+        file_set_builder,
+        &failed_tests_extractor,
+        disable_quarantining,
+    ) {
         tracing::info!("Checking if failed tests can be quarantined");
         match api_client.get_quarantining_config(request).await {
             anyhow::Result::Ok(response) => (Some(response), QuarantineFetchStatus::FetchSucceeded),
