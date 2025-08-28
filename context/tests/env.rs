@@ -6,6 +6,50 @@ use context::env::{
 };
 
 #[test]
+fn test_env_vars() {
+    const JOB_NAME: &str = "My_Sweet_Test_Name";
+
+    let mut env_vars = EnvVars::from_iter(vec![
+        (
+            String::from("JOB_URL"),
+            String::from("http://fake-ci.trunk.io/build/9000"),
+        ),
+        (String::from("BUILD_ID"), String::from("9000")),
+        (String::from("JOB_NAME"), String::from(JOB_NAME)),
+        (
+            String::from("BUILD_URL"),
+            String::from("http://fake-ci.trunk.io/build/9000"),
+        ),
+        (String::from("PR_NUMBER"), String::from("9999999999")),
+        (String::from("AUTHOR_NAME"), String::from("test-bot")),
+        (
+            String::from("AUTHOR_EMAIL"),
+            String::from("test-bot@not-a-real-email-trunk.io"),
+        ),
+        (String::from("COMMIT_BRANCH"), String::from("main")),
+        (String::from("COMMIT_MESSAGE"), String::from("test")),
+    ]);
+
+    {
+        let mut env_parser = EnvParser::new();
+        env_parser.parse(&env_vars, &[]);
+        let ci_info = env_parser.into_ci_info_parser().unwrap().info_ci_info();
+        assert_eq!(ci_info.platform, CIPlatform::JenkinsPipeline);
+        assert_eq!(ci_info.job, None);
+    }
+
+    env_vars.insert(String::from("CUSTOM"), String::from("1"));
+
+    {
+        let mut env_parser = EnvParser::new();
+        env_parser.parse(&env_vars, &[]);
+        let ci_info = env_parser.into_ci_info_parser().unwrap().info_ci_info();
+        assert_eq!(ci_info.platform, CIPlatform::Custom);
+        assert_eq!(ci_info.job, Some(String::from(JOB_NAME)));
+    }
+}
+
+#[test]
 fn test_simple_buildkite() {
     let job_url = String::from("https://buildkite.com/test/builds/123");
     let job_id = String::from("job-id");
