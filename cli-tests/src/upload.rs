@@ -1752,3 +1752,23 @@ async fn fails_if_sha_is_too_long() {
 
     println!("{assert}");
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn reports_failing_tests_but_succeeds_when_quarantine_disabled() {
+    let temp_dir = tempdir().unwrap();
+    generate_mock_git_repo(&temp_dir);
+    generate_mock_valid_junit_xmls_with_failures(&temp_dir);
+
+    let state = MockServerBuilder::new().spawn_mock_server().await;
+
+    let mut command = CommandBuilder::upload(temp_dir.path(), state.host.clone())
+        .disable_quarantining(true)
+        .command();
+
+    let assert = command
+        .assert()
+        .success()
+        .stderr(predicate::str::contains("Fail: 50"));
+
+    println!("{assert}");
+}
