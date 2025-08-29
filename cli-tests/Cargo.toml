@@ -36,5 +36,6 @@ wasm = []
 
 [dependencies]
 anyhow = "1.0.96"
+context = { path = "../context" }
 proto = { version = "0.0.0", path = "../proto" }
 superconsole = "0.2.0"
