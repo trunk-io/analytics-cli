@@ -389,7 +389,7 @@ async fn upload_bundle_using_dry_run() {
         .use_quarantining(false)
         .command()
         .assert()
-        .failure();
+        .success();
 
     let requests = state.requests.lock().unwrap().clone();
     // dry run means no upload or telemetry requests should be made
@@ -1090,7 +1090,7 @@ async fn telemetry_upload_metrics_on_upload_success() {
         .disable_quarantining(true)
         .command()
         .assert()
-        .failure();
+        .success();
 
     let requests = state.requests.lock().unwrap().clone();
     assert_eq!(requests.len(), 3);
@@ -1124,7 +1124,7 @@ async fn telemetry_does_not_impact_return() {
         .disable_quarantining(true)
         .command()
         .assert()
-        .failure();
+        .success();
 
     let requests = state.requests.lock().unwrap().clone();
     assert_eq!(requests.len(), 2);
@@ -1749,6 +1749,26 @@ async fn fails_if_sha_is_too_long() {
     let assert = command.assert().failure().stderr(predicate::str::contains(
         "Sha code must be at most 40 characters, was 41",
     ));
+
+    println!("{assert}");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn reports_failing_tests_but_succeeds_when_quarantine_disabled() {
+    let temp_dir = tempdir().unwrap();
+    generate_mock_git_repo(&temp_dir);
+    generate_mock_valid_junit_xmls_with_failures(&temp_dir);
+
+    let state = MockServerBuilder::new().spawn_mock_server().await;
+
+    let mut command = CommandBuilder::upload(temp_dir.path(), state.host.clone())
+        .disable_quarantining(true)
+        .command();
+
+    let assert = command
+        .assert()
+        .success()
+        .stderr(predicate::str::contains("Fail: 50"));
 
     println!("{assert}");
 }
