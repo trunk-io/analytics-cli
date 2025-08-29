@@ -358,6 +358,7 @@ pub const ENVS_TO_GET: &[&str] = &[
     "DRONE_TARGET_BRANCH",
     "DRONE_WORKSPACE",
     // Custom setting
+    "CUSTOM",
     "JOB_URL",
     "JOB_NAME",
     "AUTHOR_EMAIL",
