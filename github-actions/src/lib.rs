@@ -64,15 +64,17 @@ fn find_runner_worker_process() -> Result<String> {
 
 /// Extract the runner directory from the worker command
 fn extract_runner_directory(worker_cmd: &str) -> Result<PathBuf> {
-    let bin_path = Path::new("bin").join("Runner.Worker");
-    let bin_path_str = bin_path.to_string_lossy();
+    // Look for "Runner.Worker" in the command string
+    if let Some(index) = worker_cmd.find("Runner.Worker") {
+        // Get the part before "Runner.Worker"
+        let path_part = &worker_cmd[..index];
 
-    if let Some(index) = worker_cmd.find(&*bin_path_str) {
-        let runner_dir = PathBuf::from(&worker_cmd[..index]);
+        // Convert to PathBuf - this is the directory containing Runner.Worker
+        let runner_dir = PathBuf::from(path_part);
         Ok(runner_dir)
     } else {
         Err(anyhow!(
-            "Unable to extract path from Runner.Worker command string: {}",
+            "Unable to find 'Runner.Worker' in command string: {}",
             worker_cmd
         ))
     }
@@ -133,20 +135,42 @@ fn extract_job_id_from_log(log_file: &Path) -> Result<String> {
 mod tests {
     use std::fs;
 
-    use tempfile::tempdir;
-
     use super::*;
 
     #[test]
-    fn test_extract_runner_directory() {
+    fn test_extract_runner_directory_with_versioned_bin() {
+        let cmd = "/Users/runner/actions-runner/bin.0.123.4/Runner.Worker spawnclient arg1 arg2";
+        let result = extract_runner_directory(cmd).unwrap();
+        assert_eq!(
+            result,
+            PathBuf::from("/Users/runner/actions-runner/bin.0.123.4")
+        );
+        let cmd = "/Users/runner/actions-runner/bin/Runner.Worker --some-args";
+        let result = extract_runner_directory(cmd).unwrap();
+        assert_eq!(result, PathBuf::from("/Users/runner/actions-runner/bin"));
+    }
+
+    #[test]
+    fn test_extract_runner_directory_with_simple_bin() {
         let cmd = "/path/to/runner/bin/Runner.Worker --some-arg";
         let result = extract_runner_directory(cmd).unwrap();
-        assert_eq!(result, PathBuf::from("/path/to/runner"));
+        assert_eq!(result, PathBuf::from("/path/to/runner/bin"));
+    }
+
+    #[test]
+    fn test_extract_runner_directory_with_no_runner_worker() {
+        let cmd = "/some/other/command";
+        let result = extract_runner_directory(cmd);
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Unable to find 'Runner.Worker'"));
     }
 
     #[test]
     fn test_extract_job_id_from_log() {
-        let temp_dir = tempdir().unwrap();
+        let temp_dir = tempfile::tempdir().unwrap();
         let log_file = temp_dir.path().join("test.log");
         let log_content = "INFO JobRunner] Job ID test-job-123";
         fs::write(&log_file, log_content).unwrap();
@@ -157,7 +181,7 @@ mod tests {
 
     #[test]
     fn test_extract_job_id_from_log_not_found() {
-        let temp_dir = tempdir().unwrap();
+        let temp_dir = tempfile::tempdir().unwrap();
         let log_file = temp_dir.path().join("test.log");
         let log_content = "Some other log content without Job ID";
         fs::write(&log_file, log_content).unwrap();
@@ -168,7 +192,7 @@ mod tests {
 
     #[test]
     fn test_extract_job_id_from_github_actions_log() {
-        let temp_dir = tempdir().unwrap();
+        let temp_dir = tempfile::tempdir().unwrap();
         let log_file = temp_dir.path().join("test.log");
         let log_content = "INFO JobRunner] Job ID github-job-456";
         fs::write(&log_file, log_content).unwrap();
@@ -179,7 +203,7 @@ mod tests {
 
     #[test]
     fn test_extract_job_id_from_json_log() {
-        let temp_dir = tempdir().unwrap();
+        let temp_dir = tempfile::tempdir().unwrap();
         let log_file = temp_dir.path().join("test.log");
         let log_content =
             r#"{"some": "data", "jobId": "836e04dc-1f9b-529a-9646-8e46c7a95261", "other": "info"}"#;
@@ -191,7 +215,7 @@ mod tests {
 
     #[test]
     fn test_extract_job_id_from_json_log_partial() {
-        let temp_dir = tempdir().unwrap();
+        let temp_dir = tempfile::tempdir().unwrap();
         let log_file = temp_dir.path().join("test.log");
         let log_content = r#""jobId": "github-job-456""#;
         println!("log_content: {}", log_content);
