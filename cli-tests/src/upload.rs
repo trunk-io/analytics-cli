@@ -14,6 +14,7 @@ use codeowners::CodeOwners;
 use constants::EXIT_FAILURE;
 use context::{
     bazel_bep::{common::BepTestStatus, parser::BazelBepParser},
+    env::parser::{BranchClass, CIInfo, CIPlatform, EnvParser},
     junit::{junit_path::TestRunnerReportStatus, parser::JunitParser},
     repo::{BundleRepo, RepoUrlParts as Repo},
 };
@@ -1751,4 +1752,78 @@ async fn fails_if_sha_is_too_long() {
     ));
 
     println!("{assert}");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn test_upload_custom_environment_variables() {
+    let temp_dir = tempdir().unwrap();
+    generate_mock_git_repo(&temp_dir);
+    generate_mock_valid_junit_xmls(&temp_dir);
+    generate_mock_codeowners(&temp_dir);
+
+    let state = MockServerBuilder::new().spawn_mock_server().await;
+
+    // Set up environment variables for CUSTOM platform
+    let custom_env_vars = vec![
+        ("CUSTOM", "true"),
+        ("JOB_URL", "https://example.com/job/123"),
+        ("JOB_NAME", "test-job"),
+        ("AUTHOR_EMAIL", "author@example.com"),
+        ("AUTHOR_NAME", "Test Author"),
+        ("COMMIT_BRANCH", "feature-branch"),
+        ("COMMIT_MESSAGE", "Test commit message"),
+        ("PR_NUMBER", "42"),
+        ("PR_TITLE", "Test PR Title"),
+    ];
+
+    let mut command_builder = CommandBuilder::upload(temp_dir.path(), state.host.clone());
+
+    for (key, value) in &custom_env_vars {
+        command_builder.custom_env(key, value);
+    }
+
+    // Enable dry run mode to create bundle files locally
+    command_builder.dry_run(true);
+
+    let mut command = command_builder.command();
+
+    let assert = command.assert().failure();
+    println!("{assert}");
+
+    let bundle_path = temp_dir.path().join(DRY_RUN_OUTPUT_DIR);
+    let meta_json = fs::File::open(bundle_path.join("meta.json")).unwrap();
+    let bundle_meta: BundleMeta = serde_json::from_reader(meta_json).unwrap();
+
+    let envs = &bundle_meta.base_props.envs;
+
+    let mut env_parser = EnvParser::new();
+    env_parser.parse(envs, &[]);
+
+    let ci_info = env_parser.into_ci_info_parser().unwrap().info_ci_info();
+
+    pretty_assertions::assert_eq!(
+        ci_info.platform,
+        CIPlatform::Custom,
+        "Platform should be detected as CUSTOM"
+    );
+
+    pretty_assertions::assert_eq!(
+        ci_info,
+        CIInfo {
+            platform: CIPlatform::Custom,
+            job_url: Some("https://example.com/job/123".to_string()),
+            branch: Some("feature-branch".to_string()),
+            branch_class: Some(BranchClass::PullRequest),
+            pr_number: Some(42),
+            actor: Some("author@example.com".to_string()),
+            committer_name: Some("Test Author".to_string()),
+            committer_email: Some("author@example.com".to_string()),
+            author_name: Some("Test Author".to_string()),
+            author_email: Some("author@example.com".to_string()),
+            commit_message: Some("Test commit message".to_string()),
+            title: Some("Test PR Title".to_string()),
+            workflow: Some("test-job".to_string()),
+            job: Some("test-job".to_string()),
+        }
+    );
 }

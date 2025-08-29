@@ -27,6 +27,7 @@ pub struct UploadArgs {
     verbose: Option<bool>,
     validation_report: Option<String>,
     dry_run: bool,
+    custom_envs: HashMap<String, String>,
 }
 
 impl UploadArgs {
@@ -51,6 +52,7 @@ impl UploadArgs {
             verbose: None,
             validation_report: None,
             dry_run: false,
+            custom_envs: HashMap::new(),
         }
     }
 
@@ -430,6 +432,23 @@ impl CommandType {
         }
         self
     }
+
+    pub fn custom_env(&mut self, key: &str, value: &str) -> &mut Self {
+        match self {
+            CommandType::Upload { upload_args, .. } => {
+                upload_args
+                    .custom_envs
+                    .insert(String::from(key), String::from(value));
+            }
+            CommandType::Test { upload_args, .. } => {
+                upload_args
+                    .custom_envs
+                    .insert(String::from(key), String::from(value));
+            }
+            CommandType::Validate { .. } => (),
+        }
+        self
+    }
 }
 
 #[derive(Clone)]
@@ -591,6 +610,11 @@ impl<'b> CommandBuilder<'b> {
         self
     }
 
+    pub fn custom_env(&mut self, key: &str, value: &str) -> &mut Self {
+        self.command_type.custom_env(key, value);
+        self
+    }
+
     pub fn command(&self) -> Command {
         let mut command = Command::new(CARGO_RUN.path());
         let args = self.build_args();
@@ -626,6 +650,18 @@ impl<'b> CommandBuilder<'b> {
             (String::from("GITHUB_JOB"), String::from("test-job")),
         ]);
         base_env.extend(self.command_type.build_envs());
+
+        // Add custom environment variables
+        match &self.command_type {
+            CommandType::Upload { upload_args, .. } => {
+                base_env.extend(upload_args.custom_envs.clone());
+            }
+            CommandType::Test { upload_args, .. } => {
+                base_env.extend(upload_args.custom_envs.clone());
+            }
+            CommandType::Validate { .. } => {}
+        }
+
         base_env
     }
 }
