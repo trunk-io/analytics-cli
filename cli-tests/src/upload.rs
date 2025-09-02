@@ -1765,10 +1765,12 @@ async fn reports_failing_tests_but_succeeds_when_quarantine_disabled() {
         .disable_quarantining(true)
         .command();
 
+    // Our junit library generates random amounts of test failures (but at least 1),
+    // so we check that we don't have 0 failures.
     let assert = command
         .assert()
         .success()
-        .stderr(predicate::str::contains("Fail: 50"));
+        .stderr(predicate::str::contains("Fail: 0").not());
 
     println!("{assert}");
 }
