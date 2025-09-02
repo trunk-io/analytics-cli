@@ -48,11 +48,11 @@ pub struct QuarantineContext {
     pub fetch_status: QuarantineFetchStatus,
 }
 impl QuarantineContext {
-    pub fn skip_fetch() -> Self {
+    pub fn skip_fetch(failures: Vec<Test>) -> Self {
         Self {
             exit_code: i32::default(),
             quarantine_status: QuarantineBulkTestStatus::default(),
-            failures: Vec::default(),
+            failures,
             repo: RepoUrlParts::default(),
             org_url_slug: String::default(),
             fetch_status: QuarantineFetchStatus::FetchSkipped,

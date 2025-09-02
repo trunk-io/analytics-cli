@@ -671,14 +671,14 @@ pub async fn gather_exit_code_and_quarantined_tests_context(
                         .collect(),
                     ..Default::default()
                 },
-                failures: Vec::default(),
+                failures: failed_tests_extractor.failed_tests().into(),
                 repo: RepoUrlParts::default(),
                 org_url_slug: String::default(),
                 fetch_status: QuarantineFetchStatus::FetchSkipped,
             }
         } else {
             // default to success if no test run result (i.e. `upload`)
-            QuarantineContext::skip_fetch()
+            QuarantineContext::skip_fetch(failed_tests_extractor.failed_tests().to_vec())
         }
     } else {
         gather_quarantine_context(
