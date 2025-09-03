@@ -95,7 +95,7 @@ impl EndOutput for ErrorReport {
         )?]));
         if is_connection_refused(&self.error) {
             if let Some(base_message) = base_message {
-                lines.push(Line::from_iter([Span::new_unstyled(base_message)?]));
+                lines.push(Line::from_iter([Span::new_unstyled_lossy(base_message)]));
                 lines.push(Line::default());
             }
             lines.push(Line::from_iter([Span::new_unstyled(
@@ -107,15 +107,15 @@ impl EndOutput for ErrorReport {
         if is_unauthorized(&self.error) {
             {
                 lines.extend(vec![
-                    Line::from_iter([Span::new_unstyled(
+                    Line::from_iter([Span::new_unstyled_lossy(
                         base_message.as_deref().unwrap_or_default(),
-                    )?]),
+                    )]),
                     Line::default(),
                     Line::from_iter([Span::new_unstyled(UNAUTHORIZED_CONTEXT)?]),
-                    Line::from_iter([Span::new_unstyled(add_settings_url_to_context(
+                    Line::from_iter([Span::new_unstyled_lossy(add_settings_url_to_context(
                         api_host,
                         org_url_slug,
-                    ))?]),
+                    ))]),
                 ]);
                 if let Some(line) = lines.last_mut() {
                     line.pad_left(2);
@@ -124,14 +124,14 @@ impl EndOutput for ErrorReport {
             }
         }
         if base_message.is_some() {
-            lines.push(Line::from_iter([Span::new_unstyled(
+            lines.push(Line::from_iter([Span::new_unstyled_lossy(
                 base_message.as_deref().unwrap_or("An error occurred"),
-            )?]));
+            )]));
             lines.push(Line::default());
         } else {
-            lines.push(Line::from_iter([Span::new_unstyled(
+            lines.push(Line::from_iter([Span::new_unstyled_lossy(
                 self.error.to_string(),
-            )?]));
+            )]));
         }
         lines.push(Line::from_iter([Span::new_unstyled(HELP_TEXT)?]));
         lines.push(Line::default());

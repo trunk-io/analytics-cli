@@ -148,7 +148,7 @@ impl EndOutput for ValidateRunResult {
             if !bep_results.errors.is_empty() {
                 output.push(Line::from_iter([
                     Span::new_unstyled("⚠️  BEP file had parse errors: ")?,
-                    Span::new_unstyled(format!("{:?}", bep_results.errors))?,
+                    Span::new_unstyled_lossy(format!("{:?}", bep_results.errors)),
                 ]));
                 output.push(Line::default());
             }
@@ -187,9 +187,9 @@ impl EndOutput for ValidateRunResult {
             } else {
                 Color::Green
             };
-            output.push(Line::from_iter([Span::new_styled(
+            output.push(Line::from_iter([Span::new_styled_lossy(
                 style(file_parse_issue.file_path.clone()).with(title_colour),
-            )?]));
+            )]));
 
             let num_errors = if file_parse_issue.fatal_error.is_some() {
                 file_parse_issue.errors.len() + 1
@@ -214,20 +214,20 @@ impl EndOutput for ValidateRunResult {
                     ))]));
                 }
                 for error in file_parse_issue.errors.iter() {
-                    output.push(Line::from_iter([Span::new_unstyled(format!(
+                    output.push(Line::from_iter([Span::new_unstyled_lossy(format!(
                         "  {}",
                         error
-                    ))?]));
+                    ))]));
                 }
             }
 
             if has_warnings {
                 output.push(Line::from_iter([Span::new_unstyled(" ⚠️  Warnings:")?]));
                 for warning in file_parse_issue.warnings.iter() {
-                    output.push(Line::from_iter([Span::new_unstyled(format!(
+                    output.push(Line::from_iter([Span::new_unstyled_lossy(format!(
                         "  {}",
                         warning.clone()
-                    ))?]));
+                    ))]));
                 }
             }
 
@@ -248,9 +248,9 @@ impl EndOutput for ValidateRunResult {
             } else {
                 Color::Green
             };
-            output.push(Line::from_iter([Span::new_styled(
+            output.push(Line::from_iter([Span::new_styled_lossy(
                 style(test_issue.file_path.clone()).with(title_colour),
-            )?]));
+            )]));
 
             output.push(Line::from_iter([Span::new_styled(
                 style(format!(
@@ -268,20 +268,20 @@ impl EndOutput for ValidateRunResult {
                     " ❌ Errors:",
                 ))?]));
                 for error in test_issue.errors.iter() {
-                    output.push(Line::from_iter([Span::new_unstyled(format!(
+                    output.push(Line::from_iter([Span::new_unstyled_lossy(format!(
                         "  {}",
                         error.error_message
-                    ))?]));
+                    ))]));
                 }
             }
 
             if has_warnings {
                 output.push(Line::from_iter([Span::new_unstyled(" ⚠️  Warnings:")?]));
                 for warning in test_issue.warnings.iter() {
-                    output.push(Line::from_iter([Span::new_unstyled(format!(
+                    output.push(Line::from_iter([Span::new_unstyled_lossy(format!(
                         "  {}",
                         warning.error_message
-                    ))?]));
+                    ))]));
                 }
             }
         }
@@ -297,18 +297,18 @@ impl EndOutput for ValidateRunResult {
                 )?]));
             }
             Some(codeowners_issues) => {
-                output.push(Line::from_iter([Span::new_styled(
+                output.push(Line::from_iter([Span::new_styled_lossy(
                     style(format!(
                         "  Found codeowners path: {:?}",
                         codeowners_issues.file_path
                     ))
                     .attribute(Attribute::Italic),
-                )?]));
+                )]));
                 for warning in codeowners_issues.warnings.iter() {
-                    output.push(Line::from_iter([Span::new_unstyled(format!(
+                    output.push(Line::from_iter([Span::new_unstyled_lossy(format!(
                         "  {}",
                         warning.clone()
-                    ))?]));
+                    ))]));
                 }
             }
         }
@@ -813,10 +813,10 @@ impl JunitReportValidations {
                     lines.extend([
                         Line::from_iter([
                             Span::new_unstyled("❌ ")?,
-                            Span::new_styled(
+                            Span::new_styled_lossy(
                                 format!("{file_name} Could Not Be Parsed")
                                     .attribute(Attribute::Bold),
-                            )?,
+                            ),
                         ]),
                         Line::from_iter([
                             Span::new_unstyled(" ↪ ")?,
@@ -838,10 +838,10 @@ impl JunitReportValidations {
                         (false, false) => {
                             lines.push(Line::from_iter([
                                 Span::new_unstyled("❌ ")?,
-                                Span::new_styled(
+                                Span::new_styled_lossy(
                                     format!("{file_name} Has Errors And Warnings")
                                         .attribute(Attribute::Bold),
-                                )?,
+                                ),
                             ]));
                             lines.push(Line::from_iter([
                                 Span::new_unstyled(" ↪ ❌ ")?,
@@ -852,7 +852,7 @@ impl JunitReportValidations {
                             for error in limits.limit_issues(invalid_issues.iter()) {
                                 lines.push(Line::from_iter([
                                     Span::new_unstyled("   ↪ ")?,
-                                    Span::new_unstyled(error.error_message.clone())?,
+                                    Span::new_unstyled_lossy(error.error_message.clone()),
                                 ]));
                             }
                             lines.push(Line::from_iter([
@@ -864,35 +864,35 @@ impl JunitReportValidations {
                             for warning in limits.limit_issues(sub_optimal_issues.iter()) {
                                 lines.push(Line::from_iter([
                                     Span::new_unstyled("   ↪ ")?,
-                                    Span::new_unstyled(warning.error_message.clone())?,
+                                    Span::new_unstyled_lossy(warning.error_message.clone()),
                                 ]));
                             }
                         }
                         (true, false) => {
                             lines.push(Line::from_iter([
                                 Span::new_unstyled("❌ ")?,
-                                Span::new_styled(
+                                Span::new_styled_lossy(
                                     format!("{file_name} Has Errors").attribute(Attribute::Bold),
-                                )?,
+                                ),
                             ]));
                             for issue in limits.limit_issues(invalid_issues.iter()) {
                                 lines.push(Line::from_iter([
                                     Span::new_unstyled(" ↪ ")?,
-                                    Span::new_unstyled(issue.error_message.clone())?,
+                                    Span::new_unstyled_lossy(issue.error_message.clone()),
                                 ]));
                             }
                         }
                         (false, true) => {
                             lines.push(Line::from_iter([
                                 Span::new_unstyled("⚠️  ")?,
-                                Span::new_styled(
+                                Span::new_styled_lossy(
                                     format!("{file_name} Has Warnings").attribute(Attribute::Bold),
-                                )?,
+                                ),
                             ]));
                             for warning in limits.limit_issues(sub_optimal_issues.iter()) {
                                 lines.push(Line::from_iter([
                                     Span::new_unstyled(" ↪ ")?,
-                                    Span::new_unstyled(warning.error_message.clone())?,
+                                    Span::new_unstyled_lossy(warning.error_message.clone()),
                                 ]));
                             }
                         }
