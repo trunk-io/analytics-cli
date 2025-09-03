@@ -1,5 +1,6 @@
 use std::io::Write;
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 use std::{fs, io::BufReader};
 
 use api::message::{
@@ -9,7 +10,8 @@ use api::message::{
 use assert_matches::assert_matches;
 use axum::{extract::State, http::StatusCode, Json};
 use bundle::{BundleMeta, FileSetType, INTERNAL_BIN_FILENAME};
-use chrono::TimeDelta;
+use chrono::{DateTime, TimeDelta};
+use clap::Parser;
 use codeowners::CodeOwners;
 use constants::EXIT_FAILURE;
 use context::{
@@ -17,6 +19,7 @@ use context::{
     junit::{junit_path::TestRunnerReportStatus, parser::JunitParser},
     repo::{BundleRepo, RepoUrlParts as Repo},
 };
+use junit_mock::JunitMock;
 use lazy_static::lazy_static;
 use predicates::prelude::*;
 use pretty_assertions::assert_eq;
@@ -1771,6 +1774,65 @@ async fn reports_failing_tests_but_succeeds_when_quarantine_disabled() {
         .assert()
         .success()
         .stderr(predicate::str::contains("Fail: 0").not());
+
+    println!("{assert}");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn works_when_tests_have_invalid_names() {
+    let temp_dir = tempdir().unwrap();
+    generate_mock_git_repo(&temp_dir);
+
+    let global_options = junit_mock::GlobalOptions {
+        seed: None,
+        timestamp: Some(
+            DateTime::parse_from_str("1983 Apr 13 12:09:14.274 +0000", "%Y %b %d %H:%M:%S%.3f %z")
+                .unwrap(),
+        ),
+    };
+    let test_case_options = junit_mock::TestCaseOptions {
+        test_case_names: Some(vec![String::from("<head>test_case\t\n")]),
+        test_case_classnames: Some(vec![String::from("Test\nClass")]),
+        test_case_random_count: 0usize,
+        test_case_sys_out_percentage: 0u8,
+        test_case_sys_err_percentage: 0u8,
+        test_case_duration_range: vec![Duration::new(10, 0).into(), Duration::new(20, 0).into()],
+        test_case_success_to_skip_to_fail_to_error_percentage: vec![vec![0u8, 0u8, 100u8, 0u8]],
+    };
+    let test_suite_options = junit_mock::TestSuiteOptions {
+        test_suite_names: Some(vec![String::from("/<xml>")]),
+        test_suite_random_count: 50usize,
+        test_suite_sys_out_percentage: 50u8,
+        test_suite_sys_err_percentage: 50u8,
+    };
+    let report_options = junit_mock::ReportOptions {
+        report_names: Some(vec![String::from("report\t\nname")]),
+        report_random_count: 1usize,
+        report_duration_range: vec![
+            "5m".parse::<humantime::Duration>().unwrap(),
+            "1h".parse::<humantime::Duration>().unwrap(),
+        ],
+        do_not_render_testsuites_element: false,
+    };
+    let options = junit_mock::Options {
+        global: global_options,
+        report: report_options,
+        test_suite: test_suite_options,
+        test_case: test_case_options,
+        test_rerun: junit_mock::TestRerunOptions::try_parse_from([""]).unwrap(),
+    };
+    let mut mock = JunitMock::new(options);
+    let reports = mock.generate_reports();
+    mock.write_reports_to_file(temp_dir.as_ref(), reports)
+        .unwrap();
+
+    let state = MockServerBuilder::new().spawn_mock_server().await;
+
+    let mut command = CommandBuilder::upload(temp_dir.path(), state.host.clone())
+        .disable_quarantining(true)
+        .command();
+
+    let assert = command.assert().success();
 
     println!("{assert}");
 }

@@ -619,9 +619,9 @@ impl EndOutput for UploadRunResult {
                         if test.parent_name.is_empty() { "" } else { "/" },
                         test.name
                     );
-                    let mut test_line = Line::from_iter([Span::new_styled(
+                    let mut test_line = Line::from_iter([Span::new_styled_lossy(
                         style(output_name.to_string()).attribute(Attribute::Bold),
-                    )?]);
+                    )]);
                     test_line.pad_left(2);
                     output.push(test_line);
                     let link = url_for_test_case(
