@@ -45,7 +45,7 @@ impl Component for ProgressMessage {
     fn draw_unchecked(&self, _dimensions: Dimensions, _mode: DrawMode) -> Result<Lines> {
         let output = vec![Line::from_iter([
             Span::new_unstyled("⏳ ")?,
-            Span::new_unstyled(self.message.clone())?,
+            Span::new_unstyled_lossy(self.message.clone()),
         ])];
         Ok(Lines(output))
     }
