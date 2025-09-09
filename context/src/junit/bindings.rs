@@ -1277,6 +1277,8 @@ mod tests {
     #[cfg(feature = "bindings")]
     #[test]
     fn test_junit_conversion_paths() {
+        use crate::repo::RepoUrlParts;
+
         let mut junit_parser = JunitParser::new();
         let file_contents = r#"
         <xml version="1.0" encoding="UTF-8"?>
@@ -1295,7 +1297,16 @@ mod tests {
         assert!(parsed_results.is_ok());
 
         // Get test case runs from parser
-        let test_case_runs = junit_parser.into_test_case_runs(None);
+        let test_case_runs = junit_parser.into_test_case_runs(
+            None,
+            &String::from(""),
+            &RepoUrlParts {
+                host: "".into(),
+                owner: "".into(),
+                name: "".into(),
+            },
+            &vec![],
+        );
         assert_eq!(test_case_runs.len(), 2);
 
         // Convert test case runs to bindings

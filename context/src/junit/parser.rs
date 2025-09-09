@@ -25,6 +25,7 @@ use wasm_bindgen::prelude::*;
 use super::date_parser::JunitDateParser;
 #[cfg(feature = "bindings")]
 use crate::junit::bindings::BindingsReport;
+use crate::{meta::id::gen_info_id, repo::RepoUrlParts};
 
 const TAG_REPORT: &[u8] = b"testsuites";
 const TAG_TEST_SUITE: &[u8] = b"testsuite";
@@ -196,7 +197,13 @@ impl JunitParser {
         self.reports
     }
 
-    pub fn into_test_case_runs(self, codeowners: Option<&CodeOwners>) -> Vec<TestCaseRun> {
+    pub fn into_test_case_runs<T: AsRef<str>>(
+        self,
+        codeowners: Option<&CodeOwners>,
+        org_slug: &T,
+        repo: &RepoUrlParts,
+        quarantined_test_ids: &Vec<String>,
+    ) -> Vec<TestCaseRun> {
         let mut test_case_runs = Vec::new();
         for report in self.reports {
             for test_suite in report.test_suites {
@@ -208,6 +215,7 @@ impl JunitParser {
                     };
                     test_case_run.classname = test_case
                         .classname
+                        .clone()
                         .map(|v| v.to_string())
                         .unwrap_or_default();
                     if let Some(test_case_timestamp) = test_case.timestamp {
@@ -280,7 +288,7 @@ impl JunitParser {
                                 .collect();
                         }
                     }
-                    test_case_run.file = file;
+                    test_case_run.file = file.clone();
                     test_case_run.line = test_case
                         .extra
                         .get(extra_attrs::LINE)
@@ -293,7 +301,23 @@ impl JunitParser {
                         .map(|v| v.to_string())
                         .and_then(|v| v.parse::<i32>().ok())
                         .unwrap_or_default();
-                    test_case_run.is_quarantined = false;
+
+                    let test_case_id = test_case
+                        .extra
+                        .get(extra_attrs::ID)
+                        .map(|v| v.to_string())
+                        .unwrap_or(gen_info_id(
+                            org_slug.as_ref(),
+                            repo.repo_full_name().as_str(),
+                            Some(file.as_str()),
+                            test_case.classname.map(|v| v.to_string()).as_deref(),
+                            Some(test_case_run.parent_name.as_str()),
+                            Some(test_case_run.name.as_str()),
+                            None,
+                            "",
+                        ));
+                    test_case_run.is_quarantined = quarantined_test_ids.contains(&test_case_id);
+
                     test_case_runs.push(test_case_run);
                 }
             }
@@ -937,7 +961,7 @@ mod tests {
     use prost_wkt_types::Timestamp;
     use proto::test_context::test_run::TestCaseRunStatus;
 
-    use crate::junit::parser::JunitParser;
+    use crate::{junit::parser::JunitParser, meta::id::gen_info_id, repo::RepoUrlParts};
     #[test]
     fn test_into_test_case_runs() {
         let mut junit_parser = JunitParser::new();
@@ -958,7 +982,29 @@ mod tests {
         "#;
         let parsed_results = junit_parser.parse(BufReader::new(file_contents.as_bytes()));
         assert!(parsed_results.is_ok());
-        let test_case_runs = junit_parser.into_test_case_runs(None);
+
+        let org_slug = "org-url-slug".to_string();
+        let repo = RepoUrlParts {
+            host: "repo-host".into(),
+            owner: "repo-owner".into(),
+            name: "repo-name".into(),
+        };
+
+        let test_case_runs = junit_parser.into_test_case_runs(
+            None,
+            &org_slug,
+            &repo,
+            &vec![gen_info_id(
+                org_slug.as_str(),
+                repo.repo_full_name().as_str(),
+                Some("test.java"),
+                Some("test"),
+                Some("testsuite"),
+                Some("test_variant_truncation1"),
+                None,
+                "",
+            )],
+        );
         assert_eq!(test_case_runs.len(), 2);
         let test_case_run1 = &test_case_runs[0];
         assert_eq!(test_case_run1.name, "test_variant_truncation1");
@@ -971,7 +1017,7 @@ mod tests {
         );
         assert_eq!(test_case_run1.file, "test.java");
         assert_eq!(test_case_run1.attempt_number, 0);
-        assert!(!test_case_run1.is_quarantined);
+        assert!(test_case_run1.is_quarantined);
         assert_eq!(
             test_case_run1.started_at,
             Some(Timestamp {
