@@ -202,7 +202,7 @@ impl JunitParser {
         codeowners: Option<&CodeOwners>,
         org_slug: &T,
         repo: &RepoUrlParts,
-        quarantined_test_ids: &Vec<String>,
+        quarantined_test_ids: &[String],
     ) -> Vec<TestCaseRun> {
         let mut test_case_runs = Vec::new();
         for report in self.reports {
@@ -288,7 +288,26 @@ impl JunitParser {
                                 .collect();
                         }
                     }
-                    test_case_run.file = file.clone();
+
+                    let test_case_id = test_case
+                        .extra
+                        .get(extra_attrs::ID)
+                        .map(|v| v.to_string())
+                        .unwrap_or_else(|| {
+                            gen_info_id(
+                                org_slug.as_ref(),
+                                repo.repo_full_name().as_str(),
+                                Some(file.as_str()),
+                                test_case.classname.map(|v| v.to_string()).as_deref(),
+                                Some(test_case_run.parent_name.as_str()),
+                                Some(test_case_run.name.as_str()),
+                                None,
+                                "",
+                            )
+                        });
+                    test_case_run.is_quarantined = quarantined_test_ids.contains(&test_case_id);
+
+                    test_case_run.file = file;
                     test_case_run.line = test_case
                         .extra
                         .get(extra_attrs::LINE)
@@ -301,22 +320,6 @@ impl JunitParser {
                         .map(|v| v.to_string())
                         .and_then(|v| v.parse::<i32>().ok())
                         .unwrap_or_default();
-
-                    let test_case_id = test_case
-                        .extra
-                        .get(extra_attrs::ID)
-                        .map(|v| v.to_string())
-                        .unwrap_or(gen_info_id(
-                            org_slug.as_ref(),
-                            repo.repo_full_name().as_str(),
-                            Some(file.as_str()),
-                            test_case.classname.map(|v| v.to_string()).as_deref(),
-                            Some(test_case_run.parent_name.as_str()),
-                            Some(test_case_run.name.as_str()),
-                            None,
-                            "",
-                        ));
-                    test_case_run.is_quarantined = quarantined_test_ids.contains(&test_case_id);
 
                     test_case_runs.push(test_case_run);
                 }

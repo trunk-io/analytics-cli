@@ -335,11 +335,9 @@ pub async fn run_upload(
         &test_run_result,
     )?;
 
-    let default_exit_code = if let Some(exit_code) = upload_args.test_process_exit_code {
-        Some(exit_code)
-    } else {
-        test_run_result.as_ref().map(|r| r.exit_code)
-    };
+    let default_exit_code = upload_args
+        .test_process_exit_code
+        .or_else(|| test_run_result.as_ref().map(|r| r.exit_code));
     let quarantine_context = match gather_exit_code_and_quarantined_tests_context(
         &mut meta,
         upload_args.disable_quarantining || !upload_args.use_quarantining,
