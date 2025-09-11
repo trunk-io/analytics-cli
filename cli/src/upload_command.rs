@@ -334,45 +334,10 @@ pub async fn run_upload(
         upload_args.allow_empty_test_results,
         &test_run_result,
     )?;
-    let temp_dir = tempfile::tempdir()?;
-    let internal_bundled_file = if let Some(ref bep_result) = bep_result {
-        generate_internal_file_from_bep(
-            bep_result,
-            &temp_dir,
-            meta.base_props.codeowners.as_ref(),
-            // hide warnings on parsed xcresult output
-            #[cfg(target_os = "macos")]
-            upload_args.xcresult_path.is_none(),
-            #[cfg(not(target_os = "macos"))]
-            true,
-            upload_args.variant,
-        )
-    } else {
-        generate_internal_file(
-            &meta.base_props.file_sets,
-            &temp_dir,
-            meta.base_props.codeowners.as_ref(),
-            // hide warnings on parsed xcresult output
-            #[cfg(target_os = "macos")]
-            upload_args.xcresult_path.is_none(),
-            #[cfg(not(target_os = "macos"))]
-            true,
-            upload_args.variant,
-        )
-    };
-    let validations = if let Ok((internal_bundled_file, junit_validations)) = internal_bundled_file
-    {
-        meta.internal_bundled_file = Some(internal_bundled_file);
-        JunitReportValidations::new(junit_validations)
-    } else {
-        JunitReportValidations::new(BTreeMap::new())
-    };
 
-    let default_exit_code = if let Some(exit_code) = upload_args.test_process_exit_code {
-        Some(exit_code)
-    } else {
-        test_run_result.as_ref().map(|r| r.exit_code)
-    };
+    let default_exit_code = upload_args
+        .test_process_exit_code
+        .or_else(|| test_run_result.as_ref().map(|r| r.exit_code));
     let quarantine_context = match gather_exit_code_and_quarantined_tests_context(
         &mut meta,
         upload_args.disable_quarantining || !upload_args.use_quarantining,
@@ -388,6 +353,55 @@ pub async fn run_upload(
             QuarantineContext::fail_fetch(e)
         }
     };
+
+    let quarantined_test_ids: Vec<String> = quarantine_context
+        .quarantine_status
+        .quarantine_results
+        .clone()
+        .iter()
+        .map(|test| test.id.clone())
+        .collect();
+
+    let temp_dir = tempfile::tempdir()?;
+    let internal_bundled_file = if let Some(ref bep_result) = bep_result {
+        generate_internal_file_from_bep(
+            bep_result,
+            &temp_dir,
+            meta.base_props.codeowners.as_ref(),
+            // hide warnings on parsed xcresult output
+            #[cfg(target_os = "macos")]
+            upload_args.xcresult_path.is_none(),
+            #[cfg(not(target_os = "macos"))]
+            true,
+            upload_args.variant,
+            &upload_args.org_url_slug,
+            &quarantine_context.repo,
+            &quarantined_test_ids,
+        )
+    } else {
+        generate_internal_file(
+            &meta.base_props.file_sets,
+            &temp_dir,
+            meta.base_props.codeowners.as_ref(),
+            // hide warnings on parsed xcresult output
+            #[cfg(target_os = "macos")]
+            upload_args.xcresult_path.is_none(),
+            #[cfg(not(target_os = "macos"))]
+            true,
+            upload_args.variant,
+            &upload_args.org_url_slug,
+            &quarantine_context.repo,
+            &quarantined_test_ids,
+        )
+    };
+    let validations = if let Ok((internal_bundled_file, junit_validations)) = internal_bundled_file
+    {
+        meta.internal_bundled_file = Some(internal_bundled_file);
+        JunitReportValidations::new(junit_validations)
+    } else {
+        JunitReportValidations::new(BTreeMap::new())
+    };
+
     meta.base_props.quarantined_tests = quarantine_context
         .quarantine_status
         .quarantine_results
