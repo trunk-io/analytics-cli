@@ -51,26 +51,28 @@ jobs:
 
       - name: Setup Rust & Cargo
         uses: ./.github/actions/setup_rust_cargo
-        if: "!cancelled()"
 
       - name: Update CLI version
         uses: ./.github/actions/update_version
         # only empty during testing
-        if: "!cancelled() && github.event.inputs.release_tag != ''"
+        if: github.event.inputs.release_tag != ''
         with:
           version: ${{ github.event.inputs.release_tag }}
           file: ./cli/Cargo.toml
 
+      #########################################################
+      # Main CLI
+      #########################################################
       - name: Build darwin target
         uses: ./.github/actions/build_cli_macos_target
-        if: "!cancelled() && contains(matrix.platform.os-name, 'darwin')"
+        if: contains(matrix.platform.os-name, 'darwin')
         with:
           target: ${{ matrix.platform.target }}
           profile: release-with-debug
 
       - name: Build unix target
         uses: ./.github/actions/build_cli_linux_target
-        if: "!cancelled() && !contains(matrix.platform.os-name, 'darwin')"
+        if: "!contains(matrix.platform.os-name , 'darwin')"
         with:
           target: ${{ matrix.platform.target }}
           profile: release-with-debug
@@ -78,19 +80,57 @@ jobs:
       - name: Upload debug info to Sentry
         uses: ./.github/actions/upload_sentry_debug_info
         # only empty during testing
-        if: "!cancelled() && github.event.inputs.release_tag != ''"
+        if: github.event.inputs.release_tag != ''
         with:
           target: ${{ matrix.platform.target }}
           sentry-org: ${{ secrets.SENTRY_ORG }}
           sentry-project: ${{ secrets.SENTRY_PROJECT }}
           sentry-auth-token: ${{ secrets.SENTRY_AUTH_TOKEN }}
 
-      - uses: actions/upload-artifact@v4
-        if: "!cancelled()"
+      #########################################################
+      # CLI Tools
+      #########################################################
+      - name: Build CLI Tools
+        uses: ./.github/actions/build_cli_tools
+        if: matrix.platform.target != 'x86_64-unknown-illumos'
+        with:
+          target: ${{ matrix.platform.target }}
+          os-name: ${{ matrix.platform.os-name }}
+          release_tag: ${{ github.event.inputs.release_tag }}
+
+      #########################################################
+      # Upload CLI artifacts
+      #########################################################
+      - name: Upload main CLI artifact
+        uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.platform.artifact-name }}
           path: target/${{ matrix.platform.target }}/release-with-debug/trunk-analytics-cli
-          if-no-files-found: error
+          if-no-files-found: ignore
+
+      #########################################################
+      # Upload CLI tools artifacts
+      #########################################################
+      - name: Upload Bundle CLI artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.platform.artifact-name }}-bundle
+          path: target/${{ matrix.platform.target }}/release-with-debug/proto-bin-to-json
+          if-no-files-found: ignore
+
+      - name: Upload XCResult CLI artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.platform.artifact-name }}-xcresult
+          path: target/${{ matrix.platform.target }}/release-with-debug/xcresult-to-junit
+          if-no-files-found: ignore
+
+      - name: Upload Codeowners CLI artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.platform.artifact-name }}-codeowners
+          path: target/${{ matrix.platform.target }}/release-with-debug/check-codeowners
+          if-no-files-found: ignore
 
   perform_smoke_test:
     name: Smoke test ${{ github.event.inputs.release_tag }} - ${{ matrix.type.name }}
@@ -142,12 +182,31 @@ jobs:
 
       - name: Compress binaries
         run: |
+          # Compress main CLI
           for target in $(ls build)
           do
-            chmod u+x build/${target}/trunk-analytics-cli
-            tar czvf \
-              build/trunk-analytics-cli-${target}.tar.gz \
-              -C build/${target} trunk-analytics-cli
+            if [[ -f "build/${target}/trunk-analytics-cli" ]]; then
+              chmod u+x build/${target}/trunk-analytics-cli
+              tar czvf \
+                build/trunk-analytics-cli-${target}.tar.gz \
+                -C build/${target} trunk-analytics-cli
+            fi
+          done
+
+          # Compress CLI tools
+          for tool in bundle xcresult codeowners; do
+            for platform in build/*-${tool}; do
+              if [[ -d "$platform" ]]; then
+                platform_name=$(basename "$platform" | sed "s/-${tool}$//")
+                for binary in "$platform"/*; do
+                  if [[ -f "$binary" ]]; then
+                    binary_name=$(basename "$binary")
+                    chmod u+x "$binary"
+                    tar czvf "build/${binary_name}-${platform_name}.tar.gz" -C "$platform" "$binary_name"
+                  fi
+                done
+              fi
+            done
           done
 
       - name: Install gh
