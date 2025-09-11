@@ -1,0 +1,87 @@
+name: Build CLI Tools
+description: Build bundle, xcresult, and codeowners CLI tools for the specified target.
+
+inputs:
+  target:
+    description: Rust target triple, e.g. x86_64-apple-darwin
+    required: true
+  os-name:
+    description: Operating system name for conditional building
+    required: true
+  release_tag:
+    description: Release tag for version updates
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - name: Add target for CLI tools
+      shell: bash
+      run: rustup target add ${{ inputs.target }}
+
+    - name: Install musl development tools
+      shell: bash
+      run: |
+        if [[ "${{ inputs.target }}" == *"musl"* ]]; then
+          sudo apt-get update
+          sudo apt-get install -y musl-tools
+        fi
+
+    - name: Install cross for CLI tools
+      shell: bash
+      run: |
+        # Only install cross if we're not on the target architecture
+        if [[ "${{ inputs.target }}" == *"aarch64"* ]] && [[ "$(uname -m)" == "aarch64" ]]; then
+          echo "Skipping cross installation - already on target architecture"
+        else
+          cargo install cross --git https://github.com/cross-rs/cross --force
+        fi
+
+    - name: Update Bundle CLI version
+      uses: ./.github/actions/update_version
+      if: inputs.release_tag != ''
+      with:
+        version: ${{ inputs.release_tag }}
+        file: ./bundle/Cargo.toml
+
+    - name: Update XCResult CLI version
+      uses: ./.github/actions/update_version
+      if: inputs.release_tag != ''
+      with:
+        version: ${{ inputs.release_tag }}
+        file: ./xcresult/Cargo.toml
+
+    - name: Update Codeowners CLI version
+      uses: ./.github/actions/update_version
+      if: inputs.release_tag != ''
+      with:
+        version: ${{ inputs.release_tag }}
+        file: ./codeowners/Cargo.toml
+
+    - name: Build Bundle CLI
+      shell: bash
+      run: |
+        if [[ "${{ inputs.os-name }}" == *"darwin"* ]] || [[ "${{ inputs.target }}" == *"aarch64"* && "$(uname -m)" == "aarch64" ]]; then
+          cargo build -p bundle --profile=release-with-debug --target=${{ inputs.target }} --features build-binary
+        else
+          cross build -p bundle --profile=release-with-debug --target=${{ inputs.target }} --features build-binary
+        fi
+
+    - name: Build XCResult CLI
+      shell: bash
+      run: |
+        if [[ "${{ inputs.os-name }}" == *"darwin"* ]] || [[ "${{ inputs.target }}" == *"aarch64"* && "$(uname -m)" == "aarch64" ]]; then
+          cargo build -p xcresult --profile=release-with-debug --target=${{ inputs.target }}
+        else
+          cross build -p xcresult --profile=release-with-debug --target=${{ inputs.target }}
+        fi
+
+    - name: Build Codeowners CLI
+      shell: bash
+      run: |
+        if [[ "${{ inputs.os-name }}" == *"darwin"* ]] || [[ "${{ inputs.target }}" == *"aarch64"* && "$(uname -m)" == "aarch64" ]]; then
+          cargo build -p codeowners --profile=release-with-debug --target=${{ inputs.target }}
+        else
+          cross build -p codeowners --profile=release-with-debug --target=${{ inputs.target }}
+        fi
