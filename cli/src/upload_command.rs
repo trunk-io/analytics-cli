@@ -354,7 +354,7 @@ pub async fn run_upload(
         }
     };
 
-    let quarantined_test_ids = quarantine_context
+    let quarantined_test_ids: Vec<String> = quarantine_context
         .quarantine_status
         .quarantine_results
         .clone()

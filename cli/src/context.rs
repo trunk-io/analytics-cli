@@ -333,7 +333,7 @@ pub fn generate_internal_file_from_bep(
     variant: Option<String>,
     org_slug: &String,
     repo: &RepoUrlParts,
-    quarantined_test_ids: &Vec<String>,
+    quarantined_test_ids: &[String],
 ) -> anyhow::Result<(
     BundledFile,
     BTreeMap<String, anyhow::Result<JunitReportValidation>>,
@@ -426,7 +426,7 @@ pub fn generate_internal_file(
     variant: Option<String>,
     org_slug: &String,
     repo: &RepoUrlParts,
-    quarantined_test_ids: &Vec<String>,
+    quarantined_test_ids: &[String],
 ) -> anyhow::Result<(
     BundledFile,
     BTreeMap<String, anyhow::Result<JunitReportValidation>>,

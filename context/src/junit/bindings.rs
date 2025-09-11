@@ -1305,7 +1305,7 @@ mod tests {
                 owner: "".into(),
                 name: "".into(),
             },
-            &vec![],
+            &[],
         );
         assert_eq!(test_case_runs.len(), 2);
 

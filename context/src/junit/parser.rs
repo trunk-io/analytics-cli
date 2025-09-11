@@ -997,7 +997,7 @@ mod tests {
             None,
             &org_slug,
             &repo,
-            &vec![gen_info_id(
+            &[gen_info_id(
                 org_slug.as_str(),
                 repo.repo_full_name().as_str(),
                 Some("test.java"),
