@@ -331,6 +331,9 @@ pub fn generate_internal_file_from_bep(
     codeowners: Option<&CodeOwners>,
     show_warnings: bool,
     variant: Option<String>,
+    org_slug: &String,
+    repo: &RepoUrlParts,
+    quarantined_test_ids: &[String],
 ) -> anyhow::Result<(
     BundledFile,
     BTreeMap<String, anyhow::Result<JunitReportValidation>>,
@@ -359,7 +362,12 @@ pub fn generate_internal_file_from_bep(
                         &mut junit_validations,
                     );
 
-                    let mut xml_test_case_runs = junit_parser.into_test_case_runs(codeowners);
+                    let mut xml_test_case_runs = junit_parser.into_test_case_runs(
+                        codeowners,
+                        org_slug,
+                        repo,
+                        quarantined_test_ids,
+                    );
                     for test_case_run in &mut xml_test_case_runs {
                         test_case_run.attempt_number = xml_file.attempt;
                     }
@@ -381,7 +389,12 @@ pub fn generate_internal_file_from_bep(
                         show_warnings,
                         &mut junit_validations,
                     );
-                    test_case_runs.extend(junit_parser.into_test_case_runs(codeowners));
+                    test_case_runs.extend(junit_parser.into_test_case_runs(
+                        codeowners,
+                        org_slug,
+                        repo,
+                        quarantined_test_ids,
+                    ));
                 }
             }
         }
@@ -411,6 +424,9 @@ pub fn generate_internal_file(
     codeowners: Option<&CodeOwners>,
     show_warnings: bool,
     variant: Option<String>,
+    org_slug: &String,
+    repo: &RepoUrlParts,
+    quarantined_test_ids: &[String],
 ) -> anyhow::Result<(
     BundledFile,
     BTreeMap<String, anyhow::Result<JunitReportValidation>>,
@@ -442,7 +458,12 @@ pub fn generate_internal_file(
                         show_warnings,
                         &mut junit_validations,
                     );
-                    test_case_runs.extend(junit_parser.into_test_case_runs(codeowners));
+                    test_case_runs.extend(junit_parser.into_test_case_runs(
+                        codeowners,
+                        org_slug,
+                        repo,
+                        quarantined_test_ids,
+                    ));
                 }
             }
         }
