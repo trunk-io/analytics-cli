@@ -84,6 +84,21 @@ async fn publish_test_report() {
             "test-message".into(),
             true,
         );
+        // Add a failing test that should be quarantined
+        test_report.add_test(
+            Some("3".into()),
+            "failing-quarantined-test".into(),
+            "test-classname".into(),
+            "test-file3".into(),
+            "test-parent-name".into(),
+            None,
+            Status::Failure,
+            0,
+            1000,
+            1001,
+            "This test should be quarantined".into(),
+            true, // This test is marked as quarantined
+        );
         let result = test_report.publish();
         assert!(result);
     });
@@ -102,6 +117,8 @@ async fn publish_test_report() {
             name: "analytics-cli".into()
         }
     );
+    // Verify that we are checking the quarantine config by making a request to list quarantined tests
+    // This confirms that the quarantine configuration is being fetched and validated
     // validate we only send one list quarantined tests request
     assert_matches!(&requests_iter.next().unwrap(), RequestPayload::CreateBundleUpload(d) => d);
     let tar_extract_directory =
@@ -142,8 +159,13 @@ async fn publish_test_report() {
     more_asserts::assert_lt!(time_since_upload.num_minutes(), 5);
     assert_eq!(base_props.test_command, Some("test-command 123".into()));
     assert!(base_props.os_info.is_some());
-    assert_eq!(base_props.quarantined_tests.len(), 1);
-    assert_eq!(base_props.quarantined_tests[0].id, "2");
+    // Verify that we have 2 quarantined tests (test "2" and test "3")
+    assert_eq!(base_props.quarantined_tests.len(), 2);
+    // The quarantined tests might be in any order, so we'll check that both IDs are present
+    let quarantined_ids: Vec<&String> =
+        base_props.quarantined_tests.iter().map(|t| &t.id).collect();
+    assert!(quarantined_ids.contains(&&"2".to_string()));
+    assert!(quarantined_ids.contains(&&"3".to_string()));
 
     let file_set = base_props.file_sets.first().unwrap();
     assert_eq!(file_set.file_set_type, FileSetType::Internal);
@@ -152,7 +174,7 @@ async fn publish_test_report() {
 
     let junit_props = bundle_meta.junit_props;
     assert_eq!(junit_props.num_files, 1);
-    assert_eq!(junit_props.num_tests, 2);
+    assert_eq!(junit_props.num_tests, 3);
 
     let bundled_file = file_set.files.first().unwrap();
     assert_eq!(bundled_file.path, "internal/0");
@@ -175,7 +197,7 @@ async fn publish_test_report() {
     };
     assert_eq!(report.test_results.len(), 1);
     let result = report.test_results.first().unwrap();
-    assert_eq!(result.test_case_runs.len(), 2);
+    assert_eq!(result.test_case_runs.len(), 3);
     let test_case_run = &result.test_case_runs[0];
     assert_eq!(test_case_run.id, "1");
     assert_eq!(test_case_run.name, "test-name");
@@ -200,11 +222,30 @@ async fn publish_test_report() {
     assert_eq!(test_case_run.status, TestCaseRunStatus::Failure as i32);
     assert_eq!(test_case_run.line, 0);
     assert_eq!(test_case_run.attempt_number, 0);
-    assert_eq!(test_case_run.started_at, Some(test_started_at));
-    assert_eq!(test_case_run.finished_at, Some(test_finished_at));
+    assert_eq!(test_case_run.started_at, Some(test_started_at.clone()));
+    assert_eq!(test_case_run.finished_at, Some(test_finished_at.clone()));
     assert!(test_case_run.is_quarantined);
     assert_eq!(test_case_run.status_output_message, "test-message");
     assert_eq!(test_case_run.codeowners.len(), 2);
+
+    // Verify the third test case (quarantined failing test)
+    let test_case_run = &result.test_case_runs[2];
+    assert_eq!(test_case_run.id, "3");
+    assert_eq!(test_case_run.name, "failing-quarantined-test");
+    assert_eq!(test_case_run.classname, "test-classname");
+    assert_eq!(test_case_run.file, "test-file3");
+    assert_eq!(test_case_run.parent_name, "test-parent-name");
+    assert_eq!(test_case_run.status, TestCaseRunStatus::Failure as i32);
+    assert_eq!(test_case_run.line, 0);
+    assert_eq!(test_case_run.attempt_number, 0);
+    assert_eq!(test_case_run.started_at, Some(test_started_at.clone()));
+    assert_eq!(test_case_run.finished_at, Some(test_finished_at.clone()));
+    assert!(test_case_run.is_quarantined);
+    assert_eq!(
+        test_case_run.status_output_message,
+        "This test should be quarantined"
+    );
+    assert_eq!(test_case_run.codeowners.len(), 0); // No codeowners for test-file3
 }
 
 #[test]

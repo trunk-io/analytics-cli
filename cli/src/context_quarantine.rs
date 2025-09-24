@@ -299,11 +299,6 @@ pub async fn gather_quarantine_context(
     let (quarantine_config, quarantine_fetch_status) = if !failed_tests_extractor
         .failed_tests()
         .is_empty()
-        && file_set_builder
-            .file_sets()
-            .iter()
-            // internal files track quarantine status directly, so we don't need to check them
-            .any(|file_set| file_set.file_set_type == FileSetType::Junit)
     {
         tracing::info!("Checking if failed tests can be quarantined");
         match api_client.get_quarantining_config(request).await {
