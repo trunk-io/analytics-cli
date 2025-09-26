@@ -45,7 +45,7 @@ impl JunitDateParser {
             .map(|dt| {
                 self.date_type = Some(DateType::DateTime);
                 TimestampAndOffset {
-                    timestamp_secs_micros: Some((dt.timestamp(), dt.time.microsecond)),
+                    timestamp_secs_micros: Some((dt.timestamp_tz(), dt.time.microsecond)),
                     offset_secs: dt.time.tz_offset,
                 }
             })
@@ -71,7 +71,7 @@ impl JunitDateParser {
             timestamp_secs_micros.and_then(|(secs, micros)| {
                 let duration = Duration::from_micros(micros.into());
                 ChronoDateTime::from_timestamp(
-                    secs - offset_secs.unwrap_or(0) as i64,
+                    secs,
                     duration.as_nanos().try_into().unwrap_or_default(),
                 )
             }),
