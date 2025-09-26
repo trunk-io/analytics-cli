@@ -71,7 +71,7 @@ impl JunitDateParser {
             timestamp_secs_micros.and_then(|(secs, micros)| {
                 let duration = Duration::from_micros(micros.into());
                 ChronoDateTime::from_timestamp(
-                    secs,
+                    secs - offset_secs.unwrap_or(0) as i64,
                     duration.as_nanos().try_into().unwrap_or_default(),
                 )
             }),
@@ -119,6 +119,27 @@ mod tests {
             1721745659000000,
             date_parser
                 .parse_date("2024-07-23T14:40:59+00:00")
+                .unwrap()
+                .timestamp_micros()
+        );
+        pretty_assertions::assert_eq!(
+            1758837152774867,
+            date_parser
+                .parse_date("2025-09-25T14:52:32.774867-07:00")
+                .unwrap()
+                .timestamp_micros()
+        );
+        pretty_assertions::assert_eq!(
+            1758861384602000,
+            date_parser
+                .parse_date("2025-09-25T21:36:24.602-07:00")
+                .unwrap()
+                .timestamp_micros()
+        );
+        pretty_assertions::assert_eq!(
+            1758823584602567,
+            date_parser
+                .parse_date("2025-09-25T21:36:24.602567+03:30")
                 .unwrap()
                 .timestamp_micros()
         );
