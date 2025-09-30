@@ -9,53 +9,8 @@ import zstandard as zstd
 from botocore.response import StreamingBody
 
 
-def create_stream_from_meta(
-    expected_meta: typing.Any, internal_bin_filepath: typing.Optional[str] = None
-) -> tuple[StreamingBody, bytes]:
-    encoded_meta = json.dumps(expected_meta).encode()
-
-    meta_tarball_compressed: bytes = b""
-    with tempfile.TemporaryDirectory() as tempdir:
-        meta_file_path = f"{tempdir}/meta.json"
-        with open(meta_file_path, "wb") as f:
-            f.write(encoded_meta)
-
-        internal_bin_path: str | None = None
-        if internal_bin_filepath is not None:
-            internal_bin_current_path = os.path.join(
-                os.path.dirname(__file__), internal_bin_filepath
-            )
-            with open(internal_bin_current_path, "rb") as f:
-                internal_bin_data = f.read()
-
-            internal_bin_path = f"{tempdir}/internal.bin"
-            with open(internal_bin_path, "wb") as f:
-                f.write(internal_bin_data)
-
-        meta_tarball_path = f"{tempdir}/meta.tar"
-        with tarfile.open(meta_tarball_path, "w") as tar:
-            tar.add(meta_file_path, "meta.json")
-            if internal_bin_path is not None:
-                tar.add(internal_bin_path, "internal.bin")
-            # Add some junk files into the tarball.
-            for i in range(1000):
-                tar.add(meta_file_path, f"junk{str(i)}")
-
-        with open(meta_tarball_path, "rb") as f:
-            encoder = zstd.ZstdCompressor(level=6)
-            meta_tarball_compressed = encoder.compress(f.read())
-
-    raw_stream = StreamingBody(
-        io.BytesIO(meta_tarball_compressed), len(meta_tarball_compressed)
-    )
-
-    return (raw_stream, meta_tarball_compressed)
-
-
-def test_parse_meta_from_tarball():
-    from context_py import parse_meta_from_tarball
-
-    expected_meta: typing.Any = {
+def base_meta() -> typing.Any:
+    return {
         "version": "1",
         "bundle_upload_id": "59c8ddd9-0a00-4b56-9eea-ef0d60ebcb79",
         "cli_version": "cargo=0.5.11 git=7e5824fa365c63a2d4b38020762be17f4edd6425 rustc=1.80.0-nightly",
@@ -121,6 +76,55 @@ def test_parse_meta_from_tarball():
         "quarantined_tests": [],
     }
 
+
+def create_stream_from_meta(
+    expected_meta: typing.Any, internal_bin_filepath: typing.Optional[str] = None
+) -> tuple[StreamingBody, bytes]:
+    encoded_meta = json.dumps(expected_meta).encode()
+
+    meta_tarball_compressed: bytes = b""
+    with tempfile.TemporaryDirectory() as tempdir:
+        meta_file_path = f"{tempdir}/meta.json"
+        with open(meta_file_path, "wb") as f:
+            f.write(encoded_meta)
+
+        internal_bin_path: str | None = None
+        if internal_bin_filepath is not None:
+            internal_bin_current_path = os.path.join(
+                os.path.dirname(__file__), internal_bin_filepath
+            )
+            with open(internal_bin_current_path, "rb") as f:
+                internal_bin_data = f.read()
+
+            internal_bin_path = f"{tempdir}/internal.bin"
+            with open(internal_bin_path, "wb") as f:
+                f.write(internal_bin_data)
+
+        meta_tarball_path = f"{tempdir}/meta.tar"
+        with tarfile.open(meta_tarball_path, "w") as tar:
+            tar.add(meta_file_path, "meta.json")
+            if internal_bin_path is not None:
+                tar.add(internal_bin_path, "internal.bin")
+            # Add some junk files into the tarball.
+            for i in range(1000):
+                tar.add(meta_file_path, f"junk{str(i)}")
+
+        with open(meta_tarball_path, "rb") as f:
+            encoder = zstd.ZstdCompressor(level=6)
+            meta_tarball_compressed = encoder.compress(f.read())
+
+    raw_stream = StreamingBody(
+        io.BytesIO(meta_tarball_compressed), len(meta_tarball_compressed)
+    )
+
+    return (raw_stream, meta_tarball_compressed)
+
+
+def test_parse_meta_from_tarball():
+    from context_py import parse_meta_from_tarball
+
+    expected_meta: typing.Any = base_meta()
+
     raw_stream, meta_tarball_compressed = create_stream_from_meta(expected_meta)
 
     versioned_bundle = parse_meta_from_tarball(raw_stream)
@@ -139,7 +143,7 @@ def test_parse_internal_bin_from_tarball():
     from context_py import parse_internal_bin_from_tarball
 
     raw_stream, _ = create_stream_from_meta(
-        expected_meta="{}",
+        expected_meta=base_meta(),
         internal_bin_filepath="test_internal.bin",
     )
 
@@ -178,7 +182,7 @@ def test_parse_internal_bin_with_variant_from_tarball():
     from context_py import parse_internal_bin_from_tarball
 
     raw_stream, _ = create_stream_from_meta(
-        expected_meta="{}",
+        expected_meta=base_meta(),
         internal_bin_filepath="test_internal_with_variant.bin",
     )
 
@@ -193,7 +197,7 @@ def test_parse_internal_bin_v2_from_tarball():
     from context_py import parse_internal_bin_from_tarball
 
     raw_stream, _ = create_stream_from_meta(
-        expected_meta="{}",
+        expected_meta=base_meta(),
         internal_bin_filepath="test_internal_v2.bin",
     )
 

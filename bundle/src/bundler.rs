@@ -5,10 +5,9 @@ use std::{
     path::PathBuf,
 };
 
-use anyhow::Context;
 use async_compression::futures::bufread::ZstdDecoder;
 use async_std::{io::ReadExt, stream::StreamExt};
-use async_tar_wasm::Archive;
+use async_tar_wasm::{Archive, Entries};
 use codeowners::CodeOwners;
 use context::bazel_bep::common::BepParseResult;
 use futures_io::AsyncBufRead;
@@ -212,14 +211,10 @@ pub async fn parse_internal_bin_from_tarball<R: AsyncBufRead>(
     Ok(internal_bin)
 }
 
-pub async fn parse_internal_bin_and_meta_from_tarball<R: AsyncBufRead>(
-    input: R,
-) -> anyhow::Result<(TestReport, VersionedBundle)> {
-    let zstd_decoder = ZstdDecoder::new(Box::pin(input));
-    let archive = Archive::new(zstd_decoder);
-    let mut entries = archive.entries()?;
-    let mut file_entries = HashMap::new();
-
+async fn find_internal_bin_in_entries<R: futures_io::AsyncRead + Unpin>(
+    mut entries: Entries<R>,
+    target_name: String,
+) -> anyhow::Result<TestReport> {
     while let Some(entry) = entries.next().await {
         let mut unwrapped_entry = entry?;
         let path_str = unwrapped_entry
@@ -227,26 +222,61 @@ pub async fn parse_internal_bin_and_meta_from_tarball<R: AsyncBufRead>(
             .to_str()
             .unwrap_or_default()
             .to_owned();
-        let mut bytes = Vec::new();
-        unwrapped_entry.read_to_end(&mut bytes).await?;
-        file_entries.insert(path_str, bytes);
+        if path_str == target_name {
+            let mut bytes = Vec::new();
+            unwrapped_entry.read_to_end(&mut bytes).await?;
+            println!("bytes read {:?} from {:?}", bytes, path_str);
+            return bin_parse(&bytes)
+                .map_err(|err| anyhow::anyhow!("Failed to decode {}: {}", target_name, err));
+        }
     }
 
-    let meta_bytes = file_entries
-        .get(META_FILENAME)
-        .context(format!("No {} file found in the tarball", META_FILENAME))?;
-    let versioned_bundle = parse_meta(meta_bytes.to_vec())?;
+    anyhow::Result::Err(anyhow::anyhow!(
+        "No {} file found in the tarball",
+        target_name
+    ))
+}
+
+pub async fn parse_internal_bin_and_meta_from_tarball<R: AsyncBufRead>(
+    input: R,
+) -> anyhow::Result<(TestReport, VersionedBundle)> {
+    println!("a");
+    let zstd_decoder = ZstdDecoder::new(Box::pin(input));
+    let archive = Archive::new(zstd_decoder);
+    let mut entries = archive.entries()?;
+
+    let versioned_bundle_result = if let Some(first_entry) = entries.next().await {
+        let mut owned_first_entry = first_entry?;
+        let path_str = owned_first_entry
+            .path()?
+            .to_str()
+            .unwrap_or_default()
+            .to_owned();
+
+        if path_str == META_FILENAME {
+            let mut meta_bytes = Vec::new();
+            owned_first_entry.read_to_end(&mut meta_bytes).await?;
+
+            parse_meta(meta_bytes)
+        } else {
+            anyhow::Result::Err(anyhow::anyhow!(
+                "No {} file found in the tarball",
+                META_FILENAME
+            ))
+        }
+    } else {
+        anyhow::Result::Err(anyhow::anyhow!(
+            "No {} file found in the tarball",
+            META_FILENAME
+        ))
+    };
+    let versioned_bundle = versioned_bundle_result?;
 
     let internal_bin_filename = versioned_bundle
         .internal_bundled_file()
         .map(|bf| bf.path)
         .unwrap_or(INTERNAL_BIN_FILENAME.to_string());
-    let internal_bin_bytes = file_entries.get(&internal_bin_filename).context(format!(
-        "No {} file found in the tarball",
-        internal_bin_filename
-    ))?;
-    let test_report = bin_parse(internal_bin_bytes)
-        .map_err(|err| anyhow::anyhow!("Failed to decode {}: {}", internal_bin_filename, err))?;
+    let test_report = find_internal_bin_in_entries(entries, internal_bin_filename).await?;
 
     Ok((test_report, versioned_bundle))
 }
