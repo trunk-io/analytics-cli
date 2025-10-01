@@ -219,6 +219,15 @@ pub enum VersionedBundle {
     V0_7_7(BundleMetaV0_7_7),
 }
 
+impl VersionedBundle {
+    pub fn internal_bundled_file(&self) -> Option<BundledFile> {
+        match self {
+            Self::V0_7_7(data) => data.internal_bundled_file.clone(),
+            _ => None,
+        }
+    }
+}
+
 #[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
 #[derive(Debug, Clone)]
 pub struct VersionedBundleWithBindingsReport {
