@@ -417,8 +417,6 @@ mod tests {
             original_path: full_bin_path.to_str().unwrap().to_string(),
             original_path_rel: None,
             path: bin_path,
-            owners: Vec::new(),
-            team: None,
             ..Default::default()
         });
         let meta = create_bundle_meta(bundled_file.clone());
