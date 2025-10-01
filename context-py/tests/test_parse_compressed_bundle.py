@@ -10,7 +10,7 @@ from botocore.response import StreamingBody
 
 
 def base_meta() -> typing.Any:
-    return {
+    value: typing.Any = {
         "version": "1",
         "bundle_upload_id": "59c8ddd9-0a00-4b56-9eea-ef0d60ebcb79",
         "cli_version": "cargo=0.5.11 git=7e5824fa365c63a2d4b38020762be17f4edd6425 rustc=1.80.0-nightly",
@@ -75,6 +75,7 @@ def base_meta() -> typing.Any:
         "group_is_quarantined": None,
         "quarantined_tests": [],
     }
+    return value
 
 
 def create_stream_from_meta(

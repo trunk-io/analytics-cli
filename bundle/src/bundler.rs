@@ -419,6 +419,7 @@ mod tests {
             path: bin_path,
             owners: Vec::new(),
             team: None,
+            ..Default::default()
         });
         let meta = create_bundle_meta(bundled_file.clone());
         let bundler_util = BundlerUtil::new(&meta, None);
