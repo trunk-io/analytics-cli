@@ -225,7 +225,6 @@ async fn find_internal_bin_in_entries<R: futures_io::AsyncRead + Unpin>(
         if path_str == target_name {
             let mut bytes = Vec::new();
             unwrapped_entry.read_to_end(&mut bytes).await?;
-            println!("bytes read {:?} from {:?}", bytes, path_str);
             return bin_parse(&bytes)
                 .map_err(|err| anyhow::anyhow!("Failed to decode {}: {}", target_name, err));
         }
@@ -240,7 +239,6 @@ async fn find_internal_bin_in_entries<R: futures_io::AsyncRead + Unpin>(
 pub async fn parse_internal_bin_and_meta_from_tarball<R: AsyncBufRead>(
     input: R,
 ) -> anyhow::Result<(TestReport, VersionedBundle)> {
-    println!("a");
     let zstd_decoder = ZstdDecoder::new(Box::pin(input));
     let archive = Archive::new(zstd_decoder);
     let mut entries = archive.entries()?;
