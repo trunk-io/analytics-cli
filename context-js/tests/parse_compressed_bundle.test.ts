@@ -294,8 +294,14 @@ describe("context-js", () => {
   it("decompresses and parses internal.bin", async () => {
     expect.hasAssertions();
 
+    const uploadMeta = generateBundleMeta();
+    const metaInfoJson = JSON.stringify(
+      uploadMeta,
+      bundleMetaJsonSerializer,
+      2,
+    );
     const readableStream = await compressAndUploadMeta({
-      metaInfoJson: "{}",
+      metaInfoJson,
       includeInternalBin: RUBY_INTERNAL_BIN,
     });
 
@@ -403,14 +409,20 @@ describe("context-js", () => {
 
     await expect(
       parse_internal_bin_and_meta_from_tarball(readableStream),
-    ).rejects.toThrow('Files not found in tarball: ["internal.bin"]');
+    ).rejects.toThrow("No internal.bin file found in the tarball");
   });
 
   it("correctly gets and sets variant", async () => {
     expect.hasAssertions();
 
+    const uploadMeta = generateBundleMeta();
+    const metaInfoJson = JSON.stringify(
+      uploadMeta,
+      bundleMetaJsonSerializer,
+      2,
+    );
     const readableStream = await compressAndUploadMeta({
-      metaInfoJson: "{}",
+      metaInfoJson,
       includeInternalBin: VARIANT_INTERNAL_BIN,
     });
 
