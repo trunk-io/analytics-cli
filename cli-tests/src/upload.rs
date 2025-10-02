@@ -64,6 +64,7 @@ async fn upload_bundle() {
     let mut requests_iter = requests.into_iter();
 
     let quarantine_request = requests_iter.next().unwrap();
+    let mut failure_count = 0;
     assert_matches!(quarantine_request, RequestPayload::GetQuarantineBulkTestStatus(req) => {
         assert_eq!(req.repo.host, "github.com");
         assert_eq!(req.repo.owner, "trunk-io");
@@ -80,6 +81,9 @@ async fn upload_bundle() {
                 "Parent name should not be empty"
             );
             assert!(test.id.len() == 36, "Test ID should be a valid UUID");
+            if test.failure_message.is_some() {
+                failure_count += 1;
+            }
         }
     });
 
@@ -153,6 +157,7 @@ async fn upload_bundle() {
     assert_eq!(base_props.test_command, None);
     assert!(base_props.os_info.is_some());
     assert!(base_props.quarantined_tests.is_empty());
+    assert_eq!(bundle_meta.failed_tests.len(), failure_count);
     assert_eq!(
         base_props.codeowners,
         Some(CodeOwners {
