@@ -176,6 +176,7 @@ pub fn gather_initial_test_context(
             os_info: Some(env::consts::OS.to_string()),
             codeowners: None,
         },
+        failed_tests: Vec::with_capacity(0),
         variant: upload_args.variant.as_ref().map(|v| {
             if v.len() > 64 {
                 tracing::warn!(

@@ -140,6 +140,10 @@ impl<'a> BundlerUtil<'a> {
 
 pub fn parse_meta(meta_bytes: Vec<u8>) -> anyhow::Result<VersionedBundle> {
     if let Ok(message) = serde_json::from_slice(&meta_bytes) {
+        return Ok(VersionedBundle::V0_7_8(message));
+    }
+
+    if let Ok(message) = serde_json::from_slice(&meta_bytes) {
         return Ok(VersionedBundle::V0_7_7(message));
     }
 
@@ -349,6 +353,16 @@ mod tests {
                 envs,
             },
             internal_bundled_file: bundled_file,
+            failed_tests: vec![Test::new(
+                None,
+                "name".to_string(),
+                "parent_name".to_string(),
+                Some("class_name".to_string()),
+                None,
+                "org".to_string(),
+                &repo.repo,
+                None,
+            )],
         }
     }
 
@@ -368,7 +382,7 @@ mod tests {
         let parsed_meta = parse_meta_from_tarball(reader).await;
         assert!(parsed_meta.is_ok());
         match parsed_meta.unwrap() {
-            VersionedBundle::V0_7_7(meta) => {
+            VersionedBundle::V0_7_8(meta) => {
                 assert_eq!(meta.base_props.version, META_VERSION.to_string());
                 assert_eq!(meta.variant, Some("variant".to_string()));
                 assert_eq!(meta.base_props.org, "org");
@@ -387,8 +401,9 @@ mod tests {
                 assert!(meta.base_props.codeowners.is_none());
                 assert!(meta.internal_bundled_file.is_none());
                 assert!(meta.base_props.envs.contains_key("key"));
+                assert_eq!(meta.failed_tests.len(), 1);
             }
-            _ => panic!("Expected V0_7_7 versioned bundle"),
+            _ => panic!("Expected V0_7_8 versioned bundle"),
         }
     }
 
