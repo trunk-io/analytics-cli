@@ -407,6 +407,7 @@ pub async fn run_upload(
         .quarantine_results
         .clone();
 
+    // trunk-ignore(clippy/assigning_clones)
     meta.failed_tests = quarantine_context.failures.clone();
 
     let upload_started_at = chrono::Utc::now();
