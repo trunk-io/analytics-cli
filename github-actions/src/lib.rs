@@ -64,11 +64,16 @@ fn find_runner_worker_process() -> Result<String> {
 
 /// Extract the runner directory from the worker command
 fn extract_runner_directory(worker_cmd: &str) -> Result<PathBuf> {
-    let bin_path = Path::new("bin").join("Runner.Worker");
-    let bin_path_str = bin_path.to_string_lossy();
+    if let Some(index) = worker_cmd.find("Runner.Worker") {
+        let path_up_to_worker = &worker_cmd[..index];
+        let path_str = path_up_to_worker
+            .strip_suffix('/')
+            .unwrap_or(path_up_to_worker);
+        let runner_dir = PathBuf::from(path_str)
+            .parent()
+            .ok_or_else(|| anyhow!("Unable to get parent directory from path: {}", path_str))?
+            .to_path_buf();
 
-    if let Some(index) = worker_cmd.find(&*bin_path_str) {
-        let runner_dir = PathBuf::from(&worker_cmd[..index]);
         Ok(runner_dir)
     } else {
         Err(anyhow!(
@@ -142,6 +147,20 @@ mod tests {
         let cmd = "/path/to/runner/bin/Runner.Worker --some-arg";
         let result = extract_runner_directory(cmd).unwrap();
         assert_eq!(result, PathBuf::from("/path/to/runner"));
+    }
+
+    #[test]
+    fn test_extract_runner_directory_versioned() {
+        let cmd = "/Users/runner/actions-runner/bin.1.234.5/Runner.Worker spawnclient 155 158";
+        let result = extract_runner_directory(cmd).unwrap();
+        assert_eq!(result, PathBuf::from("/Users/runner/actions-runner"));
+    }
+
+    #[test]
+    fn test_extract_runner_directory_with_trailing_slash() {
+        let cmd = "/opt/actions-runner/bin.1.234.5/Runner.Worker spawnclient 149 152";
+        let result = extract_runner_directory(cmd).unwrap();
+        assert_eq!(result, PathBuf::from("/opt/actions-runner"));
     }
 
     #[test]
