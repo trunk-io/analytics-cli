@@ -75,7 +75,7 @@ jobs:
                   "type": "section",
                   "text": {
                     "type": "mrkdwn",
-                    "text": "Release ${{ env.RELEASE }} of the analytics cli is broken on production! The job attempting a simple upload had a result of ${{ needs.build_cli.result }}. Runs can be found at https://github.com/trunk-io/analytics-cli/actions/workflows/smoke_test.yml"
+                    "text": "Release ${{ env.RELEASE }} of the analytics cli is broken on production! The job attempting a simple upload had a result of ${{ needs.build_cli.result }}. Runs can be found at https://github.com/trunk-io/analytics-cli/actions/workflows/smoke_test.yml. Details on responding to this can be found at https://trunk.slite.com/app/docs/zQ99Scfw1VgDSO/Analytics-CLI-Smoke-Tests-Are-Broken"
                   }
                 }
               ]
@@ -103,7 +103,7 @@ jobs:
                   "type": "section",
                   "text": {
                     "type": "mrkdwn",
-                    "text": "Release ${{ env.RELEASE }} of the analytics cli is broken on staging! The job attempting a simple upload had a result of ${{ needs.build_cli.result }}. Runs can be found at https://github.com/trunk-io/analytics-cli/actions/workflows/smoke_test.yml"
+                    "text": "Release ${{ env.RELEASE }} of the analytics cli is broken on staging! The job attempting a simple upload had a result of ${{ needs.build_cli.result }}. Runs can be found at https://github.com/trunk-io/analytics-cli/actions/workflows/smoke_test.yml. Details on responding to this can be found at https://trunk.slite.com/app/docs/zQ99Scfw1VgDSO/Analytics-CLI-Smoke-Tests-Are-Broken"
                   }
                 }
               ]
