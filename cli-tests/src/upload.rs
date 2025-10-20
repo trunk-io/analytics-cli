@@ -379,6 +379,28 @@ async fn upload_bundle_using_xcresult() {
             assert_eq!(report.tests, 17);
         });
 
+    // Verify internal bundled file is generated from xcresult-derived junit
+    let internal_bundled_file = bundle_meta.internal_bundled_file.as_ref().unwrap();
+    assert_eq!(internal_bundled_file.path, INTERNAL_BIN_FILENAME);
+    assert_eq!(internal_bundled_file.owners.len(), 0);
+    assert_eq!(internal_bundled_file.team, None);
+
+    let bin = fs::read(tar_extract_directory.join(&internal_bundled_file.path)).unwrap();
+    let report = proto::test_context::test_run::TestReport::decode(&*bin).unwrap();
+
+    assert_eq!(report.test_results.len(), 1);
+    let test_result = report.test_results.first().unwrap();
+    assert_eq!(test_result.test_build_information, None);
+    assert_eq!(test_result.test_case_runs.len(), 17);
+    let test_case_run = &test_result.test_case_runs[0];
+    assert!(test_case_run.id.is_empty());
+    assert!(!test_case_run.name.is_empty());
+    assert!(!test_case_run.classname.is_empty());
+    assert_eq!(test_case_run.line, 0);
+    assert_eq!(test_case_run.attempt_number, 0);
+    // Note: xcresult-derived JUnit may not have timestamps, so we don't assert on them
+    assert!(!test_case_run.is_quarantined);
+
     // HINT: View CLI output with `cargo test -- --nocapture`
     println!("{assert}");
 }
