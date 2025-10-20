@@ -24,7 +24,7 @@ use context::{
         parser::BazelBepParser,
     },
     junit::{
-        junit_path::{JunitReportFileWithTestRunnerReport, TestRunnerReport},
+        junit_path::JunitReportFileWithTestRunnerReport,
         parser::JunitParser,
         validator::{validate, JunitReportValidation},
     },
@@ -239,37 +239,44 @@ pub fn gather_post_test_context<U: AsRef<Path>>(
     Ok(file_set_builder)
 }
 
-fn validate_junit_file(
+fn parse_and_optionally_validate_junit_file(
     junit_path: &str,
-    junit_parser: &mut JunitParser,
-    test_runner_report: Option<&TestRunnerReport>,
     show_warnings: bool,
+    test_runner_report: Option<context::junit::junit_path::TestRunnerReport>,
     junit_validations: &mut BTreeMap<String, anyhow::Result<JunitReportValidation>>,
-) {
-    if !junit_path.ends_with(".xml") || !show_warnings {
-        return;
-    }
+) -> Option<JunitParser> {
+    let mut junit_parser = JunitParser::new();
 
     let file_contents = match std::fs::read_to_string(junit_path) {
         Ok(contents) => contents,
         Err(e) => {
-            junit_validations.insert(junit_path.to_string(), Err(e.into()));
-            return;
+            if show_warnings {
+                junit_validations.insert(junit_path.to_string(), Err(e.into()));
+            }
+            return None;
         }
     };
+
     let parsed_results = junit_parser.parse(BufReader::new(file_contents.as_bytes()));
     if let Err(e) = parsed_results {
-        tracing::warn!("Failed to parse JUnit file {:?}: {:?}", junit_path, e);
-        junit_validations.insert(junit_path.to_string(), Err(e));
-        return;
+        if show_warnings {
+            tracing::warn!("Failed to parse JUnit file {:?}: {:?}", junit_path, e);
+            junit_validations.insert(junit_path.to_string(), Err(e));
+        }
+        return None;
     }
-    let reports = junit_parser.reports();
-    if reports.len() == 1 {
-        junit_validations.insert(
-            junit_path.to_string(),
-            Ok(validate(&reports[0], test_runner_report.cloned())),
-        );
+
+    if show_warnings {
+        let reports = junit_parser.reports();
+        if reports.len() == 1 {
+            junit_validations.insert(
+                junit_path.to_string(),
+                Ok(validate(&reports[0], test_runner_report)),
+            );
+        }
     }
+
+    Some(junit_parser)
 }
 
 fn create_test_result(
@@ -353,15 +360,15 @@ pub fn generate_internal_file_from_bep(
 
         if let Some(bep_result) = bep_test_result {
             for xml_file in bep_result.xml_files.iter() {
-                let mut junit_parser = JunitParser::new();
-                if xml_file.file.ends_with(".xml") && show_warnings {
-                    validate_junit_file(
+                if xml_file.file.ends_with(".xml") {
+                    let Some(junit_parser) = parse_and_optionally_validate_junit_file(
                         &xml_file.file,
-                        &mut junit_parser,
-                        None, // No test runner report for individual attempts
                         show_warnings,
+                        None,
                         &mut junit_validations,
-                    );
+                    ) else {
+                        continue;
+                    };
 
                     let mut xml_test_case_runs = junit_parser.into_test_case_runs(
                         codeowners,
@@ -381,15 +388,16 @@ pub fn generate_internal_file_from_bep(
                 test_runner_report,
             } in file_with_test_runner_report
             {
-                let mut junit_parser = JunitParser::new();
-                if junit_path.ends_with(".xml") && show_warnings {
-                    validate_junit_file(
+                if junit_path.ends_with(".xml") {
+                    let Some(junit_parser) = parse_and_optionally_validate_junit_file(
                         &junit_path,
-                        &mut junit_parser,
-                        test_runner_report.as_ref(),
                         show_warnings,
+                        test_runner_report.map(|t| t.into()),
                         &mut junit_validations,
-                    );
+                    ) else {
+                        continue;
+                    };
+
                     test_case_runs.extend(junit_parser.into_test_case_runs(
                         codeowners,
                         org_slug,
@@ -449,16 +457,18 @@ pub fn generate_internal_file(
             return Ok((file_set.files[0].clone(), BTreeMap::new()));
         } else {
             for file in &file_set.files {
-                let mut junit_parser = JunitParser::new();
-                if file.original_path.ends_with(".xml") && show_warnings {
+                if file.original_path.ends_with(".xml") {
                     let test_runner_report = file_set.test_runner_report.clone().map(|t| t.into());
-                    validate_junit_file(
+
+                    let Some(junit_parser) = parse_and_optionally_validate_junit_file(
                         &file.original_path,
-                        &mut junit_parser,
-                        test_runner_report.as_ref(),
                         show_warnings,
+                        test_runner_report,
                         &mut junit_validations,
-                    );
+                    ) else {
+                        continue;
+                    };
+
                     test_case_runs.extend(junit_parser.into_test_case_runs(
                         codeowners,
                         org_slug,
