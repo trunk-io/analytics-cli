@@ -392,7 +392,7 @@ pub fn generate_internal_file_from_bep(
                     let Some(junit_parser) = parse_and_optionally_validate_junit_file(
                         &junit_path,
                         show_warnings,
-                        test_runner_report.map(|t| t.into()),
+                        test_runner_report,
                         &mut junit_validations,
                     ) else {
                         continue;
