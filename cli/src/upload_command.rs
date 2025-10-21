@@ -198,7 +198,7 @@ pub struct UploadArgs {
         help = "Flag to enable populating file paths from xcresult stack traces",
         required = false,
         num_args = 0,
-        hide = false
+        hide = true
     )]
     pub use_experimental_failure_summary: bool,
     #[arg(
