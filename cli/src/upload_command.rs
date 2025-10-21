@@ -189,8 +189,7 @@ pub struct UploadArgs {
         requires = "repo_head_sha",
         requires = "repo_head_branch",
         requires = "repo_head_author_name",
-        conflicts_with = "repo_root",
-        hide = true
+        conflicts_with = "repo_root"
     )]
     pub use_uncloned_repo: bool,
     #[cfg(target_os = "macos")]
@@ -199,7 +198,7 @@ pub struct UploadArgs {
         help = "Flag to enable populating file paths from xcresult stack traces",
         required = false,
         num_args = 0,
-        hide = true
+        hide = false
     )]
     pub use_experimental_failure_summary: bool,
     #[arg(
