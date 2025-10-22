@@ -230,19 +230,47 @@ impl JunitParser {
                         });
                     }
                     if let Some(test_case_time) = test_case.time {
-                        test_case_run.finished_at =
-                            test_case_run.started_at.clone().map(|mut v| {
-                                v.seconds += test_case_time.as_secs() as i64;
-                                v.nanos += test_case_time.subsec_nanos() as i32;
-                                v
+                        if test_case_run.started_at.is_some() {
+                            // If we have started_at, calculate finished_at from it
+                            test_case_run.finished_at =
+                                test_case_run.started_at.clone().map(|mut v| {
+                                    v.seconds += test_case_time.as_secs() as i64;
+                                    v.nanos += test_case_time.subsec_nanos() as i32;
+                                    v
+                                });
+                        } else {
+                            // If we have time but no started_at, use epoch + time as finished_at and epoch as started_at
+                            // This preserves the time duration while using a consistent reference point
+                            test_case_run.started_at = Some(Timestamp {
+                                seconds: 0,
+                                nanos: 0,
                             });
+                            test_case_run.finished_at = Some(Timestamp {
+                                seconds: test_case_time.as_secs() as i64,
+                                nanos: test_case_time.subsec_nanos() as i32,
+                            });
+                        }
                     } else if let Some(test_suite_time) = test_suite.time {
-                        test_case_run.finished_at =
-                            test_case_run.started_at.clone().map(|mut v| {
-                                v.seconds += test_suite_time.as_secs() as i64;
-                                v.nanos += test_suite_time.subsec_nanos() as i32;
-                                v
+                        if test_case_run.started_at.is_some() {
+                            // If we have started_at, calculate finished_at from it
+                            test_case_run.finished_at =
+                                test_case_run.started_at.clone().map(|mut v| {
+                                    v.seconds += test_suite_time.as_secs() as i64;
+                                    v.nanos += test_suite_time.subsec_nanos() as i32;
+                                    v
+                                });
+                        } else {
+                            // If we have time but no started_at, use epoch + time as finished_at and epoch as started_at
+                            // This preserves the time duration while using a consistent reference point
+                            test_case_run.started_at = Some(Timestamp {
+                                seconds: 0,
+                                nanos: 0,
                             });
+                            test_case_run.finished_at = Some(Timestamp {
+                                seconds: test_suite_time.as_secs() as i64,
+                                nanos: test_suite_time.subsec_nanos() as i32,
+                            });
+                        }
                     }
                     test_case_run.status = match test_case.status {
                         TestCaseStatus::Success { .. } => TestCaseRunStatus::Success.into(),
@@ -1129,5 +1157,70 @@ mod tests {
         let invalid_data = b"invalid binary data";
         let result = bin_parse(invalid_data);
         assert!(result.is_err());
+    }
+
+    #[cfg(feature = "bindings")]
+    #[test]
+    fn test_junit_time_preserved_without_timestamps() {
+        use crate::junit::bindings::BindingsTestCase;
+
+        // Test that when JUnit XML has time attribute but no timestamp,
+        // the time is preserved through conversion to TestCaseRun
+        const INPUT_XML: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
+<testsuites>
+  <testsuite name="integration_tests" tests="1" failures="0" errors="0">
+    <testcase name="test_api_endpoint" status="run" time="2.5"></testcase>
+  </testsuite>
+</testsuites>
+"#;
+        let mut junit_parser = JunitParser::new();
+        junit_parser
+            .parse(BufReader::new(INPUT_XML.as_bytes()))
+            .unwrap();
+
+        // Get test case runs - this is what gets stored in internal.bin
+        let test_case_runs = junit_parser.into_test_case_runs(
+            None,
+            &String::from("test-org"),
+            &RepoUrlParts {
+                host: "github.com".into(),
+                owner: "test-owner".into(),
+                name: "test-repo".into(),
+            },
+            &[],
+        );
+
+        assert_eq!(test_case_runs.len(), 1);
+        let test_case_run = &test_case_runs[0];
+
+        // Verify that started_at and finished_at are set (using epoch as fallback)
+        assert!(test_case_run.started_at.is_some());
+        assert!(test_case_run.finished_at.is_some());
+
+        let started_at = test_case_run.started_at.as_ref().unwrap();
+        let finished_at = test_case_run.finished_at.as_ref().unwrap();
+
+        // Calculate the time difference
+        let time_diff = (finished_at.seconds - started_at.seconds) as f64
+            + (finished_at.nanos - started_at.nanos) as f64 / 1_000_000_000.0;
+
+        // The time difference should match the original time attribute (2.5 seconds)
+        assert!(
+            (time_diff - 2.5).abs() < 0.01,
+            "Time difference {} should be approximately 2.5 seconds",
+            time_diff
+        );
+
+        // Now convert back to BindingsTestCase (simulating reading from internal.bin)
+        let bindings_case = BindingsTestCase::from(test_case_run.clone());
+
+        // Verify the time is preserved
+        assert!(bindings_case.time.is_some());
+        let time = bindings_case.time.unwrap();
+        assert!(
+            (time - 2.5).abs() < 0.01,
+            "Converted time {} should be approximately 2.5 seconds",
+            time
+        );
     }
 }
