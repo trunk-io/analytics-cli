@@ -69,10 +69,125 @@ pub fn gen_info_id(
     )
 }
 
+// trunk-ignore(clippy/too_many_arguments)
+pub fn generate_info_id_variant_wrapper(
+    org_url_slug: &str,
+    repo_full_name: &str,
+    file: Option<&str>,
+    classname: Option<&str>,
+    parent_fact_path: Option<&str>,
+    name: Option<&str>,
+    info_id: Option<&str>,
+    variant: &str,
+) -> String {
+    let id = gen_info_id(
+        org_url_slug,
+        repo_full_name,
+        file,
+        classname,
+        parent_fact_path,
+        name,
+        info_id,
+        variant,
+    );
+    if variant.is_empty() || info_id.is_some() {
+        id
+    } else {
+        gen_info_id(
+            org_url_slug,
+            repo_full_name,
+            file,
+            classname,
+            parent_fact_path,
+            name,
+            Some(id.as_str()),
+            variant,
+        )
+    }
+}
+
 #[cfg(test)]
 #[cfg(feature = "bindings")]
 mod tests {
-    use crate::meta::id::gen_info_id;
+    use crate::meta::id::{gen_info_id, generate_info_id_variant_wrapper};
+
+    #[cfg(feature = "bindings")]
+    #[test]
+    fn test_variant_wrapper_doesnt_change_non_variant_case() {
+        let org_url_slug = "example_org";
+        let repo_full_name = "example_repo";
+        let file = Some("src/lib.rs");
+        let classname = Some("ExampleClass");
+        let parent_fact_path = Some("parent/fact/path");
+        let name = Some("example_name");
+        let info_id = None;
+        let variant = "";
+
+        let result = generate_info_id_variant_wrapper(
+            org_url_slug,
+            repo_full_name,
+            file,
+            classname,
+            parent_fact_path,
+            name,
+            info_id,
+            variant,
+        );
+
+        let base_result = gen_info_id(
+            org_url_slug,
+            repo_full_name,
+            file,
+            classname,
+            parent_fact_path,
+            name,
+            info_id,
+            variant,
+        );
+
+        let expected = "06cb6db5-f807-5198-b072-af67a0636f8a";
+        assert_eq!(result, expected);
+        assert_eq!(base_result, expected);
+    }
+
+    #[cfg(feature = "bindings")]
+    #[test]
+    fn test_variant_wrapper_does_change_variant_case() {
+        let org_url_slug = "example_org";
+        let repo_full_name = "example_repo";
+        let file = Some("src/lib.rs");
+        let classname = Some("ExampleClass");
+        let parent_fact_path = Some("parent/fact/path");
+        let name = Some("example_name");
+        let info_id = None;
+        let variant = "unix";
+
+        let result = generate_info_id_variant_wrapper(
+            org_url_slug,
+            repo_full_name,
+            file,
+            classname,
+            parent_fact_path,
+            name,
+            info_id,
+            variant,
+        );
+
+        let base_result = gen_info_id(
+            org_url_slug,
+            repo_full_name,
+            file,
+            classname,
+            parent_fact_path,
+            name,
+            info_id,
+            variant,
+        );
+
+        let expected = "1bf61475-b542-5faf-aa85-e66a691257a3";
+        assert_eq!(result, expected);
+        assert_ne!(base_result, expected);
+    }
 
     #[cfg(feature = "bindings")]
     #[test]

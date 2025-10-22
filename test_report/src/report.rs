@@ -209,6 +209,7 @@ impl MutTestReport {
                     org_url_slug.clone(),
                     &bundle_repo.repo,
                     None,
+                    "".to_string(),
                 );
                 self.populate_quarantined_tests(&api_client, &bundle_repo.repo, org_url_slug);
                 if let Some(quarantined_tests) = self.0.borrow().quarantined_tests.as_ref() {
@@ -260,6 +261,7 @@ impl MutTestReport {
                             org_url_slug.clone(),
                             repo,
                             None,
+                            "".to_string(),
                         );
 
                         quarantined_tests.insert(test.id.clone(), test);

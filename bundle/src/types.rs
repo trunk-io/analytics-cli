@@ -1,4 +1,4 @@
-use context::{meta::id::gen_info_id, repo::RepoUrlParts};
+use context::{meta::id::generate_info_id_variant_wrapper, repo::RepoUrlParts};
 #[cfg(feature = "pyo3")]
 use pyo3::prelude::*;
 #[cfg(feature = "pyo3")]
@@ -37,6 +37,7 @@ impl Test {
         org_slug: T,
         repo: &RepoUrlParts,
         timestamp_millis: Option<i64>,
+        variant: T,
     ) -> Self {
         let mut test = Self {
             parent_name,
@@ -50,16 +51,16 @@ impl Test {
         };
 
         if let Some(id) = id {
-            test.generate_custom_uuid(org_slug.as_ref(), repo, id.as_ref());
+            test.generate_custom_uuid(org_slug.as_ref(), repo, id.as_ref(), variant.as_ref());
         } else {
-            test.set_id(org_slug, repo);
+            test.set_id(org_slug, repo, variant);
         }
 
         test
     }
 
-    pub fn set_id<T: AsRef<str>>(&mut self, org_slug: T, repo: &RepoUrlParts) {
-        self.id = gen_info_id(
+    pub fn set_id<T: AsRef<str>>(&mut self, org_slug: T, repo: &RepoUrlParts, variant: T) {
+        self.id = generate_info_id_variant_wrapper(
             org_slug.as_ref(),
             repo.repo_full_name().as_str(),
             self.file.as_deref(),
@@ -67,13 +68,19 @@ impl Test {
             Some(self.parent_name.as_str()),
             Some(self.name.as_str()),
             None,
-            "",
+            variant.as_ref(),
         );
     }
 
-    pub fn generate_custom_uuid<T: AsRef<str>>(&mut self, org_slug: T, repo: &RepoUrlParts, id: T) {
+    pub fn generate_custom_uuid<T: AsRef<str>>(
+        &mut self,
+        org_slug: T,
+        repo: &RepoUrlParts,
+        id: T,
+        variant: T,
+    ) {
         if id.as_ref().is_empty() {
-            self.set_id(org_slug.as_ref(), repo);
+            self.set_id(org_slug.as_ref(), repo, variant.as_ref());
             return;
         }
         if Uuid::parse_str(id.as_ref()).is_ok() {
@@ -140,6 +147,7 @@ mod tests {
             org_slug,
             &repo,
             Some(0),
+            "",
         );
         assert_eq!(result.name, name);
         assert_eq!(result.parent_name, parent_name);
@@ -155,6 +163,7 @@ mod tests {
             org_slug,
             &repo,
             Some(0),
+            "",
         );
         assert_eq!(result.name, name);
         assert_eq!(result.parent_name, parent_name);
@@ -170,6 +179,7 @@ mod tests {
             org_slug,
             &repo,
             Some(0),
+            "",
         );
         assert_eq!(result.name, name);
         assert_eq!(result.parent_name, parent_name);

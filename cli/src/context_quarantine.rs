@@ -77,6 +77,7 @@ fn convert_case_to_test<T: AsRef<str>>(
     parent_name: String,
     case: &BindingsTestCase,
     suite: &BindingsTestSuite,
+    variant: T,
 ) -> Test {
     let name = String::from(case.name.as_str());
     let class_name = case.classname.clone();
@@ -106,13 +107,13 @@ fn convert_case_to_test<T: AsRef<str>>(
     };
     if let Some(id) = case.extra().get("id") {
         if id.is_empty() {
-            test.set_id(org_slug, repo);
+            test.set_id(org_slug, repo, variant);
         } else {
             // trunk-ignore(clippy/assigning_clones)
             test.id = id.clone();
         }
     } else {
-        test.set_id(org_slug, repo);
+        test.set_id(org_slug, repo, variant);
     }
     test
 }
@@ -123,7 +124,12 @@ pub struct FailedTestsExtractor {
 }
 
 impl FailedTestsExtractor {
-    pub fn new<T: AsRef<str>>(repo: &RepoUrlParts, org_slug: T, file_sets: &[FileSet]) -> Self {
+    pub fn new<T: AsRef<str>>(
+        repo: &RepoUrlParts,
+        org_slug: T,
+        file_sets: &[FileSet],
+        variant: T,
+    ) -> Self {
         let mut failures: HashMap<String, Test> = HashMap::new();
         let mut successes: HashMap<String, i64> = HashMap::new();
 
@@ -204,6 +210,7 @@ impl FailedTestsExtractor {
                                 parent_name.clone(),
                                 case,
                                 &suite,
+                                variant.as_ref(),
                             );
                             match &case.status.status {
                                 BindingsTestCaseStatusStatus::Unspecified
@@ -273,12 +280,14 @@ pub async fn gather_quarantine_context(
     file_set_builder: &FileSetBuilder,
     failed_tests_extractor: Option<FailedTestsExtractor>,
     test_run_exit_code: Option<i32>,
+    variant: &String,
 ) -> anyhow::Result<QuarantineContext> {
     let failed_tests_extractor = failed_tests_extractor.unwrap_or_else(|| {
         FailedTestsExtractor::new(
             &request.repo,
             &request.org_url_slug,
             file_set_builder.file_sets(),
+            variant,
         )
     });
 
@@ -474,7 +483,7 @@ mod tests {
         }];
 
         let retried_failures =
-            FailedTestsExtractor::new(&RepoUrlParts::default(), ORG_SLUG, &file_sets)
+            FailedTestsExtractor::new(&RepoUrlParts::default(), ORG_SLUG, &file_sets, "")
                 .failed_tests()
                 .to_vec();
         assert!(retried_failures.is_empty());
@@ -499,7 +508,7 @@ mod tests {
         }];
 
         let retried_failures =
-            FailedTestsExtractor::new(&RepoUrlParts::default(), ORG_SLUG, &file_sets)
+            FailedTestsExtractor::new(&RepoUrlParts::default(), ORG_SLUG, &file_sets, "")
                 .failed_tests()
                 .to_vec();
         assert!(retried_failures.is_empty());
@@ -524,7 +533,7 @@ mod tests {
         }];
 
         let mut multi_failures =
-            FailedTestsExtractor::new(&RepoUrlParts::default(), ORG_SLUG, &file_sets)
+            FailedTestsExtractor::new(&RepoUrlParts::default(), ORG_SLUG, &file_sets, "")
                 .failed_tests()
                 .to_vec();
         multi_failures.sort_by(|a, b| a.name.cmp(&b.name));
@@ -560,7 +569,7 @@ mod tests {
         }];
 
         let some_failures =
-            FailedTestsExtractor::new(&RepoUrlParts::default(), ORG_SLUG, &file_sets)
+            FailedTestsExtractor::new(&RepoUrlParts::default(), ORG_SLUG, &file_sets, "")
                 .failed_tests()
                 .to_vec();
         assert_eq!(some_failures.len(), 1);
@@ -609,7 +618,7 @@ mod tests {
         ];
 
         let mut multi_failures =
-            FailedTestsExtractor::new(&RepoUrlParts::default(), ORG_SLUG, &file_sets)
+            FailedTestsExtractor::new(&RepoUrlParts::default(), ORG_SLUG, &file_sets, "")
                 .failed_tests()
                 .to_vec();
         multi_failures.sort_by(|a, b| a.name.cmp(&b.name));
@@ -648,7 +657,7 @@ mod tests {
         let case = BindingsTestCase::from(test_case);
         let suite = BindingsTestSuite::from(test_suite);
 
-        let test = super::convert_case_to_test(&repo, org_slug, parent_name, &case, &suite);
+        let test = super::convert_case_to_test(&repo, org_slug, parent_name, &case, &suite, "");
 
         assert_eq!(test.name, "test_case");
         assert_eq!(test.failure_message, Some("This is a failure".to_string()));
