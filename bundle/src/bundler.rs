@@ -347,6 +347,7 @@ mod tests {
                     "org".to_string(),
                     &repo.repo,
                     None,
+                    "".to_string(),
                 )],
                 os_info: Some(env::consts::OS.to_string()),
                 codeowners: None,
@@ -362,6 +363,7 @@ mod tests {
                 "org".to_string(),
                 &repo.repo,
                 None,
+                "".to_string(),
             )],
         }
     }

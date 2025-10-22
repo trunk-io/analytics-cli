@@ -683,6 +683,7 @@ pub async fn gather_exit_code_and_quarantined_tests_context(
         &meta.base_props.repo.repo,
         &meta.base_props.org,
         file_set_builder.file_sets(),
+        &meta.variant.clone().unwrap_or(String::from("")),
     );
     let quarantine_context = if disable_quarantining {
         // use the exit code of the test run result if exists
@@ -724,6 +725,7 @@ pub async fn gather_exit_code_and_quarantined_tests_context(
             file_set_builder,
             Some(failed_tests_extractor),
             default_exit_code,
+            &meta.variant.clone().unwrap_or(String::from("")),
         )
         .await?
     };
