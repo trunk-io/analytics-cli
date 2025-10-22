@@ -69,6 +69,43 @@ pub fn gen_info_id(
     )
 }
 
+// trunk-ignore(clippy/too_many_arguments)
+pub fn generate_info_id_variant_wrapper(
+    org_url_slug: &str,
+    repo_full_name: &str,
+    file: Option<&str>,
+    classname: Option<&str>,
+    parent_fact_path: Option<&str>,
+    name: Option<&str>,
+    info_id: Option<&str>,
+    variant: &str,
+) -> String {
+    let id = gen_info_id(
+        org_url_slug,
+        repo_full_name,
+        file,
+        classname,
+        parent_fact_path,
+        name,
+        info_id,
+        variant,
+    );
+    if (variant.is_empty() || info_id.is_some()) {
+        id
+    } else {
+        gen_info_id(
+            org_url_slug,
+            repo_full_name,
+            file,
+            classname,
+            parent_fact_path,
+            name,
+            Some(id.as_str()),
+            variant,
+        )
+    }
+}
+
 #[cfg(test)]
 #[cfg(feature = "bindings")]
 mod tests {
