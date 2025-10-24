@@ -35,7 +35,7 @@ runs:
         if [[ "${{ inputs.target }}" == *"aarch64"* ]] && [[ "$(uname -m)" == "aarch64" ]]; then
           echo "Skipping cross installation - already on target architecture"
         else
-          cargo install cross --git https://github.com/cross-rs/cross --force
+          cargo install cross --version 0.2.5 --force
         fi
 
     - name: Update Bundle CLI version
