@@ -77,6 +77,18 @@ impl XCResultTestLegacy {
         use_experimental_failure_summary: bool,
     ) -> anyhow::Result<HashMap<String, Self>> {
         let actions_invocation_record = xcresulttool_get_object(path.as_ref())?;
+        Self::generate_from_record(
+            path,
+            actions_invocation_record,
+            use_experimental_failure_summary,
+        )
+    }
+
+    pub fn generate_from_record<T: AsRef<OsStr>>(
+        path: T,
+        actions_invocation_record: legacy_schema::ActionsInvocationRecord,
+        use_experimental_failure_summary: bool,
+    ) -> anyhow::Result<HashMap<String, Self>> {
         let test_plans = actions_invocation_record
             .actions
             .as_ref()

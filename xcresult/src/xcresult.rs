@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::str;
 use std::{fs, path::Path, time::Duration};
 
+use chrono::{DateTime, Utc};
 use quick_junit::{NonSuccessKind, Report, TestCase, TestCaseStatus, TestRerun, TestSuite};
 
 use crate::types::{
@@ -9,7 +10,7 @@ use crate::types::{
     SWIFT_DEFAULT_TEST_SUITE_NAME,
 };
 use crate::xcresult_legacy::XCResultTestLegacy;
-use crate::xcrun::xcresulttool_get_test_results_tests;
+use crate::xcrun::{xcresulttool_get_object, xcresulttool_get_test_results_tests};
 
 #[derive(Debug, Clone)]
 pub struct XCResult {
@@ -17,6 +18,7 @@ pub struct XCResult {
     org_url_slug: String,
     repo_full_name: String,
     legacy_xcresult_tests: HashMap<String, XCResultTestLegacy>,
+    test_run_started_at: Option<DateTime<Utc>>,
 }
 
 impl XCResult {
@@ -33,17 +35,61 @@ impl XCResult {
                 e
             )
         })?;
-        let legacy_xcresult_tests = match XCResultTestLegacy::generate_from_object(
-            &absolute_path,
-            use_experimental_failure_summary,
-        ) {
-            Ok(tests) => tests,
+
+        // Call xcresulttool_get_object once and use it for both timestamp extraction and legacy tests
+        let actions_invocation_record = xcresulttool_get_object(&absolute_path);
+
+        // Extract test run start time from the actions invocation record
+        let test_run_started_at = match &actions_invocation_record {
+            Ok(record) => {
+                record
+                    .actions
+                    .as_ref()
+                    .and_then(|arr| arr.values.first())
+                    .and_then(|action_record| {
+                        action_record.started_time.as_ref().and_then(|date| {
+                            // xcresult uses format like "2024-09-30T12:12:51.159-0700" without colon in timezone
+                            DateTime::parse_from_rfc3339(&date.value)
+                                .or_else(|_| {
+                                    DateTime::parse_from_str(&date.value, "%Y-%m-%dT%H:%M:%S%.3f%z")
+                                })
+                                .ok()
+                                .map(|dt| dt.with_timezone(&Utc))
+                        })
+                    })
+            }
+            Err(e) => {
+                tracing::warn!("Failed to get test run start time from xcresult: {}", e);
+                None
+            }
+        };
+
+        // Generate legacy test info from the same actions invocation record
+        let legacy_xcresult_tests = match actions_invocation_record {
+            Ok(record) => {
+                match XCResultTestLegacy::generate_from_record(
+                    &absolute_path,
+                    record,
+                    use_experimental_failure_summary,
+                ) {
+                    Ok(tests) => tests,
+                    Err(e) => {
+                        tracing::warn!(
+                            "Failed to generate legacy XCResultTestLegacy objects: {}",
+                            e
+                        );
+                        tracing::warn!(
+                            "Attempting to continue without legacy XCResultTestLegacy objects"
+                        );
+                        HashMap::new()
+                    }
+                }
+            }
             Err(e) => {
                 tracing::warn!(
-                    "Failed to generate legacy XCResultTestLegacy objects: {}",
+                    "Failed to get actions invocation record: {}, continuing without legacy tests",
                     e
                 );
-                tracing::warn!("Attempting to continue without legacy XCResultTestLegacy objects");
                 HashMap::new()
             }
         };
@@ -52,6 +98,7 @@ impl XCResult {
             legacy_xcresult_tests,
             org_url_slug,
             repo_full_name,
+            test_run_started_at,
         })
     }
 
@@ -201,6 +248,11 @@ impl XCResult {
 
                 if let Some(duration) = Self::xcresult_test_node_to_duration(xcresult_test_case) {
                     test_case.set_time(duration);
+                }
+
+                // Set timestamp to test run start time (applies to all tests in the run)
+                if let Some(started_at) = self.test_run_started_at {
+                    test_case.set_timestamp(started_at);
                 }
 
                 if let Some(node_identifier) = &xcresult_test_case.node_identifier {

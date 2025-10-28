@@ -31,6 +31,8 @@ lazy_static! {
         unpack_archive_to_temp_dir("tests/data/test-swift-without-test-suites.xcresult.tar.gz");
     static ref TEMP_DIR_TEST_SWIFT_MIX: TempDir =
         unpack_archive_to_temp_dir("tests/data/test-swift-mix.xcresult.tar.gz");
+    static ref TEMP_DIR_TEST_TIMESTAMP: TempDir =
+        unpack_archive_to_temp_dir("tests/data/test-timestamp.xcresult.tar.gz");
     static ref ORG_URL_SLUG: String = String::from("trunk");
     static ref REPO_FULL_NAME: String = RepoUrlParts {
         host: "github.com".to_string(),
@@ -233,5 +235,95 @@ fn test_expected_failures_xcresult_with_valid_path() {
             String::from_utf8(junit_writer).unwrap(),
             include_str!("data/test-ExpectedFailures.junit.xml")
         );
+    }
+}
+
+#[cfg(target_os = "macos")]
+#[test]
+fn test_xcresult_to_bindings_report_with_id_and_timestamps() {
+    use std::io::BufReader;
+
+    use context::junit::bindings::BindingsTestCase;
+    use context::junit::parser::JunitParser;
+
+    // Generate JUnit from xcresult
+    let path = TEMP_DIR_TEST_TIMESTAMP.as_ref().join("test1.xcresult");
+    let path_str = path.to_str().unwrap();
+
+    let xcresult = XCResult::new(
+        path_str,
+        ORG_URL_SLUG.clone(),
+        REPO_FULL_NAME.clone(),
+        false,
+    )
+    .unwrap();
+
+    let mut junits = xcresult.generate_junits();
+    assert_eq!(junits.len(), 1);
+    let junit = junits.pop().unwrap();
+
+    // Serialize to XML
+    let mut junit_writer: Vec<u8> = Vec::new();
+    junit.serialize(&mut junit_writer).unwrap();
+    let junit_xml = String::from_utf8(junit_writer).unwrap();
+
+    // Parse the JUnit XML back
+    let mut junit_parser = JunitParser::new();
+    junit_parser
+        .parse(BufReader::new(junit_xml.as_bytes()))
+        .expect("Failed to parse generated JUnit XML");
+
+    let test_case_runs: Vec<BindingsTestCase> = junit_parser
+        .into_test_case_runs(
+            None,
+            &ORG_URL_SLUG.as_str(),
+            &context::repo::RepoUrlParts {
+                host: "github.com".to_string(),
+                owner: "trunk-io".to_string(),
+                name: "analytics-cli".to_string(),
+            },
+            &[],
+        )
+        .into_iter()
+        .map(BindingsTestCase::from)
+        .collect();
+
+    for test_case in test_case_runs.iter() {
+        let extra = test_case.extra();
+        let id = extra.get("id").expect("ID should be set in extra fields");
+        assert!(!id.is_empty(), "ID should not be empty");
+        assert!(
+            id.len() > 10,
+            "ID should be a valid UUID or hash, got: {}",
+            id
+        );
+
+        let timestamp = test_case.timestamp.expect("timestamp should be set");
+        let timestamp_micros = test_case
+            .timestamp_micros
+            .expect("timestamp_micros should be set");
+
+        // Verify timestamp is reasonable (2024-09-30T19:12:51+00:00)
+        let timestamp_2024_09_30_19_12_51 = 1727723571; // 2024-09-30T19:12:51+00:00
+        assert!(
+            timestamp == timestamp_2024_09_30_19_12_51,
+            "Timestamp should be 2024-09-30T19:12:51+00:00, got: {} ({})",
+            timestamp,
+            chrono::DateTime::from_timestamp(timestamp, 0)
+                .map(|dt| dt.to_rfc3339())
+                .unwrap_or_default()
+        );
+        assert!(
+            timestamp_micros == 1727723571159000,
+            "Timestamp micros should be 1727723571159000, got: {} ({})",
+            timestamp_micros,
+            chrono::DateTime::from_timestamp(timestamp_micros, 0)
+                .map(|dt| dt.to_rfc3339())
+                .unwrap_or_default()
+        );
+
+        assert!(test_case.time.is_some(), "time should be set");
+        let time = test_case.time.unwrap();
+        assert!(time >= 0.0, "time should be non-negative, got: {}", time);
     }
 }

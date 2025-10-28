@@ -334,6 +334,7 @@ impl JunitParser {
                             )
                         });
                     test_case_run.is_quarantined = quarantined_test_ids.contains(&test_case_id);
+                    test_case_run.id = test_case_id;
 
                     test_case_run.file = file;
                     test_case_run.line = test_case
@@ -1064,6 +1065,20 @@ mod tests {
             })
         );
         assert_eq!(test_case_run1.line, 5);
+        // Verify that the ID field is set correctly (generated from gen_info_id)
+        assert_eq!(
+            test_case_run1.id,
+            gen_info_id(
+                org_slug.as_str(),
+                repo.repo_full_name().as_str(),
+                Some("test.java"),
+                Some("test"),
+                Some("testsuite"),
+                Some("test_variant_truncation1"),
+                None,
+                "",
+            )
+        );
 
         let test_case_run2 = &test_case_runs[1];
         assert_eq!(test_case_run2.name, "test_variant_truncation2");
@@ -1074,6 +1089,216 @@ mod tests {
         assert_eq!(test_case_run2.file, "test.java");
         assert_eq!(test_case_run2.attempt_number, 0);
         assert!(!test_case_run2.is_quarantined);
+        // Verify that the ID field is set correctly for test_case_run2
+        assert_eq!(
+            test_case_run2.id,
+            gen_info_id(
+                org_slug.as_str(),
+                repo.repo_full_name().as_str(),
+                Some("test.java"),
+                None, // No classname for test_case_run2
+                Some("testsuite"),
+                Some("test_variant_truncation2"),
+                None,
+                "",
+            )
+        );
+    }
+
+    #[test]
+    fn test_into_test_case_runs_with_custom_id() {
+        // Test that custom IDs from xcresult (or other sources) are preserved
+        let mut junit_parser = JunitParser::new();
+        let file_contents = r#"
+        <xml version="1.0" encoding="UTF-8"?>
+        <testsuites>
+            <testsuite name="testsuite" timestamp="2023-10-01T12:00:00Z" time="0.002">
+                <testcase id="custom-uuid-1234-5678" file="test.swift" classname="TestClass" name="test_with_custom_id" time="0.001">
+                </testcase>
+            </testsuite>
+        </testsuites>
+        "#;
+        let parsed_results = junit_parser.parse(BufReader::new(file_contents.as_bytes()));
+        assert!(parsed_results.is_ok());
+
+        let org_slug = "org-url-slug".to_string();
+        let repo = RepoUrlParts {
+            host: "repo-host".into(),
+            owner: "repo-owner".into(),
+            name: "repo-name".into(),
+        };
+
+        let test_case_runs = junit_parser.into_test_case_runs(None, &org_slug, &repo, &[]);
+        assert_eq!(test_case_runs.len(), 1);
+        let test_case_run = &test_case_runs[0];
+
+        // Verify that the custom ID from the XML is preserved
+        assert_eq!(test_case_run.id, "custom-uuid-1234-5678");
+        assert_eq!(test_case_run.name, "test_with_custom_id");
+        assert_eq!(test_case_run.file, "test.swift");
+        assert_eq!(test_case_run.classname, "TestClass");
+    }
+
+    #[test]
+    fn test_into_test_case_runs_mixed_ids() {
+        // Test mix of custom IDs and generated IDs
+        let mut junit_parser = JunitParser::new();
+        let file_contents = r#"
+        <xml version="1.0" encoding="UTF-8"?>
+        <testsuites>
+            <testsuite name="testsuite" timestamp="2023-10-01T12:00:00Z" time="0.002">
+                <testcase id="xcresult-uuid-abcd" file="test.swift" classname="TestClass" name="test_with_id" time="0.001">
+                </testcase>
+                <testcase file="test.swift" classname="TestClass" name="test_without_id" time="0.001">
+                </testcase>
+            </testsuite>
+        </testsuites>
+        "#;
+        let parsed_results = junit_parser.parse(BufReader::new(file_contents.as_bytes()));
+        assert!(parsed_results.is_ok());
+
+        let org_slug = "org-url-slug".to_string();
+        let repo = RepoUrlParts {
+            host: "repo-host".into(),
+            owner: "repo-owner".into(),
+            name: "repo-name".into(),
+        };
+
+        let test_case_runs = junit_parser.into_test_case_runs(None, &org_slug, &repo, &[]);
+        assert_eq!(test_case_runs.len(), 2);
+
+        // First test case should have the custom ID
+        let test_case_run1 = &test_case_runs[0];
+        assert_eq!(test_case_run1.id, "xcresult-uuid-abcd");
+        assert_eq!(test_case_run1.name, "test_with_id");
+
+        // Second test case should have a generated ID
+        let test_case_run2 = &test_case_runs[1];
+        assert_eq!(
+            test_case_run2.id,
+            gen_info_id(
+                org_slug.as_str(),
+                repo.repo_full_name().as_str(),
+                Some("test.swift"),
+                Some("TestClass"),
+                Some("testsuite"),
+                Some("test_without_id"),
+                None,
+                "",
+            )
+        );
+        assert_eq!(test_case_run2.name, "test_without_id");
+    }
+
+    #[test]
+    fn test_into_test_case_runs_original() {
+        let mut junit_parser = JunitParser::new();
+        let file_contents = r#"
+        <xml version="1.0" encoding="UTF-8"?>
+        <testsuites>
+            <testsuite name="testsuite" timestamp="2023-10-01T12:00:00Z" time="0.002">
+                <testcase file="test.java" line="5" classname="test" name="test_variant_truncation1" time="0.001">
+                    <failure message="Test failed" type="java.lang.AssertionError">
+                        <![CDATA[Expected: <true> but was: <false>]]>
+                    </failure>
+                </testcase>
+                <testcase file="test.java" name="test_variant_truncation2" time="0.001">
+                    <failure message="Test failed"/>
+                </testcase>
+            </testsuite>
+        </testsuites>
+        "#;
+        let parsed_results = junit_parser.parse(BufReader::new(file_contents.as_bytes()));
+        assert!(parsed_results.is_ok());
+
+        let org_slug = "org-url-slug".to_string();
+        let repo = RepoUrlParts {
+            host: "repo-host".into(),
+            owner: "repo-owner".into(),
+            name: "repo-name".into(),
+        };
+
+        let test_case_runs = junit_parser.into_test_case_runs(
+            None,
+            &org_slug,
+            &repo,
+            &[gen_info_id(
+                org_slug.as_str(),
+                repo.repo_full_name().as_str(),
+                Some("test.java"),
+                Some("test"),
+                Some("testsuite"),
+                Some("test_variant_truncation1"),
+                None,
+                "",
+            )],
+        );
+        assert_eq!(test_case_runs.len(), 2);
+        let test_case_run1 = &test_case_runs[0];
+        assert_eq!(test_case_run1.name, "test_variant_truncation1");
+        assert_eq!(test_case_run1.parent_name, "testsuite");
+        assert_eq!(test_case_run1.classname, "test");
+        assert_eq!(test_case_run1.status, TestCaseRunStatus::Failure as i32);
+        assert_eq!(
+            test_case_run1.status_output_message,
+            "Expected: <true> but was: <false>"
+        );
+        assert_eq!(test_case_run1.file, "test.java");
+        assert_eq!(test_case_run1.attempt_number, 0);
+        assert!(test_case_run1.is_quarantined);
+        assert_eq!(
+            test_case_run1.started_at,
+            Some(Timestamp {
+                seconds: 1696161600,
+                nanos: 0
+            })
+        );
+        assert_eq!(
+            test_case_run1.finished_at,
+            Some(Timestamp {
+                seconds: 1696161600,
+                nanos: 1000000
+            })
+        );
+        assert_eq!(test_case_run1.line, 5);
+        // Verify that the ID field is set correctly (generated from gen_info_id)
+        assert_eq!(
+            test_case_run1.id,
+            gen_info_id(
+                org_slug.as_str(),
+                repo.repo_full_name().as_str(),
+                Some("test.java"),
+                Some("test"),
+                Some("testsuite"),
+                Some("test_variant_truncation1"),
+                None,
+                "",
+            )
+        );
+
+        let test_case_run2 = &test_case_runs[1];
+        assert_eq!(test_case_run2.name, "test_variant_truncation2");
+        assert_eq!(test_case_run2.parent_name, "testsuite");
+        assert_eq!(test_case_run2.classname, "");
+        assert_eq!(test_case_run2.status, TestCaseRunStatus::Failure as i32);
+        assert_eq!(test_case_run2.status_output_message, "Test failed");
+        assert_eq!(test_case_run2.file, "test.java");
+        assert_eq!(test_case_run2.attempt_number, 0);
+        assert!(!test_case_run2.is_quarantined);
+        // Verify that the ID field is set correctly for test_case_run2
+        assert_eq!(
+            test_case_run2.id,
+            gen_info_id(
+                org_slug.as_str(),
+                repo.repo_full_name().as_str(),
+                Some("test.java"),
+                None, // No classname for test_case_run2
+                Some("testsuite"),
+                Some("test_variant_truncation2"),
+                None,
+                "",
+            )
+        );
         assert_eq!(
             test_case_run2.started_at,
             Some(Timestamp {
