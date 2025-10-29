@@ -139,6 +139,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Delete huge unnecessary tools folder
+        run: rm -rf /opt/hostedtoolcache
+
       - name: Setup Rust & Cargo
         uses: ./.github/actions/setup_rust_cargo
 
