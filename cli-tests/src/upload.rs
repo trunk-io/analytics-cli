@@ -197,7 +197,7 @@ async fn upload_bundle() {
     assert_eq!(report.test_build_information, None);
     assert_eq!(report.test_case_runs.len(), 500);
     let test_case_run = &report.test_case_runs[0];
-    assert!(test_case_run.id.is_empty());
+    assert!(!test_case_run.id.is_empty());
     assert!(!test_case_run.name.is_empty());
     assert!(!test_case_run.classname.is_empty());
     assert!(!test_case_run.file.is_empty());
@@ -318,7 +318,7 @@ async fn upload_bundle_using_bep() {
     assert_eq!(test_build_information.label, "//path:test");
 
     let test_case_run = &report.test_case_runs[0];
-    assert!(test_case_run.id.is_empty());
+    assert!(!test_case_run.id.is_empty());
     assert!(!test_case_run.name.is_empty());
     assert!(!test_case_run.classname.is_empty());
     assert!(!test_case_run.file.is_empty());
@@ -393,7 +393,7 @@ async fn upload_bundle_using_xcresult() {
     assert_eq!(test_result.test_build_information, None);
     assert_eq!(test_result.test_case_runs.len(), 17);
     let test_case_run = &test_result.test_case_runs[0];
-    assert!(test_case_run.id.is_empty());
+    assert!(!test_case_run.id.is_empty());
     assert!(!test_case_run.name.is_empty());
     assert!(!test_case_run.classname.is_empty());
     assert_eq!(test_case_run.line, 0);

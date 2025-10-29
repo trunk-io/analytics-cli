@@ -28,7 +28,7 @@ tracing = "0.1.41"
 uuid = { version = "1.10.0", features = ["v5"] }
 
 [dev-dependencies]
-context = { path = "../context" }
+context = { path = "../context", features = ["bindings"] }
 flate2 = "1.0.34"
 pretty_assertions = "0.6"
 tar = "0.4.42"
