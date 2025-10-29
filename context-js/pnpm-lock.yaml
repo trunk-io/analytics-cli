@@ -5,7 +5,7 @@ settings:
   excludeLinksFromLockfile: false
 
 overrides:
-  binary-install>axios: 0.28.1
+  binary-install>axios: 0.30.2
   form-data: 4.0.4
 
 importers:
@@ -632,8 +632,8 @@ packages:
   asynckit@0.4.0:
     resolution: {integrity: sha512-Oei9OH4tRh0YqU3GxhX79dM/mwVgvbZJaSNaRk+bshkj0S5cfHcgYakreBjrHwatXKbz+IoIdYLxrKim2MjW0Q==}
 
-  axios@0.28.1:
-    resolution: {integrity: sha512-iUcGA5a7p0mVb4Gm/sy+FSECNkPFT4y7wt6OM/CDpO/OnNCvSs3PoMG8ibrC9jRoGYU0gUK5pXVC4NPXq6lHRQ==}
+  axios@0.30.2:
+    resolution: {integrity: sha512-0pE4RQ4UQi1jKY6p7u6i1Tkzqmu+d+/tHS7Q7rKunWLB9WyilBTpHHpXzPNMDj5hTbK0B0PTLSz07yqMBiF6xg==}
 
   balanced-match@1.0.2:
     resolution: {integrity: sha512-3oSeUO0TMV67hN1AmbXsK4yaqU7tjiHlbxRDZOpH0KW9+CeX4bRAaX0Anxt0tx2MrpRpWwQaPwIlISEJhYU5Pw==}
@@ -1881,7 +1881,7 @@ snapshots:
 
   asynckit@0.4.0: {}
 
-  axios@0.28.1:
+  axios@0.30.2:
     dependencies:
       follow-redirects: 1.15.9
       form-data: 4.0.4
@@ -1893,7 +1893,7 @@ snapshots:
 
   binary-install@1.1.0:
     dependencies:
-      axios: 0.28.1
+      axios: 0.30.2
       rimraf: 3.0.2
       tar: 6.2.1
     transitivePeerDependencies:
