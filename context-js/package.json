@@ -27,7 +27,8 @@
   "pnpm": {
     "// NOTE: `wasm-pack` uses an insecure transitive `axios` dependency": "",
     "overrides": {
-      "binary-install>axios": "0.28.1"
+      "binary-install>axios": "0.28.1",
+      "form-data": "4.0.4"
     }
   }
 }
