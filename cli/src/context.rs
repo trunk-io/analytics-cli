@@ -375,6 +375,7 @@ pub fn generate_internal_file_from_bep(
                         org_slug,
                         repo,
                         quarantined_test_ids,
+                        variant.as_deref().unwrap_or(""),
                     );
                     for test_case_run in &mut xml_test_case_runs {
                         test_case_run.attempt_number = xml_file.attempt;
@@ -403,6 +404,7 @@ pub fn generate_internal_file_from_bep(
                         org_slug,
                         repo,
                         quarantined_test_ids,
+                        variant.as_deref().unwrap_or(""),
                     ));
                 }
             }
@@ -474,6 +476,7 @@ pub fn generate_internal_file(
                         org_slug,
                         repo,
                         quarantined_test_ids,
+                        variant.as_deref().unwrap_or(""),
                     ));
                 }
             }

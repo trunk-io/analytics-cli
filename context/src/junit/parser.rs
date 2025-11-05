@@ -25,7 +25,7 @@ use wasm_bindgen::prelude::*;
 use super::date_parser::JunitDateParser;
 #[cfg(feature = "bindings")]
 use crate::junit::bindings::BindingsReport;
-use crate::{meta::id::gen_info_id, repo::RepoUrlParts};
+use crate::{meta::id::generate_info_id_variant_wrapper, repo::RepoUrlParts};
 
 const TAG_REPORT: &[u8] = b"testsuites";
 const TAG_TEST_SUITE: &[u8] = b"testsuite";
@@ -203,6 +203,7 @@ impl JunitParser {
         org_slug: &T,
         repo: &RepoUrlParts,
         quarantined_test_ids: &[String],
+        variant: &str,
     ) -> Vec<TestCaseRun> {
         let mut test_case_runs = Vec::new();
         for report in self.reports {
@@ -317,22 +318,23 @@ impl JunitParser {
                         }
                     }
 
-                    let test_case_id = test_case
-                        .extra
-                        .get(extra_attrs::ID)
-                        .map(|v| v.to_string())
-                        .unwrap_or_else(|| {
-                            gen_info_id(
-                                org_slug.as_ref(),
-                                repo.repo_full_name().as_str(),
-                                Some(file.as_str()),
-                                test_case.classname.map(|v| v.to_string()).as_deref(),
-                                Some(test_case_run.parent_name.as_str()),
-                                Some(test_case_run.name.as_str()),
-                                None,
-                                "",
-                            )
-                        });
+                    let existing_id = test_case.extra.get(extra_attrs::ID).map(|v| v.as_str());
+
+                    // trunk-ignore(clippy/unnecessary_unwrap)
+                    let test_case_id = if existing_id.is_some() && variant.is_empty() {
+                        existing_id.unwrap().to_string()
+                    } else {
+                        generate_info_id_variant_wrapper(
+                            org_slug.as_ref(),
+                            repo.repo_full_name().as_str(),
+                            Some(file.as_str()),
+                            test_case.classname.map(|v| v.to_string()).as_deref(),
+                            Some(test_case_run.parent_name.as_str()),
+                            Some(test_case_run.name.as_str()),
+                            existing_id,
+                            variant,
+                        )
+                    };
                     test_case_run.is_quarantined = quarantined_test_ids.contains(&test_case_id);
                     test_case_run.id = test_case_id;
 
@@ -993,7 +995,11 @@ mod tests {
     use prost_wkt_types::Timestamp;
     use proto::test_context::test_run::TestCaseRunStatus;
 
-    use crate::{junit::parser::JunitParser, meta::id::gen_info_id, repo::RepoUrlParts};
+    use crate::{
+        junit::parser::JunitParser,
+        meta::id::{gen_info_id, generate_info_id_variant_wrapper},
+        repo::RepoUrlParts,
+    };
     #[test]
     fn test_into_test_case_runs() {
         let mut junit_parser = JunitParser::new();
@@ -1036,6 +1042,7 @@ mod tests {
                 None,
                 "",
             )],
+            "",
         );
         assert_eq!(test_case_runs.len(), 2);
         let test_case_run1 = &test_case_runs[0];
@@ -1128,7 +1135,7 @@ mod tests {
             name: "repo-name".into(),
         };
 
-        let test_case_runs = junit_parser.into_test_case_runs(None, &org_slug, &repo, &[]);
+        let test_case_runs = junit_parser.into_test_case_runs(None, &org_slug, &repo, &[], "");
         assert_eq!(test_case_runs.len(), 1);
         let test_case_run = &test_case_runs[0];
 
@@ -1164,7 +1171,7 @@ mod tests {
             name: "repo-name".into(),
         };
 
-        let test_case_runs = junit_parser.into_test_case_runs(None, &org_slug, &repo, &[]);
+        let test_case_runs = junit_parser.into_test_case_runs(None, &org_slug, &repo, &[], "");
         assert_eq!(test_case_runs.len(), 2);
 
         // First test case should have the custom ID
@@ -1232,6 +1239,7 @@ mod tests {
                 None,
                 "",
             )],
+            "",
         );
         assert_eq!(test_case_runs.len(), 2);
         let test_case_run1 = &test_case_runs[0];
@@ -1413,6 +1421,7 @@ mod tests {
                 name: "test-repo".into(),
             },
             &[],
+            "",
         );
 
         assert_eq!(test_case_runs.len(), 1);
@@ -1446,6 +1455,85 @@ mod tests {
             (time - 2.5).abs() < 0.01,
             "Converted time {} should be approximately 2.5 seconds",
             time
+        );
+    }
+
+    #[test]
+    fn test_into_test_case_runs_with_variant() {
+        let mut junit_parser = JunitParser::new();
+        let file_contents = r#"
+        <xml version="1.0" encoding="UTF-8"?>
+        <testsuites>
+            <testsuite name="testsuite" timestamp="2023-10-01T12:00:00Z" time="0.002">
+                <testcase file="test.java" classname="TestClass" name="test_with_variant" time="0.001">
+                </testcase>
+            </testsuite>
+        </testsuites>
+        "#;
+        let parsed_results = junit_parser.parse(BufReader::new(file_contents.as_bytes()));
+        assert!(parsed_results.is_ok());
+
+        let org_slug = "org-url-slug".to_string();
+        let repo = RepoUrlParts {
+            host: "repo-host".into(),
+            owner: "repo-owner".into(),
+            name: "repo-name".into(),
+        };
+        let variant = "test-variant";
+
+        let test_case_runs_with_variant =
+            junit_parser
+                .clone()
+                .into_test_case_runs(None, &org_slug, &repo, &[], variant);
+
+        assert_eq!(test_case_runs_with_variant.len(), 1);
+        let test_case_with_variant = &test_case_runs_with_variant[0];
+
+        let expected_id_with_variant = generate_info_id_variant_wrapper(
+            org_slug.as_str(),
+            repo.repo_full_name().as_str(),
+            Some("test.java"),
+            Some("TestClass"),
+            Some("testsuite"),
+            Some("test_with_variant"),
+            None,
+            variant,
+        );
+
+        assert_eq!(
+            test_case_with_variant.id, expected_id_with_variant,
+            "ID should be generated with variant included"
+        );
+
+        let mut junit_parser_no_variant = JunitParser::new();
+        junit_parser_no_variant
+            .parse(BufReader::new(file_contents.as_bytes()))
+            .unwrap();
+        let test_case_runs_no_variant =
+            junit_parser_no_variant.into_test_case_runs(None, &org_slug, &repo, &[], "");
+
+        assert_eq!(test_case_runs_no_variant.len(), 1);
+        let test_case_no_variant = &test_case_runs_no_variant[0];
+
+        let expected_id_no_variant = gen_info_id(
+            org_slug.as_str(),
+            repo.repo_full_name().as_str(),
+            Some("test.java"),
+            Some("TestClass"),
+            Some("testsuite"),
+            Some("test_with_variant"),
+            None,
+            "",
+        );
+
+        assert_eq!(
+            test_case_no_variant.id, expected_id_no_variant,
+            "ID should be generated without variant"
+        );
+
+        assert_ne!(
+            test_case_with_variant.id, test_case_no_variant.id,
+            "IDs with and without variant should be different"
         );
     }
 }
