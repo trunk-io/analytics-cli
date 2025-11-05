@@ -25,7 +25,7 @@ use wasm_bindgen::prelude::*;
 use super::date_parser::JunitDateParser;
 #[cfg(feature = "bindings")]
 use crate::junit::bindings::BindingsReport;
-use crate::{meta::id::gen_info_id, repo::RepoUrlParts};
+use crate::{meta::id::generate_info_id_variant_wrapper, repo::RepoUrlParts};
 
 const TAG_REPORT: &[u8] = b"testsuites";
 const TAG_TEST_SUITE: &[u8] = b"testsuite";
@@ -320,32 +320,17 @@ impl JunitParser {
 
                     let existing_id = test_case.extra.get(extra_attrs::ID).map(|v| v.as_str());
 
-                    // If there's an existing ID and no variant, preserve it as-is
-                    // If there's a variant or no existing ID, generate/regenerate the ID
-                    let test_case_id = if let Some(id) = existing_id {
-                        if variant.is_empty() {
-                            id.to_string()
-                        } else {
-                            gen_info_id(
-                                org_slug.as_ref(),
-                                repo.repo_full_name().as_str(),
-                                Some(file.as_str()),
-                                test_case.classname.map(|v| v.to_string()).as_deref(),
-                                Some(test_case_run.parent_name.as_str()),
-                                Some(test_case_run.name.as_str()),
-                                Some(id),
-                                variant,
-                            )
-                        }
+                    let test_case_id = if existing_id.is_some() && variant.is_empty() {
+                        existing_id.unwrap().to_string()
                     } else {
-                        gen_info_id(
+                        generate_info_id_variant_wrapper(
                             org_slug.as_ref(),
                             repo.repo_full_name().as_str(),
                             Some(file.as_str()),
                             test_case.classname.map(|v| v.to_string()).as_deref(),
                             Some(test_case_run.parent_name.as_str()),
                             Some(test_case_run.name.as_str()),
-                            None,
+                            existing_id,
                             variant,
                         )
                     };
@@ -1009,7 +994,11 @@ mod tests {
     use prost_wkt_types::Timestamp;
     use proto::test_context::test_run::TestCaseRunStatus;
 
-    use crate::{junit::parser::JunitParser, meta::id::gen_info_id, repo::RepoUrlParts};
+    use crate::{
+        junit::parser::JunitParser,
+        meta::id::{gen_info_id, generate_info_id_variant_wrapper},
+        repo::RepoUrlParts,
+    };
     #[test]
     fn test_into_test_case_runs() {
         let mut junit_parser = JunitParser::new();
@@ -1499,7 +1488,7 @@ mod tests {
         assert_eq!(test_case_runs_with_variant.len(), 1);
         let test_case_with_variant = &test_case_runs_with_variant[0];
 
-        let expected_id_with_variant = gen_info_id(
+        let expected_id_with_variant = generate_info_id_variant_wrapper(
             org_slug.as_str(),
             repo.repo_full_name().as_str(),
             Some("test.java"),
