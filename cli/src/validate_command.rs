@@ -38,13 +38,13 @@ pub struct ValidateArgs {
         conflicts_with_all = ["bazel_bep_path", "test_reports"],
         value_delimiter = ',',
         value_parser = clap::builder::NonEmptyStringValueParser::new(),
-        help = "Comma-separated list of glob paths to junit files.",
+        help = "Comma-separated list of glob patterns to locate JUnit XML files (e.g., '**/test-results/**/*.xml').",
     )]
     junit_paths: Vec<String>,
     #[arg(
         long,
         required_unless_present_any = ["junit_paths", "test_reports"],
-        help = "Path to bazel build event protocol JSON file."
+        help = "Path to Bazel Build Event Protocol JSON file. BEP files contain test results and build metadata."
     )]
     bazel_bep_path: Option<String>,
     #[arg(
@@ -52,12 +52,15 @@ pub struct ValidateArgs {
         required_unless_present_any = ["junit_paths", "bazel_bep_path"],
         value_delimiter = ',',
         value_parser = clap::builder::NonEmptyStringValueParser::new(),
-        help = "Comma-separated list of paths to test report files."
+        help = "Comma-separated list of glob patterns to test report files. Supports JUnit XML, Bazel BEP, and XCResult formats."
     )]
     pub test_reports: Vec<String>,
     #[arg(long, help = "Show warning-level log messages in output.", hide = true)]
     show_warnings: bool,
-    #[arg(long, help = "Value to override CODEOWNERS file or directory path.")]
+    #[arg(
+        long,
+        help = "Override the path to a CODEOWNERS file. Used to validate code ownership associations."
+    )]
     pub codeowners_path: Option<String>,
     #[arg(
         long,

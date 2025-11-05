@@ -45,7 +45,7 @@ pub struct TestArgs {
         required = true,
         allow_hyphen_values = true,
         trailing_var_arg = true,
-        help = "Test command to invoke."
+        help = "Test command to execute. All arguments after '--' are passed to this command (e.g., 'pytest tests/')."
     )]
     command: Vec<String>,
 }
