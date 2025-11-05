@@ -81,11 +81,11 @@ impl Cli {
 
 #[derive(Debug, Subcommand)]
 enum Commands {
-    /// Run a test command and upload data to Trunk Flaky Tests
+    /// Run a test command and upload results to Trunk Flaky Tests. Automatically detects and reports flaky tests.
     Test(TestArgs),
-    /// Upload data to Trunk Flaky Tests
+    /// Upload test results to Trunk Flaky Tests. Use this when you've already run tests and have result files.
     Upload(UploadArgs),
-    /// Validate that your test runner output is suitable for Trunk Flaky Tests (does not call to servers)
+    /// Validate test report files for compatibility with Trunk Flaky Tests. Runs locally without uploading data.
     Validate(ValidateArgs),
 }
 

@@ -44,20 +44,20 @@ pub struct UploadArgs {
         conflicts_with = "bazel_bep_path",
         value_delimiter = ',',
         value_parser = clap::builder::NonEmptyStringValueParser::new(),
-        help = "Comma-separated list of glob paths to junit files."
+        help = "Comma-separated list of glob patterns to locate JUnit XML files (e.g., '**/test-results/**/*.xml')."
     )]
     pub junit_paths: Vec<String>,
     #[arg(
         long,
         required_unless_present_any = [JUNIT_GLOB_REQUIRED_UNLESS_PRESENT_ARG, "junit_paths", "test_reports"],
-        help = "Path to bazel build event protocol JSON file."
+        help = "Path to Bazel Build Event Protocol JSON file. BEP files contain test results and build metadata."
     )]
     pub bazel_bep_path: Option<String>,
     #[cfg(target_os = "macos")]
     #[arg(long,
         required_unless_present_any = ["junit_paths", "bazel_bep_path", "test_reports"],
         conflicts_with_all = ["junit_paths", "bazel_bep_path"],
-        required = false, help = "Path of xcresult directory"
+        required = false, help = "Path to Xcode XCResult bundle directory (macOS only)."
     )]
     pub xcresult_path: Option<String>,
     #[arg(
@@ -65,7 +65,7 @@ pub struct UploadArgs {
         required_unless_present_any = [JUNIT_GLOB_REQUIRED_UNLESS_PRESENT_ARG, "junit_paths", "bazel_bep_path"],
         value_delimiter = ',',
         value_parser = clap::builder::NonEmptyStringValueParser::new(),
-        help = "Comma-separated list of glob paths to test report files."
+        help = "Comma-separated list of glob patterns to test report files. Supports JUnit XML, Bazel BEP, and XCResult formats."
     )]
     pub test_reports: Vec<String>,
     #[arg(long, help = "Organization url slug.")]
@@ -79,13 +79,22 @@ pub struct UploadArgs {
     pub token: String,
     #[arg(long, help = "Path to repository root. Defaults to current directory.")]
     pub repo_root: Option<String>,
-    #[arg(long, help = "Value to override URL of repository.")]
+    #[arg(
+        long,
+        help = "Override the repository URL (normally from git config remote.origin.url)."
+    )]
     pub repo_url: Option<String>,
-    #[arg(long, help = "Value to override SHA of repository head.", value_parser = parse_sha)]
+    #[arg(long, help = "Override the repository HEAD commit SHA (normally from git HEAD).", value_parser = parse_sha)]
     pub repo_head_sha: Option<String>,
-    #[arg(long, help = "Value to override branch of repository head.")]
+    #[arg(
+        long,
+        help = "Override the repository HEAD branch name (normally from git branch)."
+    )]
     pub repo_head_branch: Option<String>,
-    #[arg(long, help = "Value to override commit epoch of repository head.")]
+    #[arg(
+        long,
+        help = "Override the HEAD commit timestamp in seconds since Unix epoch (normally from git commit timestamp)."
+    )]
     pub repo_head_commit_epoch: Option<String>,
     #[arg(long, help = "Value to tag team owner of upload.", hide = true)]
     pub team: Option<String>,
@@ -96,11 +105,14 @@ pub struct UploadArgs {
         required = false
     )]
     pub print_files: Option<bool>,
-    #[arg(long, help = "Value to override CODEOWNERS file or directory path.")]
+    #[arg(
+        long,
+        help = "Override the path to a CODEOWNERS file. Used to associate test failures with code owners."
+    )]
     pub codeowners_path: Option<String>,
     #[arg(
         long,
-        help = "Run commands with the quarantining step. Deprecated, prefer disable-quarantining, which takes priority over this flag, to control quarantining.",
+        help = "Run commands with the quarantining step. Deprecated, prefer --disable-quarantining, which takes priority over this flag, to control quarantining.",
         action = ArgAction::Set,
         required = false,
         require_equals = true,
@@ -112,7 +124,7 @@ pub struct UploadArgs {
     pub use_quarantining: bool,
     #[arg(
         long,
-        help = "Does not apply quarantining if set to true",
+        help = "Disable test quarantining. When disabled, all test failures will be reported and affect the exit code.",
         action = ArgAction::Set,
         required = false,
         require_equals = true,
@@ -124,7 +136,7 @@ pub struct UploadArgs {
     #[arg(
         long,
         alias = "allow-missing-junit-files",
-        help = "Do not fail if test results are not found.",
+        help = "Allow upload to succeed even when no test result files are found. Useful for optional test runs.",
         action = ArgAction::Set,
         required = false,
         require_equals = true,
@@ -147,39 +159,37 @@ pub struct UploadArgs {
     pub hide_banner: bool,
     #[arg(
         long,
-        help = "Write the bundle locally to a file instead of uploading it.",
+        help = "Write the test bundle to a local file (./bundle_upload) instead of uploading to Trunk servers. Useful for debugging.",
         required = false,
         num_args = 0,
         default_value = "false",
-        default_missing_value = "true",
-        hide = true
+        default_missing_value = "true"
     )]
     pub dry_run: bool,
     #[arg(
         long,
-        help = "Value to set the variant of the test results uploaded.",
+        help = "Variant name for the test results (e.g., 'linux', 'macos', 'pr'). Used to group test runs. Max 64 characters.",
         required = false,
         num_args = 1
     )]
     pub variant: Option<String>,
     #[arg(
         long,
-        help = "The exit code to use when not all tests are quarantined.",
+        help = "Override the test process exit code. Useful when the test runner exit code doesn't reflect the actual test results.",
         required = false,
         num_args = 1
     )]
     pub test_process_exit_code: Option<i32>,
     #[arg(
         long,
-        help = "Value to set the name of the author of the commit being tested.",
+        help = "Override the HEAD commit author name (normally from git commit author).",
         required = false,
-        num_args = 1,
-        hide = true
+        num_args = 1
     )]
     pub repo_head_author_name: Option<String>,
     #[arg(
         long,
-        help = "Set when you want to upload to a repository which is not available in your filesystem.",
+        help = "Enable upload mode for repositories not cloned locally. Requires --repo-url, --repo-head-sha, --repo-head-branch, and --repo-head-author-name to be set.",
         required = false,
         require_equals = false,
         num_args = 0,
@@ -203,7 +213,7 @@ pub struct UploadArgs {
     pub use_experimental_failure_summary: bool,
     #[arg(
         long,
-        help = "Change how many validation errors and warnings in your test reports we will show.",
+        help = "Control validation reporting verbosity. Options: 'limited' (default, shows first few), 'full' (shows all), or 'none' (hides validation output).",
         required = false,
         num_args = 1,
         default_value = "limited",
@@ -212,7 +222,7 @@ pub struct UploadArgs {
     pub validation_report: ValidationReport,
     #[arg(
         long,
-        help = "Show failure messages in the output.",
+        help = "Include test failure messages in the CLI output. Useful for debugging test failures.",
         required = false,
         num_args = 0,
         default_value = "false",
