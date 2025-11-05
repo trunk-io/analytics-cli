@@ -320,6 +320,7 @@ impl JunitParser {
 
                     let existing_id = test_case.extra.get(extra_attrs::ID).map(|v| v.as_str());
 
+                    // trunk-ignore(clippy/unnecessary_unwrap)
                     let test_case_id = if existing_id.is_some() && variant.is_empty() {
                         existing_id.unwrap().to_string()
                     } else {
