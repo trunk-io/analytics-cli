@@ -33,6 +33,8 @@ lazy_static! {
         unpack_archive_to_temp_dir("tests/data/test-swift-mix.xcresult.tar.gz");
     static ref TEMP_DIR_TEST_TIMESTAMP: TempDir =
         unpack_archive_to_temp_dir("tests/data/test-timestamp.xcresult.tar.gz");
+    static ref TEMP_DIR_TEST_VARIANT: TempDir =
+        unpack_archive_to_temp_dir("tests/data/test-variant.xcresult.tar.gz");
     static ref ORG_URL_SLUG: String = String::from("trunk");
     static ref REPO_FULL_NAME: String = RepoUrlParts {
         host: "github.com".to_string(),
@@ -246,7 +248,6 @@ fn test_xcresult_to_bindings_report_with_id_and_timestamps() {
     use context::junit::bindings::BindingsTestCase;
     use context::junit::parser::JunitParser;
 
-    // Generate JUnit from xcresult
     let path = TEMP_DIR_TEST_TIMESTAMP.as_ref().join("test1.xcresult");
     let path_str = path.to_str().unwrap();
 
@@ -262,12 +263,10 @@ fn test_xcresult_to_bindings_report_with_id_and_timestamps() {
     assert_eq!(junits.len(), 1);
     let junit = junits.pop().unwrap();
 
-    // Serialize to XML
     let mut junit_writer: Vec<u8> = Vec::new();
     junit.serialize(&mut junit_writer).unwrap();
     let junit_xml = String::from_utf8(junit_writer).unwrap();
 
-    // Parse the JUnit XML back
     let mut junit_parser = JunitParser::new();
     junit_parser
         .parse(BufReader::new(junit_xml.as_bytes()))
@@ -283,6 +282,7 @@ fn test_xcresult_to_bindings_report_with_id_and_timestamps() {
                 name: "analytics-cli".to_string(),
             },
             &[],
+            "",
         )
         .into_iter()
         .map(BindingsTestCase::from)
@@ -325,5 +325,109 @@ fn test_xcresult_to_bindings_report_with_id_and_timestamps() {
         assert!(test_case.time.is_some(), "time should be set");
         let time = test_case.time.unwrap();
         assert!(time >= 0.0, "time should be non-negative, got: {}", time);
+    }
+}
+
+#[cfg(target_os = "macos")]
+#[test]
+fn test_xcresult_with_variant_id_generation() {
+    use std::io::BufReader;
+
+    use context::junit::bindings::BindingsTestCase;
+    use context::junit::parser::JunitParser;
+
+    // Generate JUnit from xcresult
+    let path = TEMP_DIR_TEST_VARIANT.as_ref().join("test1.xcresult");
+    let path_str = path.to_str().unwrap();
+
+    let xcresult = XCResult::new(
+        path_str,
+        ORG_URL_SLUG.clone(),
+        REPO_FULL_NAME.clone(),
+        false,
+    )
+    .unwrap();
+
+    let mut junits = xcresult.generate_junits();
+    assert_eq!(junits.len(), 1);
+    let junit = junits.pop().unwrap();
+
+    let mut junit_writer: Vec<u8> = Vec::new();
+    junit.serialize(&mut junit_writer).unwrap();
+    let junit_xml = String::from_utf8(junit_writer).unwrap();
+
+    let repo_parts = context::repo::RepoUrlParts {
+        host: "github.com".to_string(),
+        owner: "trunk-io".to_string(),
+        name: "analytics-cli".to_string(),
+    };
+
+    // Parse WITHOUT variant
+    let mut junit_parser_no_variant = JunitParser::new();
+    junit_parser_no_variant
+        .parse(BufReader::new(junit_xml.as_bytes()))
+        .expect("Failed to parse generated JUnit XML");
+
+    let test_case_runs_no_variant: Vec<BindingsTestCase> = junit_parser_no_variant
+        .into_test_case_runs(None, &ORG_URL_SLUG.as_str(), &repo_parts, &[], "")
+        .into_iter()
+        .map(BindingsTestCase::from)
+        .collect();
+
+    // Parse WITH variant
+    let variant = "ios-simulator";
+    let mut junit_parser_with_variant = JunitParser::new();
+    junit_parser_with_variant
+        .parse(BufReader::new(junit_xml.as_bytes()))
+        .expect("Failed to parse generated JUnit XML");
+
+    let test_case_runs_with_variant: Vec<BindingsTestCase> = junit_parser_with_variant
+        .into_test_case_runs(None, &ORG_URL_SLUG.as_str(), &repo_parts, &[], variant)
+        .into_iter()
+        .map(BindingsTestCase::from)
+        .collect();
+
+    assert!(
+        !test_case_runs_no_variant.is_empty(),
+        "Should have test cases without variant"
+    );
+    assert!(
+        !test_case_runs_with_variant.is_empty(),
+        "Should have test cases with variant"
+    );
+    assert_eq!(
+        test_case_runs_no_variant.len(),
+        test_case_runs_with_variant.len(),
+        "Should have same number of test cases"
+    );
+
+    for (test_no_variant, test_with_variant) in test_case_runs_no_variant
+        .iter()
+        .zip(test_case_runs_with_variant.iter())
+    {
+        let extra_no_variant = test_no_variant.extra();
+        let id_no_variant = extra_no_variant
+            .get("id")
+            .expect("ID should be set for test without variant");
+
+        let extra_with_variant = test_with_variant.extra();
+        let id_with_variant = extra_with_variant
+            .get("id")
+            .expect("ID should be set for test with variant");
+
+        assert!(
+            !id_no_variant.is_empty(),
+            "ID without variant should not be empty"
+        );
+        assert!(
+            !id_with_variant.is_empty(),
+            "ID with variant should not be empty"
+        );
+
+        assert_ne!(
+            id_no_variant, id_with_variant,
+            "ID should be different when variant '{}' is applied. Test: {}",
+            variant, test_no_variant.name
+        );
     }
 }
