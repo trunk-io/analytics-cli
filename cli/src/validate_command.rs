@@ -440,6 +440,12 @@ fn flatten_glob(glob_text: &str) -> Vec<String> {
 }
 
 pub async fn run_validate(validate_args: ValidateArgs) -> anyhow::Result<ValidateRunResult> {
+    if validate_args.hide_banner {
+        tracing::error!(
+            "The --hide-banner flag is deprecated and does nothing. It will be removed in a future version."
+        );
+    }
+
     let ValidateArgs {
         junit_paths,
         bazel_bep_path,
