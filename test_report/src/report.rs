@@ -116,17 +116,17 @@ impl MutTestReport {
             uploader_metadata: test_result.uploader_metadata.clone(),
             test_results: vec![test_result],
         };
-        let use_uncloned_repo = env::var("TRUNK_USE_UNCLONED_REPO")
+        let use_uncloned_repo = env::var(constants::TRUNK_USE_UNCLONED_REPO_ENV)
             .ok()
             .and_then(|v| v.parse().ok())
             .unwrap_or(false);
         let codeowners = BundleRepo::new(
-            env::var("TRUNK_REPO_ROOT").ok(),
-            env::var("TRUNK_REPO_URL").ok(),
-            env::var("TRUNK_REPO_HEAD_SHA").ok(),
-            env::var("TRUNK_REPO_HEAD_BRANCH").ok(),
-            env::var("TRUNK_REPO_HEAD_COMMIT_EPOCH").ok(),
-            env::var("TRUNK_REPO_HEAD_AUTHOR_NAME").ok(),
+            env::var(constants::TRUNK_REPO_ROOT_ENV).ok(),
+            env::var(constants::TRUNK_REPO_URL_ENV).ok(),
+            env::var(constants::TRUNK_REPO_HEAD_SHA_ENV).ok(),
+            env::var(constants::TRUNK_REPO_HEAD_BRANCH_ENV).ok(),
+            env::var(constants::TRUNK_REPO_HEAD_COMMIT_EPOCH_ENV).ok(),
+            env::var(constants::TRUNK_REPO_HEAD_AUTHOR_NAME_ENV).ok(),
             use_uncloned_repo,
         )
         .ok()
@@ -136,9 +136,9 @@ impl MutTestReport {
         .and_then(|repo_root| {
             CodeOwners::find_file(
                 repo_root,
-                &env::var("TRUNK_CODEOWNERS_PATH")
+                &env::var(constants::TRUNK_CODEOWNERS_PATH_ENV)
                     .ok()
-                    .map(|p| PathBuf::from(p))
+                    .map(PathBuf::from)
                     .as_deref(),
             )
         });
@@ -197,11 +197,12 @@ impl MutTestReport {
             "error" => tracing::level_filters::LevelFilter::ERROR,
             _ => tracing::level_filters::LevelFilter::INFO,
         };
-        tracing_subscriber::registry()
+        // Use try_init to avoid panicking if subscriber is already set (e.g., in tests)
+        let _ = tracing_subscriber::registry()
             .with(console_layer)
             .with(sentry_layer)
             .with(trunk_log_level)
-            .init();
+            .try_init();
     }
 
     pub fn is_quarantined(
@@ -212,8 +213,8 @@ impl MutTestReport {
         classname: Option<String>,
         file: Option<String>,
     ) -> bool {
-        let token = env::var("TRUNK_API_TOKEN").unwrap_or_default();
-        let org_url_slug = env::var("TRUNK_ORG_URL_SLUG").unwrap_or_default();
+        let token = env::var(constants::TRUNK_API_TOKEN_ENV).unwrap_or_default();
+        let org_url_slug = env::var(constants::TRUNK_ORG_URL_SLUG_ENV).unwrap_or_default();
         if token.is_empty() {
             tracing::warn!("Not checking quarantine status because TRUNK_API_TOKEN is empty");
             return false;
@@ -223,17 +224,17 @@ impl MutTestReport {
             return false;
         }
         let api_client = ApiClient::new(token, org_url_slug.clone(), None);
-        let use_uncloned_repo = env::var("TRUNK_USE_UNCLONED_REPO")
+        let use_uncloned_repo = env::var(constants::TRUNK_USE_UNCLONED_REPO_ENV)
             .ok()
             .and_then(|v| v.parse().ok())
             .unwrap_or(false);
         let bundle_repo = BundleRepo::new(
-            env::var("TRUNK_REPO_ROOT").ok(),
-            env::var("TRUNK_REPO_URL").ok(),
-            env::var("TRUNK_REPO_HEAD_SHA").ok(),
-            env::var("TRUNK_REPO_HEAD_BRANCH").ok(),
-            env::var("TRUNK_REPO_HEAD_COMMIT_EPOCH").ok(),
-            env::var("TRUNK_REPO_HEAD_AUTHOR_NAME").ok(),
+            env::var(constants::TRUNK_REPO_ROOT_ENV).ok(),
+            env::var(constants::TRUNK_REPO_URL_ENV).ok(),
+            env::var(constants::TRUNK_REPO_HEAD_SHA_ENV).ok(),
+            env::var(constants::TRUNK_REPO_HEAD_BRANCH_ENV).ok(),
+            env::var(constants::TRUNK_REPO_HEAD_COMMIT_EPOCH_ENV).ok(),
+            env::var(constants::TRUNK_REPO_HEAD_AUTHOR_NAME_ENV).ok(),
             use_uncloned_repo,
         );
         match (api_client, bundle_repo) {
@@ -326,9 +327,55 @@ impl MutTestReport {
     // sends out to the trunk api
     pub fn publish(&self) -> bool {
         let release_name = format!("rspec-flaky-tests@{}", env!("CARGO_PKG_VERSION"));
-        let org_url_slug = env::var("TRUNK_ORG_URL_SLUG").unwrap_or_default();
+        let org_url_slug = env::var(constants::TRUNK_ORG_URL_SLUG_ENV).unwrap_or_default();
         let guard = sentry::init(release_name.into(), None);
         self.setup_logger(org_url_slug.clone());
+
+        let token = env::var(constants::TRUNK_API_TOKEN_ENV).unwrap_or_default();
+        if token.is_empty() {
+            tracing::warn!("Not publishing results because TRUNK_API_TOKEN is empty");
+            return false;
+        }
+        if org_url_slug.is_empty() {
+            tracing::warn!("Not publishing results because TRUNK_ORG_URL_SLUG is empty");
+            return false;
+        }
+
+        let variant = env::var(constants::TRUNK_VARIANT_ENV).ok();
+
+        if let Some(ref variant) = variant {
+            let test_report = &mut self.0.borrow_mut().test_report;
+            // legacy: update the variant in all test results
+            for test_result in &mut test_report.test_results {
+                // trunk-ignore(clippy/deprecated)
+                if let Some(uploader_metadata) = &mut test_result.uploader_metadata {
+                    // trunk-ignore(clippy/assigning_clones)
+                    uploader_metadata.variant = variant.clone();
+                }
+            }
+            // update the top-level uploader_metadata
+            if let Some(uploader_metadata) = &mut test_report.uploader_metadata {
+                // trunk-ignore(clippy/assigning_clones)
+                uploader_metadata.variant = variant.clone();
+            }
+        }
+
+        // move into separate scope so that we drop borrow_mut
+        {
+            let test_report = &mut self.0.borrow_mut().test_report;
+            if let Some(uploader_metadata) = &mut test_report.uploader_metadata {
+                uploader_metadata.upload_time = Some(Timestamp {
+                    seconds: Utc::now().timestamp(),
+                    nanos: Utc::now().timestamp_subsec_nanos() as i32,
+                });
+            }
+            let test_result = test_report.test_results.get_mut(0);
+            if let Some(test_result) = test_result {
+                // trunk-ignore(clippy/deprecated,clippy/assigning_clones)
+                test_result.uploader_metadata = test_report.uploader_metadata.clone();
+            }
+        }
+
         let named_temp_file = match tempfile::Builder::new().suffix(".bin").tempfile() {
             Ok(tempfile) => tempfile,
             Err(e) => {
@@ -345,62 +392,39 @@ impl MutTestReport {
             }
         };
         let resolved_path_str = resolved_path.as_path().to_str().unwrap_or_default();
-        let token = env::var("TRUNK_API_TOKEN").unwrap_or_default();
-        if token.is_empty() {
-            tracing::warn!("Not publishing results because TRUNK_API_TOKEN is empty");
-            return false;
-        }
-        if org_url_slug.is_empty() {
-            tracing::warn!("Not publishing results because TRUNK_ORG_URL_SLUG is empty");
-            return false;
-        }
-        // move into separate scope so that we drop borrow_mut
-        {
-            let test_report = &mut self.0.borrow_mut().test_report;
-            if let Some(uploader_metadata) = &mut test_report.uploader_metadata {
-                uploader_metadata.upload_time = Some(Timestamp {
-                    seconds: Utc::now().timestamp(),
-                    nanos: Utc::now().timestamp_subsec_nanos() as i32,
-                });
-            }
-            let test_result = test_report.test_results.get_mut(0);
-            if let Some(test_result) = test_result {
-                // trunk-ignore(clippy/deprecated,clippy/assigning_clones)
-                test_result.uploader_metadata = test_report.uploader_metadata.clone();
-            }
-        }
         let mut upload_args = trunk_analytics_cli::upload_command::UploadArgs::new(
             token,
             org_url_slug,
             vec![resolved_path_str.into()],
-            env::var("TRUNK_REPO_ROOT").ok(),
+            env::var(constants::TRUNK_REPO_ROOT_ENV).ok(),
             false,
             false,
         );
 
-        // Read additional environment variables
-        upload_args.repo_url = env::var("TRUNK_REPO_URL").ok();
-        upload_args.repo_head_sha = env::var("TRUNK_REPO_HEAD_SHA").ok();
-        upload_args.repo_head_branch = env::var("TRUNK_REPO_HEAD_BRANCH").ok();
-        upload_args.repo_head_commit_epoch = env::var("TRUNK_REPO_HEAD_COMMIT_EPOCH").ok();
-        upload_args.repo_head_author_name = env::var("TRUNK_REPO_HEAD_AUTHOR_NAME").ok();
-        upload_args.codeowners_path = env::var("TRUNK_CODEOWNERS_PATH").ok();
-        upload_args.variant = env::var("TRUNK_VARIANT")
-            .ok()
-            .or(self.0.borrow().variant.clone());
-        upload_args.use_uncloned_repo = env::var("TRUNK_USE_UNCLONED_REPO")
-            .ok()
-            .and_then(|v| v.parse().ok())
-            .unwrap_or(false);
-        upload_args.disable_quarantining = env::var("TRUNK_DISABLE_QUARANTINING")
+        // Read additional environment variables using constants
+        upload_args.repo_url = env::var(constants::TRUNK_REPO_URL_ENV).ok();
+        upload_args.repo_head_sha = env::var(constants::TRUNK_REPO_HEAD_SHA_ENV).ok();
+        upload_args.repo_head_branch = env::var(constants::TRUNK_REPO_HEAD_BRANCH_ENV).ok();
+        upload_args.repo_head_commit_epoch =
+            env::var(constants::TRUNK_REPO_HEAD_COMMIT_EPOCH_ENV).ok();
+        upload_args.repo_head_author_name =
+            env::var(constants::TRUNK_REPO_HEAD_AUTHOR_NAME_ENV).ok();
+        upload_args.codeowners_path = env::var(constants::TRUNK_CODEOWNERS_PATH_ENV).ok();
+        upload_args.variant = variant;
+        upload_args.use_uncloned_repo = env::var(constants::TRUNK_USE_UNCLONED_REPO_ENV)
             .ok()
             .and_then(|v| v.parse().ok())
             .unwrap_or(false);
-        upload_args.allow_empty_test_results = env::var("TRUNK_ALLOW_EMPTY_TEST_RESULTS")
+        upload_args.disable_quarantining = env::var(constants::TRUNK_DISABLE_QUARANTINING_ENV)
             .ok()
             .and_then(|v| v.parse().ok())
-            .unwrap_or(true);
-        upload_args.dry_run = env::var("TRUNK_DRY_RUN")
+            .unwrap_or(false);
+        upload_args.allow_empty_test_results =
+            env::var(constants::TRUNK_ALLOW_EMPTY_TEST_RESULTS_ENV)
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(true);
+        upload_args.dry_run = env::var(constants::TRUNK_DRY_RUN_ENV)
             .ok()
             .and_then(|v| v.parse().ok())
             .unwrap_or(false);
