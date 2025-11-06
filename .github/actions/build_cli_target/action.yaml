@@ -22,12 +22,14 @@ runs:
 
     - name: Install cross
       shell: bash
+      # Only install cross for non-darwin, non-windows targets
+      if: ${{ !contains(inputs.target, 'darwin') && !contains(inputs.target, 'windows') }}
       run: cargo install cross --git https://github.com/cross-rs/cross --force
 
     - name: Build CLI ${{ inputs.target }} target
       uses: houseabsolute/actions-rust-cross@v1.0.1
-      # Cross-rs does not directly support cross compilation with macOS targets
-      if: ${{ !contains(inputs.target, 'darwin') }}
+      # Cross-rs does not directly support cross compilation with macOS or Windows targets (when building natively)
+      if: ${{ !contains(inputs.target, 'darwin') && !contains(inputs.target, 'windows') }}
       with:
         command: build
         target: ${{ inputs.target }}
@@ -38,11 +40,17 @@ runs:
 
     - name: Build CLI ${{ inputs.target }} target
       shell: bash
-      if: ${{ contains(inputs.target, 'darwin') }}
+      if: ${{ contains(inputs.target, 'darwin') || contains(inputs.target, 'windows') }}
       # NOTE: DO NOT BUILD WORKSPACE OTHERWISE THE CLI MAY BE LINKED TO UNNECESSARY LIBRARIES
       run: |
         cargo build -p trunk-analytics-cli --profile=${{ inputs.profile }} --target=${{ inputs.target }} ${{ (inputs.force-sentry-dev == 'true' && '--features force-sentry-env-dev') || '' }}
 
     - name: Create binary with debug info
       shell: bash
-      run: cp target/${{ inputs.target }}/${{ inputs.profile }}/trunk-analytics-cli target/${{ inputs.target }}/${{ inputs.profile }}/trunk-analytics-cli.debug
+      run: |
+        # Windows binaries have .exe extension, Unix binaries don't
+        if [[ "${{ inputs.target }}" == *"windows"* ]]; then
+          cp target/${{ inputs.target }}/${{ inputs.profile }}/trunk-analytics-cli.exe target/${{ inputs.target }}/${{ inputs.profile }}/trunk-analytics-cli.debug.exe
+        else
+          cp target/${{ inputs.target }}/${{ inputs.profile }}/trunk-analytics-cli target/${{ inputs.target }}/${{ inputs.profile }}/trunk-analytics-cli.debug
+        fi

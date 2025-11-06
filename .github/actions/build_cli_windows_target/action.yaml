@@ -1,0 +1,39 @@
+name: Build CLI Windows Target
+description: Build release binary for Windows target.
+
+inputs:
+  target:
+    description: Rust target triple, e.g. x86_64-pc-windows-msvc
+  profile:
+    description: Rust profile to build, e.g. release-with-debug
+  force-sentry-dev:
+    description: Force sentry to use a devenv (set to true for testing, but not for releases)
+    default: false
+
+runs:
+  using: composite
+  steps:
+    - name: Build CLI ${{ inputs.target }} target
+      uses: ./.github/actions/build_cli_target
+      with:
+        target: ${{ inputs.target }}
+        profile: ${{ inputs.profile }}
+        force-sentry-dev: ${{ inputs.force-sentry-dev }}
+
+    - name: Strip debug info
+      shell: bash
+      run: |
+        # On Windows, we need to use the MSVC linker's /OPT:REF option or strip tool
+        # For now, we'll rely on the release profile's strip setting
+        # If needed, we can install and use llvm-strip or similar
+        echo "Debug info stripping handled by release profile"
+
+    - name: Report binary size
+      shell: bash
+      run: |
+        if [[ -f "target/${{ inputs.target }}/${{ inputs.profile }}/trunk-analytics-cli.exe" ]]; then
+          ls -lh target/${{ inputs.target }}/${{ inputs.profile }}/trunk-analytics-cli.exe
+        else
+          echo "Binary not found at expected location"
+          exit 1
+        fi
