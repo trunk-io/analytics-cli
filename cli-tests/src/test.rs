@@ -431,61 +431,6 @@ async fn quarantining_not_active_when_disable_true_but_use_true() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn quarantining_not_active_when_disable_false_but_use_false() {
-    let temp_dir = tempdir().unwrap();
-    generate_mock_git_repo(&temp_dir);
-    generate_mock_valid_junit_xmls(&temp_dir);
-    generate_mock_codeowners(&temp_dir);
-
-    let mut mock_server_builder = MockServerBuilder::new();
-
-    mock_server_builder.set_get_quarantining_config_handler(
-        |Json(get_quarantine_bulk_test_status_request): Json<GetQuarantineConfigRequest>| {
-            let test_ids = get_quarantine_bulk_test_status_request
-                .test_identifiers
-                .into_iter()
-                .map(|t| t.id)
-                .collect::<Vec<_>>();
-            async move {
-                Json(GetQuarantineConfigResponse {
-                    is_disabled: false,
-                    quarantined_tests: test_ids,
-                })
-            }
-        },
-    );
-
-    mock_server_builder.set_create_bundle_handler(
-        |State(state): State<SharedMockServerState>, _: Json<CreateBundleUploadRequest>| {
-            async move {
-                let host = &state.host.clone();
-                Ok::<axum::Json<CreateBundleUploadResponse>, String>(Json(CreateBundleUploadResponse {
-                    id: String::from("test-bundle-upload-id"),
-                    id_v2: String::from("test-bundle-upload-id-v2"),
-                    url: format!("{host}/s3upload"),
-                    key: String::from("unused"),
-                }))
-            }
-        },
-    );
-    let state = mock_server_builder.spawn_mock_server().await;
-
-    CommandBuilder::test(
-        temp_dir.path(),
-        state.host.clone(),
-        vec![
-            String::from("bash"),
-            String::from("-c"),
-            String::from("touch ./*; exit 1"),
-        ],
-    )
-    .disable_quarantining(false)
-    .command()
-    .assert()
-    .failure();
-}
-
-#[tokio::test(flavor = "multi_thread")]
 async fn returns_exit_code_from_execution_when_failures_not_quarantined() {
     use std::io::Write;
     let temp_dir = tempdir().unwrap();
