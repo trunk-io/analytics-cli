@@ -1,4 +1,10 @@
-use std::{cell::RefCell, collections::HashMap, env, fs, path::Path, time::SystemTime};
+use std::{
+    cell::RefCell,
+    collections::HashMap,
+    env, fs,
+    path::{Path, PathBuf},
+    time::SystemTime,
+};
 
 use api::{client::ApiClient, message};
 use bundle::BundleMetaDebugProps;
@@ -110,12 +116,32 @@ impl MutTestReport {
             uploader_metadata: test_result.uploader_metadata.clone(),
             test_results: vec![test_result],
         };
-        let codeowners = BundleRepo::new(None, None, None, None, None, None, false)
+        let use_uncloned_repo = env::var("TRUNK_USE_UNCLONED_REPO")
             .ok()
-            .map(|repo| repo.repo_root)
-            .as_ref()
-            .map(Path::new::<String>)
-            .and_then(|repo_root| CodeOwners::find_file(repo_root, &None::<&Path>));
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(false);
+        let codeowners = BundleRepo::new(
+            env::var("TRUNK_REPO_ROOT").ok(),
+            env::var("TRUNK_REPO_URL").ok(),
+            env::var("TRUNK_REPO_HEAD_SHA").ok(),
+            env::var("TRUNK_REPO_HEAD_BRANCH").ok(),
+            env::var("TRUNK_REPO_HEAD_COMMIT_EPOCH").ok(),
+            env::var("TRUNK_REPO_HEAD_AUTHOR_NAME").ok(),
+            use_uncloned_repo,
+        )
+        .ok()
+        .map(|repo| repo.repo_root)
+        .as_ref()
+        .map(Path::new::<String>)
+        .and_then(|repo_root| {
+            CodeOwners::find_file(
+                repo_root,
+                &env::var("TRUNK_CODEOWNERS_PATH")
+                    .ok()
+                    .map(|p| PathBuf::from(p))
+                    .as_deref(),
+            )
+        });
         Self(RefCell::new(TestReport {
             test_report,
             command,
@@ -197,7 +223,19 @@ impl MutTestReport {
             return false;
         }
         let api_client = ApiClient::new(token, org_url_slug.clone(), None);
-        let bundle_repo = BundleRepo::new(None, None, None, None, None, None, false);
+        let use_uncloned_repo = env::var("TRUNK_USE_UNCLONED_REPO")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(false);
+        let bundle_repo = BundleRepo::new(
+            env::var("TRUNK_REPO_ROOT").ok(),
+            env::var("TRUNK_REPO_URL").ok(),
+            env::var("TRUNK_REPO_HEAD_SHA").ok(),
+            env::var("TRUNK_REPO_HEAD_BRANCH").ok(),
+            env::var("TRUNK_REPO_HEAD_COMMIT_EPOCH").ok(),
+            env::var("TRUNK_REPO_HEAD_AUTHOR_NAME").ok(),
+            use_uncloned_repo,
+        );
         match (api_client, bundle_repo) {
             (Ok(api_client), Ok(bundle_repo)) => {
                 let test_identifier = Test::new(
@@ -331,14 +369,41 @@ impl MutTestReport {
                 test_result.uploader_metadata = test_report.uploader_metadata.clone();
             }
         }
-        let upload_args = trunk_analytics_cli::upload_command::UploadArgs::new(
+        let mut upload_args = trunk_analytics_cli::upload_command::UploadArgs::new(
             token,
             org_url_slug,
             vec![resolved_path_str.into()],
-            None,
+            env::var("TRUNK_REPO_ROOT").ok(),
             false,
             false,
         );
+
+        // Read additional environment variables
+        upload_args.repo_url = env::var("TRUNK_REPO_URL").ok();
+        upload_args.repo_head_sha = env::var("TRUNK_REPO_HEAD_SHA").ok();
+        upload_args.repo_head_branch = env::var("TRUNK_REPO_HEAD_BRANCH").ok();
+        upload_args.repo_head_commit_epoch = env::var("TRUNK_REPO_HEAD_COMMIT_EPOCH").ok();
+        upload_args.repo_head_author_name = env::var("TRUNK_REPO_HEAD_AUTHOR_NAME").ok();
+        upload_args.codeowners_path = env::var("TRUNK_CODEOWNERS_PATH").ok();
+        upload_args.variant = env::var("TRUNK_VARIANT")
+            .ok()
+            .or(self.0.borrow().variant.clone());
+        upload_args.use_uncloned_repo = env::var("TRUNK_USE_UNCLONED_REPO")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(false);
+        upload_args.disable_quarantining = env::var("TRUNK_DISABLE_QUARANTINING")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(false);
+        upload_args.allow_empty_test_results = env::var("TRUNK_ALLOW_EMPTY_TEST_RESULTS")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(true);
+        upload_args.dry_run = env::var("TRUNK_DRY_RUN")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(false);
         let debug_props = BundleMetaDebugProps {
             command_line: self.0.borrow().command.clone(),
         };
