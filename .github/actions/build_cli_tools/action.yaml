@@ -67,6 +67,9 @@ runs:
         else
           cross build -p bundle --profile=release-with-debug --target=${{ inputs.target }} --features build-binary
         fi
+      env:
+        OPENSSL_STATIC: ${{ contains(inputs.os-name, 'windows') && '1' || '' }}
+        OPENSSL_NO_VENDOR: ${{ contains(inputs.os-name, 'windows') && '1' || '' }}
 
     - name: Build XCResult CLI
       shell: bash
@@ -76,6 +79,9 @@ runs:
         else
           cross build -p xcresult --profile=release-with-debug --target=${{ inputs.target }}
         fi
+      env:
+        OPENSSL_STATIC: ${{ contains(inputs.os-name, 'windows') && '1' || '' }}
+        OPENSSL_NO_VENDOR: ${{ contains(inputs.os-name, 'windows') && '1' || '' }}
 
     - name: Build Codeowners CLI
       shell: bash
@@ -85,3 +91,6 @@ runs:
         else
           cross build -p codeowners --profile=release-with-debug --target=${{ inputs.target }}
         fi
+      env:
+        OPENSSL_STATIC: ${{ contains(inputs.os-name, 'windows') && '1' || '' }}
+        OPENSSL_NO_VENDOR: ${{ contains(inputs.os-name, 'windows') && '1' || '' }}

@@ -26,8 +26,8 @@ runs:
 
     - name: Build CLI ${{ inputs.target }} target
       uses: houseabsolute/actions-rust-cross@v1.0.1
-      # Cross-rs does not directly support cross compilation with macOS targets
-      if: ${{ !contains(inputs.target, 'darwin') }}
+      # Cross-rs does not directly support cross compilation with macOS and Windows targets
+      if: ${{ !contains(inputs.target, 'darwin') && !contains(inputs.target, 'windows') }}
       with:
         command: build
         target: ${{ inputs.target }}
@@ -42,6 +42,16 @@ runs:
       # NOTE: DO NOT BUILD WORKSPACE OTHERWISE THE CLI MAY BE LINKED TO UNNECESSARY LIBRARIES
       run: |
         cargo build -p trunk-analytics-cli --profile=${{ inputs.profile }} --target=${{ inputs.target }} ${{ (inputs.force-sentry-dev == 'true' && '--features force-sentry-env-dev') || '' }}
+
+    - name: Build CLI ${{ inputs.target }} target
+      shell: bash
+      if: ${{ contains(inputs.target, 'windows') }}
+      # NOTE: DO NOT BUILD WORKSPACE OTHERWISE THE CLI MAY BE LINKED TO UNNECESSARY LIBRARIES
+      run: |
+        cargo build -p trunk-analytics-cli --profile=${{ inputs.profile }} --target=${{ inputs.target }} ${{ (inputs.force-sentry-dev == 'true' && '--features force-sentry-env-dev') || '' }}
+      env:
+        OPENSSL_STATIC: 1
+        OPENSSL_NO_VENDOR: 1
 
     - name: Create binary with debug info
       shell: bash

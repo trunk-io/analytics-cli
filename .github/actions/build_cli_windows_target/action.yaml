@@ -13,12 +13,24 @@ inputs:
 runs:
   using: composite
   steps:
+    - name: Install OpenSSL with vcpkg
+      shell: pwsh
+      run: |
+        vcpkg install openssl:x64-windows-static
+        echo "OPENSSL_DIR=$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows-static" >> $env:GITHUB_ENV
+        echo "OPENSSL_STATIC=1" >> $env:GITHUB_ENV
+        echo "OPENSSL_NO_VENDOR=1" >> $env:GITHUB_ENV
+
     - name: Build CLI ${{ inputs.target }} target
       uses: ./.github/actions/build_cli_target
       with:
         target: ${{ inputs.target }}
         profile: ${{ inputs.profile }}
         force-sentry-dev: ${{ inputs.force-sentry-dev }}
+      env:
+        OPENSSL_DIR: ${{ env.OPENSSL_DIR }}
+        OPENSSL_STATIC: 1
+        OPENSSL_NO_VENDOR: 1
 
     - name: Check binary exists
       shell: pwsh
@@ -29,4 +41,3 @@ runs:
           exit 1
         }
         Get-Item $binaryPath | Select-Object FullName, Length
-
