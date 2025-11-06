@@ -45,4 +45,9 @@ runs:
 
     - name: Create binary with debug info
       shell: bash
-      run: cp target/${{ inputs.target }}/${{ inputs.profile }}/trunk-analytics-cli target/${{ inputs.target }}/${{ inputs.profile }}/trunk-analytics-cli.debug
+      run: |
+        if [[ "${{ inputs.target }}" == *"windows"* ]]; then
+          cp target/${{ inputs.target }}/${{ inputs.profile }}/trunk-analytics-cli.exe target/${{ inputs.target }}/${{ inputs.profile }}/trunk-analytics-cli.debug.exe
+        else
+          cp target/${{ inputs.target }}/${{ inputs.profile }}/trunk-analytics-cli target/${{ inputs.target }}/${{ inputs.profile }}/trunk-analytics-cli.debug
+        fi
