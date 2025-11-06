@@ -319,6 +319,21 @@ pub async fn run_upload(
         }
     }
 
+    if upload_args.hide_banner {
+        tracing::error!(
+            "The --hide-banner flag is deprecated and does nothing. It will be removed in a future version."
+        );
+    }
+
+    if !upload_args.use_quarantining || upload_args.disable_quarantining {
+        // Log if use_quarantining is explicitly set to false or if disable_quarantining is used
+        if !upload_args.use_quarantining {
+            tracing::error!(
+                "The --use-quarantining=false flag is deprecated. Use --disable-quarantining instead."
+            );
+        }
+    }
+
     let api_client = ApiClient::new(&upload_args.token, &upload_args.org_url_slug, render_sender)?;
 
     let PreTestContext {
