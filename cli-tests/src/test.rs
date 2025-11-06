@@ -42,7 +42,6 @@ async fn test_command_succeeds_with_successful_upload() {
             String::from("exit 0"),
         ],
     )
-    .use_quarantining(false)
     .command()
     .assert()
     .success()
@@ -67,7 +66,6 @@ async fn test_command_fails_with_successful_upload() {
             String::from("exit 1"),
         ],
     )
-    .use_quarantining(false)
     .command()
     .assert()
     .failure()
@@ -94,7 +92,6 @@ async fn test_run_test_with_really_long_command() {
     ];
 
     let assert = CommandBuilder::test(temp_dir.path(), state.host.clone(), long_command)
-        .use_quarantining(false)
         .command()
         .assert()
         .success();
@@ -194,7 +191,6 @@ async fn test_command_succeeds_with_upload_not_connected() {
             String::from("exit 0"),
         ],
     )
-    .use_quarantining(false)
     .command()
     .assert()
     .success()
@@ -217,7 +213,6 @@ async fn test_command_fails_with_upload_not_connected() {
             String::from("exit 1"),
         ],
     )
-    .use_quarantining(false)
     .command()
     .assert()
     .failure()
@@ -381,61 +376,6 @@ async fn quarantining_not_active_when_disable_quarantining_set() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn quarantining_not_active_when_use_quarantining_false() {
-    let temp_dir = tempdir().unwrap();
-    generate_mock_git_repo(&temp_dir);
-    generate_mock_valid_junit_xmls(&temp_dir);
-    generate_mock_codeowners(&temp_dir);
-
-    let mut mock_server_builder = MockServerBuilder::new();
-
-    mock_server_builder.set_get_quarantining_config_handler(
-        |Json(get_quarantine_bulk_test_status_request): Json<GetQuarantineConfigRequest>| {
-            let test_ids = get_quarantine_bulk_test_status_request
-                .test_identifiers
-                .into_iter()
-                .map(|t| t.id)
-                .collect::<Vec<_>>();
-            async move {
-                Json(GetQuarantineConfigResponse {
-                    is_disabled: false,
-                    quarantined_tests: test_ids,
-                })
-            }
-        },
-    );
-
-    mock_server_builder.set_create_bundle_handler(
-        |State(state): State<SharedMockServerState>, _: Json<CreateBundleUploadRequest>| {
-            async move {
-                let host = &state.host.clone();
-                Ok::<axum::Json<CreateBundleUploadResponse>, String>(Json(CreateBundleUploadResponse {
-                    id: String::from("test-bundle-upload-id"),
-                    id_v2: String::from("test-bundle-upload-id-v2"),
-                    url: format!("{host}/s3upload"),
-                    key: String::from("unused"),
-                }))
-            }
-        },
-    );
-    let state = mock_server_builder.spawn_mock_server().await;
-
-    CommandBuilder::test(
-        temp_dir.path(),
-        state.host.clone(),
-        vec![
-            String::from("bash"),
-            String::from("-c"),
-            String::from("touch ./*; exit 1"),
-        ],
-    )
-    .use_quarantining(false)
-    .command()
-    .assert()
-    .failure();
-}
-
-#[tokio::test(flavor = "multi_thread")]
 async fn quarantining_not_active_when_disable_true_but_use_true() {
     let temp_dir = tempdir().unwrap();
     generate_mock_git_repo(&temp_dir);
@@ -485,63 +425,6 @@ async fn quarantining_not_active_when_disable_true_but_use_true() {
         ],
     )
     .disable_quarantining(true)
-    .use_quarantining(true)
-    .command()
-    .assert()
-    .failure();
-}
-
-#[tokio::test(flavor = "multi_thread")]
-async fn quarantining_not_active_when_disable_false_but_use_false() {
-    let temp_dir = tempdir().unwrap();
-    generate_mock_git_repo(&temp_dir);
-    generate_mock_valid_junit_xmls(&temp_dir);
-    generate_mock_codeowners(&temp_dir);
-
-    let mut mock_server_builder = MockServerBuilder::new();
-
-    mock_server_builder.set_get_quarantining_config_handler(
-        |Json(get_quarantine_bulk_test_status_request): Json<GetQuarantineConfigRequest>| {
-            let test_ids = get_quarantine_bulk_test_status_request
-                .test_identifiers
-                .into_iter()
-                .map(|t| t.id)
-                .collect::<Vec<_>>();
-            async move {
-                Json(GetQuarantineConfigResponse {
-                    is_disabled: false,
-                    quarantined_tests: test_ids,
-                })
-            }
-        },
-    );
-
-    mock_server_builder.set_create_bundle_handler(
-        |State(state): State<SharedMockServerState>, _: Json<CreateBundleUploadRequest>| {
-            async move {
-                let host = &state.host.clone();
-                Ok::<axum::Json<CreateBundleUploadResponse>, String>(Json(CreateBundleUploadResponse {
-                    id: String::from("test-bundle-upload-id"),
-                    id_v2: String::from("test-bundle-upload-id-v2"),
-                    url: format!("{host}/s3upload"),
-                    key: String::from("unused"),
-                }))
-            }
-        },
-    );
-    let state = mock_server_builder.spawn_mock_server().await;
-
-    CommandBuilder::test(
-        temp_dir.path(),
-        state.host.clone(),
-        vec![
-            String::from("bash"),
-            String::from("-c"),
-            String::from("touch ./*; exit 1"),
-        ],
-    )
-    .disable_quarantining(false)
-    .use_quarantining(false)
     .command()
     .assert()
     .failure();
@@ -581,7 +464,6 @@ async fn returns_exit_code_from_execution_when_failures_not_quarantined() {
         ],
     )
     .disable_quarantining(false)
-    .use_quarantining(true)
     .junit_paths("junit.xml")
     .command()
     .assert()
@@ -609,7 +491,6 @@ async fn test_command_can_print_subcommand_output_with_special_characters() {
             String::from("echo \"Firstline\nAfterNewline\r\tindented\""),
         ],
     )
-    .use_quarantining(false)
     .command()
     .assert()
     .success()
@@ -636,7 +517,6 @@ async fn test_command_can_print_subcommand_output_with_faux_html() {
             String::from("echo \"<head>This breaks superconsole</head>\""),
         ],
     )
-    .use_quarantining(false)
     .command()
     .assert()
     .success()
