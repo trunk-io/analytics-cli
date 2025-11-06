@@ -1,5 +1,5 @@
 use std::{
-    fs,
+    env, fs,
     io::Write,
     path::{Path, PathBuf},
     time::Duration,
@@ -19,9 +19,26 @@ use test_utils::mock_git_repo::setup_repo_with_commit;
 
 lazy_static! {
     pub static ref CLI_BIN_PATH: PathBuf = {
-        // Use cargo's test binary which is automatically instrumented for coverage
-        // when running under cargo-llvm-cov, unlike escargot which builds separately
-        assert_cmd::cargo::cargo_bin("trunk-analytics-cli")
+        // Manually construct the binary path, detecting whether we're running under cargo-llvm-cov.
+        // cargo-llvm-cov places binaries in target/llvm-cov-target/debug/ instead of target/debug/
+        // This ensures the binary is instrumented for coverage, unlike escargot which builds separately.
+        let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        let target_dir = manifest_dir.parent().unwrap().join("target");
+
+        // Check if we're running under cargo-llvm-cov
+        let binary_name = if cfg!(windows) {
+            "trunk-analytics-cli.exe"
+        } else {
+            "trunk-analytics-cli"
+        };
+
+        // Try llvm-cov-target first (for coverage), then fall back to regular target
+        let llvm_cov_path = target_dir.join("llvm-cov-target/debug").join(binary_name);
+        if llvm_cov_path.exists() {
+            llvm_cov_path
+        } else {
+            target_dir.join("debug").join(binary_name)
+        }
     };
 }
 
