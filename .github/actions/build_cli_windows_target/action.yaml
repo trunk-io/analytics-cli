@@ -1,0 +1,32 @@
+name: Build CLI Windows Target
+description: Build release binary for Windows target.
+
+inputs:
+  target:
+    description: Rust target triple, e.g. x86_64-pc-windows-msvc
+  profile:
+    description: Rust profile to build, e.g. release-with-debug
+  force-sentry-dev:
+    description: Force sentry to use a devenv (set to true for testing, but not for releases)
+    default: false
+
+runs:
+  using: composite
+  steps:
+    - name: Build CLI ${{ inputs.target }} target
+      uses: ./.github/actions/build_cli_target
+      with:
+        target: ${{ inputs.target }}
+        profile: ${{ inputs.profile }}
+        force-sentry-dev: ${{ inputs.force-sentry-dev }}
+
+    - name: Check binary exists
+      shell: pwsh
+      run: |
+        $binaryPath = "target/${{ inputs.target }}/${{ inputs.profile }}/trunk-analytics-cli.exe"
+        if (!(Test-Path $binaryPath)) {
+          Write-Error "Binary not found at $binaryPath"
+          exit 1
+        }
+        Get-Item $binaryPath | Select-Object FullName, Length
+
