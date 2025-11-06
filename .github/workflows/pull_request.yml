@@ -51,6 +51,7 @@ jobs:
     steps:
       # we've been hitting out of free space issues
       - name: Delete unnecessary tools folder
+        if: ${{ !contains(matrix.platform.os-name, 'windows') }}
         run: rm -rf /opt/hostedtoolcache
 
       - name: Checkout
