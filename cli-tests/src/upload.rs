@@ -416,7 +416,7 @@ async fn upload_bundle_using_dry_run() {
 
     let assert = CommandBuilder::upload(temp_dir.path(), state.host.clone())
         .dry_run(true)
-        .use_quarantining(false)
+        .disable_quarantining(true)
         .command()
         .assert()
         .success();
@@ -1582,9 +1582,9 @@ async fn do_not_quarantines_tests_when_quarantine_disabled_set() {
     *QUARANTINE_CONFIG_RESPONSE.lock().unwrap() = QuarantineConfigResponse::Disabled;
     command.assert().failure();
 
-    // repeat the test with quarantining disabled with use-quarantining
+    // repeat the test with quarantining disabled without explicit flag
     let mut command = CommandBuilder::upload(temp_dir.path(), state.host.clone())
-        .use_quarantining(false)
+        .disable_quarantining(true)
         .test_process_exit_code(1)
         .command();
 
@@ -1638,7 +1638,6 @@ async fn uses_software_exit_code_if_upload_fails() {
 
     let assert = CommandBuilder::upload(temp_dir.path(), state.host.clone())
         .disable_quarantining(false)
-        .use_quarantining(true)
         .junit_paths("junit.xml")
         .command()
         .assert()
@@ -1673,7 +1672,6 @@ async fn uses_failure_exit_code_if_unquarantined_tests_fail() {
 
     let assert = CommandBuilder::upload(temp_dir.path(), state.host.clone())
         .disable_quarantining(false)
-        .use_quarantining(true)
         .junit_paths("junit.xml")
         .command()
         .assert()
@@ -1708,7 +1706,6 @@ async fn uses_passed_exit_code_if_unquarantined_tests_fail() {
 
     let assert = CommandBuilder::upload(temp_dir.path(), state.host.clone())
         .disable_quarantining(false)
-        .use_quarantining(true)
         .junit_paths("junit.xml")
         .test_process_exit_code(123)
         .command()
