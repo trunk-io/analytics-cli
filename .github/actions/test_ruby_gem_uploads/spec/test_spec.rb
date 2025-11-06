@@ -19,3 +19,9 @@ describe 'random_test' do
     expect(a).to eq(a)
   end
 end
+
+describe 'fail_test' do
+  it 'fails intentionally' do
+    expect(1 + 1).to eq(3)
+  end
+end
