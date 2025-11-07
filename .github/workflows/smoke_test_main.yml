@@ -43,18 +43,6 @@ jobs:
           version: 0.0.0-${{ steps.get-sha.outputs.sha }}
           file: cli/Cargo.toml
 
-      - name: Update Test Report version
-        uses: ./.github/actions/update_version
-        with:
-          version: 0.0.0-${{ steps.get-sha.outputs.sha }}
-          file: test_report/Cargo.toml
-
-      - name: Update Gem version
-        uses: ./.github/actions/update_version
-        with:
-          version: 0.0.0-${{ steps.get-sha.outputs.sha }}
-          file: context-ruby/context_ruby.gemspec
-
       - name: Setup Run Smoke Tests
         uses: ./.github/actions/setup_run_smoke_tests
 
@@ -91,6 +79,8 @@ jobs:
   build_ruby_gem:
     name: Build Ruby gem from main
     runs-on: ubuntu-latest
+    outputs:
+      version-with-sha: ${{ steps.get-sha.outputs.version-with-sha }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -101,6 +91,33 @@ jobs:
           ruby-version: "3.4"
           bundler-cache: true
           working-directory: context-ruby
+
+      - name: Get commit SHA
+        id: get-sha
+        shell: bash
+        run: |
+          COMMIT_SHA=$(git rev-parse --short HEAD)
+          echo "sha=${COMMIT_SHA}" >> $GITHUB_OUTPUT
+          echo "version-with-sha=0.0.0-${COMMIT_SHA}" >> $GITHUB_OUTPUT
+          echo "Setting version to 0.0.0-${COMMIT_SHA}"
+
+      - name: Update version with commit SHA
+        uses: ./.github/actions/update_version
+        with:
+          version: 0.0.0-${{ steps.get-sha.outputs.sha }}
+          file: cli/Cargo.toml
+
+      - name: Update Test Report version
+        uses: ./.github/actions/update_version
+        with:
+          version: 0.0.0-${{ steps.get-sha.outputs.sha }}
+          file: test_report/Cargo.toml
+
+      - name: Update Gem version
+        uses: ./.github/actions/update_version
+        with:
+          version: 0.0.0-${{ steps.get-sha.outputs.sha }}
+          file: context-ruby/context_ruby.gemspec
 
       - name: Build cross-compiled gem
         uses: oxidize-rb/actions/cross-gem@v1
