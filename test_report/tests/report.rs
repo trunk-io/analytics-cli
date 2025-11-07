@@ -455,8 +455,7 @@ async fn test_variant_priority_constructor_over_env() {
         RequestPayload::CreateBundleUpload(_)
     );
 
-    let tar_extract_directory =
-        assert_matches!(&requests_iter.next().unwrap(), RequestPayload::S3Upload(d) => d);
+    assert_matches!(&requests_iter.next().unwrap(), RequestPayload::S3Upload(d) => d);
     // Restore original directory
     let _ = env::set_current_dir(original_dir);
 }
