@@ -32,7 +32,7 @@ runs:
       shell: bash
       run: |
         # Only install cross if we're not on the target architecture or platform
-        if [[ "${{ inputs.os-name }}" == *"windows"* ]] || [[ "${{ inputs.os-name }}" == *"darwin"* ]] || [[ "${{ inputs.target }}" == *"aarch64"* && "$(uname -m)" == "aarch64" ]]; then
+        if [[ "${{ inputs.os-name }}" == *"darwin"* ]] || [[ "${{ inputs.target }}" == *"aarch64"* && "$(uname -m)" == "aarch64" ]]; then
           echo "Skipping cross installation - building natively"
         else
           cargo install cross --version 0.2.5 --force
@@ -62,7 +62,7 @@ runs:
     - name: Build Bundle CLI
       shell: bash
       run: |
-        if [[ "${{ inputs.os-name }}" == *"darwin"* ]] || [[ "${{ inputs.os-name }}" == *"windows"* ]] || [[ "${{ inputs.target }}" == *"aarch64"* && "$(uname -m)" == "aarch64" ]]; then
+        if [[ "${{ inputs.os-name }}" == *"darwin"* ]] || [[ "${{ inputs.target }}" == *"aarch64"* && "$(uname -m)" == "aarch64" ]]; then
           cargo build -p bundle --profile=release-with-debug --target=${{ inputs.target }} --features build-binary
         else
           cross build -p bundle --profile=release-with-debug --target=${{ inputs.target }} --features build-binary
@@ -71,7 +71,7 @@ runs:
     - name: Build XCResult CLI
       shell: bash
       run: |
-        if [[ "${{ inputs.os-name }}" == *"darwin"* ]] || [[ "${{ inputs.os-name }}" == *"windows"* ]] || [[ "${{ inputs.target }}" == *"aarch64"* && "$(uname -m)" == "aarch64" ]]; then
+        if [[ "${{ inputs.os-name }}" == *"darwin"* ]] || [[ "${{ inputs.target }}" == *"aarch64"* && "$(uname -m)" == "aarch64" ]]; then
           cargo build -p xcresult --profile=release-with-debug --target=${{ inputs.target }}
         else
           cross build -p xcresult --profile=release-with-debug --target=${{ inputs.target }}
@@ -80,7 +80,7 @@ runs:
     - name: Build Codeowners CLI
       shell: bash
       run: |
-        if [[ "${{ inputs.os-name }}" == *"darwin"* ]] || [[ "${{ inputs.os-name }}" == *"windows"* ]] || [[ "${{ inputs.target }}" == *"aarch64"* && "$(uname -m)" == "aarch64" ]]; then
+        if [[ "${{ inputs.os-name }}" == *"darwin"* ]] || [[ "${{ inputs.target }}" == *"aarch64"* && "$(uname -m)" == "aarch64" ]]; then
           cargo build -p codeowners --profile=release-with-debug --target=${{ inputs.target }}
         else
           cross build -p codeowners --profile=release-with-debug --target=${{ inputs.target }}

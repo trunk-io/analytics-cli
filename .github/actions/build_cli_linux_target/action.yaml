@@ -15,6 +15,7 @@ runs:
   steps:
     - name: Install musl deps
       shell: bash
+      if: ${{ contains(inputs.target, 'musl') }}
       run: |
         sudo apt-get update
         sudo apt-get install -y musl-tools
@@ -28,22 +29,30 @@ runs:
 
     - name: Strip debug info
       shell: bash
-      run: strip -s target/${{ inputs.target }}/${{ inputs.profile }}/trunk-analytics-cli
+      run: |
+        if [[ "${{ inputs.target }}" == *"windows-gnu"* ]]; then
+          # Windows binaries use .exe extension
+          x86_64-w64-mingw32-strip target/${{ inputs.target }}/${{ inputs.profile }}/trunk-analytics-cli.exe
+        else
+          strip -s target/${{ inputs.target }}/${{ inputs.profile }}/trunk-analytics-cli
+        fi
 
     - name: Install upx
       shell: bash
+      if: ${{ !contains(inputs.target, 'windows') }}
       run: |
         sudo apt-get install -y upx
 
     - name: Optimize CLI binary
       uses: ./.github/actions/optimize_cli_binary
+      if: ${{ !contains(inputs.target, 'windows') }}
       with:
         target: ${{ inputs.target }}
         profile: ${{ inputs.profile }}
 
     - name: Check dynamic deps
       shell: bash
-      if: ${{ inputs.target != 'x86_64-unknown-illumos' }}
+      if: ${{ inputs.target != 'x86_64-unknown-illumos' && !contains(inputs.target, 'windows') }}
       run: |
         # Confirm that the binary is statically linked
         set +e

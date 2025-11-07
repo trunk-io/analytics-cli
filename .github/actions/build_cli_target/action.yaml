@@ -20,16 +20,23 @@ runs:
       shell: bash
       run: rustup target add ${{ inputs.target }} --toolchain ${{ inputs.toolchain }}
 
+    - name: Install MinGW for Windows cross-compilation
+      shell: bash
+      if: ${{ contains(inputs.target, 'windows-gnu') }}
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y gcc-mingw-w64-x86-64
+
     - name: Install cross
       shell: bash
-      # Only install cross for non-darwin, non-windows targets
-      if: ${{ !contains(inputs.target, 'darwin') && !contains(inputs.target, 'windows') }}
+      # Install cross for all non-darwin targets (including Windows GNU)
+      if: ${{ !contains(inputs.target, 'darwin') }}
       run: cargo install cross --git https://github.com/cross-rs/cross --force
 
     - name: Build CLI ${{ inputs.target }} target
       uses: houseabsolute/actions-rust-cross@v1.0.1
-      # Cross-rs does not directly support cross compilation with macOS or Windows targets (when building natively)
-      if: ${{ !contains(inputs.target, 'darwin') && !contains(inputs.target, 'windows') }}
+      # Cross-rs does not directly support cross compilation with macOS targets
+      if: ${{ !contains(inputs.target, 'darwin') }}
       with:
         command: build
         target: ${{ inputs.target }}
@@ -40,7 +47,7 @@ runs:
 
     - name: Build CLI ${{ inputs.target }} target
       shell: bash
-      if: ${{ contains(inputs.target, 'darwin') || contains(inputs.target, 'windows') }}
+      if: ${{ contains(inputs.target, 'darwin') }}
       # NOTE: DO NOT BUILD WORKSPACE OTHERWISE THE CLI MAY BE LINKED TO UNNECESSARY LIBRARIES
       run: |
         cargo build -p trunk-analytics-cli --profile=${{ inputs.profile }} --target=${{ inputs.target }} ${{ (inputs.force-sentry-dev == 'true' && '--features force-sentry-env-dev') || '' }}
@@ -49,7 +56,7 @@ runs:
       shell: bash
       run: |
         # Windows binaries have .exe extension, Unix binaries don't
-        if [[ "${{ inputs.target }}" == *"windows"* ]]; then
+        if [[ "${{ inputs.target }}" == *"windows-gnu"* ]]; then
           cp target/${{ inputs.target }}/${{ inputs.profile }}/trunk-analytics-cli.exe target/${{ inputs.target }}/${{ inputs.profile }}/trunk-analytics-cli.debug.exe
         else
           cp target/${{ inputs.target }}/${{ inputs.profile }}/trunk-analytics-cli target/${{ inputs.target }}/${{ inputs.profile }}/trunk-analytics-cli.debug

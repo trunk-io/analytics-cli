@@ -44,8 +44,8 @@ jobs:
             target: aarch64-apple-darwin
 
           - os-name: windows-x86_64
-            runs-on: windows-latest
-            target: x86_64-pc-windows-msvc
+            runs-on: ubuntu-latest
+            target: x86_64-pc-windows-gnu
 
     runs-on: ${{ matrix.platform.runs-on }}
     steps:
@@ -98,17 +98,9 @@ jobs:
           profile: release
           force-sentry-dev: true
 
-      - name: Build windows target
-        uses: ./.github/actions/build_cli_windows_target
-        if: contains(matrix.platform.os-name, 'windows')
-        with:
-          target: ${{ matrix.platform.target }}
-          profile: release
-          force-sentry-dev: true
-
-      - name: Build unix target
+      - name: Build unix/Windows target
         uses: ./.github/actions/build_cli_linux_target
-        if: ${{ !contains(matrix.platform.os-name, 'darwin') && !contains(matrix.platform.os-name, 'windows') }}
+        if: ${{ !contains(matrix.platform.os-name, 'darwin') }}
         with:
           target: ${{ matrix.platform.target }}
           profile: release

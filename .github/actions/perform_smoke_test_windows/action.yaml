@@ -1,0 +1,112 @@
+name: Perform Smoke Test Windows
+description: Runs smoke tests on Windows using the built CLI binary
+
+inputs:
+  cli-binary-location:
+    description: Location for the cli binary, relative to current directory. Uses Windows binaries.
+    required: true
+  staging-api-token:
+    description: Api token for the trunk-staging-org org on trunk-staging (should be available in secrets)
+    required: true
+  production-api-token:
+    description: Api token for the trunk org on trunk (should be available in secrets)
+    required: true
+  environment-type:
+    description: staging if you only want to run for staging, production if you only want production, both for both
+    default: both
+
+outputs:
+  staging-success:
+    description: Whether staging tests succeeded
+    value: ${{ steps.staging-result.outputs.staging-success }}
+  production-success:
+    description: Whether production tests succeeded
+    value: ${{ steps.production-result.outputs.production-success }}
+
+runs:
+  using: composite
+  steps:
+    - name: Verify binary exists
+      id: verify-binary
+      shell: pwsh
+      run: |
+        if (-not (Test-Path "${{ inputs.cli-binary-location }}")) {
+          Write-Error "Binary not found at: ${{ inputs.cli-binary-location }}"
+          exit 1
+        }
+        Write-Host "Binary found at: ${{ inputs.cli-binary-location }}"
+        Get-Item "${{ inputs.cli-binary-location }}" | Select-Object Name, Length, LastWriteTime
+        $hash = Get-FileHash "${{ inputs.cli-binary-location }}" -Algorithm SHA256
+        Write-Host "SHA256: $($hash.Hash)"
+
+    - name: Run tests on staging
+      id: staging-test-run
+      if: always() && steps.verify-binary.outcome == 'success' && (inputs.environment-type == 'staging' || inputs.environment-type == 'both')
+      env:
+        TRUNK_PUBLIC_API_ADDRESS: https://api.trunk-staging.io
+        FAIL_TEST: true
+      shell: pwsh
+      run: |
+        $binaryPath = Resolve-Path "${{ inputs.cli-binary-location }}"
+        & $binaryPath test `
+        --org-url-slug trunk-staging-org `
+        --junit-paths "${{ github.workspace }}\target\**\*junit.xml" `
+        --token ${{ inputs.staging-api-token }} `
+        cargo nextest run -p smoke-test --profile ci
+
+    - name: Upload to staging
+      id: staging-upload
+      if: always() && steps.staging-test-run.outcome == 'success' && (inputs.environment-type == 'staging' || inputs.environment-type == 'both')
+      env:
+        TRUNK_PUBLIC_API_ADDRESS: https://api.trunk-staging.io
+      shell: pwsh
+      run: |
+        $binaryPath = Resolve-Path "${{ inputs.cli-binary-location }}"
+        & $binaryPath upload `
+        --org-url-slug trunk-staging-org `
+        --junit-paths "${{ github.workspace }}\target\**\*junit.xml" `
+        --token ${{ inputs.staging-api-token }}
+
+    - name: Staging result
+      id: staging-result
+      if: always()
+      shell: pwsh
+      run: |
+        $success = (${{ steps.staging-upload.outcome }} -eq 'success' -and ('${{ inputs.environment-type }}' -eq 'staging' -or '${{ inputs.environment-type }}' -eq 'both')) -or '${{ inputs.environment-type }}' -eq 'production'
+        Write-Host "staging-success=$success" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+    - name: Run tests on production
+      id: production-test-run
+      if: always() && steps.verify-binary.outcome == 'success' && (inputs.environment-type == 'production' || inputs.environment-type == 'both')
+      env:
+        TRUNK_PUBLIC_API_ADDRESS: https://api.trunk.io
+        FAIL_TEST: true
+      shell: pwsh
+      run: |
+        $binaryPath = Resolve-Path "${{ inputs.cli-binary-location }}"
+        & $binaryPath test `
+        --org-url-slug trunk `
+        --junit-paths "${{ github.workspace }}\target\**\*junit.xml" `
+        --token ${{ inputs.production-api-token }} `
+        cargo nextest run -p smoke-test --profile ci
+
+    - name: Upload to production
+      id: production-upload
+      if: always() && steps.production-test-run.outcome == 'success' && (inputs.environment-type == 'production' || inputs.environment-type == 'both')
+      env:
+        TRUNK_PUBLIC_API_ADDRESS: https://api.trunk.io
+      shell: pwsh
+      run: |
+        $binaryPath = Resolve-Path "${{ inputs.cli-binary-location }}"
+        & $binaryPath upload `
+        --org-url-slug trunk `
+        --junit-paths "${{ github.workspace }}\target\**\*junit.xml" `
+        --token ${{ inputs.production-api-token }}
+
+    - name: Production result
+      id: production-result
+      if: always()
+      shell: pwsh
+      run: |
+        $success = (${{ steps.production-upload.outcome }} -eq 'success' -and ('${{ inputs.environment-type }}' -eq 'production' -or '${{ inputs.environment-type }}' -eq 'both')) -or '${{ inputs.environment-type }}' -eq 'staging'
+        Write-Host "production-success=$success" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
