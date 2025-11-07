@@ -48,13 +48,22 @@ runs:
       working-directory: ${{ github.action_path }}
       run: |
         gem install rspec
-        gem install rspec_trunk_flaky_tests-*.gem --local
-        gem unpack rspec_trunk_flaky_tests* --spec --target=rspec_trunk_flaky_tests
-        gem unpack rspec_trunk_flaky_tests* --target=rspec_trunk_flaky_tests
+        GEM_FILE=$(ls rspec_trunk_flaky_tests-*.gem | head -n 1)
+        echo "Using gem file: ${GEM_FILE}"
+
+        # Extract version from gem filename (e.g., rspec_trunk_flaky_tests-0.0.0-b75353b-x86_64-linux.gem)
+        GEM_VERSION=$(echo "${GEM_FILE}" | sed -n 's/rspec_trunk_flaky_tests-\(.*\)-x86_64-linux\.gem/\1/p')
+        echo "Extracted version: ${GEM_VERSION}"
+
+        gem install "${GEM_FILE}" --local
+        # Unpack the specific gem file directly, not from installed gems
+        mkdir -p rspec_trunk_flaky_tests
+        gem unpack "${GEM_FILE}" --spec --target=rspec_trunk_flaky_tests
+        gem unpack "${GEM_FILE}" --target=rspec_trunk_flaky_tests
         mv rspec_trunk_flaky_tests/rspec_trunk_flaky_tests*/lib rspec_trunk_flaky_tests/lib
         bundle install
         bundle lock --remove-platform ruby || true
-        echo "gem 'rspec_trunk_flaky_tests', :path => './rspec_trunk_flaky_tests'" >> Gemfile
+        echo "gem 'rspec_trunk_flaky_tests', '${GEM_VERSION}', :path => './rspec_trunk_flaky_tests'" >> Gemfile
         bundle install --gemfile Gemfile --local
         bundle exec rspec spec/test_spec.rb
       env:

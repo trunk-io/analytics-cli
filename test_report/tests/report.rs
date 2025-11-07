@@ -2,11 +2,19 @@ use std::{env, fs, io::BufReader, path::Path, thread};
 
 use assert_matches::assert_matches;
 use bundle::{BundleMeta, FileSetType};
+use constants::{
+    TRUNK_ALLOW_EMPTY_TEST_RESULTS_ENV, TRUNK_API_TOKEN_ENV, TRUNK_CODEOWNERS_PATH_ENV,
+    TRUNK_DISABLE_QUARANTINING_ENV, TRUNK_DRY_RUN_ENV, TRUNK_ORG_URL_SLUG_ENV,
+    TRUNK_PUBLIC_API_ADDRESS_ENV, TRUNK_REPO_HEAD_AUTHOR_NAME_ENV, TRUNK_REPO_HEAD_BRANCH_ENV,
+    TRUNK_REPO_HEAD_COMMIT_EPOCH_ENV, TRUNK_REPO_HEAD_SHA_ENV, TRUNK_REPO_URL_ENV,
+    TRUNK_USE_UNCLONED_REPO_ENV, TRUNK_VARIANT_ENV,
+};
 use context::repo::RepoUrlParts;
 use prost::Message;
 use prost_wkt_types::Timestamp;
 use proto::test_context::test_run::TestCaseRunStatus;
 use proto::test_context::test_run::TestReport;
+use serial_test::serial;
 use tempfile::tempdir;
 use test_report::report::{MutTestReport, Status};
 use test_utils::mock_git_repo::setup_repo_with_commit;
@@ -21,6 +29,7 @@ pub fn generate_mock_codeowners<T: AsRef<Path>>(directory: T) {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+#[serial]
 async fn publish_test_report() {
     let temp_dir = tempdir().unwrap();
     let repo_setup_res = setup_repo_with_commit(&temp_dir);
@@ -29,11 +38,11 @@ async fn publish_test_report() {
     let set_current_dir_res = env::set_current_dir(&temp_dir);
     assert!(set_current_dir_res.is_ok());
     let state = MockServerBuilder::new().spawn_mock_server().await;
-    env::set_var("TRUNK_PUBLIC_API_ADDRESS", &state.host);
+    env::set_var(TRUNK_PUBLIC_API_ADDRESS_ENV, &state.host);
     env::set_var("CI", "1");
     env::set_var("GITHUB_JOB", "test-job");
-    env::set_var("TRUNK_API_TOKEN", "test-token");
-    env::set_var("TRUNK_ORG_URL_SLUG", "test-org");
+    env::set_var(TRUNK_API_TOKEN_ENV, "test-token");
+    env::set_var(TRUNK_ORG_URL_SLUG_ENV, "test-org");
 
     let thread_join_handle = thread::spawn(|| {
         let test_report = MutTestReport::new(
@@ -205,6 +214,13 @@ async fn publish_test_report() {
     assert!(test_case_run.is_quarantined);
     assert_eq!(test_case_run.status_output_message, "test-message");
     assert_eq!(test_case_run.codeowners.len(), 2);
+
+    // Clean up environment variables to avoid interfering with subsequent tests
+    env::remove_var(TRUNK_PUBLIC_API_ADDRESS_ENV);
+    env::remove_var(TRUNK_API_TOKEN_ENV);
+    env::remove_var(TRUNK_ORG_URL_SLUG_ENV);
+    env::remove_var("CI");
+    env::remove_var("GITHUB_JOB");
 }
 
 #[test]
@@ -227,4 +243,219 @@ fn test_mut_test_report_try_save() {
     assert_eq!(deserialized.test_results.len(), 1);
     let test_result = &deserialized.test_results[0];
     assert_eq!(test_result.test_case_runs.len(), 0);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[serial]
+async fn test_environment_variable_overrides() {
+    let temp_dir = tempdir().unwrap();
+    generate_mock_codeowners(&temp_dir);
+
+    // Set current directory to a safe location first (in case previous test left it in a bad state)
+    let _ = env::set_current_dir(&temp_dir);
+
+    let state = MockServerBuilder::new().spawn_mock_server().await;
+
+    // Save original directory to restore later (or use a safe fallback if current dir is invalid)
+    let original_dir = env::current_dir().unwrap_or_else(|_| {
+        // If current directory is invalid (e.g., deleted by previous test), use /tmp
+        std::path::PathBuf::from("/tmp")
+    });
+
+    // Set all TRUNK_* environment variables to override defaults
+    env::set_var(TRUNK_PUBLIC_API_ADDRESS_ENV, &state.host);
+    env::set_var(TRUNK_API_TOKEN_ENV, "test-token");
+    env::set_var(TRUNK_ORG_URL_SLUG_ENV, "test-org");
+    // Don't set TRUNK_REPO_ROOT when using uncloned repo mode as they conflict
+    env::set_var(
+        TRUNK_REPO_URL_ENV,
+        "https://github.com/test-org/test-repo.git",
+    );
+    env::set_var(TRUNK_REPO_HEAD_SHA_ENV, "abc123def456789");
+    env::set_var(TRUNK_REPO_HEAD_BRANCH_ENV, "feature-branch");
+    env::set_var(TRUNK_REPO_HEAD_COMMIT_EPOCH_ENV, "1234567890");
+    env::set_var(TRUNK_REPO_HEAD_AUTHOR_NAME_ENV, "Test Author");
+    env::set_var(TRUNK_VARIANT_ENV, "env-variant");
+    env::set_var(TRUNK_USE_UNCLONED_REPO_ENV, "true");
+    env::set_var(TRUNK_DISABLE_QUARANTINING_ENV, "true");
+    env::set_var(TRUNK_ALLOW_EMPTY_TEST_RESULTS_ENV, "false");
+    env::set_var(TRUNK_DRY_RUN_ENV, "false");
+    env::set_var(
+        TRUNK_CODEOWNERS_PATH_ENV,
+        temp_dir.path().join("CODEOWNERS").to_str().unwrap(),
+    );
+    env::set_var("CI", "1");
+    env::set_var("GITHUB_JOB", "test-job");
+
+    let thread_join_handle = thread::spawn(|| {
+        let test_report = MutTestReport::new(
+            "test".into(),
+            "test-command with env overrides".into(),
+            None, // No variant passed to constructor - should use env var
+        );
+        test_report.add_test(
+            Some("env-test-1".into()),
+            "test-name-env".into(),
+            "test-classname".into(),
+            "test-file".into(),
+            "test-parent-name".into(),
+            None,
+            Status::Success,
+            0,
+            1000,
+            1001,
+            "test-message".into(),
+            false,
+        );
+        let result = test_report.publish();
+        assert!(result, "publish should succeed with environment overrides");
+    });
+    thread_join_handle.join().unwrap();
+
+    let requests = state.requests.lock().unwrap().clone();
+    // Should have: CreateBundleUpload, S3Upload, TelemetryUploadMetrics
+    assert!(requests.len() >= 2, "Expected at least 2 requests");
+
+    let mut requests_iter = requests.iter();
+    assert_matches!(&requests_iter.next().unwrap(), RequestPayload::CreateBundleUpload(d) => d);
+
+    let tar_extract_directory =
+        assert_matches!(&requests_iter.next().unwrap(), RequestPayload::S3Upload(d) => d);
+
+    let file = fs::File::open(tar_extract_directory.join("meta.json")).unwrap();
+    let reader = BufReader::new(file);
+    let bundle_meta: BundleMeta = serde_json::from_reader(reader).unwrap();
+    let base_props = bundle_meta.base_props;
+
+    // Verify environment variable overrides were applied
+    assert_eq!(base_props.org, "test-org");
+    assert_eq!(
+        base_props.repo.repo_url,
+        "https://github.com/test-org/test-repo.git"
+    );
+    assert_eq!(base_props.repo.repo_head_sha, "abc123def456789");
+    assert_eq!(
+        base_props.repo.repo_head_sha_short,
+        Some("abc123d".to_string())
+    );
+    assert_eq!(base_props.repo.repo_head_branch, "feature-branch");
+    assert_eq!(base_props.repo.repo_head_commit_epoch, 1234567890);
+    assert_eq!(base_props.repo.repo_head_author_name, "Test Author");
+    assert_eq!(
+        base_props.test_command,
+        Some("test-command with env overrides".into())
+    );
+
+    // Verify repo parts were parsed correctly
+    assert_eq!(
+        base_props.repo.repo,
+        RepoUrlParts {
+            host: "github.com".into(),
+            owner: "test-org".into(),
+            name: "test-repo".into()
+        }
+    );
+
+    // Verify variant from environment variable
+    let bundled_file = base_props.file_sets.first().unwrap().files.first().unwrap();
+    let bin = fs::read(tar_extract_directory.join(&bundled_file.path)).unwrap();
+    let report = TestReport::decode(&*bin).unwrap();
+    let test_result = report.test_results.first().unwrap();
+    // trunk-ignore(clippy/deprecated)
+    if let Some(uploader_metadata) = &test_result.uploader_metadata {
+        assert_eq!(uploader_metadata.variant, "env-variant");
+    }
+
+    // Clean up environment variables
+    env::remove_var(TRUNK_PUBLIC_API_ADDRESS_ENV);
+    env::remove_var(TRUNK_API_TOKEN_ENV);
+    env::remove_var(TRUNK_ORG_URL_SLUG_ENV);
+    env::remove_var(TRUNK_REPO_URL_ENV);
+    env::remove_var(TRUNK_REPO_HEAD_SHA_ENV);
+    env::remove_var(TRUNK_REPO_HEAD_BRANCH_ENV);
+    env::remove_var(TRUNK_REPO_HEAD_COMMIT_EPOCH_ENV);
+    env::remove_var(TRUNK_REPO_HEAD_AUTHOR_NAME_ENV);
+    env::remove_var(TRUNK_VARIANT_ENV);
+    env::remove_var(TRUNK_USE_UNCLONED_REPO_ENV);
+    env::remove_var(TRUNK_DISABLE_QUARANTINING_ENV);
+    env::remove_var(TRUNK_ALLOW_EMPTY_TEST_RESULTS_ENV);
+    env::remove_var(TRUNK_DRY_RUN_ENV);
+    env::remove_var(TRUNK_CODEOWNERS_PATH_ENV);
+    env::remove_var("CI");
+    env::remove_var("GITHUB_JOB");
+
+    // Restore original directory
+    let _ = env::set_current_dir(original_dir);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[serial]
+async fn test_variant_priority_constructor_over_env() {
+    let temp_dir = tempdir().unwrap();
+    generate_mock_codeowners(&temp_dir);
+
+    // Set current directory to a safe location first (in case previous test left it in a bad state)
+    let _ = env::set_current_dir(&temp_dir);
+
+    let state = MockServerBuilder::new().spawn_mock_server().await;
+
+    // Save original directory to restore later (or use a safe fallback if current dir is invalid)
+    let original_dir = env::current_dir().unwrap_or_else(|_| {
+        // If current directory is invalid (e.g., deleted by previous test), use /tmp
+        std::path::PathBuf::from("/tmp")
+    });
+
+    // Set environment variables
+    env::set_var(TRUNK_PUBLIC_API_ADDRESS_ENV, &state.host);
+    env::set_var(TRUNK_API_TOKEN_ENV, "test-token");
+    env::set_var(TRUNK_ORG_URL_SLUG_ENV, "test-org");
+    env::set_var(
+        TRUNK_REPO_URL_ENV,
+        "https://github.com/test-org/test-repo.git",
+    );
+    env::set_var(TRUNK_REPO_HEAD_SHA_ENV, "abc123def456789");
+    env::set_var(TRUNK_REPO_HEAD_BRANCH_ENV, "feature-branch");
+    env::set_var(TRUNK_REPO_HEAD_AUTHOR_NAME_ENV, "Test Author");
+    env::set_var(TRUNK_VARIANT_ENV, "env-variant");
+    env::set_var(TRUNK_USE_UNCLONED_REPO_ENV, "true");
+    env::set_var("CI", "1");
+    env::set_var("GITHUB_JOB", "test-job");
+
+    let thread_join_handle = thread::spawn(|| {
+        let test_report = MutTestReport::new(
+            "test".into(),
+            "test-command".into(),
+            Some("constructor-variant".into()), // Constructor variant should take precedence
+        );
+        test_report.add_test(
+            Some("priority-test-1".into()),
+            "test-name".into(),
+            "test-classname".into(),
+            "test-file".into(),
+            "test-parent-name".into(),
+            None,
+            Status::Success,
+            0,
+            1000,
+            1001,
+            "test-message".into(),
+            false,
+        );
+        let result = test_report.publish();
+        assert!(result, "publish should succeed");
+    });
+    thread_join_handle.join().unwrap();
+
+    let requests = state.requests.lock().unwrap().clone();
+    assert!(requests.len() >= 2);
+
+    let mut requests_iter = requests.iter();
+    assert_matches!(
+        &requests_iter.next().unwrap(),
+        RequestPayload::CreateBundleUpload(_)
+    );
+
+    assert_matches!(&requests_iter.next().unwrap(), RequestPayload::S3Upload(d) => d);
+    // Restore original directory
+    let _ = env::set_current_dir(original_dir);
 }
