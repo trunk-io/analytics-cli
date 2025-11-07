@@ -1,0 +1,97 @@
+name: Perform Smoke Test on Windows
+description: Runs the actual smoke tests on Windows
+
+inputs:
+  cli-binary-location:
+    description: Location for the cli binary, relative to current directory. Uses Windows binaries.
+  staging-api-token:
+    description: Api token for the trunk-staging-org org on trunk-staging (should be available in secrets)
+  production-api-token:
+    description: Api token for the trunk org on trunk (should be available in secrets)
+  environment-type:
+    description: staging if you only want to run for staging, production if you only want production, both for both
+
+outputs:
+  production-success:
+    description: True if we ran and uploaded to production
+    value: ${{ steps.production-result.outputs.production-success }}
+  staging-success:
+    description: True if we ran and uploaded to staging
+    value: ${{ steps.staging-result.outputs.staging-success }}
+
+runs:
+  using: composite
+  steps:
+    - name: Verify Windows Executable
+      id: verify-exe
+      shell: pwsh
+      run: |
+        Get-FileHash -Algorithm SHA256 ${{ inputs.cli-binary-location }}
+        Get-Item ${{ inputs.cli-binary-location }}
+
+    - name: Run tests on staging (Windows)
+      id: staging-test-run
+      if: always() && steps.verify-exe.outcome == 'success' && (inputs.environment-type == 'staging' || inputs.environment-type == 'both')
+      env:
+        TRUNK_PUBLIC_API_ADDRESS: https://api.trunk-staging.io
+        FAIL_TEST: true
+      shell: pwsh
+      run: |
+        & .\${{ inputs.cli-binary-location }} test `
+        --org-url-slug trunk-staging-org `
+        --junit-paths ${{ github.workspace }}/target/**/*junit.xml `
+        --token ${{ inputs.staging-api-token }} `
+        cargo nextest run -p smoke-test --profile ci
+
+    - name: Upload to staging (Windows)
+      id: staging-upload
+      if: always() && steps.staging-test-run.outcome == 'success' && (inputs.environment-type == 'staging' || inputs.environment-type == 'both')
+      env:
+        TRUNK_PUBLIC_API_ADDRESS: https://api.trunk-staging.io
+      shell: pwsh
+      run: |
+        & .\${{ inputs.cli-binary-location }} upload `
+        --org-url-slug trunk-staging-org `
+        --junit-paths ${{ github.workspace }}/target/**/*junit.xml `
+        --token ${{ inputs.staging-api-token }}
+
+    - name: Staging result
+      id: staging-result
+      if: always()
+      shell: pwsh
+      run: |
+        "staging-success=${{ (steps.staging-upload.outcome == 'success' && (inputs.environment-type == 'staging' || inputs.environment-type == 'both')) || inputs.environment-type == 'production' }}" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
+    - name: Run tests on production (Windows)
+      id: production-test-run
+      if: always() && steps.verify-exe.outcome == 'success' && (inputs.environment-type == 'production' || inputs.environment-type == 'both')
+      env:
+        TRUNK_PUBLIC_API_ADDRESS: https://api.trunk.io
+        FAIL_TEST: true
+      shell: pwsh
+      run: |
+        & .\${{ inputs.cli-binary-location }} test `
+        --org-url-slug trunk `
+        --junit-paths ${{ github.workspace }}/target/**/*junit.xml `
+        --token ${{ inputs.production-api-token }} `
+        cargo nextest run -p smoke-test --profile ci
+
+    - name: Upload to production (Windows)
+      id: production-upload
+      if: always() && steps.production-test-run.outcome == 'success' && (inputs.environment-type == 'production' || inputs.environment-type == 'both')
+      env:
+        TRUNK_PUBLIC_API_ADDRESS: https://api.trunk.io
+      shell: pwsh
+      run: |
+        & .\${{ inputs.cli-binary-location }} upload `
+        --org-url-slug trunk `
+        --junit-paths ${{ github.workspace }}/target/**/*junit.xml `
+        --token ${{ inputs.production-api-token }}
+
+    - name: Production result
+      id: production-result
+      if: always()
+      shell: pwsh
+      run: |
+        "production-success=${{ (steps.production-upload.outcome == 'success' && (inputs.environment-type == 'production' || inputs.environment-type == 'both')) || inputs.environment-type == 'staging' }}" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
