@@ -72,7 +72,9 @@ runs:
       if: always()
       shell: pwsh
       run: |
-        $success = (${{ steps.staging-upload.outcome }} -eq 'success' -and ('${{ inputs.environment-type }}' -eq 'staging' -or '${{ inputs.environment-type }}' -eq 'both')) -or '${{ inputs.environment-type }}' -eq 'production'
+        $uploadOutcome = '${{ steps.staging-upload.outcome }}'
+        $envType = '${{ inputs.environment-type }}'
+        $success = ($uploadOutcome -eq 'success' -and ($envType -eq 'staging' -or $envType -eq 'both')) -or $envType -eq 'production'
         Write-Host "staging-success=$success" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
 
     - name: Run tests on production
@@ -108,5 +110,7 @@ runs:
       if: always()
       shell: pwsh
       run: |
-        $success = (${{ steps.production-upload.outcome }} -eq 'success' -and ('${{ inputs.environment-type }}' -eq 'production' -or '${{ inputs.environment-type }}' -eq 'both')) -or '${{ inputs.environment-type }}' -eq 'staging'
+        $uploadOutcome = '${{ steps.production-upload.outcome }}'
+        $envType = '${{ inputs.environment-type }}'
+        $success = ($uploadOutcome -eq 'success' -and ($envType -eq 'production' -or $envType -eq 'both')) -or $envType -eq 'staging'
         Write-Host "production-success=$success" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
