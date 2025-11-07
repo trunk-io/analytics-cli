@@ -1,5 +1,9 @@
+---
 name: Build CLI Target
-description: Build release binary for target. An uncompressed binary with debug info is created as trunk-analytics-cli.debug, and a stripped, compressed binary is created as trunk-analytics-cli.
+description: >-
+  Build release binary for target. An uncompressed binary with debug info is
+  created as trunk-analytics-cli.debug, and a stripped, compressed binary is
+  created as trunk-analytics-cli.
 
 inputs:
   target:
@@ -10,7 +14,9 @@ inputs:
     description: Rust toolchain to use, e.g. nightly
     default: nightly
   force-sentry-dev:
-    description: Force sentry to use a devenv (set to true for testing, but not for releases)
+    description: >-
+      Force sentry to use a devenv (set to true for testing, but not for
+      releases)
     default: false
 
 runs:
@@ -18,37 +24,55 @@ runs:
   steps:
     - name: Add target
       shell: bash
-      run: rustup target add ${{ inputs.target }} --toolchain ${{ inputs.toolchain }}
+      run: >-
+        rustup target add ${{ inputs.target }} --toolchain ${{ inputs.toolchain }}
 
     - name: Install cross
       shell: bash
-      run: cargo install cross --git https://github.com/cross-rs/cross --force
+      run: >-
+        cargo install cross --git https://github.com/cross-rs/cross --force
 
     - name: Build CLI ${{ inputs.target }} target
       uses: houseabsolute/actions-rust-cross@v1.0.1
-      # Cross-rs does not directly support cross compilation with macOS and Windows targets
-      if: ${{ !contains(inputs.target, 'darwin') && !contains(inputs.target, 'windows') }}
+      # Cross-rs does not directly support cross compilation with macOS and Windows
+      # targets
+      if: >-
+        ${{ !contains(inputs.target, 'darwin') &&
+        !contains(inputs.target, 'windows') }}
       with:
         command: build
         target: ${{ inputs.target }}
         toolchain: ${{ inputs.toolchain }}
-        # NOTE: DO NOT BUILD WORKSPACE OTHERWISE THE CLI MAY BE LINKED TO UNNECESSARY LIBRARIES
-        args: "-p trunk-analytics-cli --profile=${{ inputs.profile }} --target=${{ inputs.target }} ${{ (inputs.force-sentry-dev == 'true' && '--features force-sentry-env-dev') || '' }}"
+        # NOTE: DO NOT BUILD WORKSPACE OTHERWISE THE CLI MAY BE LINKED TO
+        # UNNECESSARY LIBRARIES
+        args: >-
+          -p trunk-analytics-cli --profile=${{ inputs.profile }}
+          --target=${{ inputs.target }}
+          ${{ (inputs.force-sentry-dev == 'true' &&
+          '--features force-sentry-env-dev') || '' }}
         use-rust-cache: false
 
     - name: Build CLI ${{ inputs.target }} target
       shell: bash
       if: ${{ contains(inputs.target, 'darwin') }}
-      # NOTE: DO NOT BUILD WORKSPACE OTHERWISE THE CLI MAY BE LINKED TO UNNECESSARY LIBRARIES
-      run: |
-        cargo build -p trunk-analytics-cli --profile=${{ inputs.profile }} --target=${{ inputs.target }} ${{ (inputs.force-sentry-dev == 'true' && '--features force-sentry-env-dev') || '' }}
+      # NOTE: DO NOT BUILD WORKSPACE OTHERWISE THE CLI MAY BE LINKED TO
+      # UNNECESSARY LIBRARIES
+      run: >-
+        cargo build -p trunk-analytics-cli --profile=${{ inputs.profile }}
+        --target=${{ inputs.target }}
+        ${{ (inputs.force-sentry-dev == 'true' &&
+        '--features force-sentry-env-dev') || '' }}
 
     - name: Build CLI ${{ inputs.target }} target
       shell: bash
       if: ${{ contains(inputs.target, 'windows') }}
-      # NOTE: DO NOT BUILD WORKSPACE OTHERWISE THE CLI MAY BE LINKED TO UNNECESSARY LIBRARIES
-      run: |
-        cargo build -p trunk-analytics-cli --profile=${{ inputs.profile }} --target=${{ inputs.target }} ${{ (inputs.force-sentry-dev == 'true' && '--features force-sentry-env-dev') || '' }}
+      # NOTE: DO NOT BUILD WORKSPACE OTHERWISE THE CLI MAY BE LINKED TO
+      # UNNECESSARY LIBRARIES
+      run: >-
+        cargo build -p trunk-analytics-cli --profile=${{ inputs.profile }}
+        --target=${{ inputs.target }}
+        ${{ (inputs.force-sentry-dev == 'true' &&
+        '--features force-sentry-env-dev') || '' }}
       env:
         OPENSSL_STATIC: 1
         OPENSSL_NO_VENDOR: 1
@@ -57,7 +81,9 @@ runs:
       shell: bash
       run: |
         if [[ "${{ inputs.target }}" == *"windows"* ]]; then
-          cp target/${{ inputs.target }}/${{ inputs.profile }}/trunk-analytics-cli.exe target/${{ inputs.target }}/${{ inputs.profile }}/trunk-analytics-cli.debug.exe
+          cp target/${{ inputs.target }}/${{ inputs.profile }}/trunk-analytics-cli.exe \
+            target/${{ inputs.target }}/${{ inputs.profile }}/trunk-analytics-cli.debug.exe
         else
-          cp target/${{ inputs.target }}/${{ inputs.profile }}/trunk-analytics-cli target/${{ inputs.target }}/${{ inputs.profile }}/trunk-analytics-cli.debug
+          cp target/${{ inputs.target }}/${{ inputs.profile }}/trunk-analytics-cli \
+            target/${{ inputs.target }}/${{ inputs.profile }}/trunk-analytics-cli.debug
         fi

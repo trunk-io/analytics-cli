@@ -1,3 +1,4 @@
+---
 name: Release Analytics CLI
 on:
   workflow_dispatch:
@@ -41,12 +42,12 @@ jobs:
             runs-on: macos-latest
             target: aarch64-apple-darwin
             artifact-name: aarch64-apple-darwin
-            
+
           - os-name: windows-x86_64-msvc
             runs-on: windows-latest
             target: x86_64-pc-windows-msvc
             artifact-name: x86_64-pc-windows-msvc
-            
+
           - os-name: windows-x86_64-gnu
             runs-on: ubuntu-latest
             target: x86_64-pc-windows-gnu
@@ -96,7 +97,9 @@ jobs:
 
       - name: Build unix target
         uses: ./.github/actions/build_cli_linux_target
-        if: "!contains(matrix.platform.os-name, 'darwin') && !contains(matrix.platform.os-name, 'windows')"
+        if: >-
+          !contains(matrix.platform.os-name, 'darwin') &&
+          !contains(matrix.platform.os-name, 'windows')
         with:
           target: ${{ matrix.platform.target }}
           profile: release-with-debug
@@ -130,15 +133,17 @@ jobs:
         if: "!contains(matrix.platform.os-name, 'windows')"
         with:
           name: ${{ matrix.platform.artifact-name }}
-          path: target/${{ matrix.platform.target }}/release-with-debug/trunk-analytics-cli
+          path: >-
+            target/${{ matrix.platform.target }}/release-with-debug/trunk-analytics-cli
           if-no-files-found: error
-          
+
       - name: Upload main CLI artifact (Windows)
         uses: actions/upload-artifact@v4
         if: contains(matrix.platform.os-name, 'windows')
         with:
           name: ${{ matrix.platform.artifact-name }}
-          path: target/${{ matrix.platform.target }}/release-with-debug/trunk-analytics-cli.exe
+          path: >-
+            target/${{ matrix.platform.target }}/release-with-debug/trunk-analytics-cli.exe
           if-no-files-found: error
 
       #########################################################
@@ -146,15 +151,20 @@ jobs:
       #########################################################
       - name: Upload Bundle CLI artifact (non-Windows)
         uses: actions/upload-artifact@v4
-        if: matrix.platform.target != 'x86_64-unknown-illumos' && !contains(matrix.platform.os-name, 'windows')
+        if: >-
+          matrix.platform.target != 'x86_64-unknown-illumos' &&
+          !contains(matrix.platform.os-name, 'windows')
         with:
           name: ${{ matrix.platform.artifact-name }}-bundle
-          path: target/${{ matrix.platform.target }}/release-with-debug/proto-bin-to-json
+          path: >-
+            target/${{ matrix.platform.target }}/release-with-debug/proto-bin-to-json
           if-no-files-found: error
 
       - name: Upload Bundle CLI artifact (Windows)
         uses: actions/upload-artifact@v4
-        if: matrix.platform.target != 'x86_64-unknown-illumos' && contains(matrix.platform.os-name, 'windows')
+        if: >-
+          matrix.platform.target != 'x86_64-unknown-illumos' &&
+          contains(matrix.platform.os-name, 'windows')
         with:
           name: ${{ matrix.platform.artifact-name }}-bundle
           path: target/${{ matrix.platform.target }}/release-with-debug/proto-bin-to-json.exe
@@ -162,26 +172,35 @@ jobs:
 
       - name: Upload XCResult CLI artifact (non-Windows)
         uses: actions/upload-artifact@v4
-        if: matrix.platform.target != 'x86_64-unknown-illumos' && !contains(matrix.platform.os-name, 'windows')
+        if: >-
+          matrix.platform.target != 'x86_64-unknown-illumos' &&
+          !contains(matrix.platform.os-name, 'windows')
         with:
           name: ${{ matrix.platform.artifact-name }}-xcresult
-          path: target/${{ matrix.platform.target }}/release-with-debug/xcresult-to-junit
+          path: >-
+            target/${{ matrix.platform.target }}/release-with-debug/xcresult-to-junit
           if-no-files-found: error
 
       - name: Upload XCResult CLI artifact (Windows)
         uses: actions/upload-artifact@v4
-        if: matrix.platform.target != 'x86_64-unknown-illumos' && contains(matrix.platform.os-name, 'windows')
+        if: >-
+          matrix.platform.target != 'x86_64-unknown-illumos' &&
+          contains(matrix.platform.os-name, 'windows')
         with:
           name: ${{ matrix.platform.artifact-name }}-xcresult
-          path: target/${{ matrix.platform.target }}/release-with-debug/xcresult-to-junit.exe
+          path: >-
+            target/${{ matrix.platform.target }}/release-with-debug/xcresult-to-junit.exe
           if-no-files-found: error
 
       - name: Upload Codeowners CLI artifact (non-Windows)
         uses: actions/upload-artifact@v4
-        if: matrix.platform.target != 'x86_64-unknown-illumos' && !contains(matrix.platform.os-name, 'windows')
+        if: >-
+          matrix.platform.target != 'x86_64-unknown-illumos' &&
+          !contains(matrix.platform.os-name, 'windows')
         with:
           name: ${{ matrix.platform.artifact-name }}-codeowners
-          path: target/${{ matrix.platform.target }}/release-with-debug/check-codeowners
+          path: >-
+            target/${{ matrix.platform.target }}/release-with-debug/check-codeowners
           if-no-files-found: error
 
       - name: Upload Codeowners CLI artifact (Windows)
@@ -232,7 +251,7 @@ jobs:
           cli-binary-location: trunk-analytics-cli/trunk-analytics-cli
           staging-api-token: ${{ secrets.TRUNK_STAGING_ORG_API_TOKEN }}
           production-api-token: ${{ secrets.TRUNK_PROD_ORG_API_TOKEN }}
-          
+
       - name: Run Smoke Tests (Windows MSVC)
         uses: ./.github/actions/perform_smoke_test
         if: matrix.type.name == 'windows-msvc'
@@ -240,7 +259,7 @@ jobs:
           cli-binary-location: trunk-analytics-cli/trunk-analytics-cli.exe
           staging-api-token: ${{ secrets.TRUNK_STAGING_ORG_API_TOKEN }}
           production-api-token: ${{ secrets.TRUNK_PROD_ORG_API_TOKEN }}
-          
+
       - name: Run Smoke Tests (Windows GNU)
         uses: ./.github/actions/perform_smoke_test
         if: matrix.type.name == 'windows-gnu'

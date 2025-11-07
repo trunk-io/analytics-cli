@@ -1,3 +1,4 @@
+---
 name: Build CLI Windows Target
 description: Build release binary for Windows target.
 
@@ -7,7 +8,9 @@ inputs:
   profile:
     description: Rust profile to build, e.g. release-with-debug
   force-sentry-dev:
-    description: Force sentry to use a devenv (set to true for testing, but not for releases)
+    description: >-
+      Force sentry to use a devenv (set to true for testing, but not for
+      releases)
     default: false
 
 runs:
@@ -17,7 +20,8 @@ runs:
       shell: pwsh
       run: |
         vcpkg install openssl:x64-windows-static
-        echo "OPENSSL_DIR=$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows-static" >> $env:GITHUB_ENV
+        echo "OPENSSL_DIR=$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows-static" `
+          >> $env:GITHUB_ENV
         echo "OPENSSL_STATIC=1" >> $env:GITHUB_ENV
         echo "OPENSSL_NO_VENDOR=1" >> $env:GITHUB_ENV
 
@@ -35,7 +39,8 @@ runs:
     - name: Check binary exists
       shell: pwsh
       run: |
-        $binaryPath = "target/${{ inputs.target }}/${{ inputs.profile }}/trunk-analytics-cli.exe"
+        $binaryPath = "target/${{ inputs.target }}/${{ inputs.profile }}/" +
+          "trunk-analytics-cli.exe"
         if (!(Test-Path $binaryPath)) {
           Write-Error "Binary not found at $binaryPath"
           exit 1
