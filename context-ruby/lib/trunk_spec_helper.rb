@@ -1,5 +1,32 @@
 # frozen_string_literal: true
 
+# Trunk RSpec Helper
+#
+# This helper integrates Trunk Flaky Tests with RSpec to automatically
+# quarantine flaky tests and upload test results.
+#
+# Required environment variables:
+#   TRUNK_ORG_URL_SLUG - Your organization's URL slug
+#   TRUNK_API_TOKEN - Your API token for authentication
+#
+# Optional environment variables for repository metadata:
+#   TRUNK_REPO_ROOT - Path to repository root
+#   TRUNK_REPO_URL - Repository URL (e.g., https://github.com/org/repo.git)
+#   TRUNK_REPO_HEAD_SHA - HEAD commit SHA
+#   TRUNK_REPO_HEAD_BRANCH - HEAD branch name
+#   TRUNK_REPO_HEAD_COMMIT_EPOCH - HEAD commit timestamp (seconds since epoch)
+#   TRUNK_REPO_HEAD_AUTHOR_NAME - HEAD commit author name
+#
+# Optional environment variables for configuration:
+#   TRUNK_CODEOWNERS_PATH - Path to CODEOWNERS file
+#   TRUNK_VARIANT - Variant name for test results (e.g., 'linux', 'pr-123')
+#   TRUNK_DISABLE_QUARANTINING - Set to 'true' to disable quarantining
+#   TRUNK_ALLOW_EMPTY_TEST_RESULTS - Set to 'true' to allow empty results
+#   TRUNK_DRY_RUN - Set to 'true' to save bundle locally instead of uploading
+#   TRUNK_USE_UNCLONED_REPO - Set to 'true' for uncloned repo mode
+#   TRUNK_LOCAL_UPLOAD_DIR - Directory to save test results locally (disables upload)
+#   DISABLE_RSPEC_TRUNK_FLAKY_TESTS - Set to 'true' to completely disable Trunk
+#
 require 'rspec/core'
 require 'time'
 require 'context_ruby'

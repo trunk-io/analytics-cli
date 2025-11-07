@@ -68,43 +68,43 @@ pub struct UploadArgs {
         help = "Comma-separated list of glob patterns to test report files. Supports JUnit XML, Bazel BEP, and XCResult formats."
     )]
     pub test_reports: Vec<String>,
-    #[arg(long, env = "TRUNK_ORG_URL_SLUG", help = "Organization url slug.")]
+    #[arg(long, env = constants::TRUNK_ORG_URL_SLUG_ENV, help = "Organization url slug.")]
     pub org_url_slug: String,
     #[arg(
         long,
         required = true,
-        env = "TRUNK_API_TOKEN",
+        env = constants::TRUNK_API_TOKEN_ENV,
         help = "Organization token. Defaults to TRUNK_API_TOKEN env var."
     )]
     pub token: String,
     #[arg(
         long,
-        env = "TRUNK_REPO_ROOT",
+        env = constants::TRUNK_REPO_ROOT_ENV,
         help = "Path to repository root. Defaults to current directory."
     )]
     pub repo_root: Option<String>,
     #[arg(
         long,
-        env = "TRUNK_REPO_URL",
+        env = constants::TRUNK_REPO_URL_ENV,
         help = "Override the repository URL (normally from git config remote.origin.url)."
     )]
     pub repo_url: Option<String>,
     #[arg(
         long,
-        env = "TRUNK_REPO_HEAD_SHA",
+        env = constants::TRUNK_REPO_HEAD_SHA_ENV,
         help = "Override the repository HEAD commit SHA (normally from git HEAD).",
         value_parser = parse_sha
     )]
     pub repo_head_sha: Option<String>,
     #[arg(
         long,
-        env = "TRUNK_REPO_HEAD_BRANCH",
+        env = constants::TRUNK_REPO_HEAD_BRANCH_ENV,
         help = "Override the repository HEAD branch name (normally from git branch)."
     )]
     pub repo_head_branch: Option<String>,
     #[arg(
         long,
-        env = "TRUNK_REPO_HEAD_COMMIT_EPOCH",
+        env = constants::TRUNK_REPO_HEAD_COMMIT_EPOCH_ENV,
         help = "Override the HEAD commit timestamp in seconds since Unix epoch (normally from git commit timestamp)."
     )]
     pub repo_head_commit_epoch: Option<String>,
@@ -119,7 +119,7 @@ pub struct UploadArgs {
     pub print_files: Option<bool>,
     #[arg(
         long,
-        env = "TRUNK_CODEOWNERS_PATH",
+        env = constants::TRUNK_CODEOWNERS_PATH_ENV,
         help = "Override the path to a CODEOWNERS file. Used to associate test failures with code owners."
     )]
     pub codeowners_path: Option<String>,
@@ -137,7 +137,7 @@ pub struct UploadArgs {
     pub use_quarantining: bool,
     #[arg(
         long,
-        env = "TRUNK_DISABLE_QUARANTINING",
+        env = constants::TRUNK_DISABLE_QUARANTINING_ENV,
         help = "Disable test quarantining. When disabled, all test failures will be reported and affect the exit code.",
         action = ArgAction::Set,
         required = false,
@@ -149,7 +149,7 @@ pub struct UploadArgs {
     pub disable_quarantining: bool,
     #[arg(
         long,
-        env = "TRUNK_ALLOW_EMPTY_TEST_RESULTS",
+        env = constants::TRUNK_ALLOW_EMPTY_TEST_RESULTS_ENV,
         alias = "allow-missing-junit-files",
         help = "Allow upload to succeed even when no test result files are found. Useful for optional test runs.",
         action = ArgAction::Set,
@@ -174,7 +174,7 @@ pub struct UploadArgs {
     pub hide_banner: bool,
     #[arg(
         long,
-        env = "TRUNK_DRY_RUN",
+        env = constants::TRUNK_DRY_RUN_ENV,
         help = "Write the test bundle to a local file (./bundle_upload) instead of uploading to Trunk servers. Useful for debugging.",
         required = false,
         num_args = 0,
@@ -184,7 +184,7 @@ pub struct UploadArgs {
     pub dry_run: bool,
     #[arg(
         long,
-        env = "TRUNK_VARIANT",
+        env = constants::TRUNK_VARIANT_ENV,
         help = "Variant name for the test results (e.g., 'linux', 'macos', 'pr'). Used to group test runs. Max 64 characters.",
         required = false,
         num_args = 1
@@ -192,7 +192,7 @@ pub struct UploadArgs {
     pub variant: Option<String>,
     #[arg(
         long,
-        env = "TRUNK_TEST_PROCESS_EXIT_CODE",
+        env = constants::TRUNK_TEST_PROCESS_EXIT_CODE_ENV,
         help = "Override the test process exit code. Useful when the test runner exit code doesn't reflect the actual test results.",
         required = false,
         num_args = 1
@@ -200,7 +200,7 @@ pub struct UploadArgs {
     pub test_process_exit_code: Option<i32>,
     #[arg(
         long,
-        env = "TRUNK_REPO_HEAD_AUTHOR_NAME",
+        env = constants::TRUNK_REPO_HEAD_AUTHOR_NAME_ENV,
         help = "Override the HEAD commit author name (normally from git commit author).",
         required = false,
         num_args = 1
@@ -208,7 +208,7 @@ pub struct UploadArgs {
     pub repo_head_author_name: Option<String>,
     #[arg(
         long,
-        env = "TRUNK_USE_UNCLONED_REPO",
+        env = constants::TRUNK_USE_UNCLONED_REPO_ENV,
         help = "Enable upload mode for repositories not cloned locally. Requires --repo-url, --repo-head-sha, --repo-head-branch, and --repo-head-author-name to be set.",
         required = false,
         require_equals = false,
@@ -233,6 +233,7 @@ pub struct UploadArgs {
     pub use_experimental_failure_summary: bool,
     #[arg(
         long,
+        env = constants::TRUNK_VALIDATION_REPORT_ENV,
         help = "Control validation reporting verbosity. Options: 'limited' (default, shows first few), 'full' (shows all), or 'none' (hides validation output).",
         required = false,
         num_args = 1,
@@ -242,7 +243,7 @@ pub struct UploadArgs {
     pub validation_report: ValidationReport,
     #[arg(
         long,
-        env = "TRUNK_SHOW_FAILURE_MESSAGES",
+        env = constants::TRUNK_SHOW_FAILURE_MESSAGES_ENV,
         help = "Include test failure messages in the CLI output. Useful for debugging test failures.",
         required = false,
         num_args = 0,
