@@ -203,7 +203,7 @@ jobs:
       - name: Setup Run Smoke Tests
         uses: ./.github/actions/setup_run_smoke_tests
 
-      - name: Run Smoke Tests (Unix)
+      - name: Run Smoke Tests (Unix or Macos)
         if: ${{ matrix.type.name != 'windows' }}
         uses: ./.github/actions/perform_smoke_test
         with:
