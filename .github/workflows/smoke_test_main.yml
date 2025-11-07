@@ -26,6 +26,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Set version with commit SHA
+        shell: bash
+        run: |
+          COMMIT_SHA=$(git rev-parse --short HEAD)
+          echo "Setting version to 0.0.0-${COMMIT_SHA}"
+          sed -i.bak "s/^version = \"0.0.0\"/version = \"0.0.0-${COMMIT_SHA}\"/" cli/Cargo.toml
+          cat cli/Cargo.toml | grep "^version"
+
       - name: Setup Run Smoke Tests
         uses: ./.github/actions/setup_run_smoke_tests
 
@@ -159,7 +167,7 @@ jobs:
                   "type": "section",
                   "text": {
                     "type": "mrkdwn",
-                    "text": "The main branch of the analytics cli is broken on production! Ruby gem test result: ${{ needs.test_ruby_gem_production.result }}. Runs can be found at https://github.com/trunk-io/analytics-cli/actions/workflows/smoke_test_main.yml. Details on responding to this can be found at https://trunk.slite.com/app/docs/zQ99Scfw1VgDSO/Analytics-CLI-Smoke-Tests-Are-Broken"
+                    "text": "The main branch of the analytics cli is broken on production! Ruby gem test result: ${{ needs.test_ruby_gem_production.result }}. Failed workflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}. Details on responding to this can be found at https://trunk.slite.com/app/docs/zQ99Scfw1VgDSO/Analytics-CLI-Smoke-Tests-Are-Broken"
                   }
                 }
               ]
@@ -188,7 +196,7 @@ jobs:
                   "type": "section",
                   "text": {
                     "type": "mrkdwn",
-                    "text": "The main branch of the analytics cli is broken on staging! CLI test result: ${{ needs.build_cli.result }}, Ruby gem test result: ${{ needs.test_ruby_gem_staging.result }}. Runs can be found at https://github.com/trunk-io/analytics-cli/actions/workflows/smoke_test_main.yml. Details on responding to this can be found at https://trunk.slite.com/app/docs/zQ99Scfw1VgDSO/Analytics-CLI-Smoke-Tests-Are-Broken"
+                    "text": "The main branch of the analytics cli is broken on staging! CLI test result: ${{ needs.build_cli.result }}, Ruby gem test result: ${{ needs.test_ruby_gem_staging.result }}. Failed workflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}. Details on responding to this can be found at https://trunk.slite.com/app/docs/zQ99Scfw1VgDSO/Analytics-CLI-Smoke-Tests-Are-Broken"
                   }
                 }
               ]
