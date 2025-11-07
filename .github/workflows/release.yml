@@ -43,12 +43,7 @@ jobs:
             target: aarch64-apple-darwin
             artifact-name: aarch64-apple-darwin
 
-          - os-name: windows-x86_64-msvc
-            runs-on: windows-latest
-            target: x86_64-pc-windows-msvc
-            artifact-name: x86_64-pc-windows-msvc
-
-          - os-name: windows-x86_64-gnu
+          - os-name: windows-x86_64
             runs-on: ubuntu-latest
             target: x86_64-pc-windows-gnu
             artifact-name: x86_64-pc-windows-gnu
@@ -81,16 +76,9 @@ jobs:
           target: ${{ matrix.platform.target }}
           profile: release-with-debug
 
-      - name: Build windows MSVC target
-        uses: ./.github/actions/build_cli_windows_target
-        if: contains(matrix.platform.os-name, 'windows-msvc')
-        with:
-          target: ${{ matrix.platform.target }}
-          profile: release-with-debug
-
-      - name: Build windows GNU target
+      - name: Build windows target
         uses: ./.github/actions/build_cli_linux_target
-        if: contains(matrix.platform.os-name, 'windows-gnu')
+        if: contains(matrix.platform.os-name, 'windows')
         with:
           target: ${{ matrix.platform.target }}
           profile: release-with-debug
@@ -223,11 +211,8 @@ jobs:
           - name: macos
             os: macos-latest
             target: aarch64-apple-darwin
-          - name: windows-msvc
+          - name: windows
             os: windows-latest
-            target: x86_64-pc-windows-msvc
-          - name: windows-gnu
-            os: ubuntu-latest
             target: x86_64-pc-windows-gnu
     needs:
       - build_release
@@ -252,20 +237,14 @@ jobs:
           staging-api-token: ${{ secrets.TRUNK_STAGING_ORG_API_TOKEN }}
           production-api-token: ${{ secrets.TRUNK_PROD_ORG_API_TOKEN }}
 
-      - name: Run Smoke Tests (Windows MSVC)
+      - name: Run Smoke Tests (Windows)
         uses: ./.github/actions/perform_smoke_test
-        if: matrix.type.name == 'windows-msvc'
+        if: matrix.type.name == 'windows'
         with:
           cli-binary-location: trunk-analytics-cli/trunk-analytics-cli.exe
           staging-api-token: ${{ secrets.TRUNK_STAGING_ORG_API_TOKEN }}
           production-api-token: ${{ secrets.TRUNK_PROD_ORG_API_TOKEN }}
 
-      - name: Run Smoke Tests (Windows GNU)
-        uses: ./.github/actions/perform_smoke_test
-        if: matrix.type.name == 'windows-gnu'
-        with:
-          cli-binary-location: trunk-analytics-cli/trunk-analytics-cli.exe
-          staging-api-token: ${{ secrets.TRUNK_STAGING_ORG_API_TOKEN }}
           production-api-token: ${{ secrets.TRUNK_PROD_ORG_API_TOKEN }}
 
   tag_and_release:
