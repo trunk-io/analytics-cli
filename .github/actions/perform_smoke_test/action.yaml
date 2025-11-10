@@ -56,11 +56,25 @@ runs:
         --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
         --token ${{ inputs.staging-api-token }}
 
+    # upload with variant should fail because we treat variant as a separate test
+    - name: Upload to staging with variant
+      id: staging-upload-with-variant
+      if: always() && steps.staging-test-run.outcome == 'success' && (inputs.environment-type == 'staging' || inputs.environment-type == 'both')
+      env:
+        TRUNK_PUBLIC_API_ADDRESS: https://api.trunk-staging.io
+      shell: bash
+      run: |
+        ./${{ inputs.cli-binary-location }} upload \
+        --org-url-slug trunk-staging-org \
+        --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
+        --token ${{ inputs.staging-api-token }} \
+        --variant smoke-test-variant
+
     - name: Staging result
       id: staging-result
       if: always()
       shell: bash
-      run: echo "staging-success=${{ (steps.staging-upload.outcome == 'success' && (inputs.environment-type == 'staging' || inputs.environment-type == 'both')) || inputs.environment-type == 'production' }}" >> $GITHUB_OUTPUT
+      run: echo "staging-success=${{ (steps.staging-upload.outcome == 'success' && steps.staging-upload-with-variant.outcome == 'failure' && (inputs.environment-type == 'staging' || inputs.environment-type == 'both')) || inputs.environment-type == 'production' }}" >> $GITHUB_OUTPUT
 
     - name: Run tests on production
       id: production-test-run
@@ -88,8 +102,22 @@ runs:
         --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
         --token ${{ inputs.production-api-token }}
 
+    # upload with variant should fail because we treat variant as a separate test
+    - name: Upload to production with variant
+      id: production-upload-with-variant
+      if: always() && steps.production-test-run.outcome == 'success' && (inputs.environment-type == 'production' || inputs.environment-type == 'both')
+      env:
+        TRUNK_PUBLIC_API_ADDRESS: https://api.trunk.io
+      shell: bash
+      run: |
+        ./${{ inputs.cli-binary-location }} upload \
+        --org-url-slug trunk \
+        --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
+        --token ${{ inputs.production-api-token }} \
+        --variant smoke-test-variant
+
     - name: Production result
       id: production-result
       if: always()
       shell: bash
-      run: echo "production-success=${{ (steps.production-upload.outcome == 'success' && (inputs.environment-type == 'production' || inputs.environment-type == 'both')) || inputs.environment-type == 'staging' }}" >> $GITHUB_OUTPUT
+      run: echo "production-success=${{ (steps.production-upload.outcome == 'success' && steps.production-upload-with-variant.outcome == 'failure' && (inputs.environment-type == 'production' || inputs.environment-type == 'both')) || inputs.environment-type == 'staging' }}" >> $GITHUB_OUTPUT
