@@ -131,10 +131,9 @@ pub struct UploadArgs {
         require_equals = true,
         num_args = 0..=1,
         default_value = "true",
-        default_missing_value = "true",
         hide = true
     )]
-    pub use_quarantining: bool,
+    pub use_quarantining: Option<bool>,
     #[arg(
         long,
         env = constants::TRUNK_DISABLE_QUARANTINING_ENV,
@@ -270,7 +269,6 @@ impl UploadArgs {
         org_url_slug: String,
         junit_paths: Vec<String>,
         repo_root: Option<String>,
-        use_quarantining: bool,
         disable_quarantining: bool,
     ) -> Self {
         Self {
@@ -279,7 +277,6 @@ impl UploadArgs {
             token,
             repo_root,
             allow_empty_test_results: true,
-            use_quarantining,
             disable_quarantining,
             show_failure_messages: false,
             ..Default::default()
@@ -347,13 +344,11 @@ pub async fn run_upload(
         );
     }
 
-    if !upload_args.use_quarantining || upload_args.disable_quarantining {
+    if upload_args.use_quarantining.is_some() {
         // Log if use_quarantining is explicitly set to false or if disable_quarantining is used
-        if !upload_args.use_quarantining {
-            tracing::error!(
-                "The --use-quarantining=false flag is deprecated. Use --disable-quarantining instead."
-            );
-        }
+        tracing::error!(
+            "The --use-quarantining flag is deprecated. Use --disable-quarantining instead."
+        );
     }
 
     let api_client = ApiClient::new(&upload_args.token, &upload_args.org_url_slug, render_sender)?;
@@ -384,9 +379,11 @@ pub async fn run_upload(
     let default_exit_code = upload_args
         .test_process_exit_code
         .or_else(|| test_run_result.as_ref().map(|r| r.exit_code));
+    let disable_quarantining =
+        upload_args.disable_quarantining || !upload_args.use_quarantining.unwrap_or(true);
     let quarantine_context = match gather_exit_code_and_quarantined_tests_context(
         &mut meta,
-        upload_args.disable_quarantining || !upload_args.use_quarantining,
+        disable_quarantining,
         &api_client,
         &file_set_builder,
         default_exit_code,
