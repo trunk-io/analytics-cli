@@ -893,8 +893,7 @@ mod tests {
             "test-org".to_string(),
             vec![],
             None,
-            false,
-            false,
+            true,
         );
 
         // Test case 1: Variant under 64 characters
