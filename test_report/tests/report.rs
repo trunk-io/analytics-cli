@@ -28,9 +28,30 @@ pub fn generate_mock_codeowners<T: AsRef<Path>>(directory: T) {
     fs::write(directory.as_ref().join("CODEOWNERS"), CODEOWNERS).unwrap();
 }
 
+/// Cleans up all TRUNK_* and CI-related environment variables to avoid test interference
+fn cleanup_env_vars() {
+    env::remove_var(TRUNK_PUBLIC_API_ADDRESS_ENV);
+    env::remove_var(TRUNK_API_TOKEN_ENV);
+    env::remove_var(TRUNK_ORG_URL_SLUG_ENV);
+    env::remove_var(TRUNK_REPO_URL_ENV);
+    env::remove_var(TRUNK_REPO_HEAD_SHA_ENV);
+    env::remove_var(TRUNK_REPO_HEAD_BRANCH_ENV);
+    env::remove_var(TRUNK_REPO_HEAD_COMMIT_EPOCH_ENV);
+    env::remove_var(TRUNK_REPO_HEAD_AUTHOR_NAME_ENV);
+    env::remove_var(TRUNK_VARIANT_ENV);
+    env::remove_var(TRUNK_USE_UNCLONED_REPO_ENV);
+    env::remove_var(TRUNK_DISABLE_QUARANTINING_ENV);
+    env::remove_var(TRUNK_ALLOW_EMPTY_TEST_RESULTS_ENV);
+    env::remove_var(TRUNK_DRY_RUN_ENV);
+    env::remove_var(TRUNK_CODEOWNERS_PATH_ENV);
+    env::remove_var("CI");
+    env::remove_var("GITHUB_JOB");
+}
+
 #[tokio::test(flavor = "multi_thread")]
 #[serial]
 async fn publish_test_report() {
+    cleanup_env_vars();
     let temp_dir = tempdir().unwrap();
     let repo_setup_res = setup_repo_with_commit(&temp_dir);
     generate_mock_codeowners(&temp_dir);
@@ -216,15 +237,12 @@ async fn publish_test_report() {
     assert_eq!(test_case_run.codeowners.len(), 2);
 
     // Clean up environment variables to avoid interfering with subsequent tests
-    env::remove_var(TRUNK_PUBLIC_API_ADDRESS_ENV);
-    env::remove_var(TRUNK_API_TOKEN_ENV);
-    env::remove_var(TRUNK_ORG_URL_SLUG_ENV);
-    env::remove_var("CI");
-    env::remove_var("GITHUB_JOB");
+    cleanup_env_vars();
 }
 
 #[test]
 fn test_mut_test_report_try_save() {
+    cleanup_env_vars();
     let temp_dir = tempdir().unwrap();
     let report = MutTestReport::new(
         "test-origin".into(),
@@ -248,6 +266,7 @@ fn test_mut_test_report_try_save() {
 #[tokio::test(flavor = "multi_thread")]
 #[serial]
 async fn test_environment_variable_overrides() {
+    cleanup_env_vars();
     let temp_dir = tempdir().unwrap();
     generate_mock_codeowners(&temp_dir);
 
@@ -287,7 +306,7 @@ async fn test_environment_variable_overrides() {
     env::set_var("CI", "1");
     env::set_var("GITHUB_JOB", "test-job");
 
-    let thread_join_handle = thread::spawn(|| {
+    let thread_join_handle = thread::spawn(move || {
         let test_report = MutTestReport::new(
             "test".into(),
             "test-command with env overrides".into(),
@@ -309,6 +328,10 @@ async fn test_environment_variable_overrides() {
         );
         let result = test_report.publish();
         assert!(result, "publish should succeed with environment overrides");
+        let repo_root = test_report.get_repo_root();
+        let expected_root = temp_dir.path().canonicalize().unwrap();
+        let actual_root = Path::new(&repo_root).canonicalize().unwrap();
+        assert_eq!(actual_root, expected_root);
     });
     thread_join_handle.join().unwrap();
 
@@ -367,22 +390,7 @@ async fn test_environment_variable_overrides() {
     }
 
     // Clean up environment variables
-    env::remove_var(TRUNK_PUBLIC_API_ADDRESS_ENV);
-    env::remove_var(TRUNK_API_TOKEN_ENV);
-    env::remove_var(TRUNK_ORG_URL_SLUG_ENV);
-    env::remove_var(TRUNK_REPO_URL_ENV);
-    env::remove_var(TRUNK_REPO_HEAD_SHA_ENV);
-    env::remove_var(TRUNK_REPO_HEAD_BRANCH_ENV);
-    env::remove_var(TRUNK_REPO_HEAD_COMMIT_EPOCH_ENV);
-    env::remove_var(TRUNK_REPO_HEAD_AUTHOR_NAME_ENV);
-    env::remove_var(TRUNK_VARIANT_ENV);
-    env::remove_var(TRUNK_USE_UNCLONED_REPO_ENV);
-    env::remove_var(TRUNK_DISABLE_QUARANTINING_ENV);
-    env::remove_var(TRUNK_ALLOW_EMPTY_TEST_RESULTS_ENV);
-    env::remove_var(TRUNK_DRY_RUN_ENV);
-    env::remove_var(TRUNK_CODEOWNERS_PATH_ENV);
-    env::remove_var("CI");
-    env::remove_var("GITHUB_JOB");
+    cleanup_env_vars();
 
     // Restore original directory
     let _ = env::set_current_dir(original_dir);
@@ -391,6 +399,7 @@ async fn test_environment_variable_overrides() {
 #[tokio::test(flavor = "multi_thread")]
 #[serial]
 async fn test_variant_priority_constructor_over_env() {
+    cleanup_env_vars();
     let temp_dir = tempdir().unwrap();
     generate_mock_codeowners(&temp_dir);
 
@@ -421,7 +430,7 @@ async fn test_variant_priority_constructor_over_env() {
     env::set_var("CI", "1");
     env::set_var("GITHUB_JOB", "test-job");
 
-    let thread_join_handle = thread::spawn(|| {
+    let thread_join_handle = thread::spawn(move || {
         let test_report = MutTestReport::new(
             "test".into(),
             "test-command".into(),
@@ -443,6 +452,10 @@ async fn test_variant_priority_constructor_over_env() {
         );
         let result = test_report.publish();
         assert!(result, "publish should succeed");
+        let repo_root = test_report.get_repo_root();
+        let expected_root = temp_dir.path().canonicalize().unwrap();
+        let actual_root = Path::new(&repo_root).canonicalize().unwrap();
+        assert_eq!(actual_root, expected_root);
     });
     thread_join_handle.join().unwrap();
 
