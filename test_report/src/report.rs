@@ -357,11 +357,9 @@ impl MutTestReport {
             self.setup_logger(&self.0.borrow().command, org_url_slug.clone(), repo_root)
         {
             tracing::error!(
-                hidden_in_console = true,
-                "Error setting up logger: {:?}",
+                "Unable to set up logger. Please reach out to support@trunk.io for further assistance. Error details: {:?}",
                 err
             );
-            return false;
         }
 
         let token = env::var(constants::TRUNK_API_TOKEN_ENV).unwrap_or_default();
