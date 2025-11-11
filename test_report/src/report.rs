@@ -167,13 +167,10 @@ impl MutTestReport {
             .unwrap_or_default()
     }
 
-    fn setup_logger(
-        &self,
-        command_name: &str,
-        org_url_slug: String,
-        repo_root: String,
-    ) -> anyhow::Result<()> {
-        let command_string = String::from(command_name);
+    fn setup_logger(&self) -> anyhow::Result<()> {
+        let org_url_slug = self.get_org_url_slug();
+        let repo_root = self.get_repo_root();
+        let command_string = String::from(self.0.borrow().command.clone());
         let sentry_layer = sentry_tracing::layer().event_mapper(move |event, context| {
             // trunk-ignore(clippy/match_ref_pats)
             match event.metadata().level() {
@@ -220,11 +217,19 @@ impl MutTestReport {
                     .any(|field| field.name() == "hidden_in_console")
             }));
 
-        tracing_subscriber::registry()
+        if let Err(e) = tracing_subscriber::registry()
             .with(console_layer)
             .with(sentry_layer)
             .try_init()
-            .ok();
+        {
+            // we don't want to error out if the logger is already set up
+            if e.to_string()
+                .contains("a global default trace dispatcher has already been set")
+            {
+                return Ok(());
+            }
+            return Err(anyhow::anyhow!("Unable to set up logger. {:?}", e));
+        }
         Ok(())
     }
 
@@ -236,8 +241,8 @@ impl MutTestReport {
         classname: Option<String>,
         file: Option<String>,
     ) -> bool {
-        let token = env::var(constants::TRUNK_API_TOKEN_ENV).unwrap_or_default();
-        let org_url_slug = env::var(constants::TRUNK_ORG_URL_SLUG_ENV).unwrap_or_default();
+        let token = self.get_token();
+        let org_url_slug = self.get_org_url_slug();
         if token.is_empty() {
             tracing::warn!("Not checking quarantine status because TRUNK_API_TOKEN is empty");
             return false;
@@ -347,22 +352,27 @@ impl MutTestReport {
         self.0.borrow_mut().quarantined_tests = Some(quarantined_tests);
     }
 
+    fn get_org_url_slug(&self) -> String {
+        env::var(constants::TRUNK_ORG_URL_SLUG_ENV).unwrap_or_default()
+    }
+
+    fn get_token(&self) -> String {
+        env::var(constants::TRUNK_API_TOKEN_ENV).unwrap_or_default()
+    }
+
     // sends out to the trunk api
     pub fn publish(&self) -> bool {
         let release_name = format!("rspec-flaky-tests@{}", env!("CARGO_PKG_VERSION"));
-        let org_url_slug = env::var(constants::TRUNK_ORG_URL_SLUG_ENV).unwrap_or_default();
         let guard = sentry::init(release_name.into(), None);
-        let repo_root = self.get_repo_root();
-        if let Err(err) =
-            self.setup_logger(&self.0.borrow().command, org_url_slug.clone(), repo_root)
-        {
+        if let Err(err) = self.setup_logger() {
             tracing::error!(
                 "Unable to set up logger. Please reach out to support@trunk.io for further assistance. Error details: {:?}",
                 err
             );
         }
 
-        let token = env::var(constants::TRUNK_API_TOKEN_ENV).unwrap_or_default();
+        let token = self.get_token();
+        let org_url_slug = self.get_org_url_slug();
         if token.is_empty() {
             tracing::warn!("Not publishing results because TRUNK_API_TOKEN is empty");
             return false;
