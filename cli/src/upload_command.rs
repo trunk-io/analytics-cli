@@ -130,7 +130,6 @@ pub struct UploadArgs {
         required = false,
         require_equals = true,
         num_args = 0..=1,
-        default_value = "true",
         hide = true
     )]
     pub use_quarantining: Option<bool>,
@@ -345,7 +344,6 @@ pub async fn run_upload(
     }
 
     if upload_args.use_quarantining.is_some() {
-        // Log if use_quarantining is explicitly set to false or if disable_quarantining is used
         tracing::error!(
             "The --use-quarantining flag is deprecated. Use --disable-quarantining instead."
         );
