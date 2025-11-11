@@ -170,7 +170,7 @@ impl MutTestReport {
     fn setup_logger(&self) -> anyhow::Result<()> {
         let org_url_slug = self.get_org_url_slug();
         let repo_root = self.get_repo_root();
-        let command_string = String::from(self.0.borrow().command.clone());
+        let command_string = self.0.borrow().command.clone();
         let sentry_layer = sentry_tracing::layer().event_mapper(move |event, context| {
             // trunk-ignore(clippy/match_ref_pats)
             match event.metadata().level() {
