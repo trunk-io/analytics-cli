@@ -344,7 +344,7 @@ pub async fn run_upload(
     }
 
     if upload_args.use_quarantining.is_some() {
-        tracing::error!(
+        tracing::warn!(
             "The --use-quarantining flag is deprecated. Use --disable-quarantining instead."
         );
     }
