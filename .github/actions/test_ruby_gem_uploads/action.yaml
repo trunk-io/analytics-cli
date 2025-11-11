@@ -52,7 +52,8 @@ runs:
         echo "Using gem file: ${GEM_FILE}"
 
         # Extract version from gem filename (e.g., rspec_trunk_flaky_tests-0.0.0-b75353b-x86_64-linux.gem)
-        GEM_VERSION=$(echo "${GEM_FILE}" | sed -n 's/rspec_trunk_flaky_tests-\(.*\)-x86_64-linux\.gem/\1/p')
+        PLATFORM="${{ inputs.platform }}"
+        GEM_VERSION=$(echo "${GEM_FILE}" | sed -n "s/rspec_trunk_flaky_tests-\(.*\)-${PLATFORM}\.gem/\1/p")
         echo "Extracted version: ${GEM_VERSION}"
 
         gem install "${GEM_FILE}" --local
