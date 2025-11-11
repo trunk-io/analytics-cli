@@ -397,8 +397,7 @@ impl MutTestReport {
             org_url_slug,
             vec![resolved_path_str.into()],
             env::var(constants::TRUNK_REPO_ROOT_ENV).ok(),
-            false,
-            false,
+            true,
         );
 
         // Read additional environment variables using constants
