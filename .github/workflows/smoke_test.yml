@@ -10,7 +10,7 @@ on:
       - staging-release
       - production-release
 env:
-  RELEASE: 0.10.11
+  RELEASE: 0.10.10
 jobs:
   build_cli:
     name: Smoke test ${{ matrix.platform.name }} cli from release
