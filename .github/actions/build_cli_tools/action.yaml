@@ -23,7 +23,7 @@ runs:
     - name: Install musl development tools
       shell: bash
       run: |
-        if [[ "${{ inputs.target }}" == *"musl"* ]]; then
+        if [[ "${{ inputs.target }}" == *"musl"* ]] && [[ "${{ inputs.os-name }}" != *"windows"* ]]; then
           sudo apt-get update
           sudo apt-get install -y musl-tools
         fi
@@ -31,9 +31,9 @@ runs:
     - name: Install cross for CLI tools
       shell: bash
       run: |
-        # Only install cross if we're not on the target architecture
-        if [[ "${{ inputs.target }}" == *"aarch64"* ]] && [[ "$(uname -m)" == "aarch64" ]]; then
-          echo "Skipping cross installation - already on target architecture"
+        # Only install cross if we're not on the target architecture or platform
+        if [[ "${{ inputs.os-name }}" == *"darwin"* ]] || [[ "${{ inputs.target }}" == *"aarch64"* && "$(uname -m)" == "aarch64" ]]; then
+          echo "Skipping cross installation - building natively"
         else
           cargo install cross --version 0.2.5 --force
         fi

@@ -20,8 +20,17 @@ runs:
       shell: bash
       run: rustup target add ${{ inputs.target }} --toolchain ${{ inputs.toolchain }}
 
+    - name: Install MinGW for Windows cross-compilation
+      shell: bash
+      if: ${{ contains(inputs.target, 'windows-gnu') }}
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y gcc-mingw-w64-x86-64
+
     - name: Install cross
       shell: bash
+      # Install cross for all non-darwin targets (including Windows GNU)
+      if: ${{ !contains(inputs.target, 'darwin') }}
       run: cargo install cross --git https://github.com/cross-rs/cross --force
 
     - name: Build CLI ${{ inputs.target }} target
@@ -45,4 +54,10 @@ runs:
 
     - name: Create binary with debug info
       shell: bash
-      run: cp target/${{ inputs.target }}/${{ inputs.profile }}/trunk-analytics-cli target/${{ inputs.target }}/${{ inputs.profile }}/trunk-analytics-cli.debug
+      run: |
+        # Windows binaries have .exe extension, Unix binaries don't
+        if [[ "${{ inputs.target }}" == *"windows-gnu"* ]]; then
+          cp target/${{ inputs.target }}/${{ inputs.profile }}/trunk-analytics-cli.exe target/${{ inputs.target }}/${{ inputs.profile }}/trunk-analytics-cli.debug.exe
+        else
+          cp target/${{ inputs.target }}/${{ inputs.profile }}/trunk-analytics-cli target/${{ inputs.target }}/${{ inputs.profile }}/trunk-analytics-cli.debug
+        fi

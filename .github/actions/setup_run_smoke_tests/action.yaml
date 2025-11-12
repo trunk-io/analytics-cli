@@ -15,3 +15,11 @@ runs:
       if: runner.os == 'Linux'
       shell: bash
       run: curl -LsSf https://get.nexte.st/latest/linux | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin
+
+    - name: Install nextest (windows)
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        $cargoBin = if ($env:CARGO_HOME) { "$env:CARGO_HOME\bin" } else { "$env:USERPROFILE\.cargo\bin" }
+        Invoke-WebRequest -Uri "https://get.nexte.st/latest/windows" -OutFile "$env:TEMP\nextest.zip"
+        Expand-Archive -Path "$env:TEMP\nextest.zip" -DestinationPath $cargoBin -Force
