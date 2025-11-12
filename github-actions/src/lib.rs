@@ -21,15 +21,28 @@ pub fn extract_github_external_id() -> Result<Option<String>> {
 
     tracing::info!("Running in GitHub Actions, attempting to extract external ID");
 
-    // Try to find the Runner.Worker process
-    let worker_cmd = find_runner_worker_process()?;
-    tracing::debug!("Found Runner.Worker process: {}", worker_cmd);
+    // Try multiple methods to find the runner directory
+    let runner_dir = match find_runner_directory() {
+        Ok(dir) => {
+            tracing::debug!("Found runner directory: {:?}", dir);
+            dir
+        }
+        Err(e) => {
+            warn!("Failed to find runner directory: {}", e);
+            return Ok(None);
+        }
+    };
 
-    let runner_dir = extract_runner_directory(&worker_cmd)?;
-    tracing::debug!("Extracted runner directory: {:?}", runner_dir);
-
-    let worker_log_files = find_worker_log_files(&runner_dir)?;
-    tracing::debug!("Found {} worker log files", worker_log_files.len());
+    let worker_log_files = match find_worker_log_files(&runner_dir) {
+        Ok(files) => {
+            tracing::debug!("Found {} worker log files", files.len());
+            files
+        }
+        Err(e) => {
+            warn!("Failed to find worker log files: {}", e);
+            return Ok(None);
+        }
+    };
 
     // Search through log files for the Job ID
     for log_file in worker_log_files {
@@ -42,6 +55,168 @@ pub fn extract_github_external_id() -> Result<Option<String>> {
 
     warn!("Unable to find Job ID in GitHub Actions worker log files");
     Ok(None)
+}
+
+/// Find the runner directory using multiple methods
+fn find_runner_directory() -> Result<PathBuf> {
+    // Method 1: Try to find the Runner.Worker process using sysinfo (most reliable)
+    match find_runner_worker_process() {
+        Ok(worker_cmd) => {
+            tracing::debug!("Found Runner.Worker process: {}", worker_cmd);
+            if let Ok(runner_dir) = extract_runner_directory(&worker_cmd) {
+                if validate_runner_directory(&runner_dir) {
+                    tracing::debug!("Validated runner directory from process: {:?}", runner_dir);
+                    return Ok(runner_dir);
+                }
+            }
+        }
+        Err(e) => {
+            tracing::debug!("Failed to find Runner.Worker process: {}", e);
+        }
+    }
+
+    // Method 2: Try to use RUNNER_TOOL_CACHE environment variable
+    // This is typically /opt/hostedtoolcache on GitHub-hosted runners
+    // and the runner directory is usually a sibling
+    if let Ok(tool_cache) = env::var("RUNNER_TOOL_CACHE") {
+        tracing::debug!("Found RUNNER_TOOL_CACHE: {}", tool_cache);
+        let tool_cache_path = PathBuf::from(tool_cache);
+
+        if let Some(parent) = tool_cache_path.parent() {
+            // Common patterns: /opt/hostedtoolcache -> /opt, then check /opt/actions-runner
+            if let Some(grandparent) = parent.parent() {
+                let actions_runner = grandparent.join("actions-runner");
+                if validate_runner_directory(&actions_runner) {
+                    tracing::debug!(
+                        "Found runner directory via RUNNER_TOOL_CACHE: {:?}",
+                        actions_runner
+                    );
+                    return Ok(actions_runner);
+                }
+            }
+
+            // Also try parent/actions-runner (e.g., /opt/actions-runner)
+            let actions_runner = parent.join("actions-runner");
+            if validate_runner_directory(&actions_runner) {
+                tracing::debug!(
+                    "Found runner directory via RUNNER_TOOL_CACHE (parent): {:?}",
+                    actions_runner
+                );
+                return Ok(actions_runner);
+            }
+        }
+    }
+
+    // Method 3: Try to use GITHUB_WORKSPACE to find runner directory
+    // GITHUB_WORKSPACE is typically /home/runner/work/{repo}/{repo}
+    if let Ok(workspace) = env::var("GITHUB_WORKSPACE") {
+        tracing::debug!("Found GITHUB_WORKSPACE: {}", workspace);
+        let workspace_path = PathBuf::from(workspace);
+
+        // Pattern: /home/runner/work/{repo}/{repo} -> /home/runner
+        if let Some(parent) = workspace_path.parent() {
+            if let Some(grandparent) = parent.parent() {
+                if let Some(great_grandparent) = grandparent.parent() {
+                    // Check if actions-runner exists in the same directory as "runner"
+                    if let Some(runner_parent) = great_grandparent.parent() {
+                        let actions_runner = runner_parent.join("actions-runner");
+                        if validate_runner_directory(&actions_runner) {
+                            tracing::debug!(
+                                "Found runner directory via GITHUB_WORKSPACE: {:?}",
+                                actions_runner
+                            );
+                            return Ok(actions_runner);
+                        }
+                    }
+
+                    // Also check if great_grandparent itself is the runner home
+                    let actions_runner = great_grandparent.join("actions-runner");
+                    if validate_runner_directory(&actions_runner) {
+                        tracing::debug!(
+                            "Found runner directory via GITHUB_WORKSPACE (alt): {:?}",
+                            actions_runner
+                        );
+                        return Ok(actions_runner);
+                    }
+                }
+            }
+        }
+    }
+
+    // Method 4: Search for directories with _diag subdirectory
+    // Start from GITHUB_WORKSPACE and search upwards
+    if let Ok(workspace) = env::var("GITHUB_WORKSPACE") {
+        let workspace_path = PathBuf::from(workspace);
+        if let Some(found_dir) = search_upwards_for_diag_directory(&workspace_path) {
+            tracing::debug!(
+                "Found runner directory by searching upwards: {:?}",
+                found_dir
+            );
+            return Ok(found_dir);
+        }
+    }
+
+    // Method 5: Try common default paths
+    let common_paths = vec![
+        "/home/runner/actions-runner",
+        "/Users/runner/actions-runner",
+        "/opt/actions-runner",
+        "/runner/actions-runner",
+    ];
+
+    for path in common_paths {
+        let runner_dir = PathBuf::from(path);
+        if validate_runner_directory(&runner_dir) {
+            tracing::debug!("Found runner directory at common path: {:?}", runner_dir);
+            return Ok(runner_dir);
+        }
+    }
+
+    Err(anyhow!(
+        "Unable to find runner directory with _diag subdirectory using any method"
+    ))
+}
+
+/// Validate that a directory is a runner directory by checking for _diag subdirectory
+fn validate_runner_directory(path: &Path) -> bool {
+    let diag_dir = path.join("_diag");
+    let exists = diag_dir.exists() && diag_dir.is_dir();
+    if !exists {
+        tracing::debug!("Directory {:?} does not have _diag subdirectory", path);
+    }
+    exists
+}
+
+/// Search upwards from a starting path to find a directory containing _diag
+fn search_upwards_for_diag_directory(start_path: &Path) -> Option<PathBuf> {
+    let mut current = start_path;
+
+    // Search up to 10 levels
+    for _ in 0..10 {
+        // Check siblings for any directory with _diag
+        if let Some(parent) = current.parent() {
+            tracing::debug!("Searching for _diag in parent directory: {:?}", parent);
+
+            if let Ok(entries) = std::fs::read_dir(parent) {
+                for entry in entries.flatten() {
+                    if let Ok(file_type) = entry.file_type() {
+                        if file_type.is_dir() {
+                            let candidate = entry.path();
+                            if validate_runner_directory(&candidate) {
+                                return Some(candidate);
+                            }
+                        }
+                    }
+                }
+            }
+
+            current = parent;
+        } else {
+            break;
+        }
+    }
+
+    None
 }
 
 /// Find the Runner.Worker process using sysinfo
@@ -222,30 +397,23 @@ mod tests {
 
     #[test]
     fn test_extract_github_external_id_returns_some_when_in_github_actions() {
-        // Test that the function returns Some(external_id) when running in GitHub Actions
-        // Set GITHUB_ACTIONS to simulate running in GitHub Actions
         env::set_var("GITHUB_ACTIONS", "true");
 
-        // Note: This test would require mocking the process finding and log file reading
-        // In the test environment, the process finding will likely fail, so we expect Ok(None)
         let result = extract_github_external_id();
-        // The result should be Ok(None) if the process finding fails, which is expected in test environment
-        match result {
-            Ok(None) => {
-                // This is expected in test environment where Runner.Worker process doesn't exist
-                tracing::debug!("Process finding failed as expected in test environment");
+        assert!(
+            result.is_ok(),
+            "Function should not return an error even when runner is not found"
+        );
+
+        match result.unwrap() {
+            None => {
+                tracing::debug!("Gracefully returned None as expected in test environment");
             }
-            Ok(Some(external_id)) => {
-                // This would be unexpected but valid if somehow the process was found
+            Some(external_id) => {
                 tracing::debug!("Unexpectedly found external ID: {}", external_id);
-            }
-            Err(e) => {
-                // This is also acceptable in test environment
-                tracing::debug!("Process finding failed with error as expected: {}", e);
             }
         }
 
-        // Clean up
         env::remove_var("GITHUB_ACTIONS");
     }
 }
