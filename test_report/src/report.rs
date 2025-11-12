@@ -206,7 +206,7 @@ impl MutTestReport {
             .with_target(true)
             .with_level(true)
             .with_writer(std::io::stdout.with_max_level(if debug_mode {
-                tracing::Level::DEBUG
+                tracing::Level::TRACE
             } else {
                 tracing::Level::ERROR
             }))

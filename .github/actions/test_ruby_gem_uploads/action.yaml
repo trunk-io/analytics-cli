@@ -74,3 +74,4 @@ runs:
         # Fix for macOS 15 Intel connection failures due to "Happy Eyeballs" algorithm
         # See: https://bugs.ruby-lang.org/issues/21104
         RUBY_TCP_NO_FAST_FALLBACK: 1
+        TRUNK_DEBUG: 1
