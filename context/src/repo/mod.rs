@@ -47,6 +47,8 @@ pub struct BundleRepo {
     pub repo_head_commit_message: String,
     pub repo_head_author_name: String,
     pub repo_head_author_email: String,
+    /// Added in v0.11.8
+    pub use_uncloned_repo: Option<bool>,
 }
 
 impl BundleRepo {
@@ -212,6 +214,7 @@ impl BundleRepo {
             repo_head_commit_message: head_commit_message.unwrap_or_default(),
             repo_head_author_name,
             repo_head_author_email,
+            use_uncloned_repo: Some(use_uncloned_repo),
         })
     }
 
@@ -321,6 +324,7 @@ impl BundleRepo {
         repo_head_commit_message: String,
         repo_head_author_name: String,
         repo_head_author_email: String,
+        use_uncloned_repo: Option<bool>,
     ) -> Self {
         Self {
             repo,
@@ -333,6 +337,7 @@ impl BundleRepo {
             repo_head_commit_message,
             repo_head_author_name,
             repo_head_author_email,
+            use_uncloned_repo,
         }
     }
 }
@@ -352,6 +357,7 @@ impl BundleRepo {
         repo_head_commit_message: String,
         repo_head_author_name: String,
         repo_head_author_email: String,
+        use_uncloned_repo: Option<bool>,
     ) -> Self {
         Self {
             repo,
@@ -364,6 +370,7 @@ impl BundleRepo {
             repo_head_commit_message,
             repo_head_author_name,
             repo_head_author_email,
+            use_uncloned_repo,
         }
     }
 }
