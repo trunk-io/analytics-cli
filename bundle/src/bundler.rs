@@ -352,6 +352,7 @@ mod tests {
                 os_info: Some(env::consts::OS.to_string()),
                 codeowners: None,
                 envs,
+                use_uncloned_repo: None,
             },
             internal_bundled_file: bundled_file,
             failed_tests: vec![Test::new(

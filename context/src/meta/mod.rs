@@ -26,7 +26,12 @@ impl MetaContext {
     pub fn new(ci_info: &CIInfo, repo: &BundleRepo, stable_branches: &[&str]) -> Self {
         let mut enriched_ci_info = ci_info.clone();
 
-        if enriched_ci_info.branch.is_none() {
+        // If use_uncloned_repo is set, use repo values even if CI info has them
+        // This allows user-supplied parameters (e.g., --repo-head-branch) to take precedence
+        // over environment variables (e.g., GITHUB_REF, GITHUB_HEAD_REF)
+        let prefer_repo_values = repo.use_uncloned_repo.unwrap_or(false);
+
+        if prefer_repo_values || enriched_ci_info.branch.is_none() {
             let new_branch = clean_branch(&repo.repo_head_branch);
             let new_branch_class = BranchClass::from((
                 new_branch.as_str(),
@@ -37,22 +42,22 @@ impl MetaContext {
             enriched_ci_info.branch = Some(new_branch);
             enriched_ci_info.branch_class = Some(new_branch_class);
         }
-        if enriched_ci_info.actor.is_none() {
+        if prefer_repo_values || enriched_ci_info.actor.is_none() {
             enriched_ci_info.actor = Some(repo.repo_head_author_email.clone());
         }
-        if enriched_ci_info.commit_message.is_none() {
+        if prefer_repo_values || enriched_ci_info.commit_message.is_none() {
             enriched_ci_info.commit_message = Some(repo.repo_head_commit_message.clone());
         }
-        if enriched_ci_info.committer_name.is_none() {
+        if prefer_repo_values || enriched_ci_info.committer_name.is_none() {
             enriched_ci_info.committer_name = Some(repo.repo_head_author_name.clone());
         }
-        if enriched_ci_info.committer_email.is_none() {
+        if prefer_repo_values || enriched_ci_info.committer_email.is_none() {
             enriched_ci_info.committer_email = Some(repo.repo_head_author_email.clone());
         }
-        if enriched_ci_info.author_name.is_none() {
+        if prefer_repo_values || enriched_ci_info.author_name.is_none() {
             enriched_ci_info.author_name = Some(repo.repo_head_author_name.clone());
         }
-        if enriched_ci_info.author_email.is_none() {
+        if prefer_repo_values || enriched_ci_info.author_email.is_none() {
             enriched_ci_info.author_email = Some(repo.repo_head_author_email.clone());
         }
 

@@ -90,6 +90,7 @@ fn valid_ci_info_and_bundle_repo() -> (CIInfo, BundleRepo) {
         repo_head_sha: String::from("abc"),
         repo_head_sha_short: Some(String::from("abc")),
         repo_head_commit_epoch: 123,
+        use_uncloned_repo: None,
     };
 
     (ci_info, bundle_repo)
