@@ -7,7 +7,6 @@ use wasm_bindgen::prelude::*;
 
 use super::MetaContext;
 use crate::env::parser::CIInfo;
-#[cfg(feature = "pyo3")]
 use crate::repo::BundleRepo;
 
 #[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass(get_all))]

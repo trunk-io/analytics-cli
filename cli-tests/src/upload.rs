@@ -1860,3 +1860,150 @@ async fn works_when_tests_have_invalid_names() {
 
     println!("{assert}");
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn test_user_supplied_repo_params_precede_github_actions_env_vars() {
+    use context::{
+        env::parser::{CIPlatform, EnvParser},
+        meta::MetaContext,
+    };
+
+    let temp_dir = tempdir().unwrap();
+    generate_mock_git_repo(&temp_dir);
+    generate_mock_valid_junit_xmls(&temp_dir);
+    generate_mock_codeowners(&temp_dir);
+
+    let state = MockServerBuilder::new().spawn_mock_server().await;
+
+    // User-supplied repo parameters
+    let user_supplied_branch = "user-custom-branch";
+    let user_supplied_sha = "abcdef1234567890";
+    let user_supplied_repo_url = "https://github.com/test-org/test-repo";
+    let user_supplied_author_name = "test-user";
+    let epoch: i64 = 1234567890;
+
+    // Set up GitHub Actions environment variables with different values
+    let github_env_branch = "refs/heads/github-env-branch";
+    let github_head_ref = "github-env-head-ref";
+    let github_actor = "github-actions-bot";
+    let github_repository = "github-org/github-repo";
+
+    let assert = CommandBuilder::upload(temp_dir.path(), state.host.clone())
+        .use_uncloned_repo(true)
+        .repo_url(user_supplied_repo_url)
+        .repo_head_sha(user_supplied_sha)
+        .repo_head_branch(user_supplied_branch)
+        .repo_head_commit_epoch(epoch.to_string().as_str())
+        .repo_head_author_name(user_supplied_author_name)
+        .disable_quarantining(true)
+        .command()
+        .env("GITHUB_ACTIONS", "true")
+        .env("GITHUB_REF", github_env_branch)
+        .env("GITHUB_HEAD_REF", github_head_ref)
+        .env("GITHUB_ACTOR", github_actor)
+        .env("GITHUB_REPOSITORY", github_repository)
+        .env("GITHUB_RUN_ID", "99999")
+        .env("GITHUB_WORKFLOW", "github-workflow")
+        .env("GITHUB_JOB", "github-job")
+        .assert()
+        .success();
+
+    let requests = state.requests.lock().unwrap().clone();
+    assert_eq!(requests.len(), 3);
+    let mut requests_iter = requests.into_iter();
+
+    assert_matches!(
+        requests_iter.next().unwrap(),
+        RequestPayload::CreateBundleUpload(_)
+    );
+
+    let tar_extract_directory =
+        assert_matches!(requests_iter.next().unwrap(), RequestPayload::S3Upload(d) => d);
+
+    let file = fs::File::open(tar_extract_directory.join("meta.json")).unwrap();
+    let reader = BufReader::new(file);
+    let bundle_meta: BundleMeta = serde_json::from_reader(reader).unwrap();
+
+    // Verify that the repo in the bundle meta uses user-supplied values
+    assert_eq!(
+        bundle_meta.base_props.repo.repo_head_branch,
+        user_supplied_branch
+    );
+    assert_eq!(bundle_meta.base_props.repo.repo_head_sha, user_supplied_sha);
+    assert_eq!(bundle_meta.base_props.repo.repo_url, user_supplied_repo_url);
+    assert_eq!(
+        bundle_meta.base_props.repo.repo_head_author_name,
+        user_supplied_author_name
+    );
+
+    // Extract CIInfo from the actual environment variables captured in the bundle meta
+    // This simulates what would happen when BindingsMetaContext is created from the actual upload
+    let mut env_parser = EnvParser::new();
+    env_parser.parse(&bundle_meta.base_props.envs, &[]);
+    let ci_info = env_parser.into_ci_info_parser().unwrap().info_ci_info();
+
+    // Verify that CIInfo was parsed from GitHub Actions environment variables
+    assert_eq!(ci_info.platform, CIPlatform::GitHubActions);
+    assert_eq!(ci_info.branch, Some(github_head_ref.to_string()));
+    assert_eq!(ci_info.actor, Some(github_actor.to_string()));
+
+    // Create MetaContext with the CIInfo and the user-supplied BundleRepo
+    // Since we used --use-uncloned-repo, all repo values are user-supplied and should take precedence
+    let meta_context =
+        MetaContext::new(&ci_info, &bundle_meta.base_props.repo, &["main", "master"]);
+
+    // Verify that meta_context.ci_info uses the user-supplied repo values
+    // even though CIInfo has values from environment variables
+    assert_eq!(
+        meta_context.ci_info.branch,
+        Some(user_supplied_branch.to_string()),
+        "meta_context.ci_info.branch should use user-supplied repo_head_branch over GITHUB_HEAD_REF"
+    );
+
+    // Verify that other user-supplied repo values also take precedence
+    // When use_uncloned_repo is true, repo_head_author_email is empty, but it should still
+    // be preferred over CI env vars (even if empty)
+    assert_eq!(
+        meta_context.ci_info.actor,
+        Some(bundle_meta.base_props.repo.repo_head_author_email.clone()),
+        "meta_context.ci_info.actor should use user-supplied repo_head_author_email (even if empty) over GITHUB_ACTOR"
+    );
+    // Verify that the actor is indeed empty (since use_uncloned_repo doesn't provide email)
+    assert_eq!(
+        meta_context.ci_info.actor,
+        Some(String::new()),
+        "When use_uncloned_repo is true, repo_head_author_email is empty but still preferred"
+    );
+
+    assert_eq!(
+        meta_context.ci_info.author_name,
+        Some(user_supplied_author_name.to_string()),
+        "meta_context.ci_info.author_name should use user-supplied repo_head_author_name over CI env vars"
+    );
+
+    assert_eq!(
+        meta_context.ci_info.committer_name,
+        Some(user_supplied_author_name.to_string()),
+        "meta_context.ci_info.committer_name should use user-supplied repo_head_author_name"
+    );
+
+    assert_eq!(
+        meta_context.ci_info.committer_email,
+        Some(bundle_meta.base_props.repo.repo_head_author_email.clone()),
+        "meta_context.ci_info.committer_email should use user-supplied repo_head_author_email"
+    );
+
+    assert_eq!(
+        meta_context.ci_info.author_email,
+        Some(bundle_meta.base_props.repo.repo_head_author_email.clone()),
+        "meta_context.ci_info.author_email should use user-supplied repo_head_author_email"
+    );
+
+    assert_matches!(
+        requests_iter.next().unwrap(),
+        RequestPayload::TelemetryUploadMetrics(_)
+    );
+
+    // HINT: View CLI output with `cargo test -- --nocapture`
+    println!("{assert}");
+}
