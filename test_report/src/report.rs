@@ -313,6 +313,7 @@ impl MutTestReport {
         loop {
             let response = tokio::runtime::Builder::new_multi_thread()
                 .enable_all()
+                .max_blocking_threads(512)
                 .build()
                 .unwrap()
                 .block_on(api_client.list_quarantined_tests(&request));
