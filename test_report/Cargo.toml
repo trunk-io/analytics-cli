@@ -28,6 +28,14 @@ api = { version = "0.1.0", path = "../api" }
 context = { version = "0.1.0", path = "../context" }
 codeowners = { version = "0.1.3", path = "../codeowners" }
 constants = { path = "../constants" }
+reqwest = { version = "0.12.5", default-features = false, features = [
+  "blocking",
+  "native-tls",
+  "json",
+  "hickory-dns",
+] }
+http = "1.1.0"
+url = "2.5.4"
 
 [dev-dependencies]
 assert_matches = "1.5.0"

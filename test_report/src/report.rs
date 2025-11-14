@@ -3,7 +3,7 @@ use std::{
     collections::HashMap,
     env, fs,
     path::{Path, PathBuf},
-    time::SystemTime,
+    time::{Duration, SystemTime},
 };
 
 use api::{client::ApiClient, message};
@@ -11,7 +11,9 @@ use bundle::BundleMetaDebugProps;
 use bundle::Test;
 use chrono::prelude::*;
 use codeowners::CodeOwners;
+use constants::TRUNK_API_TOKEN_ENV;
 use context::repo::{BundleRepo, RepoUrlParts};
+use http::{header::HeaderMap, HeaderValue};
 #[cfg(feature = "ruby")]
 use magnus::{value::ReprValue, Module, Object};
 use prost_wkt_types::Timestamp;
@@ -19,9 +21,13 @@ use proto::test_context::test_run::{
     CodeOwner, TestCaseRun, TestCaseRunStatus, TestReport as TestReportProto, TestResult,
     UploaderMetadata,
 };
+use reqwest::blocking::Client;
+use reqwest::header;
+use reqwest::StatusCode;
 use third_party::sentry;
 use tracing_subscriber::{filter::FilterFn, prelude::*};
 use trunk_analytics_cli::{context::gather_initial_test_context, upload_command::run_upload};
+use url::Url;
 #[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::wasm_bindgen;
 
@@ -311,12 +317,8 @@ impl MutTestReport {
             repo: repo.clone(),
         };
         loop {
-            let response = tokio::runtime::Builder::new_multi_thread()
-                .enable_all()
-                .max_blocking_threads(512)
-                .build()
-                .unwrap()
-                .block_on(api_client.list_quarantined_tests(&request));
+            let response =
+                Self::list_quarantined_tests_blocking(api_client, &request, &org_url_slug);
             match response {
                 Ok(response) => {
                     for test in response.quarantined_tests.iter() {
@@ -341,16 +343,104 @@ impl MutTestReport {
                 }
                 Err(err) => {
                     tracing::warn!("Unable to fetch quarantined tests");
-                    tracing::error!(
-                        hidden_in_console = true,
-                        "Error fetching quarantined tests: {:?}",
-                        err
-                    );
+                    tracing::error!("Error fetching quarantined tests: {:?}", err);
                     break;
                 }
             }
         }
         self.0.borrow_mut().quarantined_tests = Some(quarantined_tests);
+    }
+
+    fn list_quarantined_tests_blocking(
+        api_client: &ApiClient,
+        request: &message::ListQuarantinedTestsRequest,
+        org_url_slug: &str,
+    ) -> anyhow::Result<message::ListQuarantinedTestsResponse> {
+        let api_token = env::var(TRUNK_API_TOKEN_ENV)
+            .map_err(|_| anyhow::anyhow!("Trunk API token is required."))?;
+        if api_token.trim().is_empty() {
+            return Err(anyhow::anyhow!("Trunk API token is required."));
+        }
+
+        let api_token_header_value = HeaderValue::from_str(&api_token)
+            .map_err(|_| anyhow::Error::msg("Trunk API token is not ASCII"))?;
+
+        let version_path_prefix = if env::var("DEBUG_STRIP_VERSION_PREFIX").is_ok() {
+            String::from("")
+        } else {
+            String::from("/v1")
+        };
+
+        let mut default_headers = HeaderMap::new();
+        default_headers.append(
+            header::CONTENT_TYPE,
+            HeaderValue::from_static("application/json"),
+        );
+        default_headers.append("x-api-token", api_token_header_value);
+
+        let client = Client::builder()
+            .timeout(Duration::from_secs(30))
+            .default_headers(default_headers)
+            .build()?;
+
+        let url = format!("https://api.trunk-staging.io/v1/flaky-tests/list-quarantined-tests");
+
+        let response = client.post(&url).json(request).send()?;
+        println!("response: {:?}", response);
+        println!("url: {:?}", url);
+        println!("request: {:?}", request);
+
+        // Handle status codes similar to status_code_help
+        let response = if !response.status().is_client_error() {
+            response.error_for_status()?
+        } else {
+            let status = response.status();
+            let error_message = match status {
+                StatusCode::UNAUTHORIZED => {
+                    let domain = Url::parse(&api_client.api_host)
+                        .ok()
+                        .and_then(|url| url.domain().map(String::from));
+                    let context = "Your Trunk token may be incorrect - find it on the Trunk app (Settings -> Manage Organization -> Organization API Token -> View).";
+                    if let Some(present_domain) = domain {
+                        let settings_url = format!(
+                            "https://{}/{}/settings",
+                            present_domain.replace("api", "app"),
+                            org_url_slug
+                        );
+                        format!(
+                            "{}\nHint - Your settings page can be found at: {}",
+                            context, settings_url
+                        )
+                    } else {
+                        String::from(context)
+                    }
+                }
+                StatusCode::NOT_FOUND => {
+                    let domain = Url::parse(&api_client.api_host)
+                        .ok()
+                        .and_then(|url| url.domain().map(String::from));
+                    let context = "Your Trunk organization URL slug may be incorrect - find it on the Trunk app (Settings -> Manage Organization -> Organization Slug).";
+                    if let Some(present_domain) = domain {
+                        let settings_url = format!(
+                            "https://{}/{}/settings",
+                            present_domain.replace("api", "app"),
+                            org_url_slug
+                        );
+                        format!(
+                            "{}\nHint - Your settings page can be found at: {}",
+                            context, settings_url
+                        )
+                    } else {
+                        String::from(context)
+                    }
+                }
+                _ => format!("Failed to list quarantined tests."),
+            };
+            return Err(anyhow::Error::msg(error_message));
+        };
+
+        let deserialized: message::ListQuarantinedTestsResponse = response.json()?;
+        Ok(deserialized)
     }
 
     fn get_org_url_slug(&self) -> String {

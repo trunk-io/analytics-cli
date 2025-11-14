@@ -5159,6 +5159,7 @@ dependencies = [
  "constants",
  "context",
  "env_logger",
+ "http 1.2.0",
  "js-sys",
  "log",
  "magnus",
@@ -5166,6 +5167,7 @@ dependencies = [
  "prost",
  "prost-wkt-types",
  "proto",
+ "reqwest",
  "sentry-tracing",
  "serde_json",
  "serial_test",
@@ -5176,6 +5178,7 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "trunk-analytics-cli",
+ "url",
  "wasm-bindgen",
 ]
 
