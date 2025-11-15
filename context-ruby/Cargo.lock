@@ -4294,11 +4294,13 @@ dependencies = [
  "constants",
  "context",
  "env_logger",
+ "http 1.2.0",
  "log",
  "magnus",
  "prost",
  "prost-wkt-types",
  "proto",
+ "reqwest",
  "sentry-tracing",
  "serde_json",
  "tempfile",
@@ -4307,6 +4309,7 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "trunk-analytics-cli",
+ "url",
 ]
 
 [[package]]

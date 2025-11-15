@@ -74,6 +74,8 @@ jobs:
           file: context-ruby/context_ruby.gemspec
 
       - uses: oxidize-rb/actions/cross-gem@v1
+        env:
+          CARGO_PROFILE_RELEASE_OPT_LEVEL: "1"
         with:
           platform: ${{ matrix.platform }}
           working-directory: context-ruby
