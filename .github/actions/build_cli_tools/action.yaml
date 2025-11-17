@@ -20,10 +20,19 @@ runs:
       shell: bash
       run: rustup target add ${{ inputs.target }}
 
+    - name: Install MinGW for Windows cross-compilation
+      shell: bash
+      if: ${{ contains(inputs.target, 'windows-gnu') }}
+      run: |
+        sudo apt-get update
+        # Install build-essential for host build scripts (cc/gcc)
+        # Install gcc-mingw-w64-x86-64 for Windows target cross-compilation
+        sudo apt-get install -y build-essential gcc-mingw-w64-x86-64
+
     - name: Install musl development tools
       shell: bash
       run: |
-        if [[ "${{ inputs.target }}" == *"musl"* ]] && [[ "${{ inputs.os-name }}" != *"windows"* ]]; then
+        if [[ "${{ inputs.target }}" == *"musl"* ]]; then
           sudo apt-get update
           sudo apt-get install -y musl-tools
         fi
@@ -32,7 +41,8 @@ runs:
       shell: bash
       run: |
         # Only install cross if we're not on the target architecture or platform
-        if [[ "${{ inputs.os-name }}" == *"darwin"* ]] || [[ "${{ inputs.target }}" == *"aarch64"* && "$(uname -m)" == "aarch64" ]]; then
+        # Skip cross for Windows GNU - we build natively with cargo
+        if [[ "${{ inputs.os-name }}" == *"darwin"* ]] || [[ "${{ inputs.target }}" == *"aarch64"* && "$(uname -m)" == "aarch64" ]] || [[ "${{ inputs.target }}" == *"windows-gnu"* ]]; then
           echo "Skipping cross installation - building natively"
         else
           cargo install cross --version 0.2.5 --force
@@ -62,7 +72,7 @@ runs:
     - name: Build Bundle CLI
       shell: bash
       run: |
-        if [[ "${{ inputs.os-name }}" == *"darwin"* ]] || [[ "${{ inputs.target }}" == *"aarch64"* && "$(uname -m)" == "aarch64" ]]; then
+        if [[ "${{ inputs.os-name }}" == *"darwin"* ]] || [[ "${{ inputs.target }}" == *"aarch64"* && "$(uname -m)" == "aarch64" ]] || [[ "${{ inputs.target }}" == *"windows-gnu"* ]]; then
           cargo build -p bundle --profile=release-with-debug --target=${{ inputs.target }} --features build-binary
         else
           cross build -p bundle --profile=release-with-debug --target=${{ inputs.target }} --features build-binary
@@ -71,7 +81,7 @@ runs:
     - name: Build XCResult CLI
       shell: bash
       run: |
-        if [[ "${{ inputs.os-name }}" == *"darwin"* ]] || [[ "${{ inputs.target }}" == *"aarch64"* && "$(uname -m)" == "aarch64" ]]; then
+        if [[ "${{ inputs.os-name }}" == *"darwin"* ]] || [[ "${{ inputs.target }}" == *"aarch64"* && "$(uname -m)" == "aarch64" ]] || [[ "${{ inputs.target }}" == *"windows-gnu"* ]]; then
           cargo build -p xcresult --profile=release-with-debug --target=${{ inputs.target }}
         else
           cross build -p xcresult --profile=release-with-debug --target=${{ inputs.target }}
@@ -80,7 +90,7 @@ runs:
     - name: Build Codeowners CLI
       shell: bash
       run: |
-        if [[ "${{ inputs.os-name }}" == *"darwin"* ]] || [[ "${{ inputs.target }}" == *"aarch64"* && "$(uname -m)" == "aarch64" ]]; then
+        if [[ "${{ inputs.os-name }}" == *"darwin"* ]] || [[ "${{ inputs.target }}" == *"aarch64"* && "$(uname -m)" == "aarch64" ]] || [[ "${{ inputs.target }}" == *"windows-gnu"* ]]; then
           cargo build -p codeowners --profile=release-with-debug --target=${{ inputs.target }}
         else
           cross build -p codeowners --profile=release-with-debug --target=${{ inputs.target }}
