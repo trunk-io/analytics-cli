@@ -166,6 +166,17 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: 3.13
+      - name: Install Perl and modules for OpenSSL (Windows)
+        shell: pwsh
+        run: |
+          # Install Strawberry Perl via Chocolatey (includes necessary modules like Locale::Maketext::Simple)
+          choco install strawberryperl -y
+          # Refresh environment to pick up Perl in PATH
+          $env:ChocolateyInstall = Convert-Path "$((Get-Command choco).Path)\..\.."
+          Import-Module "$env:ChocolateyInstall\helpers\chocolateyProfile.psm1"
+          refreshenv
+          # Verify Perl is available
+          perl --version
       - name: Setup Rust & Cargo
         uses: ./.github/actions/setup_rust_cargo
       - name: Generate Python stubs
