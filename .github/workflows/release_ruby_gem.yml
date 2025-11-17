@@ -103,9 +103,8 @@ jobs:
             os: ubuntu-24.04-arm
           - name: arm64-darwin
             os: macos-latest
-          # temporarily disable these tests
-          #- name: x86_64-darwin
-          #  os: macos-15-intel
+          - name: x86_64-darwin
+            os: macos-15-intel
     steps:
       - uses: actions/checkout@v4
 
