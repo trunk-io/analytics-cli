@@ -29,29 +29,6 @@ runs:
         # Install gcc-mingw-w64-x86-64 for Windows target cross-compilation
         sudo apt-get install -y build-essential gcc-mingw-w64-x86-64
 
-    - name: Clean up Docker resources (Windows GNU)
-      shell: bash
-      # Clean up Docker to free disk space before Windows GNU cross-compilation
-      if: ${{ contains(inputs.target, 'windows-gnu') }}
-      run: |
-        echo "=== Disk space before cleanup ==="
-        df -h || true
-        echo ""
-        echo "=== Docker disk usage before cleanup ==="
-        docker system df || true
-        echo ""
-        echo "Cleaning up Docker resources to free disk space..."
-        # Remove all stopped containers, unused networks, and dangling images
-        docker system prune -af --volumes || true
-        # Remove build cache
-        docker builder prune -af || true
-        echo ""
-        echo "=== Disk space after cleanup ==="
-        df -h || true
-        echo ""
-        echo "=== Docker disk usage after cleanup ==="
-        docker system df || true
-
     - name: Install cross
       shell: bash
       # Install cross for all non-darwin targets (including Windows GNU)
