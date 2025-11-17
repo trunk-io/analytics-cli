@@ -25,7 +25,9 @@ runs:
       if: ${{ contains(inputs.target, 'windows-gnu') }}
       run: |
         sudo apt-get update
-        sudo apt-get install -y gcc-mingw-w64-x86-64
+        # Install build-essential for host build scripts (cc/gcc)
+        # Install gcc-mingw-w64-x86-64 for Windows target cross-compilation
+        sudo apt-get install -y build-essential gcc-mingw-w64-x86-64
 
     - name: Clean up Docker resources (Windows GNU)
       shell: bash
