@@ -1291,6 +1291,7 @@ async fn test_can_upload_with_uncloned_repo() {
         repo_head_commit_message: String::from(""),
         repo_head_author_name: String::from(author_name),
         repo_head_author_email: String::from(""),
+        use_uncloned_repo: Some(true),
     };
     assert_eq!(bundle_meta.base_props.repo, expected);
 
@@ -1468,6 +1469,7 @@ async fn test_can_use_manual_overrides_on_cloned_repo() {
         repo_head_commit_message: String::from("Initial commit"),
         repo_head_author_name: String::from(author_name),
         repo_head_author_email: String::from(""),
+        use_uncloned_repo: Some(false),
     };
     assert_eq!(bundle_meta.base_props.repo, expected);
 

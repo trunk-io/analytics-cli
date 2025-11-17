@@ -26,21 +26,40 @@ impl MetaContext {
     pub fn new(ci_info: &CIInfo, repo: &BundleRepo, stable_branches: &[&str]) -> Self {
         let mut enriched_ci_info = ci_info.clone();
 
-        let new_branch = clean_branch(&repo.repo_head_branch);
-        let new_branch_class = BranchClass::from((
-            new_branch.as_str(),
-            enriched_ci_info.pr_number,
-            None,
-            stable_branches,
-        ));
-        enriched_ci_info.branch = Some(new_branch);
-        enriched_ci_info.branch_class = Some(new_branch_class);
-        enriched_ci_info.actor = Some(repo.repo_head_author_email.clone());
-        enriched_ci_info.commit_message = Some(repo.repo_head_commit_message.clone());
-        enriched_ci_info.committer_name = Some(repo.repo_head_author_name.clone());
-        enriched_ci_info.committer_email = Some(repo.repo_head_author_email.clone());
-        enriched_ci_info.author_name = Some(repo.repo_head_author_name.clone());
-        enriched_ci_info.author_email = Some(repo.repo_head_author_email.clone());
+        // If use_uncloned_repo is set, use repo values even if CI info has them
+        // This allows user-supplied parameters (e.g., --repo-head-branch) to take precedence
+        // over environment variables (e.g., GITHUB_REF, GITHUB_HEAD_REF)
+        let prefer_repo_values = repo.use_uncloned_repo.unwrap_or(false);
+
+        if prefer_repo_values || enriched_ci_info.branch.is_none() {
+            let new_branch = clean_branch(&repo.repo_head_branch);
+            let new_branch_class = BranchClass::from((
+                new_branch.as_str(),
+                enriched_ci_info.pr_number,
+                None,
+                stable_branches,
+            ));
+            enriched_ci_info.branch = Some(new_branch);
+            enriched_ci_info.branch_class = Some(new_branch_class);
+        }
+        if prefer_repo_values || enriched_ci_info.actor.is_none() {
+            enriched_ci_info.actor = Some(repo.repo_head_author_email.clone());
+        }
+        if prefer_repo_values || enriched_ci_info.commit_message.is_none() {
+            enriched_ci_info.commit_message = Some(repo.repo_head_commit_message.clone());
+        }
+        if prefer_repo_values || enriched_ci_info.committer_name.is_none() {
+            enriched_ci_info.committer_name = Some(repo.repo_head_author_name.clone());
+        }
+        if prefer_repo_values || enriched_ci_info.committer_email.is_none() {
+            enriched_ci_info.committer_email = Some(repo.repo_head_author_email.clone());
+        }
+        if prefer_repo_values || enriched_ci_info.author_name.is_none() {
+            enriched_ci_info.author_name = Some(repo.repo_head_author_name.clone());
+        }
+        if prefer_repo_values || enriched_ci_info.author_email.is_none() {
+            enriched_ci_info.author_email = Some(repo.repo_head_author_email.clone());
+        }
 
         Self {
             ci_info: enriched_ci_info,
