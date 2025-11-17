@@ -35,10 +35,18 @@ runs:
       if: ${{ !contains(inputs.target, 'darwin') }}
       run: cargo install cross --git https://github.com/cross-rs/cross --force
 
+    - name: Build CLI ${{ inputs.target }} target (Windows GNU native)
+      shell: bash
+      # Build Windows GNU natively without Docker since we have MinGW installed
+      if: ${{ contains(inputs.target, 'windows-gnu') }}
+      run: |
+        cargo +${{ inputs.toolchain }} build -p trunk-analytics-cli --profile=${{ inputs.profile }} --target=${{ inputs.target }} ${{ (inputs.force-sentry-dev == 'true' && '--features force-sentry-env-dev') || '' }}
+
     - name: Build CLI ${{ inputs.target }} target
-      uses: houseabsolute/actions-rust-cross@v1.0.1
+      uses: houseabsolute/actions-rust-cross@v1.0.5
       # Cross-rs does not directly support cross compilation with macOS targets
-      if: ${{ !contains(inputs.target, 'darwin') }}
+      # Use action for non-Windows-GNU targets
+      if: ${{ !contains(inputs.target, 'darwin') && !contains(inputs.target, 'windows-gnu') }}
       with:
         command: build
         target: ${{ inputs.target }}
