@@ -60,11 +60,26 @@ jobs:
               /usr/bin/apt update
               /usr/bin/apt install -y pkg-config libssl-dev unzip
             fi
+      - name: Build Windows wheels (cross-compile from Linux)
+        if: ${{ matrix.platform.target == 'x86_64' }}
+        shell: bash
+        run: |
+          # Install MinGW for Windows cross-compilation
+          sudo apt-get update
+          sudo apt-get install -y build-essential gcc-mingw-w64-x86-64
+          # Install maturin if not already available
+          pip install maturin
+          # Build Windows wheel using maturin with Windows target
+          # Note: This cross-compiles the Rust code, but maturin may need Windows Python for wheel metadata
+          # If this doesn't work, we'll need to build on Windows
+          maturin build --release --out dist --target x86_64-pc-windows-gnu --manifest-path ./context-py/Cargo.toml || echo "Cross-compilation failed, will build on Windows"
       - name: Upload wheels
         uses: actions/upload-artifact@v4
         with:
           name: wheels-linux-${{ matrix.platform.target }}
           path: dist
+          # Also upload Windows wheels if they were built
+          if-no-files-found: ignore
       - name: pytest
         if: ${{ startsWith(matrix.platform.target, 'x86_64') }}
         shell: bash
@@ -157,16 +172,34 @@ jobs:
           role-to-assume: ${{ secrets.S3_UPLOAD_ROLE_ARN }}
   windows:
     runs-on: windows-latest
-    strategy:
-      matrix:
-        target:
-          - x86_64
+    needs: linux
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: 3.13
-      - name: Install Perl and modules for OpenSSL (Windows)
+      - name: Download Windows wheels (cross-compiled from Linux)
+        id: download-wheels
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          name: wheels-linux-x86_64
+          path: dist
+          pattern: "*win*.whl"
+      - name: Check if Windows wheels exist
+        id: check-wheels
+        shell: pwsh
+        run: |
+          $wheelFiles = Get-ChildItem -Path dist -Filter "*win*.whl" -ErrorAction SilentlyContinue
+          if ($wheelFiles) {
+            Write-Host "Windows wheels found from cross-compilation"
+            echo "wheels-exist=true" >> $env:GITHUB_OUTPUT
+          } else {
+            Write-Host "No Windows wheels found, will build on Windows"
+            echo "wheels-exist=false" >> $env:GITHUB_OUTPUT
+          }
+      - name: Build Windows wheels (fallback if cross-compile failed)
+        if: steps.check-wheels.outputs.wheels-exist == 'false'
         shell: pwsh
         run: |
           # Install Strawberry Perl via Chocolatey (includes necessary modules like Locale::Maketext::Simple)
@@ -177,21 +210,19 @@ jobs:
           refreshenv
           # Verify Perl is available
           perl --version
-      - name: Setup Rust & Cargo
+      - name: Setup Rust & Cargo (Windows build fallback)
+        if: steps.check-wheels.outputs.wheels-exist == 'false'
         uses: ./.github/actions/setup_rust_cargo
-      - name: Generate Python stubs
+      - name: Generate Python stubs (Windows build fallback)
+        if: steps.check-wheels.outputs.wheels-exist == 'false'
         shell: bash
         run: cargo run --bin stub_gen --manifest-path context-py/Cargo.toml --no-default-features
-      - name: Build wheels
+      - name: Build wheels (Windows fallback)
+        if: steps.check-wheels.outputs.wheels-exist == 'false'
         uses: PyO3/maturin-action@v1
         with:
-          target: ${{ matrix.target }}
+          target: x86_64
           args: --release --out dist --find-interpreter --manifest-path ./context-py/Cargo.toml
-      - name: Upload wheels
-        uses: actions/upload-artifact@v4
-        with:
-          name: wheels-windows-${{ matrix.target }}
-          path: dist
       - name: pytest
         shell: pwsh
         run: |
@@ -213,7 +244,7 @@ jobs:
         if: "!cancelled() && github.event_name != 'pull_request'"
         with:
           bucket: ${{ secrets.S3_ASSET_BUCKET }}
-          name: windows-${{ matrix.target }}
+          name: windows-x86_64
           path: dist
           s3-flags: --recursive
           role-to-assume: ${{ secrets.S3_UPLOAD_ROLE_ARN }}
