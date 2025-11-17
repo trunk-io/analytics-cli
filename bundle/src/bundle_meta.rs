@@ -43,6 +43,7 @@ pub struct BundleMetaBaseProps {
     pub os_info: Option<String>,
     pub quarantined_tests: Vec<Test>,
     pub codeowners: Option<CodeOwners>,
+    pub use_uncloned_repo: Option<bool>,
 }
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass(get_all))]

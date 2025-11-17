@@ -15,7 +15,7 @@ runtimes:
     - node@18.12.1
     - python@3.10.8
     - ruby@3.1.4
-    - rust@2024-05-01
+    - rust@2025-06-30
 # This is the section where you manage your linters. (https://docs.trunk.io/check/configuration)
 lint:
   enabled:
@@ -24,7 +24,7 @@ lint:
     - bandit@1.7.10
     - black@24.10.0
     - checkov@3.2.296
-    - clippy@2024-05-01
+    - clippy@2025-06-30
     - eslint@9.14.0
     - git-diff-check
     - isort@5.13.2
@@ -32,7 +32,7 @@ lint:
     - osv-scanner@1.9.1
     - prettier@3.3.3
     - ruff@0.7.3
-    - rustfmt@2024-05-01
+    - rustfmt@2025-06-30
     - taplo@0.9.3
     - trufflehog@3.83.7
     - yamllint@1.35.1
@@ -122,7 +122,7 @@ tools:
   definitions:
     - name: rust-src
       download: rust-src
-      known_good_version: 2024-05-01
+      known_good_version: 2025-06-30
       shims: [rust-src]
   runtimes:
     - ruby

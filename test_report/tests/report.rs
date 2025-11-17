@@ -1,7 +1,8 @@
 use std::{env, fs, io::BufReader, path::Path, thread};
 
 use assert_matches::assert_matches;
-use bundle::{BundleMeta, FileSetType};
+use axum::{extract::State, Json};
+use bundle::{BundleMeta, FileSetType, Test};
 use constants::{
     TRUNK_ALLOW_EMPTY_TEST_RESULTS_ENV, TRUNK_API_TOKEN_ENV, TRUNK_CODEOWNERS_PATH_ENV,
     TRUNK_DISABLE_QUARANTINING_ENV, TRUNK_DRY_RUN_ENV, TRUNK_ORG_URL_SLUG_ENV,
@@ -18,7 +19,7 @@ use serial_test::serial;
 use tempfile::tempdir;
 use test_report::report::{MutTestReport, Status};
 use test_utils::mock_git_repo::setup_repo_with_commit;
-use test_utils::mock_server::{MockServerBuilder, RequestPayload};
+use test_utils::mock_server::{MockServerBuilder, RequestPayload, SharedMockServerState};
 
 pub fn generate_mock_codeowners<T: AsRef<Path>>(directory: T) {
     const CODEOWNERS: &str = r#"
@@ -28,9 +29,30 @@ pub fn generate_mock_codeowners<T: AsRef<Path>>(directory: T) {
     fs::write(directory.as_ref().join("CODEOWNERS"), CODEOWNERS).unwrap();
 }
 
+/// Cleans up all TRUNK_* and CI-related environment variables to avoid test interference
+fn cleanup_env_vars() {
+    env::remove_var(TRUNK_PUBLIC_API_ADDRESS_ENV);
+    env::remove_var(TRUNK_API_TOKEN_ENV);
+    env::remove_var(TRUNK_ORG_URL_SLUG_ENV);
+    env::remove_var(TRUNK_REPO_URL_ENV);
+    env::remove_var(TRUNK_REPO_HEAD_SHA_ENV);
+    env::remove_var(TRUNK_REPO_HEAD_BRANCH_ENV);
+    env::remove_var(TRUNK_REPO_HEAD_COMMIT_EPOCH_ENV);
+    env::remove_var(TRUNK_REPO_HEAD_AUTHOR_NAME_ENV);
+    env::remove_var(TRUNK_VARIANT_ENV);
+    env::remove_var(TRUNK_USE_UNCLONED_REPO_ENV);
+    env::remove_var(TRUNK_DISABLE_QUARANTINING_ENV);
+    env::remove_var(TRUNK_ALLOW_EMPTY_TEST_RESULTS_ENV);
+    env::remove_var(TRUNK_DRY_RUN_ENV);
+    env::remove_var(TRUNK_CODEOWNERS_PATH_ENV);
+    env::remove_var("CI");
+    env::remove_var("GITHUB_JOB");
+}
+
 #[tokio::test(flavor = "multi_thread")]
 #[serial]
 async fn publish_test_report() {
+    cleanup_env_vars();
     let temp_dir = tempdir().unwrap();
     let repo_setup_res = setup_repo_with_commit(&temp_dir);
     generate_mock_codeowners(&temp_dir);
@@ -216,15 +238,12 @@ async fn publish_test_report() {
     assert_eq!(test_case_run.codeowners.len(), 2);
 
     // Clean up environment variables to avoid interfering with subsequent tests
-    env::remove_var(TRUNK_PUBLIC_API_ADDRESS_ENV);
-    env::remove_var(TRUNK_API_TOKEN_ENV);
-    env::remove_var(TRUNK_ORG_URL_SLUG_ENV);
-    env::remove_var("CI");
-    env::remove_var("GITHUB_JOB");
+    cleanup_env_vars();
 }
 
 #[test]
 fn test_mut_test_report_try_save() {
+    cleanup_env_vars();
     let temp_dir = tempdir().unwrap();
     let report = MutTestReport::new(
         "test-origin".into(),
@@ -248,6 +267,7 @@ fn test_mut_test_report_try_save() {
 #[tokio::test(flavor = "multi_thread")]
 #[serial]
 async fn test_environment_variable_overrides() {
+    cleanup_env_vars();
     let temp_dir = tempdir().unwrap();
     generate_mock_codeowners(&temp_dir);
 
@@ -287,7 +307,7 @@ async fn test_environment_variable_overrides() {
     env::set_var("CI", "1");
     env::set_var("GITHUB_JOB", "test-job");
 
-    let thread_join_handle = thread::spawn(|| {
+    let thread_join_handle = thread::spawn(move || {
         let test_report = MutTestReport::new(
             "test".into(),
             "test-command with env overrides".into(),
@@ -309,6 +329,10 @@ async fn test_environment_variable_overrides() {
         );
         let result = test_report.publish();
         assert!(result, "publish should succeed with environment overrides");
+        let repo_root = test_report.get_repo_root();
+        let expected_root = temp_dir.path().canonicalize().unwrap();
+        let actual_root = Path::new(&repo_root).canonicalize().unwrap();
+        assert_eq!(actual_root, expected_root);
     });
     thread_join_handle.join().unwrap();
 
@@ -367,22 +391,7 @@ async fn test_environment_variable_overrides() {
     }
 
     // Clean up environment variables
-    env::remove_var(TRUNK_PUBLIC_API_ADDRESS_ENV);
-    env::remove_var(TRUNK_API_TOKEN_ENV);
-    env::remove_var(TRUNK_ORG_URL_SLUG_ENV);
-    env::remove_var(TRUNK_REPO_URL_ENV);
-    env::remove_var(TRUNK_REPO_HEAD_SHA_ENV);
-    env::remove_var(TRUNK_REPO_HEAD_BRANCH_ENV);
-    env::remove_var(TRUNK_REPO_HEAD_COMMIT_EPOCH_ENV);
-    env::remove_var(TRUNK_REPO_HEAD_AUTHOR_NAME_ENV);
-    env::remove_var(TRUNK_VARIANT_ENV);
-    env::remove_var(TRUNK_USE_UNCLONED_REPO_ENV);
-    env::remove_var(TRUNK_DISABLE_QUARANTINING_ENV);
-    env::remove_var(TRUNK_ALLOW_EMPTY_TEST_RESULTS_ENV);
-    env::remove_var(TRUNK_DRY_RUN_ENV);
-    env::remove_var(TRUNK_CODEOWNERS_PATH_ENV);
-    env::remove_var("CI");
-    env::remove_var("GITHUB_JOB");
+    cleanup_env_vars();
 
     // Restore original directory
     let _ = env::set_current_dir(original_dir);
@@ -391,6 +400,7 @@ async fn test_environment_variable_overrides() {
 #[tokio::test(flavor = "multi_thread")]
 #[serial]
 async fn test_variant_priority_constructor_over_env() {
+    cleanup_env_vars();
     let temp_dir = tempdir().unwrap();
     generate_mock_codeowners(&temp_dir);
 
@@ -421,7 +431,7 @@ async fn test_variant_priority_constructor_over_env() {
     env::set_var("CI", "1");
     env::set_var("GITHUB_JOB", "test-job");
 
-    let thread_join_handle = thread::spawn(|| {
+    let thread_join_handle = thread::spawn(move || {
         let test_report = MutTestReport::new(
             "test".into(),
             "test-command".into(),
@@ -443,6 +453,10 @@ async fn test_variant_priority_constructor_over_env() {
         );
         let result = test_report.publish();
         assert!(result, "publish should succeed");
+        let repo_root = test_report.get_repo_root();
+        let expected_root = temp_dir.path().canonicalize().unwrap();
+        let actual_root = Path::new(&repo_root).canonicalize().unwrap();
+        assert_eq!(actual_root, expected_root);
     });
     thread_join_handle.join().unwrap();
 
@@ -458,4 +472,167 @@ async fn test_variant_priority_constructor_over_env() {
     assert_matches!(&requests_iter.next().unwrap(), RequestPayload::S3Upload(d) => d);
     // Restore original directory
     let _ = env::set_current_dir(original_dir);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[serial]
+async fn test_variant_impacts_quarantining() {
+    cleanup_env_vars();
+    let temp_dir = tempdir().unwrap();
+    let repo_setup_res = setup_repo_with_commit(&temp_dir);
+    assert!(repo_setup_res.is_ok());
+    let _ = env::set_current_dir(&temp_dir);
+
+    // Test parameters that will be used for quarantine checking
+    let test_name = Some("test_name".to_string());
+    let test_parent_name = Some("test_parent".to_string());
+    let test_classname = Some("TestClass".to_string());
+    let test_file = Some("test_file.rs".to_string());
+
+    let repo = RepoUrlParts {
+        host: "github.com".into(),
+        owner: "trunk-io".into(),
+        name: "analytics-cli".into(),
+    };
+
+    // Generate the expected test ID with variant1
+    let expected_test_id_variant1 = Test::new(
+        None,
+        test_name.clone().unwrap_or_default(),
+        test_parent_name.clone().unwrap_or_default(),
+        test_classname.clone(),
+        test_file.clone(),
+        "test-org".to_string(),
+        &repo,
+        None,
+        "variant1".to_string(),
+    )
+    .id;
+
+    // Generate the expected test ID with variant2
+    let expected_test_id_variant2 = Test::new(
+        None,
+        test_name.clone().unwrap_or_default(),
+        test_parent_name.clone().unwrap_or_default(),
+        test_classname.clone(),
+        test_file.clone(),
+        "test-org".to_string(),
+        &repo,
+        None,
+        "variant2".to_string(),
+    )
+    .id;
+
+    // Verify they're different
+    assert_ne!(expected_test_id_variant1, expected_test_id_variant2);
+
+    // Create a custom mock server handler that returns a quarantined test with the variant1 ID
+    use api::message::{ListQuarantinedTestsResponse, Page, QuarantineSetting, QuarantinedTest};
+    let state = {
+        let mut builder = MockServerBuilder::new();
+        let expected_id_v1 = expected_test_id_variant1.clone();
+        let test_name_clone = test_name.clone();
+        let test_parent_name_clone = test_parent_name.clone();
+        let test_classname_clone = test_classname.clone();
+        let test_file_clone = test_file.clone();
+        builder.list_quarantined_tests_handler(
+            move |_state: State<SharedMockServerState>,
+                  _req: Json<api::message::ListQuarantinedTestsRequest>| async move {
+                Json(ListQuarantinedTestsResponse {
+                    quarantined_tests: vec![QuarantinedTest {
+                        test_case_id: expected_id_v1.clone(),
+                        name: test_name_clone.clone().unwrap_or_default(),
+                        parent: Some(test_parent_name_clone.clone().unwrap_or_default()),
+                        classname: test_classname_clone.clone(),
+                        file: test_file_clone.clone(),
+                        status: "failure".to_string(),
+                        quarantine_setting: QuarantineSetting::AlwaysQuarantine,
+                    }],
+                    page: Page {
+                        total_rows: 1,
+                        total_pages: 1,
+                        next_page_token: "".to_string(),
+                        prev_page_token: "".to_string(),
+                        last_page_token: "".to_string(),
+                        page_index: 0,
+                    },
+                })
+            },
+        );
+        builder.spawn_mock_server().await
+    };
+
+    env::set_var(TRUNK_PUBLIC_API_ADDRESS_ENV, &state.host);
+    env::set_var(TRUNK_API_TOKEN_ENV, "test-token");
+    env::set_var(TRUNK_ORG_URL_SLUG_ENV, "test-org");
+    env::set_var(TRUNK_USE_UNCLONED_REPO_ENV, "false");
+
+    // Test with variant1 - should find the quarantined test
+    env::set_var(TRUNK_VARIANT_ENV, "variant1");
+    let test_name_v1 = test_name.clone();
+    let test_parent_name_v1 = test_parent_name.clone();
+    let test_classname_v1 = test_classname.clone();
+    let test_file_v1 = test_file.clone();
+    let is_quarantined_v1 = thread::spawn(move || {
+        let test_report_v1 = MutTestReport::new("test".into(), "test-command".into(), None);
+        test_report_v1.is_quarantined(
+            None,
+            test_name_v1,
+            test_parent_name_v1,
+            test_classname_v1,
+            test_file_v1,
+        )
+    })
+    .join()
+    .unwrap();
+    assert!(
+        is_quarantined_v1,
+        "Test should be quarantined when variant matches"
+    );
+
+    // Test with variant2 - should NOT find the quarantined test (different variant)
+    env::set_var(TRUNK_VARIANT_ENV, "variant2");
+    let test_name_v2 = test_name.clone();
+    let test_parent_name_v2 = test_parent_name.clone();
+    let test_classname_v2 = test_classname.clone();
+    let test_file_v2 = test_file.clone();
+    let is_quarantined_v2 = thread::spawn(move || {
+        let test_report_v2 = MutTestReport::new("test".into(), "test-command".into(), None);
+        test_report_v2.is_quarantined(
+            None,
+            test_name_v2,
+            test_parent_name_v2,
+            test_classname_v2,
+            test_file_v2,
+        )
+    })
+    .join()
+    .unwrap();
+    assert!(
+        !is_quarantined_v2,
+        "Test should NOT be quarantined when variant doesn't match"
+    );
+
+    // Test with no variant - should NOT find the quarantined test
+    env::remove_var(TRUNK_VARIANT_ENV);
+    let test_name_v3 = test_name.clone();
+    let test_parent_name_v3 = test_parent_name.clone();
+    let test_classname_v3 = test_classname.clone();
+    let test_file_v3 = test_file.clone();
+    let is_quarantined_v3 = thread::spawn(move || {
+        let test_report_v3 = MutTestReport::new("test".into(), "test-command".into(), None);
+        test_report_v3.is_quarantined(
+            None,
+            test_name_v3,
+            test_parent_name_v3,
+            test_classname_v3,
+            test_file_v3,
+        )
+    })
+    .join()
+    .unwrap();
+    assert!(
+        !is_quarantined_v3,
+        "Test should NOT be quarantined when variant is empty"
+    );
 }

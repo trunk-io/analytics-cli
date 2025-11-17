@@ -175,6 +175,7 @@ pub fn gather_initial_test_context(
             quarantined_tests: Vec::with_capacity(0),
             os_info: Some(env::consts::OS.to_string()),
             codeowners: None,
+            use_uncloned_repo: Some(upload_args.use_uncloned_repo),
         },
         failed_tests: Vec::with_capacity(0),
         variant: upload_args.variant.as_ref().map(|v| {
@@ -893,8 +894,7 @@ mod tests {
             "test-org".to_string(),
             vec![],
             None,
-            false,
-            false,
+            true,
         );
 
         // Test case 1: Variant under 64 characters

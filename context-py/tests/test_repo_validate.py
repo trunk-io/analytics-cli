@@ -16,6 +16,7 @@ def test_repo_validate():
         "commit",
         "Spikey",
         "spikey@trunk.io",
+        None,  # use_uncloned_repo
     )
 
     repo_validation = repo_validate(bundle_repo)
