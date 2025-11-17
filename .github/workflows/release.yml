@@ -49,6 +49,14 @@ jobs:
 
     runs-on: ${{ matrix.platform.runs-on }}
     steps:
+      - name: Install git-lfs (Windows GNU build)
+        shell: bash
+        if: ${{ contains(matrix.platform.os-name, 'windows') }}
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y git-lfs
+          git lfs install
+
       - name: Checkout
         uses: actions/checkout@v4
         with:
