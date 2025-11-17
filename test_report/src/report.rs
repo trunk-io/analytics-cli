@@ -267,6 +267,8 @@ impl MutTestReport {
         );
         match (api_client, bundle_repo) {
             (Ok(api_client), Ok(bundle_repo)) => {
+                let variant =
+                    env::var(constants::TRUNK_VARIANT_ENV).unwrap_or_else(|_| "".to_string());
                 let test_identifier = Test::new(
                     id.clone(),
                     name.unwrap_or_default(),
@@ -276,9 +278,14 @@ impl MutTestReport {
                     org_url_slug.clone(),
                     &bundle_repo.repo,
                     None,
-                    "".to_string(),
+                    variant.clone(),
                 );
-                self.populate_quarantined_tests(&api_client, &bundle_repo.repo, org_url_slug);
+                self.populate_quarantined_tests(
+                    &api_client,
+                    &bundle_repo.repo,
+                    org_url_slug,
+                    variant,
+                );
                 if let Some(quarantined_tests) = self.0.borrow().quarantined_tests.as_ref() {
                     return quarantined_tests.get(&test_identifier.id).is_some();
                 }
@@ -296,6 +303,7 @@ impl MutTestReport {
         api_client: &ApiClient,
         repo: &RepoUrlParts,
         org_url_slug: String,
+        variant: String,
     ) {
         if self.0.borrow().quarantined_tests.as_ref().is_some() {
             // already fetched
@@ -328,7 +336,7 @@ impl MutTestReport {
                             org_url_slug.clone(),
                             repo,
                             None,
-                            "".to_string(),
+                            variant.clone(),
                         );
 
                         quarantined_tests.insert(test.id.clone(), test);
