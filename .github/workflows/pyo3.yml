@@ -172,6 +172,7 @@ jobs:
       - name: Setup Rust & Cargo
         uses: ./.github/actions/setup_rust_cargo
       - name: Generate Python stubs
+        shell: bash
         run: ${TRUNK_PATH} run generate-pyi
       - name: Build wheels
         uses: PyO3/maturin-action@v1
