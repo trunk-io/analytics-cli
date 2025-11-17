@@ -4,8 +4,6 @@ description: Setup and build pyo3
 runs:
   using: composite
   steps:
-    - uses: trunk-io/trunk-action/setup@v1
-
     - name: Setup Rust & Cargo
       uses: ./.github/actions/setup_rust_cargo
 
