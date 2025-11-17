@@ -130,6 +130,7 @@ def test_branch_supplied_by_repo_stable_branches():
         "commit",
         "Spikey",
         "spikey@trunk.io",
+        None,  # use_uncloned_repo
     )
 
     meta_context = BindingsMetaContext(ci_info, bundle_repo, stables_branches)
@@ -179,6 +180,7 @@ def test_no_branch_supplied():
         "commit",
         "Spikey",
         "spikey@trunk.io",
+        None,  # use_uncloned_repo
     )
     meta_context = BindingsMetaContext(ci_info, bundle_repo, DEFAULT_STABLE_BRANCHES)
     assert meta_context.ci_info.branch_class is not None
@@ -217,6 +219,7 @@ def ci_info_and_bundle_repo():
         "commit",
         "Spikey",
         "spikey@trunk.io",
+        None,  # use_uncloned_repo
     )
 
     return (ci_info, bundle_repo)
