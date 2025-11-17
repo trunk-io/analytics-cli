@@ -33,6 +33,7 @@ pub struct TestReport {
     quarantined_tests: Option<HashMap<String, Test>>,
     codeowners: Option<CodeOwners>,
     variant: Option<String>,
+    repo: Option<BundleRepo>,
 }
 
 #[cfg_attr(feature = "wasm", wasm_bindgen)]
@@ -120,7 +121,7 @@ impl MutTestReport {
             .ok()
             .and_then(|v| v.parse().ok())
             .unwrap_or(false);
-        let codeowners = BundleRepo::new(
+        let repo = BundleRepo::new(
             env::var(constants::TRUNK_REPO_ROOT_ENV).ok(),
             env::var(constants::TRUNK_REPO_URL_ENV).ok(),
             env::var(constants::TRUNK_REPO_HEAD_SHA_ENV).ok(),
@@ -129,25 +130,26 @@ impl MutTestReport {
             env::var(constants::TRUNK_REPO_HEAD_AUTHOR_NAME_ENV).ok(),
             use_uncloned_repo,
         )
-        .ok()
-        .map(|repo| repo.repo_root)
-        .as_ref()
-        .map(Path::new::<String>)
-        .and_then(|repo_root| {
-            CodeOwners::find_file(
-                repo_root,
-                &env::var(constants::TRUNK_CODEOWNERS_PATH_ENV)
-                    .ok()
-                    .map(PathBuf::from)
-                    .as_deref(),
-            )
-        });
+        .ok();
+        let codeowners = repo
+            .as_ref()
+            .map(|repo| Path::new(&repo.repo_root))
+            .and_then(|repo_root| {
+                CodeOwners::find_file(
+                    repo_root,
+                    &env::var(constants::TRUNK_CODEOWNERS_PATH_ENV)
+                        .ok()
+                        .map(PathBuf::from)
+                        .as_deref(),
+                )
+            });
         Self(RefCell::new(TestReport {
             test_report,
             command,
             started_at,
             quarantined_tests: None,
             codeowners,
+            repo,
             variant: variant.clone(),
         }))
     }
@@ -156,53 +158,79 @@ impl MutTestReport {
         prost::Message::encode_to_vec(&self.0.borrow().test_report)
     }
 
-    fn setup_logger(&self, org_url_slug: String) {
-        let sentry_layer =
-            sentry_tracing::layer().event_mapper(move |event, context| {
-                match *(event.metadata().level()) {
-                    tracing::Level::ERROR => {
-                        let mut event = sentry_tracing::event_from_event(event, context);
-                        event
-                            .tags
-                            .insert(String::from("org_url_slug"), org_url_slug.clone());
-                        sentry_tracing::EventMapping::Event(event)
-                    }
-                    tracing::Level::WARN => sentry_tracing::EventMapping::Breadcrumb(
-                        sentry_tracing::breadcrumb_from_event(event, context),
-                    ),
-                    tracing::Level::INFO => sentry_tracing::EventMapping::Breadcrumb(
-                        sentry_tracing::breadcrumb_from_event(event, context),
-                    ),
-                    tracing::Level::DEBUG => sentry_tracing::EventMapping::Breadcrumb(
-                        sentry_tracing::breadcrumb_from_event(event, context),
-                    ),
-                    _ => sentry_tracing::EventMapping::Ignore,
+    pub fn get_repo_root(&self) -> String {
+        self.0
+            .borrow()
+            .repo
+            .as_ref()
+            .map(|repo| repo.repo_root.clone())
+            .unwrap_or_default()
+    }
+
+    fn setup_logger(&self) -> anyhow::Result<()> {
+        let org_url_slug = self.get_org_url_slug();
+        let repo_root = self.get_repo_root();
+        let command_string = self.0.borrow().command.clone();
+        let sentry_layer = sentry_tracing::layer().event_mapper(move |event, context| {
+            // trunk-ignore(clippy/match_ref_pats)
+            match event.metadata().level() {
+                &tracing::Level::ERROR => {
+                    let mut event = sentry_tracing::event_from_event(event, context);
+                    event
+                        .tags
+                        .insert(String::from("command_name"), command_string.clone());
+                    event
+                        .tags
+                        .insert(String::from("org_url_slug"), org_url_slug.clone());
+                    event
+                        .tags
+                        .insert(String::from("repo_root"), repo_root.clone());
+                    sentry_tracing::EventMapping::Event(event)
                 }
-            });
+                &tracing::Level::WARN => sentry_tracing::EventMapping::Breadcrumb(
+                    sentry_tracing::breadcrumb_from_event(event, context),
+                ),
+                &tracing::Level::INFO => sentry_tracing::EventMapping::Breadcrumb(
+                    sentry_tracing::breadcrumb_from_event(event, context),
+                ),
+                &tracing::Level::DEBUG => sentry_tracing::EventMapping::Breadcrumb(
+                    sentry_tracing::breadcrumb_from_event(event, context),
+                ),
+                _ => sentry_tracing::EventMapping::Ignore,
+            }
+        });
+
+        // make console layer toggle based on vebosity
+        let debug_mode = env::var(constants::TRUNK_DEBUG_ENV).is_ok();
         let console_layer = tracing_subscriber::fmt::Layer::new()
-            .without_time()
-            .with_target(false)
-            .with_level(false)
-            .with_filter(FilterFn::new(|metadata| {
+            .with_target(true)
+            .with_level(true)
+            .with_writer(std::io::stdout.with_max_level(if debug_mode {
+                tracing::Level::DEBUG
+            } else {
+                tracing::Level::ERROR
+            }))
+            .with_filter(FilterFn::new(move |metadata| {
                 !metadata
                     .fields()
                     .iter()
                     .any(|field| field.name() == "hidden_in_console")
             }));
 
-        let trunk_log_level = match env::var("TRUNK_LOG_LEVEL").unwrap_or_default().as_str() {
-            "debug" => tracing::level_filters::LevelFilter::DEBUG,
-            "info" => tracing::level_filters::LevelFilter::INFO,
-            "warn" => tracing::level_filters::LevelFilter::WARN,
-            "error" => tracing::level_filters::LevelFilter::ERROR,
-            _ => tracing::level_filters::LevelFilter::INFO,
-        };
-        // Use try_init to avoid panicking if subscriber is already set (e.g., in tests)
-        let _ = tracing_subscriber::registry()
+        if let Err(e) = tracing_subscriber::registry()
             .with(console_layer)
             .with(sentry_layer)
-            .with(trunk_log_level)
-            .try_init();
+            .try_init()
+        {
+            // we don't want to error out if the logger is already set up
+            if e.to_string()
+                .contains("a global default trace dispatcher has already been set")
+            {
+                return Ok(());
+            }
+            return Err(anyhow::anyhow!("Unable to set up logger. {:?}", e));
+        }
+        Ok(())
     }
 
     pub fn is_quarantined(
@@ -213,8 +241,8 @@ impl MutTestReport {
         classname: Option<String>,
         file: Option<String>,
     ) -> bool {
-        let token = env::var(constants::TRUNK_API_TOKEN_ENV).unwrap_or_default();
-        let org_url_slug = env::var(constants::TRUNK_ORG_URL_SLUG_ENV).unwrap_or_default();
+        let token = self.get_token();
+        let org_url_slug = self.get_org_url_slug();
         if token.is_empty() {
             tracing::warn!("Not checking quarantine status because TRUNK_API_TOKEN is empty");
             return false;
@@ -239,6 +267,8 @@ impl MutTestReport {
         );
         match (api_client, bundle_repo) {
             (Ok(api_client), Ok(bundle_repo)) => {
+                let variant =
+                    env::var(constants::TRUNK_VARIANT_ENV).unwrap_or_else(|_| "".to_string());
                 let test_identifier = Test::new(
                     id.clone(),
                     name.unwrap_or_default(),
@@ -248,9 +278,14 @@ impl MutTestReport {
                     org_url_slug.clone(),
                     &bundle_repo.repo,
                     None,
-                    "".to_string(),
+                    variant.clone(),
                 );
-                self.populate_quarantined_tests(&api_client, &bundle_repo.repo, org_url_slug);
+                self.populate_quarantined_tests(
+                    &api_client,
+                    &bundle_repo.repo,
+                    org_url_slug,
+                    variant,
+                );
                 if let Some(quarantined_tests) = self.0.borrow().quarantined_tests.as_ref() {
                     return quarantined_tests.get(&test_identifier.id).is_some();
                 }
@@ -268,6 +303,7 @@ impl MutTestReport {
         api_client: &ApiClient,
         repo: &RepoUrlParts,
         org_url_slug: String,
+        variant: String,
     ) {
         if self.0.borrow().quarantined_tests.as_ref().is_some() {
             // already fetched
@@ -300,7 +336,7 @@ impl MutTestReport {
                             org_url_slug.clone(),
                             repo,
                             None,
-                            "".to_string(),
+                            variant.clone(),
                         );
 
                         quarantined_tests.insert(test.id.clone(), test);
@@ -324,14 +360,27 @@ impl MutTestReport {
         self.0.borrow_mut().quarantined_tests = Some(quarantined_tests);
     }
 
+    fn get_org_url_slug(&self) -> String {
+        env::var(constants::TRUNK_ORG_URL_SLUG_ENV).unwrap_or_default()
+    }
+
+    fn get_token(&self) -> String {
+        env::var(constants::TRUNK_API_TOKEN_ENV).unwrap_or_default()
+    }
+
     // sends out to the trunk api
     pub fn publish(&self) -> bool {
         let release_name = format!("rspec-flaky-tests@{}", env!("CARGO_PKG_VERSION"));
-        let org_url_slug = env::var(constants::TRUNK_ORG_URL_SLUG_ENV).unwrap_or_default();
         let guard = sentry::init(release_name.into(), None);
-        self.setup_logger(org_url_slug.clone());
+        if let Err(err) = self.setup_logger() {
+            tracing::error!(
+                "Unable to set up logger. Please reach out to support@trunk.io for further assistance. Error details: {:?}",
+                err
+            );
+        }
 
-        let token = env::var(constants::TRUNK_API_TOKEN_ENV).unwrap_or_default();
+        let token = self.get_token();
+        let org_url_slug = self.get_org_url_slug();
         if token.is_empty() {
             tracing::warn!("Not publishing results because TRUNK_API_TOKEN is empty");
             return false;
@@ -397,8 +446,7 @@ impl MutTestReport {
             org_url_slug,
             vec![resolved_path_str.into()],
             env::var(constants::TRUNK_REPO_ROOT_ENV).ok(),
-            false,
-            false,
+            true,
         );
 
         // Read additional environment variables using constants

@@ -124,6 +124,7 @@ const generateBundleMeta = (): TestBundleMeta => ({
       name: faker.company.catchPhraseNoun(),
     },
   },
+  use_uncloned_repo: null,
   upload_time_epoch: faker.number.int(),
   tags: [],
   test_command: faker.hacker.verb(),

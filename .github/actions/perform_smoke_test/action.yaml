@@ -10,6 +10,9 @@ inputs:
     description: Api token for the trunk org on trunk (should be available in secrets)
   environment-type:
     description: staging if you only want to run for staging, production if you only want production, both for both
+  test-variants:
+    description: Whether to test variant quarantining (only supported in main branch builds)
+    default: "false"
 
 outputs:
   production-success:
@@ -56,11 +59,39 @@ runs:
         --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
         --token ${{ inputs.staging-api-token }}
 
+    # upload with variant should fail because we treat variant as a separate test
+    - name: Upload to staging with variant
+      id: staging-upload-with-variant
+      if: always() && inputs.test-variants == 'true' && steps.staging-test-run.outcome == 'success' && (inputs.environment-type == 'staging' || inputs.environment-type == 'both')
+      env:
+        TRUNK_PUBLIC_API_ADDRESS: https://api.trunk-staging.io
+      shell: bash
+      run: |
+        set +e
+        ./${{ inputs.cli-binary-location }} upload \
+        --org-url-slug trunk-staging-org \
+        --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
+        --token ${{ inputs.staging-api-token }} \
+        --variant smoke-test-variant
+        EXIT_CODE=$?
+        if [ $EXIT_CODE -eq 0 ]; then
+          echo "ERROR: Expected upload with variant to fail, but it succeeded"
+          exit 1
+        else
+          echo "SUCCESS: Upload with variant failed as expected (exit code: $EXIT_CODE)"
+          exit 0
+        fi
+
     - name: Staging result
       id: staging-result
       if: always()
       shell: bash
-      run: echo "staging-success=${{ (steps.staging-upload.outcome == 'success' && (inputs.environment-type == 'staging' || inputs.environment-type == 'both')) || inputs.environment-type == 'production' }}" >> $GITHUB_OUTPUT
+      run: |
+        if [ "${{ inputs.test-variants }}" == "true" ]; then
+          echo "staging-success=${{ (steps.staging-upload.outcome == 'success' && steps.staging-upload-with-variant.outcome == 'success' && (inputs.environment-type == 'staging' || inputs.environment-type == 'both')) || inputs.environment-type == 'production' }}" >> $GITHUB_OUTPUT
+        else
+          echo "staging-success=${{ (steps.staging-upload.outcome == 'success' && (inputs.environment-type == 'staging' || inputs.environment-type == 'both')) || inputs.environment-type == 'production' }}" >> $GITHUB_OUTPUT
+        fi
 
     - name: Run tests on production
       id: production-test-run
@@ -88,8 +119,36 @@ runs:
         --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
         --token ${{ inputs.production-api-token }}
 
+    # upload with variant should fail because we treat variant as a separate test
+    - name: Upload to production with variant
+      id: production-upload-with-variant
+      if: always() && inputs.test-variants == 'true' && steps.production-test-run.outcome == 'success' && (inputs.environment-type == 'production' || inputs.environment-type == 'both')
+      env:
+        TRUNK_PUBLIC_API_ADDRESS: https://api.trunk.io
+      shell: bash
+      run: |
+        set +e
+        ./${{ inputs.cli-binary-location }} upload \
+        --org-url-slug trunk \
+        --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
+        --token ${{ inputs.production-api-token }} \
+        --variant smoke-test-variant
+        EXIT_CODE=$?
+        if [ $EXIT_CODE -eq 0 ]; then
+          echo "ERROR: Expected upload with variant to fail, but it succeeded"
+          exit 1
+        else
+          echo "SUCCESS: Upload with variant failed as expected (exit code: $EXIT_CODE)"
+          exit 0
+        fi
+
     - name: Production result
       id: production-result
       if: always()
       shell: bash
-      run: echo "production-success=${{ (steps.production-upload.outcome == 'success' && (inputs.environment-type == 'production' || inputs.environment-type == 'both')) || inputs.environment-type == 'staging' }}" >> $GITHUB_OUTPUT
+      run: |
+        if [ "${{ inputs.test-variants }}" == "true" ]; then
+          echo "production-success=${{ (steps.production-upload.outcome == 'success' && steps.production-upload-with-variant.outcome == 'success' && (inputs.environment-type == 'production' || inputs.environment-type == 'both')) || inputs.environment-type == 'staging' }}" >> $GITHUB_OUTPUT
+        else
+          echo "production-success=${{ (steps.production-upload.outcome == 'success' && (inputs.environment-type == 'production' || inputs.environment-type == 'both')) || inputs.environment-type == 'staging' }}" >> $GITHUB_OUTPUT
+        fi

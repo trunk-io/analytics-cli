@@ -15,7 +15,7 @@ itertools = "0.14.0"
 anyhow = "1.0.44"
 bazel-bep = { path = "../bazel-bep" }
 chrono = "0.4.33"
-gix = { version = "0.67.0", default-features = false, features = [
+gix = { version = "0.74.0", default-features = false, features = [
 ], optional = true }
 js-sys = { version = "0.3.70", optional = true }
 lazy_static = "1.5.0"
@@ -41,16 +41,16 @@ prost = "0.12.6"
 codeowners = { version = "0.1.3", path = "../codeowners" }
 
 [target.'cfg(target_os = "linux")'.dependencies]
-pyo3 = { version = "0.22.5", optional = true, features = [
+pyo3 = { version = "0.26.0", optional = true, features = [
   "abi3-py39",
   "extension-module",
 ] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
-pyo3 = { version = "0.22.5", optional = true, features = ["abi3-py39"] }
+pyo3 = { version = "0.26.0", optional = true, features = ["abi3-py39"] }
 
 [target.'cfg(target_os = "windows")'.dependencies]
-pyo3 = { version = "0.22.5", optional = true, features = ["abi3-py39"] }
+pyo3 = { version = "0.26.0", optional = true, features = ["abi3-py39"] }
 
 [features]
 # must be disabled to use wasm-bindings

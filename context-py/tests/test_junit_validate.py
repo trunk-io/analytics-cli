@@ -147,6 +147,7 @@ def test_junit_validate_with_test_runner_report():
         TestRunnerReportStatus.Passed,
         datetime.now().astimezone(timezone.utc),
         datetime.now().astimezone(timezone.utc),
+        None,
     )
     junit_report_validation = junit_validate(report, test_runner_report)
 
