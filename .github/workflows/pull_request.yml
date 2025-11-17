@@ -44,7 +44,7 @@ jobs:
             target: aarch64-apple-darwin
 
           - os-name: windows-x86_64
-            runs-on: public-amd64-4xlarge-simple-germany
+            runs-on: public-amd64-4xlarge-dind-germany
             target: x86_64-pc-windows-gnu
 
     runs-on: ${{ matrix.platform.runs-on }}
