@@ -180,8 +180,7 @@ impl BundleRepo {
                                 commit
                                     .author()
                                     .ok()
-                                    .map(|signature| signature.to_owned())
-                                    .map(|a| (a.name.to_string(), a.email.to_string()))
+                                    .map(|sig| (sig.name.to_string(), sig.email.to_string()))
                             });
                     }
                 }
