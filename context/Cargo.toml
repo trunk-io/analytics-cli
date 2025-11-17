@@ -49,6 +49,9 @@ pyo3 = { version = "0.22.5", optional = true, features = [
 [target.'cfg(target_os = "macos")'.dependencies]
 pyo3 = { version = "0.22.5", optional = true, features = ["abi3-py39"] }
 
+[target.'cfg(target_os = "windows")'.dependencies]
+pyo3 = { version = "0.22.5", optional = true, features = ["abi3-py39"] }
+
 [features]
 # must be disabled to use wasm-bindings
 default = ["git-access"]

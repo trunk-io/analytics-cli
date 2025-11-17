@@ -27,3 +27,6 @@ pyo3 = { version = "0.22.5", features = ["abi3-py39", "extension-module"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 pyo3 = { version = "0.22.5", features = ["abi3-py39"] }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+pyo3 = { version = "0.22.5", features = ["abi3-py39"] }
