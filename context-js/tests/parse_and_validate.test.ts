@@ -153,6 +153,7 @@ describe("context-js", () => {
       "commit",
       "Spikey",
       "spikey@trunk.io",
+      undefined, // use_uncloned_repo
     );
 
     const repoValidation = repo_validate(bundleRepo);
