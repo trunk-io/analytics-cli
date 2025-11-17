@@ -24,7 +24,7 @@ runs:
 
     - name: Generate Python stubs
       shell: bash
-      run: ${TRUNK_PATH} run generate-pyi
+      run: cargo run --bin stub_gen --manifest-path context-py/Cargo.toml --no-default-features
 
     - name: Build pyo3 package
       shell: bash
