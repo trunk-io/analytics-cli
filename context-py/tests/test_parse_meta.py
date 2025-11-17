@@ -290,7 +290,6 @@ def test_parse_and_dump_meta_roundtrip():
             "repo_head_sha_short": None,
             "repo_root": "/home/runner/work/trunk/test",
             "repo_url": "https://github.com/trunk/test",
-            "use_uncloned_repo": None,
         },
         "schema": "V0_5_29",
         "tags": [],

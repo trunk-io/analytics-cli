@@ -48,6 +48,7 @@ pub struct BundleRepo {
     pub repo_head_author_name: String,
     pub repo_head_author_email: String,
     /// Added in v0.11.8
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub use_uncloned_repo: Option<bool>,
 }
 
