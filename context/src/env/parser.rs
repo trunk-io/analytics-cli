@@ -444,7 +444,6 @@ impl<'a> CIInfoParser<'a> {
 
         let prefer_repo_values = repo.use_uncloned_repo.unwrap_or(false);
 
-        // Apply branch override
         if prefer_repo_values || self.ci_info.branch.is_none() {
             let new_branch = clean_branch(&repo.repo_head_branch);
             self.ci_info.branch = Some(new_branch);
@@ -466,8 +465,6 @@ impl<'a> CIInfoParser<'a> {
                 )));
             }
         }
-
-        // Apply actor/author overrides
         if prefer_repo_values || self.ci_info.actor.is_none() {
             self.ci_info.actor = Some(repo.repo_head_author_email.clone());
         }
@@ -483,8 +480,6 @@ impl<'a> CIInfoParser<'a> {
         if prefer_repo_values || self.ci_info.author_email.is_none() {
             self.ci_info.author_email = Some(repo.repo_head_author_email.clone());
         }
-
-        // Apply commit message override
         if prefer_repo_values || self.ci_info.commit_message.is_none() {
             self.ci_info.commit_message = Some(repo.repo_head_commit_message.clone());
         }

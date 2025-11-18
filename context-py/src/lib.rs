@@ -14,6 +14,7 @@ use context::{
     meta::{bindings, id, validator},
     repo,
 };
+use prost::Message;
 use pyo3::{exceptions::PyTypeError, prelude::*};
 use pyo3_stub_gen::{define_stub_info_gatherer, derive::gen_stub_pyfunction};
 
