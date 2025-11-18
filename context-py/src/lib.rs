@@ -14,7 +14,6 @@ use context::{
     meta::{bindings, id, validator},
     repo,
 };
-use prost::Message;
 use pyo3::{exceptions::PyTypeError, prelude::*};
 use pyo3_stub_gen::{define_stub_info_gatherer, derive::gen_stub_pyfunction};
 
@@ -401,7 +400,6 @@ fn associate_codeowners_multithreaded_impl(
 #[gen_stub_pyfunction]
 #[pyfunction]
 // trunk-ignore(clippy/too_many_arguments)
-// trunk-ignore(clippy/deprecated)
 pub fn gen_info_id(
     org_url_slug: String,
     repo_full_name: String,

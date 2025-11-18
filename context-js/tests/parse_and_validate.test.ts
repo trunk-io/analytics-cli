@@ -90,6 +90,7 @@ describe("context-js", () => {
 
     const ciInfo = env_parse(env_vars, ["main", "master"], bundleRepo);
     assert(ciInfo);
+
     expect(ciInfo.platform).toBe(CIPlatform.GitHubActions);
     // Branch should come from env vars (not repo) since use_uncloned_repo is undefined
     expect(ciInfo.branch).toBe("feature-branch");
@@ -138,6 +139,7 @@ describe("context-js", () => {
       bundleRepoOverride,
     );
     assert(ciInfoOverride);
+
     expect(ciInfoOverride.platform).toBe(CIPlatform.GitHubActions);
     // Branch should come from repo (overrides env var) when use_uncloned_repo is true
     expect(ciInfoOverride.branch).toBe("repo-override-branch");
@@ -184,6 +186,7 @@ describe("context-js", () => {
       bundleRepo,
     );
     assert(ciInfoMinimal);
+
     // Branch should come from repo since it's missing in env vars
     expect(ciInfoMinimal.branch).toBe("repo-branch-name");
     // Actor should come from repo since it's missing in env vars

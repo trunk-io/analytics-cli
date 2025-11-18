@@ -39,7 +39,8 @@ def test_env_parse_and_validate():
 
 def test_env_parse_repo_fills_missing_values():
     """Test that repo fills in missing CI info values when use_uncloned_repo is None/False."""
-    from context_py import BundleRepo, CIPlatform, RepoUrlParts, env_parse
+    from context_py import env_parse  # type: ignore[reportUnknownVariableType]
+    from context_py import BundleRepo, CIPlatform, RepoUrlParts
 
     env_vars = {
         "GITHUB_ACTIONS": "true",
@@ -83,13 +84,8 @@ def test_env_parse_repo_fills_missing_values():
 
 def test_env_parse_repo_overrides_env_vars():
     """Test that repo overrides env vars when use_uncloned_repo is True."""
-    from context_py import (
-        BundleRepo,
-        CIPlatform,
-        RepoUrlParts,
-        branch_class_to_string,
-        env_parse,
-    )
+    from context_py import env_parse  # type: ignore[reportUnknownVariableType]
+    from context_py import BundleRepo, CIPlatform, RepoUrlParts, branch_class_to_string
 
     env_vars = {
         "GITHUB_ACTIONS": "true",
@@ -138,7 +134,8 @@ def test_env_parse_repo_overrides_env_vars():
 
 def test_env_parse_repo_fills_missing_when_env_vars_empty():
     """Test that repo fills in missing values when env vars are minimal/empty."""
-    from context_py import BundleRepo, RepoUrlParts, env_parse
+    from context_py import env_parse  # type: ignore[reportUnknownVariableType]
+    from context_py import BundleRepo, RepoUrlParts
 
     env_vars_minimal = {
         "GITHUB_ACTIONS": "true",
