@@ -380,13 +380,11 @@ impl MutTestReport {
             for test_result in &mut test_report.test_results {
                 // trunk-ignore(clippy/deprecated)
                 if let Some(uploader_metadata) = &mut test_result.uploader_metadata {
-                    // trunk-ignore(clippy/assigning_clones)
                     uploader_metadata.variant = variant.clone();
                 }
             }
             // update the top-level uploader_metadata
             if let Some(uploader_metadata) = &mut test_report.uploader_metadata {
-                // trunk-ignore(clippy/assigning_clones)
                 uploader_metadata.variant = variant.clone();
             }
         }
@@ -402,7 +400,6 @@ impl MutTestReport {
             }
             let test_result = test_report.test_results.get_mut(0);
             if let Some(test_result) = test_result {
-                // trunk-ignore(clippy/deprecated,clippy/assigning_clones)
                 test_result.uploader_metadata = test_report.uploader_metadata.clone();
             }
         }
