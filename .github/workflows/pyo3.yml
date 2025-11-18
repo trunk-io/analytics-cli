@@ -60,26 +60,11 @@ jobs:
               /usr/bin/apt update
               /usr/bin/apt install -y pkg-config libssl-dev unzip
             fi
-      - name: Build Windows wheels (cross-compile from Linux)
-        if: ${{ matrix.platform.target == 'x86_64' }}
-        shell: bash
-        run: |
-          # Install MinGW for Windows cross-compilation
-          sudo apt-get update
-          sudo apt-get install -y build-essential gcc-mingw-w64-x86-64
-          # Install maturin if not already available
-          pip install maturin
-          # Build Windows wheel using maturin with Windows target
-          # Note: This cross-compiles the Rust code, but maturin may need Windows Python for wheel metadata
-          # If this doesn't work, we'll need to build on Windows
-          maturin build --release --out dist --target x86_64-pc-windows-gnu --manifest-path ./context-py/Cargo.toml || echo "Cross-compilation failed, will build on Windows"
       - name: Upload wheels
         uses: actions/upload-artifact@v4
         with:
           name: wheels-linux-${{ matrix.platform.target }}
           path: dist
-          # Also upload Windows wheels if they were built
-          if-no-files-found: ignore
       - name: pytest
         if: ${{ startsWith(matrix.platform.target, 'x86_64') }}
         shell: bash
@@ -171,83 +156,44 @@ jobs:
           s3-flags: --recursive
           role-to-assume: ${{ secrets.S3_UPLOAD_ROLE_ARN }}
   windows:
-    runs-on: windows-latest
-    needs: linux
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: 3.13
-      - name: Download Windows wheels (cross-compiled from Linux)
-        id: download-wheels
-        continue-on-error: true
-        uses: actions/download-artifact@v4
-        with:
-          name: wheels-linux-x86_64
-          path: dist
-          pattern: "*win*.whl"
-      - name: Check if Windows wheels exist
-        id: check-wheels
-        shell: pwsh
-        run: |
-          $wheelFiles = Get-ChildItem -Path dist -Filter "*win*.whl" -ErrorAction SilentlyContinue
-          if ($wheelFiles) {
-            Write-Host "Windows wheels found from cross-compilation"
-            echo "wheels-exist=true" >> $env:GITHUB_OUTPUT
-          } else {
-            Write-Host "No Windows wheels found, will build on Windows"
-            echo "wheels-exist=false" >> $env:GITHUB_OUTPUT
-          }
-      - name: Build Windows wheels (fallback if cross-compile failed)
-        if: steps.check-wheels.outputs.wheels-exist == 'false'
-        shell: pwsh
-        run: |
-          # Install Strawberry Perl via Chocolatey (includes necessary modules like Locale::Maketext::Simple)
-          choco install strawberryperl -y
-          # Refresh environment to pick up Perl in PATH
-          $env:ChocolateyInstall = Convert-Path "$((Get-Command choco).Path)\..\.."
-          Import-Module "$env:ChocolateyInstall\helpers\chocolateyProfile.psm1"
-          refreshenv
-          # Verify Perl is available
-          perl --version
-      - name: Setup Rust & Cargo (Windows build fallback)
-        if: steps.check-wheels.outputs.wheels-exist == 'false'
+      - name: Setup Rust & Cargo
         uses: ./.github/actions/setup_rust_cargo
-      - name: Generate Python stubs (Windows build fallback)
-        if: steps.check-wheels.outputs.wheels-exist == 'false'
+      - name: Install MinGW for Windows cross-compilation
         shell: bash
-        run: cargo run --bin stub_gen --manifest-path context-py/Cargo.toml --no-default-features
-      - name: Build wheels (Windows fallback)
-        if: steps.check-wheels.outputs.wheels-exist == 'false'
-        uses: PyO3/maturin-action@v1
-        with:
-          target: x86_64
-          args: --release --out dist --find-interpreter --manifest-path ./context-py/Cargo.toml
-      - name: pytest
-        shell: pwsh
         run: |
-          python -m pip install uv
-          cd ./context-py
-          uv venv
-          .venv\Scripts\Activate.ps1
-          uv pip install -r requirements-dev.txt
-          uv pip install context-py --find-links ../dist --force-reinstall
-          pytest --cov
-      - name: Upload coverage reports to Codecov
-        uses: codecov/codecov-action@v5
+          sudo apt-get update
+          sudo apt-get install -y build-essential gcc-mingw-w64-x86-64
+      - name: Generate Python stubs
+        run: cargo run --bin stub_gen --manifest-path context-py/Cargo.toml --no-default-features
+      - name: Build Windows wheels (cross-compile from Linux)
+        shell: bash
+        run: |
+          pip install maturin
+          # Build Windows wheel using maturin with Windows GNU target
+          # This cross-compiles from Linux, avoiding Perl/OpenSSL issues on Windows
+          maturin build --release --out dist --target x86_64-pc-windows-gnu --manifest-path ./context-py/Cargo.toml
+      - name: Upload Windows wheels
+        uses: actions/upload-artifact@v4
         with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          slug: trunk-io/analytics-cli
-          directory: ./context-py
+          name: wheels-windows-x86_64
+          path: dist
+
       - name: Upload wheel package to S3
         uses: ./.github/actions/upload_to_s3
         if: "!cancelled() && github.event_name != 'pull_request'"
         with:
           bucket: ${{ secrets.S3_ASSET_BUCKET }}
-          name: windows-x86_64
+          name: windows-${{ matrix.platform.target }}
           path: dist
           s3-flags: --recursive
           role-to-assume: ${{ secrets.S3_UPLOAD_ROLE_ARN }}
+
   sdist:
     # TODO(TRUNK-13050): update to `ubuntu-latest` when `maturin-action` gets updated to support it
     # https://github.com/PyO3/maturin-action/issues/291
