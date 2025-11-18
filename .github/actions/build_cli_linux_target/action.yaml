@@ -1,5 +1,5 @@
-name: Build CLI Linux Target
-description: Build release binary for target.
+name: Build CLI Unix/Windows Target
+description: Build release binary for Unix and Windows targets (cross-compiled on Linux runners).
 
 inputs:
   target:
@@ -8,7 +8,7 @@ inputs:
     description: Rust profile to build, e.g. release-with-debug
   force-sentry-dev:
     description: Force sentry to use a devenv (set to true for testing, but not for releases)
-    default: false
+    default: "false"
 
 runs:
   using: composite
@@ -48,7 +48,7 @@ runs:
         target: ${{ inputs.target }}
         profile: ${{ inputs.profile }}
 
-    - name: Check dynamic deps
+    - name: Check dynamic deps (Unix)
       shell: bash
       if: ${{ inputs.target != 'x86_64-unknown-illumos' && !contains(inputs.target, 'windows') }}
       run: |
@@ -59,4 +59,28 @@ runs:
           echo "trunk-analytics-cli has dynamic deps - we expect it to be statically linked"
           exit 1
         fi
+        exit 0
+
+    - name: Check dynamic deps (Windows)
+      shell: bash
+      if: ${{ contains(inputs.target, 'windows-gnu') }}
+      run: |
+        # Check DLL imports using objdump (Windows equivalent of ldd)
+        # A statically linked binary should only import system DLLs (kernel32, msvcrt, etc.)
+        # and not application-specific DLLs
+        set +e
+        imports=$(x86_64-w64-mingw32-objdump -p target/${{ inputs.target }}/${{ inputs.profile }}/trunk-analytics-cli.exe 2>/dev/null | grep -i "DLL Name:" | awk '{print $3}' | tr '\n' ' ')
+        echo "DLL imports: $imports"
+
+        # Check for unexpected DLLs (excluding standard Windows system DLLs)
+        # Standard system DLLs that are expected: KERNEL32, MSVCRT, etc.
+        unexpected_dlls=$(echo "$imports" | grep -ivE "(KERNEL32|MSVCRT|MSVCP|API-MS-WIN|NTDLL|ADVAPI32|USER32|GDI32|SHELL32|OLE32|OLEAUT32|WS2_32|WINHTTP|CRYPT32|SHLWAPI)" || true)
+
+        if [ -n "$unexpected_dlls" ]; then
+          echo "trunk-analytics-cli.exe has unexpected dynamic dependencies: $unexpected_dlls"
+          echo "We expect it to be statically linked (only system DLLs should be imported)"
+          exit 1
+        fi
+
+        echo "Binary appears to be statically linked (only system DLLs imported)"
         exit 0
