@@ -28,6 +28,7 @@ pub fn bin_parse(bin: Vec<u8>) -> Result<Vec<junit::bindings::BindingsReport>, J
 pub fn env_parse(
     env_vars: js_sys::Object,
     stable_branches: Vec<String>,
+    repo: Option<repo::BundleRepo>,
 ) -> Option<env::parser::CIInfo> {
     let env_vars: HashMap<String, String> = js_sys::Object::entries(&env_vars)
         .iter()
@@ -49,7 +50,7 @@ pub fn env_parse(
         .collect::<Vec<&str>>();
 
     let mut env_parser = env::parser::EnvParser::new();
-    env_parser.parse(&env_vars, stable_branches_ref);
+    env_parser.parse(&env_vars, stable_branches_ref, repo.as_ref());
 
     env_parser
         .into_ci_info_parser()
