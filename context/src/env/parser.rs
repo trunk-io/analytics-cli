@@ -9,6 +9,7 @@ use thiserror::Error;
 use wasm_bindgen::prelude::*;
 
 use super::EnvVars;
+use crate::repo::BundleRepo;
 use crate::string_safety::safe_truncate_string;
 
 // TODO(TRUNK-12908): Switch to using a crate for parsing the CI platform and related env vars
@@ -188,6 +189,7 @@ pub struct CIInfoParser<'a> {
     ci_info: CIInfo,
     env_vars: &'a EnvVars,
     stable_branches: &'a [&'a str],
+    repo: Option<&'a BundleRepo>,
 }
 
 impl<'a> CIInfoParser<'a> {
@@ -195,12 +197,14 @@ impl<'a> CIInfoParser<'a> {
         platform: CIPlatform,
         env_vars: &'a EnvVars,
         stable_branches: &'a [&'a str],
+        repo: Option<&'a BundleRepo>,
     ) -> Self {
         Self {
             errors: Vec::new(),
             ci_info: CIInfo::new(platform),
             env_vars,
             stable_branches,
+            repo,
         }
     }
 
@@ -234,6 +238,7 @@ impl<'a> CIInfoParser<'a> {
         };
         self.clean_branch();
         self.parse_branch_class();
+        self.apply_repo_overrides();
     }
 
     fn clean_branch(&mut self) {
@@ -429,6 +434,60 @@ impl<'a> CIInfoParser<'a> {
             .get(env_var.as_ref())
             .and_then(|s| if s.is_empty() { None } else { Some(s) })
             .cloned()
+    }
+
+    fn apply_repo_overrides(&mut self) {
+        let repo = match self.repo {
+            Some(repo) => repo,
+            None => return,
+        };
+
+        let prefer_repo_values = repo.use_uncloned_repo.unwrap_or(false);
+
+        // Apply branch override
+        if prefer_repo_values || self.ci_info.branch.is_none() {
+            let new_branch = clean_branch(&repo.repo_head_branch);
+            self.ci_info.branch = Some(new_branch);
+            // Recalculate branch_class after branch override
+            if let Some(branch) = &self.ci_info.branch {
+                let mut merge_request_event_type: Option<GitLabMergeRequestEventType> = None;
+                if let Some(env_event_type) = self.get_env_var("CI_MERGE_REQUEST_EVENT_TYPE") {
+                    if let Ok(event_type) =
+                        GitLabMergeRequestEventType::try_from(env_event_type.as_str())
+                    {
+                        merge_request_event_type = Some(event_type);
+                    }
+                }
+                self.ci_info.branch_class = Some(BranchClass::from((
+                    branch.as_str(),
+                    self.ci_info.pr_number,
+                    merge_request_event_type,
+                    self.stable_branches,
+                )));
+            }
+        }
+
+        // Apply actor/author overrides
+        if prefer_repo_values || self.ci_info.actor.is_none() {
+            self.ci_info.actor = Some(repo.repo_head_author_email.clone());
+        }
+        if prefer_repo_values || self.ci_info.committer_name.is_none() {
+            self.ci_info.committer_name = Some(repo.repo_head_author_name.clone());
+        }
+        if prefer_repo_values || self.ci_info.committer_email.is_none() {
+            self.ci_info.committer_email = Some(repo.repo_head_author_email.clone());
+        }
+        if prefer_repo_values || self.ci_info.author_name.is_none() {
+            self.ci_info.author_name = Some(repo.repo_head_author_name.clone());
+        }
+        if prefer_repo_values || self.ci_info.author_email.is_none() {
+            self.ci_info.author_email = Some(repo.repo_head_author_email.clone());
+        }
+
+        // Apply commit message override
+        if prefer_repo_values || self.ci_info.commit_message.is_none() {
+            self.ci_info.commit_message = Some(repo.repo_head_commit_message.clone());
+        }
     }
 
     fn parse_pr_number<T: AsRef<str>>(env_var: Option<T>) -> Option<usize> {
@@ -637,18 +696,29 @@ impl<'a> EnvParser<'a> {
         self.ci_info_parser
     }
 
-    pub fn parse(&mut self, env_vars: &'a EnvVars, stable_branches: &'a [&str]) {
-        self.parse_ci_platform(env_vars, stable_branches);
+    pub fn parse(
+        &mut self,
+        env_vars: &'a EnvVars,
+        stable_branches: &'a [&str],
+        repo: Option<&'a BundleRepo>,
+    ) {
+        self.parse_ci_platform(env_vars, stable_branches, repo);
         if let Some(ci_info) = &mut self.ci_info_parser {
             ci_info.parse();
         }
     }
 
-    fn parse_ci_platform(&mut self, env_vars: &'a EnvVars, stable_branches: &'a [&str]) {
+    fn parse_ci_platform(
+        &mut self,
+        env_vars: &'a EnvVars,
+        stable_branches: &'a [&str],
+        repo: Option<&'a BundleRepo>,
+    ) {
         self.ci_info_parser = Some(CIInfoParser::new(
             CIPlatform::from(env_vars),
             env_vars,
             stable_branches,
+            repo,
         ));
     }
 }

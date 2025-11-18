@@ -40,7 +40,7 @@ describe("context-js", () => {
       GITHUB_JOB: "test-job",
     };
 
-    const ciInfo = env_parse(env_vars, ["main", "master"]);
+    const ciInfo = env_parse(env_vars, ["main", "master"], undefined);
     assert(ciInfo);
     const envValidation = env_validate(ciInfo);
 
@@ -58,6 +58,140 @@ describe("context-js", () => {
       "CI info committer name too short",
       "CI info title too short",
     ]);
+  });
+
+  it("repo fills in missing CI info values when use_uncloned_repo is None/False", () => {
+    expect.hasAssertions();
+
+    const env_vars = {
+      GITHUB_ACTIONS: "true",
+      GITHUB_REF: "refs/heads/feature-branch",
+      GITHUB_ACTOR: "env-actor",
+      GITHUB_REPOSITORY: "analytics-cli",
+      GITHUB_RUN_ID: "12345",
+      GITHUB_WORKFLOW: "test-workflow",
+      GITHUB_JOB: "test-job",
+    };
+
+    const repo = new RepoUrlParts("github.com", "trunk-io", "analytics-cli");
+    const bundleRepo = new BundleRepo(
+      repo,
+      ".",
+      "https://github.com/trunk-io/analytics-cli",
+      "abc123def456",
+      "abc123d",
+      "repo-branch-name",
+      BigInt(1234567890),
+      "This is a commit message from repo",
+      "Repo Author Name",
+      "repo-author@example.com",
+      undefined, // use_uncloned_repo is undefined
+    );
+
+    const ciInfo = env_parse(env_vars, ["main", "master"], bundleRepo);
+    assert(ciInfo);
+    expect(ciInfo.platform).toBe(CIPlatform.GitHubActions);
+    // Branch should come from env vars (not repo) since use_uncloned_repo is undefined
+    expect(ciInfo.branch).toBe("feature-branch");
+    // Actor should come from env vars
+    expect(ciInfo.actor).toBe("env-actor");
+    // Commit message should come from repo since it's missing in env vars
+    expect(ciInfo.commit_message).toBe("This is a commit message from repo");
+    // Author fields should come from repo since they're missing in env vars
+    expect(ciInfo.author_name).toBe("Repo Author Name");
+    expect(ciInfo.author_email).toBe("repo-author@example.com");
+    expect(ciInfo.committer_name).toBe("Repo Author Name");
+    expect(ciInfo.committer_email).toBe("repo-author@example.com");
+  });
+
+  it("repo overrides env vars when use_uncloned_repo is True", () => {
+    expect.hasAssertions();
+
+    const env_vars = {
+      GITHUB_ACTIONS: "true",
+      GITHUB_REF: "refs/heads/feature-branch",
+      GITHUB_ACTOR: "env-actor",
+      GITHUB_REPOSITORY: "analytics-cli",
+      GITHUB_RUN_ID: "12345",
+      GITHUB_WORKFLOW: "test-workflow",
+      GITHUB_JOB: "test-job",
+    };
+
+    const repo = new RepoUrlParts("github.com", "trunk-io", "analytics-cli");
+    const bundleRepoOverride = new BundleRepo(
+      repo,
+      ".",
+      "https://github.com/trunk-io/analytics-cli",
+      "abc123def456",
+      "abc123d",
+      "repo-override-branch",
+      BigInt(1234567890),
+      "Repo override commit message",
+      "Repo Override Author",
+      "repo-override@example.com",
+      true, // use_uncloned_repo is true
+    );
+
+    const ciInfoOverride = env_parse(
+      env_vars,
+      ["main", "master"],
+      bundleRepoOverride,
+    );
+    assert(ciInfoOverride);
+    expect(ciInfoOverride.platform).toBe(CIPlatform.GitHubActions);
+    // Branch should come from repo (overrides env var) when use_uncloned_repo is true
+    expect(ciInfoOverride.branch).toBe("repo-override-branch");
+    // Actor should come from repo (overrides env var)
+    expect(ciInfoOverride.actor).toBe("repo-override@example.com");
+    // Commit message should come from repo
+    expect(ciInfoOverride.commit_message).toBe("Repo override commit message");
+    // Author fields should come from repo
+    expect(ciInfoOverride.author_name).toBe("Repo Override Author");
+    expect(ciInfoOverride.author_email).toBe("repo-override@example.com");
+    expect(ciInfoOverride.committer_name).toBe("Repo Override Author");
+    expect(ciInfoOverride.committer_email).toBe("repo-override@example.com");
+    // Branch class should be recalculated based on repo branch
+    expect(ciInfoOverride.branch_class).toBeDefined();
+  });
+
+  it("repo fills in missing values when env vars are minimal/empty", () => {
+    expect.hasAssertions();
+
+    const env_vars_minimal = {
+      GITHUB_ACTIONS: "true",
+      GITHUB_REPOSITORY: "analytics-cli",
+      GITHUB_RUN_ID: "12345",
+    };
+
+    const repo = new RepoUrlParts("github.com", "trunk-io", "analytics-cli");
+    const bundleRepo = new BundleRepo(
+      repo,
+      ".",
+      "https://github.com/trunk-io/analytics-cli",
+      "abc123def456",
+      "abc123d",
+      "repo-branch-name",
+      BigInt(1234567890),
+      "This is a commit message from repo",
+      "Repo Author Name",
+      "repo-author@example.com",
+      undefined, // use_uncloned_repo is undefined
+    );
+
+    const ciInfoMinimal = env_parse(
+      env_vars_minimal,
+      ["main", "master"],
+      bundleRepo,
+    );
+    assert(ciInfoMinimal);
+    // Branch should come from repo since it's missing in env vars
+    expect(ciInfoMinimal.branch).toBe("repo-branch-name");
+    // Actor should come from repo since it's missing in env vars
+    expect(ciInfoMinimal.actor).toBe("repo-author@example.com");
+    // Commit message should come from repo
+    expect(ciInfoMinimal.commit_message).toBe(
+      "This is a commit message from repo",
+    );
   });
 
   it("parses and validates junit files", () => {

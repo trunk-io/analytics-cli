@@ -1941,7 +1941,7 @@ async fn test_user_supplied_repo_params_precede_github_actions_env_vars() {
     // Extract CIInfo from the actual environment variables captured in the bundle meta
     // This simulates what would happen when BindingsMetaContext is created from the actual upload
     let mut env_parser = EnvParser::new();
-    env_parser.parse(&bundle_meta.base_props.envs, &[]);
+    env_parser.parse(&bundle_meta.base_props.envs, &[], None);
     let ci_info = env_parser.into_ci_info_parser().unwrap().info_ci_info();
 
     // Verify that CIInfo was parsed from GitHub Actions environment variables
