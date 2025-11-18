@@ -30,7 +30,7 @@ pub struct TestReport {
     test_report: TestReportProto,
     command: String,
     started_at: SystemTime,
-    quarantined_tests: Option<HashMap<String, Test>>,
+    quarantined_tests: Option<HashMap<String, bool>>,
     codeowners: Option<CodeOwners>,
     variant: Option<String>,
     repo: Option<BundleRepo>,
@@ -280,14 +280,9 @@ impl MutTestReport {
                     None,
                     variant.clone(),
                 );
-                self.populate_quarantined_tests(
-                    &api_client,
-                    &bundle_repo.repo,
-                    org_url_slug,
-                    variant,
-                );
+                self.populate_quarantined_tests(&api_client, &bundle_repo.repo, org_url_slug);
                 if let Some(quarantined_tests) = self.0.borrow().quarantined_tests.as_ref() {
-                    return quarantined_tests.get(&test_identifier.id).is_some();
+                    return *quarantined_tests.get(&test_identifier.id).unwrap_or(&false);
                 }
                 false
             }
@@ -303,7 +298,6 @@ impl MutTestReport {
         api_client: &ApiClient,
         repo: &RepoUrlParts,
         org_url_slug: String,
-        variant: String,
     ) {
         if self.0.borrow().quarantined_tests.as_ref().is_some() {
             // already fetched
@@ -327,19 +321,7 @@ impl MutTestReport {
             match response {
                 Ok(response) => {
                     for test in response.quarantined_tests.iter() {
-                        let test = Test::new(
-                            Some(test.test_case_id.clone()),
-                            test.name.clone(),
-                            test.parent.clone().unwrap_or_default(),
-                            test.classname.clone(),
-                            test.file.clone(),
-                            org_url_slug.clone(),
-                            repo,
-                            None,
-                            variant.clone(),
-                        );
-
-                        quarantined_tests.insert(test.id.clone(), test);
+                        quarantined_tests.insert(test.test_case_id.clone(), true);
                     }
                     if response.page.next_page_token.is_empty() {
                         break;
