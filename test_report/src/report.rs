@@ -503,8 +503,7 @@ impl MutTestReport {
                             upload_result.error_report.map(|e| e.error)
                         {
                             tracing::error!(
-                                hidden_in_console = true,
-                                "Error uploading: {:?}",
+                                "Error uploading test report bundle: {:?}",
                                 upload_bundle_error
                             );
                             false
@@ -513,17 +512,13 @@ impl MutTestReport {
                         }
                     }
                     Err(e) => {
-                        tracing::error!(hidden_in_console = true, "Error uploading: {:?}", e);
+                        tracing::error!("Error uploading test report bundle: {:?}", e);
                         false
                     }
                 }
             }
             Err(e) => {
-                tracing::error!(
-                    hidden_in_console = true,
-                    "Error gathering initial test context: {:?}",
-                    e
-                );
+                tracing::error!("Error gathering initial context: {:?}", e);
                 false
             }
         };
