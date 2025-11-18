@@ -152,3 +152,36 @@ runs:
         else
           echo "production-success=${{ (steps.production-upload.outcome == 'success' && (inputs.environment-type == 'production' || inputs.environment-type == 'both')) || inputs.environment-type == 'staging' }}" >> $GITHUB_OUTPUT
         fi
+
+    - name: Extract xcresult for quarantining test
+      id: extract-xcresult
+      if: always() && steps.make-exe.outcome == 'success' && runner.os == 'macOS'
+      shell: bash
+      run: |
+        cd ${{ github.workspace }}
+        tar -xzf xcresult/tests/data/test-swift-without-test-suites.xcresult.tar.gz
+        echo "xcresult-path=test-swift-without-test-suites.xcresult" >> $GITHUB_OUTPUT
+
+    - name: Upload xcresult to staging
+      id: staging-xcresult-upload
+      if: always() && steps.staging-xcresult-test.outcome == 'success' && (inputs.environment-type == 'staging' || inputs.environment-type == 'both')
+      env:
+        TRUNK_PUBLIC_API_ADDRESS: https://api.trunk-staging.io
+      shell: bash
+      run: |
+        ./${{ inputs.cli-binary-location }} upload \
+        --org-url-slug trunk-staging-org \
+        --xcresult-path ${{ steps.extract-xcresult.outputs.xcresult-path }} \
+        --token ${{ inputs.staging-api-token }}
+
+    - name: Upload xcresult to production
+      id: production-xcresult-upload
+      if: always() && steps.production-xcresult-test.outcome == 'success' && (inputs.environment-type == 'production' || inputs.environment-type == 'both')
+      env:
+        TRUNK_PUBLIC_API_ADDRESS: https://api.trunk.io
+      shell: bash
+      run: |
+        ./${{ inputs.cli-binary-location }} upload \
+        --org-url-slug trunk \
+        --xcresult-path ${{ steps.extract-xcresult.outputs.xcresult-path }} \
+        --token ${{ inputs.production-api-token }}
