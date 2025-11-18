@@ -82,7 +82,6 @@ impl Test {
             self.set_id(org_slug.as_ref(), repo, variant.as_ref());
             return;
         }
-        // Use generate_info_id_variant_wrapper to apply variant handling consistently
         self.id = generate_info_id_variant_wrapper(
             org_slug.as_ref(),
             repo.repo_full_name().as_str(),
