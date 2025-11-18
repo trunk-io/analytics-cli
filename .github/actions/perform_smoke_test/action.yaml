@@ -3,13 +3,17 @@ description: Runs the actual smoke tests
 
 inputs:
   cli-binary-location:
-    description: Location for the cli binary, relative to current directory. Uses x86_64-unknown-linux binaries.
+    description: Location for the cli binary, relative to current directory. Supports both Unix and Windows binaries.
+    required: true
   staging-api-token:
     description: Api token for the trunk-staging-org org on trunk-staging (should be available in secrets)
+    required: true
   production-api-token:
     description: Api token for the trunk org on trunk (should be available in secrets)
+    required: true
   environment-type:
     description: staging if you only want to run for staging, production if you only want production, both for both
+    default: both
   test-variants:
     description: Whether to test variant quarantining (only supported in main branch builds)
     default: "false"
@@ -25,25 +29,29 @@ outputs:
 runs:
   using: composite
   steps:
-    - name: Make executable
-      id: make-exe
+    - name: Verify binary exists
+      id: verify-binary
       shell: bash
       run: |
-        chmod +x ${{ inputs.cli-binary-location }}
-        openssl dgst -sha256 ${{ inputs.cli-binary-location }} | awk '{print $NF}'
-        ls -l ${{ inputs.cli-binary-location }}
+        if [ ! -f "${{ inputs.cli-binary-location }}" ]; then
+          echo "Binary not found at: ${{ inputs.cli-binary-location }}"
+          exit 1
+        fi
+        chmod +x "${{ inputs.cli-binary-location }}" || true
+        openssl dgst -sha256 "${{ inputs.cli-binary-location }}" | awk '{print $NF}'
+        ls -l "${{ inputs.cli-binary-location }}"
 
     - name: Run tests on staging
       id: staging-test-run
-      if: always() && steps.make-exe.outcome == 'success' && (inputs.environment-type == 'staging' || inputs.environment-type == 'both')
+      if: always() && steps.verify-binary.outcome == 'success' && (inputs.environment-type == 'staging' || inputs.environment-type == 'both')
       env:
         TRUNK_PUBLIC_API_ADDRESS: https://api.trunk-staging.io
         FAIL_TEST: true
       shell: bash
       run: |
-        ./${{ inputs.cli-binary-location }} test \
+        "${{ inputs.cli-binary-location }}" test \
         --org-url-slug trunk-staging-org \
-        --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
+        --junit-paths "${{ github.workspace }}/target/**/*junit.xml" \
         --token ${{ inputs.staging-api-token }} \
         cargo nextest run -p smoke-test --profile ci
 
@@ -54,9 +62,9 @@ runs:
         TRUNK_PUBLIC_API_ADDRESS: https://api.trunk-staging.io
       shell: bash
       run: |
-        ./${{ inputs.cli-binary-location }} upload \
+        "${{ inputs.cli-binary-location }}" upload \
         --org-url-slug trunk-staging-org \
-        --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
+        --junit-paths "${{ github.workspace }}/target/**/*junit.xml" \
         --token ${{ inputs.staging-api-token }}
 
     # upload with variant should fail because we treat variant as a separate test
@@ -68,9 +76,9 @@ runs:
       shell: bash
       run: |
         set +e
-        ./${{ inputs.cli-binary-location }} upload \
+        "${{ inputs.cli-binary-location }}" upload \
         --org-url-slug trunk-staging-org \
-        --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
+        --junit-paths "${{ github.workspace }}/target/**/*junit.xml" \
         --token ${{ inputs.staging-api-token }} \
         --variant smoke-test-variant
         EXIT_CODE=$?
@@ -95,15 +103,15 @@ runs:
 
     - name: Run tests on production
       id: production-test-run
-      if: always() && steps.make-exe.outcome == 'success' && (inputs.environment-type == 'production' || inputs.environment-type == 'both')
+      if: always() && steps.verify-binary.outcome == 'success' && (inputs.environment-type == 'production' || inputs.environment-type == 'both')
       env:
         TRUNK_PUBLIC_API_ADDRESS: https://api.trunk.io
         FAIL_TEST: true
       shell: bash
       run: |
-        ./${{ inputs.cli-binary-location }} test \
+        "${{ inputs.cli-binary-location }}" test \
         --org-url-slug trunk \
-        --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
+        --junit-paths "${{ github.workspace }}/target/**/*junit.xml" \
         --token ${{ inputs.production-api-token }} \
         cargo nextest run -p smoke-test --profile ci
 
@@ -114,9 +122,9 @@ runs:
         TRUNK_PUBLIC_API_ADDRESS: https://api.trunk.io
       shell: bash
       run: |
-        ./${{ inputs.cli-binary-location }} upload \
+        "${{ inputs.cli-binary-location }}" upload \
         --org-url-slug trunk \
-        --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
+        --junit-paths "${{ github.workspace }}/target/**/*junit.xml" \
         --token ${{ inputs.production-api-token }}
 
     # upload with variant should fail because we treat variant as a separate test
@@ -128,9 +136,9 @@ runs:
       shell: bash
       run: |
         set +e
-        ./${{ inputs.cli-binary-location }} upload \
+        "${{ inputs.cli-binary-location }}" upload \
         --org-url-slug trunk \
-        --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
+        --junit-paths "${{ github.workspace }}/target/**/*junit.xml" \
         --token ${{ inputs.production-api-token }} \
         --variant smoke-test-variant
         EXIT_CODE=$?

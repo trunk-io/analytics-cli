@@ -21,12 +21,28 @@ jobs:
           - name: linux
             os: ubuntu-latest
             target: x86_64-unknown-linux-musl
+            binary-name: trunk-analytics-cli
           - name: darwin
             os: macos-latest
             target: aarch64-apple-darwin
+            binary-name: trunk-analytics-cli
+          - name: windows
+            os: public-amd64-4xlarge-dind-germany
+            target: x86_64-pc-windows-gnu
+            binary-name: trunk-analytics-cli.exe
     steps:
+      - name: Install git-lfs (Windows GNU build)
+        shell: bash
+        if: ${{ contains(matrix.platform.name, 'windows') }}
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y git-lfs build-essential
+          git lfs install
+
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          lfs: ${{ contains(matrix.platform.name, 'windows') }}
 
       - name: Get commit SHA
         id: get-sha
@@ -43,6 +59,9 @@ jobs:
           version: 0.0.0-${{ steps.get-sha.outputs.sha }}
           file: cli/Cargo.toml
 
+      - name: Setup Rust & Cargo
+        uses: ./.github/actions/setup_rust_cargo
+
       - name: Setup Run Smoke Tests
         uses: ./.github/actions/setup_run_smoke_tests
 
@@ -53,7 +72,7 @@ jobs:
           target: ${{ matrix.platform.target }}
           profile: release
 
-      - name: Build unix target
+      - name: Build unix/Windows target
         uses: ./.github/actions/build_cli_linux_target
         if: "!cancelled() && !contains(matrix.platform.name, 'darwin')"
         with:
@@ -63,13 +82,14 @@ jobs:
       - name: Run Smoke Tests
         uses: ./.github/actions/perform_smoke_test
         with:
-          cli-binary-location: target/${{matrix.platform.target}}/release/trunk-analytics-cli
+          cli-binary-location: target/${{matrix.platform.target}}/release/${{ matrix.platform.binary-name }}
           staging-api-token: ${{ secrets.TRUNK_STAGING_ORG_API_TOKEN }}
           production-api-token: ${{ secrets.TRUNK_PROD_ORG_API_TOKEN }}
           environment-type: ${{ (github.event.action == 'production-release' && 'production') || (github.event.action == 'staging-release' && 'staging') || 'both' }}
           test-variants: "true"
 
       - name: Run Smoke Tests With Gitlab
+        if: ${{ !contains(matrix.platform.name, 'windows') }}
         uses: ./.github/actions/perform_gitlab_smoke_test
         with:
           cli-binary-location: target/${{matrix.platform.target}}/release/trunk-analytics-cli

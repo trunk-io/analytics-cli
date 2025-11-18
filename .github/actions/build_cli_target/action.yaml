@@ -31,8 +31,6 @@ runs:
 
     - name: Install cross
       shell: bash
-      # Install cross for all non-darwin targets (including Windows GNU)
-      if: ${{ !contains(inputs.target, 'darwin') }}
       run: cargo install cross --git https://github.com/cross-rs/cross --force
 
     - name: Build CLI ${{ inputs.target }} target (Windows GNU native)

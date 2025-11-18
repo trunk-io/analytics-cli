@@ -1,4 +1,5 @@
 name: Optimize CLI Binary
+description: Compress CLI binary using UPX
 
 inputs:
   target:
@@ -12,8 +13,18 @@ runs:
     - name: Compress binary
       shell: bash
       run: |
-        upx --best --lzma target/${{ inputs.target }}/${{ inputs.profile }}/trunk-analytics-cli
+        if [[ "${{ inputs.target }}" == *"windows-gnu"* ]]; then
+          # Windows binaries use .exe extension
+          upx --best --lzma target/${{ inputs.target }}/${{ inputs.profile }}/trunk-analytics-cli.exe
+        else
+          upx --best --lzma target/${{ inputs.target }}/${{ inputs.profile }}/trunk-analytics-cli
+        fi
 
     - name: Report binary size
       shell: bash
-      run: ls -lh target/${{ inputs.target }}/${{ inputs.profile }}/trunk-analytics-cli
+      run: |
+        if [[ "${{ inputs.target }}" == *"windows-gnu"* ]]; then
+          ls -lh target/${{ inputs.target }}/${{ inputs.profile }}/trunk-analytics-cli.exe
+        else
+          ls -lh target/${{ inputs.target }}/${{ inputs.profile }}/trunk-analytics-cli
+        fi
