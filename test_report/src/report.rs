@@ -282,7 +282,7 @@ impl MutTestReport {
                 );
                 self.populate_quarantined_tests(&api_client, &bundle_repo.repo, org_url_slug);
                 if let Some(quarantined_tests) = self.0.borrow().quarantined_tests.as_ref() {
-                    return *quarantined_tests.get(&test_identifier.id).unwrap_or(&false);
+                    return quarantined_tests.get(&test_identifier.id).is_some();
                 }
                 false
             }
