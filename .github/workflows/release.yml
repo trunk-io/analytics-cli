@@ -18,7 +18,7 @@ jobs:
       matrix:
         platform:
           - os-name: linux-x86_64
-            runs-on: public-amd64-4xlarge-dind-germany
+            runs-on: ubuntu-latest
             target: x86_64-unknown-linux-musl
             artifact-name: x86_64-unknown-linux
 
@@ -28,7 +28,7 @@ jobs:
             artifact-name: aarch64-unknown-linux
 
           - os-name: linux-86_64
-            runs-on: public-amd64-4xlarge-dind-germany
+            runs-on: ubuntu-latest
             target: x86_64-unknown-illumos
             artifact-name: x86_64-unknown-illumos
 
@@ -49,9 +49,9 @@ jobs:
 
     runs-on: ${{ matrix.platform.runs-on }}
     steps:
-      - name: Install build tools (Windows and Linux build)
+      - name: Install git-lfs (Windows GNU build)
         shell: bash
-        if: ${{ !contains(matrix.platform.os-name, 'darwin') }}
+        if: ${{ contains(matrix.platform.os-name, 'windows') }}
         run: |
           sudo apt-get update
           sudo apt-get install -y git-lfs build-essential
@@ -84,7 +84,7 @@ jobs:
           profile: release-with-debug
 
       - name: Build unix/Windows target
-        uses: ./.github/actions/build_cli_linux_windows_target
+        uses: ./.github/actions/build_cli_linux_target
         if: ${{ !contains(matrix.platform.os-name, 'darwin') }}
         with:
           target: ${{ matrix.platform.target }}
