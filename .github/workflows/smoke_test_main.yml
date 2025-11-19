@@ -21,15 +21,15 @@ jobs:
           - name: linux
             os: ubuntu-latest
             target: x86_64-unknown-linux-musl
-            binary-name: trunk-analytics-cli
+            binary-name: analytics-cli
           - name: darwin
             os: macos-latest
             target: aarch64-apple-darwin
-            binary-name: trunk-analytics-cli
+            binary-name: analytics-cli
           - name: windows
             os: public-amd64-4xlarge-dind-germany
             target: x86_64-pc-windows-gnu
-            binary-name: trunk-analytics-cli.exe
+            binary-name: analytics-cli.exe
     steps:
       - name: Install git-lfs (Windows GNU build)
         shell: bash
