@@ -53,7 +53,7 @@ jobs:
       - name: Delete unnecessary tools folder
         run: rm -rf /opt/hostedtoolcache
 
-      - name: Install git-lfs (Windows GNU build)
+      - name: Install build tool (Windows GNU build)
         shell: bash
         if: ${{ contains(matrix.platform.os-name, 'windows') }}
         run: |
