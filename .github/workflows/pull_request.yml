@@ -31,10 +31,6 @@ jobs:
             runs-on: ubuntu-24.04-arm
             target: aarch64-unknown-linux-musl
 
-          - os-name: x86_64-linux
-            runs-on: ubuntu-latest
-            target: x86_64-unknown-illumos
-
           - os-name: x86_64-darwin
             runs-on: macos-latest
             target: x86_64-apple-darwin
