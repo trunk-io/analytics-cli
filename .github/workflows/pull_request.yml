@@ -107,7 +107,7 @@ jobs:
           force-sentry-dev: true
 
       - name: Build unix/Windows target
-        uses: ./.github/actions/build_cli_linux_target
+        uses: ./.github/actions/build_cli_linux_windows_target
         if: ${{ !contains(matrix.platform.os-name, 'darwin') }}
         with:
           target: ${{ matrix.platform.target }}

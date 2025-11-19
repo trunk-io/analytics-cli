@@ -70,7 +70,7 @@ jobs:
           profile: release
 
       - name: Build unix/Windows target
-        uses: ./.github/actions/
+        uses: ./.github/actions/build_cli_linux_windows_target
         if: "!cancelled() && !contains(matrix.platform.name, 'darwin')"
         with:
           target: ${{ matrix.platform.target }}
