@@ -81,7 +81,7 @@ jobs:
         uses: uraimo/run-on-arch-action@v2
         with:
           arch: ${{ matrix.platform.target }}
-          distro: ubuntu22.04
+          distro: ubuntu24.04
           githubToken: ${{ github.token }}
           install: |
             apt-get update
@@ -155,9 +155,7 @@ jobs:
           s3-flags: --recursive
           role-to-assume: ${{ secrets.S3_UPLOAD_ROLE_ARN }}
   sdist:
-    # TODO(TRUNK-13050): update to `ubuntu-latest` when `maturin-action` gets updated to support it
-    # https://github.com/PyO3/maturin-action/issues/291
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - name: Setup Rust & Cargo
