@@ -127,7 +127,7 @@ jobs:
           artifact-pattern: ""
 
   production-slack-workflow-status:
-    if: always() && (needs.build_cli.outputs.production-success != 'true' || needs.test_ruby_gem_production.result != 'success')
+    if: always() && github.ref == 'refs/heads/main' && (needs.build_cli.outputs.production-success != 'true' || needs.test_ruby_gem_production.result != 'success')
     name: Post Production Smoke Test Failure
     needs:
       - build_cli
@@ -156,7 +156,7 @@ jobs:
             }
 
   staging-slack-workflow-status:
-    if: always() && (needs.build_cli.outputs.staging-success != 'true' || needs.test_ruby_gem_staging.result != 'success')
+    if: always() && github.ref == 'refs/heads/main' && (needs.build_cli.outputs.staging-success != 'true' || needs.test_ruby_gem_staging.result != 'success')
     name: Post Staging Smoke Test Failure
     needs:
       - build_cli
