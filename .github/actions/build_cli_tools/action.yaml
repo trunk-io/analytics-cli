@@ -37,14 +37,19 @@ runs:
           sudo apt-get install -y musl-tools
         fi
 
-    - name: Install cross for CLI tools
+    - name: Determine build tool
+      id: build-tool
       shell: bash
       run: |
-        # Only install cross if we're not on the target architecture or platform
-        # Skip cross for Windows GNU - we build natively with cargo
-        if [[ "${{ inputs.os-name }}" == *"darwin"* ]] || [[ "${{ inputs.target }}" == *"aarch64"* && "$(uname -m)" == "aarch64" ]] || [[ "${{ inputs.target }}" == *"windows-gnu"* ]]; then
-          echo "Skipping cross installation - building natively"
+        # Determine if we should use cargo (native) or cross (Docker)
+        # Use cargo for: darwin, native aarch64, Windows GNU
+        # Use cross for: everything else (cross-compilation)
+        if [[ "${{ inputs.os-name }}" == *"darwin"* ]] || \
+           [[ "${{ inputs.target }}" == *"aarch64"* && "$(uname -m)" == "aarch64" ]] || \
+           [[ "${{ inputs.target }}" == *"windows-gnu"* ]]; then
+          echo "BUILD_TOOL=cargo" >> $GITHUB_ENV
         else
+          echo "BUILD_TOOL=cross" >> $GITHUB_ENV
           cargo install cross --version 0.2.5 --force
         fi
 
@@ -72,26 +77,14 @@ runs:
     - name: Build Bundle CLI
       shell: bash
       run: |
-        if [[ "${{ inputs.os-name }}" == *"darwin"* ]] || [[ "${{ inputs.target }}" == *"aarch64"* && "$(uname -m)" == "aarch64" ]] || [[ "${{ inputs.target }}" == *"windows-gnu"* ]]; then
-          cargo build -p bundle --profile=release-with-debug --target=${{ inputs.target }} --features build-binary
-        else
-          cross build -p bundle --profile=release-with-debug --target=${{ inputs.target }} --features build-binary
-        fi
+        ${{ env.BUILD_TOOL }} build -p bundle --profile=release-with-debug --target=${{ inputs.target }} --features build-binary
 
     - name: Build XCResult CLI
       shell: bash
       run: |
-        if [[ "${{ inputs.os-name }}" == *"darwin"* ]] || [[ "${{ inputs.target }}" == *"aarch64"* && "$(uname -m)" == "aarch64" ]] || [[ "${{ inputs.target }}" == *"windows-gnu"* ]]; then
-          cargo build -p xcresult --profile=release-with-debug --target=${{ inputs.target }}
-        else
-          cross build -p xcresult --profile=release-with-debug --target=${{ inputs.target }}
-        fi
+        ${{ env.BUILD_TOOL }} build -p xcresult --profile=release-with-debug --target=${{ inputs.target }}
 
     - name: Build Codeowners CLI
       shell: bash
       run: |
-        if [[ "${{ inputs.os-name }}" == *"darwin"* ]] || [[ "${{ inputs.target }}" == *"aarch64"* && "$(uname -m)" == "aarch64" ]] || [[ "${{ inputs.target }}" == *"windows-gnu"* ]]; then
-          cargo build -p codeowners --profile=release-with-debug --target=${{ inputs.target }}
-        else
-          cross build -p codeowners --profile=release-with-debug --target=${{ inputs.target }}
-        fi
+        ${{ env.BUILD_TOOL }} build -p codeowners --profile=release-with-debug --target=${{ inputs.target }}
