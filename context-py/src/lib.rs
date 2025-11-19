@@ -26,9 +26,11 @@ define_stub_info_gatherer!(stub_info);
 
 #[gen_stub_pyfunction]
 #[pyfunction]
+#[pyo3(signature = (env_vars, stable_branches, repo=None))]
 fn env_parse(
     env_vars: HashMap<String, String>,
     stable_branches: Vec<String>,
+    repo: Option<repo::BundleRepo>,
 ) -> Option<env::parser::CIInfo> {
     let stable_branches_ref: &[&str] = &stable_branches
         .iter()
@@ -36,7 +38,7 @@ fn env_parse(
         .collect::<Vec<&str>>();
 
     let mut env_parser = env::parser::EnvParser::new();
-    env_parser.parse(&env_vars, stable_branches_ref);
+    env_parser.parse(&env_vars, stable_branches_ref, repo.as_ref());
 
     env_parser
         .into_ci_info_parser()
@@ -399,7 +401,6 @@ fn associate_codeowners_multithreaded_impl(
 #[gen_stub_pyfunction]
 #[pyfunction]
 // trunk-ignore(clippy/too_many_arguments)
-// trunk-ignore(clippy/deprecated)
 pub fn gen_info_id(
     org_url_slug: String,
     repo_full_name: String,

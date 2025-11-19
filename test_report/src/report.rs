@@ -30,7 +30,7 @@ pub struct TestReport {
     test_report: TestReportProto,
     command: String,
     started_at: SystemTime,
-    quarantined_tests: Option<HashMap<String, Test>>,
+    quarantined_tests: Option<HashMap<String, bool>>,
     codeowners: Option<CodeOwners>,
     variant: Option<String>,
     repo: Option<BundleRepo>,
@@ -280,12 +280,7 @@ impl MutTestReport {
                     None,
                     variant.clone(),
                 );
-                self.populate_quarantined_tests(
-                    &api_client,
-                    &bundle_repo.repo,
-                    org_url_slug,
-                    variant,
-                );
+                self.populate_quarantined_tests(&api_client, &bundle_repo.repo, org_url_slug);
                 if let Some(quarantined_tests) = self.0.borrow().quarantined_tests.as_ref() {
                     return quarantined_tests.get(&test_identifier.id).is_some();
                 }
@@ -303,7 +298,6 @@ impl MutTestReport {
         api_client: &ApiClient,
         repo: &RepoUrlParts,
         org_url_slug: String,
-        variant: String,
     ) {
         if self.0.borrow().quarantined_tests.as_ref().is_some() {
             // already fetched
@@ -327,19 +321,7 @@ impl MutTestReport {
             match response {
                 Ok(response) => {
                     for test in response.quarantined_tests.iter() {
-                        let test = Test::new(
-                            Some(test.test_case_id.clone()),
-                            test.name.clone(),
-                            test.parent.clone().unwrap_or_default(),
-                            test.classname.clone(),
-                            test.file.clone(),
-                            org_url_slug.clone(),
-                            repo,
-                            None,
-                            variant.clone(),
-                        );
-
-                        quarantined_tests.insert(test.id.clone(), test);
+                        quarantined_tests.insert(test.test_case_id.clone(), true);
                     }
                     if response.page.next_page_token.is_empty() {
                         break;
@@ -398,13 +380,11 @@ impl MutTestReport {
             for test_result in &mut test_report.test_results {
                 // trunk-ignore(clippy/deprecated)
                 if let Some(uploader_metadata) = &mut test_result.uploader_metadata {
-                    // trunk-ignore(clippy/assigning_clones)
                     uploader_metadata.variant = variant.clone();
                 }
             }
             // update the top-level uploader_metadata
             if let Some(uploader_metadata) = &mut test_report.uploader_metadata {
-                // trunk-ignore(clippy/assigning_clones)
                 uploader_metadata.variant = variant.clone();
             }
         }
@@ -420,7 +400,6 @@ impl MutTestReport {
             }
             let test_result = test_report.test_results.get_mut(0);
             if let Some(test_result) = test_result {
-                // trunk-ignore(clippy/deprecated,clippy/assigning_clones)
                 test_result.uploader_metadata = test_report.uploader_metadata.clone();
             }
         }
@@ -503,8 +482,7 @@ impl MutTestReport {
                             upload_result.error_report.map(|e| e.error)
                         {
                             tracing::error!(
-                                hidden_in_console = true,
-                                "Error uploading: {:?}",
+                                "Error uploading test report bundle: {:?}",
                                 upload_bundle_error
                             );
                             false
@@ -513,17 +491,13 @@ impl MutTestReport {
                         }
                     }
                     Err(e) => {
-                        tracing::error!(hidden_in_console = true, "Error uploading: {:?}", e);
+                        tracing::error!("Error uploading test report bundle: {:?}", e);
                         false
                     }
                 }
             }
             Err(e) => {
-                tracing::error!(
-                    hidden_in_console = true,
-                    "Error gathering initial test context: {:?}",
-                    e
-                );
+                tracing::error!("Error gathering initial context: {:?}", e);
                 false
             }
         };

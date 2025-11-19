@@ -6,7 +6,6 @@ use pyo3_stub_gen::derive::gen_stub_pyclass;
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "wasm")]
 use tsify_next::Tsify;
-use uuid::Uuid;
 #[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::*;
 
@@ -83,17 +82,16 @@ impl Test {
             self.set_id(org_slug.as_ref(), repo, variant.as_ref());
             return;
         }
-        if Uuid::parse_str(id.as_ref()).is_ok() {
-            self.id = id.as_ref().to_string();
-            return;
-        }
-        let info_id_input = [
+        self.id = generate_info_id_variant_wrapper(
             org_slug.as_ref(),
             repo.repo_full_name().as_str(),
-            id.as_ref(),
-        ]
-        .join("#");
-        self.id = Uuid::new_v5(&Uuid::NAMESPACE_URL, info_id_input.as_bytes()).to_string();
+            self.file.as_deref(),
+            self.class_name.as_deref(),
+            Some(self.parent_name.as_str()),
+            Some(self.name.as_str()),
+            Some(id.as_ref()),
+            variant.as_ref(),
+        );
     }
 }
 
@@ -201,5 +199,55 @@ mod tests {
         assert_eq!(result.class_name, class_name);
         assert_eq!(result.file, file);
         assert_eq!(result.id, "da5b8893-d6ca-5c1c-9a9c-91f40a2a3649");
+    }
+
+    #[test]
+    fn test_test_new_trunk_rspec_example() {
+        let org_slug = "test-org";
+        let repo = Repo {
+            host: "github.com".to_string(),
+            owner: "test-org".to_string(),
+            name: "rspec".to_string(),
+        };
+        let name = "test_name".to_string();
+        let parent_name = "parent_name".to_string();
+        let class_name = None;
+        let file = None;
+        let info_id = "trunk:./spec/example_spec.rb[2:1]-./spec/example_spec.rb:28";
+        let variant = "";
+
+        // Test without variant
+        let result = Test::new(
+            Some(info_id),
+            name.clone(),
+            parent_name.clone(),
+            class_name.clone(),
+            file.clone(),
+            org_slug,
+            &repo,
+            None,
+            variant,
+        );
+
+        assert_eq!(result.id, "1defca6d-177c-5958-b1df-4c4da091b71a");
+
+        // Test with variant "quarantined"
+        let variant_quarantined = "quarantined";
+        let result_with_variant = Test::new(
+            Some(info_id),
+            name,
+            parent_name,
+            class_name,
+            file,
+            org_slug,
+            &repo,
+            None,
+            variant_quarantined,
+        );
+
+        assert_eq!(
+            result_with_variant.id,
+            "941fb8fd-93eb-5370-894b-734b16d8b2f0"
+        );
     }
 }

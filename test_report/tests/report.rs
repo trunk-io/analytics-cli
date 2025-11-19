@@ -495,7 +495,22 @@ async fn test_variant_impacts_quarantining() {
         name: "analytics-cli".into(),
     };
 
-    // Generate the expected test ID with variant1
+    // Generate a base test ID (without variant) - used when testing with ID parameter
+    let base_test_id = Test::new(
+        None,
+        test_name.clone().unwrap_or_default(),
+        test_parent_name.clone().unwrap_or_default(),
+        test_classname.clone(),
+        test_file.clone(),
+        "test-org".to_string(),
+        &repo,
+        None,
+        "".to_string(), // No variant for base ID
+    )
+    .id;
+
+    // Generate the expected test ID with variant1 from scratch (for "without ID" case)
+    // This matches what happens when is_quarantined is called with None and variant1
     let expected_test_id_variant1 = Test::new(
         None,
         test_name.clone().unwrap_or_default(),
@@ -509,9 +524,24 @@ async fn test_variant_impacts_quarantining() {
     )
     .id;
 
-    // Generate the expected test ID with variant2
-    let expected_test_id_variant2 = Test::new(
+    // Generate the expected test ID with variant1 using the base ID (for "with ID" case)
+    // This matches what happens when is_quarantined is called with base_test_id and variant1
+    let expected_test_id_variant1_from_base = Test::new(
+        Some(base_test_id.clone()),
+        test_name.clone().unwrap_or_default(),
+        test_parent_name.clone().unwrap_or_default(),
+        test_classname.clone(),
+        test_file.clone(),
+        "test-org".to_string(),
+        &repo,
         None,
+        "variant1".to_string(),
+    )
+    .id;
+
+    // Generate the expected test ID with variant2 using the base ID (for verification)
+    let expected_test_id_variant2 = Test::new(
+        Some(base_test_id.clone()),
         test_name.clone().unwrap_or_default(),
         test_parent_name.clone().unwrap_or_default(),
         test_classname.clone(),
@@ -524,13 +554,17 @@ async fn test_variant_impacts_quarantining() {
     .id;
 
     // Verify they're different
+    assert_ne!(base_test_id, expected_test_id_variant1);
+    assert_ne!(base_test_id, expected_test_id_variant2);
     assert_ne!(expected_test_id_variant1, expected_test_id_variant2);
 
-    // Create a custom mock server handler that returns a quarantined test with the variant1 ID
+    // Create a custom mock server handler that returns quarantined tests
+    // We need to return both IDs: one for "without ID" case and one for "with ID" case
     use api::message::{ListQuarantinedTestsResponse, Page, QuarantineSetting, QuarantinedTest};
     let state = {
         let mut builder = MockServerBuilder::new();
         let expected_id_v1 = expected_test_id_variant1.clone();
+        let expected_id_v1_from_base = expected_test_id_variant1_from_base.clone();
         let test_name_clone = test_name.clone();
         let test_parent_name_clone = test_parent_name.clone();
         let test_classname_clone = test_classname.clone();
@@ -539,17 +573,28 @@ async fn test_variant_impacts_quarantining() {
             move |_state: State<SharedMockServerState>,
                   _req: Json<api::message::ListQuarantinedTestsRequest>| async move {
                 Json(ListQuarantinedTestsResponse {
-                    quarantined_tests: vec![QuarantinedTest {
-                        test_case_id: expected_id_v1.clone(),
-                        name: test_name_clone.clone().unwrap_or_default(),
-                        parent: Some(test_parent_name_clone.clone().unwrap_or_default()),
-                        classname: test_classname_clone.clone(),
-                        file: test_file_clone.clone(),
-                        status: "failure".to_string(),
-                        quarantine_setting: QuarantineSetting::AlwaysQuarantine,
-                    }],
+                    quarantined_tests: vec![
+                        QuarantinedTest {
+                            test_case_id: expected_id_v1.clone(),
+                            name: test_name_clone.clone().unwrap_or_default(),
+                            parent: Some(test_parent_name_clone.clone().unwrap_or_default()),
+                            classname: test_classname_clone.clone(),
+                            file: test_file_clone.clone(),
+                            status: "failure".to_string(),
+                            quarantine_setting: QuarantineSetting::AlwaysQuarantine,
+                        },
+                        QuarantinedTest {
+                            test_case_id: expected_id_v1_from_base.clone(),
+                            name: test_name_clone.clone().unwrap_or_default(),
+                            parent: Some(test_parent_name_clone.clone().unwrap_or_default()),
+                            classname: test_classname_clone.clone(),
+                            file: test_file_clone.clone(),
+                            status: "failure".to_string(),
+                            quarantine_setting: QuarantineSetting::AlwaysQuarantine,
+                        },
+                    ],
                     page: Page {
-                        total_rows: 1,
+                        total_rows: 2,
                         total_pages: 1,
                         next_page_token: "".to_string(),
                         prev_page_token: "".to_string(),
@@ -567,7 +612,7 @@ async fn test_variant_impacts_quarantining() {
     env::set_var(TRUNK_ORG_URL_SLUG_ENV, "test-org");
     env::set_var(TRUNK_USE_UNCLONED_REPO_ENV, "false");
 
-    // Test with variant1 - should find the quarantined test
+    // Test with variant1 - should find the quarantined test (without ID)
     env::set_var(TRUNK_VARIANT_ENV, "variant1");
     let test_name_v1 = test_name.clone();
     let test_parent_name_v1 = test_parent_name.clone();
@@ -587,10 +632,34 @@ async fn test_variant_impacts_quarantining() {
     .unwrap();
     assert!(
         is_quarantined_v1,
-        "Test should be quarantined when variant matches"
+        "Test should be quarantined when variant matches (without ID)"
     );
 
-    // Test with variant2 - should NOT find the quarantined test (different variant)
+    // Test with variant1 - should find the quarantined test (with ID)
+    env::set_var(TRUNK_VARIANT_ENV, "variant1");
+    let test_name_v1_id = test_name.clone();
+    let test_parent_name_v1_id = test_parent_name.clone();
+    let test_classname_v1_id = test_classname.clone();
+    let test_file_v1_id = test_file.clone();
+    let base_id_v1 = base_test_id.clone();
+    let is_quarantined_v1_id = thread::spawn(move || {
+        let test_report_v1 = MutTestReport::new("test".into(), "test-command".into(), None);
+        test_report_v1.is_quarantined(
+            Some(base_id_v1),
+            test_name_v1_id,
+            test_parent_name_v1_id,
+            test_classname_v1_id,
+            test_file_v1_id,
+        )
+    })
+    .join()
+    .unwrap();
+    assert!(
+        is_quarantined_v1_id,
+        "Test should be quarantined when variant matches (with ID)"
+    );
+
+    // Test with variant2 - should NOT find the quarantined test (different variant, without ID)
     env::set_var(TRUNK_VARIANT_ENV, "variant2");
     let test_name_v2 = test_name.clone();
     let test_parent_name_v2 = test_parent_name.clone();
@@ -610,10 +679,34 @@ async fn test_variant_impacts_quarantining() {
     .unwrap();
     assert!(
         !is_quarantined_v2,
-        "Test should NOT be quarantined when variant doesn't match"
+        "Test should NOT be quarantined when variant doesn't match (without ID)"
     );
 
-    // Test with no variant - should NOT find the quarantined test
+    // Test with variant2 - should NOT find the quarantined test (different variant, with ID)
+    env::set_var(TRUNK_VARIANT_ENV, "variant2");
+    let test_name_v2_id = test_name.clone();
+    let test_parent_name_v2_id = test_parent_name.clone();
+    let test_classname_v2_id = test_classname.clone();
+    let test_file_v2_id = test_file.clone();
+    let base_id_v2 = base_test_id.clone();
+    let is_quarantined_v2_id = thread::spawn(move || {
+        let test_report_v2 = MutTestReport::new("test".into(), "test-command".into(), None);
+        test_report_v2.is_quarantined(
+            Some(base_id_v2),
+            test_name_v2_id,
+            test_parent_name_v2_id,
+            test_classname_v2_id,
+            test_file_v2_id,
+        )
+    })
+    .join()
+    .unwrap();
+    assert!(
+        !is_quarantined_v2_id,
+        "Test should NOT be quarantined when variant doesn't match (with ID)"
+    );
+
+    // Test with no variant - should NOT find the quarantined test (without ID)
     env::remove_var(TRUNK_VARIANT_ENV);
     let test_name_v3 = test_name.clone();
     let test_parent_name_v3 = test_parent_name.clone();
@@ -633,6 +726,30 @@ async fn test_variant_impacts_quarantining() {
     .unwrap();
     assert!(
         !is_quarantined_v3,
-        "Test should NOT be quarantined when variant is empty"
+        "Test should NOT be quarantined when variant is empty (without ID)"
+    );
+
+    // Test with no variant - should NOT find the quarantined test (with ID)
+    env::remove_var(TRUNK_VARIANT_ENV);
+    let test_name_v3_id = test_name.clone();
+    let test_parent_name_v3_id = test_parent_name.clone();
+    let test_classname_v3_id = test_classname.clone();
+    let test_file_v3_id = test_file.clone();
+    let base_id_v3 = base_test_id.clone();
+    let is_quarantined_v3_id = thread::spawn(move || {
+        let test_report_v3 = MutTestReport::new("test".into(), "test-command".into(), None);
+        test_report_v3.is_quarantined(
+            Some(base_id_v3),
+            test_name_v3_id,
+            test_parent_name_v3_id,
+            test_classname_v3_id,
+            test_file_v3_id,
+        )
+    })
+    .join()
+    .unwrap();
+    assert!(
+        !is_quarantined_v3_id,
+        "Test should NOT be quarantined when variant is empty (with ID)"
     );
 }
