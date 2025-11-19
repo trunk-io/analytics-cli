@@ -37,7 +37,7 @@ runs:
           echo "Binary not found at: ${{ inputs.cli-binary-location }}"
           exit 1
         fi
-        chmod +x "${{ inputs.cli-binary-location }}" || true
+        chmod +x ${{ inputs.cli-binary-location }} || true
         openssl dgst -sha256 "${{ inputs.cli-binary-location }}" | awk '{print $NF}'
         ls -l "${{ inputs.cli-binary-location }}"
 
@@ -49,7 +49,7 @@ runs:
         FAIL_TEST: true
       shell: bash
       run: |
-        "${{ inputs.cli-binary-location }}" test \
+        ${{ inputs.cli-binary-location }} test \
         --org-url-slug trunk-staging-org \
         --junit-paths "${{ github.workspace }}/target/**/*junit.xml" \
         --token ${{ inputs.staging-api-token }} \
@@ -62,7 +62,7 @@ runs:
         TRUNK_PUBLIC_API_ADDRESS: https://api.trunk-staging.io
       shell: bash
       run: |
-        "${{ inputs.cli-binary-location }}" upload \
+        ${{ inputs.cli-binary-location }} upload \
         --org-url-slug trunk-staging-org \
         --junit-paths "${{ github.workspace }}/target/**/*junit.xml" \
         --token ${{ inputs.staging-api-token }}
@@ -76,7 +76,7 @@ runs:
       shell: bash
       run: |
         set +e
-        "${{ inputs.cli-binary-location }}" upload \
+        ${{ inputs.cli-binary-location }} upload \
         --org-url-slug trunk-staging-org \
         --junit-paths "${{ github.workspace }}/target/**/*junit.xml" \
         --token ${{ inputs.staging-api-token }} \
