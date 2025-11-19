@@ -44,23 +44,23 @@ jobs:
             target: aarch64-apple-darwin
 
           - os-name: windows-x86_64
-            runs-on: public-amd64-4xlarge-dind-germany
+            # runs-on: public-amd64-4xlarge-dind-germany
+            runs-on: ubuntu-latest
             target: x86_64-pc-windows-gnu
 
     runs-on: ${{ matrix.platform.runs-on }}
     steps:
       # we've been hitting out of free space issues
       - name: Delete unnecessary tools folder
-        if: ${{ !contains(matrix.platform.os-name, 'windows') }}
         run: rm -rf /opt/hostedtoolcache
 
-      - name: Install git-lfs (Windows GNU build)
-        shell: bash
-        if: ${{ contains(matrix.platform.os-name, 'windows') }}
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y git-lfs build-essential
-          git lfs install
+      # - name: Install git-lfs (Windows GNU build)
+      #   shell: bash
+      #   if: ${{ contains(matrix.platform.os-name, 'windows') }}
+      #   run: |
+      #     sudo apt-get update
+      #     sudo apt-get install -y git-lfs build-essential
+      #     git lfs install
 
       - name: Checkout
         uses: actions/checkout@v4
