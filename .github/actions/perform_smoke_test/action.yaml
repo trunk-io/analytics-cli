@@ -164,7 +164,7 @@ runs:
 
     - name: Upload xcresult to staging
       id: staging-xcresult-upload
-      if: always() && steps.staging-xcresult-test.outcome == 'success' && (inputs.environment-type == 'staging' || inputs.environment-type == 'both')
+      if: always() && steps.extract-xcresult.outcome == 'success' && (inputs.environment-type == 'staging' || inputs.environment-type == 'both')
       env:
         TRUNK_PUBLIC_API_ADDRESS: https://api.trunk-staging.io
       shell: bash
@@ -176,7 +176,7 @@ runs:
 
     - name: Upload xcresult to production
       id: production-xcresult-upload
-      if: always() && steps.production-xcresult-test.outcome == 'success' && (inputs.environment-type == 'production' || inputs.environment-type == 'both')
+      if: always() && steps.extract-xcresult.outcome == 'success' && (inputs.environment-type == 'production' || inputs.environment-type == 'both')
       env:
         TRUNK_PUBLIC_API_ADDRESS: https://api.trunk.io
       shell: bash
