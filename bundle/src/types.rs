@@ -200,4 +200,54 @@ mod tests {
         assert_eq!(result.file, file);
         assert_eq!(result.id, "da5b8893-d6ca-5c1c-9a9c-91f40a2a3649");
     }
+
+    #[test]
+    fn test_test_new_trunk_rspec_example() {
+        let org_slug = "test-org";
+        let repo = Repo {
+            host: "github.com".to_string(),
+            owner: "test-org".to_string(),
+            name: "rspec".to_string(),
+        };
+        let name = "test_name".to_string();
+        let parent_name = "parent_name".to_string();
+        let class_name = None;
+        let file = None;
+        let info_id = "trunk:./spec/example_spec.rb[2:1]-./spec/example_spec.rb:28";
+        let variant = "";
+
+        // Test without variant
+        let result = Test::new(
+            Some(info_id),
+            name.clone(),
+            parent_name.clone(),
+            class_name.clone(),
+            file.clone(),
+            org_slug,
+            &repo,
+            None,
+            variant,
+        );
+
+        assert_eq!(result.id, "1defca6d-177c-5958-b1df-4c4da091b71a");
+
+        // Test with variant "quarantined"
+        let variant_quarantined = "quarantined";
+        let result_with_variant = Test::new(
+            Some(info_id),
+            name,
+            parent_name,
+            class_name,
+            file,
+            org_slug,
+            &repo,
+            None,
+            variant_quarantined,
+        );
+
+        assert_eq!(
+            result_with_variant.id,
+            "941fb8fd-93eb-5370-894b-734b16d8b2f0"
+        );
+    }
 }

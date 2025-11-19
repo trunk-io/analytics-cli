@@ -90,7 +90,7 @@ pub fn generate_info_id_variant_wrapper(
         info_id,
         variant,
     );
-    if variant.is_empty() || info_id.is_some() {
+    if variant.is_empty() {
         id
     } else {
         gen_info_id(
