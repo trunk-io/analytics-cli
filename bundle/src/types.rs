@@ -6,7 +6,6 @@ use pyo3_stub_gen::derive::gen_stub_pyclass;
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "wasm")]
 use tsify_next::Tsify;
-use uuid::Uuid;
 #[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::*;
 
@@ -83,17 +82,16 @@ impl Test {
             self.set_id(org_slug.as_ref(), repo, variant.as_ref());
             return;
         }
-        if Uuid::parse_str(id.as_ref()).is_ok() {
-            self.id = id.as_ref().to_string();
-            return;
-        }
-        let info_id_input = [
+        self.id = generate_info_id_variant_wrapper(
             org_slug.as_ref(),
             repo.repo_full_name().as_str(),
-            id.as_ref(),
-        ]
-        .join("#");
-        self.id = Uuid::new_v5(&Uuid::NAMESPACE_URL, info_id_input.as_bytes()).to_string();
+            self.file.as_deref(),
+            self.class_name.as_deref(),
+            Some(self.parent_name.as_str()),
+            Some(self.name.as_str()),
+            Some(id.as_ref()),
+            variant.as_ref(),
+        );
     }
 }
 
