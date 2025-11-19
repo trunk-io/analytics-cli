@@ -14,7 +14,7 @@ pub fn env_parse(
         .collect::<Vec<&str>>();
 
     let mut env_parser = env::parser::EnvParser::new();
-    env_parser.parse(&env_vars, stable_branches_ref);
+    env_parser.parse(&env_vars, stable_branches_ref, None);
 
     env_parser
         .into_ci_info_parser()

@@ -72,7 +72,7 @@ fn valid_ci_info_and_bundle_repo() -> (CIInfo, BundleRepo) {
     ]);
 
     let mut env_parser = EnvParser::new();
-    env_parser.parse(&env_vars, &[]);
+    env_parser.parse(&env_vars, &[], None);
 
     let ci_info = env_parser.into_ci_info_parser().unwrap().info_ci_info();
     let bundle_repo = BundleRepo {
