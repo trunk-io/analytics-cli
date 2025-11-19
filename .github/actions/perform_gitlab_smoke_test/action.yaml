@@ -42,7 +42,7 @@ runs:
       run: |
         ./${{ inputs.cli-binary-location }} test \
         --org-url-slug trunk-staging-org \
-        --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
+        --junit-paths "${{ github.workspace }}/target/**/*junit.xml" \
         --token ${{ inputs.staging-api-token }} \
         --repo-url https://gitlab.com/trunk-staging-org/analytics-cli-fake-gitlab/ \
         cargo nextest run -p smoke-test --profile ci
@@ -68,7 +68,7 @@ runs:
       run: |
         ./${{ inputs.cli-binary-location }} test \
         --org-url-slug trunk \
-        --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
+        --junit-paths "${{ github.workspace }}/target/**/*junit.xml" \
         --token ${{ inputs.production-api-token }} \
         --repo-url https://gitlab.com/trunk-io/analytics-cli-fake-gitlab/ \
         cargo nextest run -p smoke-test --profile ci
@@ -93,7 +93,7 @@ runs:
       run: |
         ./${{ inputs.cli-binary-location }} upload \
         --org-url-slug trunk-staging-org \
-        --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
+        --junit-paths "${{ github.workspace }}/target/**/*junit.xml" \
         --token ${{ inputs.staging-api-token }} \
         --repo-url https://gitlab.com/trunk-staging-org/analytics-cli-fake-gitlab/
 
@@ -117,6 +117,6 @@ runs:
       run: |
         ./${{ inputs.cli-binary-location }} upload \
         --org-url-slug trunk \
-        --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
+        --junit-paths "${{ github.workspace }}/target/**/*junit.xml" \
         --token ${{ inputs.production-api-token }} \
         --repo-url https://gitlab.com/trunk-io/analytics-cli-fake-gitlab/
