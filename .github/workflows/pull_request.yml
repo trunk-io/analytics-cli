@@ -24,7 +24,7 @@ jobs:
       matrix:
         platform:
           - os-name: linux-x86_64
-            runs-on: ubuntu-latest
+            runs-on: public-amd64-4xlarge-dind-germany
             target: x86_64-unknown-linux-musl
 
           - os-name: linux-aarch64
@@ -32,7 +32,7 @@ jobs:
             target: aarch64-unknown-linux-musl
 
           - os-name: x86_64-linux
-            runs-on: ubuntu-latest
+            runs-on: public-amd64-4xlarge-dind-germany
             target: x86_64-unknown-illumos
 
           - os-name: x86_64-darwin
