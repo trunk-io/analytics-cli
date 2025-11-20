@@ -10,7 +10,7 @@ on:
       - staging-release
       - production-release
 env:
-  RELEASE: 0.11.7
+  RELEASE: 0.10.10
   RSPEC_RELEASE: 0.11.8
 jobs:
   build_cli:
