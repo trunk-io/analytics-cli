@@ -135,7 +135,7 @@ jobs:
       #########################################################
       - name: Upload Bundle CLI artifact (Windows)
         uses: actions/upload-artifact@v4
-        if: ${{ matrix.platform.target != 'x86_64-unknown-illumos' && contains(matrix.platform.os-name, 'windows') }}
+        if: ${{ contains(matrix.platform.os-name, 'windows') }}
         with:
           name: ${{ matrix.platform.artifact-name }}-bundle
           path: target/${{ matrix.platform.target }}/release-with-debug/proto-bin-to-json.exe
@@ -151,7 +151,7 @@ jobs:
 
       - name: Upload XCResult CLI artifact (Windows)
         uses: actions/upload-artifact@v4
-        if: ${{ matrix.platform.target != 'x86_64-unknown-illumos' && contains(matrix.platform.os-name, 'windows') }}
+        if: ${{ contains(matrix.platform.os-name, 'windows') }}
         with:
           name: ${{ matrix.platform.artifact-name }}-xcresult
           path: target/${{ matrix.platform.target }}/release-with-debug/xcresult-to-junit.exe
@@ -167,7 +167,7 @@ jobs:
 
       - name: Upload Codeowners CLI artifact (Windows)
         uses: actions/upload-artifact@v4
-        if: ${{ matrix.platform.target != 'x86_64-unknown-illumos' && contains(matrix.platform.os-name, 'windows') }}
+        if: ${{ contains(matrix.platform.os-name, 'windows') }}
         with:
           name: ${{ matrix.platform.artifact-name }}-codeowners
           path: target/${{ matrix.platform.target }}/release-with-debug/check-codeowners.exe
@@ -250,7 +250,7 @@ jobs:
             if [[ -f "build/${target}/trunk-analytics-cli.exe" ]]; then
               # For Windows, create a zip file instead of tar.gz
               cd build/${target}
-              zip ../trunk-analytics-cli-${target}.zip trunk-analytics-cli.exe
+              zip ../trunk-analytics-cli-${target}-experimental.zip trunk-analytics-cli.exe
               cd ../..
             elif [[ -f "build/${target}/trunk-analytics-cli" ]]; then
               chmod u+x build/${target}/trunk-analytics-cli
@@ -272,7 +272,7 @@ jobs:
                     if [[ "$binary_name" == *.exe ]]; then
                       # For Windows, create a zip file instead of tar.gz
                       cd "$platform"
-                      zip "../../${binary_name}-${platform_name}.zip" "$binary_name"
+                      zip "../../${binary_name}-${platform_name}-experimental.zip" "$binary_name"
                       cd ../..
                     else
                       chmod u+x "$binary"
@@ -296,7 +296,7 @@ jobs:
           gh release create --prerelease --latest=false \
             --target ${{ github.sha }} \
             --generate-notes ${{ github.event.inputs.release_tag }} \
-            ./build/*.tar.gz
+            ./build/*.tar.gz ./build/*.zip
 
       - name: Create Sentry release
         uses: getsentry/action-release@v1
