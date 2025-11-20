@@ -42,8 +42,21 @@ jobs:
             target: aarch64-apple-darwin
             artifact-name: aarch64-apple-darwin
 
+          - os-name: windows-x86_64
+            runs-on: public-amd64-4xlarge-dind-germany
+            target: x86_64-pc-windows-gnu
+            artifact-name: x86_64-pc-windows-gnu
+
     runs-on: ${{ matrix.platform.runs-on }}
     steps:
+      - name: Install git-lfs (Windows GNU build)
+        shell: bash
+        if: ${{ contains(matrix.platform.os-name, 'windows') }}
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y git-lfs build-essential
+          git lfs install
+
       - name: Checkout
         uses: actions/checkout@v4
         with:
@@ -70,9 +83,9 @@ jobs:
           target: ${{ matrix.platform.target }}
           profile: release-with-debug
 
-      - name: Build unix target
-        uses: ./.github/actions/build_cli_linux_target
-        if: "!contains(matrix.platform.os-name , 'darwin')"
+      - name: Build unix/Windows target
+        uses: ./.github/actions/build_cli_linux_windows_target
+        if: ${{ !contains(matrix.platform.os-name, 'darwin') }}
         with:
           target: ${{ matrix.platform.target }}
           profile: release-with-debug
@@ -101,8 +114,17 @@ jobs:
       #########################################################
       # Upload CLI artifacts
       #########################################################
-      - name: Upload main CLI artifact
+      - name: Upload main CLI artifact (Windows)
         uses: actions/upload-artifact@v4
+        if: contains(matrix.platform.os-name, 'windows')
+        with:
+          name: ${{ matrix.platform.artifact-name }}
+          path: target/${{ matrix.platform.target }}/release-with-debug/trunk-analytics-cli.exe
+          if-no-files-found: error
+
+      - name: Upload main CLI artifact (Unix)
+        uses: actions/upload-artifact@v4
+        if: ${{ !contains(matrix.platform.os-name, 'windows') }}
         with:
           name: ${{ matrix.platform.artifact-name }}
           path: target/${{ matrix.platform.target }}/release-with-debug/trunk-analytics-cli
@@ -111,25 +133,49 @@ jobs:
       #########################################################
       # Upload CLI tools artifacts
       #########################################################
-      - name: Upload Bundle CLI artifact
+      - name: Upload Bundle CLI artifact (Windows)
         uses: actions/upload-artifact@v4
-        if: matrix.platform.target != 'x86_64-unknown-illumos'
+        if: ${{ contains(matrix.platform.os-name, 'windows') }}
+        with:
+          name: ${{ matrix.platform.artifact-name }}-bundle
+          path: target/${{ matrix.platform.target }}/release-with-debug/proto-bin-to-json.exe
+          if-no-files-found: error
+
+      - name: Upload Bundle CLI artifact (Unix)
+        uses: actions/upload-artifact@v4
+        if: ${{ matrix.platform.target != 'x86_64-unknown-illumos' && !contains(matrix.platform.os-name, 'windows') }}
         with:
           name: ${{ matrix.platform.artifact-name }}-bundle
           path: target/${{ matrix.platform.target }}/release-with-debug/proto-bin-to-json
           if-no-files-found: error
 
-      - name: Upload XCResult CLI artifact
+      - name: Upload XCResult CLI artifact (Windows)
         uses: actions/upload-artifact@v4
-        if: matrix.platform.target != 'x86_64-unknown-illumos'
+        if: ${{ contains(matrix.platform.os-name, 'windows') }}
+        with:
+          name: ${{ matrix.platform.artifact-name }}-xcresult
+          path: target/${{ matrix.platform.target }}/release-with-debug/xcresult-to-junit.exe
+          if-no-files-found: error
+
+      - name: Upload XCResult CLI artifact (Unix)
+        uses: actions/upload-artifact@v4
+        if: ${{ matrix.platform.target != 'x86_64-unknown-illumos' && !contains(matrix.platform.os-name, 'windows') }}
         with:
           name: ${{ matrix.platform.artifact-name }}-xcresult
           path: target/${{ matrix.platform.target }}/release-with-debug/xcresult-to-junit
           if-no-files-found: error
 
-      - name: Upload Codeowners CLI artifact
+      - name: Upload Codeowners CLI artifact (Windows)
         uses: actions/upload-artifact@v4
-        if: matrix.platform.target != 'x86_64-unknown-illumos'
+        if: ${{ contains(matrix.platform.os-name, 'windows') }}
+        with:
+          name: ${{ matrix.platform.artifact-name }}-codeowners
+          path: target/${{ matrix.platform.target }}/release-with-debug/check-codeowners.exe
+          if-no-files-found: error
+
+      - name: Upload Codeowners CLI artifact (Unix)
+        uses: actions/upload-artifact@v4
+        if: ${{ matrix.platform.target != 'x86_64-unknown-illumos' && !contains(matrix.platform.os-name, 'windows') }}
         with:
           name: ${{ matrix.platform.artifact-name }}-codeowners
           path: target/${{ matrix.platform.target }}/release-with-debug/check-codeowners
@@ -147,6 +193,9 @@ jobs:
           - name: macos
             os: macos-latest
             target: aarch64-apple-darwin
+          - name: windows
+            os: windows-latest
+            target: x86_64-pc-windows-gnu
     needs:
       - build_release
     steps:
@@ -162,10 +211,19 @@ jobs:
       - name: Setup Run Smoke Tests
         uses: ./.github/actions/setup_run_smoke_tests
 
-      - name: Run Smoke Tests
+      - name: Run Smoke Tests (Unix or Macos)
+        if: ${{ matrix.type.name != 'windows' }}
         uses: ./.github/actions/perform_smoke_test
         with:
           cli-binary-location: trunk-analytics-cli/trunk-analytics-cli
+          staging-api-token: ${{ secrets.TRUNK_STAGING_ORG_API_TOKEN }}
+          production-api-token: ${{ secrets.TRUNK_PROD_ORG_API_TOKEN }}
+
+      - name: Run Smoke Tests (Windows)
+        if: ${{ matrix.type.name == 'windows' }}
+        uses: ./.github/actions/perform_smoke_test
+        with:
+          cli-binary-location: trunk-analytics-cli/trunk-analytics-cli.exe
           staging-api-token: ${{ secrets.TRUNK_STAGING_ORG_API_TOKEN }}
           production-api-token: ${{ secrets.TRUNK_PROD_ORG_API_TOKEN }}
 
@@ -188,7 +246,13 @@ jobs:
           # Compress main CLI
           for target in $(ls build)
           do
-            if [[ -f "build/${target}/trunk-analytics-cli" ]]; then
+            # Windows binaries have .exe extension
+            if [[ -f "build/${target}/trunk-analytics-cli.exe" ]]; then
+              # For Windows, create a zip file instead of tar.gz
+              cd build/${target}
+              zip ../trunk-analytics-cli-${target}-experimental.zip trunk-analytics-cli.exe
+              cd ../..
+            elif [[ -f "build/${target}/trunk-analytics-cli" ]]; then
               chmod u+x build/${target}/trunk-analytics-cli
               tar czvf \
                 build/trunk-analytics-cli-${target}.tar.gz \
@@ -204,8 +268,16 @@ jobs:
                 for binary in "$platform"/*; do
                   if [[ -f "$binary" ]]; then
                     binary_name=$(basename "$binary")
-                    chmod u+x "$binary"
-                    tar czvf "build/${binary_name}-${platform_name}.tar.gz" -C "$platform" "$binary_name"
+                    # Windows binaries have .exe extension
+                    if [[ "$binary_name" == *.exe ]]; then
+                      # For Windows, create a zip file instead of tar.gz
+                      cd "$platform"
+                      zip "../../${binary_name}-${platform_name}-experimental.zip" "$binary_name"
+                      cd ../..
+                    else
+                      chmod u+x "$binary"
+                      tar czvf "build/${binary_name}-${platform_name}.tar.gz" -C "$platform" "$binary_name"
+                    fi
                   fi
                 done
               fi
@@ -224,7 +296,7 @@ jobs:
           gh release create --prerelease --latest=false \
             --target ${{ github.sha }} \
             --generate-notes ${{ github.event.inputs.release_tag }} \
-            ./build/*.tar.gz
+            ./build/*.tar.gz ./build/*.zip
 
       - name: Create Sentry release
         uses: getsentry/action-release@v1

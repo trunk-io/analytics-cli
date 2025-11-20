@@ -39,11 +39,23 @@ jobs:
             runs-on: macos-latest
             target: aarch64-apple-darwin
 
+          - os-name: windows-x86_64
+            runs-on: public-amd64-4xlarge-dind-germany
+            target: x86_64-pc-windows-gnu
+
     runs-on: ${{ matrix.platform.runs-on }}
     steps:
       # we've been hitting out of free space issues
       - name: Delete unnecessary tools folder
         run: rm -rf /opt/hostedtoolcache
+
+      - name: Install build tools (Windows and Linux build)
+        shell: bash
+        if: ${{ !contains(matrix.platform.os-name, 'darwin') }}
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y git-lfs build-essential
+          git lfs install
 
       - name: Checkout
         uses: actions/checkout@v4
@@ -89,9 +101,9 @@ jobs:
           profile: release
           force-sentry-dev: true
 
-      - name: Build unix target
-        uses: ./.github/actions/build_cli_linux_target
-        if: "!contains(matrix.platform.os-name, 'darwin')"
+      - name: Build unix/Windows target
+        uses: ./.github/actions/build_cli_linux_windows_target
+        if: ${{ !contains(matrix.platform.os-name, 'darwin') }}
         with:
           target: ${{ matrix.platform.target }}
           profile: release
@@ -111,7 +123,9 @@ jobs:
         env:
           TRUNK_PUBLIC_API_ADDRESS: https://api.trunk-staging.io
         shell: bash
-        if: "!contains(matrix.platform.target, 'illumos')"
+        # Skip Windows builds - can't run Windows binaries on Linux runners
+        # Windows binaries are tested in the release workflow on actual Windows runners
+        if: ${{ !contains(matrix.platform.target, 'illumos') && !contains(matrix.platform.os-name, 'windows') }}
         run: |
           target/${{ matrix.platform.target }}/release/trunk-analytics-cli upload \
              --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
@@ -121,7 +135,9 @@ jobs:
 
       - name: Upload results to prod using built CLI
         shell: bash
-        if: "!contains(matrix.platform.target, 'illumos')"
+        # Skip Windows builds - can't run Windows binaries on Linux runners
+        # Windows binaries are tested in the release workflow on actual Windows runners
+        if: ${{ !contains(matrix.platform.target, 'illumos') && !contains(matrix.platform.os-name, 'windows') }}
         run: |
           target/${{ matrix.platform.target }}/release/trunk-analytics-cli upload \
             --junit-paths ${{ github.workspace }}/target/**/*junit.xml \

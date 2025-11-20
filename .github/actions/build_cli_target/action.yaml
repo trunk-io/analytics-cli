@@ -20,14 +20,31 @@ runs:
       shell: bash
       run: rustup target add ${{ inputs.target }} --toolchain ${{ inputs.toolchain }}
 
+    - name: Install MinGW for Windows cross-compilation
+      shell: bash
+      if: ${{ contains(inputs.target, 'windows-gnu') }}
+      run: |
+        sudo apt-get update
+        # Install build-essential for host build scripts (cc/gcc)
+        # Install gcc-mingw-w64-x86-64 for Windows target cross-compilation
+        sudo apt-get install -y build-essential gcc-mingw-w64-x86-64
+
     - name: Install cross
       shell: bash
       run: cargo install cross --git https://github.com/cross-rs/cross --force
 
+    - name: Build CLI ${{ inputs.target }} target (Windows GNU native)
+      shell: bash
+      # Build Windows GNU natively without Docker since we have MinGW installed
+      if: ${{ contains(inputs.target, 'windows-gnu') }}
+      run: |
+        cargo +${{ inputs.toolchain }} build -p trunk-analytics-cli --profile=${{ inputs.profile }} --target=${{ inputs.target }} ${{ (inputs.force-sentry-dev == 'true' && '--features force-sentry-env-dev') || '' }}
+
     - name: Build CLI ${{ inputs.target }} target
-      uses: houseabsolute/actions-rust-cross@v1.0.1
+      uses: houseabsolute/actions-rust-cross@v1.0.5
       # Cross-rs does not directly support cross compilation with macOS targets
-      if: ${{ !contains(inputs.target, 'darwin') }}
+      # Use action for non-Windows-GNU targets
+      if: ${{ !contains(inputs.target, 'darwin') && !contains(inputs.target, 'windows-gnu') }}
       with:
         command: build
         target: ${{ inputs.target }}
@@ -45,4 +62,10 @@ runs:
 
     - name: Create binary with debug info
       shell: bash
-      run: cp target/${{ inputs.target }}/${{ inputs.profile }}/trunk-analytics-cli target/${{ inputs.target }}/${{ inputs.profile }}/trunk-analytics-cli.debug
+      run: |
+        # Windows binaries have .exe extension, Unix binaries don't
+        if [[ "${{ inputs.target }}" == *"windows-gnu"* ]]; then
+          cp target/${{ inputs.target }}/${{ inputs.profile }}/trunk-analytics-cli.exe target/${{ inputs.target }}/${{ inputs.profile }}/trunk-analytics-cli.debug.exe
+        else
+          cp target/${{ inputs.target }}/${{ inputs.profile }}/trunk-analytics-cli target/${{ inputs.target }}/${{ inputs.profile }}/trunk-analytics-cli.debug
+        fi

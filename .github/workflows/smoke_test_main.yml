@@ -21,12 +21,28 @@ jobs:
           - name: linux
             os: ubuntu-latest
             target: x86_64-unknown-linux-musl
+            binary-name: trunk-analytics-cli
           - name: darwin
             os: macos-latest
             target: aarch64-apple-darwin
+            binary-name: trunk-analytics-cli
+          - name: windows
+            os: public-amd64-4xlarge-dind-germany
+            target: x86_64-pc-windows-gnu
+            binary-name: trunk-analytics-cli.exe
     steps:
+      - name: Install git-lfs (Windows GNU build)
+        shell: bash
+        if: ${{ contains(matrix.platform.name, 'windows') }}
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y git-lfs build-essential
+          git lfs install
+
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          lfs: ${{ contains(matrix.platform.name, 'windows') }}
 
       - name: Get commit SHA
         id: get-sha
@@ -43,8 +59,8 @@ jobs:
           version: 0.0.0-${{ steps.get-sha.outputs.sha }}
           file: cli/Cargo.toml
 
-      - name: Setup Run Smoke Tests
-        uses: ./.github/actions/setup_run_smoke_tests
+      - name: Setup Rust & Cargo
+        uses: ./.github/actions/setup_rust_cargo
 
       - name: Build darwin target
         uses: ./.github/actions/build_cli_macos_target
@@ -53,17 +69,58 @@ jobs:
           target: ${{ matrix.platform.target }}
           profile: release
 
-      - name: Build unix target
-        uses: ./.github/actions/build_cli_linux_target
+      - name: Build unix/Windows target
+        uses: ./.github/actions/build_cli_linux_windows_target
         if: "!cancelled() && !contains(matrix.platform.name, 'darwin')"
         with:
           target: ${{ matrix.platform.target }}
           profile: release
 
+      - name: Upload CLI binary artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cli-binary-${{ matrix.platform.name }}
+          path: target/${{matrix.platform.target}}/release/${{ matrix.platform.binary-name }}
+          if-no-files-found: error
+          retention-days: 1
+
+  test_cli:
+    name: Test ${{ matrix.platform.name }} CLI
+    runs-on: ${{ matrix.platform.test-os }}
+    needs: build_cli
+    strategy:
+      matrix:
+        platform:
+          - name: linux
+            test-os: ubuntu-latest
+            artifact-name: cli-binary-linux
+            binary-name: trunk-analytics-cli
+          - name: darwin
+            test-os: macos-latest
+            artifact-name: cli-binary-darwin
+            binary-name: trunk-analytics-cli
+          - name: windows
+            test-os: windows-latest
+            artifact-name: cli-binary-windows
+            binary-name: trunk-analytics-cli.exe
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download CLI binary artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ matrix.platform.artifact-name }}
+          path: .
+
+      - name: Setup Run Smoke Tests
+        uses: ./.github/actions/setup_run_smoke_tests
+
       - name: Run Smoke Tests
+        id: run-tests
         uses: ./.github/actions/perform_smoke_test
         with:
-          cli-binary-location: target/${{matrix.platform.target}}/release/trunk-analytics-cli
+          cli-binary-location: ${{ matrix.platform.binary-name }}
           staging-api-token: ${{ secrets.TRUNK_STAGING_ORG_API_TOKEN }}
           production-api-token: ${{ secrets.TRUNK_PROD_ORG_API_TOKEN }}
           environment-type: ${{ (github.event.action == 'production-release' && 'production') || (github.event.action == 'staging-release' && 'staging') || 'both' }}
@@ -72,7 +129,7 @@ jobs:
       - name: Run Smoke Tests With Gitlab
         uses: ./.github/actions/perform_gitlab_smoke_test
         with:
-          cli-binary-location: target/${{matrix.platform.target}}/release/trunk-analytics-cli
+          cli-binary-location: ${{ matrix.platform.binary-name }}
           staging-api-token: ${{ secrets.TRUNK_STAGING_ORG_API_TOKEN }}
           production-api-token: ${{ secrets.TRUNK_PROD_ORG_API_TOKEN }}
           environment-type: ${{ (github.event.action == 'production-release' && 'production') || (github.event.action == 'staging-release' && 'staging') || 'both' }}
@@ -184,10 +241,11 @@ jobs:
           artifact-pattern: ""
 
   production-slack-workflow-status:
-    if: always() && github.ref == 'refs/heads/main' && needs.test_ruby_gem_production.result != 'success'
+    if: always() && github.ref == 'refs/heads/main' && (needs.test_cli.result != 'success' || needs.test_ruby_gem_production.result != 'success')
     name: Post Production Smoke Test Failure
     needs:
       - build_cli
+      - test_cli
       - test_ruby_gem_production
     runs-on: ubuntu-latest
     permissions:
@@ -206,17 +264,18 @@ jobs:
                   "type": "section",
                   "text": {
                     "type": "mrkdwn",
-                    "text": "The main branch (${{ needs.build_cli.outputs.version-with-sha }}) of the analytics cli is broken on production! Ruby gem test result: ${{ needs.test_ruby_gem_production.result }}. Failed workflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}. Details on responding to this can be found at https://trunk.slite.com/app/docs/zQ99Scfw1VgDSO/Analytics-CLI-Smoke-Tests-Are-Broken"
+                    "text": "The main branch (${{ needs.build_cli.outputs.version-with-sha }}) of the analytics cli is broken on production! CLI test result: ${{ needs.test_cli.result }}, Ruby gem test result: ${{ needs.test_ruby_gem_production.result }}. Failed workflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}. Details on responding to this can be found at https://trunk.slite.com/app/docs/zQ99Scfw1VgDSO/Analytics-CLI-Smoke-Tests-Are-Broken"
                   }
                 }
               ]
             }
 
   staging-slack-workflow-status:
-    if: always() && github.ref == 'refs/heads/main' && (needs.build_cli.result != 'success' || needs.test_ruby_gem_staging.result != 'success')
+    if: always() && github.ref == 'refs/heads/main' && (needs.build_cli.result != 'success' || needs.test_cli.result != 'success' || needs.test_ruby_gem_staging.result != 'success')
     name: Post Staging Smoke Test Failure
     needs:
       - build_cli
+      - test_cli
       - test_ruby_gem_staging
     runs-on: ubuntu-latest
     permissions:
@@ -235,7 +294,7 @@ jobs:
                   "type": "section",
                   "text": {
                     "type": "mrkdwn",
-                    "text": "The main branch (${{ needs.build_cli.outputs.version-with-sha }}) of the analytics cli is broken on staging! CLI test result: ${{ needs.build_cli.result }}, Ruby gem test result: ${{ needs.test_ruby_gem_staging.result }}. Failed workflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}. Details on responding to this can be found at https://trunk.slite.com/app/docs/zQ99Scfw1VgDSO/Analytics-CLI-Smoke-Tests-Are-Broken"
+                    "text": "The main branch (${{ needs.build_cli.outputs.version-with-sha }}) of the analytics cli is broken on staging! CLI test result: ${{ needs.test_cli.result }}, Ruby gem test result: ${{ needs.test_ruby_gem_staging.result }}. Failed workflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}. Details on responding to this can be found at https://trunk.slite.com/app/docs/zQ99Scfw1VgDSO/Analytics-CLI-Smoke-Tests-Are-Broken"
                   }
                 }
               ]
