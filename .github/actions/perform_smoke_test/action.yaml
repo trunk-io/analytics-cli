@@ -41,6 +41,12 @@ runs:
         openssl dgst -sha256 "${{ inputs.cli-binary-location }}" | awk '{print $NF}'
         ls -l "${{ inputs.cli-binary-location }}"
 
+    - name: Setup Swift
+      if: runner.os == 'macOS'
+      uses: swift-actions/setup-swift@v2
+      with:
+        swift-version: "6.0"
+
     - name: Run tests on staging
       id: staging-test-run
       if: always() && steps.verify-binary.outcome == 'success' && (inputs.environment-type == 'staging' || inputs.environment-type == 'both')
@@ -54,6 +60,39 @@ runs:
         --junit-paths "${{ github.workspace }}/target/**/*junit.xml" \
         --token ${{ inputs.staging-api-token }} \
         cargo nextest run -p smoke-test --profile ci
+
+    - name: Run Swift tests
+      id: xcresult-swift-test-run
+      continue-on-error: true
+      if: runner.os == 'macos'
+      working-directory: smoke-test/swift
+      shell: bash
+      run: |
+        xcodebuild test -workspace smoke-test.xcworkspace -scheme SmokeTestTests -destination 'platform=macOS' -resultBundlePath TestResults.xcresult -enableCodeCoverage YES
+
+    - name: Upload Swift tests on staging
+      id: xcresult-staging-upload
+      if: always() && runner.os == 'macos'
+      shell: bash
+      run: |
+        # Map GitHub Actions step outcome to exit code
+        # outcome can be: success, failure, cancelled, skipped
+        # success -> 0, failure/cancelled -> 1, skipped -> 0
+        if [ "${{ steps.xcresult-swift-test-run.outcome }}" == "success" ]; then
+          EXIT_CODE=0
+        elif [ "${{ steps.xcresult-swift-test-run.outcome }}" == "failure" ] || [ "${{ steps.xcresult-swift-test-run.outcome }}" == "cancelled" ]; then
+          EXIT_CODE=1
+        else
+          # skipped or unknown
+          EXIT_CODE=0
+        fi
+        ./${{ inputs.cli-binary-location }} upload \
+        --org-url-slug trunk-staging-org \
+        --xcresult-path smoke-test/swift/TestResults.xcresult \
+        --token ${{ inputs.staging-api-token }} \
+        --test-process-exit-code $EXIT_CODE
+      env:
+        TRUNK_PUBLIC_API_ADDRESS: https://api.trunk-staging.io
 
     - name: Upload to staging
       id: staging-upload
@@ -114,6 +153,30 @@ runs:
         --junit-paths "${{ github.workspace }}/target/**/*junit.xml" \
         --token ${{ inputs.production-api-token }} \
         cargo nextest run -p smoke-test --profile ci
+
+    - name: Upload Swift tests on production
+      id: xcresult-production-upload
+      if: always() && runner.os == 'macos'
+      shell: bash
+      run: |
+        # Map GitHub Actions step outcome to exit code
+        # outcome can be: success, failure, cancelled, skipped
+        # success -> 0, failure/cancelled -> 1, skipped -> 0
+        if [ "${{ steps.xcresult-swift-test-run.outcome }}" == "success" ]; then
+          EXIT_CODE=0
+        elif [ "${{ steps.xcresult-swift-test-run.outcome }}" == "failure" ] || [ "${{ steps.xcresult-swift-test-run.outcome }}" == "cancelled" ]; then
+          EXIT_CODE=1
+        else
+          # skipped or unknown
+          EXIT_CODE=0
+        fi
+        ./${{ inputs.cli-binary-location }} upload \
+        --org-url-slug trunk \
+        --xcresult-path smoke-test/swift/TestResults.xcresult \
+        --token ${{ inputs.production-api-token }} \
+        --test-process-exit-code $EXIT_CODE
+      env:
+        TRUNK_PUBLIC_API_ADDRESS: https://api.trunk.io
 
     - name: Upload to production
       id: production-upload

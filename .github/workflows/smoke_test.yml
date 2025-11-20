@@ -11,6 +11,7 @@ on:
       - production-release
 env:
   RELEASE: 0.10.10
+  RSPEC_RELEASE: 0.11.8
 jobs:
   build_cli:
     name: Smoke test ${{ matrix.platform.name }} cli from release
@@ -80,7 +81,7 @@ jobs:
 
       - name: Download gem from RubyGems
         run: |
-          gem fetch rspec_trunk_flaky_tests -v ${{ env.RELEASE }}
+          gem fetch rspec_trunk_flaky_tests -v ${{ env.RSPEC_RELEASE }}
           mkdir -p gems
           mv rspec_trunk_flaky_tests-*.gem gems/
 
