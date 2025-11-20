@@ -5,6 +5,11 @@ runs:
   using: composite
   steps:
     - name: Install Rust toolchain
+      # Note: When running on Windows runners, rustup will install the MSVC host toolchain
+      # (e.g., nightly-x86_64-pc-windows-msvc) by default. This is expected and harmless.
+      # The MSVC toolchain is only used to compile test code on Windows runners.
+      # The actual Windows binaries are built on Linux using the GNU toolchain (x86_64-pc-windows-gnu)
+      # via cross-compilation, not on Windows runners.
       uses: dtolnay/rust-toolchain@nightly
       with:
         targets: wasm32-unknown-unknown
