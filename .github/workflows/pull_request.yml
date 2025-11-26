@@ -131,7 +131,7 @@ jobs:
              --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
              --org-url-slug trunk-staging-org \
              --token ${{ secrets.TRUNK_STAGING_ORG_API_TOKEN }} \
-             --test-process-exit-code ${{ steps.extract.outputs.test-step-outcome }}
+             --test-process-exit-code ${{ steps.extract.outputs.test-step-outcome }} \
              --codeowners-path ${{ github.workspace }}/.github/CODEOWNERS
 
       - name: Upload results to prod using built CLI
@@ -143,7 +143,7 @@ jobs:
           target/${{ matrix.platform.target }}/release/trunk-analytics-cli upload \
             --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
             --org-url-slug trunk \
-            --token ${{ secrets.TRUNK_PROD_ORG_API_TOKEN }}
+            --token ${{ secrets.TRUNK_PROD_ORG_API_TOKEN }} \
             --codeowners-path ${{ github.workspace }}/.github/CODEOWNERS
 
   trunk_check_runner:
