@@ -307,7 +307,7 @@ impl MutTestReport {
         let mut request = message::ListQuarantinedTestsRequest {
             org_url_slug: org_url_slug.clone(),
             page_query: message::PageQuery {
-                page_size: 300,
+                page_size: 200,
                 page_token: String::new(),
             },
             repo: repo.clone(),
