@@ -74,7 +74,7 @@ lint:
           cache_results: false # sometimes caches an empty file for some reason
           in_place: false
           batch: false
-          run: rustfmt --edition=2021
+          run: rustfmt --edition=2024
   ignore:
     - linters: [ALL]
       paths:
