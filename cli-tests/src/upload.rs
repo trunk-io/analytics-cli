@@ -186,7 +186,7 @@ async fn upload_bundle() {
     // Verify internal bundled file contents
     let internal_bundled_file = bundle_meta.internal_bundled_file.as_ref().unwrap();
     assert_eq!(internal_bundled_file.path, INTERNAL_BIN_FILENAME);
-    assert_eq!(internal_bundled_file.owners.len(), 0);
+    assert_eq!(internal_bundled_file.owners, ["@user", "@user2"]);
     assert_eq!(internal_bundled_file.team, None);
 
     let bin = fs::read(tar_extract_directory.join(&internal_bundled_file.path)).unwrap();

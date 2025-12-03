@@ -2,7 +2,7 @@
 use std::io::Write;
 use std::{collections::BTreeMap, io::Read};
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     env,
     io::BufReader,
     path::Path,
@@ -15,7 +15,7 @@ use bundle::{
     BundledFile, FileSet, FileSetBuilder, FileSetType, QuarantineBulkTestStatus,
     INTERNAL_BIN_FILENAME, META_VERSION,
 };
-use codeowners::CodeOwners;
+use codeowners::{flatten_code_owners, CodeOwners};
 use constants::ENVS_TO_GET;
 use context::{
     bazel_bep::{
@@ -122,6 +122,7 @@ pub fn gather_initial_test_context(
         use_experimental_failure_summary,
         ..
     } = upload_args;
+    println!("repo_root: {:?}", repo_root);
 
     let repo = BundleRepo::new(
         repo_root,
@@ -300,7 +301,18 @@ fn write_test_report_to_file(
     test_results: Vec<TestResult>,
     variant: Option<String>,
     temp_dir: &TempDir,
+    codeowners: Option<&CodeOwners>,
 ) -> anyhow::Result<BundledFile> {
+    // Extract unique file paths from test_case_runs
+    let mut unique_file_paths = HashSet::new();
+    for test_result in &test_results {
+        for test_case_run in &test_result.test_case_runs {
+            if !test_case_run.file.is_empty() {
+                unique_file_paths.insert(test_case_run.file.clone());
+            }
+        }
+    }
+
     let test_report = TestReport {
         uploader_metadata: Some(UploaderMetadata {
             variant: variant.unwrap_or_default(),
@@ -314,10 +326,22 @@ fn write_test_report_to_file(
     let test_report_path = temp_dir.path().join(INTERNAL_BIN_FILENAME);
     std::fs::write(&test_report_path, buf)?;
 
+    // Collect owners from all test case file paths
+    let mut all_owners = HashSet::new();
+    if let Some(codeowners) = codeowners {
+        for file_path in &unique_file_paths {
+            let file_owners = flatten_code_owners(codeowners, file_path);
+            for owner in file_owners {
+                all_owners.insert(owner);
+            }
+        }
+    }
+    let owners_vec: Vec<String> = all_owners.into_iter().collect();
+
     Ok(BundledFile {
         original_path: test_report_path.to_string_lossy().to_string(),
         original_path_rel: None,
-        owners: vec![],
+        owners: owners_vec,
         path: INTERNAL_BIN_FILENAME.to_string(),
         // last_modified_epoch_ns does not serialize so the compiler complains it does not exist
         ..Default::default()
@@ -425,7 +449,7 @@ pub fn generate_internal_file_from_bep(
         ));
     }
 
-    let bundled_file = write_test_report_to_file(test_results, variant, temp_dir)?;
+    let bundled_file = write_test_report_to_file(test_results, variant, temp_dir, codeowners)?;
 
     Ok((bundled_file, junit_validations))
 }
@@ -490,7 +514,7 @@ pub fn generate_internal_file(
         None, // No build information for non-BEP files
     )];
 
-    let bundled_file = write_test_report_to_file(test_results, variant, temp_dir)?;
+    let bundled_file = write_test_report_to_file(test_results, variant, temp_dir, codeowners)?;
 
     Ok((bundled_file, junit_validations))
 }
