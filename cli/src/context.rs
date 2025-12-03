@@ -122,7 +122,6 @@ pub fn gather_initial_test_context(
         use_experimental_failure_summary,
         ..
     } = upload_args;
-    println!("repo_root: {:?}", repo_root);
 
     let repo = BundleRepo::new(
         repo_root,
