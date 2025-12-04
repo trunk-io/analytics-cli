@@ -11,22 +11,22 @@ use std::{
 
 use api::{client::ApiClient, message::CreateBundleUploadResponse};
 use bundle::{
-    bin_parse, BundleMeta, BundleMetaBaseProps, BundleMetaDebugProps, BundleMetaJunitProps,
-    BundledFile, FileSet, FileSetBuilder, FileSetType, QuarantineBulkTestStatus,
-    INTERNAL_BIN_FILENAME, META_VERSION,
+    BundleMeta, BundleMetaBaseProps, BundleMetaDebugProps, BundleMetaJunitProps, BundledFile,
+    FileSet, FileSetBuilder, FileSetType, INTERNAL_BIN_FILENAME, META_VERSION,
+    QuarantineBulkTestStatus, bin_parse,
 };
 use codeowners::CodeOwners;
 use constants::ENVS_TO_GET;
 use context::{
     bazel_bep::{
         binary_parser::BazelBepBinParser,
-        common::{map_test_status_to_build_result, BepParseResult},
+        common::{BepParseResult, map_test_status_to_build_result},
         parser::BazelBepParser,
     },
     junit::{
         junit_path::JunitReportFileWithTestRunnerReport,
         parser::JunitParser,
-        validator::{validate, JunitReportValidation},
+        validator::{JunitReportValidation, validate},
     },
     repo::{BundleRepo, RepoUrlParts},
 };
@@ -43,7 +43,7 @@ use xcresult::xcresult::XCResult;
 
 use crate::{
     context_quarantine::{
-        gather_quarantine_context, FailedTestsExtractor, QuarantineContext, QuarantineFetchStatus,
+        FailedTestsExtractor, QuarantineContext, QuarantineFetchStatus, gather_quarantine_context,
     },
     print::print_bep_results,
     test_command::TestRunResult,
@@ -269,10 +269,15 @@ fn parse_and_optionally_validate_junit_file(
 
     if show_warnings {
         let reports = junit_parser.reports();
+        let reference_timestamp = chrono::Utc::now().fixed_offset();
         if reports.len() == 1 {
             junit_validations.insert(
                 junit_path.to_string(),
-                Ok(validate(&reports[0], test_runner_report)),
+                Ok(validate(
+                    &reports[0],
+                    test_runner_report,
+                    reference_timestamp,
+                )),
             );
         }
     }

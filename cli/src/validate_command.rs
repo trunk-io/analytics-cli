@@ -5,7 +5,7 @@ use std::{
 };
 
 use bundle::{FileSet, FileSetBuilder, FileSetTestRunnerReport};
-use clap::{arg, ArgAction, Args};
+use clap::{ArgAction, Args, arg};
 use codeowners::CodeOwners;
 use constants::{EXIT_FAILURE, EXIT_SUCCESS};
 use context::{
@@ -14,9 +14,9 @@ use context::{
         junit_path::{JunitReportFileWithTestRunnerReport, TestRunnerReport},
         parser::{JunitParseIssue, JunitParseIssueLevel, JunitParser},
         validator::{
-            validate as validate_report, JunitReportValidation, JunitReportValidationFlatIssue,
+            JunitReportValidation, JunitReportValidationFlatIssue,
             JunitReportValidationIssueSubOptimal, JunitValidationIssue, JunitValidationIssueType,
-            JunitValidationLevel,
+            JunitValidationLevel, validate as validate_report,
         },
     },
 };
@@ -24,8 +24,8 @@ use display::end_output::EndOutput;
 use pluralizer::pluralize;
 use quick_junit::Report;
 use superconsole::{
-    style::{style, Attribute, Color, Stylize},
     Line, Lines, Span,
+    style::{Attribute, Color, Stylize, style},
 };
 
 use crate::{context::fall_back_to_binary_parse, report_limiting::ValidationReport};
@@ -548,12 +548,17 @@ async fn validate(
     );
     let file_parse_issues = gen_parse_issues(parse_issues);
 
+    let reference_timestamp = chrono::Utc::now().fixed_offset();
     let report_validations: JunitFileToValidation = parsed_reports
         .into_iter()
         .map(|(file, (report, test_runner_report))| {
             (
                 file,
-                validate_report(&report, test_runner_report.map(TestRunnerReport::from)),
+                validate_report(
+                    &report,
+                    test_runner_report.map(TestRunnerReport::from),
+                    reference_timestamp,
+                ),
             )
         })
         .collect();
@@ -969,77 +974,125 @@ mod tests {
             parse_test_report(get_test_file_path("test_fixtures/bep_binary_file.bin"));
         let mut expected = vec![
             JunitReportFileWithTestRunnerReport {
-                junit_path: String::from("bytestream://buildbarn2.build.trunk-staging.io:1986/blobs/37d45ccef587444393523741a3831f4a1acbeb010f74f33130ab9ba687477558/449"),
+                junit_path: String::from(
+                    "bytestream://buildbarn2.build.trunk-staging.io:1986/blobs/37d45ccef587444393523741a3831f4a1acbeb010f74f33130ab9ba687477558/449",
+                ),
                 test_runner_report: Some(TestRunnerReport {
                     status: TestRunnerReportStatus::Passed,
-                    start_time: DateTime::parse_from_rfc3339("2025-05-16T19:27:25.037Z").unwrap().to_utc(),
-                    end_time: DateTime::parse_from_rfc3339("2025-05-16T19:27:27.605Z").unwrap().to_utc(),
+                    start_time: DateTime::parse_from_rfc3339("2025-05-16T19:27:25.037Z")
+                        .unwrap()
+                        .to_utc(),
+                    end_time: DateTime::parse_from_rfc3339("2025-05-16T19:27:27.605Z")
+                        .unwrap()
+                        .to_utc(),
                     label: Some("//trunk/hello_world/bazel_pnpm:test".into()),
                 }),
             },
             JunitReportFileWithTestRunnerReport {
-                junit_path: String::from("bytestream://buildbarn2.build.trunk-staging.io:1986/blobs/46bbeb038d6f1447f6224a7db4d8a109e133884f2ee6ee78487ca4ce7e073de8/507"),
+                junit_path: String::from(
+                    "bytestream://buildbarn2.build.trunk-staging.io:1986/blobs/46bbeb038d6f1447f6224a7db4d8a109e133884f2ee6ee78487ca4ce7e073de8/507",
+                ),
                 test_runner_report: Some(TestRunnerReport {
                     status: TestRunnerReportStatus::Passed,
-                    start_time: DateTime::parse_from_rfc3339("2025-05-16T19:29:32.732Z").unwrap().to_utc(),
-                    end_time: DateTime::parse_from_rfc3339("2025-05-16T19:29:32.853Z").unwrap().to_utc(),
+                    start_time: DateTime::parse_from_rfc3339("2025-05-16T19:29:32.732Z")
+                        .unwrap()
+                        .to_utc(),
+                    end_time: DateTime::parse_from_rfc3339("2025-05-16T19:29:32.853Z")
+                        .unwrap()
+                        .to_utc(),
                     label: Some("//trunk/hello_world/cc:hello_test".into()),
                 }),
             },
             JunitReportFileWithTestRunnerReport {
-                junit_path: String::from("bytestream://buildbarn2.build.trunk-staging.io:1986/blobs/d1f48dadf5679f09ce9b9c8f4778281ab25bc1dfdddec943e1255baf468630de/451"),
+                junit_path: String::from(
+                    "bytestream://buildbarn2.build.trunk-staging.io:1986/blobs/d1f48dadf5679f09ce9b9c8f4778281ab25bc1dfdddec943e1255baf468630de/451",
+                ),
                 test_runner_report: Some(TestRunnerReport {
                     status: TestRunnerReportStatus::Passed,
-                    start_time: DateTime::parse_from_rfc3339("2025-05-16T19:32:32.180Z").unwrap().to_utc(),
-                    end_time: DateTime::parse_from_rfc3339("2025-05-16T19:32:34.697Z").unwrap().to_utc(),
+                    start_time: DateTime::parse_from_rfc3339("2025-05-16T19:32:32.180Z")
+                        .unwrap()
+                        .to_utc(),
+                    end_time: DateTime::parse_from_rfc3339("2025-05-16T19:32:34.697Z")
+                        .unwrap()
+                        .to_utc(),
                     label: Some("//trunk/hello_world/ts_proto:test".into()),
                 }),
             },
             JunitReportFileWithTestRunnerReport {
-                junit_path: String::from("bytestream://buildbarn2.build.trunk-staging.io:1986/blobs/38f1d4ce43242ed3cb08aedf1cc0c3133a8aec8e8eee61f5b84b85a5ba718bc8/1204"),
+                junit_path: String::from(
+                    "bytestream://buildbarn2.build.trunk-staging.io:1986/blobs/38f1d4ce43242ed3cb08aedf1cc0c3133a8aec8e8eee61f5b84b85a5ba718bc8/1204",
+                ),
                 test_runner_report: Some(TestRunnerReport {
                     status: TestRunnerReportStatus::Passed,
-                    start_time: DateTime::parse_from_rfc3339("2025-05-16T19:32:31.748Z").unwrap().to_utc(),
-                    end_time: DateTime::parse_from_rfc3339("2025-05-16T19:32:34.797Z").unwrap().to_utc(),
+                    start_time: DateTime::parse_from_rfc3339("2025-05-16T19:32:31.748Z")
+                        .unwrap()
+                        .to_utc(),
+                    end_time: DateTime::parse_from_rfc3339("2025-05-16T19:32:34.797Z")
+                        .unwrap()
+                        .to_utc(),
                     label: Some("//trunk/hello_world/ts_grpc:test".into()),
                 }),
             },
             JunitReportFileWithTestRunnerReport {
-                junit_path: String::from("bytestream://buildbarn2.build.trunk-staging.io:1986/blobs/ac23080b9bf5599b7781e3b62be9bf9a5b6685a8cbe76de4e9e1731a318e9283/607"),
+                junit_path: String::from(
+                    "bytestream://buildbarn2.build.trunk-staging.io:1986/blobs/ac23080b9bf5599b7781e3b62be9bf9a5b6685a8cbe76de4e9e1731a318e9283/607",
+                ),
                 test_runner_report: Some(TestRunnerReport {
                     status: TestRunnerReportStatus::Passed,
-                    start_time: DateTime::parse_from_rfc3339("2025-05-16T19:33:01.680Z").unwrap().to_utc(),
-                    end_time: DateTime::parse_from_rfc3339("2025-05-16T19:33:01.806Z").unwrap().to_utc(),
+                    start_time: DateTime::parse_from_rfc3339("2025-05-16T19:33:01.680Z")
+                        .unwrap()
+                        .to_utc(),
+                    end_time: DateTime::parse_from_rfc3339("2025-05-16T19:33:01.806Z")
+                        .unwrap()
+                        .to_utc(),
                     label: Some("//trunk/hello_world/cdk:lib_typecheck_test".into()),
                 }),
             },
             JunitReportFileWithTestRunnerReport {
-                junit_path: String::from("bytestream://buildbarn2.build.trunk-staging.io:1986/blobs/9c1db1d25ca6a4268be4a8982784c525a4b0ca99cbc7614094ad36c56bb08f2a/463"),
+                junit_path: String::from(
+                    "bytestream://buildbarn2.build.trunk-staging.io:1986/blobs/9c1db1d25ca6a4268be4a8982784c525a4b0ca99cbc7614094ad36c56bb08f2a/463",
+                ),
                 test_runner_report: Some(TestRunnerReport {
                     status: TestRunnerReportStatus::Passed,
-                    start_time: DateTime::parse_from_rfc3339("2025-05-16T19:32:52.714Z").unwrap().to_utc(),
-                    end_time: DateTime::parse_from_rfc3339("2025-05-16T19:33:17.945Z").unwrap().to_utc(),
+                    start_time: DateTime::parse_from_rfc3339("2025-05-16T19:32:52.714Z")
+                        .unwrap()
+                        .to_utc(),
+                    end_time: DateTime::parse_from_rfc3339("2025-05-16T19:33:17.945Z")
+                        .unwrap()
+                        .to_utc(),
                     label: Some("//trunk/hello_world/prisma/app:test".into()),
                 }),
             },
             JunitReportFileWithTestRunnerReport {
-                junit_path: String::from("bytestream://buildbarn2.build.trunk-staging.io:1986/blobs/7b3ed061a782496c7418be853caae863a9ada9618712f92346ea9e8169b8acf0/1120"),
+                junit_path: String::from(
+                    "bytestream://buildbarn2.build.trunk-staging.io:1986/blobs/7b3ed061a782496c7418be853caae863a9ada9618712f92346ea9e8169b8acf0/1120",
+                ),
                 test_runner_report: Some(TestRunnerReport {
                     status: TestRunnerReportStatus::Passed,
-                    start_time: DateTime::parse_from_rfc3339("2025-05-16T19:35:16.934Z").unwrap().to_utc(),
-                    end_time: DateTime::parse_from_rfc3339("2025-05-16T19:35:19.361Z").unwrap().to_utc(),
+                    start_time: DateTime::parse_from_rfc3339("2025-05-16T19:35:16.934Z")
+                        .unwrap()
+                        .to_utc(),
+                    end_time: DateTime::parse_from_rfc3339("2025-05-16T19:35:19.361Z")
+                        .unwrap()
+                        .to_utc(),
                     label: Some("//trunk/hello_world/cc_grpc:client_test".into()),
                 }),
             },
             JunitReportFileWithTestRunnerReport {
-                junit_path: String::from("bytestream://buildbarn2.build.trunk-staging.io:1986/blobs/45ca1eed26b3cf1aafdb51829e32312d3b48452cc144aa041c946e89fa9c6cf6/175"),
+                junit_path: String::from(
+                    "bytestream://buildbarn2.build.trunk-staging.io:1986/blobs/45ca1eed26b3cf1aafdb51829e32312d3b48452cc144aa041c946e89fa9c6cf6/175",
+                ),
                 test_runner_report: Some(TestRunnerReport {
                     status: TestRunnerReportStatus::Passed,
-                    start_time: DateTime::parse_from_rfc3339("2025-05-16T19:35:16.929Z").unwrap().to_utc(),
-                    end_time: DateTime::parse_from_rfc3339("2025-05-16T19:35:19.383Z").unwrap().to_utc(),
+                    start_time: DateTime::parse_from_rfc3339("2025-05-16T19:35:16.929Z")
+                        .unwrap()
+                        .to_utc(),
+                    end_time: DateTime::parse_from_rfc3339("2025-05-16T19:35:19.383Z")
+                        .unwrap()
+                        .to_utc(),
                     label: Some("//trunk/hello_world/cc_grpc:server_test".into()),
                 }),
-            }
+            },
         ];
         actual.sort_by_key(|item| item.junit_path.clone());
         expected.sort_by_key(|item| item.junit_path.clone());
