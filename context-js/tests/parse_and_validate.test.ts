@@ -216,7 +216,11 @@ describe("context-js", () => {
     let parse_result = junit_parse(Buffer.from(validJunitXml, "utf-8"));
     assert(parse_result.report);
 
-    let junitReportValidation = junit_validate(parse_result.report);
+    let junitReportValidation = junit_validate(
+      parse_result.report,
+      undefined,
+      validTimestamp,
+    );
 
     expect(junitReportValidation.max_level()).toBe(JunitValidationLevel.Valid);
 
@@ -234,7 +238,8 @@ describe("context-js", () => {
     parse_result = junit_parse(Buffer.from(suboptimalJunitXml, "utf-8"));
     assert(parse_result.report);
 
-    junitReportValidation = junit_validate(parse_result.report);
+    const now = dayjs.utc().format("YYYY-MM-DD HH:mm");
+    junitReportValidation = junit_validate(parse_result.report, undefined, now);
 
     expect(junitReportValidation.max_level()).toBe(
       JunitValidationLevel.SubOptimal,
@@ -246,11 +251,19 @@ describe("context-js", () => {
         .filter((issue) => issue.error_type === JunitValidationType.Report),
     ).toHaveLength(1);
 
-    junitReportValidation = junit_validate(parse_result.report, {
-      resolved_status: "Passed",
-      resolved_start_time_epoch_ms: dayjs.utc().subtract(5, "minute").valueOf(),
-      resolved_end_time_epoch_ms: dayjs.utc().subtract(2, "minute").valueOf(),
-    });
+    junitReportValidation = junit_validate(
+      parse_result.report,
+      {
+        resolved_status: "Passed",
+        resolved_start_time_epoch_ms: dayjs
+          .utc()
+          .subtract(5, "minute")
+          .valueOf(),
+        resolved_end_time_epoch_ms: dayjs.utc().subtract(2, "minute").valueOf(),
+        resolved_label: null,
+      },
+      validTimestamp,
+    );
 
     expect(junitReportValidation.max_level()).toBe(JunitValidationLevel.Valid);
 
@@ -269,7 +282,11 @@ describe("context-js", () => {
     parse_result = junit_parse(Buffer.from(nestedJunitXml, "utf-8"));
     assert(parse_result.report);
 
-    junitReportValidation = junit_validate(parse_result.report);
+    junitReportValidation = junit_validate(
+      parse_result.report,
+      undefined,
+      validTimestamp,
+    );
 
     expect(junitReportValidation.max_level()).toBe(JunitValidationLevel.Valid);
   });

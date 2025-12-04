@@ -1,10 +1,11 @@
+use std::time::Duration;
 use std::{collections::HashMap, io::BufReader, sync::Arc};
 
 use bundle::{
     parse_internal_bin_from_tarball as parse_internal_bin_from_tarball_impl,
     parse_meta as parse_meta_impl, parse_meta_from_tarball as parse_meta_from_tarball_impl,
 };
-use chrono::NaiveDateTime;
+use chrono::{DateTime, FixedOffset};
 use codeowners::{
     BindingsOwners, CodeOwners, CodeOwnersFile, Owners, OwnersSource,
     associate_codeowners_multithreaded as associate_codeowners,
@@ -141,11 +142,28 @@ fn junit_validate(
     test_runner_report: Option<bundle::FileSetTestRunnerReport>,
     reference_timestamp: String,
 ) -> PyResult<junit::bindings::BindingsJunitReportValidation> {
-    // Parse timestamp string in format "2025-12-04 02:00" (UTC)
-    let reference_timestamp = NaiveDateTime::parse_from_str(&reference_timestamp, "%Y-%m-%d %H:%M")
-        .map_err(|e| PyTypeError::new_err(format!("Failed to parse reference_timestamp '{}': expected format 'YYYY-MM-DD HH:MM' (UTC): {}", reference_timestamp, e)))?
-        .and_utc()
-        .fixed_offset();
+    let reference_timestamp = speedate::DateTime::parse_str(&reference_timestamp)
+        .map_err(|e| {
+            PyTypeError::new_err(format!(
+                "Failed to parse reference_timestamp '{}': {}",
+                reference_timestamp, e
+            ))
+        })
+        .map(|dt| {
+            let timestamp_secs = dt.timestamp_tz();
+            let micros = dt.time.microsecond;
+            let offset_secs = dt.time.tz_offset.unwrap_or(0);
+
+            let fixed_offset = FixedOffset::east_opt(offset_secs).expect("Invalid timezone offset");
+
+            let duration = Duration::from_micros(micros.into());
+            DateTime::from_timestamp(
+                timestamp_secs,
+                duration.as_nanos().try_into().unwrap_or_default(),
+            )
+            .expect("Invalid timestamp") // speedate validates this
+            .with_timezone(&fixed_offset)
+        })?;
 
     Ok(junit::bindings::BindingsJunitReportValidation::from(
         junit::validator::validate(
