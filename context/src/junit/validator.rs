@@ -1,6 +1,6 @@
 use std::{cmp::Ordering, collections::HashSet, fmt};
 
-use chrono::{DateTime, FixedOffset, TimeDelta, Utc};
+use chrono::{DateTime, FixedOffset, TimeDelta};
 #[cfg(feature = "pyo3")]
 use pyo3::prelude::*;
 #[cfg(feature = "pyo3")]
@@ -13,7 +13,7 @@ use wasm_bindgen::prelude::*;
 use super::parser::extra_attrs;
 use crate::{
     junit::junit_path::TestRunnerReport,
-    string_safety::{validate_field_len, FieldLen},
+    string_safety::{FieldLen, validate_field_len},
 };
 
 pub const MAX_FIELD_LEN: usize = 1_000;
@@ -79,11 +79,10 @@ impl Default for JunitValidationType {
 pub fn validate(
     report: &Report,
     test_runner_report: Option<TestRunnerReport>,
+    reference_timestamp: DateTime<FixedOffset>,
 ) -> JunitReportValidation {
     let mut report_validation = JunitReportValidation::default();
-
-    let now = Utc::now().fixed_offset();
-    validate_test_runner_report(test_runner_report.clone(), now)
+    validate_test_runner_report(test_runner_report.clone(), reference_timestamp)
         .into_iter()
         .for_each(|i| {
             report_validation
@@ -179,7 +178,7 @@ pub fn validate(
                 test_suite.timestamp,
                 report.timestamp,
                 test_runner_report.clone(),
-                now,
+                reference_timestamp,
             )
             .into_iter()
             .for_each(|i| test_case_validation.add_issue(JunitValidationIssue::SubOptimal(i)));
@@ -642,7 +641,7 @@ pub enum JunitTestCaseValidationIssueInvalid {
 
 fn validate_test_runner_report(
     test_runner_report: Option<TestRunnerReport>,
-    now: DateTime<FixedOffset>,
+    reference_timestamp: DateTime<FixedOffset>,
 ) -> Vec<TestRunnerReportValidationIssueSubOptimal> {
     let mut issues: Vec<TestRunnerReportValidationIssueSubOptimal> = Vec::new();
 
@@ -659,7 +658,7 @@ fn validate_test_runner_report(
                 ),
             );
         }
-        match validate_timestamp(start_time, now) {
+        match validate_timestamp(start_time, reference_timestamp) {
             TimestampValidation::Future(timestamp) => {
                 issues.push(
                     TestRunnerReportValidationIssueSubOptimal::StartTimeFutureTimestamp(timestamp),
@@ -677,7 +676,7 @@ fn validate_test_runner_report(
             }
             TimestampValidation::Valid => {}
         };
-        match validate_timestamp(end_time, now) {
+        match validate_timestamp(end_time, reference_timestamp) {
             TimestampValidation::Future(timestamp) => {
                 issues.push(
                     TestRunnerReportValidationIssueSubOptimal::EndTimeFutureTimestamp(timestamp),
@@ -705,7 +704,7 @@ fn validate_test_case_timestamp(
     test_suite_timestamp: Option<DateTime<FixedOffset>>,
     report_timestamp: Option<DateTime<FixedOffset>>,
     test_runner_report: Option<TestRunnerReport>,
-    now: DateTime<FixedOffset>,
+    reference_timestamp: DateTime<FixedOffset>,
 ) -> Vec<JunitTestCaseValidationIssueSubOptimal> {
     let mut issues: Vec<JunitTestCaseValidationIssueSubOptimal> = Vec::new();
 
@@ -728,7 +727,7 @@ fn validate_test_case_timestamp(
             .checked_add_signed(test_runner_report_start_time_override_timestamp_diff)
             .unwrap_or(timestamp);
 
-        match validate_timestamp(timestamp, now) {
+        match validate_timestamp(timestamp, reference_timestamp) {
             TimestampValidation::Future(timestamp) => {
                 issues.push(
                     JunitTestCaseValidationIssueSubOptimal::TestCaseFutureTimestamp(timestamp),

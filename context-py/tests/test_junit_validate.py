@@ -29,7 +29,9 @@ def test_junit_validate_valid():
     report = parse_result.report
     assert report is not None
 
-    junit_report_validation = junit_validate(report, None)
+    # Use ISO format to match the precision of the test timestamp
+    reference_timestamp = datetime.now().astimezone(timezone.utc).isoformat()
+    junit_report_validation = junit_validate(report, None, reference_timestamp)
 
     assert (
         junit_report_validation.max_level() == JunitValidationLevel.Valid
@@ -74,7 +76,9 @@ def test_junit_validate_suboptimal():
     report = parse_result.report
     assert report is not None
 
-    junit_report_validation = junit_validate(report, None)
+    # Use ISO format to match the precision of the test timestamp
+    reference_timestamp = datetime.now().astimezone(timezone.utc).isoformat()
+    junit_report_validation = junit_validate(report, None, reference_timestamp)
 
     assert (
         junit_report_validation.max_level() == JunitValidationLevel.SubOptimal
@@ -130,7 +134,9 @@ def test_junit_validate_with_test_runner_report():
     report = parse_result.report
     assert report is not None
 
-    junit_report_validation = junit_validate(report, None)
+    # Use ISO format to match the precision of the test timestamp
+    reference_timestamp = datetime.now().astimezone(timezone.utc).isoformat()
+    junit_report_validation = junit_validate(report, None, reference_timestamp)
 
     assert (
         junit_report_validation.max_level() == JunitValidationLevel.SubOptimal
@@ -143,13 +149,18 @@ def test_junit_validate_with_test_runner_report():
         ]
     )
 
+    now = datetime.now().astimezone(timezone.utc)
     test_runner_report = FileSetTestRunnerReport(
         TestRunnerReportStatus.Passed,
-        datetime.now().astimezone(timezone.utc),
-        datetime.now().astimezone(timezone.utc),
+        now,
+        now,
         None,
     )
-    junit_report_validation = junit_validate(report, test_runner_report)
+    # Use ISO format to match the precision of the test timestamp
+    reference_timestamp = now.isoformat()
+    junit_report_validation = junit_validate(
+        report, test_runner_report, reference_timestamp
+    )
 
     assert (
         junit_report_validation.max_level() == JunitValidationLevel.Valid
@@ -161,3 +172,63 @@ def test_junit_validate_with_test_runner_report():
             for issue in test_case.issues_flat()
         ]
     )
+
+
+def test_junit_validate_reference_timestamp():
+    from datetime import datetime, timezone
+
+    from context_py import (
+        BindingsParseResult,
+        JunitValidationLevel,
+        junit_parse,
+        junit_validate,
+    )
+
+    test_timestamp_2013 = datetime(2013, 1, 1, 0, 0, 0, tzinfo=timezone.utc).isoformat()
+    junit_xml_2013 = f"""
+    <testsuites name="my-test-run" tests="1" failures="0" errors="0">
+      <testsuite name="my-test-suite" tests="1" disabled="0" errors="0" failures="0" timestamp="{test_timestamp_2013}">
+        <testcase name="test-case" file="test.py" classname="MyClass" timestamp="{test_timestamp_2013}" time="1">
+        </testcase>
+      </testsuite>
+    </testsuites>
+   """
+
+    parse_result: BindingsParseResult = junit_parse(str.encode(junit_xml_2013))
+    report = parse_result.report
+    assert report is not None
+
+    reference_timestamp_2013 = "2013-01-01 00:00"
+    junit_report_validation = junit_validate(report, None, reference_timestamp_2013)
+
+    assert junit_report_validation.max_level() == JunitValidationLevel.Valid, (
+        "Expected valid when reference_timestamp matches test timestamp (2013). "
+        "Issues found:\n"
+        + "\n".join(
+            [
+                issue.error_message
+                for test_suite in junit_report_validation.test_suites
+                for test_case in test_suite.test_cases_owned()
+                for issue in test_case.issues_flat()
+            ]
+        )
+    )
+    assert junit_report_validation.num_suboptimal_issues() == 0
+
+    # Use ISO format to match the precision of the test timestamp
+    reference_timestamp_now = datetime.now().astimezone(timezone.utc).isoformat()
+    junit_report_validation = junit_validate(report, None, reference_timestamp_now)
+
+    assert junit_report_validation.max_level() == JunitValidationLevel.SubOptimal, (
+        "Expected SubOptimal when reference_timestamp is now (test timestamp is from 2013). "
+        "Issues found:\n"
+        + "\n".join(
+            [
+                issue.error_message
+                for test_suite in junit_report_validation.test_suites
+                for test_case in test_suite.test_cases_owned()
+                for issue in test_case.issues_flat()
+            ]
+        )
+    )
+    assert junit_report_validation.num_suboptimal_issues() == 1

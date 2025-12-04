@@ -14,10 +14,12 @@ path = "bin/stub_gen.rs"
 
 [dependencies]
 bundle = { path = "../bundle", default-features = false, features = ["pyo3"] }
+chrono = "0.4.42"
 codeowners = { path = "../codeowners" }
 context = { path = "../context", features = ["git-access", "pyo3"] }
 pyo3-stub-gen = "0.6.1"
 futures-io = "0.3.31"
+speedate = "0.14.4"
 tokio = { version = "*", default-features = false, features = ["rt"] }
 proto = { path = "../proto" }
 prost = "0.12.6"

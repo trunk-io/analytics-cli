@@ -1,17 +1,19 @@
+use std::time::Duration;
 use std::{collections::HashMap, io::BufReader};
 
 use bundle::{
+    FileSetTestRunnerReport, VersionedBundle, VersionedBundleWithBindingsReport,
     parse_internal_bin_and_meta_from_tarball as parse_internal_bin_and_meta,
     parse_internal_bin_from_tarball as parse_internal_bin,
-    parse_meta_from_tarball as parse_tarball_meta, FileSetTestRunnerReport, VersionedBundle,
-    VersionedBundleWithBindingsReport,
+    parse_meta_from_tarball as parse_tarball_meta,
 };
+use chrono::{DateTime, FixedOffset};
 use context::{env, junit, meta::id::gen_info_id as gen_info_id_impl, repo};
 use futures::{future::Either, io::BufReader as BufReaderAsync, stream::TryStreamExt};
 use js_sys::Uint8Array;
 use prost::Message;
 use wasm_bindgen::prelude::*;
-use wasm_streams::{readable::sys, readable::ReadableStream};
+use wasm_streams::{readable::ReadableStream, readable::sys};
 
 #[wasm_bindgen]
 pub fn bin_parse(bin: Vec<u8>) -> Result<Vec<junit::bindings::BindingsReport>, JsError> {
@@ -108,10 +110,36 @@ pub fn junit_parse(xml: Vec<u8>) -> Result<junit::bindings::BindingsParseResult,
 pub fn junit_validate(
     report: &junit::bindings::BindingsReport,
     test_runner_report: Option<FileSetTestRunnerReport>,
-) -> junit::bindings::BindingsJunitReportValidation {
-    junit::bindings::BindingsJunitReportValidation::from(junit::validator::validate(
-        &report.clone().into(),
-        test_runner_report.map(junit::junit_path::TestRunnerReport::from),
+    reference_timestamp: String,
+) -> Result<junit::bindings::BindingsJunitReportValidation, JsError> {
+    let reference_timestamp = speedate::DateTime::parse_str(&reference_timestamp)
+        .map_err(|e| {
+            JsError::new(&format!(
+                "Failed to parse reference_timestamp '{reference_timestamp}': {e}",
+            ))
+        })
+        .map(|dt| {
+            let timestamp_secs = dt.timestamp_tz();
+            let micros = dt.time.microsecond;
+            let offset_secs = dt.time.tz_offset.unwrap_or(0);
+
+            let fixed_offset = FixedOffset::east_opt(offset_secs).expect("Invalid timezone offset");
+
+            let duration = Duration::from_micros(micros.into());
+            DateTime::from_timestamp(
+                timestamp_secs,
+                duration.as_nanos().try_into().unwrap_or_default(),
+            )
+            .expect("Invalid timestamp")
+            .with_timezone(&fixed_offset)
+        })?;
+
+    Ok(junit::bindings::BindingsJunitReportValidation::from(
+        junit::validator::validate(
+            &report.clone().into(),
+            test_runner_report.map(junit::junit_path::TestRunnerReport::from),
+            reference_timestamp,
+        ),
     ))
 }
 
