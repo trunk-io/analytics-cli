@@ -29,7 +29,10 @@ def test_junit_validate_valid():
     report = parse_result.report
     assert report is not None
 
-    junit_report_validation = junit_validate(report, None)
+    reference_timestamp = (
+        datetime.now().astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M")
+    )
+    junit_report_validation = junit_validate(report, None, reference_timestamp)
 
     assert (
         junit_report_validation.max_level() == JunitValidationLevel.Valid
@@ -74,7 +77,10 @@ def test_junit_validate_suboptimal():
     report = parse_result.report
     assert report is not None
 
-    junit_report_validation = junit_validate(report, None)
+    reference_timestamp = (
+        datetime.now().astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M")
+    )
+    junit_report_validation = junit_validate(report, None, reference_timestamp)
 
     assert (
         junit_report_validation.max_level() == JunitValidationLevel.SubOptimal
@@ -130,7 +136,10 @@ def test_junit_validate_with_test_runner_report():
     report = parse_result.report
     assert report is not None
 
-    junit_report_validation = junit_validate(report, None)
+    reference_timestamp = (
+        datetime.now().astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M")
+    )
+    junit_report_validation = junit_validate(report, None, reference_timestamp)
 
     assert (
         junit_report_validation.max_level() == JunitValidationLevel.SubOptimal
@@ -149,7 +158,12 @@ def test_junit_validate_with_test_runner_report():
         datetime.now().astimezone(timezone.utc),
         None,
     )
-    junit_report_validation = junit_validate(report, test_runner_report)
+    reference_timestamp = (
+        datetime.now().astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M")
+    )
+    junit_report_validation = junit_validate(
+        report, test_runner_report, reference_timestamp
+    )
 
     assert (
         junit_report_validation.max_level() == JunitValidationLevel.Valid

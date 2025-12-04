@@ -4,9 +4,10 @@ use bundle::{
     parse_internal_bin_from_tarball as parse_internal_bin_from_tarball_impl,
     parse_meta as parse_meta_impl, parse_meta_from_tarball as parse_meta_from_tarball_impl,
 };
+use chrono::NaiveDateTime;
 use codeowners::{
-    associate_codeowners_multithreaded as associate_codeowners, BindingsOwners, CodeOwners,
-    CodeOwnersFile, Owners, OwnersSource,
+    BindingsOwners, CodeOwners, CodeOwnersFile, Owners, OwnersSource,
+    associate_codeowners_multithreaded as associate_codeowners,
 };
 use context::{
     env,
@@ -138,10 +139,20 @@ fn bin_parse(bin: Vec<u8>) -> PyResult<Vec<junit::bindings::BindingsReport>> {
 fn junit_validate(
     report: junit::bindings::BindingsReport,
     test_runner_report: Option<bundle::FileSetTestRunnerReport>,
-) -> junit::bindings::BindingsJunitReportValidation {
-    junit::bindings::BindingsJunitReportValidation::from(junit::validator::validate(
-        &report.into(),
-        test_runner_report.map(TestRunnerReport::from),
+    reference_timestamp: String,
+) -> PyResult<junit::bindings::BindingsJunitReportValidation> {
+    // Parse timestamp string in format "2025-12-04 02:00" (UTC)
+    let reference_timestamp = NaiveDateTime::parse_from_str(&reference_timestamp, "%Y-%m-%d %H:%M")
+        .map_err(|e| PyTypeError::new_err(format!("Failed to parse reference_timestamp '{}': expected format 'YYYY-MM-DD HH:MM' (UTC): {}", reference_timestamp, e)))?
+        .and_utc()
+        .fixed_offset();
+
+    Ok(junit::bindings::BindingsJunitReportValidation::from(
+        junit::validator::validate(
+            &report.into(),
+            test_runner_report.map(TestRunnerReport::from),
+            reference_timestamp,
+        ),
     ))
 }
 

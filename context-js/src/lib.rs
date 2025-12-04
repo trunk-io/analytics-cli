@@ -1,17 +1,17 @@
 use std::{collections::HashMap, io::BufReader};
 
 use bundle::{
+    FileSetTestRunnerReport, VersionedBundle, VersionedBundleWithBindingsReport,
     parse_internal_bin_and_meta_from_tarball as parse_internal_bin_and_meta,
     parse_internal_bin_from_tarball as parse_internal_bin,
-    parse_meta_from_tarball as parse_tarball_meta, FileSetTestRunnerReport, VersionedBundle,
-    VersionedBundleWithBindingsReport,
+    parse_meta_from_tarball as parse_tarball_meta,
 };
 use context::{env, junit, meta::id::gen_info_id as gen_info_id_impl, repo};
 use futures::{future::Either, io::BufReader as BufReaderAsync, stream::TryStreamExt};
 use js_sys::Uint8Array;
 use prost::Message;
 use wasm_bindgen::prelude::*;
-use wasm_streams::{readable::sys, readable::ReadableStream};
+use wasm_streams::{readable::ReadableStream, readable::sys};
 
 #[wasm_bindgen]
 pub fn bin_parse(bin: Vec<u8>) -> Result<Vec<junit::bindings::BindingsReport>, JsError> {
@@ -108,10 +108,16 @@ pub fn junit_parse(xml: Vec<u8>) -> Result<junit::bindings::BindingsParseResult,
 pub fn junit_validate(
     report: &junit::bindings::BindingsReport,
     test_runner_report: Option<FileSetTestRunnerReport>,
+    reference_timestamp: String,
 ) -> junit::bindings::BindingsJunitReportValidation {
+    let reference_timestamp = DateTime::from_str(&reference_timestamp, "%Y-%m-%d %H:%M")
+        .map_err(|e| JsError::new(&e.to_string()))?
+        .and_utc()
+        .fixed_offset();
     junit::bindings::BindingsJunitReportValidation::from(junit::validator::validate(
         &report.clone().into(),
         test_runner_report.map(junit::junit_path::TestRunnerReport::from),
+        reference_timestamp,
     ))
 }
 

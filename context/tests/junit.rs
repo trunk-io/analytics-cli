@@ -90,7 +90,8 @@ fn validate_test_suite_name_too_short() {
         test_suite.name = String::new().into();
     }
 
-    let report_validation = junit::validator::validate(&generated_report, None);
+    let report_validation =
+        junit::validator::validate(&generated_report, None, Utc::now().fixed_offset());
 
     assert_eq!(
         report_validation.max_level(),
@@ -126,7 +127,8 @@ fn validate_test_case_name_too_short() {
         }
     }
 
-    let report_validation = junit::validator::validate(&generated_report, None);
+    let report_validation =
+        junit::validator::validate(&generated_report, None, Utc::now().fixed_offset());
 
     assert_eq!(
         report_validation.max_level(),
@@ -159,7 +161,8 @@ fn validate_test_suite_name_too_long() {
         test_suite.name = "a".repeat(junit::validator::MAX_FIELD_LEN + 1).into();
     }
 
-    let report_validation = junit::validator::validate(&generated_report, None);
+    let report_validation =
+        junit::validator::validate(&generated_report, None, Utc::now().fixed_offset());
 
     assert_eq!(
         report_validation.max_level(),
@@ -195,7 +198,8 @@ fn validate_test_case_name_too_long() {
         }
     }
 
-    let report_validation = junit::validator::validate(&generated_report, None);
+    let report_validation =
+        junit::validator::validate(&generated_report, None, Utc::now().fixed_offset());
 
     assert_eq!(
         report_validation.max_level(),
@@ -233,7 +237,8 @@ fn validate_max_level() {
         }
     }
 
-    let report_validation = junit::validator::validate(&generated_report, None);
+    let report_validation =
+        junit::validator::validate(&generated_report, None, Utc::now().fixed_offset());
 
     assert_eq!(
         report_validation.max_level(),
@@ -304,7 +309,8 @@ fn validate_timestamps() {
         }
     }
 
-    let report_validation = junit::validator::validate(&generated_report, None);
+    let report_validation =
+        junit::validator::validate(&generated_report, None, Utc::now().fixed_offset());
 
     assert_eq!(
         report_validation.max_level(),
@@ -352,8 +358,11 @@ fn validate_test_runner_report_overrides_timestamp() {
                 .unwrap(),
             label: None,
         };
-        let override_report_validation =
-            junit::validator::validate(&generated_report, Some(override_report.clone()));
+        let override_report_validation = junit::validator::validate(
+            &generated_report,
+            Some(override_report.clone()),
+            Utc::now().fixed_offset(),
+        );
         pretty_assertions::assert_eq!(
             override_report_validation.all_issues(),
             &[
@@ -390,8 +399,11 @@ fn validate_test_runner_report_overrides_timestamp() {
                 .unwrap(),
             label: None,
         };
-        let override_report_validation =
-            junit::validator::validate(&generated_report, Some(override_report.clone()));
+        let override_report_validation = junit::validator::validate(
+            &generated_report,
+            Some(override_report.clone()),
+            Utc::now().fixed_offset(),
+        );
         pretty_assertions::assert_eq!(
             override_report_validation.all_issues(),
             &[
@@ -428,8 +440,11 @@ fn validate_test_runner_report_overrides_timestamp() {
                 .unwrap(),
             label: None,
         };
-        let override_report_validation =
-            junit::validator::validate(&generated_report, Some(override_report.clone()));
+        let override_report_validation = junit::validator::validate(
+            &generated_report,
+            Some(override_report.clone()),
+            Utc::now().fixed_offset(),
+        );
         pretty_assertions::assert_eq!(
             override_report_validation.all_issues(),
             &[
@@ -468,8 +483,11 @@ fn validate_test_runner_report_overrides_timestamp() {
                 .unwrap(),
             label: None,
         };
-        let override_report_validation =
-            junit::validator::validate(&generated_report, Some(override_report.clone()));
+        let override_report_validation = junit::validator::validate(
+            &generated_report,
+            Some(override_report.clone()),
+            Utc::now().fixed_offset(),
+        );
         pretty_assertions::assert_eq!(
             override_report_validation.test_runner_report.issues(),
             &[TestRunnerReportValidationIssue::SubOptimal(
@@ -494,8 +512,11 @@ fn validate_test_runner_report_overrides_timestamp() {
                 .unwrap(),
             label: None,
         };
-        let override_report_validation =
-            junit::validator::validate(&generated_report, Some(override_report.clone()));
+        let override_report_validation = junit::validator::validate(
+            &generated_report,
+            Some(override_report.clone()),
+            Utc::now().fixed_offset(),
+        );
         pretty_assertions::assert_eq!(
             override_report_validation.all_issues(),
             &[],
@@ -505,7 +526,8 @@ fn validate_test_runner_report_overrides_timestamp() {
     }
 
     {
-        let report_validation = junit::validator::validate(&generated_report, None);
+        let report_validation =
+            junit::validator::validate(&generated_report, None, Utc::now().fixed_offset());
         pretty_assertions::assert_eq!(
             report_validation.all_issues(),
             &[JunitValidationIssueType::Report(
@@ -544,8 +566,11 @@ fn validate_test_runner_report_overrides_timestamp() {
                     test_case.timestamp = Some(test_case_timestamp);
                 });
             });
-        let override_report_validation =
-            junit::validator::validate(&generated_report, Some(override_report.clone()));
+        let override_report_validation = junit::validator::validate(
+            &generated_report,
+            Some(override_report.clone()),
+            Utc::now().fixed_offset(),
+        );
         pretty_assertions::assert_eq!(
             override_report_validation.all_issues(),
             &[
@@ -596,7 +621,8 @@ fn parse_round_trip_and_validate_fuzzed() {
     for (index, generated_report) in generated_reports.iter().enumerate() {
         let serialized_generated_report = serialize_report(generated_report);
         let first_parsed_report = parse_report(&serialized_generated_report);
-        let report_validation = junit::validator::validate(&first_parsed_report, None);
+        let report_validation =
+            junit::validator::validate(&first_parsed_report, None, Utc::now().fixed_offset());
 
         assert_eq!(
             report_validation.max_level(),
