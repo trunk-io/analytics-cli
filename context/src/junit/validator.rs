@@ -130,6 +130,8 @@ pub fn validate(
                     .extra
                     .get(extra_attrs::FILE)
                     .or(test_case.extra.get(extra_attrs::FILEPATH))
+                    .or(test_suite.extra.get(extra_attrs::FILE))
+                    .or(test_suite.extra.get(extra_attrs::FILEPATH))
                     .as_ref()
                     .map(|s| s.as_str())
                     .unwrap_or_default(),
