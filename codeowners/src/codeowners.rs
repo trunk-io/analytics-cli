@@ -170,6 +170,36 @@ impl CodeOwners {
 
         Ok(results.into_iter().flatten().collect())
     }
+
+    pub async fn parse_many_multithreaded_with_source(
+        to_parse: Vec<CodeOwnersFile>,
+    ) -> Result<Vec<(Self, Vec<u8>)>> {
+        let tasks = to_parse
+            .into_iter()
+            .enumerate()
+            .map(
+                |(
+                    i,
+                    CodeOwnersFile {
+                        bytes,
+                        owners_source,
+                    },
+                )| {
+                    task::spawn(
+                        async move { (i, Self::parse(bytes.clone(), &owners_source), bytes) },
+                    )
+                },
+            )
+            .collect::<Vec<_>>();
+
+        let mut results = vec![None; tasks.len()];
+        for task in tasks {
+            let (i, result, bytes) = task.await?;
+            results[i] = Some((result, bytes));
+        }
+
+        Ok(results.into_iter().flatten().collect())
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -200,6 +230,13 @@ impl BindingsOwners {
             _ => None,
         }
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass)]
+pub struct BindingsOwnersAndSource {
+    pub owners: BindingsOwners,
+    pub source: Vec<u8>,
 }
 
 pub fn associate_codeowners<T: AsRef<Path>>(owners: &Owners, file: T) -> Vec<String> {
