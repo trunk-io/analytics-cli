@@ -15,7 +15,6 @@ runs:
         targets: wasm32-unknown-unknown
 
     - uses: actions/cache@v4
-      if: runner.os != 'macOS'
       with:
         path: |
           ~/.cargo/bin/

@@ -1241,7 +1241,11 @@ mod tests {
         assert_eq!(test_case2.codeowners.clone().unwrap().len(), 0);
 
         // verify that the test report is valid
-        let results = validate(&converted_bindings.clone().into(), None);
+        let results = validate(
+            &converted_bindings.clone().into(),
+            None,
+            chrono::Utc::now().fixed_offset(),
+        );
         assert_eq!(results.all_issues_flat().len(), 1);
         results
             .all_issues_flat()

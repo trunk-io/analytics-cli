@@ -15,8 +15,8 @@ use pyo3::prelude::*;
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pyclass_enum};
 use quick_junit::{NonSuccessKind, Report, TestCase, TestCaseStatus, TestRerun, TestSuite};
 use quick_xml::{
-    events::{BytesStart, BytesText, Event},
     Reader,
+    events::{BytesStart, BytesText, Event},
 };
 use thiserror::Error;
 #[cfg(feature = "wasm")]
@@ -304,6 +304,8 @@ impl JunitParser {
                         .extra
                         .get(extra_attrs::FILE)
                         .or_else(|| test_case.extra.get(extra_attrs::FILEPATH))
+                        .or_else(|| test_suite.extra.get(extra_attrs::FILE))
+                        .or_else(|| test_suite.extra.get(extra_attrs::FILEPATH))
                         .map(|v| v.to_string())
                         .unwrap_or_default();
                     if !file.is_empty() && codeowners.is_some() {
@@ -896,7 +898,7 @@ mod parse_attr {
         use std::{borrow::Cow, time::Duration};
 
         use quick_xml::{
-            events::{attributes::Attribute, BytesStart},
+            events::{BytesStart, attributes::Attribute},
             name::QName,
         };
 
@@ -948,7 +950,7 @@ mod parse_attr {
 mod unescape_and_truncate {
     use std::borrow::Cow;
 
-    use quick_xml::events::{attributes::Attribute, BytesText};
+    use quick_xml::events::{BytesText, attributes::Attribute};
 
     use crate::string_safety::safe_truncate_str;
 
@@ -1534,6 +1536,81 @@ mod tests {
         assert_ne!(
             test_case_with_variant.id, test_case_no_variant.id,
             "IDs with and without variant should be different"
+        );
+    }
+
+    #[test]
+    fn test_into_test_case_runs_with_suite_level_file() {
+        let mut junit_parser = JunitParser::new();
+        let file_contents = r#"
+        <xml version="1.0" encoding="UTF-8"?>
+        <testsuites>
+            <testsuite name="testsuite" file="suite_file.java" timestamp="2023-10-01T12:00:00Z" time="0.002">
+                <testcase classname="TestClass" name="test_without_file" time="0.001">
+                </testcase>
+                <testcase file="testcase_file.java" classname="TestClass" name="test_with_file" time="0.001">
+                </testcase>
+            </testsuite>
+        </testsuites>
+        "#;
+        let parsed_results = junit_parser.parse(BufReader::new(file_contents.as_bytes()));
+        assert!(parsed_results.is_ok());
+
+        let org_slug = "org-url-slug".to_string();
+        let repo = RepoUrlParts {
+            host: "repo-host".into(),
+            owner: "repo-owner".into(),
+            name: "repo-name".into(),
+        };
+
+        let test_case_runs = junit_parser.into_test_case_runs(None, &org_slug, &repo, &[], "");
+        assert_eq!(test_case_runs.len(), 2);
+
+        let test_case_run1 = &test_case_runs[0];
+        assert_eq!(test_case_run1.name, "test_without_file");
+        assert_eq!(
+            test_case_run1.file, "suite_file.java",
+            "Test case should inherit file from suite"
+        );
+
+        let test_case_run2 = &test_case_runs[1];
+        assert_eq!(test_case_run2.name, "test_with_file");
+        assert_eq!(
+            test_case_run2.file, "testcase_file.java",
+            "Test case should use its own file when present"
+        );
+    }
+
+    #[test]
+    fn test_into_test_case_runs_with_suite_level_filepath() {
+        let mut junit_parser = JunitParser::new();
+        let file_contents = r#"
+        <xml version="1.0" encoding="UTF-8"?>
+        <testsuites>
+            <testsuite name="testsuite" filepath="path/to/suite_file.java" timestamp="2023-10-01T12:00:00Z" time="0.002">
+                <testcase classname="TestClass" name="test_without_file" time="0.001">
+                </testcase>
+            </testsuite>
+        </testsuites>
+        "#;
+        let parsed_results = junit_parser.parse(BufReader::new(file_contents.as_bytes()));
+        assert!(parsed_results.is_ok());
+
+        let org_slug = "org-url-slug".to_string();
+        let repo = RepoUrlParts {
+            host: "repo-host".into(),
+            owner: "repo-owner".into(),
+            name: "repo-name".into(),
+        };
+
+        let test_case_runs = junit_parser.into_test_case_runs(None, &org_slug, &repo, &[], "");
+        assert_eq!(test_case_runs.len(), 1);
+
+        let test_case_run = &test_case_runs[0];
+        assert_eq!(test_case_run.name, "test_without_file");
+        assert_eq!(
+            test_case_run.file, "path/to/suite_file.java",
+            "Test case should inherit filepath from suite"
         );
     }
 }
