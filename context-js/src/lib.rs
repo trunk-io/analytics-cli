@@ -115,8 +115,7 @@ pub fn junit_validate(
     let reference_timestamp = speedate::DateTime::parse_str(&reference_timestamp)
         .map_err(|e| {
             JsError::new(&format!(
-                "Failed to parse reference_timestamp '{}': {}",
-                reference_timestamp, e
+                "Failed to parse reference_timestamp '{reference_timestamp}': {e}",
             ))
         })
         .map(|dt| {
