@@ -20,4 +20,4 @@ This is downloaded automatically using the [Trunk launcher][launcher] and when u
 
 ## Development
 
-For more information about how to build and run the Rust CLI, please see [CONTRIBUTING.md][contributing].
+For more information about how to build and run the Rust CLI, please see [CONTRIBUTING.md][contributing]. Happy coding!
