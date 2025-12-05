@@ -1,13 +1,13 @@
 use std::{
     env,
-    sync::{mpsc::Sender, Arc},
+    sync::{Arc, mpsc::Sender},
     thread::JoinHandle,
 };
 
 use clap::{Parser, Subcommand};
-use clap_verbosity_flag::{log::LevelFilter, InfoLevel, Verbosity};
+use clap_verbosity_flag::{InfoLevel, Verbosity, log::LevelFilter};
 use display::{
-    message::{send_message, DisplayMessage},
+    message::{DisplayMessage, send_message},
     render::spin_up_renderer,
 };
 use sentry::ClientInitGuard;
@@ -15,17 +15,15 @@ use tracing_subscriber::{filter::FilterFn, prelude::*};
 use trunk_analytics_cli::{
     context::gather_debug_props,
     error_report::ErrorReport,
-    test_command::{run_test, TestArgs},
-    upload_command::{run_upload, UploadArgs, UploadRunResult},
-    validate_command::{run_validate, ValidateArgs, ValidateRunResult},
+    test_command::{TestArgs, run_test},
+    upload_command::{UploadArgs, UploadRunResult, run_upload},
+    validate_command::{ValidateArgs, ValidateRunResult, run_validate},
 };
 
 #[derive(Debug, Parser)]
 #[command(
     version = std::env!("CARGO_PKG_VERSION"),
-    name = "trunk flakytests",
-    about = "Trunk Flaky Tests CLI",
-    bin_name = "trunk flakytests",
+    about = "Trunk Analytics CLI",
 )]
 struct Cli {
     #[command(subcommand)]
@@ -186,7 +184,7 @@ enum RunResult {
 
 async fn run(cli: Cli, render_sender: Sender<DisplayMessage>) -> anyhow::Result<RunResult> {
     tracing::info!(
-        "Starting trunk flakytests {} (git={}) rustc={}",
+        "Starting trunk-analytics-cli {} (git={}) rustc={}",
         env!("CARGO_PKG_VERSION"),
         env!("VERGEN_GIT_SHA"),
         env!("VERGEN_RUSTC_SEMVER")
