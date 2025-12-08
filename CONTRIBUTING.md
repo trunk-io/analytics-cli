@@ -7,13 +7,6 @@ These are instructions for building, running, and testing the Rust CLI locally. 
 - Install a nightly version of Cargo using [rustup](https://doc.rust-lang.org/cargo/getting-started/installation.html)
 - Run `trunk tools install`
 
-### Optional Prerequisites
-
-These are necessary for building particular targets.
-
-- Install [wasm-pack](https://rustwasm.github.io/wasm-pack/installer/)
-- Install [maturin](https://www.maturin.rs/installation.html)
-
 ## Build
 
 ### Build Everything
@@ -24,34 +17,13 @@ cargo build
 
 The CLI will be built to `target/debug/trunk-analytics-cli`
 
-### Python Bindings
+### Package-Specific Build Instructions
 
-```bash
-pip install maturin
-trunk run generate-pyi
-maturin build --release --out dist --find-interpreter --manifest-path ./context-py/Cargo.toml
-```
+For detailed build instructions for each supported package, see their respective README files:
 
-The 2 wheels will be available in `dist/`
-
-### WASM Bindings
-
-```bash
-pnpm install --dir ./context-js
-pnpm run --dir ./context-js build
-```
-
-The package will be available in `context-js/pkg/`
-
-### Ruby Bindings
-
-```bash
-cd rspec-trunk-flaky-tests
-bundle install
-bundle exec rake compile
-```
-
-The output will be available in `rspec-trunk-flaky-tests/tmp`
+- **Python Bindings**: See [context-py/README.md](context-py/README.md)
+- **JavaScript/TypeScript Bindings**: See [context-js/README.md](context-js/README.md)
+- **Ruby Gem (RSpec Plugin)**: See [rspec-trunk-flaky-tests/README.md](rspec-trunk-flaky-tests/README.md)
 
 ## Run
 
@@ -70,27 +42,33 @@ You can change the API endpoint by setting `TRUNK_PUBLIC_API_ADDRESS=https://api
 
 ## Test
 
+### Using nextest (Recommended)
+
+This project uses [nextest](https://nexte.st/) for running Rust tests. It provides faster test execution, better output, and more reliable test runs.
+
+Install nextest:
+
 ```bash
-# Rust tests
+cargo install cargo-nextest --locked
+```
+
+Run tests with nextest:
+
+```bash
+# Run all tests
+cargo nextest run
+
+# Run tests with CI profile (includes JUnit output)
+cargo nextest run --profile ci
+
+# Run tests for a specific package
+cargo nextest run -p <package-name>
+```
+
+### Using cargo test
+
+You can also use the standard `cargo test` command if you really want:
+
+```bash
 cargo test
-
-# Javascript tests
-pnpm install --dir ./context-js
-pnpm run --dir ./context-js build_and_test
-
-# Python test
-pip install maturin uv
-trunk run generate-pyi
-maturin build --release --out dist --find-interpreter --manifest-path ./context-py/Cargo.toml
-cd ./context-py
-uv venv
-source .venv/bin/activate
-uv pip install -r requirements-dev.txt
-uv pip install context-py --find-links ../dist --force-reinstall
-pytest
-
-# Ruby test
-cd ./rspec-trunk-flaky-tests
-bundle install
-bundle exec rake test
 ```
