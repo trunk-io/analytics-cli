@@ -38,19 +38,19 @@ uv venv
 source .venv/bin/activate
 ```
 
-2. Install dependencies:
+Install dependencies:
 
 ```bash
 uv pip install -r ./requirements-dev.txt
 ```
 
-3. Build type stubs:
+Build type stubs:
 
 ```bash
 cargo run
 ```
 
-4. Build bindings and install them into the virtual environment:
+Build bindings and install them into the virtual environment:
 
 ```bash
 maturin dev

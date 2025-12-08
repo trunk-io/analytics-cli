@@ -27,13 +27,13 @@ This package provides JavaScript/TypeScript bindings to the analytics CLI's core
 
 ### Installation
 
-1. Install dependencies:
+Install dependencies:
 
 ```bash
 pnpm install
 ```
 
-2. Build the WebAssembly bindings:
+Build the WebAssembly bindings:
 
 ```bash
 pnpm run build
