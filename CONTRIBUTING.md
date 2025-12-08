@@ -46,12 +46,12 @@ The package will be available in `context-js/pkg/`
 ### Ruby Bindings
 
 ```bash
-cd context-ruby
+cd rspec-trunk-flaky-tests
 bundle install
 bundle exec rake compile
 ```
 
-The output will be available in `context-ruby/tmp`
+The output will be available in `rspec-trunk-flaky-tests/tmp`
 
 ## Run
 
@@ -90,7 +90,7 @@ uv pip install context-py --find-links ../dist --force-reinstall
 pytest
 
 # Ruby test
-cd ./context-ruby
+cd ./rspec-trunk-flaky-tests
 bundle install
 bundle exec rake test
 ```

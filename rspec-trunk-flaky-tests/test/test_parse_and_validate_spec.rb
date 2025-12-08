@@ -1,10 +1,10 @@
 # frozen_string_literal: true
 
-require_relative '../lib/context_ruby'
+require_relative '../lib/rspec_trunk_flaky_tests'
 require_relative '../spec/spec_helper'
 
 # trunk-ignore(rubocop/Metrics/BlockLength)
-describe 'context_ruby' do
+describe 'rspec_trunk_flaky_tests' do
   it 'should be able to env_parse' do
     env_vars = {
       'GITHUB_ACTIONS' => 'true',

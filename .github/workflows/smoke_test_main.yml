@@ -148,7 +148,7 @@ jobs:
         with:
           ruby-version: "3.4"
           bundler-cache: true
-          working-directory: context-ruby
+          working-directory: rspec-trunk-flaky-tests
 
       - name: Get commit SHA
         id: get-sha
@@ -175,20 +175,20 @@ jobs:
         uses: ./.github/actions/update_version
         with:
           version: 0.0.0-${{ steps.get-sha.outputs.sha }}
-          file: context-ruby/context_ruby.gemspec
+          file: rspec-trunk-flaky-tests/context_ruby.gemspec
 
       - name: Build cross-compiled gem
         uses: oxidize-rb/actions/cross-gem@v1
         with:
           platform: x86_64-linux
-          working-directory: context-ruby
+          working-directory: rspec-trunk-flaky-tests
           ruby-versions: "3.4"
 
       - name: Upload gem artifact
         uses: actions/upload-artifact@v4
         with:
           name: ruby-gem-main
-          path: context-ruby/pkg/*.gem
+          path: rspec-trunk-flaky-tests/pkg/*.gem
           if-no-files-found: error
           retention-days: 1
 

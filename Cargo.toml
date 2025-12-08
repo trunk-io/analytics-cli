@@ -17,7 +17,7 @@ members = [
   "third-party",
   "display",
 ]
-exclude = ["context-ruby/ext/context_ruby"]
+exclude = ["rspec-trunk-flaky-tests/ext/context_ruby"]
 resolver = "2"
 
 [profile.release]
