@@ -30,10 +30,9 @@ wasm-bindgen = { version = "0.2.95", optional = true }
 pyo3-stub-gen = { version = "0.6.1", optional = true }
 
 # For encoding
-async-compression = { version = "0.4.17", features = ["futures-io", "zstd"] }
-async-std = { version = "1.13.0", features = ["attributes", "std"] }
-async-tar-wasm = { version = "0.4.2-wasm.1", default-features = false }
-futures-io = "0.3.31"
+async-compression = { version = "0.4.17", features = ["tokio", "zstd"] }
+tokio = { version = "1", features = ["fs", "io-util"] }
+tokio-util = { version = "0.7", features = ["io"] }
 tar = { version = "0.4.30", default-features = false }
 uuid = { version = "1.10.0", features = ["v5"] }
 zstd = { version = "0.13.0", default-features = false }
