@@ -3,5 +3,5 @@
 # in the ext/ directory.
 
 [workspace]
-members = ["./ext/context_ruby"]
+members = ["./ext/rspec_trunk_flaky_tests"]
 resolver = "2"

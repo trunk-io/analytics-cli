@@ -810,20 +810,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "context_ruby"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "context",
- "magnus",
- "rb-sys",
- "rb-sys-env",
- "sentry",
- "sentry-log",
- "test_report",
-]
-
-[[package]]
 name = "core-foundation"
 version = "0.9.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3918,6 +3904,20 @@ dependencies = [
  "libc",
  "untrusted",
  "windows-sys 0.52.0",
+]
+
+[[package]]
+name = "rspec_trunk_flaky_tests"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "context",
+ "magnus",
+ "rb-sys",
+ "rb-sys-env",
+ "sentry",
+ "sentry-log",
+ "test_report",
 ]
 
 [[package]]

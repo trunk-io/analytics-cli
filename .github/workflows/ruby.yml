@@ -1,4 +1,4 @@
-name: Build and test context-ruby
+name: Build and test rspec-trunk-flaky-tests
 
 on:
   push:
@@ -30,7 +30,7 @@ jobs:
         run: |
           bundle install
           bundle exec rake test
-        working-directory: context-ruby
+        working-directory: rspec-trunk-flaky-tests
         env:
           TRUNK_PUBLIC_API_ADDRESS: https://api.trunk-staging.io
           TRUNK_ORG_URL_SLUG: trunk-staging-org

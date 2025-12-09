@@ -3,7 +3,7 @@
 require 'mkmf'
 require 'rb_sys/mkmf'
 
-create_rust_makefile('context_ruby/context_ruby') do |r|
+create_rust_makefile('rspec_trunk_flaky_tests/rspec_trunk_flaky_tests') do |r|
   # For darwin multiple ranlibs are being packaged and the container chooses the wrong one.
   # This is a workaround to force the correct ranlib to be used.
   # https://github.com/cross-rs/cross/issues/1243#issuecomment-2102742482

@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require_relative '../lib/context_ruby'
+require_relative '../lib/rspec_trunk_flaky_tests'
 require_relative '../spec/spec_helper'
 
 # trunk-ignore(rubocop/Metrics/BlockLength)

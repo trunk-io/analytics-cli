@@ -29,7 +29,7 @@
 #
 require 'rspec/core'
 require 'time'
-require 'context_ruby'
+require 'rspec_trunk_flaky_tests'
 
 # String is an override to the main String class that is used to colorize the output
 # it is used to make the output more readable

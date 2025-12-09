@@ -19,5 +19,5 @@ Gem::Specification.new do |s|
   s.license     = 'MIT'
   s.executables = []
   s.require_paths = ['lib']
-  s.extensions = ['ext/context_ruby/extconf.rb']
+  s.extensions = ['ext/rspec_trunk_flaky_tests/extconf.rb']
 end
