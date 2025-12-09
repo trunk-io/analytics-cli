@@ -1,18 +1,18 @@
+use std::io::{Cursor, Read};
 use std::{
-    collections::HashMap,
     fs::File,
     io::{Seek, Write},
     path::PathBuf,
 };
 
 use async_compression::futures::bufread::ZstdDecoder;
-use async_std::{io::ReadExt, stream::StreamExt};
-use async_tar_wasm::{Archive, Entries};
 use codeowners::CodeOwners;
 use context::bazel_bep::common::BepParseResult;
 use futures_io::AsyncBufRead;
 use prost::Message;
 use proto::test_context::test_run::TestReport;
+use smol::io::AsyncReadExt;
+use tar::Archive;
 use tempfile::TempDir;
 #[cfg(feature = "wasm")]
 use tsify_next::Tsify;
@@ -171,21 +171,22 @@ pub fn parse_meta(meta_bytes: Vec<u8>) -> anyhow::Result<VersionedBundle> {
 /// This assumes that the `meta.json` file will be the first entry in the tarball.
 pub async fn parse_meta_from_tarball<R: AsyncBufRead>(input: R) -> anyhow::Result<VersionedBundle> {
     let zstd_decoder = ZstdDecoder::new(Box::pin(input));
-    let archive = Archive::new(zstd_decoder);
+    let mut decompressed_data = Vec::new();
+    let mut decoder_reader = zstd_decoder;
+    decoder_reader.read_to_end(&mut decompressed_data).await?;
+
+    let cursor = Cursor::new(decompressed_data);
+    let mut archive = Archive::new(cursor);
 
     // Again, note that the below method specifically is only looking at the first entry in the tarball.
-    if let Some(first_entry) = archive.entries()?.next().await {
-        let mut owned_first_entry = first_entry?;
-        let path_str = owned_first_entry
-            .path()?
-            .to_str()
-            .unwrap_or_default()
-            .to_owned();
+    for entry_result in archive.entries()? {
+        let mut entry = entry_result?;
+        let path = entry.path()?;
+        let path_str = path.to_str().unwrap_or_default().to_owned();
 
         if path_str == META_FILENAME {
             let mut meta_bytes = Vec::new();
-            owned_first_entry.read_to_end(&mut meta_bytes).await?;
-
+            entry.read_to_end(&mut meta_bytes)?;
             return parse_meta(meta_bytes);
         }
     }
@@ -215,20 +216,17 @@ pub async fn parse_internal_bin_from_tarball<R: AsyncBufRead>(
     Ok(internal_bin)
 }
 
-async fn find_internal_bin_in_entries<R: futures_io::AsyncRead + Unpin>(
-    mut entries: Entries<R>,
+fn find_internal_bin_in_entries(
+    mut archive: Archive<Cursor<Vec<u8>>>,
     target_name: String,
 ) -> anyhow::Result<TestReport> {
-    while let Some(entry) = entries.next().await {
-        let mut unwrapped_entry = entry?;
-        let path_str = unwrapped_entry
-            .path()?
-            .to_str()
-            .unwrap_or_default()
-            .to_owned();
+    for entry_result in archive.entries()? {
+        let mut entry = entry_result?;
+        let path = entry.path()?;
+        let path_str = path.to_str().unwrap_or_default().to_owned();
         if path_str == target_name {
             let mut bytes = Vec::new();
-            unwrapped_entry.read_to_end(&mut bytes).await?;
+            entry.read_to_end(&mut bytes)?;
             return bin_parse(&bytes)
                 .map_err(|err| anyhow::anyhow!("Failed to decode {}: {}", target_name, err));
         }
@@ -244,41 +242,38 @@ pub async fn parse_internal_bin_and_meta_from_tarball<R: AsyncBufRead>(
     input: R,
 ) -> anyhow::Result<(TestReport, VersionedBundle)> {
     let zstd_decoder = ZstdDecoder::new(Box::pin(input));
-    let archive = Archive::new(zstd_decoder);
-    let mut entries = archive.entries()?;
+    let mut decompressed_data = Vec::new();
+    let mut decoder_reader = zstd_decoder;
+    decoder_reader.read_to_end(&mut decompressed_data).await?;
 
-    let versioned_bundle_result = if let Some(first_entry) = entries.next().await {
-        let mut owned_first_entry = first_entry?;
-        let path_str = owned_first_entry
-            .path()?
-            .to_str()
-            .unwrap_or_default()
-            .to_owned();
+    let cursor1 = Cursor::new(&decompressed_data);
+    let mut archive1 = Archive::new(cursor1);
+    let mut versioned_bundle: Option<VersionedBundle> = None;
+
+    for entry_result in archive1.entries()? {
+        let mut entry = entry_result?;
+        let path = entry.path()?;
+        let path_str = path.to_str().unwrap_or_default().to_owned();
 
         if path_str == META_FILENAME {
             let mut meta_bytes = Vec::new();
-            owned_first_entry.read_to_end(&mut meta_bytes).await?;
-
-            parse_meta(meta_bytes)
-        } else {
-            anyhow::Result::Err(anyhow::anyhow!(
-                "No {} file found in the tarball",
-                META_FILENAME
-            ))
+            entry.read_to_end(&mut meta_bytes)?;
+            versioned_bundle = Some(parse_meta(meta_bytes)?);
+            break;
         }
-    } else {
-        anyhow::Result::Err(anyhow::anyhow!(
-            "No {} file found in the tarball",
-            META_FILENAME
-        ))
-    };
-    let versioned_bundle = versioned_bundle_result?;
+    }
+
+    let versioned_bundle = versioned_bundle
+        .ok_or_else(|| anyhow::anyhow!("No {} file found in the tarball", META_FILENAME))?;
 
     let internal_bin_filename = versioned_bundle
         .internal_bundled_file()
         .map(|bf| bf.path)
         .unwrap_or(INTERNAL_BIN_FILENAME.to_string());
-    let test_report = find_internal_bin_in_entries(entries, internal_bin_filename).await?;
+
+    let cursor2 = Cursor::new(decompressed_data.clone());
+    let archive2 = Archive::new(cursor2);
+    let test_report = find_internal_bin_in_entries(archive2, internal_bin_filename)?;
 
     Ok((test_report, versioned_bundle))
 }
@@ -296,14 +291,14 @@ mod tests {
     use tempfile::tempdir;
 
     use super::*;
-    use crate::files::{FileSet, FileSetType};
     use crate::Test;
+    use crate::files::{FileSet, FileSetType};
     use crate::{
+        BundledFile,
         bundle_meta::{
             BundleMeta, BundleMetaBaseProps, BundleMetaDebugProps, BundleMetaJunitProps,
             META_VERSION,
         },
-        BundledFile,
     };
 
     fn create_bundle_meta(bundled_file: Option<BundledFile>) -> BundleMeta {
@@ -379,8 +374,8 @@ mod tests {
         assert!(bundler_util.make_tarball(&bundle_path).is_ok());
         assert!(bundle_path.exists());
 
-        let tarball_file = async_std::fs::File::open(&bundle_path).await.unwrap();
-        let reader = async_std::io::BufReader::new(tarball_file);
+        let tarball_file = smol::fs::File::open(&bundle_path).await.unwrap();
+        let reader = smol::io::BufReader::new(tarball_file);
 
         let parsed_meta = parse_meta_from_tarball(reader).await;
         assert!(parsed_meta.is_ok());
@@ -442,8 +437,8 @@ mod tests {
         assert!(bundler_util.make_tarball(&bundle_path).is_ok());
         assert!(bundle_path.exists());
 
-        let tarball_file = async_std::fs::File::open(&bundle_path).await.unwrap();
-        let reader = async_std::io::BufReader::new(tarball_file);
+        let tarball_file = smol::fs::File::open(&bundle_path).await.unwrap();
+        let reader = smol::io::BufReader::new(tarball_file);
 
         let data = parse_internal_bin_and_meta_from_tarball(reader).await;
         let (internal_bin, parsed_meta) = data.unwrap();
