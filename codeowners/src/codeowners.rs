@@ -239,6 +239,19 @@ pub struct BindingsOwnersAndSource {
     pub source: Vec<u8>,
 }
 
+#[cfg(feature = "pyo3")]
+#[gen_stub_pymethods]
+#[pymethods]
+impl BindingsOwnersAndSource {
+    pub fn get_owners(&self) -> BindingsOwners {
+        self.owners.clone()
+    }
+
+    pub fn get_source(&self) -> Vec<u8> {
+        self.source.clone()
+    }
+}
+
 pub fn associate_codeowners<T: AsRef<Path>>(owners: &Owners, file: T) -> Vec<String> {
     match owners {
         Owners::GitHubOwners(gho) => gho
