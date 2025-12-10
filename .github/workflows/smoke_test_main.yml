@@ -175,7 +175,7 @@ jobs:
         uses: ./.github/actions/update_version
         with:
           version: 0.0.0-${{ steps.get-sha.outputs.sha }}
-          file: rspec-trunk-flaky-tests/context_ruby.gemspec
+          file: rspec-trunk-flaky-tests/rspec_trunk_flaky_tests.gemspec
 
       - name: Build cross-compiled gem
         uses: oxidize-rb/actions/cross-gem@v1
