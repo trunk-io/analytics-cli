@@ -1,6 +1,6 @@
 # rspec-trunk-flaky-tests
 
-RSpec plugin for Trunk Flaky Tests. This gem automatically uploads test results to detect and quarantine flaky tests. It integrates with RSpec to provide automatic flaky test detection, quarantining, and analytics.
+RSpec plugin for Trunk Flaky Tests. This gem automatically uploads test results to detect and quarantine flaky tests. It integrates with RSpec to provide automatic flaky test detection, quarantining, and analytics. You can find the uploaded gem in [rubygems](https://rubygems.org/gems/rspec_trunk_flaky_tests).
 
 ## Overview
 
