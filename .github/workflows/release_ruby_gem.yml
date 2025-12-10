@@ -123,7 +123,7 @@ jobs:
 
       - uses: rubygems/configure-rubygems-credentials@main
         with:
-          role-to-assume: rg_oidc_akr_vxb9d9w6dob8q6sr6jz5
+          role-to-assume: ${{ secrets.RUBY_GEMS_OIDC }}
       - uses: actions/download-artifact@v4
         with:
           pattern: cross-gem-*
