@@ -19,6 +19,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Get date and SHA for S3 upload
+        id: get-date-sha
+        if: "!cancelled() && github.event_name != 'pull_request'"
+        shell: bash
+        run: |
+          GIT_SHA=$(git rev-parse --short HEAD)
+          DATE=$(date "+%Y-%m-%d")
+          echo "date=${DATE}" >> $GITHUB_OUTPUT
+          echo "sha=${GIT_SHA}" >> $GITHUB_OUTPUT
+          echo "reference=${DATE}/${GIT_SHA}" >> $GITHUB_OUTPUT
+
       - name: Setup and build wasm
         uses: ./.github/actions/setup_build_wasm
         if: "!cancelled()"
@@ -46,3 +57,10 @@ jobs:
           name: context-js-0.1.0.tgz
           path: context-js/pkg/context-js-0.1.0.tgz
           role-to-assume: ${{ secrets.S3_UPLOAD_ROLE_ARN }}
+          date: ${{ steps.get-date-sha.outputs.date }}
+          sha: ${{ steps.get-date-sha.outputs.sha }}
+
+      - name: Annotate workflow with S3 reference
+        if: "!cancelled() && github.event_name != 'pull_request'"
+        run: |
+          echo "::notice title=Published bindings::context-js bindings published to S3 at ${{ steps.get-date-sha.outputs.reference }}"

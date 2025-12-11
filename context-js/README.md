@@ -126,3 +126,19 @@ pnpm run build
 ```
 
 The generated bindings will be in the `pkg/` directory and can be imported by your TypeScript/JavaScript code.
+
+## Publishing
+
+The bindings are automatically published to S3 when changes are merged to the `main` branch. A GitHub Actions workflow runs after each pull request merge that:
+
+1. Builds the WebAssembly bindings
+2. Packages them into a tarball (`context-js-0.1.0.tgz`)
+3. Uploads the package to S3
+
+The uploaded package is stored at a path that includes the date and commit SHA in the format `date/sha`. For example, if a build runs on `2024-01-15` with commit SHA `abc1234`, the package will be available at:
+
+```bash
+s3://<bucket>/2024-01-15/abc1234/context-js-0.1.0.tgz
+```
+
+When using the published bindings, reference them using the `date/sha` format (e.g., `2024-01-15/abc1234`) to ensure you're using the correct version. This reference is displayed in the GitHub Actions workflow summary for each build.
