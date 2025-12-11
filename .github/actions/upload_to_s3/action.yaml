@@ -16,6 +16,12 @@ inputs:
   s3-flags:
     description: Additional flags to pass to the `aws s3 cp` command
     required: false
+  date:
+    description: Date in YYYY-MM-DD format to use for S3 path. If not provided, will be calculated.
+    required: false
+  sha:
+    description: Git SHA to use for S3 path. If not provided, will be calculated.
+    required: false
 
 runs:
   using: composite
@@ -30,8 +36,16 @@ runs:
     - name: Upload artifact to S3
       shell: bash
       run: |
-        GIT_SHA=$(git rev-parse --short HEAD)
-        DATE=$(date "+%Y-%m-%d")
+        if [ -z "${{ inputs.date }}" ]; then
+          DATE=$(date "+%Y-%m-%d")
+        else
+          DATE="${{ inputs.date }}"
+        fi
+        if [ -z "${{ inputs.sha }}" ]; then
+          GIT_SHA=$(git rev-parse --short HEAD)
+        else
+          GIT_SHA="${{ inputs.sha }}"
+        fi
         LOCAL_FILE=${{ inputs.path }}
         TARGET_PATH="${{ inputs.bucket }}/${DATE}/${GIT_SHA}/${{ inputs.name }}"
 

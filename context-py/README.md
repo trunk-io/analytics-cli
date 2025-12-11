@@ -138,3 +138,23 @@ Run the test suite:
 ```bash
 pytest
 ```
+
+## Publishing
+
+The bindings are automatically published to S3 when changes are merged to the `main` branch. A GitHub Actions workflow runs after each pull request merge that:
+
+1. Builds Python wheels for multiple platforms (Linux x86_64, Linux aarch64, macOS x86_64, macOS aarch64)
+2. Builds a source distribution (sdist)
+3. Uploads all packages to S3
+
+The uploaded packages are stored at paths that include the date and commit SHA in the format `date/sha`. For example, if a build runs on `2024-01-15` with commit SHA `abc1234`, the packages will be available at:
+
+```
+s3://<bucket>/2024-01-15/abc1234/linux-x86_64/
+s3://<bucket>/2024-01-15/abc1234/linux-aarch64/
+s3://<bucket>/2024-01-15/abc1234/darwin-x86_64/
+s3://<bucket>/2024-01-15/abc1234/darwin-aarch64/
+s3://<bucket>/2024-01-15/abc1234/wheels-sdist.tar.gz
+```
+
+When using the published bindings, reference them using the `date/sha` format (e.g., `2024-01-15/abc1234`) to ensure you're using the correct version. This reference is displayed in the GitHub Actions workflow summary for each build.

@@ -19,6 +19,18 @@ permissions:
   id-token: write
 
 jobs:
+  get-date-sha:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Get date and SHA
+        shell: bash
+        run: |
+          GIT_SHA=$(git rev-parse --short HEAD)
+          DATE=$(date "+%Y-%m-%d")
+          echo "date=${DATE}" >> $GITHUB_OUTPUT
+          echo "sha=${GIT_SHA}" >> $GITHUB_OUTPUT
+          echo "reference=${DATE}/${GIT_SHA}" >> $GITHUB_OUTPUT
   linux:
     runs-on: ${{ matrix.platform.runner }}
     strategy:
@@ -31,6 +43,7 @@ jobs:
             target: aarch64
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-python@v5
         with:
           python-version: 3.13
@@ -112,6 +125,8 @@ jobs:
           path: dist
           s3-flags: --recursive
           role-to-assume: ${{ secrets.S3_UPLOAD_ROLE_ARN }}
+          date: ${{ job.get-date-sha.outputs.date }}
+          sha: ${{ job.get-date-sha.outputs.sha }}
 
   macos:
     runs-on: ${{ matrix.platform.runner }}
@@ -154,6 +169,7 @@ jobs:
           path: dist
           s3-flags: --recursive
           role-to-assume: ${{ secrets.S3_UPLOAD_ROLE_ARN }}
+          date: ${{ steps.get-date-sha.outputs.date }}
   sdist:
     runs-on: ubuntu-latest
     steps:
@@ -180,3 +196,12 @@ jobs:
           name: wheels-sdist.tar.gz
           path: dist/context_py-0.1.0.tar.gz
           role-to-assume: ${{ secrets.S3_UPLOAD_ROLE_ARN }}
+          date: ${{ job.get-date-sha.outputs.date }}
+          sha: ${{ job.get-date-sha.outputs.sha }}
+  publish-annotation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Annotate workflow with S3 reference
+        run: |
+          echo "::notice title=Published bindings::context-py bindings published to S3 at ${{ job.get-date-sha.outputs.reference }}"
