@@ -137,7 +137,7 @@ The bindings are automatically published to S3 when changes are merged to the `m
 
 The uploaded package is stored at a path that includes the date and commit SHA in the format `date/sha`. For example, if a build runs on `2024-01-15` with commit SHA `abc1234`, the package will be available at:
 
-```
+```bash
 s3://<bucket>/2024-01-15/abc1234/context-js-0.1.0.tgz
 ```
 

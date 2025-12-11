@@ -149,7 +149,7 @@ The bindings are automatically published to S3 when changes are merged to the `m
 
 The uploaded packages are stored at paths that include the date and commit SHA in the format `date/sha`. For example, if a build runs on `2024-01-15` with commit SHA `abc1234`, the packages will be available at:
 
-```
+```bash
 s3://<bucket>/2024-01-15/abc1234/linux-x86_64/
 s3://<bucket>/2024-01-15/abc1234/linux-aarch64/
 s3://<bucket>/2024-01-15/abc1234/darwin-x86_64/
