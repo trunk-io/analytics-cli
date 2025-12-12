@@ -1,39 +1,39 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <testsuites name="xcresult: Xcresultparser-Package" tests="17" failures="0" errors="0">
     <testsuite name="XcresultparserTests.XcresultparserTests" tests="17" disabled="0" errors="0" failures="0">
-        <testcase name="testCleanCodeErrors()" classname="XcresultparserTests" timestamp="2024-09-30T19:12:51.159+00:00" time="0.960" id="99d37723-0bfe-5158-a239-3f887805070d">
+        <testcase name="testCleanCodeErrors()" classname="XcresultparserTests" timestamp="2024-09-30T19:12:51.159+00:00" time="0.960" id="trunk:test://com.apple.xcode/Xcresultparser/XcresultparserTests/XcresultparserTests/testCleanCodeErrors">
         </testcase>
-        <testcase name="testCleanCodeWarnings()" classname="XcresultparserTests" timestamp="2024-09-30T19:12:51.159+00:00" time="0.170" id="6240defe-8527-5be7-9b44-1a997021aee5">
+        <testcase name="testCleanCodeWarnings()" classname="XcresultparserTests" timestamp="2024-09-30T19:12:51.159+00:00" time="0.170" id="trunk:test://com.apple.xcode/Xcresultparser/XcresultparserTests/XcresultparserTests/testCleanCodeWarnings">
         </testcase>
-        <testcase name="testCleanCodeWarningsWithRelativePath()" classname="XcresultparserTests" timestamp="2024-09-30T19:12:51.159+00:00" time="0.170" id="bc4a0bc2-ad67-5864-b95c-afcb6fecbab6">
+        <testcase name="testCleanCodeWarningsWithRelativePath()" classname="XcresultparserTests" timestamp="2024-09-30T19:12:51.159+00:00" time="0.170" id="trunk:test://com.apple.xcode/Xcresultparser/XcresultparserTests/XcresultparserTests/testCleanCodeWarningsWithRelativePath">
         </testcase>
-        <testcase name="testCLIResultFormatter()" classname="XcresultparserTests" timestamp="2024-09-30T19:12:51.159+00:00" time="1.000" id="22a30abb-dc6c-50d2-9142-12545c323691">
+        <testcase name="testCLIResultFormatter()" classname="XcresultparserTests" timestamp="2024-09-30T19:12:51.159+00:00" time="1.000" id="trunk:test://com.apple.xcode/Xcresultparser/XcresultparserTests/XcresultparserTests/testCLIResultFormatter">
         </testcase>
-        <testcase name="testCoberturaConverter()" classname="XcresultparserTests" timestamp="2024-09-30T19:12:51.159+00:00" time="1.000" id="188d55ef-cc47-55f2-ae51-48886935d5b5">
+        <testcase name="testCoberturaConverter()" classname="XcresultparserTests" timestamp="2024-09-30T19:12:51.159+00:00" time="1.000" id="trunk:test://com.apple.xcode/Xcresultparser/XcresultparserTests/XcresultparserTests/testCoberturaConverter">
         </testcase>
-        <testcase name="testCoverageConverter()" classname="XcresultparserTests" timestamp="2024-09-30T19:12:51.159+00:00" time="1.000" id="27bf164f-a983-5b0a-8adc-6ceadd9d023c">
+        <testcase name="testCoverageConverter()" classname="XcresultparserTests" timestamp="2024-09-30T19:12:51.159+00:00" time="1.000" id="trunk:test://com.apple.xcode/Xcresultparser/XcresultparserTests/XcresultparserTests/testCoverageConverter">
         </testcase>
-        <testcase name="testCoverageReportFormat()" classname="XcresultparserTests" timestamp="2024-09-30T19:12:51.159+00:00" time="0.000" id="660c6298-8214-5171-80d7-ef5dc7413ebe">
+        <testcase name="testCoverageReportFormat()" classname="XcresultparserTests" timestamp="2024-09-30T19:12:51.159+00:00" time="0.000" id="trunk:test://com.apple.xcode/Xcresultparser/XcresultparserTests/XcresultparserTests/testCoverageReportFormat">
         </testcase>
-        <testcase name="testHTMLResultFormatter()" classname="XcresultparserTests" timestamp="2024-09-30T19:12:51.159+00:00" time="0.770" id="0fc3913e-fb6a-57b6-8d38-85b40604d746">
+        <testcase name="testHTMLResultFormatter()" classname="XcresultparserTests" timestamp="2024-09-30T19:12:51.159+00:00" time="0.770" id="trunk:test://com.apple.xcode/Xcresultparser/XcresultparserTests/XcresultparserTests/testHTMLResultFormatter">
         </testcase>
-        <testcase name="testJunitXMLJunit()" classname="XcresultparserTests" timestamp="2024-09-30T19:12:51.159+00:00" time="0.350" id="de8f386c-187d-5c15-813c-c7fe3386f0ef">
+        <testcase name="testJunitXMLJunit()" classname="XcresultparserTests" timestamp="2024-09-30T19:12:51.159+00:00" time="0.350" id="trunk:test://com.apple.xcode/Xcresultparser/XcresultparserTests/XcresultparserTests/testJunitXMLJunit">
         </testcase>
-        <testcase name="testJunitXMLMergedJunit()" classname="XcresultparserTests" timestamp="2024-09-30T19:12:51.159+00:00" time="0.550" id="94a44223-fec5-5ab8-a198-2e8cefb2b316">
+        <testcase name="testJunitXMLMergedJunit()" classname="XcresultparserTests" timestamp="2024-09-30T19:12:51.159+00:00" time="0.550" id="trunk:test://com.apple.xcode/Xcresultparser/XcresultparserTests/XcresultparserTests/testJunitXMLMergedJunit">
         </testcase>
-        <testcase name="testJunitXMLSonar()" classname="XcresultparserTests" timestamp="2024-09-30T19:12:51.159+00:00" time="0.360" id="2c845bb4-3318-53d0-b466-64ae8d7f7341">
+        <testcase name="testJunitXMLSonar()" classname="XcresultparserTests" timestamp="2024-09-30T19:12:51.159+00:00" time="0.360" id="trunk:test://com.apple.xcode/Xcresultparser/XcresultparserTests/XcresultparserTests/testJunitXMLSonar">
         </testcase>
-        <testcase name="testMDResultFormatter()" classname="XcresultparserTests" timestamp="2024-09-30T19:12:51.159+00:00" time="0.780" id="1e4787cb-5867-5c4b-af16-39f1a45437c6">
+        <testcase name="testMDResultFormatter()" classname="XcresultparserTests" timestamp="2024-09-30T19:12:51.159+00:00" time="0.780" id="trunk:test://com.apple.xcode/Xcresultparser/XcresultparserTests/XcresultparserTests/testMDResultFormatter">
         </testcase>
-        <testcase name="testOutputFormat()" classname="XcresultparserTests" timestamp="2024-09-30T19:12:51.159+00:00" time="0.001" id="af80a48e-e736-5bd9-a407-80fb2941386d">
+        <testcase name="testOutputFormat()" classname="XcresultparserTests" timestamp="2024-09-30T19:12:51.159+00:00" time="0.001" id="trunk:test://com.apple.xcode/Xcresultparser/XcresultparserTests/XcresultparserTests/testOutputFormat">
         </testcase>
-        <testcase name="testSonarCoverageConverter()" classname="XcresultparserTests" timestamp="2024-09-30T19:12:51.159+00:00" time="1.000" id="ef079c03-82d5-5660-bff1-8113fedb8923">
+        <testcase name="testSonarCoverageConverter()" classname="XcresultparserTests" timestamp="2024-09-30T19:12:51.159+00:00" time="1.000" id="trunk:test://com.apple.xcode/Xcresultparser/XcresultparserTests/XcresultparserTests/testSonarCoverageConverter">
         </testcase>
-        <testcase name="testTextResultFormatter()" classname="XcresultparserTests" timestamp="2024-09-30T19:12:51.159+00:00" time="0.760" id="c0fb8dfb-ccf6-5a61-9e98-7025dd85f38f">
+        <testcase name="testTextResultFormatter()" classname="XcresultparserTests" timestamp="2024-09-30T19:12:51.159+00:00" time="0.760" id="trunk:test://com.apple.xcode/Xcresultparser/XcresultparserTests/XcresultparserTests/testTextResultFormatter">
         </testcase>
-        <testcase name="testTextResultFormatterMethodsCoverageReportFormat()" classname="XcresultparserTests" timestamp="2024-09-30T19:12:51.159+00:00" time="0.770" id="4a07ce52-f330-5fb0-9fc7-79a703d2a401">
+        <testcase name="testTextResultFormatterMethodsCoverageReportFormat()" classname="XcresultparserTests" timestamp="2024-09-30T19:12:51.159+00:00" time="0.770" id="trunk:test://com.apple.xcode/Xcresultparser/XcresultparserTests/XcresultparserTests/testTextResultFormatterMethodsCoverageReportFormat">
         </testcase>
-        <testcase name="testTextResultFormatterTotalCoverageReportFormat()" classname="XcresultparserTests" timestamp="2024-09-30T19:12:51.159+00:00" time="0.780" id="e03854b6-5621-57c4-943d-41cf3dc1ba4e">
+        <testcase name="testTextResultFormatterTotalCoverageReportFormat()" classname="XcresultparserTests" timestamp="2024-09-30T19:12:51.159+00:00" time="0.780" id="trunk:test://com.apple.xcode/Xcresultparser/XcresultparserTests/XcresultparserTests/testTextResultFormatterTotalCoverageReportFormat">
         </testcase>
     </testsuite>
 </testsuites>
