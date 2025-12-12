@@ -23,7 +23,7 @@ describe("context-js", () => {
 
       const result = generateIdForTest();
 
-      expect(result).toBe("4392f63c-8dc9-5cec-bbdc-e7b90c2e5a6b");
+      expect(result).toBe("db8c5727-0fe9-560f-863f-7f3ee68df425");
 
       // Generate again to ensure it is consistent
       const result2 = generateIdForTest();
@@ -59,7 +59,7 @@ describe("context-js", () => {
       // Adding a variant changs the ID.
       const resultWithVariant = generateIdForTest({ variant: "unix" });
 
-      expect(resultWithVariant).toBe("8057218b-95e4-5373-afbe-c366d4058615");
+      expect(resultWithVariant).toBe("931cae54-0fcd-56eb-8eac-afa833699e53");
     });
 
     it("works properly without existing v5 UUID", () => {
@@ -79,7 +79,7 @@ describe("context-js", () => {
 
       const result = generateIdForTest({});
 
-      expect(result).toBe("c869cb93-66e2-516d-a0ea-15ff4b413c3f");
+      expect(result).toBe("1bf61475-b542-5faf-aa85-e66a691257a3");
 
       // Generate again to ensure it is consistent
       const result2 = generateIdForTest({});
@@ -92,6 +92,86 @@ describe("context-js", () => {
       });
 
       expect(resultForV4Uuid).toBe(result);
+    });
+
+    it("doesn't change non-variant case", () => {
+      expect.hasAssertions();
+
+      const org_url_slug = "example_org";
+      const repo_full_name = "example_repo";
+      const file = "src/lib.rs";
+      const classname = "ExampleClass";
+      const parent_fact_path = "parent/fact/path";
+      const name = "example_name";
+      const info_id = null;
+      const variant = "";
+
+      const result = gen_info_id(
+        org_url_slug,
+        repo_full_name,
+        file,
+        classname,
+        parent_fact_path,
+        name,
+        info_id,
+        variant,
+      );
+
+      const base_result = gen_info_id(
+        org_url_slug,
+        repo_full_name,
+        file,
+        classname,
+        parent_fact_path,
+        name,
+        info_id,
+        variant,
+      );
+
+      const expected = "06cb6db5-f807-5198-b072-af67a0636f8a";
+
+      expect(result).toBe(expected);
+      expect(base_result).toBe(expected);
+    });
+
+    it("does change variant case", () => {
+      expect.hasAssertions();
+
+      const org_url_slug = "example_org";
+      const repo_full_name = "example_repo";
+      const file = "src/lib.rs";
+      const classname = "ExampleClass";
+      const parent_fact_path = "parent/fact/path";
+      const name = "example_name";
+      const info_id = null;
+      const variant = "unix";
+
+      const result = gen_info_id(
+        org_url_slug,
+        repo_full_name,
+        file,
+        classname,
+        parent_fact_path,
+        name,
+        info_id,
+        variant,
+      );
+
+      const base_result = gen_info_id(
+        org_url_slug,
+        repo_full_name,
+        file,
+        classname,
+        parent_fact_path,
+        name,
+        info_id,
+        "",
+      );
+
+      const expected = "1bf61475-b542-5faf-aa85-e66a691257a3";
+
+      expect(result).toBe(expected);
+      expect(base_result).not.toBe(expected);
     });
   });
 });
