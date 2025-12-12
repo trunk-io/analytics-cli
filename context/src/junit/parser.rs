@@ -25,7 +25,7 @@ use wasm_bindgen::prelude::*;
 use super::date_parser::JunitDateParser;
 #[cfg(feature = "bindings")]
 use crate::junit::bindings::BindingsReport;
-use crate::{meta::id::generate_info_id_variant_wrapper, repo::RepoUrlParts};
+use crate::{meta::id::gen_info_id, repo::RepoUrlParts};
 
 const TAG_REPORT: &[u8] = b"testsuites";
 const TAG_TEST_SUITE: &[u8] = b"testsuite";
@@ -326,7 +326,7 @@ impl JunitParser {
                     let test_case_id = if existing_id.is_some() && variant.is_empty() {
                         existing_id.unwrap().to_string()
                     } else {
-                        generate_info_id_variant_wrapper(
+                        gen_info_id(
                             org_slug.as_ref(),
                             repo.repo_full_name().as_str(),
                             Some(file.as_str()),
@@ -999,7 +999,7 @@ mod tests {
 
     use crate::{
         junit::parser::JunitParser,
-        meta::id::{gen_info_id, generate_info_id_variant_wrapper},
+        meta::id::{gen_info_id, gen_info_id_base},
         repo::RepoUrlParts,
     };
     #[test]
@@ -1034,7 +1034,7 @@ mod tests {
             None,
             &org_slug,
             &repo,
-            &[gen_info_id(
+            &[gen_info_id_base(
                 org_slug.as_str(),
                 repo.repo_full_name().as_str(),
                 Some("test.java"),
@@ -1074,10 +1074,10 @@ mod tests {
             })
         );
         assert_eq!(test_case_run1.line, 5);
-        // Verify that the ID field is set correctly (generated from gen_info_id)
+        // Verify that the ID field is set correctly (generated from gen_info_id_base)
         assert_eq!(
             test_case_run1.id,
-            gen_info_id(
+            gen_info_id_base(
                 org_slug.as_str(),
                 repo.repo_full_name().as_str(),
                 Some("test.java"),
@@ -1101,7 +1101,7 @@ mod tests {
         // Verify that the ID field is set correctly for test_case_run2
         assert_eq!(
             test_case_run2.id,
-            gen_info_id(
+            gen_info_id_base(
                 org_slug.as_str(),
                 repo.repo_full_name().as_str(),
                 Some("test.java"),
@@ -1185,7 +1185,7 @@ mod tests {
         let test_case_run2 = &test_case_runs[1];
         assert_eq!(
             test_case_run2.id,
-            gen_info_id(
+            gen_info_id_base(
                 org_slug.as_str(),
                 repo.repo_full_name().as_str(),
                 Some("test.swift"),
@@ -1231,7 +1231,7 @@ mod tests {
             None,
             &org_slug,
             &repo,
-            &[gen_info_id(
+            &[gen_info_id_base(
                 org_slug.as_str(),
                 repo.repo_full_name().as_str(),
                 Some("test.java"),
@@ -1271,10 +1271,10 @@ mod tests {
             })
         );
         assert_eq!(test_case_run1.line, 5);
-        // Verify that the ID field is set correctly (generated from gen_info_id)
+        // Verify that the ID field is set correctly (generated from gen_info_id_base)
         assert_eq!(
             test_case_run1.id,
-            gen_info_id(
+            gen_info_id_base(
                 org_slug.as_str(),
                 repo.repo_full_name().as_str(),
                 Some("test.java"),
@@ -1298,7 +1298,7 @@ mod tests {
         // Verify that the ID field is set correctly for test_case_run2
         assert_eq!(
             test_case_run2.id,
-            gen_info_id(
+            gen_info_id_base(
                 org_slug.as_str(),
                 repo.repo_full_name().as_str(),
                 Some("test.java"),
@@ -1491,7 +1491,7 @@ mod tests {
         assert_eq!(test_case_runs_with_variant.len(), 1);
         let test_case_with_variant = &test_case_runs_with_variant[0];
 
-        let expected_id_with_variant = generate_info_id_variant_wrapper(
+        let expected_id_with_variant = gen_info_id(
             org_slug.as_str(),
             repo.repo_full_name().as_str(),
             Some("test.java"),
@@ -1517,7 +1517,7 @@ mod tests {
         assert_eq!(test_case_runs_no_variant.len(), 1);
         let test_case_no_variant = &test_case_runs_no_variant[0];
 
-        let expected_id_no_variant = gen_info_id(
+        let expected_id_no_variant = gen_info_id_base(
             org_slug.as_str(),
             repo.repo_full_name().as_str(),
             Some("test.java"),

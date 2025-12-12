@@ -31,7 +31,7 @@ fn generate_info_id(
 }
 
 // trunk-ignore(clippy/too_many_arguments)
-pub fn gen_info_id(
+pub fn gen_info_id_base(
     org_url_slug: &str,
     repo_full_name: &str,
     file: Option<&str>,
@@ -70,7 +70,7 @@ pub fn gen_info_id(
 }
 
 // trunk-ignore(clippy/too_many_arguments)
-pub fn generate_info_id_variant_wrapper(
+pub fn gen_info_id(
     org_url_slug: &str,
     repo_full_name: &str,
     file: Option<&str>,
@@ -80,7 +80,7 @@ pub fn generate_info_id_variant_wrapper(
     info_id: Option<&str>,
     variant: &str,
 ) -> String {
-    let id = gen_info_id(
+    let id = gen_info_id_base(
         org_url_slug,
         repo_full_name,
         file,
@@ -93,7 +93,7 @@ pub fn generate_info_id_variant_wrapper(
     if variant.is_empty() {
         id
     } else {
-        gen_info_id(
+        gen_info_id_base(
             org_url_slug,
             repo_full_name,
             file,
@@ -109,7 +109,7 @@ pub fn generate_info_id_variant_wrapper(
 #[cfg(test)]
 #[cfg(feature = "bindings")]
 mod tests {
-    use crate::meta::id::{gen_info_id, generate_info_id_variant_wrapper};
+    use crate::meta::id::{gen_info_id, gen_info_id_base};
 
     #[cfg(feature = "bindings")]
     #[test]
@@ -123,7 +123,7 @@ mod tests {
         let info_id = None;
         let variant = "";
 
-        let result = generate_info_id_variant_wrapper(
+        let result = gen_info_id(
             org_url_slug,
             repo_full_name,
             file,
@@ -134,7 +134,7 @@ mod tests {
             variant,
         );
 
-        let base_result = gen_info_id(
+        let base_result = gen_info_id_base(
             org_url_slug,
             repo_full_name,
             file,
@@ -162,7 +162,7 @@ mod tests {
         let info_id = None;
         let variant = "unix";
 
-        let result = generate_info_id_variant_wrapper(
+        let result = gen_info_id(
             org_url_slug,
             repo_full_name,
             file,
@@ -173,7 +173,7 @@ mod tests {
             variant,
         );
 
-        let base_result = gen_info_id(
+        let base_result = gen_info_id_base(
             org_url_slug,
             repo_full_name,
             file,
@@ -201,7 +201,7 @@ mod tests {
         let info_id = Some("trunk:12345");
         let variant = "unix";
 
-        let result = gen_info_id(
+        let result = gen_info_id_base(
             org_url_slug,
             repo_full_name,
             file,
@@ -215,7 +215,7 @@ mod tests {
         assert_eq!(result, "4392f63c-8dc9-5cec-bbdc-e7b90c2e5a6b");
 
         // Run again to ensure deterministic output
-        let result_again = gen_info_id(
+        let result_again = gen_info_id_base(
             org_url_slug,
             repo_full_name,
             file,
@@ -233,7 +233,7 @@ mod tests {
     fn test_gen_info_id_real_staging_test() {
         // This test legitimately exists - checking to see that this code generates the
         // expected ID.
-        let result = gen_info_id(
+        let result = gen_info_id_base(
             "trunk-staging-org",
             "github.com/trunk-io/trunk",
             None,
@@ -260,7 +260,7 @@ mod tests {
         let info_id = Some("a6e84936-3ee9-57d5-b041-ae124896f654");
         let variant = "";
 
-        let result = gen_info_id(
+        let result = gen_info_id_base(
             org_url_slug,
             repo_full_name,
             file,
@@ -274,7 +274,7 @@ mod tests {
         assert_eq!(result, info_id.map_or(String::new(), |id| id.to_string()));
 
         // Run again to ensure deterministic output
-        let result_again = gen_info_id(
+        let result_again = gen_info_id_base(
             org_url_slug,
             repo_full_name,
             file,
@@ -288,7 +288,7 @@ mod tests {
 
         // Check that adding a variant does generate a new ID
         let variant = "unix";
-        let result_with_variant = gen_info_id(
+        let result_with_variant = gen_info_id_base(
             org_url_slug,
             repo_full_name,
             file,
@@ -317,7 +317,7 @@ mod tests {
         let info_id = None;
         let variant = "unix";
 
-        let result = gen_info_id(
+        let result = gen_info_id_base(
             org_url_slug,
             repo_full_name,
             file,
@@ -331,7 +331,7 @@ mod tests {
         assert_eq!(result, "c869cb93-66e2-516d-a0ea-15ff4b413c3f");
 
         // Run again to ensure deterministic output
-        let result_again = gen_info_id(
+        let result_again = gen_info_id_base(
             org_url_slug,
             repo_full_name,
             file,
@@ -345,7 +345,7 @@ mod tests {
 
         // Test with v4 UUID
         let info_id_v4 = Some("08e1c642-3a55-45cf-8bf9-b9d0b21785dd"); // v4 UUID
-        let result_v4 = gen_info_id(
+        let result_v4 = gen_info_id_base(
             org_url_slug,
             repo_full_name,
             file,
