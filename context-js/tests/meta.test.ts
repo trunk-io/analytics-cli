@@ -93,5 +93,83 @@ describe("context-js", () => {
 
       expect(resultForV4Uuid).toBe(result);
     });
+
+    it("doesn't change non-variant case", () => {
+      expect.hasAssertions();
+
+      const org_url_slug = "example_org";
+      const repo_full_name = "example_repo";
+      const file = "src/lib.rs";
+      const classname = "ExampleClass";
+      const parent_fact_path = "parent/fact/path";
+      const name = "example_name";
+      const info_id = null;
+      const variant = "";
+
+      const result = gen_info_id(
+        org_url_slug,
+        repo_full_name,
+        file,
+        classname,
+        parent_fact_path,
+        name,
+        info_id,
+        variant,
+      );
+
+      const base_result = gen_info_id(
+        org_url_slug,
+        repo_full_name,
+        file,
+        classname,
+        parent_fact_path,
+        name,
+        info_id,
+        variant,
+      );
+
+      const expected = "06cb6db5-f807-5198-b072-af67a0636f8a";
+      expect(result).toBe(expected);
+      expect(base_result).toBe(expected);
+    });
+
+    it("does change variant case", () => {
+      expect.hasAssertions();
+
+      const org_url_slug = "example_org";
+      const repo_full_name = "example_repo";
+      const file = "src/lib.rs";
+      const classname = "ExampleClass";
+      const parent_fact_path = "parent/fact/path";
+      const name = "example_name";
+      const info_id = null;
+      const variant = "unix";
+
+      const result = gen_info_id(
+        org_url_slug,
+        repo_full_name,
+        file,
+        classname,
+        parent_fact_path,
+        name,
+        info_id,
+        variant,
+      );
+
+      const base_result = gen_info_id(
+        org_url_slug,
+        repo_full_name,
+        file,
+        classname,
+        parent_fact_path,
+        name,
+        info_id,
+        variant,
+      );
+
+      const expected = "1bf61475-b542-5faf-aa85-e66a691257a3";
+      expect(result).toBe(expected);
+      expect(base_result).not.toBe(expected);
+    });
   });
 });
