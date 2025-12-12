@@ -477,7 +477,7 @@ pub fn gen_info_id(
     name: Option<String>,
     info_id: Option<String>,
 ) -> String {
-    id::generate_info_id_variant_wrapper(
+    id::gen_info_id(
         &org_url_slug,
         &repo_full_name,
         file.as_deref(),
