@@ -8,7 +8,14 @@ use bundle::{
     parse_meta_from_tarball as parse_tarball_meta,
 };
 use chrono::{DateTime, FixedOffset};
-use context::{env, junit, meta::id::gen_info_id as gen_info_id_impl, repo};
+use context::{
+    env, junit,
+    meta::id::{
+        gen_info_id as gen_info_id_impl,
+        generate_info_id_variant_wrapper as generate_info_id_variant_wrapper_impl,
+    },
+    repo,
+};
 use futures::{future::Either, io::BufReader as BufReaderAsync, stream::TryStreamExt};
 use js_sys::Uint8Array;
 use prost::Message;
@@ -228,7 +235,7 @@ pub fn gen_info_id(
     info_id: Option<String>,
     variant: String,
 ) -> String {
-    gen_info_id_impl(
+    generate_info_id_variant_wrapper_impl(
         &org_url_slug,
         &repo_full_name,
         file.as_deref(),
