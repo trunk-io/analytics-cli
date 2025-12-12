@@ -6,8 +6,8 @@ use chrono::{DateTime, Utc};
 use quick_junit::{NonSuccessKind, Report, TestCase, TestCaseStatus, TestRerun, TestSuite};
 
 use crate::types::{
-    schema::{TestNode, TestNodeType, TestResult, Tests},
     SWIFT_DEFAULT_TEST_SUITE_NAME,
+    schema::{TestNode, TestNodeType, TestResult, Tests},
 };
 use crate::xcresult_legacy::XCResultTestLegacy;
 use crate::xcrun::{xcresulttool_get_object, xcresulttool_get_test_results_tests};
@@ -135,8 +135,12 @@ impl XCResult {
                     )
                 } else if matches!(test_bundle_or_test_suite.node_type, TestNodeType::TestSuite) {
                     let test_suite = test_bundle_or_test_suite;
-                    vec![self
-                        .xcresult_test_suite_to_junit_test_suite(test_suite, Option::<&str>::None)]
+                    vec![
+                        self.xcresult_test_suite_to_junit_test_suite(
+                            test_suite,
+                            Option::<&str>::None,
+                        ),
+                    ]
                 } else {
                     vec![]
                 }
@@ -328,18 +332,7 @@ impl XCResult {
             .get(raw_id.as_ref())
             .map(|test| &test.identifier_url)
             .map(|identifier_url| identifier_url.as_str());
-        // join the org and repo name to the raw id and generate uuid v5 from it
-        uuid::Uuid::new_v5(
-            &uuid::Uuid::NAMESPACE_URL,
-            format!(
-                "{}#{}#{}",
-                &self.org_url_slug,
-                &self.repo_full_name,
-                identifier_url.unwrap_or(raw_id.as_ref())
-            )
-            .as_bytes(),
-        )
-        .to_string()
+        format!("trunk:{}", identifier_url.unwrap_or(raw_id.as_ref())).to_string()
     }
 
     fn find_test_case_file<T: AsRef<str>>(&self, raw_id: T) -> Option<String> {

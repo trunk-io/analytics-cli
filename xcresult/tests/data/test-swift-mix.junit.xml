@@ -1,16 +1,16 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <testsuites name="xcresult: swift testing example" tests="4" failures="2" errors="0">
     <testsuite name="swift testing exampleTests.HelloWorldTestSuite" tests="2" disabled="0" errors="0" failures="1">
-        <testcase name="helloWorld()" classname="HelloWorldTestSuite" timestamp="2025-02-18T16:45:47.900+00:00" time="0.000" id="fad828ef-3dd7-5448-8e6f-fa27005fa695">
+        <testcase name="helloWorld()" classname="HelloWorldTestSuite" timestamp="2025-02-18T16:45:47.900+00:00" time="0.000" id="trunk:test://com.apple.xcode/swift%20testing%20example/swift%20testing%20exampleTests/HelloWorldTestSuite/helloWorld()">
         </testcase>
-        <testcase name="helloWorldInvalid()" classname="HelloWorldTestSuite" timestamp="2025-02-18T16:45:47.900+00:00" time="0.000" id="895f83b5-094f-5899-b004-5da75e1c1019" file="/Users/work/src/swift-testing/swift%20testing%20example/swift%20testing%20exampleTests/swift_testing_exampleTests.swift">
+        <testcase name="helloWorldInvalid()" classname="HelloWorldTestSuite" timestamp="2025-02-18T16:45:47.900+00:00" time="0.000" id="trunk:test://com.apple.xcode/swift%20testing%20example/swift%20testing%20exampleTests/HelloWorldTestSuite/helloWorldInvalid()" file="/Users/work/src/swift-testing/swift%20testing%20example/swift%20testing%20exampleTests/swift_testing_exampleTests.swift">
             <failure message="swift_testing_exampleTests.swift:31: Expectation failed: (greeting → &quot;Hello, world!&quot;) == &quot;Hello&quot;"/>
         </testcase>
     </testsuite>
     <testsuite name="swift testing exampleTests" tests="2" disabled="0" errors="0" failures="1">
-        <testcase name="helloWorld()" classname="helloWorld()" timestamp="2025-02-18T16:45:47.900+00:00" time="0.000" id="7ecfda2a-0be3-5d89-baa8-55a4db82dbc3">
+        <testcase name="helloWorld()" classname="helloWorld()" timestamp="2025-02-18T16:45:47.900+00:00" time="0.000" id="trunk:test://com.apple.xcode/swift%20testing%20example/swift%20testing%20exampleTests/helloWorld()">
         </testcase>
-        <testcase name="helloWorldInvalid()" classname="helloWorldInvalid()" timestamp="2025-02-18T16:45:47.900+00:00" time="0.001" id="5bc0c7dc-c9a3-56ce-9f89-0161d851e2e2" file="/Users/work/src/swift-testing/swift%20testing%20example/swift%20testing%20exampleTests/swift_testing_exampleTests.swift">
+        <testcase name="helloWorldInvalid()" classname="helloWorldInvalid()" timestamp="2025-02-18T16:45:47.900+00:00" time="0.001" id="trunk:test://com.apple.xcode/swift%20testing%20example/swift%20testing%20exampleTests/helloWorldInvalid()" file="/Users/work/src/swift-testing/swift%20testing%20example/swift%20testing%20exampleTests/swift_testing_exampleTests.swift">
             <failure message="swift_testing_exampleTests.swift:19: Expectation failed: (greeting → &quot;Hello, world!&quot;) == &quot;Hello&quot;"/>
         </testcase>
     </testsuite>
