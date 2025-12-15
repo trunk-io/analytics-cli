@@ -5,31 +5,6 @@ fn generate_checksum_uuid(values: Vec<&str>) -> String {
     Uuid::new_v5(&Uuid::NAMESPACE_URL, info_id_input.as_bytes()).to_string()
 }
 
-fn generate_info_id(
-    info_id: Option<&str>,
-    base_values: Vec<&str>,
-    alt_values: Vec<&str>,
-    id_and_variant_values: Vec<&str>,
-    has_variant: bool,
-) -> String {
-    if let Some(info_id) = info_id {
-        if !info_id.is_empty() {
-            if info_id.starts_with("trunk:") {
-                return generate_checksum_uuid(alt_values);
-            } else if let Ok(uuid) = Uuid::parse_str(info_id) {
-                if uuid.get_version_num() == 5 {
-                    if has_variant {
-                        return generate_checksum_uuid(id_and_variant_values);
-                    } else {
-                        return info_id.to_string();
-                    }
-                }
-            }
-        }
-    }
-    generate_checksum_uuid(base_values)
-}
-
 // trunk-ignore(clippy/too_many_arguments)
 pub fn gen_info_id_base(
     org_url_slug: &str,
@@ -60,13 +35,22 @@ pub fn gen_info_id_base(
         has_variant = true;
     }
 
-    generate_info_id(
-        info_id,
-        base_values,
-        alt_values,
-        id_and_variant_values,
-        has_variant,
-    )
+    if let Some(info_id) = info_id {
+        if !info_id.is_empty() {
+            if info_id.starts_with("trunk:") {
+                return generate_checksum_uuid(alt_values);
+            } else if let Ok(uuid) = Uuid::parse_str(info_id) {
+                if uuid.get_version_num() == 5 {
+                    if has_variant {
+                        return generate_checksum_uuid(id_and_variant_values);
+                    } else {
+                        return info_id.to_string();
+                    }
+                }
+            }
+        }
+    }
+    generate_checksum_uuid(base_values)
 }
 
 // trunk-ignore(clippy/too_many_arguments)
