@@ -244,6 +244,7 @@ pub fn gen_info_id(
 }
 
 #[wasm_bindgen]
+//trunk-ignore(clippy/too_many_arguments)
 pub fn gen_info_id_base(
     org_url_slug: String,
     repo_full_name: String,
