@@ -489,6 +489,31 @@ pub fn gen_info_id(
     )
 }
 
+#[gen_stub_pyfunction]
+#[pyfunction]
+// trunk-ignore(clippy/too_many_arguments)
+pub fn gen_info_id_base(
+    org_url_slug: String,
+    repo_full_name: String,
+    variant: String,
+    file: Option<String>,
+    classname: Option<String>,
+    parent_fact_path: Option<String>,
+    name: Option<String>,
+    info_id: Option<String>,
+) -> String {
+    id::gen_info_id_base(
+        &org_url_slug,
+        &repo_full_name,
+        file.as_deref(),
+        classname.as_deref(),
+        parent_fact_path.as_deref(),
+        name.as_deref(),
+        info_id.as_deref(),
+        &variant,
+    )
+}
+
 #[pymodule]
 fn context_py(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<env::parser::CIInfo>()?;
@@ -545,6 +570,7 @@ fn context_py(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(meta_validation_level_to_string, m)?)?;
     m.add_function(wrap_pyfunction!(parse_internal_bin_from_tarball, m)?)?;
     m.add_function(wrap_pyfunction!(gen_info_id, m)?)?;
+    m.add_function(wrap_pyfunction!(gen_info_id_base, m)?)?;
 
     m.add_class::<codeowners::BindingsOwners>()?;
     m.add_function(wrap_pyfunction!(codeowners_parse, m)?)?;

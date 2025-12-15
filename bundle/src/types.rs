@@ -1,4 +1,4 @@
-use context::{meta::id::generate_info_id_variant_wrapper, repo::RepoUrlParts};
+use context::{meta::id::gen_info_id, repo::RepoUrlParts};
 #[cfg(feature = "pyo3")]
 use pyo3::prelude::*;
 #[cfg(feature = "pyo3")]
@@ -59,7 +59,7 @@ impl Test {
     }
 
     pub fn set_id<T: AsRef<str>>(&mut self, org_slug: T, repo: &RepoUrlParts, variant: T) {
-        self.id = generate_info_id_variant_wrapper(
+        self.id = gen_info_id(
             org_slug.as_ref(),
             repo.repo_full_name().as_str(),
             self.file.as_deref(),
@@ -82,7 +82,7 @@ impl Test {
             self.set_id(org_slug.as_ref(), repo, variant.as_ref());
             return;
         }
-        self.id = generate_info_id_variant_wrapper(
+        self.id = gen_info_id(
             org_slug.as_ref(),
             repo.repo_full_name().as_str(),
             self.file.as_deref(),

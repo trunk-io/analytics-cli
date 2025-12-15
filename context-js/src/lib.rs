@@ -8,7 +8,10 @@ use bundle::{
     parse_meta_from_tarball as parse_tarball_meta,
 };
 use chrono::{DateTime, FixedOffset};
-use context::{env, junit, meta::id::gen_info_id as gen_info_id_impl, repo};
+use context::{
+    env, junit, meta::id::gen_info_id as gen_info_id_impl,
+    meta::id::gen_info_id_base as gen_info_id_base_impl, repo,
+};
 use futures::{future::Either, io::BufReader as BufReaderAsync, stream::TryStreamExt};
 use js_sys::Uint8Array;
 use prost::Message;
@@ -229,6 +232,30 @@ pub fn gen_info_id(
     variant: String,
 ) -> String {
     gen_info_id_impl(
+        &org_url_slug,
+        &repo_full_name,
+        file.as_deref(),
+        classname.as_deref(),
+        parent_fact_path.as_deref(),
+        name.as_deref(),
+        info_id.as_deref(),
+        &variant,
+    )
+}
+
+#[wasm_bindgen]
+//trunk-ignore(clippy/too_many_arguments)
+pub fn gen_info_id_base(
+    org_url_slug: String,
+    repo_full_name: String,
+    file: Option<String>,
+    classname: Option<String>,
+    parent_fact_path: Option<String>,
+    name: Option<String>,
+    info_id: Option<String>,
+    variant: String,
+) -> String {
+    gen_info_id_base_impl(
         &org_url_slug,
         &repo_full_name,
         file.as_deref(),
