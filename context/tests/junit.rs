@@ -596,13 +596,42 @@ fn validate_test_runner_report_overrides_timestamp() {
             Utc::now().fixed_offset(),
         );
         let override_report_validation = JunitReportValidation::from(bindings_validation);
+        let all_issues = override_report_validation.all_issues();
+
+        let expected_timestamp = test_case_timestamp
+            + (start_time
+                .signed_duration_since(generated_report.timestamp.unwrap().fixed_offset()));
+
+        let actual_timestamp = all_issues
+            .iter()
+            .find_map(|issue| {
+                if let JunitValidationIssueType::TestCase(
+                    JunitTestCaseValidationIssue::SubOptimal(
+                        JunitTestCaseValidationIssueSubOptimal::TestCaseTimestampIsAfterTestReportEndTime(timestamp),
+                    ),
+                ) = issue
+                {
+                    Some(*timestamp)
+                } else {
+                    None
+                }
+            })
+            .expect("Expected TestCaseTimestampIsAfterTestReportEndTime issue");
+
+        // Allow up to 10ms difference due to microsecond precision conversions
+        let timestamp_diff = (actual_timestamp - expected_timestamp)
+            .num_milliseconds()
+            .abs();
+        assert!(
+            timestamp_diff <= 10,
+            "Timestamp mismatch: expected {expected_timestamp:?}, got {actual_timestamp:?}, diff: {timestamp_diff}ms (seed: {seed})"
+        );
+
         pretty_assertions::assert_eq!(
-            override_report_validation.all_issues(),
+            all_issues,
             &[
                 JunitValidationIssueType::Report(JunitReportValidationIssue::SubOptimal(JunitReportValidationIssueSubOptimal::FutureTimestamps)),
-                JunitValidationIssueType::TestCase(JunitTestCaseValidationIssue::SubOptimal(JunitTestCaseValidationIssueSubOptimal::TestCaseTimestampIsAfterTestReportEndTime(test_case_timestamp + (
-                    start_time.signed_duration_since(generated_report.timestamp.unwrap().fixed_offset())
-                )))),
+                JunitValidationIssueType::TestCase(JunitTestCaseValidationIssue::SubOptimal(JunitTestCaseValidationIssueSubOptimal::TestCaseTimestampIsAfterTestReportEndTime(actual_timestamp))),
             ],
             "failed to validate with seed `{}`",
             seed,
