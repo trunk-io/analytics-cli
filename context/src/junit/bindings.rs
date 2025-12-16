@@ -15,10 +15,11 @@ use wasm_bindgen::prelude::*;
 use super::{
     parser::JunitParseFlatIssue,
     validator::{
-        JunitReportValidation, JunitReportValidationFlatIssue, JunitTestSuiteValidation,
-        JunitValidationLevel, JunitValidationType,
+        JunitReportValidationFlatIssue, JunitTestSuiteValidation, JunitValidationLevel,
+        JunitValidationType,
     },
 };
+use crate::junit::validator::JunitReportValidation;
 use crate::junit::{parser::extra_attrs, validator::TestRunnerReportValidation};
 
 #[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass(get_all))]
@@ -1014,6 +1015,40 @@ impl From<JunitReportValidation> for BindingsJunitReportValidation {
     }
 }
 
+impl From<BindingsJunitReportValidation> for JunitReportValidation {
+    fn from(bindings_validation: BindingsJunitReportValidation) -> Self {
+        let mut report_validation = JunitReportValidation {
+            all_issues: Vec::new(),
+            level: bindings_validation.level,
+            test_runner_report: bindings_validation.test_runner_report,
+            test_suites: bindings_validation.test_suites,
+            valid_test_suites: bindings_validation.valid_test_suites,
+        };
+
+        report_validation.derive_all_issues();
+
+        report_validation
+    }
+}
+
+impl BindingsJunitReportValidation {
+    pub fn new(
+        all_issues: Vec<JunitReportValidationFlatIssue>,
+        level: JunitValidationLevel,
+        test_runner_report: TestRunnerReportValidation,
+        test_suites: Vec<JunitTestSuiteValidation>,
+        valid_test_suites: Vec<BindingsTestSuite>,
+    ) -> Self {
+        Self {
+            all_issues,
+            level,
+            test_runner_report,
+            test_suites,
+            valid_test_suites,
+        }
+    }
+}
+
 #[cfg_attr(feature = "pyo3", gen_stub_pymethods, pymethods)]
 #[cfg_attr(feature = "wasm", wasm_bindgen)]
 impl BindingsJunitReportValidation {
@@ -1241,17 +1276,13 @@ mod tests {
         assert_eq!(test_case2.codeowners.clone().unwrap().len(), 0);
 
         // verify that the test report is valid
-        let results = validate(
-            &converted_bindings.clone().into(),
-            None,
-            chrono::Utc::now().fixed_offset(),
-        );
-        assert_eq!(results.all_issues_flat().len(), 1);
+        let results = validate(&converted_bindings, None, chrono::Utc::now().fixed_offset());
+        assert_eq!(results.all_issues_owned().len(), 1);
         results
-            .all_issues_flat()
+            .all_issues_owned()
             .sort_by(|a, b| a.error_message.cmp(&b.error_message));
         results
-            .all_issues_flat()
+            .all_issues_owned()
             .iter()
             .enumerate()
             .for_each(|issue| {

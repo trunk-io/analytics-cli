@@ -11,12 +11,13 @@ use constants::{EXIT_FAILURE, EXIT_SUCCESS};
 use context::{
     bazel_bep::{common::BepParseResult, parser::BazelBepParser},
     junit::{
+        bindings::BindingsReport,
         junit_path::{JunitReportFileWithTestRunnerReport, TestRunnerReport},
         parser::{JunitParseIssue, JunitParseIssueLevel, JunitParser},
         validator::{
             JunitReportValidation, JunitReportValidationFlatIssue,
             JunitReportValidationIssueSubOptimal, JunitValidationIssue, JunitValidationIssueType,
-            JunitValidationLevel, validate as validate_report,
+            JunitValidationLevel,
         },
     },
 };
@@ -552,14 +553,15 @@ async fn validate(
     let report_validations: JunitFileToValidation = parsed_reports
         .into_iter()
         .map(|(file, (report, test_runner_report))| {
-            (
-                file,
-                validate_report(
-                    &report,
-                    test_runner_report.map(TestRunnerReport::from),
-                    reference_timestamp,
-                ),
-            )
+            let bindings_report = BindingsReport::from(report);
+            let validation = context::junit::validator::validate(
+                &bindings_report,
+                test_runner_report
+                    .as_ref()
+                    .map(|trr| TestRunnerReport::from(trr.clone())),
+                reference_timestamp,
+            );
+            (file, JunitReportValidation::from(validation))
         })
         .collect();
     let test_issues = gen_test_issues(&report_validations);
