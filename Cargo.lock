@@ -1071,6 +1071,7 @@ dependencies = [
  "pyo3-stub-gen",
  "speedate 0.14.4",
  "tokio",
+ "uuid",
 ]
 
 [[package]]
