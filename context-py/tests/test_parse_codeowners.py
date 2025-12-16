@@ -195,3 +195,57 @@ def test_parse_and_associate_multithreaded():
             assert owners[i][0] == f"@user{i % num_codeowners_files}"
         else:
             assert len(owners[i]) == 0
+
+
+def test_parse_and_associate_by_codeowners_id_multithreaded():
+    from uuid import NAMESPACE_OID, uuid5
+
+    from context_py import (
+        make_codeowners_file,  # trunk-ignore(pyright/reportUnknownVariableType)
+    )
+    from context_py import (
+        CodeOwnersFile,
+        associate_codeowners_n_threads,
+        parse_many_codeowners_and_id_n_threads,
+    )
+
+    num_codeowners_files = 100
+    num_files_to_associate_owners = 1000
+    num_threads = 4
+
+    codeowners_bytes = [
+        f"{i}.txt @user{i}".encode() for i in range(0, num_codeowners_files)
+    ]
+    codeowners_files = [make_codeowners_file(bytes) for bytes in codeowners_bytes]
+    to_associate = [
+        (
+            str(
+                uuid5(
+                    NAMESPACE_OID,
+                    str(codeowners_bytes[i % num_codeowners_files], encoding="utf-8"),
+                )
+            ),
+            f"{i % num_codeowners_files if i % 2 == 0 else 'foo'}.txt",
+        )
+        for i in range(0, num_files_to_associate_owners)
+    ]
+
+    parsed_codeowners = parse_many_codeowners_and_id_n_threads(
+        codeowners_files, num_threads
+    )
+    codeowners_matchers = {
+        codeowners_matcher.get_id(): codeowners_matcher.get_owners()
+        for codeowners_matcher in parsed_codeowners
+    }
+    owners = associate_codeowners_n_threads(
+        codeowners_matchers, to_associate, num_threads
+    )
+
+    assert len(owners) == num_files_to_associate_owners
+
+    for i in range(0, num_files_to_associate_owners):
+        if i % 2 == 0:
+            assert len(owners[i]) == 1
+            assert owners[i][0] == f"@user{i % num_codeowners_files}"
+        else:
+            assert len(owners[i]) == 0

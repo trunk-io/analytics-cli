@@ -7,8 +7,8 @@ use bundle::{
 };
 use chrono::{DateTime, FixedOffset};
 use codeowners::{
-    BindingsOwners, BindingsOwnersAndSource, CodeOwners, CodeOwnersFile, Owners, OwnersSource,
-    associate_codeowners_multithreaded as associate_codeowners,
+    BindingsOwners, BindingsOwnersAndId, BindingsOwnersAndSource, CodeOwners, CodeOwnersFile,
+    Owners, OwnersSource, associate_codeowners_multithreaded as associate_codeowners,
 };
 use context::{
     env,
@@ -22,6 +22,7 @@ use pyo3_stub_gen::{define_stub_info_gatherer, derive::gen_stub_pyfunction};
 mod py_bytes_read;
 
 use py_bytes_read::PyBytesReader;
+use uuid::Uuid;
 
 define_stub_info_gatherer!(stub_info);
 
@@ -311,6 +312,19 @@ fn parse_many_codeowners_and_source_n_threads(
 
 #[gen_stub_pyfunction]
 #[pyfunction]
+fn parse_many_codeowners_and_id_n_threads(
+    to_parse: Vec<Option<CodeOwnersFile>>,
+    num_threads: usize,
+) -> PyResult<Vec<Option<BindingsOwnersAndId>>> {
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(num_threads)
+        .enable_all()
+        .build()?;
+    parse_many_codeowners_and_id_multithreaded_impl(rt, to_parse)
+}
+
+#[gen_stub_pyfunction]
+#[pyfunction]
 fn parse_many_codeowners_n_threads(
     to_parse: Vec<Option<CodeOwnersFile>>,
     num_threads: usize,
@@ -377,6 +391,32 @@ fn parse_many_codeowners_and_source_multithreaded_impl(
         results[parsed_indexes[i]] = codeowners.0.owners.map(|owners| BindingsOwnersAndSource {
             owners: BindingsOwners(owners),
             source: codeowners.1,
+        });
+    }
+    Ok(results)
+}
+
+fn parse_many_codeowners_and_id_multithreaded_impl(
+    rt: tokio::runtime::Runtime,
+    to_parse: Vec<Option<CodeOwnersFile>>,
+) -> PyResult<Vec<Option<BindingsOwnersAndId>>> {
+    let to_parse_len = to_parse.len();
+    let parsed_indexes = to_parse
+        .iter()
+        .enumerate()
+        .filter_map(|(i, file)| -> Option<usize> { file.as_ref().map(|_file| i) })
+        .collect::<Vec<_>>();
+    let parsed_codeowners = rt
+        .block_on(CodeOwners::parse_many_multithreaded_with_source(
+            to_parse.into_iter().flatten().collect(),
+        ))
+        .map_err(|err| PyTypeError::new_err(err.to_string()))?;
+
+    let mut results: Vec<Option<BindingsOwnersAndId>> = vec![None; to_parse_len];
+    for (i, codeowners) in parsed_codeowners.into_iter().enumerate() {
+        results[parsed_indexes[i]] = codeowners.0.owners.map(|owners| BindingsOwnersAndId {
+            owners: BindingsOwners(owners),
+            id: Uuid::new_v5(&Uuid::NAMESPACE_OID, &codeowners.1).to_string(),
         });
     }
     Ok(results)
@@ -585,6 +625,9 @@ fn context_py(m: &Bound<'_, PyModule>) -> PyResult<()> {
         parse_many_codeowners_and_source_n_threads,
         m
     )?)?;
+
+    m.add_class::<codeowners::BindingsOwnersAndId>()?;
+    m.add_function(wrap_pyfunction!(parse_many_codeowners_and_id_n_threads, m)?)?;
 
     m.add_class::<codeowners::CodeOwnersFile>()?;
 
