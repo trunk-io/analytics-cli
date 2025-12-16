@@ -106,6 +106,32 @@ require 'trunk_spec_helper'
 
 For a complete list of environment variables that the gem accepts, see [`lib/trunk_spec_helper.rb`](lib/trunk_spec_helper.rb). The gem uses the same environment variables as the Trunk Analytics CLI for configuration overrides.
 
+#### `TRUNK_LOCAL_UPLOAD_DIR` (Experimental)
+
+> **⚠️ Experimental Feature**: This feature is experimental. Please reach out to support@trunk.io before attempting to use it.
+
+When `TRUNK_LOCAL_UPLOAD_DIR` is set to a directory path, the RSpec gem will generate an `internal.bin` file and save it locally, relative to where the test was invoked. This disables the automatic upload to Trunk servers.
+
+**Use case**: This is useful when uploads are failing directly within the context of RSpec, but you still want to use quarantining. By generating the `internal.bin` file locally, you can then upload it separately using the Trunk Analytics CLI.
+
+**Usage**:
+
+```bash
+TRUNK_LOCAL_UPLOAD_DIR=./test-results bundle exec rspec
+```
+
+This will create an `internal.bin` file in the `./test-results` directory (relative to where the command was run).
+
+**Uploading with the CLI**:
+
+After generating the `internal.bin` file, you can upload it using the Trunk Analytics CLI. The CLI supports taking `internal.bin` files as input when running the upload command:
+
+```bash
+trunk upload --test-reports ./test-results/internal.bin
+```
+
+The CLI will automatically detect that the file is an `internal.bin` file (by its `.bin` extension) and process it accordingly, allowing you to still benefit from quarantining and other features.
+
 ## Project Structure
 
 - `lib/` - Ruby library code
