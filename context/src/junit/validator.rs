@@ -234,6 +234,7 @@ pub fn validate(
         report_validation.test_suites.push(test_suite_validation);
     }
 
+    report_validation.test_runner_report = test_runner_report_validation;
     report_validation.derive_all_issues();
     super::bindings::BindingsJunitReportValidation::from(report_validation)
 }

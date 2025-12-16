@@ -371,15 +371,13 @@ fn validate_test_runner_report_overrides_timestamp() {
                 .unwrap(),
             label: None,
         };
-        let bindings_report = BindingsReport::from(generated_report.clone());
-        let bindings_validation = junit::validator::validate(
-            &bindings_report,
-            Some(override_report.clone()),
+        let override_report_validation = junit::validator::validate(
+            &BindingsReport::from(generated_report.clone()),
+            &Some(override_report.clone()),
             Utc::now().fixed_offset(),
         );
-        let override_report_validation = JunitReportValidation::from(bindings_validation);
         pretty_assertions::assert_eq!(
-            override_report_validation.all_issues(),
+            JunitReportValidation::from(override_report_validation).all_issues(),
             &[
                 JunitValidationIssueType::Report(JunitReportValidationIssue::SubOptimal(
                     JunitReportValidationIssueSubOptimal::FutureTimestamps
@@ -417,7 +415,7 @@ fn validate_test_runner_report_overrides_timestamp() {
         let bindings_report = BindingsReport::from(generated_report.clone());
         let bindings_validation = junit::validator::validate(
             &bindings_report,
-            Some(override_report.clone()),
+            &Some(override_report.clone()),
             Utc::now().fixed_offset(),
         );
         let override_report_validation = JunitReportValidation::from(bindings_validation);
@@ -460,7 +458,7 @@ fn validate_test_runner_report_overrides_timestamp() {
         let bindings_report = BindingsReport::from(generated_report.clone());
         let bindings_validation = junit::validator::validate(
             &bindings_report,
-            Some(override_report.clone()),
+            &Some(override_report.clone()),
             Utc::now().fixed_offset(),
         );
         let override_report_validation = JunitReportValidation::from(bindings_validation);
@@ -505,7 +503,7 @@ fn validate_test_runner_report_overrides_timestamp() {
         let bindings_report = BindingsReport::from(generated_report.clone());
         let bindings_validation = junit::validator::validate(
             &bindings_report,
-            Some(override_report.clone()),
+            &Some(override_report.clone()),
             Utc::now().fixed_offset(),
         );
         let report_validation = JunitReportValidation::from(bindings_validation);
@@ -536,7 +534,7 @@ fn validate_test_runner_report_overrides_timestamp() {
         let bindings_report = BindingsReport::from(generated_report.clone());
         let bindings_validation = junit::validator::validate(
             &bindings_report,
-            Some(override_report.clone()),
+            &Some(override_report.clone()),
             Utc::now().fixed_offset(),
         );
         let report_validation = JunitReportValidation::from(bindings_validation);
@@ -594,7 +592,7 @@ fn validate_test_runner_report_overrides_timestamp() {
         let bindings_report = BindingsReport::from(generated_report.clone());
         let bindings_validation = junit::validator::validate(
             &bindings_report,
-            Some(override_report.clone()),
+            &Some(override_report.clone()),
             Utc::now().fixed_offset(),
         );
         let override_report_validation = JunitReportValidation::from(bindings_validation);
@@ -650,7 +648,7 @@ fn parse_round_trip_and_validate_fuzzed() {
         let serialized_generated_report = serialize_report(generated_report);
         let first_parsed_report = parse_report(&serialized_generated_report);
         let bindings_validation =
-            junit::validator::validate(&first_parsed_report, None, Utc::now().fixed_offset());
+            junit::validator::validate(&first_parsed_report, &None, Utc::now().fixed_offset());
         let report_validation = JunitReportValidation::from(bindings_validation);
 
         assert_eq!(
