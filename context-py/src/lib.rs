@@ -165,7 +165,7 @@ fn junit_validate(
 
     Ok(junit::validator::validate(
         &report,
-        test_runner_report.map(TestRunnerReport::from),
+        &test_runner_report.map(TestRunnerReport::from),
         reference_timestamp,
     ))
 }

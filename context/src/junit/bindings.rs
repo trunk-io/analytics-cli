@@ -1016,36 +1016,24 @@ impl From<JunitReportValidation> for BindingsJunitReportValidation {
 }
 
 impl From<BindingsJunitReportValidation> for JunitReportValidation {
-    fn from(bindings_validation: BindingsJunitReportValidation) -> Self {
-        let mut report_validation = JunitReportValidation {
-            all_issues: Vec::new(),
-            level: bindings_validation.level,
-            test_runner_report: bindings_validation.test_runner_report,
-            test_suites: bindings_validation.test_suites,
-            valid_test_suites: bindings_validation.valid_test_suites,
-        };
-
-        report_validation.derive_all_issues();
-
-        report_validation
-    }
-}
-
-impl BindingsJunitReportValidation {
-    pub fn new(
-        all_issues: Vec<JunitReportValidationFlatIssue>,
-        level: JunitValidationLevel,
-        test_runner_report: TestRunnerReportValidation,
-        test_suites: Vec<JunitTestSuiteValidation>,
-        valid_test_suites: Vec<BindingsTestSuite>,
-    ) -> Self {
-        Self {
-            all_issues,
+    fn from(
+        BindingsJunitReportValidation {
+            all_issues: _,
             level,
             test_runner_report,
             test_suites,
             valid_test_suites,
-        }
+        }: BindingsJunitReportValidation,
+    ) -> Self {
+        let mut validation = Self {
+            all_issues: Vec::new(),
+            level,
+            test_runner_report,
+            test_suites,
+            valid_test_suites,
+        };
+        validation.derive_all_issues();
+        validation
     }
 }
 
@@ -1276,7 +1264,11 @@ mod tests {
         assert_eq!(test_case2.codeowners.clone().unwrap().len(), 0);
 
         // verify that the test report is valid
-        let results = validate(&converted_bindings, None, chrono::Utc::now().fixed_offset());
+        let results = validate(
+            &converted_bindings,
+            &None,
+            chrono::Utc::now().fixed_offset(),
+        );
         assert_eq!(results.all_issues_owned().len(), 1);
         results
             .all_issues_owned()

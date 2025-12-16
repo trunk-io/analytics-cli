@@ -272,8 +272,8 @@ fn parse_and_optionally_validate_junit_file(
         let reports = junit_parser.reports();
         let reference_timestamp = chrono::Utc::now().fixed_offset();
         for report in reports {
-            let bindings_report = BindingsReport::from(report);
-            let validation = validate(&bindings_report, test_runner_report, reference_timestamp);
+            let bindings_report = BindingsReport::from(report.clone());
+            let validation = validate(&bindings_report, &test_runner_report, reference_timestamp);
             junit_validations.insert(
                 junit_path.to_string(),
                 Ok(JunitReportValidation::from(validation)),

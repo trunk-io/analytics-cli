@@ -93,7 +93,7 @@ fn validate_test_suite_name_too_short() {
 
     let bindings_report = BindingsReport::from(generated_report.clone());
     let bindings_validation =
-        junit::validator::validate(&bindings_report, None, Utc::now().fixed_offset());
+        junit::validator::validate(&bindings_report, &None, Utc::now().fixed_offset());
     let report_validation = JunitReportValidation::from(bindings_validation);
 
     assert_eq!(
@@ -132,7 +132,7 @@ fn validate_test_case_name_too_short() {
 
     let bindings_report = BindingsReport::from(generated_report.clone());
     let bindings_validation =
-        junit::validator::validate(&bindings_report, None, Utc::now().fixed_offset());
+        junit::validator::validate(&bindings_report, &None, Utc::now().fixed_offset());
     let report_validation = JunitReportValidation::from(bindings_validation);
 
     assert_eq!(
@@ -168,7 +168,7 @@ fn validate_test_suite_name_too_long() {
 
     let bindings_report = BindingsReport::from(generated_report.clone());
     let bindings_validation =
-        junit::validator::validate(&bindings_report, None, Utc::now().fixed_offset());
+        junit::validator::validate(&bindings_report, &None, Utc::now().fixed_offset());
     let report_validation = JunitReportValidation::from(bindings_validation);
 
     assert_eq!(
@@ -207,7 +207,7 @@ fn validate_test_case_name_too_long() {
 
     let bindings_report = BindingsReport::from(generated_report.clone());
     let bindings_validation =
-        junit::validator::validate(&bindings_report, None, Utc::now().fixed_offset());
+        junit::validator::validate(&bindings_report, &None, Utc::now().fixed_offset());
     let report_validation = JunitReportValidation::from(bindings_validation);
 
     assert_eq!(
@@ -248,7 +248,7 @@ fn validate_max_level() {
 
     let bindings_report = BindingsReport::from(generated_report.clone());
     let bindings_validation =
-        junit::validator::validate(&bindings_report, None, Utc::now().fixed_offset());
+        junit::validator::validate(&bindings_report, &None, Utc::now().fixed_offset());
     let report_validation = JunitReportValidation::from(bindings_validation);
 
     assert_eq!(
@@ -322,7 +322,7 @@ fn validate_timestamps() {
 
     let bindings_report = BindingsReport::from(generated_report.clone());
     let bindings_validation =
-        junit::validator::validate(&bindings_report, None, Utc::now().fixed_offset());
+        junit::validator::validate(&bindings_report, &None, Utc::now().fixed_offset());
     let report_validation = JunitReportValidation::from(bindings_validation);
 
     assert_eq!(
@@ -551,7 +551,7 @@ fn validate_test_runner_report_overrides_timestamp() {
     {
         let bindings_report = BindingsReport::from(generated_report.clone());
         let bindings_validation =
-            junit::validator::validate(&bindings_report, None, Utc::now().fixed_offset());
+            junit::validator::validate(&bindings_report, &None, Utc::now().fixed_offset());
         let report_validation = JunitReportValidation::from(bindings_validation);
         pretty_assertions::assert_eq!(
             report_validation.all_issues(),

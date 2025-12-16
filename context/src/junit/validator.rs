@@ -10,9 +10,7 @@ use thiserror::Error;
 use wasm_bindgen::prelude::*;
 
 #[cfg(feature = "bindings")]
-use super::bindings::{
-    BindingsJunitReportValidation, BindingsReport, BindingsTestCase, BindingsTestSuite,
-};
+use super::bindings::{BindingsReport, BindingsTestCase, BindingsTestSuite};
 use super::parser::extra_attrs;
 use crate::{
     junit::junit_path::TestRunnerReport,
@@ -81,13 +79,11 @@ impl Default for JunitValidationType {
 
 pub fn validate(
     report: &BindingsReport,
-    test_runner_report: Option<TestRunnerReport>,
+    test_runner_report: &Option<TestRunnerReport>,
     reference_timestamp: DateTime<FixedOffset>,
 ) -> super::bindings::BindingsJunitReportValidation {
-    let mut level = JunitValidationLevel::Valid;
+    let mut report_validation = JunitReportValidation::default();
     let mut test_runner_report_validation = TestRunnerReportValidation::default();
-    let mut test_suites_validation = Vec::new();
-    let mut valid_test_suites = Vec::new();
 
     let test_runner_report_for_validation = test_runner_report.clone();
 
@@ -233,102 +229,13 @@ pub fn validate(
         if test_suite_validation.level != JunitValidationLevel::Invalid {
             let mut valid_test_suite = test_suite.clone();
             valid_test_suite.test_cases = valid_test_cases;
-            valid_test_suites.push(valid_test_suite);
+            report_validation.valid_test_suites.push(valid_test_suite);
         }
-
-        test_suites_validation.push(test_suite_validation);
+        report_validation.test_suites.push(test_suite_validation);
     }
 
-    let mut report_level_issues: HashSet<JunitReportValidationIssue> = HashSet::new();
-    let mut other_issues: Vec<JunitValidationIssueType> = Vec::new();
-
-    for issue in &test_runner_report_validation.issues {
-        other_issues.push(JunitValidationIssueType::TestRunnerReport(issue.clone()));
-    }
-
-    for test_suite in &test_suites_validation {
-        for issue in &test_suite.issues {
-            other_issues.push(JunitValidationIssueType::TestSuite(issue.clone()));
-        }
-
-        for test_case in &test_suite.test_cases {
-            for issue in &test_case.issues {
-                if let Some(report_level_issue) = match issue {
-                    JunitValidationIssue::SubOptimal(
-                        JunitTestCaseValidationIssueSubOptimal::TestCaseFileOrFilepathTooShort(..),
-                    ) => Some(JunitValidationIssue::SubOptimal(
-                        JunitReportValidationIssueSubOptimal::TestCasesFileOrFilepathMissing,
-                    )),
-                    JunitValidationIssue::SubOptimal(
-                        JunitTestCaseValidationIssueSubOptimal::TestCaseNoTimestamp,
-                    ) => Some(JunitValidationIssue::SubOptimal(
-                        JunitReportValidationIssueSubOptimal::MissingTimestamps,
-                    )),
-                    JunitValidationIssue::SubOptimal(
-                        JunitTestCaseValidationIssueSubOptimal::TestCaseFutureTimestamp(..),
-                    ) => Some(JunitValidationIssue::SubOptimal(
-                        JunitReportValidationIssueSubOptimal::FutureTimestamps,
-                    )),
-                    JunitValidationIssue::SubOptimal(
-                        JunitTestCaseValidationIssueSubOptimal::TestCaseOldTimestamp(..),
-                    ) => Some(JunitValidationIssue::SubOptimal(
-                        JunitReportValidationIssueSubOptimal::OldTimestamps,
-                    )),
-                    JunitValidationIssue::SubOptimal(
-                        JunitTestCaseValidationIssueSubOptimal::TestCaseStaleTimestamp(..),
-                    ) => Some(JunitValidationIssue::SubOptimal(
-                        JunitReportValidationIssueSubOptimal::StaleTimestamps,
-                    )),
-                    _ => None,
-                } {
-                    report_level_issues.insert(report_level_issue);
-                } else {
-                    other_issues.push(JunitValidationIssueType::TestCase(issue.clone()));
-                }
-            }
-        }
-    }
-
-    level = report_level_issues
-        .iter()
-        .map(JunitValidationLevel::from)
-        .max()
-        .map_or(level, |l| l.max(level));
-
-    if level == JunitValidationLevel::Invalid {
-        valid_test_suites.clear();
-    }
-
-    other_issues.extend(
-        report_level_issues
-            .iter()
-            .map(|issue| JunitValidationIssueType::Report(issue.clone())),
-    );
-
-    other_issues.sort_by(|a, b| {
-        match (JunitValidationLevel::from(a), JunitValidationLevel::from(b)) {
-            (JunitValidationLevel::Invalid, JunitValidationLevel::SubOptimal) => Ordering::Less,
-            (JunitValidationLevel::SubOptimal, JunitValidationLevel::Invalid) => Ordering::Greater,
-            _ => a.to_string().cmp(&b.to_string()),
-        }
-    });
-
-    let all_issues = other_issues
-        .into_iter()
-        .map(|i| JunitReportValidationFlatIssue {
-            level: JunitValidationLevel::from(&i),
-            error_type: JunitValidationType::from(&i),
-            error_message: i.to_string(),
-        })
-        .collect();
-
-    BindingsJunitReportValidation::new(
-        all_issues,
-        level,
-        test_runner_report_validation,
-        test_suites_validation,
-        valid_test_suites,
-    )
+    report_validation.derive_all_issues();
+    super::bindings::BindingsJunitReportValidation::from(report_validation)
 }
 
 #[derive(Debug, Clone, Default)]

@@ -136,7 +136,7 @@ pub fn junit_validate(
 
     Ok(junit::validator::validate(
         report,
-        test_runner_report.map(junit::junit_path::TestRunnerReport::from),
+        &test_runner_report.map(junit::junit_path::TestRunnerReport::from),
         reference_timestamp,
     ))
 }

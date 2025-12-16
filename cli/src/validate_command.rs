@@ -556,7 +556,7 @@ async fn validate(
             let bindings_report = BindingsReport::from(report);
             let validation = context::junit::validator::validate(
                 &bindings_report,
-                test_runner_report
+                &test_runner_report
                     .as_ref()
                     .map(|trr| TestRunnerReport::from(trr.clone())),
                 reference_timestamp,
