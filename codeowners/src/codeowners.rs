@@ -252,6 +252,26 @@ impl BindingsOwnersAndSource {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass)]
+pub struct BindingsOwnersAndId {
+    pub owners: BindingsOwners,
+    pub id: String,
+}
+
+#[cfg(feature = "pyo3")]
+#[gen_stub_pymethods]
+#[pymethods]
+impl BindingsOwnersAndId {
+    pub fn get_owners(&self) -> BindingsOwners {
+        self.owners.clone()
+    }
+
+    pub fn get_id(&self) -> String {
+        self.id.clone()
+    }
+}
+
 pub fn associate_codeowners<T: AsRef<Path>>(owners: &Owners, file: T) -> Vec<String> {
     match owners {
         Owners::GitHubOwners(gho) => gho
