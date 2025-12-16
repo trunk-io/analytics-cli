@@ -204,7 +204,6 @@ def test_parse_and_associate_by_codeowners_id_multithreaded():
         make_codeowners_file,  # trunk-ignore(pyright/reportUnknownVariableType)
     )
     from context_py import (
-        CodeOwnersFile,
         associate_codeowners_n_threads,
         parse_many_codeowners_and_id_n_threads,
     )
