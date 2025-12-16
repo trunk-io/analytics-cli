@@ -235,6 +235,7 @@ def test_parse_and_associate_by_codeowners_id_multithreaded():
     codeowners_matchers = {
         codeowners_matcher.get_id(): codeowners_matcher.get_owners()
         for codeowners_matcher in parsed_codeowners
+        if codeowners_matcher is not None
     }
     owners = associate_codeowners_n_threads(
         codeowners_matchers, to_associate, num_threads
