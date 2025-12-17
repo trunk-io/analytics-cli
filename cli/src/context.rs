@@ -24,6 +24,7 @@ use context::{
         parser::BazelBepParser,
     },
     junit::{
+        bindings::BindingsReport,
         junit_path::JunitReportFileWithTestRunnerReport,
         parser::JunitParser,
         validator::{JunitReportValidation, validate},
@@ -270,14 +271,12 @@ fn parse_and_optionally_validate_junit_file(
     if show_warnings {
         let reports = junit_parser.reports();
         let reference_timestamp = chrono::Utc::now().fixed_offset();
-        if reports.len() == 1 {
+        for report in reports {
+            let bindings_report = BindingsReport::from(report.clone());
+            let validation = validate(&bindings_report, &test_runner_report, reference_timestamp);
             junit_validations.insert(
                 junit_path.to_string(),
-                Ok(validate(
-                    &reports[0],
-                    test_runner_report,
-                    reference_timestamp,
-                )),
+                Ok(JunitReportValidation::from(validation)),
             );
         }
     }

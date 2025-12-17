@@ -15,10 +15,11 @@ use wasm_bindgen::prelude::*;
 use super::{
     parser::JunitParseFlatIssue,
     validator::{
-        JunitReportValidation, JunitReportValidationFlatIssue, JunitTestSuiteValidation,
-        JunitValidationLevel, JunitValidationType,
+        JunitReportValidationFlatIssue, JunitTestSuiteValidation, JunitValidationLevel,
+        JunitValidationType,
     },
 };
+use crate::junit::validator::JunitReportValidation;
 use crate::junit::{parser::extra_attrs, validator::TestRunnerReportValidation};
 
 #[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass(get_all))]
@@ -1014,6 +1015,28 @@ impl From<JunitReportValidation> for BindingsJunitReportValidation {
     }
 }
 
+impl From<BindingsJunitReportValidation> for JunitReportValidation {
+    fn from(
+        BindingsJunitReportValidation {
+            all_issues: _,
+            level,
+            test_runner_report,
+            test_suites,
+            valid_test_suites,
+        }: BindingsJunitReportValidation,
+    ) -> Self {
+        let mut validation = Self {
+            all_issues: Vec::new(),
+            level,
+            test_runner_report,
+            test_suites,
+            valid_test_suites,
+        };
+        validation.derive_all_issues();
+        validation
+    }
+}
+
 #[cfg_attr(feature = "pyo3", gen_stub_pymethods, pymethods)]
 #[cfg_attr(feature = "wasm", wasm_bindgen)]
 impl BindingsJunitReportValidation {
@@ -1242,16 +1265,16 @@ mod tests {
 
         // verify that the test report is valid
         let results = validate(
-            &converted_bindings.clone().into(),
-            None,
+            &converted_bindings,
+            &None,
             chrono::Utc::now().fixed_offset(),
         );
-        assert_eq!(results.all_issues_flat().len(), 1);
+        assert_eq!(results.all_issues_owned().len(), 1);
         results
-            .all_issues_flat()
+            .all_issues_owned()
             .sort_by(|a, b| a.error_message.cmp(&b.error_message));
         results
-            .all_issues_flat()
+            .all_issues_owned()
             .iter()
             .enumerate()
             .for_each(|issue| {
@@ -1366,5 +1389,113 @@ mod tests {
                 report_binding.extra().get("file")
             );
         }
+    }
+
+    #[cfg(feature = "bindings")]
+    #[test]
+    fn test_validate_preserves_codeowners_in_valid_test_suites() {
+        use prost_wkt_types::Timestamp;
+
+        use crate::junit::validator::validate;
+        let test_started_at = Timestamp {
+            seconds: chrono::Utc::now().timestamp(),
+            nanos: 0,
+        };
+        let test_finished_at = Timestamp {
+            seconds: test_started_at.seconds + 1,
+            nanos: 0,
+        };
+        let codeowner1 = CodeOwner {
+            name: "@user1".into(),
+        };
+        let codeowner2 = CodeOwner {
+            name: "@user2".into(),
+        };
+        let test1 = TestCaseRun {
+            id: "test_id1".into(),
+            name: "test_name1".into(),
+            classname: "test_classname".into(),
+            file: "test_file1.java".into(),
+            parent_name: "test_parent_name1".into(),
+            line: 1,
+            status: TestCaseRunStatus::Success.into(),
+            attempt_number: 1,
+            started_at: Some(test_started_at.clone()),
+            finished_at: Some(test_finished_at.clone()),
+            status_output_message: "".into(),
+            codeowners: vec![codeowner1.clone()],
+            ..Default::default()
+        };
+
+        let test2 = TestCaseRun {
+            id: "test_id2".into(),
+            name: "test_name2".into(),
+            classname: "test_classname".into(),
+            file: "test_file2.java".into(),
+            parent_name: "test_parent_name1".into(),
+            line: 2,
+            status: TestCaseRunStatus::Success.into(),
+            attempt_number: 1,
+            started_at: Some(test_started_at.clone()),
+            finished_at: Some(test_finished_at.clone()),
+            status_output_message: "".into(),
+            codeowners: vec![codeowner2.clone()],
+            ..Default::default()
+        };
+
+        let mut test_result = TestResult::default();
+        test_result.test_case_runs.push(test1.clone());
+        test_result.test_case_runs.push(test2.clone());
+
+        let converted_bindings: BindingsReport = test_result.into();
+
+        // Verify codeowners are present in the original report
+        assert_eq!(converted_bindings.test_suites.len(), 1);
+        let original_test_suite = &converted_bindings.test_suites[0];
+        assert_eq!(original_test_suite.test_cases.len(), 2);
+        assert_eq!(
+            original_test_suite.test_cases[0].codeowners,
+            Some(vec!["@user1".to_string()])
+        );
+        assert_eq!(
+            original_test_suite.test_cases[1].codeowners,
+            Some(vec!["@user2".to_string()])
+        );
+
+        // Validate the report
+        let validation_result = validate(
+            &converted_bindings,
+            &None,
+            chrono::Utc::now().fixed_offset(),
+        );
+
+        // Verify that valid_test_suites preserves codeowners
+        assert_eq!(validation_result.valid_test_suites.len(), 1);
+        let valid_test_suite = &validation_result.valid_test_suites[0];
+        assert_eq!(valid_test_suite.test_cases.len(), 2);
+
+        // Find test cases by name to match them up
+        let valid_test_case1 = valid_test_suite
+            .test_cases
+            .iter()
+            .find(|tc| tc.name == "test_name1")
+            .expect("test_name1 should be in valid_test_suites");
+        let valid_test_case2 = valid_test_suite
+            .test_cases
+            .iter()
+            .find(|tc| tc.name == "test_name2")
+            .expect("test_name2 should be in valid_test_suites");
+
+        // Verify codeowners are preserved
+        assert_eq!(
+            valid_test_case1.codeowners,
+            Some(vec!["@user1".to_string()]),
+            "codeowners for test_name1 should be preserved"
+        );
+        assert_eq!(
+            valid_test_case2.codeowners,
+            Some(vec!["@user2".to_string()]),
+            "codeowners for test_name2 should be preserved"
+        );
     }
 }
