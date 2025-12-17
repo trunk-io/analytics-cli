@@ -164,12 +164,10 @@ fn junit_validate(
             .with_timezone(&fixed_offset)
         })?;
 
-    Ok(junit::bindings::BindingsJunitReportValidation::from(
-        junit::validator::validate(
-            &report.into(),
-            test_runner_report.map(TestRunnerReport::from),
-            reference_timestamp,
-        ),
+    Ok(junit::validator::validate(
+        &report,
+        &test_runner_report.map(TestRunnerReport::from),
+        reference_timestamp,
     ))
 }
 

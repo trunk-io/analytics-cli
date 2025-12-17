@@ -5,11 +5,12 @@ use chrono::{DateTime, FixedOffset, TimeDelta};
 use pyo3::prelude::*;
 #[cfg(feature = "pyo3")]
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pyclass_enum, gen_stub_pymethods};
-use quick_junit::{Report, TestCase, TestSuite};
 use thiserror::Error;
 #[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::*;
 
+#[cfg(feature = "bindings")]
+use super::bindings::{BindingsReport, BindingsTestCase, BindingsTestSuite};
 use super::parser::extra_attrs;
 use crate::{
     junit::junit_path::TestRunnerReport,
@@ -77,18 +78,34 @@ impl Default for JunitValidationType {
 }
 
 pub fn validate(
-    report: &Report,
-    test_runner_report: Option<TestRunnerReport>,
+    report: &BindingsReport,
+    test_runner_report: &Option<TestRunnerReport>,
     reference_timestamp: DateTime<FixedOffset>,
-) -> JunitReportValidation {
+) -> super::bindings::BindingsJunitReportValidation {
     let mut report_validation = JunitReportValidation::default();
-    validate_test_runner_report(test_runner_report.clone(), reference_timestamp)
-        .into_iter()
-        .for_each(|i| {
-            report_validation
-                .test_runner_report
-                .add_issue(TestRunnerReportValidationIssue::SubOptimal(i))
-        });
+    let mut test_runner_report_validation = TestRunnerReportValidation::default();
+
+    let test_runner_report_for_validation = test_runner_report.clone();
+
+    validate_test_runner_report(
+        test_runner_report_for_validation.clone(),
+        reference_timestamp,
+    )
+    .into_iter()
+    .for_each(|i| {
+        test_runner_report_validation.add_issue(TestRunnerReportValidationIssue::SubOptimal(i))
+    });
+
+    let report_timestamp = report
+        .timestamp_micros
+        .and_then(|micro_secs| {
+            let micros_delta = TimeDelta::microseconds(micro_secs);
+            DateTime::from_timestamp(
+                micros_delta.num_seconds(),
+                micros_delta.subsec_nanos() as u32,
+            )
+        })
+        .map(|dt| dt.fixed_offset());
 
     for test_suite in report.test_suites.iter() {
         let mut test_suite_validation = JunitTestSuiteValidation::default();
@@ -107,7 +124,18 @@ pub fn validate(
             }
         };
 
-        let mut valid_test_cases: Vec<TestCase> = Vec::new();
+        let test_suite_timestamp = test_suite
+            .timestamp_micros
+            .and_then(|micro_secs| {
+                let micros_delta = TimeDelta::microseconds(micro_secs);
+                DateTime::from_timestamp(
+                    micros_delta.num_seconds(),
+                    micros_delta.subsec_nanos() as u32,
+                )
+            })
+            .map(|dt| dt.fixed_offset());
+
+        let mut valid_test_cases: Vec<BindingsTestCase> = Vec::new();
         for test_case in test_suite.test_cases.iter() {
             let mut test_case_validation = JunitTestCaseValidation::default();
 
@@ -127,12 +155,11 @@ pub fn validate(
 
             match validate_field_len::<MAX_FIELD_LEN, _>(
                 test_case
-                    .extra
+                    .extra()
                     .get(extra_attrs::FILE)
-                    .or(test_case.extra.get(extra_attrs::FILEPATH))
-                    .or(test_suite.extra.get(extra_attrs::FILE))
-                    .or(test_suite.extra.get(extra_attrs::FILEPATH))
-                    .as_ref()
+                    .or(test_case.extra().get(extra_attrs::FILEPATH))
+                    .or(test_suite.extra().get(extra_attrs::FILE))
+                    .or(test_suite.extra().get(extra_attrs::FILEPATH))
                     .map(|s| s.as_str())
                     .unwrap_or_default(),
             ) {
@@ -150,11 +177,7 @@ pub fn validate(
             };
 
             match validate_field_len::<MAX_FIELD_LEN, _>(
-                test_case
-                    .classname
-                    .as_ref()
-                    .map(|s| s.as_str())
-                    .unwrap_or_default(),
+                test_case.classname.as_deref().unwrap_or_default(),
             ) {
                 FieldLen::Valid => (),
                 FieldLen::TooShort(s) => {
@@ -175,11 +198,22 @@ pub fn validate(
                 ));
             }
 
+            let test_case_timestamp = test_case
+                .timestamp_micros
+                .and_then(|micro_secs| {
+                    let micros_delta = TimeDelta::microseconds(micro_secs);
+                    DateTime::from_timestamp(
+                        micros_delta.num_seconds(),
+                        micros_delta.subsec_nanos() as u32,
+                    )
+                })
+                .map(|dt| dt.fixed_offset());
+
             validate_test_case_timestamp(
-                test_case.timestamp,
-                test_suite.timestamp,
-                report.timestamp,
-                test_runner_report.clone(),
+                test_case_timestamp,
+                test_suite_timestamp,
+                report_timestamp,
+                test_runner_report_for_validation.clone(),
                 reference_timestamp,
             )
             .into_iter()
@@ -197,13 +231,12 @@ pub fn validate(
             valid_test_suite.test_cases = valid_test_cases;
             report_validation.valid_test_suites.push(valid_test_suite);
         }
-
         report_validation.test_suites.push(test_suite_validation);
     }
 
+    report_validation.test_runner_report = test_runner_report_validation;
     report_validation.derive_all_issues();
-
-    report_validation
+    super::bindings::BindingsJunitReportValidation::from(report_validation)
 }
 
 #[derive(Debug, Clone, Default)]
@@ -212,7 +245,7 @@ pub struct JunitReportValidation {
     pub level: JunitValidationLevel,
     pub test_runner_report: TestRunnerReportValidation,
     pub test_suites: Vec<JunitTestSuiteValidation>,
-    pub valid_test_suites: Vec<TestSuite>,
+    pub valid_test_suites: Vec<BindingsTestSuite>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -321,7 +354,7 @@ impl JunitReportValidation {
             .count()
     }
 
-    fn derive_all_issues(&mut self) {
+    pub fn derive_all_issues(&mut self) {
         let mut report_level_issues: HashSet<JunitReportValidationIssue> = HashSet::new();
         let mut other_issues: Vec<JunitValidationIssueType> = Vec::new();
 
