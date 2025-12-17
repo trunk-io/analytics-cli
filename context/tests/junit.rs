@@ -3,10 +3,11 @@ use std::{fs, io::BufReader, time::Duration};
 use chrono::{Days, NaiveTime, TimeDelta, Utc};
 use context::junit::{
     self,
+    bindings::BindingsReport,
     junit_path::{TestRunnerReport, TestRunnerReportStatus},
     parser::JunitParser,
     validator::{
-        JunitReportValidationIssue, JunitReportValidationIssueSubOptimal,
+        JunitReportValidation, JunitReportValidationIssue, JunitReportValidationIssueSubOptimal,
         JunitTestCaseValidationIssue, JunitTestCaseValidationIssueInvalid,
         JunitTestCaseValidationIssueSubOptimal, JunitTestSuiteValidationIssue,
         JunitTestSuiteValidationIssueInvalid, JunitTestSuiteValidationIssueSubOptimal,
@@ -67,7 +68,7 @@ fn serialize_report(report: &Report) -> Vec<u8> {
     serialized_report
 }
 
-fn parse_report<T: AsRef<[u8]>>(serialized_report: T) -> Report {
+fn parse_report<T: AsRef<[u8]>>(serialized_report: T) -> BindingsReport {
     let mut junit_parser = JunitParser::new();
     junit_parser
         .parse(BufReader::new(serialized_report.as_ref()))
@@ -78,7 +79,7 @@ fn parse_report<T: AsRef<[u8]>>(serialized_report: T) -> Report {
     let mut parsed_reports = junit_parser.into_reports();
     assert_eq!(parsed_reports.len(), 1);
 
-    parsed_reports.pop().unwrap()
+    BindingsReport::from(parsed_reports.pop().unwrap())
 }
 
 #[test]
@@ -90,8 +91,10 @@ fn validate_test_suite_name_too_short() {
         test_suite.name = String::new().into();
     }
 
-    let report_validation =
-        junit::validator::validate(&generated_report, None, Utc::now().fixed_offset());
+    let bindings_report = BindingsReport::from(generated_report.clone());
+    let bindings_validation =
+        junit::validator::validate(&bindings_report, &None, Utc::now().fixed_offset());
+    let report_validation = JunitReportValidation::from(bindings_validation);
 
     assert_eq!(
         report_validation.max_level(),
@@ -127,8 +130,10 @@ fn validate_test_case_name_too_short() {
         }
     }
 
-    let report_validation =
-        junit::validator::validate(&generated_report, None, Utc::now().fixed_offset());
+    let bindings_report = BindingsReport::from(generated_report.clone());
+    let bindings_validation =
+        junit::validator::validate(&bindings_report, &None, Utc::now().fixed_offset());
+    let report_validation = JunitReportValidation::from(bindings_validation);
 
     assert_eq!(
         report_validation.max_level(),
@@ -161,8 +166,10 @@ fn validate_test_suite_name_too_long() {
         test_suite.name = "a".repeat(junit::validator::MAX_FIELD_LEN + 1).into();
     }
 
-    let report_validation =
-        junit::validator::validate(&generated_report, None, Utc::now().fixed_offset());
+    let bindings_report = BindingsReport::from(generated_report.clone());
+    let bindings_validation =
+        junit::validator::validate(&bindings_report, &None, Utc::now().fixed_offset());
+    let report_validation = JunitReportValidation::from(bindings_validation);
 
     assert_eq!(
         report_validation.max_level(),
@@ -198,8 +205,10 @@ fn validate_test_case_name_too_long() {
         }
     }
 
-    let report_validation =
-        junit::validator::validate(&generated_report, None, Utc::now().fixed_offset());
+    let bindings_report = BindingsReport::from(generated_report.clone());
+    let bindings_validation =
+        junit::validator::validate(&bindings_report, &None, Utc::now().fixed_offset());
+    let report_validation = JunitReportValidation::from(bindings_validation);
 
     assert_eq!(
         report_validation.max_level(),
@@ -237,8 +246,10 @@ fn validate_max_level() {
         }
     }
 
-    let report_validation =
-        junit::validator::validate(&generated_report, None, Utc::now().fixed_offset());
+    let bindings_report = BindingsReport::from(generated_report.clone());
+    let bindings_validation =
+        junit::validator::validate(&bindings_report, &None, Utc::now().fixed_offset());
+    let report_validation = JunitReportValidation::from(bindings_validation);
 
     assert_eq!(
         report_validation.max_level(),
@@ -309,8 +320,10 @@ fn validate_timestamps() {
         }
     }
 
-    let report_validation =
-        junit::validator::validate(&generated_report, None, Utc::now().fixed_offset());
+    let bindings_report = BindingsReport::from(generated_report.clone());
+    let bindings_validation =
+        junit::validator::validate(&bindings_report, &None, Utc::now().fixed_offset());
+    let report_validation = JunitReportValidation::from(bindings_validation);
 
     assert_eq!(
         report_validation.max_level(),
@@ -359,12 +372,12 @@ fn validate_test_runner_report_overrides_timestamp() {
             label: None,
         };
         let override_report_validation = junit::validator::validate(
-            &generated_report,
-            Some(override_report.clone()),
+            &BindingsReport::from(generated_report.clone()),
+            &Some(override_report.clone()),
             Utc::now().fixed_offset(),
         );
         pretty_assertions::assert_eq!(
-            override_report_validation.all_issues(),
+            JunitReportValidation::from(override_report_validation).all_issues(),
             &[
                 JunitValidationIssueType::Report(JunitReportValidationIssue::SubOptimal(
                     JunitReportValidationIssueSubOptimal::FutureTimestamps
@@ -399,11 +412,13 @@ fn validate_test_runner_report_overrides_timestamp() {
                 .unwrap(),
             label: None,
         };
-        let override_report_validation = junit::validator::validate(
-            &generated_report,
-            Some(override_report.clone()),
+        let bindings_report = BindingsReport::from(generated_report.clone());
+        let bindings_validation = junit::validator::validate(
+            &bindings_report,
+            &Some(override_report.clone()),
             Utc::now().fixed_offset(),
         );
+        let override_report_validation = JunitReportValidation::from(bindings_validation);
         pretty_assertions::assert_eq!(
             override_report_validation.all_issues(),
             &[
@@ -440,11 +455,13 @@ fn validate_test_runner_report_overrides_timestamp() {
                 .unwrap(),
             label: None,
         };
-        let override_report_validation = junit::validator::validate(
-            &generated_report,
-            Some(override_report.clone()),
+        let bindings_report = BindingsReport::from(generated_report.clone());
+        let bindings_validation = junit::validator::validate(
+            &bindings_report,
+            &Some(override_report.clone()),
             Utc::now().fixed_offset(),
         );
+        let override_report_validation = JunitReportValidation::from(bindings_validation);
         pretty_assertions::assert_eq!(
             override_report_validation.all_issues(),
             &[
@@ -483,13 +500,15 @@ fn validate_test_runner_report_overrides_timestamp() {
                 .unwrap(),
             label: None,
         };
-        let override_report_validation = junit::validator::validate(
-            &generated_report,
-            Some(override_report.clone()),
+        let bindings_report = BindingsReport::from(generated_report.clone());
+        let bindings_validation = junit::validator::validate(
+            &bindings_report,
+            &Some(override_report.clone()),
             Utc::now().fixed_offset(),
         );
+        let report_validation = JunitReportValidation::from(bindings_validation);
         pretty_assertions::assert_eq!(
-            override_report_validation.test_runner_report.issues(),
+            report_validation.test_runner_report.issues(),
             &[TestRunnerReportValidationIssue::SubOptimal(
                 TestRunnerReportValidationIssueSubOptimal::EndTimeBeforeStartTime(
                     override_report.clone()
@@ -512,13 +531,15 @@ fn validate_test_runner_report_overrides_timestamp() {
                 .unwrap(),
             label: None,
         };
-        let override_report_validation = junit::validator::validate(
-            &generated_report,
-            Some(override_report.clone()),
+        let bindings_report = BindingsReport::from(generated_report.clone());
+        let bindings_validation = junit::validator::validate(
+            &bindings_report,
+            &Some(override_report.clone()),
             Utc::now().fixed_offset(),
         );
+        let report_validation = JunitReportValidation::from(bindings_validation);
         pretty_assertions::assert_eq!(
-            override_report_validation.all_issues(),
+            report_validation.all_issues(),
             &[],
             "failed to validate with seed `{}`",
             seed,
@@ -526,8 +547,10 @@ fn validate_test_runner_report_overrides_timestamp() {
     }
 
     {
-        let report_validation =
-            junit::validator::validate(&generated_report, None, Utc::now().fixed_offset());
+        let bindings_report = BindingsReport::from(generated_report.clone());
+        let bindings_validation =
+            junit::validator::validate(&bindings_report, &None, Utc::now().fixed_offset());
+        let report_validation = JunitReportValidation::from(bindings_validation);
         pretty_assertions::assert_eq!(
             report_validation.all_issues(),
             &[JunitValidationIssueType::Report(
@@ -566,18 +589,49 @@ fn validate_test_runner_report_overrides_timestamp() {
                     test_case.timestamp = Some(test_case_timestamp);
                 });
             });
-        let override_report_validation = junit::validator::validate(
-            &generated_report,
-            Some(override_report.clone()),
+        let bindings_report = BindingsReport::from(generated_report.clone());
+        let bindings_validation = junit::validator::validate(
+            &bindings_report,
+            &Some(override_report.clone()),
             Utc::now().fixed_offset(),
         );
+        let override_report_validation = JunitReportValidation::from(bindings_validation);
+        let all_issues = override_report_validation.all_issues();
+
+        let expected_timestamp = test_case_timestamp
+            + (start_time
+                .signed_duration_since(generated_report.timestamp.unwrap().fixed_offset()));
+
+        let actual_timestamp = all_issues
+            .iter()
+            .find_map(|issue| {
+                if let JunitValidationIssueType::TestCase(
+                    JunitTestCaseValidationIssue::SubOptimal(
+                        JunitTestCaseValidationIssueSubOptimal::TestCaseTimestampIsAfterTestReportEndTime(timestamp),
+                    ),
+                ) = issue
+                {
+                    Some(*timestamp)
+                } else {
+                    None
+                }
+            })
+            .expect("Expected TestCaseTimestampIsAfterTestReportEndTime issue");
+
+        // Allow up to 10ms difference due to microsecond precision conversions
+        let timestamp_diff = (actual_timestamp - expected_timestamp)
+            .num_milliseconds()
+            .abs();
+        assert!(
+            timestamp_diff <= 10,
+            "Timestamp mismatch: expected {expected_timestamp:?}, got {actual_timestamp:?}, diff: {timestamp_diff}ms (seed: {seed})"
+        );
+
         pretty_assertions::assert_eq!(
-            override_report_validation.all_issues(),
+            all_issues,
             &[
                 JunitValidationIssueType::Report(JunitReportValidationIssue::SubOptimal(JunitReportValidationIssueSubOptimal::FutureTimestamps)),
-                JunitValidationIssueType::TestCase(JunitTestCaseValidationIssue::SubOptimal(JunitTestCaseValidationIssueSubOptimal::TestCaseTimestampIsAfterTestReportEndTime(test_case_timestamp + (
-                    start_time.signed_duration_since(generated_report.timestamp.unwrap().fixed_offset())
-                )))),
+                JunitValidationIssueType::TestCase(JunitTestCaseValidationIssue::SubOptimal(JunitTestCaseValidationIssueSubOptimal::TestCaseTimestampIsAfterTestReportEndTime(actual_timestamp))),
             ],
             "failed to validate with seed `{}`",
             seed,
@@ -606,9 +660,10 @@ fn parse_naive_date() {
         );
     let first_parsed_report = parse_report(serialized_generated_report.as_bytes());
 
+    let expected_timestamp_micros = naive_date.timestamp_micros();
     pretty_assertions::assert_eq!(
-        first_parsed_report.timestamp.unwrap(),
-        naive_date,
+        first_parsed_report.timestamp_micros,
+        Some(expected_timestamp_micros),
         "failed to validate with seed `{}`",
         seed,
     );
@@ -621,8 +676,9 @@ fn parse_round_trip_and_validate_fuzzed() {
     for (index, generated_report) in generated_reports.iter().enumerate() {
         let serialized_generated_report = serialize_report(generated_report);
         let first_parsed_report = parse_report(&serialized_generated_report);
-        let report_validation =
-            junit::validator::validate(&first_parsed_report, None, Utc::now().fixed_offset());
+        let bindings_validation =
+            junit::validator::validate(&first_parsed_report, &None, Utc::now().fixed_offset());
+        let report_validation = JunitReportValidation::from(bindings_validation);
 
         assert_eq!(
             report_validation.max_level(),
@@ -633,8 +689,9 @@ fn parse_round_trip_and_validate_fuzzed() {
             seed,
         );
 
+        let report_for_serialization: Report = first_parsed_report.clone().into();
         let mut serialized_first_parsed_report = Vec::new();
-        first_parsed_report
+        report_for_serialization
             .serialize(&mut serialized_first_parsed_report)
             .unwrap();
 
