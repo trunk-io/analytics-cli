@@ -338,7 +338,7 @@ impl JunitParser {
                         )
                     };
                     test_case_run.is_quarantined = quarantined_test_ids.contains(&test_case_id);
-                    test_case_run.id = test_case_id;
+                    test_case_run.id = existing_id.map(|v| v.to_string()).unwrap_or_default();
 
                     test_case_run.file = file;
                     test_case_run.line = test_case
@@ -1074,20 +1074,7 @@ mod tests {
             })
         );
         assert_eq!(test_case_run1.line, 5);
-        // Verify that the ID field is set correctly (generated from gen_info_id_base)
-        assert_eq!(
-            test_case_run1.id,
-            gen_info_id_base(
-                org_slug.as_str(),
-                repo.repo_full_name().as_str(),
-                Some("test.java"),
-                Some("test"),
-                Some("testsuite"),
-                Some("test_variant_truncation1"),
-                None,
-                "",
-            )
-        );
+        assert_eq!(test_case_run1.id, "");
 
         let test_case_run2 = &test_case_runs[1];
         assert_eq!(test_case_run2.name, "test_variant_truncation2");
@@ -1098,20 +1085,7 @@ mod tests {
         assert_eq!(test_case_run2.file, "test.java");
         assert_eq!(test_case_run2.attempt_number, 0);
         assert!(!test_case_run2.is_quarantined);
-        // Verify that the ID field is set correctly for test_case_run2
-        assert_eq!(
-            test_case_run2.id,
-            gen_info_id_base(
-                org_slug.as_str(),
-                repo.repo_full_name().as_str(),
-                Some("test.java"),
-                None, // No classname for test_case_run2
-                Some("testsuite"),
-                Some("test_variant_truncation2"),
-                None,
-                "",
-            )
-        );
+        assert_eq!(test_case_run2.id, "",);
     }
 
     #[test]
@@ -1181,21 +1155,9 @@ mod tests {
         assert_eq!(test_case_run1.id, "xcresult-uuid-abcd");
         assert_eq!(test_case_run1.name, "test_with_id");
 
-        // Second test case should have a generated ID
+        // Second test case shouldn't have a generated ID
         let test_case_run2 = &test_case_runs[1];
-        assert_eq!(
-            test_case_run2.id,
-            gen_info_id_base(
-                org_slug.as_str(),
-                repo.repo_full_name().as_str(),
-                Some("test.swift"),
-                Some("TestClass"),
-                Some("testsuite"),
-                Some("test_without_id"),
-                None,
-                "",
-            )
-        );
+        assert_eq!(test_case_run2.id, "",);
         assert_eq!(test_case_run2.name, "test_without_id");
     }
 
@@ -1271,20 +1233,7 @@ mod tests {
             })
         );
         assert_eq!(test_case_run1.line, 5);
-        // Verify that the ID field is set correctly (generated from gen_info_id_base)
-        assert_eq!(
-            test_case_run1.id,
-            gen_info_id_base(
-                org_slug.as_str(),
-                repo.repo_full_name().as_str(),
-                Some("test.java"),
-                Some("test"),
-                Some("testsuite"),
-                Some("test_variant_truncation1"),
-                None,
-                "",
-            )
-        );
+        assert_eq!(test_case_run1.id, "");
 
         let test_case_run2 = &test_case_runs[1];
         assert_eq!(test_case_run2.name, "test_variant_truncation2");
@@ -1295,20 +1244,7 @@ mod tests {
         assert_eq!(test_case_run2.file, "test.java");
         assert_eq!(test_case_run2.attempt_number, 0);
         assert!(!test_case_run2.is_quarantined);
-        // Verify that the ID field is set correctly for test_case_run2
-        assert_eq!(
-            test_case_run2.id,
-            gen_info_id_base(
-                org_slug.as_str(),
-                repo.repo_full_name().as_str(),
-                Some("test.java"),
-                None, // No classname for test_case_run2
-                Some("testsuite"),
-                Some("test_variant_truncation2"),
-                None,
-                "",
-            )
-        );
+        assert_eq!(test_case_run2.id, "",);
         assert_eq!(
             test_case_run2.started_at,
             Some(Timestamp {
@@ -1467,7 +1403,7 @@ mod tests {
         <xml version="1.0" encoding="UTF-8"?>
         <testsuites>
             <testsuite name="testsuite" timestamp="2023-10-01T12:00:00Z" time="0.002">
-                <testcase file="test.java" classname="TestClass" name="test_with_variant" time="0.001">
+                <testcase id="trunk:123" file="test.java" classname="TestClass" name="test_with_variant" time="0.001">
                 </testcase>
             </testsuite>
         </testsuites>
@@ -1491,20 +1427,9 @@ mod tests {
         assert_eq!(test_case_runs_with_variant.len(), 1);
         let test_case_with_variant = &test_case_runs_with_variant[0];
 
-        let expected_id_with_variant = gen_info_id(
-            org_slug.as_str(),
-            repo.repo_full_name().as_str(),
-            Some("test.java"),
-            Some("TestClass"),
-            Some("testsuite"),
-            Some("test_with_variant"),
-            None,
-            variant,
-        );
-
         assert_eq!(
-            test_case_with_variant.id, expected_id_with_variant,
-            "ID should be generated with variant included"
+            test_case_with_variant.id, "trunk:123",
+            "ID should match xml"
         );
 
         let mut junit_parser_no_variant = JunitParser::new();
@@ -1516,27 +1441,6 @@ mod tests {
 
         assert_eq!(test_case_runs_no_variant.len(), 1);
         let test_case_no_variant = &test_case_runs_no_variant[0];
-
-        let expected_id_no_variant = gen_info_id_base(
-            org_slug.as_str(),
-            repo.repo_full_name().as_str(),
-            Some("test.java"),
-            Some("TestClass"),
-            Some("testsuite"),
-            Some("test_with_variant"),
-            None,
-            "",
-        );
-
-        assert_eq!(
-            test_case_no_variant.id, expected_id_no_variant,
-            "ID should be generated without variant"
-        );
-
-        assert_ne!(
-            test_case_with_variant.id, test_case_no_variant.id,
-            "IDs with and without variant should be different"
-        );
     }
 
     #[test]
