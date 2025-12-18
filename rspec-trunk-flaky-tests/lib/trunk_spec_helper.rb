@@ -187,6 +187,11 @@ class TrunkAnalyticsListener
 
   # trunk-ignore(rubocop/Metrics/CyclomaticComplexity,rubocop/Metrics/AbcSize,rubocop/Metrics/MethodLength)
   def add_test_case(example)
+    return if ENV['KNAPSACK_PRO_TEST_EXAMPLE_DETECTOR'] == 'true'
+
+    execution_result = example.execution_result
+    return unless execution_result.status
+
     failure_message = example.exception.to_s if example.exception
     failure_message = example.metadata[:quarantined_exception].to_s if example.metadata[:quarantined_exception]
     # TODO: should we use concatenated string or alias when auto-generated description?
@@ -194,12 +199,12 @@ class TrunkAnalyticsListener
     file = escape(example.metadata[:file_path])
     classname = file.sub(%r{\.[^/.]+\Z}, '').gsub('/', '.').gsub(/\A\.+|\.+\Z/, '')
     line = example.metadata[:line_number]
-    started_at = example.execution_result.started_at.to_i
-    finished_at = example.execution_result.finished_at.to_i
+    started_at = execution_result.started_at.to_i
+    finished_at = execution_result.finished_at.to_i
     id = example.generate_trunk_id
 
     attempt_number = example.metadata[:retry_attempts] || example.metadata[:attempt_number] || 0
-    status = example.execution_result.status.to_s
+    status = execution_result.status.to_s
     # set the status to failure, but mark it as quarantined
     is_quarantined = example.metadata[:quarantined_exception] ? true : false
     case example.execution_result.status
