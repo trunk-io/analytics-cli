@@ -16,7 +16,9 @@ chrono = { version = "0.4.38", features = ["serde"] }
 proto = { path = "../proto" }
 constants = { path = "../constants" }
 prost = "0.12.6"
-context = { path = "../context", default-features = false }
+context = { path = "../context", default-features = false, features = [
+  "bindings",
+] }
 js-sys = { version = "0.3.70", optional = true }
 log = "0.4.14"
 tempfile = "3.2.0"

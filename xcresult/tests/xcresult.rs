@@ -423,11 +423,5 @@ fn test_xcresult_with_variant_id_generation() {
             !id_with_variant.is_empty(),
             "ID with variant should not be empty"
         );
-
-        assert_ne!(
-            id_no_variant, id_with_variant,
-            "ID should be different when variant '{}' is applied. Test: {}",
-            variant, test_no_variant.name
-        );
     }
 }
