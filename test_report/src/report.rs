@@ -13,7 +13,7 @@ use chrono::prelude::*;
 use codeowners::CodeOwners;
 use context::repo::{BundleRepo, RepoUrlParts};
 #[cfg(feature = "ruby")]
-use magnus::{value::ReprValue, Module, Object};
+use magnus::{Module, Object, value::ReprValue};
 use prost_wkt_types::Timestamp;
 use proto::test_context::test_run::{
     CodeOwner, TestCaseRun, TestCaseRunStatus, TestReport as TestReportProto, TestResult,
@@ -280,7 +280,12 @@ impl MutTestReport {
                     None,
                     variant.clone(),
                 );
-                self.populate_quarantined_tests(&api_client, &bundle_repo.repo, org_url_slug);
+                self.populate_quarantined_tests(
+                    &api_client,
+                    &bundle_repo.repo,
+                    bundle_repo.repo_url,
+                    org_url_slug,
+                );
                 if let Some(quarantined_tests) = self.0.borrow().quarantined_tests.as_ref() {
                     return quarantined_tests.get(&test_identifier.id).is_some();
                 }
@@ -297,6 +302,7 @@ impl MutTestReport {
         &self,
         api_client: &ApiClient,
         repo: &RepoUrlParts,
+        repo_url: String,
         org_url_slug: String,
     ) {
         if self.0.borrow().quarantined_tests.as_ref().is_some() {
@@ -304,39 +310,30 @@ impl MutTestReport {
             return;
         }
         let mut quarantined_tests = HashMap::new();
-        let mut request = message::ListQuarantinedTestsRequest {
-            org_url_slug: org_url_slug.clone(),
-            page_query: message::PageQuery {
-                page_size: 100,
-                page_token: String::new(),
-            },
+        let request = message::GetQuarantineConfigRequest {
+            org_url_slug,
+            test_identifiers: vec![],
+            remote_urls: vec![repo_url],
             repo: repo.clone(),
         };
-        loop {
-            let response = tokio::runtime::Builder::new_multi_thread()
-                .enable_all()
-                .build()
-                .unwrap()
-                .block_on(api_client.list_quarantined_tests(&request));
-            match response {
-                Ok(response) => {
-                    for test in response.quarantined_tests.iter() {
-                        quarantined_tests.insert(test.test_case_id.clone(), true);
-                    }
-                    if response.page.next_page_token.is_empty() {
-                        break;
-                    }
-                    request.page_query.page_token = response.page.next_page_token;
+        let response = tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .unwrap()
+            .block_on(api_client.get_quarantining_config(&request));
+        match response {
+            Ok(response) => {
+                for quarantined_test_id in response.quarantined_tests.iter() {
+                    quarantined_tests.insert(quarantined_test_id.clone(), true);
                 }
-                Err(err) => {
-                    tracing::warn!("Unable to fetch quarantined tests");
-                    tracing::error!(
-                        hidden_in_console = true,
-                        "Error fetching quarantined tests: {:?}",
-                        err
-                    );
-                    break;
-                }
+            }
+            Err(err) => {
+                tracing::warn!("Unable to fetch quarantined tests");
+                tracing::error!(
+                    hidden_in_console = true,
+                    "Error fetching quarantined tests: {:?}",
+                    err
+                );
             }
         }
         self.0.borrow_mut().quarantined_tests = Some(quarantined_tests);

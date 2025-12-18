@@ -8,7 +8,7 @@ use api::message::{
     GetQuarantineConfigResponse,
 };
 use assert_matches::assert_matches;
-use axum::{extract::State, http::StatusCode, Json};
+use axum::{Json, extract::State, http::StatusCode};
 use bundle::{BundleMeta, FileSetType, INTERNAL_BIN_FILENAME};
 use chrono::{DateTime, TimeDelta};
 use clap::Parser;
@@ -31,7 +31,7 @@ use test_utils::{
     inputs::get_test_file_path,
     mock_server::{MockServerBuilder, RequestPayload, SharedMockServerState},
 };
-use trunk_analytics_cli::upload_command::{get_bundle_upload_id_message, DRY_RUN_OUTPUT_DIR};
+use trunk_analytics_cli::upload_command::{DRY_RUN_OUTPUT_DIR, get_bundle_upload_id_message};
 
 use crate::command_builder::CommandBuilder;
 use crate::utils::{
@@ -65,7 +65,7 @@ async fn upload_bundle() {
 
     let quarantine_request = requests_iter.next().unwrap();
     let mut failure_count = 0;
-    assert_matches!(quarantine_request, RequestPayload::GetQuarantineBulkTestStatus(req) => {
+    assert_matches!(quarantine_request, RequestPayload::GetQuarantineConfig(req) => {
         assert_eq!(req.repo.host, "github.com");
         assert_eq!(req.repo.owner, "trunk-io");
         assert_eq!(req.repo.name, "analytics-cli");
@@ -97,9 +97,11 @@ async fn upload_bundle() {
         }
     );
     assert_eq!(upload_request.org_url_slug, "test-org");
-    assert!(upload_request
-        .client_version
-        .starts_with("trunk-analytics-cli cargo="));
+    assert!(
+        upload_request
+            .client_version
+            .starts_with("trunk-analytics-cli cargo=")
+    );
     assert!(upload_request.client_version.contains(" git="));
     assert!(upload_request.client_version.contains(" rustc="));
     assert!(upload_request.external_id.is_some());
@@ -131,10 +133,12 @@ async fn upload_bundle() {
     let repo_head_sha_short = base_props.repo.repo_head_sha_short.unwrap();
     assert!(!repo_head_sha_short.is_empty());
     assert!(&repo_head_sha_short.len() < &base_props.repo.repo_head_sha.len());
-    assert!(base_props
-        .repo
-        .repo_head_sha
-        .starts_with(&repo_head_sha_short));
+    assert!(
+        base_props
+            .repo
+            .repo_head_sha
+            .starts_with(&repo_head_sha_short)
+    );
     assert_eq!(base_props.repo.repo_head_branch, "refs/heads/trunk/test");
     assert_eq!(base_props.repo.repo_head_author_name, "Your Name");
     assert_eq!(
@@ -211,14 +215,16 @@ async fn upload_bundle() {
     assert_eq!(test_case_run.codeowners[0].name, "@user");
     assert_eq!(test_case_run.codeowners[1].name, "@user2");
 
-    assert!(debug_props.command_line.ends_with(
-        &command_builder
-            .build_args()
-            .join(" ")
-            .replace("test-token", "")
-            .replace("--token", "")
-            .trim()
-    ));
+    assert!(
+        debug_props.command_line.ends_with(
+            &command_builder
+                .build_args()
+                .join(" ")
+                .replace("test-token", "")
+                .replace("--token", "")
+                .trim()
+        )
+    );
 
     // HINT: View CLI output with `cargo test -- --nocapture`
     println!("{assert}");
@@ -1186,7 +1192,7 @@ async fn test_variant_propagation() {
 
     assert_matches!(
         requests_iter.next().unwrap(),
-        RequestPayload::GetQuarantineBulkTestStatus(_)
+        RequestPayload::GetQuarantineConfig(_)
     );
 
     assert_matches!(

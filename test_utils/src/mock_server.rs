@@ -7,16 +7,16 @@ use std::{
 
 use api::message::{
     CreateBundleUploadRequest, CreateBundleUploadResponse, GetQuarantineConfigRequest,
-    GetQuarantineConfigResponse, ListQuarantinedTestsRequest, ListQuarantinedTestsResponse, Page,
+    GetQuarantineConfigResponse,
 };
 use axum::{
+    Json, Router,
     body::Bytes,
     extract::State,
     handler::Handler,
     http::StatusCode,
     response::Response,
-    routing::{any, post, put, MethodRouter},
-    Json, Router,
+    routing::{MethodRouter, any, post, put},
 };
 use prost::Message;
 use proto::upload_metrics::trunk::UploadMetrics;
@@ -26,10 +26,9 @@ use tokio::{net::TcpListener, spawn};
 #[derive(Debug, Clone, PartialEq)]
 pub enum RequestPayload {
     CreateBundleUpload(CreateBundleUploadRequest),
-    GetQuarantineBulkTestStatus(GetQuarantineConfigRequest),
+    GetQuarantineConfig(GetQuarantineConfigRequest),
     S3Upload(PathBuf),
     TelemetryUploadMetrics(UploadMetrics),
-    ListQuarantinedTests(ListQuarantinedTestsRequest),
 }
 
 #[derive(Debug, Default)]
@@ -44,7 +43,6 @@ pub struct MockServerBuilder {
     get_quarantining_config_handler: MethodRouter<SharedMockServerState>,
     s3_upload_handler: MethodRouter<SharedMockServerState>,
     telemetry_upload_metrics: MethodRouter<SharedMockServerState>,
-    list_quarantined_tests_handler: MethodRouter<SharedMockServerState>,
 }
 
 impl MockServerBuilder {
@@ -54,7 +52,6 @@ impl MockServerBuilder {
             get_quarantining_config_handler: post(get_quarantining_config_handler),
             s3_upload_handler: put(s3_upload_handler),
             telemetry_upload_metrics: post(telemetry_upload_metrics_handler),
-            list_quarantined_tests_handler: post(list_quarantined_tests_handler),
         }
     }
 
@@ -90,14 +87,6 @@ impl MockServerBuilder {
         self.telemetry_upload_metrics = post(handler);
     }
 
-    pub fn list_quarantined_tests_handler<H, T>(&mut self, handler: H)
-    where
-        H: Handler<T, SharedMockServerState>,
-        T: 'static,
-    {
-        self.list_quarantined_tests_handler = post(handler);
-    }
-
     /// Mock server spawned in a new thread.
     pub async fn spawn_mock_server(self) -> SharedMockServerState {
         let listener = TcpListener::bind("localhost:0").await.unwrap();
@@ -119,10 +108,6 @@ impl MockServerBuilder {
             .route(
                 "/v1/flakytests-cli/upload-metrics",
                 self.telemetry_upload_metrics,
-            )
-            .route(
-                "/v1/flaky-tests/list-quarantined-tests",
-                self.list_quarantined_tests_handler,
             );
 
         app = app.route(
@@ -179,14 +164,14 @@ pub async fn create_bundle_handler(
 #[axum::debug_handler]
 pub async fn get_quarantining_config_handler(
     State(state): State<SharedMockServerState>,
-    Json(get_quarantine_bulk_test_status_request): Json<GetQuarantineConfigRequest>,
+    Json(get_quarantine_config_request): Json<GetQuarantineConfigRequest>,
 ) -> Json<GetQuarantineConfigResponse> {
     state
         .requests
         .lock()
         .unwrap()
-        .push(RequestPayload::GetQuarantineBulkTestStatus(
-            get_quarantine_bulk_test_status_request,
+        .push(RequestPayload::GetQuarantineConfig(
+            get_quarantine_config_request,
         ));
     Json(GetQuarantineConfigResponse {
         is_disabled: false,
@@ -236,29 +221,4 @@ pub async fn s3_upload_handler(
         .unwrap()
         .push(RequestPayload::S3Upload(tar_extract_directory.into_path()));
     Response::new(String::from("OK"))
-}
-
-#[axum::debug_handler]
-pub async fn list_quarantined_tests_handler(
-    State(state): State<SharedMockServerState>,
-    Json(list_quarantined_tests_request): Json<ListQuarantinedTestsRequest>,
-) -> Json<ListQuarantinedTestsResponse> {
-    state
-        .requests
-        .lock()
-        .unwrap()
-        .push(RequestPayload::ListQuarantinedTests(
-            list_quarantined_tests_request,
-        ));
-    Json(ListQuarantinedTestsResponse {
-        quarantined_tests: Vec::new(),
-        page: Page {
-            total_rows: 0,
-            total_pages: 0,
-            next_page_token: "".to_string(),
-            prev_page_token: "".to_string(),
-            last_page_token: "".to_string(),
-            page_index: 0,
-        },
-    })
 }

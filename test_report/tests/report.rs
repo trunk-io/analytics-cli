@@ -1,7 +1,7 @@
 use std::{env, fs, io::BufReader, path::Path, thread};
 
 use assert_matches::assert_matches;
-use axum::{extract::State, Json};
+use axum::{Json, extract::State};
 use bundle::{BundleMeta, FileSetType, Test};
 use constants::{
     TRUNK_ALLOW_EMPTY_TEST_RESULTS_ENV, TRUNK_API_TOKEN_ENV, TRUNK_CODEOWNERS_PATH_ENV,
@@ -123,17 +123,22 @@ async fn publish_test_report() {
     let requests = state.requests.lock().unwrap().clone();
     assert_eq!(requests.len(), 4);
     let mut requests_iter = requests.iter();
-    let list_quarantined_tests_request = assert_matches!(&requests_iter.next().unwrap(), RequestPayload::ListQuarantinedTests(d) => d);
-    assert_eq!(list_quarantined_tests_request.org_url_slug, "test-org",);
+    let get_quarantine_config_request = assert_matches!(&requests_iter.next().unwrap(), RequestPayload::GetQuarantineConfig(d) => d);
+    assert_eq!(get_quarantine_config_request.org_url_slug, "test-org");
     assert_eq!(
-        list_quarantined_tests_request.repo,
+        get_quarantine_config_request.repo,
         RepoUrlParts {
             host: "github.com".into(),
             owner: "trunk-io".into(),
             name: "analytics-cli".into()
         }
     );
-    // validate we only send one list quarantined tests request
+    assert_eq!(get_quarantine_config_request.test_identifiers, vec![]);
+    assert_eq!(
+        get_quarantine_config_request.remote_urls,
+        vec!["https://github.com/trunk-io/analytics-cli.git"]
+    );
+    // validate we only send one get quarantine config request
     assert_matches!(&requests_iter.next().unwrap(), RequestPayload::CreateBundleUpload(d) => d);
     let tar_extract_directory =
         assert_matches!(&requests_iter.next().unwrap(), RequestPayload::S3Upload(d) => d);
@@ -150,10 +155,12 @@ async fn publish_test_report() {
     let repo_head_sha_short = base_props.repo.repo_head_sha_short.unwrap();
     assert!(!repo_head_sha_short.is_empty());
     assert!(&repo_head_sha_short.len() < &base_props.repo.repo_head_sha.len());
-    assert!(base_props
-        .repo
-        .repo_head_sha
-        .starts_with(&repo_head_sha_short));
+    assert!(
+        base_props
+            .repo
+            .repo_head_sha
+            .starts_with(&repo_head_sha_short)
+    );
     assert_eq!(base_props.repo.repo_head_branch, "refs/heads/trunk/test");
     assert_eq!(base_props.repo.repo_head_author_name, "Your Name");
     assert_eq!(
@@ -560,47 +567,17 @@ async fn test_variant_impacts_quarantining() {
 
     // Create a custom mock server handler that returns quarantined tests
     // We need to return both IDs: one for "without ID" case and one for "with ID" case
-    use api::message::{ListQuarantinedTestsResponse, Page, QuarantineSetting, QuarantinedTest};
+    use api::message::GetQuarantineConfigResponse;
     let state = {
         let mut builder = MockServerBuilder::new();
         let expected_id_v1 = expected_test_id_variant1.clone();
         let expected_id_v1_from_base = expected_test_id_variant1_from_base.clone();
-        let test_name_clone = test_name.clone();
-        let test_parent_name_clone = test_parent_name.clone();
-        let test_classname_clone = test_classname.clone();
-        let test_file_clone = test_file.clone();
-        builder.list_quarantined_tests_handler(
+        builder.set_get_quarantining_config_handler(
             move |_state: State<SharedMockServerState>,
-                  _req: Json<api::message::ListQuarantinedTestsRequest>| async move {
-                Json(ListQuarantinedTestsResponse {
-                    quarantined_tests: vec![
-                        QuarantinedTest {
-                            test_case_id: expected_id_v1.clone(),
-                            name: test_name_clone.clone().unwrap_or_default(),
-                            parent: Some(test_parent_name_clone.clone().unwrap_or_default()),
-                            classname: test_classname_clone.clone(),
-                            file: test_file_clone.clone(),
-                            status: "failure".to_string(),
-                            quarantine_setting: QuarantineSetting::AlwaysQuarantine,
-                        },
-                        QuarantinedTest {
-                            test_case_id: expected_id_v1_from_base.clone(),
-                            name: test_name_clone.clone().unwrap_or_default(),
-                            parent: Some(test_parent_name_clone.clone().unwrap_or_default()),
-                            classname: test_classname_clone.clone(),
-                            file: test_file_clone.clone(),
-                            status: "failure".to_string(),
-                            quarantine_setting: QuarantineSetting::AlwaysQuarantine,
-                        },
-                    ],
-                    page: Page {
-                        total_rows: 2,
-                        total_pages: 1,
-                        next_page_token: "".to_string(),
-                        prev_page_token: "".to_string(),
-                        last_page_token: "".to_string(),
-                        page_index: 0,
-                    },
+                  _req: Json<api::message::GetQuarantineConfigRequest>| async move {
+                Json(GetQuarantineConfigResponse {
+                    is_disabled: false,
+                    quarantined_tests: vec![expected_id_v1, expected_id_v1_from_base],
                 })
             },
         );
