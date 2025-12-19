@@ -73,7 +73,8 @@ def knapsack_detector_command?
 end
 
 def trunk_disabled
-  knapsack_detector_mode? || ENV['DISABLE_RSPEC_TRUNK_FLAKY_TESTS'] == 'true' ||
+  knapsack_detector_mode?
+  ENV['DISABLE_RSPEC_TRUNK_FLAKY_TESTS'] == 'true' ||
     ENV['TRUNK_ORG_URL_SLUG'].nil? || ENV['TRUNK_API_TOKEN'].nil?
 end
 
