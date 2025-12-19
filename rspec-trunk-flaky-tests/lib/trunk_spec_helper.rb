@@ -189,9 +189,11 @@ class TrunkAnalyticsListener
   def add_test_case(example)
     execution_result = example.execution_result
     name = example.full_description
-    detector_flag = ENV['KNAPSACK_PRO_TEST_EXAMPLE_DETECTOR'] == 'true'
+    detector_value = ENV['KNAPSACK_PRO_TEST_EXAMPLE_DETECTOR']
+    command_line = "#{$PROGRAM_NAME} #{ARGV.join(' ')}".strip
     log_msg = 'TrunkAnalyticsListener#add_test_case: '\
-              "name=#{name.inspect}, status=#{execution_result.status}, detector=#{detector_flag}"
+              "name=#{name.inspect}, status=#{execution_result.status}, detector=#{detector_value.inspect}, "\
+              "command=#{command_line.inspect}"
     puts log_msg
     return unless execution_result.status
 
