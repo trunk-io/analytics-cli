@@ -78,7 +78,8 @@ runs:
         TRUNK_ORG_URL_SLUG: ${{ inputs.trunk-org-slug }}
         TRUNK_API_TOKEN: ${{ inputs.trunk-token }}
 
-    - name: Run variant quarantine test without variant (should fail - not quarantined)
+    - name: Run variant quarantine test without variant (should fail - not
+        quarantined)
       id: run-variant-test-no-variant
       shell: bash
       working-directory: ${{ github.action_path }}
@@ -117,3 +118,29 @@ runs:
         TRUNK_ORG_URL_SLUG: ${{ inputs.trunk-org-slug }}
         TRUNK_API_TOKEN: ${{ inputs.trunk-token }}
         TRUNK_VARIANT: smoke-test-variant
+
+    - name: Run knapsack_pro queue and verify a single local bundle
+      shell: bash
+      working-directory: ${{ github.action_path }}
+      env:
+        KNAPSACK_PRO_TEST_SUITE_TOKEN_RSPEC: ${{ secrets.KNAPSACK_PRO_TEST_SUITE_TOKEN_RSPEC }}
+        KNAPSACK_PRO_CI_NODE_TOTAL: 3
+        KNAPSACK_PRO_CI_NODE_INDEX: 1
+        KNAPSACK_PRO_LOG_LEVEL: info
+        TRUNK_API_TOKEN: ${{ secrets.TRUNK_STAGING_ORG_API_TOKEN }}
+        TRUNK_ORG_URL_SLUG: trunk-staging-org
+        TRUNK_PUBLIC_API_ADDRESS: https://api.trunk-staging.io
+        TRUNK_LOCAL_UPLOAD_DIR: bundles
+      run: |
+        set -euo pipefail
+        rm -rf "${TRUNK_LOCAL_UPLOAD_DIR}"
+        mkdir -p "${TRUNK_LOCAL_UPLOAD_DIR}"
+        bundle exec rake "knapsack_pro:queue:rspec[--format documentation]"
+        ls -la "${TRUNK_LOCAL_UPLOAD_DIR}"
+        mapfile -t bundle_files < <(find "${TRUNK_LOCAL_UPLOAD_DIR}" -maxdepth 1 -type f -name '*.bin')
+        if [ "${#bundle_files[@]}" -ne 1 ]; then
+          echo "Expected exactly one bundle in ${TRUNK_LOCAL_UPLOAD_DIR}, found ${#bundle_files[@]}"
+          ls -la "${TRUNK_LOCAL_UPLOAD_DIR}"
+          exit 1
+        fi
+        echo "Knapsack bundle generated at ${bundle_files[0]}"
