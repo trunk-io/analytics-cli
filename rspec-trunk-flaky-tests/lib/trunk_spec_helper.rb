@@ -55,8 +55,21 @@ def escape(str)
   str.dump[1..-2]
 end
 
+# Knapsack example detector instantiates all test cases in order to determine how to shard them
+# These instantiations should not generate test bundles, so we
+# disable the gem when running under knapsack_pro:rspec_test_example_detector
+def knapsack_detector_mode?
+  knapsack_detector_command?
+end
+
+def knapsack_detector_command?
+  command_line = "#{$PROGRAM_NAME} #{ARGV.join(' ')}".strip
+  command_line.include?('knapsack_pro:rspec_test_example_detector')
+end
+
 def trunk_disabled
-  ENV['DISABLE_RSPEC_TRUNK_FLAKY_TESTS'] == 'true' || ENV['TRUNK_ORG_URL_SLUG'].nil? || ENV['TRUNK_API_TOKEN'].nil?
+  knapsack_detector_mode? || ENV['DISABLE_RSPEC_TRUNK_FLAKY_TESTS'] == 'true' ||
+    ENV['TRUNK_ORG_URL_SLUG'].nil? || ENV['TRUNK_API_TOKEN'].nil?
 end
 
 # we want to cache the test report so we can add to it as we go and reduce the number of API calls
