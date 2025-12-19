@@ -522,7 +522,9 @@ impl MutTestReport {
 
     // saves to local fs and returns the path
     pub fn try_save(&self, path: String) -> bool {
-        let desired_path = std::path::PathBuf::from(path).join("trunk_output.bin");
+        let timestamp = Utc::now().timestamp_millis();
+        let filename = format!("trunk_output_{timestamp}.bin");
+        let desired_path = std::path::PathBuf::from(path).join(filename);
         match self.save(desired_path) {
             Ok(_) => true,
             Err(e) => {

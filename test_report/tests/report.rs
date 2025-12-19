@@ -260,8 +260,27 @@ fn test_mut_test_report_try_save() {
     let result = report.try_save(temp_dir.path().to_str().unwrap().to_string());
     assert!(result, "try_save should return true on success");
 
-    let file_path = temp_dir.path().join("trunk_output.bin");
-    assert!(file_path.exists(), "Saved file does not exist");
+    let mut saved_files: Vec<_> = fs::read_dir(temp_dir.path())
+        .unwrap()
+        .filter_map(|entry| {
+            entry.ok().and_then(|entry| {
+                let path = entry.path();
+                let filename = path.file_name()?.to_str()?;
+                if filename.starts_with("trunk_output_") && filename.ends_with(".bin") {
+                    Some(path)
+                } else {
+                    None
+                }
+            })
+        })
+        .collect();
+    assert_eq!(
+        saved_files.len(),
+        1,
+        "Expected exactly one saved file, found {}",
+        saved_files.len()
+    );
+    let file_path = saved_files.pop().unwrap();
     let data = fs::read(&file_path).expect("Failed to read saved file");
     assert!(!data.is_empty(), "Saved file is empty");
     let deserialized = TestReport::decode(&*data).expect("Failed to decode TestResult");

@@ -110,9 +110,9 @@ For a complete list of environment variables that the gem accepts, see [`lib/tru
 
 > **⚠️ Experimental Feature**: This feature is experimental. Please reach out to support@trunk.io before attempting to use it.
 
-When `TRUNK_LOCAL_UPLOAD_DIR` is set to a directory path, the RSpec gem will generate an `internal.bin` file and save it locally, relative to where the test was invoked. This disables the automatic upload to Trunk servers.
+When `TRUNK_LOCAL_UPLOAD_DIR` is set to a directory path, the RSpec gem will generate a `trunk_output_{timestamp}.bin` file and save it locally, relative to where the test was invoked. This disables the automatic upload to Trunk servers.
 
-**Use case**: This is useful when uploads are failing directly within the context of RSpec, but you still want to use quarantining. By generating the `internal.bin` file locally, you can then upload it separately using the Trunk Analytics CLI.
+**Use case**: This is useful when uploads are failing directly within the context of RSpec, but you still want to use quarantining. By generating the `trunk_output_{timestamp}.bin` file locally, you can then upload it separately using the Trunk Analytics CLI.
 
 **Usage**:
 
@@ -120,17 +120,17 @@ When `TRUNK_LOCAL_UPLOAD_DIR` is set to a directory path, the RSpec gem will gen
 TRUNK_LOCAL_UPLOAD_DIR=./test-results bundle exec rspec
 ```
 
-This will create an `internal.bin` file in the `./test-results` directory (relative to where the command was run).
+This will create a `trunk_output_{timestamp}.bin` file in the `./test-results` directory (relative to where the command was run).
 
 **Uploading with the CLI**:
 
-After generating the `internal.bin` file, you can upload it using the Trunk Analytics CLI. The CLI supports taking `internal.bin` files as input when running the upload command:
+After generating the `trunk_output_{timestamp}.bin` file, you can upload it using the Trunk Analytics CLI. The CLI supports taking these `.bin` files as input when running the upload command:
 
 ```bash
-trunk upload --test-reports ./test-results/internal.bin
+trunk upload --test-reports ./test-results/trunk_output_{timestamp}.bin
 ```
 
-The CLI will automatically detect that the file is an `internal.bin` file (by its `.bin` extension) and process it accordingly, allowing you to still benefit from quarantining and other features.
+The CLI will automatically detect that the file is a test bundle (by its `.bin` extension) and process it accordingly, allowing you to still benefit from quarantining and other features.
 
 ## How Quarantining Works
 
