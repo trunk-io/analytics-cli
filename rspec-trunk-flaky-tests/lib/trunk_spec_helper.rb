@@ -187,15 +187,17 @@ class TrunkAnalyticsListener
 
   # trunk-ignore(rubocop/Metrics/CyclomaticComplexity,rubocop/Metrics/AbcSize,rubocop/Metrics/MethodLength)
   def add_test_case(example)
-    return if ENV['KNAPSACK_PRO_TEST_EXAMPLE_DETECTOR'] == 'true'
-
     execution_result = example.execution_result
+    name = example.full_description
+    detector_flag = ENV['KNAPSACK_PRO_TEST_EXAMPLE_DETECTOR'] == 'true'
+    log_msg = 'TrunkAnalyticsListener#add_test_case: '\
+              "name=#{name.inspect}, status=#{execution_result.status}, detector=#{detector_flag}"
+    puts log_msg
     return unless execution_result.status
 
     failure_message = example.exception.to_s if example.exception
     failure_message = example.metadata[:quarantined_exception].to_s if example.metadata[:quarantined_exception]
     # TODO: should we use concatenated string or alias when auto-generated description?
-    name = example.full_description
     file = escape(example.metadata[:file_path])
     classname = file.sub(%r{\.[^/.]+\Z}, '').gsub('/', '.').gsub(/\A\.+|\.+\Z/, '')
     line = example.metadata[:line_number]
