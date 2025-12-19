@@ -3,7 +3,7 @@ use std::{
     collections::HashMap,
     env, fs,
     path::{Path, PathBuf},
-    time::SystemTime,
+    time::{Duration, SystemTime},
 };
 
 use api::{client::ApiClient, message};
@@ -19,11 +19,19 @@ use proto::test_context::test_run::{
     CodeOwner, TestCaseRun, TestCaseRunStatus, TestReport as TestReportProto, TestResult,
     UploaderMetadata,
 };
+use serde::{Deserialize, Serialize};
 use third_party::sentry;
 use tracing_subscriber::{filter::FilterFn, prelude::*};
 use trunk_analytics_cli::{context::gather_initial_test_context, upload_command::run_upload};
+use uuid::Uuid;
 #[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::wasm_bindgen;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct QuarantinedTestsDiskCacheEntry {
+    quarantined_tests: HashMap<String, bool>,
+    cached_at_secs: u64,
+}
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct TestReport {
@@ -31,6 +39,7 @@ pub struct TestReport {
     command: String,
     started_at: SystemTime,
     quarantined_tests: Option<HashMap<String, bool>>,
+    quarantined_tests_disk_cache_ttl: Duration,
     codeowners: Option<CodeOwners>,
     variant: Option<String>,
     repo: Option<BundleRepo>,
@@ -143,14 +152,21 @@ impl MutTestReport {
                         .as_deref(),
                 )
             });
+        let quarantined_tests_disk_cache_ttl = Duration::from_secs(
+            env::var(constants::TRUNK_QUARANTINED_TESTS_DISK_CACHE_TTL_SECS_ENV)
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(constants::DEFAULT_QUARANTINED_TESTS_DISK_CACHE_TTL_SECS),
+        );
         Self(RefCell::new(TestReport {
             test_report,
             command,
             started_at,
             quarantined_tests: None,
+            quarantined_tests_disk_cache_ttl,
             codeowners,
             repo,
-            variant: variant.clone(),
+            variant,
         }))
     }
 
@@ -298,6 +314,100 @@ impl MutTestReport {
         }
     }
 
+    fn get_quarantined_tests_cache_file_path(&self, org_url_slug: &str, repo_url: &str) -> PathBuf {
+        let cache_key = Uuid::new_v5(
+            &Uuid::NAMESPACE_URL,
+            format!("{org_url_slug}#{repo_url}").as_bytes(),
+        )
+        .to_string();
+        let quarantined_tests_cache_file_name = format!("quarantined_tests_{cache_key}.json");
+
+        env::temp_dir()
+            .join(constants::CACHE_DIR)
+            .join(quarantined_tests_cache_file_name)
+    }
+
+    fn load_quarantined_tests_from_disk_cache(
+        &self,
+        org_url_slug: &str,
+        repo_url: &str,
+    ) -> Option<HashMap<String, bool>> {
+        let cache_path = self.get_quarantined_tests_cache_file_path(org_url_slug, repo_url);
+
+        let cache_data = match fs::read_to_string(&cache_path) {
+            Ok(data) => data,
+            Err(err) => {
+                tracing::warn!("Failed to read quarantined tests cache file: {:?}", err);
+                return None;
+            }
+        };
+
+        let cache_entry: QuarantinedTestsDiskCacheEntry = match serde_json::from_str(&cache_data) {
+            Ok(entry) => entry,
+            Err(err) => {
+                tracing::warn!("Failed to parse quarantined tests cache file: {:?}", err);
+                return None;
+            }
+        };
+
+        let now = match SystemTime::now().duration_since(SystemTime::UNIX_EPOCH) {
+            Ok(duration) => duration.as_secs(),
+            Err(_) => {
+                tracing::warn!("Failed to get current time");
+                return None;
+            }
+        };
+        let cache_age = now.saturating_sub(cache_entry.cached_at_secs);
+
+        if cache_age <= self.0.borrow().quarantined_tests_disk_cache_ttl.as_secs() {
+            Some(cache_entry.quarantined_tests)
+        } else {
+            let _ = fs::remove_file(&cache_path);
+            None
+        }
+    }
+
+    fn save_quarantined_tests_to_disk_cache(
+        &self,
+        org_url_slug: &str,
+        repo_url: &str,
+        quarantined_tests: &HashMap<String, bool>,
+    ) {
+        let cache_path = self.get_quarantined_tests_cache_file_path(org_url_slug, repo_url);
+
+        let now = match SystemTime::now().duration_since(SystemTime::UNIX_EPOCH) {
+            Ok(duration) => duration.as_secs(),
+            Err(_) => {
+                tracing::warn!("Failed to get current time");
+                return;
+            }
+        };
+
+        let cache_entry = QuarantinedTestsDiskCacheEntry {
+            quarantined_tests: quarantined_tests.clone(),
+            cached_at_secs: now,
+        };
+
+        // create cache directory if it doesn't exist
+        let cache_dir = match cache_path.parent() {
+            Some(dir) => dir,
+            None => {
+                tracing::warn!("Failed to get cache directory");
+                return;
+            }
+        };
+        if let Err(err) = fs::create_dir_all(cache_dir) {
+            tracing::warn!("Failed to create cache directory: {:?}", err);
+            return;
+        }
+
+        if let Ok(json) = serde_json::to_string(&cache_entry) {
+            if let Err(err) = fs::write(&cache_path, json) {
+                tracing::warn!("Failed to write quarantined tests cache file: {:?}", err);
+            }
+        }
+    }
+
     fn populate_quarantined_tests(
         &self,
         api_client: &ApiClient,
@@ -305,15 +415,26 @@ impl MutTestReport {
         repo_url: String,
         org_url_slug: String,
     ) {
+        // first check in-memory cache
         if self.0.borrow().quarantined_tests.as_ref().is_some() {
-            // already fetched
             return;
         }
+
+        // then check disk cache
+        if let Some(quarantined_tests) =
+            self.load_quarantined_tests_from_disk_cache(&org_url_slug, &repo_url)
+        {
+            // update in-memory cache
+            self.0.borrow_mut().quarantined_tests = Some(quarantined_tests);
+            return;
+        }
+
+        // cache miss - make API call
         let mut quarantined_tests = HashMap::new();
         let request = message::GetQuarantineConfigRequest {
-            org_url_slug,
+            org_url_slug: org_url_slug.clone(),
             test_identifiers: vec![],
-            remote_urls: vec![repo_url],
+            remote_urls: vec![repo_url.clone()],
             repo: repo.clone(),
         };
         let response = tokio::runtime::Builder::new_multi_thread()
@@ -336,7 +457,12 @@ impl MutTestReport {
                 );
             }
         }
-        self.0.borrow_mut().quarantined_tests = Some(quarantined_tests);
+
+        println!("quarantined_tests: {quarantined_tests:?}");
+
+        // update both in-memory and disk cache
+        self.0.borrow_mut().quarantined_tests = Some(quarantined_tests.clone());
+        self.save_quarantined_tests_to_disk_cache(&org_url_slug, &repo_url, &quarantined_tests);
     }
 
     fn get_org_url_slug(&self) -> String {
