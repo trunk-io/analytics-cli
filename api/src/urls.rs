@@ -1,6 +1,6 @@
 use bundle::Test;
 use context::repo::RepoUrlParts;
-use url::{form_urlencoded, ParseError, Url};
+use url::{ParseError, Url, form_urlencoded};
 
 pub fn url_for_test_case(
     public_api_address: &str,
@@ -46,6 +46,7 @@ fn test_url_generated() {
         timestamp_millis: None,
         is_quarantined: false,
         failure_message: None,
+        variant: None,
     };
 
     let actual = url_for_test_case(
@@ -56,11 +57,9 @@ fn test_url_generated() {
     );
 
     assert_eq!(
-    actual,
-    Ok(
-      String::from(
-        "https://app.trunk-staging.io/bad-app-org/flaky-tests/test/c33a7f64-8f3e-5db9-b37b-2ea870d2441b?repo=bad-app%2Fios-app"
-      )
-    ),
-  );
+        actual,
+        Ok(String::from(
+            "https://app.trunk-staging.io/bad-app-org/flaky-tests/test/c33a7f64-8f3e-5db9-b37b-2ea870d2441b?repo=bad-app%2Fios-app"
+        )),
+    );
 }

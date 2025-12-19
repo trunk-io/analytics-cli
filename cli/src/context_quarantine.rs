@@ -15,7 +15,7 @@ use context::{
             BindingsReport, BindingsTestCase, BindingsTestCaseStatusStatus, BindingsTestSuite,
         },
         junit_path::TestRunnerReportStatus,
-        parser::{bin_parse, JunitParser},
+        parser::{JunitParser, bin_parse},
     },
     repo::RepoUrlParts,
 };
@@ -71,7 +71,7 @@ impl QuarantineContext {
     }
 }
 
-fn convert_case_to_test<T: AsRef<str>>(
+fn convert_case_to_test<T: AsRef<str> + ToString>(
     repo: &RepoUrlParts,
     org_slug: T,
     parent_name: String,
@@ -104,12 +104,12 @@ fn convert_case_to_test<T: AsRef<str>>(
         timestamp_millis,
         is_quarantined: case.is_quarantined(),
         failure_message,
+        variant: Some(variant.to_string()),
     };
     if let Some(id) = case.extra().get("id") {
         if id.is_empty() {
             test.set_id(org_slug, repo, variant);
         } else {
-            // trunk-ignore(clippy/assigning_clones)
             test.id = id.clone();
         }
     } else {
