@@ -794,7 +794,7 @@ async fn test_get_quarantine_config_disk_cache() {
     )
     .id;
 
-    // set up mock server with custom handler that returns test_id_1 as quarantined
+    // test_id_1 and test_id_2 are quarantined
     use api::message::GetQuarantineConfigResponse;
     let state = {
         let mut builder = MockServerBuilder::new();

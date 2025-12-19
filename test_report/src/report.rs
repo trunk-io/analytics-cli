@@ -166,7 +166,7 @@ impl MutTestReport {
             quarantined_tests_disk_cache_ttl,
             codeowners,
             repo,
-            variant,
+            variant: variant.clone(),
         }))
     }
 
@@ -457,8 +457,6 @@ impl MutTestReport {
                 );
             }
         }
-
-        println!("quarantined_tests: {quarantined_tests:?}");
 
         // update both in-memory and disk cache
         self.0.borrow_mut().quarantined_tests = Some(quarantined_tests.clone());
