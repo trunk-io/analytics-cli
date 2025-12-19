@@ -8,6 +8,12 @@ on:
         type: string
         description: Tag to create
         required: True
+  workflow_call:
+    inputs:
+      release_tag:
+        type: string
+        description: Tag to create
+        required: True
 concurrency: ${{ github.workflow }}
 
 permissions:

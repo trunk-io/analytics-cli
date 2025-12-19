@@ -1,0 +1,319 @@
+name: Release Analytics CLI
+on:
+  workflow_dispatch:
+    inputs:
+      # trunk-ignore(checkov/CKV_GHA_7)
+      release_tag:
+        type: string
+        description: Tag to create
+        required: True
+  workflow_call:
+    inputs:
+      release_tag:
+        type: string
+        description: Tag to create
+        required: True
+  pull_request:
+    paths:
+      - .github/workflows/release.yml
+concurrency: ${{ github.workflow }}
+
+permissions:
+  contents: write
+
+jobs:
+  build_release:
+    name: Build Release - ${{ matrix.platform.target }}
+    strategy:
+      matrix:
+        platform:
+          - os-name: linux-x86_64
+            runs-on: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+            artifact-name: x86_64-unknown-linux
+
+          - os-name: linux-aarch64
+            runs-on: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-musl
+            artifact-name: aarch64-unknown-linux
+
+          - os-name: linux-86_64
+            runs-on: ubuntu-latest
+            target: x86_64-unknown-illumos
+            artifact-name: x86_64-unknown-illumos
+
+          - os-name: x86_64-darwin
+            runs-on: macos-latest
+            target: x86_64-apple-darwin
+            artifact-name: x86_64-apple-darwin
+
+          - os-name: aarch64-darwin
+            runs-on: macos-latest
+            target: aarch64-apple-darwin
+            artifact-name: aarch64-apple-darwin
+
+          - os-name: windows-x86_64
+            runs-on: public-amd64-4xlarge-dind-germany
+            target: x86_64-pc-windows-gnu
+            artifact-name: x86_64-pc-windows-gnu
+
+    runs-on: ${{ matrix.platform.runs-on }}
+    steps:
+      - name: Install git-lfs (Windows GNU build)
+        shell: bash
+        if: ${{ contains(matrix.platform.os-name, 'windows') }}
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y git-lfs build-essential
+          git lfs install
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          lfs: "true"
+
+      - name: Setup Rust & Cargo
+        uses: ./.github/actions/setup_rust_cargo
+
+      - name: Update CLI version
+        uses: ./.github/actions/update_version
+        # only empty during testing
+        if: github.event.inputs.release_tag != ''
+        with:
+          version: ${{ github.event.inputs.release_tag }}
+          file: ./cli/Cargo.toml
+
+      #########################################################
+      # Main CLI
+      #########################################################
+      - name: Build darwin target
+        uses: ./.github/actions/build_cli_macos_target
+        if: contains(matrix.platform.os-name, 'darwin')
+        with:
+          target: ${{ matrix.platform.target }}
+          profile: release-with-debug
+
+      - name: Build unix/Windows target
+        uses: ./.github/actions/build_cli_linux_windows_target
+        if: ${{ !contains(matrix.platform.os-name, 'darwin') }}
+        with:
+          target: ${{ matrix.platform.target }}
+          profile: release-with-debug
+
+      - name: Upload debug info to Sentry
+        uses: ./.github/actions/upload_sentry_debug_info
+        # only empty during testing
+        if: github.event.inputs.release_tag != ''
+        with:
+          target: ${{ matrix.platform.target }}
+          sentry-org: ${{ secrets.SENTRY_ORG }}
+          sentry-project: ${{ secrets.SENTRY_PROJECT }}
+          sentry-auth-token: ${{ secrets.SENTRY_AUTH_TOKEN }}
+
+      #########################################################
+      # CLI Tools
+      #########################################################
+      - name: Build CLI Tools
+        uses: ./.github/actions/build_cli_tools
+        if: matrix.platform.target != 'x86_64-unknown-illumos'
+        with:
+          target: ${{ matrix.platform.target }}
+          os-name: ${{ matrix.platform.os-name }}
+          release_tag: ${{ github.event.inputs.release_tag }}
+
+      #########################################################
+      # Upload CLI artifacts
+      #########################################################
+      - name: Upload main CLI artifact (Windows)
+        uses: actions/upload-artifact@v4
+        if: contains(matrix.platform.os-name, 'windows')
+        with:
+          name: ${{ matrix.platform.artifact-name }}
+          path: target/${{ matrix.platform.target }}/release-with-debug/trunk-analytics-cli.exe
+          if-no-files-found: error
+
+      - name: Upload main CLI artifact (Unix)
+        uses: actions/upload-artifact@v4
+        if: ${{ !contains(matrix.platform.os-name, 'windows') }}
+        with:
+          name: ${{ matrix.platform.artifact-name }}
+          path: target/${{ matrix.platform.target }}/release-with-debug/trunk-analytics-cli
+          if-no-files-found: error
+
+      #########################################################
+      # Upload CLI tools artifacts
+      #########################################################
+      - name: Upload Bundle CLI artifact (Windows)
+        uses: actions/upload-artifact@v4
+        if: ${{ contains(matrix.platform.os-name, 'windows') }}
+        with:
+          name: ${{ matrix.platform.artifact-name }}-bundle
+          path: target/${{ matrix.platform.target }}/release-with-debug/proto-bin-to-json.exe
+          if-no-files-found: error
+
+      - name: Upload Bundle CLI artifact (Unix)
+        uses: actions/upload-artifact@v4
+        if: ${{ matrix.platform.target != 'x86_64-unknown-illumos' && !contains(matrix.platform.os-name, 'windows') }}
+        with:
+          name: ${{ matrix.platform.artifact-name }}-bundle
+          path: target/${{ matrix.platform.target }}/release-with-debug/proto-bin-to-json
+          if-no-files-found: error
+
+      - name: Upload XCResult CLI artifact (Windows)
+        uses: actions/upload-artifact@v4
+        if: ${{ contains(matrix.platform.os-name, 'windows') }}
+        with:
+          name: ${{ matrix.platform.artifact-name }}-xcresult
+          path: target/${{ matrix.platform.target }}/release-with-debug/xcresult-to-junit.exe
+          if-no-files-found: error
+
+      - name: Upload XCResult CLI artifact (Unix)
+        uses: actions/upload-artifact@v4
+        if: ${{ matrix.platform.target != 'x86_64-unknown-illumos' && !contains(matrix.platform.os-name, 'windows') }}
+        with:
+          name: ${{ matrix.platform.artifact-name }}-xcresult
+          path: target/${{ matrix.platform.target }}/release-with-debug/xcresult-to-junit
+          if-no-files-found: error
+
+      - name: Upload Codeowners CLI artifact (Windows)
+        uses: actions/upload-artifact@v4
+        if: ${{ contains(matrix.platform.os-name, 'windows') }}
+        with:
+          name: ${{ matrix.platform.artifact-name }}-codeowners
+          path: target/${{ matrix.platform.target }}/release-with-debug/check-codeowners.exe
+          if-no-files-found: error
+
+      - name: Upload Codeowners CLI artifact (Unix)
+        uses: actions/upload-artifact@v4
+        if: ${{ matrix.platform.target != 'x86_64-unknown-illumos' && !contains(matrix.platform.os-name, 'windows') }}
+        with:
+          name: ${{ matrix.platform.artifact-name }}-codeowners
+          path: target/${{ matrix.platform.target }}/release-with-debug/check-codeowners
+          if-no-files-found: error
+
+  perform_smoke_test:
+    name: Smoke test ${{ github.event.inputs.release_tag }} - ${{ matrix.type.name }}
+    runs-on: ${{ matrix.type.os }}
+    strategy:
+      matrix:
+        type:
+          - name: linux
+            os: ubuntu-latest
+            target: x86_64-unknown-linux
+          - name: macos
+            os: macos-latest
+            target: aarch64-apple-darwin
+          - name: windows
+            os: windows-latest
+            target: x86_64-pc-windows-gnu
+    needs:
+      - build_release
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Get Release Candidate
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ matrix.type.target }}
+          path: ./trunk-analytics-cli
+
+      - name: Setup Run Smoke Tests
+        uses: ./.github/actions/setup_run_smoke_tests
+
+      - name: Run Smoke Tests (Unix or Macos)
+        if: ${{ matrix.type.name != 'windows' }}
+        uses: ./.github/actions/perform_smoke_test
+        with:
+          cli-binary-location: trunk-analytics-cli/trunk-analytics-cli
+          staging-api-token: ${{ secrets.TRUNK_STAGING_ORG_API_TOKEN }}
+          production-api-token: ${{ secrets.TRUNK_PROD_ORG_API_TOKEN }}
+
+      - name: Run Smoke Tests (Windows)
+        if: ${{ matrix.type.name == 'windows' }}
+        uses: ./.github/actions/perform_smoke_test
+        with:
+          cli-binary-location: trunk-analytics-cli/trunk-analytics-cli.exe
+          staging-api-token: ${{ secrets.TRUNK_STAGING_ORG_API_TOKEN }}
+          production-api-token: ${{ secrets.TRUNK_PROD_ORG_API_TOKEN }}
+
+  tag_and_release:
+    name: Tag and Release [ ${{ github.event.inputs.release_tag }} ]
+    runs-on: ubuntu-latest
+    needs: [build_release, perform_smoke_test]
+    # only empty during testing
+    if: needs.perform_smoke_test.result == 'success' && github.event.inputs.release_tag != ''
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: download
+        uses: actions/download-artifact@v4
+        with:
+          path: build
+
+      - name: Compress binaries
+        run: |
+          # Compress main CLI
+          for target in $(ls build)
+          do
+            # Windows binaries have .exe extension
+            if [[ -f "build/${target}/trunk-analytics-cli.exe" ]]; then
+              # For Windows, create a zip file instead of tar.gz
+              cd build/${target}
+              zip ../trunk-analytics-cli-${target}-experimental.zip trunk-analytics-cli.exe
+              cd ../..
+            elif [[ -f "build/${target}/trunk-analytics-cli" ]]; then
+              chmod u+x build/${target}/trunk-analytics-cli
+              tar czvf \
+                build/trunk-analytics-cli-${target}.tar.gz \
+                -C build/${target} trunk-analytics-cli
+            fi
+          done
+
+          # Compress CLI tools
+          for tool in bundle xcresult codeowners; do
+            for platform in build/*-${tool}; do
+              if [[ -d "$platform" ]]; then
+                platform_name=$(basename "$platform" | sed "s/-${tool}$//")
+                for binary in "$platform"/*; do
+                  if [[ -f "$binary" ]]; then
+                    binary_name=$(basename "$binary")
+                    # Windows binaries have .exe extension
+                    if [[ "$binary_name" == *.exe ]]; then
+                      # For Windows, create a zip file instead of tar.gz
+                      cd "$platform"
+                      zip "../../${binary_name}-${platform_name}-experimental.zip" "$binary_name"
+                      cd ../..
+                    else
+                      chmod u+x "$binary"
+                      tar czvf "build/${binary_name}-${platform_name}.tar.gz" -C "$platform" "$binary_name"
+                    fi
+                  fi
+                done
+              fi
+            done
+          done
+
+      - name: Install gh
+        uses: trunk-io/trunk-action/install@v1
+        with:
+          tools: gh
+
+      - name: Create GH release and upload binary
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create --prerelease --latest=false \
+            --target ${{ github.sha }} \
+            --generate-notes ${{ github.event.inputs.release_tag }} \
+            ./build/*.tar.gz ./build/*.zip
+
+      - name: Create Sentry release
+        uses: getsentry/action-release@v1
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
+        with:
+          environment: production
+          version: ${{ github.event.inputs.release_tag }}
