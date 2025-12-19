@@ -65,7 +65,7 @@ async fn upload_bundle() {
 
     let quarantine_request = requests_iter.next().unwrap();
     let mut failure_count = 0;
-    assert_matches!(quarantine_request, RequestPayload::GetQuarantineBulkTestStatus(req) => {
+    assert_matches!(quarantine_request, RequestPayload::GetQuarantineConfig(req) => {
         assert_eq!(req.repo.host, "github.com");
         assert_eq!(req.repo.owner, "trunk-io");
         assert_eq!(req.repo.name, "analytics-cli");
@@ -1192,7 +1192,7 @@ async fn test_variant_propagation() {
 
     assert_matches!(
         requests_iter.next().unwrap(),
-        RequestPayload::GetQuarantineBulkTestStatus(_)
+        RequestPayload::GetQuarantineConfig(_)
     );
 
     assert_matches!(
