@@ -3,8 +3,8 @@ use std::sync::mpsc::Sender;
 
 use constants::{DEFAULT_ORIGIN, TRUNK_PUBLIC_API_ADDRESS_ENV};
 use display::message::DisplayMessage;
-use http::{header::HeaderMap, HeaderValue};
-use reqwest::{header, Client, Response, StatusCode};
+use http::{HeaderValue, header::HeaderMap};
+use reqwest::{Client, Response, StatusCode, header};
 use serde::de::DeserializeOwned;
 use tokio::fs;
 
@@ -187,42 +187,6 @@ impl ApiClient {
             },
             report_slow_progress_message: |time_elapsed| {
                 format!("Getting a Trunk quarantine configuration is taking longer than {} seconds", time_elapsed.as_secs())
-            },
-            render_sender: self.render_sender.clone(),
-        }
-        .call_api()
-        .await
-    }
-
-    pub async fn list_quarantined_tests(
-        &self,
-        request: &message::ListQuarantinedTestsRequest,
-    ) -> anyhow::Result<message::ListQuarantinedTestsResponse> {
-        CallApi {
-            action: || async {
-                let response = self
-                    .trunk_api_client
-                    .post(format!("{}{}/flaky-tests/list-quarantined-tests", self.api_host, self.version_path_prefix))
-                    .json(&request)
-                    .send()
-                    .await?;
-
-                let response = status_code_help(
-                    response,
-                    CheckUnauthorized::Check,
-                    CheckNotFound::DoNotCheck,
-                    |_| String::from("Failed to list quarantined tests."),
-                    &self.api_host,
-                    &self.org_url_slug,
-                )?;
-
-                self.deserialize_response::<message::ListQuarantinedTestsResponse>(response).await
-            },
-            log_progress_message: |time_elapsed, _| {
-                format!("Listing quarantined tests from Trunk services is taking longer than expected. It has taken {} seconds so far.", time_elapsed.as_secs())
-            },
-            report_slow_progress_message: |time_elapsed| {
-                format!("Listing quarantined tests from Trunk services is taking longer than {} seconds", time_elapsed.as_secs())
             },
             render_sender: self.render_sender.clone(),
         }
@@ -450,8 +414,8 @@ fn does_not_add_settings_if_domain_absent() {
 #[cfg(test)]
 mod tests {
     use std::sync::{
-        atomic::{AtomicUsize, Ordering},
         Arc,
+        atomic::{AtomicUsize, Ordering},
     };
 
     use axum::{http::StatusCode, response::Response};
@@ -488,21 +452,23 @@ mod tests {
             ApiClient::new(String::from("mock-token"), String::from("mock-org"), None).unwrap();
         api_client.api_host.clone_from(&state.host);
 
-        assert!(api_client
-            .get_quarantining_config(&message::GetQuarantineConfigRequest {
-                repo: context::repo::RepoUrlParts {
-                    host: String::from("host"),
-                    owner: String::from("owner"),
-                    name: String::from("name"),
-                },
-                org_url_slug: String::from("org_url_slug"),
-                test_identifiers: vec![],
-                remote_urls: vec![],
-            })
-            .await
-            .unwrap_err()
-            .to_string()
-            .contains("501 Not Implemented"));
+        assert!(
+            api_client
+                .get_quarantining_config(&message::GetQuarantineConfigRequest {
+                    repo: context::repo::RepoUrlParts {
+                        host: String::from("host"),
+                        owner: String::from("owner"),
+                        name: String::from("name"),
+                    },
+                    org_url_slug: String::from("org_url_slug"),
+                    test_identifiers: vec![],
+                    remote_urls: vec![],
+                })
+                .await
+                .unwrap_err()
+                .to_string()
+                .contains("501 Not Implemented")
+        );
         assert_eq!(CALL_COUNT.load(Ordering::Relaxed), 1);
     }
 
@@ -532,21 +498,23 @@ mod tests {
             ApiClient::new(String::from("mock-token"), String::from("mock-org"), None).unwrap();
         api_client.api_host.clone_from(&state.host);
 
-        assert!(api_client
-            .get_quarantining_config(&message::GetQuarantineConfigRequest {
-                repo: context::repo::RepoUrlParts {
-                    host: String::from("api_host"),
-                    owner: String::from("owner"),
-                    name: String::from("name"),
-                },
-                remote_urls: vec![],
-                org_url_slug: String::from("org_url_slug"),
-                test_identifiers: vec![],
-            })
-            .await
-            .unwrap_err()
-            .to_string()
-            .contains("500 Internal Server Error"));
+        assert!(
+            api_client
+                .get_quarantining_config(&message::GetQuarantineConfigRequest {
+                    repo: context::repo::RepoUrlParts {
+                        host: String::from("api_host"),
+                        owner: String::from("owner"),
+                        name: String::from("name"),
+                    },
+                    remote_urls: vec![],
+                    org_url_slug: String::from("org_url_slug"),
+                    test_identifiers: vec![],
+                })
+                .await
+                .unwrap_err()
+                .to_string()
+                .contains("500 Internal Server Error")
+        );
         assert_eq!(CALL_COUNT.load(Ordering::Relaxed), 6);
     }
 
@@ -571,20 +539,22 @@ mod tests {
             ApiClient::new(String::from("mock-token"), String::from("mock-org"), None).unwrap();
         api_client.api_host.clone_from(&state.host);
 
-        assert!(api_client
-            .get_quarantining_config(&message::GetQuarantineConfigRequest {
-                repo: context::repo::RepoUrlParts {
-                    host: String::from("api_host"),
-                    owner: String::from("owner"),
-                    name: String::from("name"),
-                },
-                remote_urls: vec![],
-                org_url_slug: String::from("org_url_slug"),
-                test_identifiers: vec![],
-            })
-            .await
-            .unwrap_err()
-            .to_string()
-            .contains("404 Not Found"));
+        assert!(
+            api_client
+                .get_quarantining_config(&message::GetQuarantineConfigRequest {
+                    repo: context::repo::RepoUrlParts {
+                        host: String::from("api_host"),
+                        owner: String::from("owner"),
+                        name: String::from("name"),
+                    },
+                    remote_urls: vec![],
+                    org_url_slug: String::from("org_url_slug"),
+                    test_identifiers: vec![],
+                })
+                .await
+                .unwrap_err()
+                .to_string()
+                .contains("404 Not Found")
+        );
     }
 }
