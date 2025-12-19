@@ -15,7 +15,7 @@ on:
         required: True
   pull_request:
     paths:
-      - .github/workflows/release.yml
+      - .github/workflows/release_cli.yml
 concurrency: ${{ github.workflow }}
 
 permissions:
