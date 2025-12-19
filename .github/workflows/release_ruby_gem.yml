@@ -120,6 +120,7 @@ jobs:
           trunk-token: ${{ secrets.TRUNK_STAGING_ORG_API_TOKEN }}
           platform: ${{ matrix.platform.name }}
           artifact-pattern: cross-gem-${{ matrix.platform.name }}
+          knapsack-pro-test-suite-token-rspec: ${{ secrets.KNAPSACK_PRO_TEST_SUITE_TOKEN_RSPEC }}
 
   publish_ruby_gem:
     runs-on: ubuntu-latest

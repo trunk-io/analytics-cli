@@ -115,6 +115,7 @@ jobs:
           trunk-org-slug: trunk-staging-org
           platform: x86_64-linux
           artifact-pattern: ""
+          knapsack-pro-test-suite-token-rspec: ${{ secrets.KNAPSACK_PRO_TEST_SUITE_TOKEN_RSPEC }}
 
   test_ruby_gem_production:
     name: Test Ruby gem on production
@@ -139,6 +140,7 @@ jobs:
           trunk-org-slug: trunk
           platform: x86_64-linux
           artifact-pattern: ""
+          knapsack-pro-test-suite-token-rspec: ${{ secrets.KNAPSACK_PRO_TEST_SUITE_TOKEN_RSPEC }}
 
   production-slack-workflow-status:
     if: always() && github.ref == 'refs/heads/main' && (needs.build_cli.outputs.production-success != 'true' || needs.test_ruby_gem_production.result != 'success')
