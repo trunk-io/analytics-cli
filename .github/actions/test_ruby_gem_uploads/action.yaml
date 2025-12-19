@@ -138,7 +138,7 @@ runs:
         rm -rf "${TRUNK_LOCAL_UPLOAD_DIR}"
         mkdir -p "${TRUNK_LOCAL_UPLOAD_DIR}"
         set +e
-        bundle exec rake "knapsack_pro:queue:rspec[--format documentation]"
+        bundle exec rake "knapsack_pro:rspec"
         set -e
         ls -la "${TRUNK_LOCAL_UPLOAD_DIR}"
         mapfile -t bundle_files < <(find "${TRUNK_LOCAL_UPLOAD_DIR}" -maxdepth 1 -type f -name '*.bin')
@@ -147,4 +147,4 @@ runs:
           ls -la "${TRUNK_LOCAL_UPLOAD_DIR}"
           exit 1
         fi
-        echo "Knapsack bundle generated at ${bundle_files[0]}"
+        echo "Knapsack run correctly generated exactly one bundle at ${bundle_files[0]}"
