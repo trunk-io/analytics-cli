@@ -24,10 +24,12 @@ pub struct Test {
     pub timestamp_millis: Option<i64>,
     pub is_quarantined: bool,
     pub failure_message: Option<String>,
+    pub variant: Option<String>,
 }
 
 impl Test {
-    pub fn new<T: AsRef<str>>(
+    // trunk-ignore(clippy/too_many_arguments)
+    pub fn new<T: AsRef<str> + ToString>(
         id: Option<T>,
         name: String,
         parent_name: String,
@@ -47,6 +49,7 @@ impl Test {
             timestamp_millis,
             is_quarantined: false,
             failure_message: None,
+            variant: Some(variant.to_string()),
         };
 
         if let Some(id) = id {
@@ -193,6 +196,7 @@ mod tests {
             timestamp_millis: Some(0),
             is_quarantined: false,
             failure_message: None,
+            variant: Some(String::new()),
         };
         assert_eq!(result.name, name);
         assert_eq!(result.parent_name, parent_name);
