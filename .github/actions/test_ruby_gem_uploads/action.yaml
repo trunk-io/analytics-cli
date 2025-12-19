@@ -129,7 +129,6 @@ runs:
         KNAPSACK_PRO_TEST_SUITE_TOKEN_RSPEC: ${{ inputs.knapsack-pro-test-suite-token-rspec }}
         KNAPSACK_PRO_CI_NODE_TOTAL: 3
         KNAPSACK_PRO_CI_NODE_INDEX: 1
-        KNAPSACK_PRO_LOG_LEVEL: info
         TRUNK_API_TOKEN: ${{ inputs.trunk-token }}
         TRUNK_ORG_URL_SLUG: ${{ inputs.trunk-org-slug }}
         TRUNK_PUBLIC_API_ADDRESS: ${{ inputs.trunk-public-api-address }}
@@ -138,7 +137,9 @@ runs:
         set -euo pipefail
         rm -rf "${TRUNK_LOCAL_UPLOAD_DIR}"
         mkdir -p "${TRUNK_LOCAL_UPLOAD_DIR}"
+        set +e
         bundle exec rake "knapsack_pro:queue:rspec[--format documentation]"
+        set -e
         ls -la "${TRUNK_LOCAL_UPLOAD_DIR}"
         mapfile -t bundle_files < <(find "${TRUNK_LOCAL_UPLOAD_DIR}" -maxdepth 1 -type f -name '*.bin')
         if [ "${#bundle_files[@]}" -ne 1 ]; then
