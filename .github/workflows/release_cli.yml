@@ -78,9 +78,9 @@ jobs:
       - name: Update CLI version
         uses: ./.github/actions/update_version
         # only empty during testing
-        if: github.event.inputs.release_tag != ''
+        if: ${{ github.event.inputs.release_tag != '' || inputs.release_tag != '' }}
         with:
-          version: ${{ github.event.inputs.release_tag }}
+          version: ${{ github.event.inputs.release_tag || inputs.release_tag }}
           file: ./cli/Cargo.toml
 
       #########################################################
@@ -103,7 +103,7 @@ jobs:
       - name: Upload debug info to Sentry
         uses: ./.github/actions/upload_sentry_debug_info
         # only empty during testing
-        if: github.event.inputs.release_tag != ''
+        if: ${{ github.event.inputs.release_tag != '' || inputs.release_tag != '' }}
         with:
           target: ${{ matrix.platform.target }}
           sentry-org: ${{ secrets.SENTRY_ORG }}
@@ -119,7 +119,7 @@ jobs:
         with:
           target: ${{ matrix.platform.target }}
           os-name: ${{ matrix.platform.os-name }}
-          release_tag: ${{ github.event.inputs.release_tag }}
+          release_tag: ${{ github.event.inputs.release_tag || inputs.release_tag }}
 
       #########################################################
       # Upload CLI artifacts
@@ -192,7 +192,7 @@ jobs:
           if-no-files-found: error
 
   perform_smoke_test:
-    name: Smoke test ${{ github.event.inputs.release_tag }} - ${{ matrix.type.name }}
+    name: Smoke test ${{ github.event.inputs.release_tag || inputs.release_tag }} - ${{ matrix.type.name }}
     runs-on: ${{ matrix.type.os }}
     strategy:
       matrix:
@@ -238,11 +238,11 @@ jobs:
           production-api-token: ${{ secrets.TRUNK_PROD_ORG_API_TOKEN }}
 
   tag_and_release:
-    name: Tag and Release [ ${{ github.event.inputs.release_tag }} ]
+    name: Tag and Release [ ${{ github.event.inputs.release_tag || inputs.release_tag }} ]
     runs-on: ubuntu-latest
     needs: [build_release, perform_smoke_test]
     # only empty during testing
-    if: needs.perform_smoke_test.result == 'success' && github.event.inputs.release_tag != ''
+    if: ${{ needs.perform_smoke_test.result == 'success' && (github.event.inputs.release_tag != '' || inputs.release_tag != '') }}
     steps:
       - uses: actions/checkout@v4
 
@@ -305,7 +305,7 @@ jobs:
         run: |
           gh release create --prerelease --latest=false \
             --target ${{ github.sha }} \
-            --generate-notes ${{ github.event.inputs.release_tag }} \
+            --generate-notes ${{ github.event.inputs.release_tag || inputs.release_tag }} \
             ./build/*.tar.gz ./build/*.zip
 
       - name: Create Sentry release
@@ -316,4 +316,4 @@ jobs:
           SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
         with:
           environment: production
-          version: ${{ github.event.inputs.release_tag }}
+          version: ${{ github.event.inputs.release_tag || inputs.release_tag }}
