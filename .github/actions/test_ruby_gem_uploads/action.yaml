@@ -67,7 +67,7 @@ runs:
         mv rspec_trunk_flaky_tests/rspec_trunk_flaky_tests*/lib rspec_trunk_flaky_tests/lib
         bundle install
         bundle lock --remove-platform ruby || true
-        echo "gem 'rspec_trunk_flaky_tests', '${GEM_VERSION}', :path => './rspec_trunk_flaky_tests'" >> Gemfile
+        printf "\ngem 'rspec_trunk_flaky_tests', '%s', :path => './rspec_trunk_flaky_tests'\n" "${GEM_VERSION}" >> Gemfile
         bundle install --gemfile Gemfile --local
 
     - name: Run regular tests
