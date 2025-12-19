@@ -28,7 +28,7 @@ pub struct Test {
 }
 
 impl Test {
-    // trunk-ignore(clippy/E0425)
+    // trunk-ignore(clippy/too_many_arguments)
     pub fn new<T: AsRef<str> + ToString>(
         id: Option<T>,
         name: String,
