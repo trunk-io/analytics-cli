@@ -47,6 +47,7 @@ fn cleanup_env_vars() {
     env::remove_var(TRUNK_CODEOWNERS_PATH_ENV);
     env::remove_var("CI");
     env::remove_var("GITHUB_JOB");
+    env::remove_var("TRUNK_LOCAL_UPLOAD_DIR_ALLOW_MULTIPLE");
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -249,8 +250,34 @@ async fn publish_test_report() {
 }
 
 #[test]
+#[serial]
 fn test_mut_test_report_try_save() {
     cleanup_env_vars();
+    let temp_dir = tempdir().unwrap();
+    let report = MutTestReport::new(
+        "test-origin".into(),
+        "test-command".into(),
+        Some("test-variant".into()),
+    );
+    let result = report.try_save(temp_dir.path().to_str().unwrap().to_string());
+    assert!(result, "try_save should return true on success");
+
+    let file_path = temp_dir.path().join("trunk_output.bin");
+    assert!(file_path.exists(), "Saved file does not exist");
+    let data = fs::read(&file_path).expect("Failed to read saved file");
+    assert!(!data.is_empty(), "Saved file is empty");
+    let deserialized = TestReport::decode(&*data).expect("Failed to decode TestResult");
+    // The default TestResult should have no test_case_runs
+    assert_eq!(deserialized.test_results.len(), 1);
+    let test_result = &deserialized.test_results[0];
+    assert_eq!(test_result.test_case_runs.len(), 0);
+}
+
+#[test]
+#[serial]
+fn test_mut_test_report_try_save_allows_multiple_files() {
+    cleanup_env_vars();
+    env::set_var("TRUNK_LOCAL_UPLOAD_DIR_ALLOW_MULTIPLE", "true");
     let temp_dir = tempdir().unwrap();
     let report = MutTestReport::new(
         "test-origin".into(),
@@ -284,10 +311,10 @@ fn test_mut_test_report_try_save() {
     let data = fs::read(&file_path).expect("Failed to read saved file");
     assert!(!data.is_empty(), "Saved file is empty");
     let deserialized = TestReport::decode(&*data).expect("Failed to decode TestResult");
-    // The default TestResult should have no test_case_runs
     assert_eq!(deserialized.test_results.len(), 1);
     let test_result = &deserialized.test_results[0];
     assert_eq!(test_result.test_case_runs.len(), 0);
+    cleanup_env_vars();
 }
 
 #[tokio::test(flavor = "multi_thread")]

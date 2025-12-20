@@ -81,6 +81,15 @@ impl ToString for Status {
     }
 }
 
+fn allow_multiple_local_uploads() -> bool {
+    env::var("TRUNK_LOCAL_UPLOAD_DIR_ALLOW_MULTIPLE")
+        .map(|value| {
+            let normalized = value.to_ascii_lowercase();
+            matches!(normalized.as_str(), "1" | "true" | "yes" | "on")
+        })
+        .unwrap_or(false)
+}
+
 #[cfg(feature = "ruby")]
 impl Status {
     pub fn to_string(&self) -> &str {
@@ -522,8 +531,12 @@ impl MutTestReport {
 
     // saves to local fs and returns the path
     pub fn try_save(&self, path: String) -> bool {
-        let timestamp = Utc::now().timestamp_millis();
-        let filename = format!("trunk_output_{timestamp}.bin");
+        let filename = if allow_multiple_local_uploads() {
+            let timestamp = Utc::now().timestamp_millis();
+            format!("trunk_output_{timestamp}.bin")
+        } else {
+            "trunk_output.bin".to_string()
+        };
         let desired_path = std::path::PathBuf::from(path).join(filename);
         match self.save(desired_path) {
             Ok(_) => true,

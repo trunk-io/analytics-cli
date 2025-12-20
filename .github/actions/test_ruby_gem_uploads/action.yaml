@@ -133,6 +133,7 @@ runs:
         TRUNK_ORG_URL_SLUG: ${{ inputs.trunk-org-slug }}
         TRUNK_PUBLIC_API_ADDRESS: ${{ inputs.trunk-public-api-address }}
         TRUNK_LOCAL_UPLOAD_DIR: bundles
+        TRUNK_LOCAL_UPLOAD_DIR_ALLOW_MULTIPLE: true
       run: |
         set -euo pipefail
         rm -rf "${TRUNK_LOCAL_UPLOAD_DIR}"
