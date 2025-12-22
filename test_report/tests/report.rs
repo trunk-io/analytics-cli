@@ -262,6 +262,8 @@ async fn publish_test_report() {
 #[test]
 fn test_mut_test_report_try_save() {
     cleanup_env_vars();
+    clean_up_cache_files();
+
     let temp_dir = tempdir().unwrap();
     let report = MutTestReport::new(
         "test-origin".into(),
@@ -286,6 +288,8 @@ fn test_mut_test_report_try_save() {
 #[serial]
 async fn test_environment_variable_overrides() {
     cleanup_env_vars();
+    clean_up_cache_files();
+
     let temp_dir = tempdir().unwrap();
     generate_mock_codeowners(&temp_dir);
 
@@ -419,6 +423,8 @@ async fn test_environment_variable_overrides() {
 #[serial]
 async fn test_variant_priority_constructor_over_env() {
     cleanup_env_vars();
+    clean_up_cache_files();
+
     let temp_dir = tempdir().unwrap();
     generate_mock_codeowners(&temp_dir);
 
@@ -496,6 +502,8 @@ async fn test_variant_priority_constructor_over_env() {
 #[serial]
 async fn test_variant_impacts_quarantining() {
     cleanup_env_vars();
+    clean_up_cache_files();
+
     let temp_dir = tempdir().unwrap();
     let repo_setup_res = setup_repo_with_commit(&temp_dir);
     assert!(repo_setup_res.is_ok());
