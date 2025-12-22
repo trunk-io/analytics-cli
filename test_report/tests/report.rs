@@ -6,9 +6,9 @@ use bundle::{BundleMeta, FileSetType, Test};
 use constants::{
     TRUNK_ALLOW_EMPTY_TEST_RESULTS_ENV, TRUNK_API_TOKEN_ENV, TRUNK_CODEOWNERS_PATH_ENV,
     TRUNK_DISABLE_QUARANTINING_ENV, TRUNK_DRY_RUN_ENV, TRUNK_ORG_URL_SLUG_ENV,
-    TRUNK_PUBLIC_API_ADDRESS_ENV, TRUNK_REPO_HEAD_AUTHOR_NAME_ENV, TRUNK_REPO_HEAD_BRANCH_ENV,
-    TRUNK_REPO_HEAD_COMMIT_EPOCH_ENV, TRUNK_REPO_HEAD_SHA_ENV, TRUNK_REPO_URL_ENV,
-    TRUNK_USE_UNCLONED_REPO_ENV, TRUNK_VARIANT_ENV,
+    TRUNK_PUBLIC_API_ADDRESS_ENV, TRUNK_QUARANTINED_TESTS_DISK_CACHE_TTL_SECS_ENV,
+    TRUNK_REPO_HEAD_AUTHOR_NAME_ENV, TRUNK_REPO_HEAD_BRANCH_ENV, TRUNK_REPO_HEAD_COMMIT_EPOCH_ENV,
+    TRUNK_REPO_HEAD_SHA_ENV, TRUNK_REPO_URL_ENV, TRUNK_USE_UNCLONED_REPO_ENV, TRUNK_VARIANT_ENV,
 };
 use context::repo::RepoUrlParts;
 use prost::Message;
@@ -62,8 +62,6 @@ fn clean_up_cache_files() {
 #[serial]
 async fn publish_test_report() {
     cleanup_env_vars();
-    clean_up_cache_files();
-
     let temp_dir = tempdir().unwrap();
     let repo_setup_res = setup_repo_with_commit(&temp_dir);
     generate_mock_codeowners(&temp_dir);
@@ -76,6 +74,7 @@ async fn publish_test_report() {
     env::set_var("GITHUB_JOB", "test-job");
     env::set_var(TRUNK_API_TOKEN_ENV, "test-token");
     env::set_var(TRUNK_ORG_URL_SLUG_ENV, "test-org");
+    env::set_var(TRUNK_QUARANTINED_TESTS_DISK_CACHE_TTL_SECS_ENV, "0");
 
     let thread_join_handle = thread::spawn(|| {
         let test_report = MutTestReport::new(
@@ -262,8 +261,6 @@ async fn publish_test_report() {
 #[test]
 fn test_mut_test_report_try_save() {
     cleanup_env_vars();
-    clean_up_cache_files();
-
     let temp_dir = tempdir().unwrap();
     let report = MutTestReport::new(
         "test-origin".into(),
@@ -288,8 +285,6 @@ fn test_mut_test_report_try_save() {
 #[serial]
 async fn test_environment_variable_overrides() {
     cleanup_env_vars();
-    clean_up_cache_files();
-
     let temp_dir = tempdir().unwrap();
     generate_mock_codeowners(&temp_dir);
 
@@ -423,8 +418,6 @@ async fn test_environment_variable_overrides() {
 #[serial]
 async fn test_variant_priority_constructor_over_env() {
     cleanup_env_vars();
-    clean_up_cache_files();
-
     let temp_dir = tempdir().unwrap();
     generate_mock_codeowners(&temp_dir);
 
@@ -502,8 +495,6 @@ async fn test_variant_priority_constructor_over_env() {
 #[serial]
 async fn test_variant_impacts_quarantining() {
     cleanup_env_vars();
-    clean_up_cache_files();
-
     let temp_dir = tempdir().unwrap();
     let repo_setup_res = setup_repo_with_commit(&temp_dir);
     assert!(repo_setup_res.is_ok());
@@ -607,6 +598,7 @@ async fn test_variant_impacts_quarantining() {
     env::set_var(TRUNK_API_TOKEN_ENV, "test-token");
     env::set_var(TRUNK_ORG_URL_SLUG_ENV, "test-org");
     env::set_var(TRUNK_USE_UNCLONED_REPO_ENV, "false");
+    env::set_var(TRUNK_QUARANTINED_TESTS_DISK_CACHE_TTL_SECS_ENV, "0");
 
     // Test with variant1 - should find the quarantined test (without ID)
     env::set_var(TRUNK_VARIANT_ENV, "variant1");
