@@ -933,4 +933,6 @@ async fn test_get_quarantine_config_disk_cache() {
         assert_eq!(get_quarantine_config_requests.len(), 2);
         assert_eq!(get_quarantine_config_requests[1].repo, repo_2,);
     }
+
+    clean_up_cache_files();
 }
