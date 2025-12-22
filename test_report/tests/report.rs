@@ -62,6 +62,8 @@ fn clean_up_cache_files() {
 #[serial]
 async fn publish_test_report() {
     cleanup_env_vars();
+    clean_up_cache_files();
+
     let temp_dir = tempdir().unwrap();
     let repo_setup_res = setup_repo_with_commit(&temp_dir);
     generate_mock_codeowners(&temp_dir);
@@ -933,6 +935,4 @@ async fn test_get_quarantine_config_disk_cache() {
         assert_eq!(get_quarantine_config_requests.len(), 2);
         assert_eq!(get_quarantine_config_requests[1].repo, repo_2,);
     }
-
-    clean_up_cache_files();
 }
