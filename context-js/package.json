@@ -8,7 +8,7 @@
     "build_and_test": "pnpm run build && pnpm run test"
   },
   "devDependencies": {
-    "@eslint/js": "^9.13.0",
+    "@eslint/js": "^9.39.0",
     "@faker-js/faker": "^8.4.1",
     "@mongodb-js/zstd": "^1.2.2",
     "@types/eslint__js": "^8.42.3",
@@ -17,7 +17,7 @@
     "@vitest/coverage-v8": "2.1.9",
     "@vitest/eslint-plugin": "^1.1.7",
     "dayjs": "^1.11.13",
-    "eslint": "^9.13.0",
+    "eslint": "^9.39.0",
     "tar": "^6.2.0",
     "typescript": "^5.6.3",
     "typescript-eslint": "^8.11.0",
