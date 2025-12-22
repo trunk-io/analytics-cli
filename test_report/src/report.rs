@@ -334,15 +334,16 @@ impl MutTestReport {
     ) -> Option<HashMap<String, bool>> {
         let cache_path = self.get_quarantined_tests_cache_file_path(org_url_slug, repo_url);
 
-        let cache_data = match fs::read_to_string(&cache_path) {
-            Ok(data) => data,
+        let cache_file = match fs::File::open(&cache_path) {
+            Ok(file) => file,
             Err(err) => {
-                tracing::warn!("Failed to read quarantined tests cache file: {:?}", err);
+                tracing::warn!("Failed to open quarantined tests cache file: {:?}", err);
                 return None;
             }
         };
 
-        let cache_entry: QuarantinedTestsDiskCacheEntry = match serde_json::from_str(&cache_data) {
+        let cache_entry: QuarantinedTestsDiskCacheEntry = match serde_json::from_reader(cache_file)
+        {
             Ok(entry) => entry,
             Err(err) => {
                 tracing::warn!("Failed to parse quarantined tests cache file: {:?}", err);
@@ -415,21 +416,17 @@ impl MutTestReport {
         repo_url: String,
         org_url_slug: String,
     ) {
-        // first check in-memory cache
         if self.0.borrow().quarantined_tests.as_ref().is_some() {
             return;
         }
 
-        // then check disk cache
         if let Some(quarantined_tests) =
             self.load_quarantined_tests_from_disk_cache(&org_url_slug, &repo_url)
         {
-            // update in-memory cache
             self.0.borrow_mut().quarantined_tests = Some(quarantined_tests);
             return;
         }
 
-        // cache miss - make API call
         let mut quarantined_tests = HashMap::new();
         let request = message::GetQuarantineConfigRequest {
             org_url_slug: org_url_slug.clone(),
@@ -458,7 +455,6 @@ impl MutTestReport {
             }
         }
 
-        // update both in-memory and disk cache
         self.0.borrow_mut().quarantined_tests = Some(quarantined_tests.clone());
         self.save_quarantined_tests_to_disk_cache(&org_url_slug, &repo_url, &quarantined_tests);
     }
