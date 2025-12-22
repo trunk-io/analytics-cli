@@ -547,8 +547,7 @@ mod tests {
 
         assert_eq!(
             internal_0_count, 1,
-            "Expected 'internal/0' to appear exactly once in the tarball, but it appeared {} times",
-            internal_0_count
+            "Expected 'internal/0' to appear exactly once in the tarball, but it appeared {internal_0_count} times"
         );
     }
 }
