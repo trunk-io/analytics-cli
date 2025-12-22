@@ -359,7 +359,7 @@ impl MutTestReport {
         };
         let cache_age = now.saturating_sub(cache_entry.cached_at_secs);
 
-        if cache_age <= self.0.borrow().quarantined_tests_disk_cache_ttl.as_secs() {
+        if cache_age < self.0.borrow().quarantined_tests_disk_cache_ttl.as_secs() {
             Some(cache_entry.quarantined_tests)
         } else {
             let _ = fs::remove_file(&cache_path);
