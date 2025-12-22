@@ -20,6 +20,7 @@ use tsify_next::Tsify;
 use wasm_bindgen::prelude::*;
 
 use crate::bundle_meta::{BundleMeta, VersionedBundle};
+use crate::files::FileSetType;
 
 /// Utility type for packing files into tarball.
 ///
@@ -68,10 +69,16 @@ impl<'a> BundlerUtil<'a> {
         }
 
         // Add all files to the tarball.
+        // Skip Internal file_sets if internal_bundled_file is set, to avoid adding the same file twice.
+        // If internal_bundled_file is None, we still add Internal file_sets as a fallback.
+        let has_internal_bundled_file = self.meta.internal_bundled_file.is_some();
         self.meta
             .base_props
             .file_sets
             .iter()
+            .filter(|file_set| {
+                !has_internal_bundled_file || file_set.file_set_type != FileSetType::Internal
+            })
             .try_for_each(|file_set| {
                 file_set.files.iter().try_for_each(|bundled_file| {
                     let path = std::path::Path::new(&bundled_file.original_path);
@@ -296,14 +303,14 @@ mod tests {
     use tempfile::tempdir;
 
     use super::*;
-    use crate::files::{FileSet, FileSetType};
     use crate::Test;
+    use crate::files::{FileSet, FileSetType};
     use crate::{
+        BundledFile,
         bundle_meta::{
             BundleMeta, BundleMetaBaseProps, BundleMetaDebugProps, BundleMetaJunitProps,
             META_VERSION,
         },
-        BundledFile,
     };
 
     fn create_bundle_meta(bundled_file: Option<BundledFile>) -> BundleMeta {
@@ -449,5 +456,99 @@ mod tests {
         let (internal_bin, parsed_meta) = data.unwrap();
         assert_eq!(parsed_meta.internal_bundled_file(), bundled_file);
         assert_eq!(internal_bin, test_report);
+    }
+
+    #[test]
+    pub fn test_no_duplicate_internal_file() {
+        let temp_dir = tempdir().unwrap();
+        let internal_path = "internal/0".to_string();
+        let full_bin_path = temp_dir.path().join("test_internal.bin");
+
+        let test_report = TestReport {
+            test_results: Vec::new(),
+            uploader_metadata: Some(UploaderMetadata {
+                version: "v1".to_string(),
+                origin: "A test".to_string(),
+                upload_time: None,
+                variant: "A variant".to_string(),
+            }),
+        };
+        let mut buf = Vec::new();
+        prost::Message::encode(&test_report, &mut buf).unwrap();
+        std::fs::write(&full_bin_path, buf).unwrap();
+
+        let bundled_file = BundledFile {
+            original_path: full_bin_path.to_str().unwrap().to_string(),
+            original_path_rel: None,
+            path: internal_path.clone(),
+            ..Default::default()
+        };
+
+        let mut repo = BundleRepo::default();
+        repo.repo.owner = "org".to_string();
+        repo.repo.name = "repo".to_string();
+        let mut envs: HashMap<String, String> = HashMap::new();
+        envs.insert("key".to_string(), "value".to_string());
+
+        let meta = BundleMeta {
+            junit_props: BundleMetaJunitProps::default(),
+            bundle_upload_id_v2: String::with_capacity(0),
+            debug_props: BundleMetaDebugProps {
+                command_line: String::with_capacity(0),
+            },
+            variant: Some("variant".to_string()),
+            base_props: BundleMetaBaseProps {
+                version: META_VERSION.to_string(),
+                org: "org".to_string(),
+                repo: repo.clone(),
+                cli_version: "0.0.1".to_string(),
+                bundle_upload_id: "00".to_string(),
+                tags: vec![],
+                file_sets: vec![FileSet::new(
+                    FileSetType::Internal,
+                    vec![bundled_file.clone()],
+                    "*.bin".to_string(),
+                    None,
+                )],
+                upload_time_epoch: SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap_or_else(|_| std::time::Duration::from_secs(0))
+                    .as_secs(),
+                test_command: Some("exit 1".to_string()),
+                quarantined_tests: vec![],
+                os_info: Some(env::consts::OS.to_string()),
+                codeowners: None,
+                envs,
+                use_uncloned_repo: None,
+            },
+            internal_bundled_file: Some(bundled_file.clone()),
+            failed_tests: vec![],
+        };
+
+        let bundler_util = BundlerUtil::new(&meta, None);
+        let bundle_path = temp_dir.path().join(BUNDLE_FILE_NAME);
+
+        assert!(bundler_util.make_tarball(&bundle_path).is_ok());
+        assert!(bundle_path.exists());
+
+        let tar_file = File::open(&bundle_path).unwrap();
+        let zstd_decoder = zstd::Decoder::new(tar_file).unwrap();
+        let mut archive = tar::Archive::new(zstd_decoder);
+        let entries = archive.entries().unwrap();
+
+        let mut internal_0_count = 0;
+        for entry in entries {
+            let entry = entry.unwrap();
+            let path = entry.header().path().unwrap();
+            if path.to_str().unwrap() == internal_path {
+                internal_0_count += 1;
+            }
+        }
+
+        assert_eq!(
+            internal_0_count, 1,
+            "Expected 'internal/0' to appear exactly once in the tarball, but it appeared {} times",
+            internal_0_count
+        );
     }
 }
