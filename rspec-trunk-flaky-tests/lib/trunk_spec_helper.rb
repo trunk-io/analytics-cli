@@ -25,6 +25,7 @@
 #   TRUNK_DRY_RUN - Set to 'true' to save bundle locally instead of uploading
 #   TRUNK_USE_UNCLONED_REPO - Set to 'true' for uncloned repo mode
 #   TRUNK_LOCAL_UPLOAD_DIR - Directory to save test results locally (disables upload)
+#   TRUNK_QUARANTINED_TESTS_DISK_CACHE_TTL_SECS - Time to cache quarantined tests on disk (in seconds)
 #   DISABLE_RSPEC_TRUNK_FLAKY_TESTS - Set to 'true' to completely disable Trunk
 #
 require 'rspec/core'
@@ -72,7 +73,7 @@ def trunk_disabled
     ENV['TRUNK_ORG_URL_SLUG'].nil? || ENV['TRUNK_API_TOKEN'].nil?
 end
 
-# we want to cache the test report so we can add to it as we go and reduce the number of API calls
+# we want to cache the test report in memory so we can add to it as we go and reduce the number of API calls
 $test_report = TestReport.new('rspec', "#{$PROGRAM_NAME} #{ARGV.join(' ')}", nil)
 
 module RSpec
