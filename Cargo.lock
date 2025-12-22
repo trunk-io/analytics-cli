@@ -5690,6 +5690,7 @@ dependencies = [
  "prost-wkt-types",
  "proto",
  "sentry-tracing",
+ "serde",
  "serde_json",
  "serial_test",
  "tempfile",
@@ -5699,6 +5700,7 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "trunk-analytics-cli",
+ "uuid",
  "wasm-bindgen",
 ]
 

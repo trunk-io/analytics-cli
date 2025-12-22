@@ -4732,6 +4732,7 @@ dependencies = [
  "prost-wkt-types",
  "proto",
  "sentry-tracing",
+ "serde",
  "serde_json",
  "tempfile",
  "third-party",
@@ -4739,6 +4740,7 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "trunk-analytics-cli",
+ "uuid",
 ]
 
 [[package]]

@@ -6,9 +6,9 @@ use bundle::{BundleMeta, FileSetType, Test};
 use constants::{
     TRUNK_ALLOW_EMPTY_TEST_RESULTS_ENV, TRUNK_API_TOKEN_ENV, TRUNK_CODEOWNERS_PATH_ENV,
     TRUNK_DISABLE_QUARANTINING_ENV, TRUNK_DRY_RUN_ENV, TRUNK_ORG_URL_SLUG_ENV,
-    TRUNK_PUBLIC_API_ADDRESS_ENV, TRUNK_REPO_HEAD_AUTHOR_NAME_ENV, TRUNK_REPO_HEAD_BRANCH_ENV,
-    TRUNK_REPO_HEAD_COMMIT_EPOCH_ENV, TRUNK_REPO_HEAD_SHA_ENV, TRUNK_REPO_URL_ENV,
-    TRUNK_USE_UNCLONED_REPO_ENV, TRUNK_VARIANT_ENV,
+    TRUNK_PUBLIC_API_ADDRESS_ENV, TRUNK_QUARANTINED_TESTS_DISK_CACHE_TTL_SECS_ENV,
+    TRUNK_REPO_HEAD_AUTHOR_NAME_ENV, TRUNK_REPO_HEAD_BRANCH_ENV, TRUNK_REPO_HEAD_COMMIT_EPOCH_ENV,
+    TRUNK_REPO_HEAD_SHA_ENV, TRUNK_REPO_URL_ENV, TRUNK_USE_UNCLONED_REPO_ENV, TRUNK_VARIANT_ENV,
 };
 use context::repo::RepoUrlParts;
 use prost::Message;
@@ -49,6 +49,15 @@ fn cleanup_env_vars() {
     env::remove_var("GITHUB_JOB");
 }
 
+fn clean_up_cache_files() {
+    let cache_dir = env::temp_dir().join(constants::CACHE_DIR);
+    if let Ok(entries) = fs::read_dir(&cache_dir) {
+        for entry in entries.flatten() {
+            let _ = fs::remove_file(entry.path());
+        }
+    }
+}
+
 #[tokio::test(flavor = "multi_thread")]
 #[serial]
 async fn publish_test_report() {
@@ -65,6 +74,7 @@ async fn publish_test_report() {
     env::set_var("GITHUB_JOB", "test-job");
     env::set_var(TRUNK_API_TOKEN_ENV, "test-token");
     env::set_var(TRUNK_ORG_URL_SLUG_ENV, "test-org");
+    env::set_var(TRUNK_QUARANTINED_TESTS_DISK_CACHE_TTL_SECS_ENV, "0");
 
     let thread_join_handle = thread::spawn(|| {
         let test_report = MutTestReport::new(
@@ -588,6 +598,7 @@ async fn test_variant_impacts_quarantining() {
     env::set_var(TRUNK_API_TOKEN_ENV, "test-token");
     env::set_var(TRUNK_ORG_URL_SLUG_ENV, "test-org");
     env::set_var(TRUNK_USE_UNCLONED_REPO_ENV, "false");
+    env::set_var(TRUNK_QUARANTINED_TESTS_DISK_CACHE_TTL_SECS_ENV, "0");
 
     // Test with variant1 - should find the quarantined test (without ID)
     env::set_var(TRUNK_VARIANT_ENV, "variant1");
@@ -729,4 +740,199 @@ async fn test_variant_impacts_quarantining() {
         !is_quarantined_v3_id,
         "Test should NOT be quarantined when variant is empty (with ID)"
     );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[serial]
+async fn test_get_quarantine_config_disk_cache() {
+    cleanup_env_vars();
+    clean_up_cache_files();
+
+    let repo_url_1 = "https://github.com/test-org/test-repo-1.git";
+    let repo_1 = RepoUrlParts {
+        host: "github.com".into(),
+        owner: "test-org".into(),
+        name: "test-repo-1".into(),
+    };
+
+    let test_name_1 = Some("test-name-1".to_string());
+    let test_parent_name_1 = Some("test-parent-name-1".to_string());
+    let test_classname_1 = Some("TestClass1".to_string());
+    let test_file_1 = Some("test_file_1.rs".to_string());
+    let test_id_1 = Test::new(
+        None,
+        test_name_1.clone().unwrap_or_default(),
+        test_parent_name_1.clone().unwrap_or_default(),
+        test_classname_1.clone(),
+        test_file_1.clone(),
+        "test-org".to_string(),
+        &repo_1,
+        None,
+        "".to_string(), // No variant
+    )
+    .id;
+
+    let repo_url_2 = "https://github.com/test-org/test-repo-2.git";
+    let repo_2 = RepoUrlParts {
+        host: "github.com".into(),
+        owner: "test-org".into(),
+        name: "test-repo-2".into(),
+    };
+
+    let test_name_2 = Some("test-name-2".to_string());
+    let test_parent_name_2 = Some("test-parent-name-2".to_string());
+    let test_classname_2 = Some("TestClass2".to_string());
+    let test_file_2 = Some("test_file_2.rs".to_string());
+    let test_id_2 = Test::new(
+        None,
+        test_name_2.clone().unwrap_or_default(),
+        test_parent_name_2.clone().unwrap_or_default(),
+        test_classname_2.clone(),
+        test_file_2.clone(),
+        "test-org".to_string(),
+        &repo_2,
+        None,
+        "".to_string(), // No variant
+    )
+    .id;
+
+    // test_id_1 and test_id_2 are quarantined
+    use api::message::GetQuarantineConfigResponse;
+    let state = {
+        let mut builder = MockServerBuilder::new();
+        builder.set_get_quarantining_config_handler(
+            move |state: State<SharedMockServerState>,
+                  req: Json<api::message::GetQuarantineConfigRequest>| async move {
+                state
+                    .requests
+                    .lock()
+                    .unwrap()
+                    .push(RequestPayload::GetQuarantineConfig(req.0));
+                Json(GetQuarantineConfigResponse {
+                    is_disabled: false,
+                    quarantined_tests: vec![test_id_1.clone(), test_id_2.clone()],
+                })
+            },
+        );
+        builder.spawn_mock_server().await
+    };
+
+    env::set_var(TRUNK_ORG_URL_SLUG_ENV, "test-org");
+    env::set_var(TRUNK_REPO_URL_ENV, repo_url_1);
+    env::set_var(TRUNK_PUBLIC_API_ADDRESS_ENV, &state.host);
+    env::set_var(TRUNK_API_TOKEN_ENV, "test-token");
+
+    thread::spawn(|| {
+        let test_report_1 = MutTestReport::new("test".into(), "test-command-1".into(), None);
+        // call twice to also validate in-memory cache
+        let test_1_is_quarantined = test_report_1.is_quarantined(
+            None,
+            Some("test-name-1".to_string()),
+            Some("test-parent-name-1".to_string()),
+            Some("TestClass1".to_string()),
+            Some("test_file_1.rs".to_string()),
+        );
+        let test_3_is_quarantined = test_report_1.is_quarantined(
+            None,
+            Some("test-name-3".to_string()),
+            Some("test-parent-name-3".to_string()),
+            Some("TestClass3".to_string()),
+            Some("test_file_3.rs".to_string()),
+        );
+        assert!(test_1_is_quarantined);
+        assert!(!test_3_is_quarantined);
+    })
+    .join()
+    .unwrap();
+
+    thread::spawn(|| {
+        let test_report_2 = MutTestReport::new("test".into(), "test-command-2".into(), None);
+        // call twice to also validate in-memory cache
+        let test_1_is_quarantined = test_report_2.is_quarantined(
+            None,
+            Some("test-name-1".to_string()),
+            Some("test-parent-name-1".to_string()),
+            Some("TestClass1".to_string()),
+            Some("test_file_1.rs".to_string()),
+        );
+        let test_3_is_quarantined = test_report_2.is_quarantined(
+            None,
+            Some("test-name-3".to_string()),
+            Some("test-parent-name-3".to_string()),
+            Some("TestClass3".to_string()),
+            Some("test_file_3.rs".to_string()),
+        );
+        assert!(test_1_is_quarantined);
+        assert!(!test_3_is_quarantined);
+    })
+    .join()
+    .unwrap();
+
+    {
+        let requests = state.requests.lock().unwrap();
+        let get_quarantine_config_count = requests
+            .iter()
+            .filter(|req| matches!(req, RequestPayload::GetQuarantineConfig(_)))
+            .count();
+        assert_eq!(
+            get_quarantine_config_count, 1,
+            "get_quarantine_config should be called only once across two test reports with the same repo"
+        );
+        let get_quarantine_config_request = requests
+            .iter()
+            .find_map(|req| match req {
+                RequestPayload::GetQuarantineConfig(req) => Some(req),
+                _ => None,
+            })
+            .unwrap();
+        assert_eq!(get_quarantine_config_request.org_url_slug, "test-org");
+        assert_eq!(get_quarantine_config_request.repo, repo_1,);
+    }
+
+    // third test report with different repo - should make a new API call due to cache miss
+    env::set_var(TRUNK_REPO_URL_ENV, repo_url_2);
+
+    thread::spawn(|| {
+        let test_report_3 = MutTestReport::new("test".into(), "test-command-3".into(), None);
+        // call twice to also validate in-memory cache
+        let test_2_is_quarantined = test_report_3.is_quarantined(
+            None,
+            Some("test-name-2".to_string()),
+            Some("test-parent-name-2".to_string()),
+            Some("TestClass2".to_string()),
+            Some("test_file_2.rs".to_string()),
+        );
+        let test_3_is_quarantined = test_report_3.is_quarantined(
+            None,
+            Some("test-name-3".to_string()),
+            Some("test-parent-name-3".to_string()),
+            Some("TestClass3".to_string()),
+            Some("test_file_3.rs".to_string()),
+        );
+        assert!(test_2_is_quarantined);
+        assert!(!test_3_is_quarantined);
+    })
+    .join()
+    .unwrap();
+
+    {
+        let requests = state.requests.lock().unwrap();
+        let get_quarantine_config_count = requests
+            .iter()
+            .filter(|req| matches!(req, RequestPayload::GetQuarantineConfig(_)))
+            .count();
+        assert_eq!(
+            get_quarantine_config_count, 2,
+            "get_quarantine_config should be called twice: once for test-repo-1 and once for test-repo-2"
+        );
+        let get_quarantine_config_requests: Vec<_> = requests
+            .iter()
+            .filter_map(|req| match req {
+                RequestPayload::GetQuarantineConfig(req) => Some(req),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(get_quarantine_config_requests.len(), 2);
+        assert_eq!(get_quarantine_config_requests[1].repo, repo_2,);
+    }
 }

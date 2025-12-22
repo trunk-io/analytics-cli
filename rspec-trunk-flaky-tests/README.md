@@ -146,7 +146,7 @@ Understanding the quarantining flow helps you know what to expect when using thi
 
    - Tests run one by one as normal.
    - When a test **fails**, the gem intercepts the failure through RSpec's `set_exception` hook.
-   - **On the first failure**, the gem makes an API call to fetch the list of quarantined tests from Trunk servers. This list is then **cached in memory** for the remainder of the test run to minimize API calls.
+   - **On the first failure**, the gem makes an API call to fetch the list of quarantined tests from Trunk servers. This list is then **cached in memory** for the remainder of the test run to minimize API calls. The list is also cached on disk with a TTL, configurable via the `TRUNK_QUARANTINED_TESTS_DISK_CACHE_TTL_SECS` environment variable (default 300s = 5m).
    - For each subsequent failure, the gem checks the cached quarantine list (no additional API calls).
 
 3. **Quarantine Check and Exception Override**
