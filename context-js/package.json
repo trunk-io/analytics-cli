@@ -21,7 +21,7 @@
     "tar": "^6.2.0",
     "typescript": "^5.6.3",
     "typescript-eslint": "^8.11.0",
-    "vitest": "^2.1.9",
+    "vitest": "^4.0.16",
     "wasm-pack": "^0.13.0"
   },
   "pnpm": {
@@ -29,7 +29,8 @@
     "overrides": {
       "binary-install>axios": "0.30.2",
       "form-data": "4.0.4",
-      "glob": "10.5.0"
+      "glob": "10.5.0",
+      "brace-expansion": "2.0.2"
     }
   }
 }
