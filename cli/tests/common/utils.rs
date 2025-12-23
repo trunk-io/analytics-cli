@@ -1,35 +1,20 @@
 use std::{
-    env, fs,
+    fs,
     io::Write,
     path::{Path, PathBuf},
     time::Duration,
 };
 
 use bazel_bep::types::build_event_stream::{
+    BuildEvent, BuildEventId, File, TestResult, TestStatus, TestSummary,
     build_event::Payload,
     build_event_id::{Id, TestResultId, TestSummaryId},
     file::File::Uri,
-    BuildEvent, BuildEventId, File, TestResult, TestStatus, TestSummary,
 };
 use chrono::{TimeDelta, Utc};
 use clap::Parser;
-use escargot::{CargoBuild, CargoRun};
 use junit_mock::JunitMock;
-use lazy_static::lazy_static;
 use test_utils::mock_git_repo::setup_repo_with_commit;
-
-lazy_static! {
-    static ref CARGO_MANIFEST_DIR: PathBuf = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    pub static ref CARGO_RUN: CargoRun = CargoBuild::new()
-        .bin("trunk-analytics-cli")
-        .target_dir(CARGO_MANIFEST_DIR.join("../target"))
-        .manifest_path(CARGO_MANIFEST_DIR.join("../cli/Cargo.toml"))
-        .features("force-sentry-env-dev")
-        .current_release()
-        .current_target()
-        .run()
-        .unwrap();
-}
 
 pub fn generate_mock_git_repo<T: AsRef<Path>>(directory: T) {
     setup_repo_with_commit(directory).unwrap();

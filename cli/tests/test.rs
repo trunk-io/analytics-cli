@@ -8,20 +8,21 @@ use api::message::{
     GetQuarantineConfigResponse,
 };
 use assert_matches::assert_matches;
-use axum::{extract::State, Json};
+use axum::{Json, extract::State};
 use bundle::BundleMeta;
-use context::{bazel_bep::parser::BazelBepParser, junit::parser::JunitParser};
-use predicates::prelude::*;
-use tempfile::tempdir;
-use test_utils::mock_server::{MockServerBuilder, RequestPayload, SharedMockServerState};
+mod common;
 
-use crate::{
+use common::{
     command_builder::CommandBuilder,
     utils::{
         generate_mock_bazel_bep, generate_mock_codeowners, generate_mock_git_repo,
         generate_mock_valid_junit_xmls,
     },
 };
+use context::{bazel_bep::parser::BazelBepParser, junit::parser::JunitParser};
+use predicates::prelude::*;
+use tempfile::tempdir;
+use test_utils::mock_server::{MockServerBuilder, RequestPayload, SharedMockServerState};
 
 // NOTE: must be multi threaded to start a mock server
 #[tokio::test(flavor = "multi_thread")]
