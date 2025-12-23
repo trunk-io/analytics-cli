@@ -12,13 +12,15 @@ use axum::{Json, extract::State, http::StatusCode};
 use bundle::{BundleMeta, FileSetType, INTERNAL_BIN_FILENAME};
 use chrono::{DateTime, TimeDelta};
 use clap::Parser;
-use cli_tests::command_builder::CommandBuilder;
-use cli_tests::utils::{
+mod common;
+
+use codeowners::CodeOwners;
+use common::command_builder::CommandBuilder;
+use common::utils::{
     generate_mock_bazel_bep, generate_mock_codeowners, generate_mock_git_repo,
     generate_mock_invalid_junit_xmls, generate_mock_valid_junit_xmls,
     generate_mock_valid_junit_xmls_with_failures,
 };
-use codeowners::CodeOwners;
 use constants::EXIT_FAILURE;
 use context::{
     bazel_bep::{common::BepTestStatus, parser::BazelBepParser},
@@ -131,7 +133,7 @@ async fn upload_bundle() {
     assert!(!base_props.repo.repo_head_sha.is_empty());
     let repo_head_sha_short = base_props.repo.repo_head_sha_short.unwrap();
     assert!(!repo_head_sha_short.is_empty());
-    assert!(&repo_head_sha_short.len() < &base_props.repo.repo_head_sha.len());
+    assert!(repo_head_sha_short.len() < base_props.repo.repo_head_sha.len());
     assert!(
         base_props
             .repo
@@ -462,11 +464,11 @@ async fn upload_bundle_success_status_code() {
     let test_bep_path = get_test_file_path("test_fixtures/bep_retries");
     let uri_fail = format!(
         "file://{}",
-        get_test_file_path("../cli/test_fixtures/junit1_fail.xml")
+        get_test_file_path("test_fixtures/junit1_fail.xml")
     );
     let uri_pass = format!(
         "file://{}",
-        get_test_file_path("../cli/test_fixtures/junit0_pass.xml")
+        get_test_file_path("test_fixtures/junit0_pass.xml")
     );
 
     let bep_content = fs::read_to_string(&test_bep_path)
@@ -586,11 +588,11 @@ async fn upload_bundle_success_preceding_failure() {
     let test_bep_path = get_test_file_path("test_fixtures/bep_retries");
     let uri_fail = format!(
         "file://{}",
-        get_test_file_path("../cli/test_fixtures/junit1_fail.xml")
+        get_test_file_path("test_fixtures/junit1_fail.xml")
     );
     let uri_pass = format!(
         "file://{}",
-        get_test_file_path("../cli/test_fixtures/junit0_pass.xml")
+        get_test_file_path("test_fixtures/junit0_pass.xml")
     );
 
     let bep_content = fs::read_to_string(&test_bep_path)
@@ -1224,11 +1226,11 @@ async fn test_can_upload_with_uncloned_repo() {
     let test_bep_path = get_test_file_path("test_fixtures/bep_retries");
     let uri_fail = format!(
         "file://{}",
-        get_test_file_path("../cli/test_fixtures/junit0_fail.xml")
+        get_test_file_path("test_fixtures/junit0_fail.xml")
     );
     let uri_pass = format!(
         "file://{}",
-        get_test_file_path("../cli/test_fixtures/junit0_pass.xml")
+        get_test_file_path("test_fixtures/junit0_pass.xml")
     );
 
     let bep_content = fs::read_to_string(&test_bep_path)
@@ -1317,11 +1319,11 @@ async fn test_uncloned_repo_requires_manual_settings() {
     let test_bep_path = get_test_file_path("test_fixtures/bep_retries");
     let uri_fail = format!(
         "file://{}",
-        get_test_file_path("../cli/test_fixtures/junit0_fail.xml")
+        get_test_file_path("test_fixtures/junit0_fail.xml")
     );
     let uri_pass = format!(
         "file://{}",
-        get_test_file_path("../cli/test_fixtures/junit0_pass.xml")
+        get_test_file_path("test_fixtures/junit0_pass.xml")
     );
 
     let bep_content = fs::read_to_string(&test_bep_path)
@@ -1354,11 +1356,11 @@ async fn test_uncloned_repo_conflicts_with_repo_root() {
     let test_bep_path = get_test_file_path("test_fixtures/bep_retries");
     let uri_fail = format!(
         "file://{}",
-        get_test_file_path("../cli/test_fixtures/junit0_fail.xml")
+        get_test_file_path("test_fixtures/junit0_fail.xml")
     );
     let uri_pass = format!(
         "file://{}",
-        get_test_file_path("../cli/test_fixtures/junit0_pass.xml")
+        get_test_file_path("test_fixtures/junit0_pass.xml")
     );
 
     let bep_content = fs::read_to_string(&test_bep_path)
@@ -1403,11 +1405,11 @@ async fn test_can_use_manual_overrides_on_cloned_repo() {
     let test_bep_path = get_test_file_path("test_fixtures/bep_retries");
     let uri_fail = format!(
         "file://{}",
-        get_test_file_path("../cli/test_fixtures/junit0_fail.xml")
+        get_test_file_path("test_fixtures/junit0_fail.xml")
     );
     let uri_pass = format!(
         "file://{}",
-        get_test_file_path("../cli/test_fixtures/junit0_pass.xml")
+        get_test_file_path("test_fixtures/junit0_pass.xml")
     );
 
     let bep_content = fs::read_to_string(&test_bep_path)

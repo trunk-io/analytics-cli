@@ -1,4 +1,6 @@
-use cli_tests::{
+mod common;
+
+use common::{
     command_builder::CommandBuilder,
     utils::{
         generate_mock_codeowners, generate_mock_invalid_junit_xmls,

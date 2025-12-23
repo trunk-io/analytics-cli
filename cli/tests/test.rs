@@ -10,7 +10,9 @@ use api::message::{
 use assert_matches::assert_matches;
 use axum::{Json, extract::State};
 use bundle::BundleMeta;
-use cli_tests::{
+mod common;
+
+use common::{
     command_builder::CommandBuilder,
     utils::{
         generate_mock_bazel_bep, generate_mock_codeowners, generate_mock_git_repo,

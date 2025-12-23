@@ -1,5 +1,5 @@
 use std::{
-    env, fs,
+    fs,
     io::Write,
     path::{Path, PathBuf},
     time::Duration,
@@ -13,42 +13,8 @@ use bazel_bep::types::build_event_stream::{
 };
 use chrono::{TimeDelta, Utc};
 use clap::Parser;
-use escargot::{CargoBuild, CargoRun};
 use junit_mock::JunitMock;
-use lazy_static::lazy_static;
 use test_utils::mock_git_repo::setup_repo_with_commit;
-
-lazy_static! {
-    static ref CARGO_MANIFEST_DIR: PathBuf = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    pub static ref CARGO_RUN: CargoRun = {
-        let mut builder = CargoBuild::new()
-            .bin("trunk-analytics-cli")
-            .target_dir(CARGO_MANIFEST_DIR.join("../target"))
-            .manifest_path(CARGO_MANIFEST_DIR.join("../cli/Cargo.toml"))
-            .features("force-sentry-env-dev")
-            .current_release()
-            .current_target();
-
-        // Propagate RUSTFLAGS for code coverage instrumentation
-        if let Ok(rustflags) = env::var("RUSTFLAGS") {
-            builder = builder.env("RUSTFLAGS", rustflags);
-        }
-        if let Ok(cargo_incremental) = env::var("CARGO_INCREMENTAL") {
-            builder = builder.env("CARGO_INCREMENTAL", cargo_incremental);
-        }
-        if let Ok(llvm_profile_file) = env::var("LLVM_PROFILE_FILE") {
-            builder = builder.env("LLVM_PROFILE_FILE", llvm_profile_file);
-        }
-        if let Ok(cargo_llvm_cov) = env::var("CARGO_LLVM_COV") {
-            builder = builder.env("CARGO_LLVM_COV", cargo_llvm_cov);
-        }
-        if let Ok(cargo_llvm_cov_target_dir) = env::var("CARGO_LLVM_COV_TARGET_DIR") {
-            builder = builder.env("CARGO_LLVM_COV_TARGET_DIR", cargo_llvm_cov_target_dir);
-        }
-
-        builder.run().unwrap()
-    };
-}
 
 pub fn generate_mock_git_repo<T: AsRef<Path>>(directory: T) {
     setup_repo_with_commit(directory).unwrap();
