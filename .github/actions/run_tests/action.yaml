@@ -16,15 +16,26 @@ runs:
       if: contains(inputs.target, 'darwin')
       uses: taiki-e/install-action@nextest
 
+    - name: Cache nextest binary
+      uses: actions/cache@v4
+      id: cache-nextest
+      with:
+        path: ~/.cargo/bin/cargo-nextest
+        key: nextest-${{ inputs.target }}-latest
+
     - name: Install nextest (linux x86)
-      if: inputs.target == 'x86_64-unknown-linux-musl' || inputs.target == 'x86_64-unknown-illumos' || inputs.target == 'x86_64-pc-windows-gnu'
+      if: (inputs.target == 'x86_64-unknown-linux-musl' || inputs.target == 'x86_64-unknown-illumos' || inputs.target == 'x86_64-pc-windows-gnu') && steps.cache-nextest.outputs.cache-hit != 'true'
       shell: bash
-      run: curl -LsSf https://get.nexte.st/latest/linux | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin
+      run: |
+        mkdir -p ${CARGO_HOME:-~/.cargo}/bin
+        curl -LsSf --retry 5 --retry-all-errors --retry-delay 2 https://get.nexte.st/latest/linux | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin
 
     - name: Install nextest (linux arm64)
-      if: inputs.target == 'aarch64-unknown-linux-musl'
+      if: inputs.target == 'aarch64-unknown-linux-musl' && steps.cache-nextest.outputs.cache-hit != 'true'
       shell: bash
-      run: curl -LsSf https://get.nexte.st/latest/linux-arm | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin
+      run: |
+        mkdir -p ${CARGO_HOME:-~/.cargo}/bin
+        curl -LsSf --retry 5 --retry-all-errors --retry-delay 2 https://get.nexte.st/latest/linux-arm | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin
 
     - name: Collect coverage data (including doctests)
       shell: bash

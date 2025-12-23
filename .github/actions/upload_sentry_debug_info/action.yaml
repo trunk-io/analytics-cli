@@ -14,9 +14,17 @@ inputs:
 runs:
   using: composite
   steps:
+    - name: Cache sentry-cli
+      uses: actions/cache@v4
+      id: cache-sentry-cli
+      with:
+        path: ~/.local/bin/sentry-cli
+        key: sentry-cli-latest
+
     - name: Install sentry-cli
+      if: steps.cache-sentry-cli.outputs.cache-hit != 'true'
       shell: bash
-      run: curl -sL https://sentry.io/get-cli/ | sh
+      run: curl -sL --retry 5 --retry-all-errors --retry-delay 2 https://sentry.io/get-cli/ | sh
 
     - name: Upload debug info to Sentry
       shell: bash
