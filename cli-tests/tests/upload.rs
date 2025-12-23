@@ -12,6 +12,12 @@ use axum::{Json, extract::State, http::StatusCode};
 use bundle::{BundleMeta, FileSetType, INTERNAL_BIN_FILENAME};
 use chrono::{DateTime, TimeDelta};
 use clap::Parser;
+use cli_tests::command_builder::CommandBuilder;
+use cli_tests::utils::{
+    generate_mock_bazel_bep, generate_mock_codeowners, generate_mock_git_repo,
+    generate_mock_invalid_junit_xmls, generate_mock_valid_junit_xmls,
+    generate_mock_valid_junit_xmls_with_failures,
+};
 use codeowners::CodeOwners;
 use constants::EXIT_FAILURE;
 use context::{
@@ -32,13 +38,6 @@ use test_utils::{
     mock_server::{MockServerBuilder, RequestPayload, SharedMockServerState},
 };
 use trunk_analytics_cli::upload_command::{DRY_RUN_OUTPUT_DIR, get_bundle_upload_id_message};
-
-use crate::command_builder::CommandBuilder;
-use crate::utils::{
-    generate_mock_bazel_bep, generate_mock_codeowners, generate_mock_git_repo,
-    generate_mock_invalid_junit_xmls, generate_mock_valid_junit_xmls,
-    generate_mock_valid_junit_xmls_with_failures,
-};
 
 // NOTE: must be multi threaded to start a mock server
 #[tokio::test(flavor = "multi_thread")]
