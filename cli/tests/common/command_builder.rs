@@ -1,9 +1,7 @@
 use std::{collections::HashMap, path::Path};
 
-use assert_cmd::Command;
+use assert_cmd::{Command, cargo};
 use constants::{TRUNK_API_CLIENT_RETRY_COUNT_ENV, TRUNK_PUBLIC_API_ADDRESS_ENV};
-
-use crate::utils::CARGO_RUN;
 
 const DEFAULT_JUNIT_PATHS: &str = "./*";
 
@@ -563,10 +561,11 @@ impl<'b> CommandBuilder<'b> {
     }
 
     pub fn command(&self) -> Command {
-        let mut command = Command::new(CARGO_RUN.path());
-        let args = self.build_args();
-        let envs = self.build_envs();
-        command.current_dir(self.current_dir).envs(envs).args(args);
+        let mut command = Command::new(cargo::cargo_bin!());
+        command
+            .current_dir(self.current_dir)
+            .envs(self.build_envs())
+            .args(self.build_args());
         command
     }
 

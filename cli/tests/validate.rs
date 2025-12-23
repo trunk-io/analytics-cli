@@ -1,11 +1,6 @@
-use predicates::prelude::*;
-use superconsole::{
-    style::{style, Color, Stylize},
-    Line, Span,
-};
-use tempfile::tempdir;
+mod common;
 
-use crate::{
+use common::{
     command_builder::CommandBuilder,
     utils::{
         generate_mock_codeowners, generate_mock_invalid_junit_xmls,
@@ -13,6 +8,12 @@ use crate::{
         generate_mock_valid_junit_xmls, write_junit_xml_to_dir,
     },
 };
+use predicates::prelude::*;
+use superconsole::{
+    Line, Span,
+    style::{Color, Stylize, style},
+};
+use tempfile::tempdir;
 
 #[test]
 fn validate_success() {
