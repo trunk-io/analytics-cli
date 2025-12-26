@@ -43,14 +43,26 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Cache CLI release binary
+        uses: actions/cache@v4
+        id: cache-cli-release
+        with:
+          path: |
+            trunk-analytics-cli
+            trunk-analytics-cli.exe
+            trunk-analytics-cli-*.tar.gz
+            trunk-analytics-cli-*.zip
+          key: cli-release-${{ env.RELEASE }}-${{ matrix.platform.download-target }}
+
       - name: Get Release
         shell: bash
+        if: steps.cache-cli-release.outputs.cache-hit != 'true'
         run: |
           if [[ "${{ matrix.platform.name }}" == "windows" ]]; then
-            curl -fsSLO --retry 3 https://github.com/trunk-io/analytics-cli/releases/download/${{ env.RELEASE }}/trunk-analytics-cli-${{ matrix.platform.download-target }}.zip
+            curl -fsSLO --retry 5 --retry-all-errors --retry-delay 2 https://github.com/trunk-io/analytics-cli/releases/download/${{ env.RELEASE }}/trunk-analytics-cli-${{ matrix.platform.download-target }}.zip
             unzip -q trunk-analytics-cli-${{ matrix.platform.download-target }}-experimental.zip
           else
-            curl -fsSLO --retry 3 https://github.com/trunk-io/analytics-cli/releases/download/${{ env.RELEASE }}/trunk-analytics-cli-${{ matrix.platform.download-target }}.tar.gz
+            curl -fsSLO --retry 5 --retry-all-errors --retry-delay 2 https://github.com/trunk-io/analytics-cli/releases/download/${{ env.RELEASE }}/trunk-analytics-cli-${{ matrix.platform.download-target }}.tar.gz
             tar -zxf trunk-analytics-cli-${{ matrix.platform.download-target }}.tar.gz
             chmod +x trunk-analytics-cli
           fi
