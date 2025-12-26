@@ -11,13 +11,31 @@ runs:
       if: runner.os == 'macOS'
       uses: taiki-e/install-action@nextest
 
-    - name: Install nextest (linux x86)
+    - name: Cache nextest binary (Linux)
+      uses: actions/cache@v4
+      id: cache-nextest-linux
       if: runner.os == 'Linux'
+      with:
+        path: ~/.cargo/bin/cargo-nextest
+        key: nextest-linux-latest
+
+    - name: Cache nextest binary (Windows)
+      uses: actions/cache@v4
+      id: cache-nextest-windows
+      if: runner.os == 'Windows'
+      with:
+        path: ~/.cargo/bin/cargo-nextest
+        key: nextest-windows-latest
+
+    - name: Install nextest (linux x86)
+      if: runner.os == 'Linux' && steps.cache-nextest-linux.outputs.cache-hit != 'true'
       shell: bash
-      run: curl -LsSf https://get.nexte.st/latest/linux | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin
+      run: |
+        mkdir -p ${CARGO_HOME:-~/.cargo}/bin
+        curl -LsSf --retry 5 --retry-all-errors --retry-delay 2 https://get.nexte.st/latest/linux | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin
 
     - name: Install nextest (windows)
-      if: runner.os == 'Windows'
+      if: runner.os == 'Windows' && steps.cache-nextest-windows.outputs.cache-hit != 'true'
       shell: pwsh
       run: |
         $cargoBin = if ($env:CARGO_HOME) { "$env:CARGO_HOME\bin" } else { "$env:USERPROFILE\.cargo\bin" }
