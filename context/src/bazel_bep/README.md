@@ -91,4 +91,4 @@ For tests that are retried (e.g., flaky tests), each attempt is tracked with an 
 
 - Attempt numbers are attached to individual test case runs to track which attempt they came from
 - Helps distinguish between different execution attempts of the same test
-- Used to merge results from multiple attempts into a single test result
+- Used to merge results from multiple attempts into a single test result, especially when [`--flaky_test_attempts`](https://bazel.build/reference/command-line-reference#flag--flaky_test_attempts) results in an eventual success
