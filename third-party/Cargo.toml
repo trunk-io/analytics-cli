@@ -4,12 +4,8 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-anyhow = "1.0.44"
 # must be kept in sync with sentry-log
 sentry = { version = "=0.36.0", features = ["debug-images"] }
-sentry-log = "=0.36.0"
-env_logger = { version = "0.11.0", default-features = false }
-log = "0.4.14"
 
 [features]
 force-sentry-env-dev = []

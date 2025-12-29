@@ -21,8 +21,6 @@ pyo3-stub-gen = "0.6.1"
 futures-io = "0.3.31"
 speedate = "0.14.4"
 tokio = { version = "*", default-features = false, features = ["rt"] }
-proto = { path = "../proto" }
-prost = "0.12.6"
 uuid = { version = "1.10.0", features = ["v5"] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
