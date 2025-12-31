@@ -10,7 +10,6 @@ path = "src/lib.rs"
 
 [dependencies]
 prost = "0.12.6"
-prost-types = "0.12.6"
 prost-wkt-types = { version = "0.5.1", features = ["vendored-protox"] }
 serde = "1.0.215"
 

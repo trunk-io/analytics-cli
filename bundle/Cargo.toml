@@ -12,6 +12,7 @@ required-features = ["build-binary"]
 anyhow = "1.0.44"
 clap = { version = "4.4.18", features = ["derive", "env"], optional = true }
 codeowners = { path = "../codeowners" }
+js-sys = { version = "0.3.70", optional = true }
 chrono = { version = "0.4.38", features = ["serde"] }
 proto = { path = "../proto" }
 constants = { path = "../constants" }
@@ -19,8 +20,6 @@ prost = "0.12.6"
 context = { path = "../context", default-features = false, features = [
   "bindings",
 ] }
-js-sys = { version = "0.3.70", optional = true }
-log = "0.4.14"
 tempfile = "3.2.0"
 glob = "0.3.0"
 regex = { version = "1.10.3", default-features = false, features = ["std"] }
@@ -37,7 +36,6 @@ async-std = { version = "1.13.0", features = ["attributes", "std"] }
 async-tar-wasm = { version = "0.4.2-wasm.1", default-features = false }
 futures-io = "0.3.31"
 tar = { version = "0.4.30", default-features = false }
-uuid = { version = "1.10.0", features = ["v5"] }
 zstd = { version = "0.13.0", default-features = false }
 
 [target.'cfg(target_os = "linux")'.dependencies]
