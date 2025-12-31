@@ -23,7 +23,6 @@ clap = { version = "4.4.18", features = ["derive", "env"] }
 context = { path = "../context", features = ["bindings"] }
 third-party = { path = "../third-party" }
 display = { path = "../display" }
-env_logger = { version = "0.11.0", default-features = false }
 log = "0.4.14"
 exitcode = "1.1.1"
 http = "1.1.0"
@@ -32,9 +31,7 @@ tokio = { version = "*", default-features = false, features = [
   "macros",
 ] }
 tempfile = "3.2.0"
-tokio-retry = { version = "0.3", default-features = false }
 tracing = "0.1.41"
-tracing-log = "0.2.0"
 tracing-subscriber = "0.3.19"
 glob = "0.3.0"
 reqwest = { version = "0.12.5", default-features = false, features = [
@@ -49,16 +46,13 @@ sentry-tracing = "0.36.0"
 openssl = { version = "0.10.72", features = ["vendored"] }
 openssl-src = { version = "=300.3.1", optional = true }
 quick-junit = "0.5.0"
-colored = "2.1.0"
 serde_json = "1.0"
 clap-verbosity-flag = "3.0.2"
 proto = { path = "../proto" }
 regex = "1.11.1"
 lazy_static = "1.5.0"
-url = "2.5.4"
 prost = "0.12.6"
 superconsole = "0.2.0"
-console = "0.15.11"
 pluralizer = "0.5.0"
 
 [dev-dependencies]
