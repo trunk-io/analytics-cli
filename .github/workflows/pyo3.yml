@@ -83,6 +83,39 @@ jobs:
         with:
           name: wheels-linux-${{ matrix.platform.target }}
           path: dist
+
+      - name: Upload wheel package to S3
+        uses: ./.github/actions/upload_to_s3
+        if: "!cancelled() && github.event_name != 'pull_request'"
+        with:
+          bucket: ${{ secrets.S3_ASSET_BUCKET }}
+          name: linux-${{ matrix.platform.target }}
+          path: dist
+          s3-flags: --recursive
+          role-to-assume: ${{ secrets.S3_UPLOAD_ROLE_ARN }}
+          date: ${{ needs.get-date-sha.outputs.date }}
+          sha: ${{ needs.get-date-sha.outputs.sha }}
+
+  linux-pytest:
+    needs: [linux]
+    runs-on: ${{ matrix.platform.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          - runner: ubuntu-latest
+            target: x86_64
+          - runner: ubuntu-latest
+            target: aarch64
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download wheels
+        uses: actions/download-artifact@v4
+        with:
+          name: wheels-linux-${{ matrix.platform.target }}
+          path: dist
+
       - name: pytest
         if: ${{ startsWith(matrix.platform.target, 'x86_64') }}
         shell: bash
@@ -95,6 +128,7 @@ jobs:
           uv pip install -r requirements-dev.txt
           uv pip install context-py --find-links ../dist --force-reinstall
           pytest --cov
+
       - name: pytest
         if: ${{ startsWith(matrix.platform.target, 'aarch64') }}
         uses: uraimo/run-on-arch-action@v2
@@ -121,18 +155,6 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           slug: trunk-io/analytics-cli
           directory: ./context-py
-
-      - name: Upload wheel package to S3
-        uses: ./.github/actions/upload_to_s3
-        if: "!cancelled() && github.event_name != 'pull_request'"
-        with:
-          bucket: ${{ secrets.S3_ASSET_BUCKET }}
-          name: linux-${{ matrix.platform.target }}
-          path: dist
-          s3-flags: --recursive
-          role-to-assume: ${{ secrets.S3_UPLOAD_ROLE_ARN }}
-          date: ${{ needs.get-date-sha.outputs.date }}
-          sha: ${{ needs.get-date-sha.outputs.sha }}
 
   macos:
     needs: [get-date-sha]
