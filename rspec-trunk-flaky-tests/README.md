@@ -230,6 +230,12 @@ The extension uses the `dev` profile by default when running tests. To use a dif
 RB_SYS_CARGO_PROFILE=release bundle exec rake test
 ```
 
+To compile the gem locally you can run using rb-sys-dock. This does require that docker is installed and running.
+
+```bash
+rb-sys-dock --platform arm64-darwin --build --directory rspec-trunk-flaky-tests
+```
+
 ### Release
 
 The gem is released using the GitHub Actions workflow at [`.github/workflows/release_ruby_gem.yml`](../.github/workflows/release_ruby_gem.yml).

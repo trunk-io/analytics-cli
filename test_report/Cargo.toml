@@ -8,7 +8,7 @@ edition = "2021"
 wasm-bindgen = { version = "0.2.95", optional = true }
 js-sys = { version = "0.3", optional = true }
 third-party = { path = "../third-party" }
-magnus = { version = "0.7.1", optional = true, default-features = false }
+magnus = { version = "0.8.2", optional = true, default-features = false }
 proto = { path = "../proto" }
 trunk-analytics-cli = { path = "../cli" }
 prost-wkt-types = { version = "0.5.1", features = ["vendored-protox"] }
