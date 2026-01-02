@@ -27,9 +27,15 @@ use uuid::Uuid;
 #[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::wasm_bindgen;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct QuarantinedTestsDiskCacheEntry {
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+struct QuarantineConfig {
+    quarantining_disabled_for_repo: bool,
     quarantined_tests: HashMap<String, bool>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct QuarantineConfigDiskCacheEntry {
+    quarantine_config: QuarantineConfig,
     cached_at_secs: u64,
 }
 
@@ -38,11 +44,44 @@ pub struct TestReport {
     test_report: TestReportProto,
     command: String,
     started_at: SystemTime,
-    quarantined_tests: Option<HashMap<String, bool>>,
+    quarantine_config: Option<QuarantineConfig>,
     quarantined_tests_disk_cache_ttl: Duration,
     codeowners: Option<CodeOwners>,
     variant: Option<String>,
     repo: Option<BundleRepo>,
+}
+
+#[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
+#[cfg_attr(feature = "ruby", magnus::wrap(class = "IsQuarantinedResult"))]
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub struct IsQuarantinedResult {
+    pub test_is_quarantined: bool,
+    pub quarantining_disabled_for_repo: bool,
+}
+
+#[cfg(feature = "ruby")]
+impl IsQuarantinedResult {
+    pub fn test_is_quarantined(&self) -> bool {
+        self.test_is_quarantined
+    }
+
+    pub fn quarantining_disabled_for_repo(&self) -> bool {
+        self.quarantining_disabled_for_repo
+    }
+}
+
+impl From<IsQuarantinedResult> for bool {
+    fn from(val: IsQuarantinedResult) -> Self {
+        val.test_is_quarantined && !val.quarantining_disabled_for_repo
+    }
+}
+
+impl std::ops::Not for IsQuarantinedResult {
+    type Output = bool;
+
+    fn not(self) -> Self::Output {
+        !self.test_is_quarantined || self.quarantining_disabled_for_repo
+    }
 }
 
 #[cfg_attr(feature = "wasm", wasm_bindgen)]
@@ -162,7 +201,7 @@ impl MutTestReport {
             test_report,
             command,
             started_at,
-            quarantined_tests: None,
+            quarantine_config: None,
             quarantined_tests_disk_cache_ttl,
             codeowners,
             repo,
@@ -256,16 +295,16 @@ impl MutTestReport {
         parent_name: Option<String>,
         classname: Option<String>,
         file: Option<String>,
-    ) -> bool {
+    ) -> IsQuarantinedResult {
         let token = self.get_token();
         let org_url_slug = self.get_org_url_slug();
         if token.is_empty() {
             tracing::warn!("Not checking quarantine status because TRUNK_API_TOKEN is empty");
-            return false;
+            return IsQuarantinedResult::default();
         }
         if org_url_slug.is_empty() {
             tracing::warn!("Not checking quarantine status because TRUNK_ORG_URL_SLUG is empty");
-            return false;
+            return IsQuarantinedResult::default();
         }
         let api_client = ApiClient::new(token, org_url_slug.clone(), None);
         let use_uncloned_repo = env::var(constants::TRUNK_USE_UNCLONED_REPO_ENV)
@@ -302,51 +341,57 @@ impl MutTestReport {
                     bundle_repo.repo_url,
                     org_url_slug,
                 );
-                if let Some(quarantined_tests) = self.0.borrow().quarantined_tests.as_ref() {
-                    return quarantined_tests.get(&test_identifier.id).is_some();
+                if let Some(quarantine_config) = self.0.borrow().quarantine_config.as_ref() {
+                    return IsQuarantinedResult {
+                        test_is_quarantined: quarantine_config
+                            .quarantined_tests
+                            .contains_key(&test_identifier.id),
+                        quarantining_disabled_for_repo: quarantine_config
+                            .quarantining_disabled_for_repo,
+                    };
                 }
-                false
+                IsQuarantinedResult::default()
             }
             _ => {
                 tracing::warn!("Unable to fetch quarantined tests");
-                false
+                IsQuarantinedResult::default()
             }
         }
     }
 
-    fn get_quarantined_tests_cache_file_path(&self, org_url_slug: &str, repo_url: &str) -> PathBuf {
+    fn get_quarantine_config_cache_file_path(&self, org_url_slug: &str, repo_url: &str) -> PathBuf {
         let cache_key = Uuid::new_v5(
             &Uuid::NAMESPACE_URL,
             format!("{org_url_slug}#{repo_url}").as_bytes(),
         )
         .to_string();
-        let quarantined_tests_cache_file_name = format!("quarantined_tests_{cache_key}.json");
+        let quarantine_config_cache_file_name = format!("quarantine_config_{cache_key}.json");
 
         env::temp_dir()
             .join(constants::CACHE_DIR)
-            .join(quarantined_tests_cache_file_name)
+            .join(quarantine_config_cache_file_name)
     }
 
-    fn load_quarantined_tests_from_disk_cache(
+    fn load_quarantine_config_from_disk_cache(
         &self,
         org_url_slug: &str,
         repo_url: &str,
-    ) -> Option<HashMap<String, bool>> {
-        let cache_path = self.get_quarantined_tests_cache_file_path(org_url_slug, repo_url);
+    ) -> Option<QuarantineConfigDiskCacheEntry> {
+        let cache_path = self.get_quarantine_config_cache_file_path(org_url_slug, repo_url);
 
         let cache_file = match fs::File::open(&cache_path) {
             Ok(file) => file,
             Err(err) => {
-                tracing::warn!("Failed to open quarantined tests cache file: {:?}", err);
+                tracing::warn!("Failed to open quarantine config cache file: {:?}", err);
                 return None;
             }
         };
 
-        let cache_entry: QuarantinedTestsDiskCacheEntry = match serde_json::from_reader(cache_file)
+        let cache_entry: QuarantineConfigDiskCacheEntry = match serde_json::from_reader(cache_file)
         {
             Ok(entry) => entry,
             Err(err) => {
-                tracing::warn!("Failed to parse quarantined tests cache file: {:?}", err);
+                tracing::warn!("Failed to parse quarantine config cache file: {:?}", err);
                 return None;
             }
         };
@@ -361,20 +406,20 @@ impl MutTestReport {
         let cache_age = now.saturating_sub(cache_entry.cached_at_secs);
 
         if cache_age < self.0.borrow().quarantined_tests_disk_cache_ttl.as_secs() {
-            Some(cache_entry.quarantined_tests)
+            Some(cache_entry)
         } else {
             let _ = fs::remove_file(&cache_path);
             None
         }
     }
 
-    fn save_quarantined_tests_to_disk_cache(
+    fn save_quarantine_config_to_disk_cache(
         &self,
         org_url_slug: &str,
         repo_url: &str,
-        quarantined_tests: &HashMap<String, bool>,
+        quarantine_config: &QuarantineConfig,
     ) {
-        let cache_path = self.get_quarantined_tests_cache_file_path(org_url_slug, repo_url);
+        let cache_path = self.get_quarantine_config_cache_file_path(org_url_slug, repo_url);
 
         let now = match SystemTime::now().duration_since(SystemTime::UNIX_EPOCH) {
             Ok(duration) => duration.as_secs(),
@@ -384,8 +429,8 @@ impl MutTestReport {
             }
         };
 
-        let cache_entry = QuarantinedTestsDiskCacheEntry {
-            quarantined_tests: quarantined_tests.clone(),
+        let cache_entry = QuarantineConfigDiskCacheEntry {
+            quarantine_config: quarantine_config.clone(),
             cached_at_secs: now,
         };
 
@@ -404,7 +449,7 @@ impl MutTestReport {
 
         if let Ok(json) = serde_json::to_string(&cache_entry) {
             if let Err(err) = fs::write(&cache_path, json) {
-                tracing::warn!("Failed to write quarantined tests cache file: {:?}", err);
+                tracing::warn!("Failed to write quarantine config cache file: {:?}", err);
             }
         }
     }
@@ -416,14 +461,14 @@ impl MutTestReport {
         repo_url: String,
         org_url_slug: String,
     ) {
-        if self.0.borrow().quarantined_tests.as_ref().is_some() {
+        if self.0.borrow().quarantine_config.is_some() {
             return;
         }
 
-        if let Some(quarantined_tests) =
-            self.load_quarantined_tests_from_disk_cache(&org_url_slug, &repo_url)
+        if let Some(cache_entry) =
+            self.load_quarantine_config_from_disk_cache(&org_url_slug, &repo_url)
         {
-            self.0.borrow_mut().quarantined_tests = Some(quarantined_tests);
+            self.0.borrow_mut().quarantine_config = Some(cache_entry.quarantine_config);
             return;
         }
 
@@ -439,11 +484,13 @@ impl MutTestReport {
             .build()
             .unwrap()
             .block_on(api_client.get_quarantining_config(&request));
-        match response {
+        let quarantining_disabled = match response {
             Ok(response) => {
+                let is_disabled = response.is_disabled;
                 for quarantined_test_id in response.quarantined_tests.iter() {
                     quarantined_tests.insert(quarantined_test_id.clone(), true);
                 }
+                is_disabled
             }
             Err(err) => {
                 tracing::warn!("Unable to fetch quarantined tests");
@@ -452,11 +499,16 @@ impl MutTestReport {
                     "Error fetching quarantined tests: {:?}",
                     err
                 );
+                false
             }
-        }
+        };
 
-        self.0.borrow_mut().quarantined_tests = Some(quarantined_tests.clone());
-        self.save_quarantined_tests_to_disk_cache(&org_url_slug, &repo_url, &quarantined_tests);
+        let quarantine_config = QuarantineConfig {
+            quarantining_disabled_for_repo: quarantining_disabled,
+            quarantined_tests: quarantined_tests.clone(),
+        };
+        self.0.borrow_mut().quarantine_config = Some(quarantine_config.clone());
+        self.save_quarantine_config_to_disk_cache(&org_url_slug, &repo_url, &quarantine_config);
     }
 
     fn get_org_url_slug(&self) -> String {
@@ -740,6 +792,15 @@ pub fn ruby_init(ruby: &magnus::Ruby) -> Result<(), magnus::Error> {
     let status = ruby.define_class("Status", ruby.class_object())?;
     status.define_singleton_method("new", magnus::function!(Status::new, 1))?;
     status.define_method("to_s", magnus::method!(Status::to_string, 0))?;
+    let is_quarantined_result = ruby.define_class("IsQuarantinedResult", ruby.class_object())?;
+    is_quarantined_result.define_method(
+        "test_is_quarantined",
+        magnus::method!(IsQuarantinedResult::test_is_quarantined, 0),
+    )?;
+    is_quarantined_result.define_method(
+        "quarantining_disabled_for_repo",
+        magnus::method!(IsQuarantinedResult::quarantining_disabled_for_repo, 0),
+    )?;
     let test_report = ruby.define_class("TestReport", ruby.class_object())?;
     test_report.define_singleton_method("new", magnus::function!(MutTestReport::new, 3))?;
     test_report.define_method("to_s", magnus::method!(MutTestReport::to_string, 0))?;
