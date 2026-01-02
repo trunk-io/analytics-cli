@@ -53,7 +53,7 @@ pub struct TestReport {
 
 #[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
 #[cfg_attr(feature = "ruby", magnus::wrap(class = "IsQuarantinedResult"))]
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub struct IsQuarantinedResult {
     pub test_is_quarantined: bool,
     pub quarantining_disabled_for_repo: bool,
@@ -300,17 +300,11 @@ impl MutTestReport {
         let org_url_slug = self.get_org_url_slug();
         if token.is_empty() {
             tracing::warn!("Not checking quarantine status because TRUNK_API_TOKEN is empty");
-            return IsQuarantinedResult {
-                test_is_quarantined: false,
-                quarantining_disabled_for_repo: false,
-            };
+            return IsQuarantinedResult::default();
         }
         if org_url_slug.is_empty() {
             tracing::warn!("Not checking quarantine status because TRUNK_ORG_URL_SLUG is empty");
-            return IsQuarantinedResult {
-                test_is_quarantined: false,
-                quarantining_disabled_for_repo: false,
-            };
+            return IsQuarantinedResult::default();
         }
         let api_client = ApiClient::new(token, org_url_slug.clone(), None);
         let use_uncloned_repo = env::var(constants::TRUNK_USE_UNCLONED_REPO_ENV)
@@ -356,17 +350,11 @@ impl MutTestReport {
                             .quarantining_disabled_for_repo,
                     };
                 }
-                IsQuarantinedResult {
-                    test_is_quarantined: false,
-                    quarantining_disabled_for_repo: false,
-                }
+                IsQuarantinedResult::default()
             }
             _ => {
                 tracing::warn!("Unable to fetch quarantined tests");
-                IsQuarantinedResult {
-                    test_is_quarantined: false,
-                    quarantining_disabled_for_repo: false,
-                }
+                IsQuarantinedResult::default()
             }
         }
     }
