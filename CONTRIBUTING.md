@@ -72,3 +72,36 @@ You can also use the standard `cargo test` command if you really want:
 ```bash
 cargo test
 ```
+
+## Logging and Output
+
+### Tracing Library
+
+The `tracing` library is used for:
+
+- **Sentry reporting**: Errors and warnings are automatically sent to Sentry for monitoring and debugging
+- **Debug logging**: Internal debug information that helps with development and troubleshooting
+
+**Important**: Tracing output does **not** surface to users unless they use the `--verbose` flag. By default, no tracing messages are shown in the console. They are primarily for Sentry reporting and debugging.
+
+### Superconsole
+
+The `superconsole` library is used for **surfacing information to users**. This is the primary mechanism for displaying:
+
+- Progress messages
+- Status updates
+- Final results
+- User-facing error messages
+
+### Error Handling
+
+When errors occur:
+
+1. **Always capture errors with `tracing::error!()`** - This ensures errors are logged to Sentry for monitoring
+2. **Surface blocking errors to users via `superconsole`** - If an error blocks execution, it should be displayed to the user through the display system (see `cli/src/error_report.rs` for examples)
+
+The pattern is:
+
+- Use `tracing` for observability and debugging (Sentry + optional verbose output)
+- Use `superconsole` for user-facing communication
+- Errors that block execution should use both: `tracing` for logging and `superconsole` for user display
