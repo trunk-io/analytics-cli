@@ -625,6 +625,10 @@ async fn test_variant_impacts_quarantining() {
         is_quarantined_v1,
         "Test should be quarantined when variant matches (without ID)"
     );
+    assert!(
+        !is_quarantined_v1.quarantining_disabled_for_repo,
+        "Quarantining should not be disabled for the repo"
+    );
 
     // Test with variant1 - should find the quarantined test (with ID)
     env::set_var(TRUNK_VARIANT_ENV, "variant1");

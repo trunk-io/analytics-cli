@@ -3,5 +3,6 @@ AllCops:
 GlobalVars:
   AllowedVariables:
     - $test_report
+    - $failure_encountered_and_quarantining_disabled
 Metrics/PerceivedComplexity:
   Max: 15

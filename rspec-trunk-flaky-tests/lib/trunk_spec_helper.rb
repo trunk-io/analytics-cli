@@ -75,6 +75,7 @@ end
 
 # we want to cache the test report in memory so we can add to it as we go and reduce the number of API calls
 $test_report = TestReport.new('rspec', "#{$PROGRAM_NAME} #{ARGV.join(' ')}", nil)
+$failure_encountered_and_quarantining_disabled = false
 
 module RSpec
   module Core
@@ -86,20 +87,34 @@ module RSpec
       # RSpec uses the existance of an exception to determine if the test failed
       # We need to override this to allow us to capture the exception and then
       # decide if we want to fail the test or not
-      # trunk-ignore(rubocop/Metrics/AbcSize,rubocop/Metrics/MethodLength,rubocop/Naming/AccessorMethodName)
+      # trunk-ignore(rubocop/Naming/AccessorMethodName)
       def set_exception(exception)
         return set_exception_core(exception) if metadata[:pending]
         return set_exception_core(exception) if trunk_disabled
         return set_exception_core(exception) if metadata[:retry_attempts]&.positive?
 
+        handle_quarantine_check(exception)
+      end
+
+      # trunk-ignore(rubocop/Metrics/AbcSize,rubocop/Metrics/MethodLength)
+      def handle_quarantine_check(exception)
         id = generate_trunk_id
         name = full_description
         parent_name = example_group.metadata[:description]
         parent_name = parent_name.empty? ? 'rspec' : parent_name
         file = escape(metadata[:file_path])
         classname = file.sub(%r{\.[^/.]+\Z}, '').gsub('/', '.').gsub(/\A\.+|\.+\Z/, '')
-        puts "Test failed, checking if it can be quarantined: `#{location}`".yellow
-        if $test_report.is_quarantined(id, name, parent_name, classname, file)
+        unless $failure_encountered_and_quarantining_disabled
+          puts "Test failed, checking if it can be quarantined: `#{location}`".yellow
+        end
+        is_quarantined_result = $test_report.is_quarantined(id, name, parent_name, classname, file)
+        if is_quarantined_result.quarantining_disabled_for_repo
+          unless $failure_encountered_and_quarantining_disabled
+            puts 'Quarantining is disabled for this repo, no failures will be quarantined'.yellow
+            $failure_encountered_and_quarantining_disabled = true
+          end
+          set_exception_core(exception)
+        elsif is_quarantined_result.test_is_quarantined
           # monitor the override in the metadata
           metadata[:quarantined_exception] = exception
           puts "Test is quarantined, overriding exception: #{exception}".green
@@ -182,6 +197,9 @@ class TrunkAnalyticsListener
 
   # trunk-ignore(rubocop/Metrics/MethodLength)
   def close(_notification)
+    if $failure_encountered_and_quarantining_disabled
+      puts 'Note: Quarantining is disabled for this repo. Test failures were not quarantined.'.yellow
+    end
     if ENV['TRUNK_LOCAL_UPLOAD_DIR']
       saved = @testreport.try_save(ENV['TRUNK_LOCAL_UPLOAD_DIR'])
       if saved
