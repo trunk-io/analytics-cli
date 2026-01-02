@@ -27,10 +27,15 @@ use uuid::Uuid;
 #[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::wasm_bindgen;
 
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+struct QuarantineConfig {
+    quarantining_disabled_for_repo: bool,
+    quarantined_tests: HashMap<String, bool>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct QuarantineConfigDiskCacheEntry {
-    quarantining_disabled: bool,
-    quarantined_tests: HashMap<String, bool>,
+    quarantine_config: QuarantineConfig,
     cached_at_secs: u64,
 }
 
@@ -39,8 +44,7 @@ pub struct TestReport {
     test_report: TestReportProto,
     command: String,
     started_at: SystemTime,
-    quarantining_disabled: bool,
-    quarantined_tests: Option<HashMap<String, bool>>,
+    quarantine_config: Option<QuarantineConfig>,
     quarantined_tests_disk_cache_ttl: Duration,
     codeowners: Option<CodeOwners>,
     variant: Option<String>,
@@ -197,8 +201,7 @@ impl MutTestReport {
             test_report,
             command,
             started_at,
-            quarantining_disabled: false,
-            quarantined_tests: None,
+            quarantine_config: None,
             quarantined_tests_disk_cache_ttl,
             codeowners,
             repo,
@@ -344,10 +347,13 @@ impl MutTestReport {
                     bundle_repo.repo_url,
                     org_url_slug,
                 );
-                if let Some(quarantined_tests) = self.0.borrow().quarantined_tests.as_ref() {
+                if let Some(quarantine_config) = self.0.borrow().quarantine_config.as_ref() {
                     return IsQuarantinedResult {
-                        test_is_quarantined: quarantined_tests.get(&test_identifier.id).is_some(),
-                        quarantining_disabled_for_repo: self.0.borrow().quarantining_disabled,
+                        test_is_quarantined: quarantine_config
+                            .quarantined_tests
+                            .contains_key(&test_identifier.id),
+                        quarantining_disabled_for_repo: quarantine_config
+                            .quarantining_disabled_for_repo,
                     };
                 }
                 IsQuarantinedResult {
@@ -423,8 +429,7 @@ impl MutTestReport {
         &self,
         org_url_slug: &str,
         repo_url: &str,
-        quarantined_tests: &HashMap<String, bool>,
-        quarantining_disabled: bool,
+        quarantine_config: &QuarantineConfig,
     ) {
         let cache_path = self.get_quarantine_config_cache_file_path(org_url_slug, repo_url);
 
@@ -437,8 +442,7 @@ impl MutTestReport {
         };
 
         let cache_entry = QuarantineConfigDiskCacheEntry {
-            quarantining_disabled,
-            quarantined_tests: quarantined_tests.clone(),
+            quarantine_config: quarantine_config.clone(),
             cached_at_secs: now,
         };
 
@@ -469,15 +473,14 @@ impl MutTestReport {
         repo_url: String,
         org_url_slug: String,
     ) {
-        if self.0.borrow().quarantined_tests.as_ref().is_some() {
+        if self.0.borrow().quarantine_config.is_some() {
             return;
         }
 
-        if let Some(quarantine_config) =
+        if let Some(cache_entry) =
             self.load_quarantine_config_from_disk_cache(&org_url_slug, &repo_url)
         {
-            self.0.borrow_mut().quarantined_tests = Some(quarantine_config.quarantined_tests);
-            self.0.borrow_mut().quarantining_disabled = quarantine_config.quarantining_disabled;
+            self.0.borrow_mut().quarantine_config = Some(cache_entry.quarantine_config);
             return;
         }
 
@@ -512,14 +515,12 @@ impl MutTestReport {
             }
         };
 
-        self.0.borrow_mut().quarantined_tests = Some(quarantined_tests.clone());
-        self.0.borrow_mut().quarantining_disabled = quarantining_disabled;
-        self.save_quarantine_config_to_disk_cache(
-            &org_url_slug,
-            &repo_url,
-            &quarantined_tests,
-            quarantining_disabled,
-        );
+        let quarantine_config = QuarantineConfig {
+            quarantining_disabled_for_repo: quarantining_disabled,
+            quarantined_tests: quarantined_tests.clone(),
+        };
+        self.0.borrow_mut().quarantine_config = Some(quarantine_config.clone());
+        self.save_quarantine_config_to_disk_cache(&org_url_slug, &repo_url, &quarantine_config);
     }
 
     fn get_org_url_slug(&self) -> String {
