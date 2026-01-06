@@ -196,8 +196,7 @@ jobs:
         with:
           platform: x86_64-linux
           working-directory: rspec-trunk-flaky-tests
-          ruby-versions: 3.4.5
-          tag: 0.9.123
+          ruby-versions: "3.4"
 
       - name: Upload gem artifact
         uses: actions/upload-artifact@v4
