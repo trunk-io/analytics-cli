@@ -82,6 +82,12 @@ jobs:
           version: ${{ github.event.inputs.release_tag || inputs.release_tag }}
           file: rspec-trunk-flaky-tests/rspec_trunk_flaky_tests.gemspec
 
+      # this is necessary because the cross-gem action doesn't support reading the Gemfile.lock from the subdirectory
+      # leading to a mismatch in the rb_sys version
+      - name: Copy Gemfile.lock to root
+        run: cp rspec-trunk-flaky-tests/Gemfile.lock ./Gemfile.lock
+        shell: bash
+
       - uses: oxidize-rb/actions/cross-gem@v1
         with:
           platform: ${{ matrix.platform }}
