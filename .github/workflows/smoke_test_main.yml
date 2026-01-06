@@ -188,7 +188,7 @@ jobs:
           file: rspec-trunk-flaky-tests/rspec_trunk_flaky_tests.gemspec
 
       - name: Copy Gemfile.lock to root
-        run: echo 'rb_sys (= 0.9.123)' > ./Gemfile.lock
+        run: cp rspec-trunk-flaky-tests/Gemfile.lock ./Gemfile.lock
         shell: bash
 
       - name: Build cross-compiled gem

@@ -2,7 +2,7 @@ PATH
   remote: .
   specs:
     rspec_trunk_flaky_tests (0.0.0)
-      rb_sys (= 0.9.103)
+      rb_sys (= 0.9.123)
       rspec-core (> 3.3)
 
 GEM
@@ -12,7 +12,9 @@ GEM
     rake (13.2.1)
     rake-compiler (1.2.0)
       rake
-    rb_sys (0.9.103)
+    rake-compiler-dock (1.10.0)
+    rb_sys (0.9.123)
+      rake-compiler-dock (= 1.10.0)
     rspec (3.13.0)
       rspec-core (~> 3.13.0)
       rspec-expectations (~> 3.13.0)
@@ -35,7 +37,7 @@ PLATFORMS
 
 DEPENDENCIES
   rake
-  rake-compiler (= 1.2.0)
+  rake-compiler
   rspec
   rspec_trunk_flaky_tests!
 
