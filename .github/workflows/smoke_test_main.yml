@@ -147,9 +147,6 @@ jobs:
   build_ruby_gem:
     name: Build Ruby gem from main
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: rspec-trunk-flaky-tests
     outputs:
       version-with-sha: ${{ steps.get-sha.outputs.version-with-sha }}
     steps:
@@ -161,6 +158,7 @@ jobs:
         with:
           ruby-version: "3.4"
           bundler-cache: true
+          working-directory: rspec-trunk-flaky-tests
 
       - name: Get commit SHA
         id: get-sha
@@ -175,31 +173,36 @@ jobs:
         uses: ./.github/actions/update_version
         with:
           version: 0.0.0-${{ steps.get-sha.outputs.sha }}
-          file: ../cli/Cargo.toml
+          file: cli/Cargo.toml
 
       - name: Update Test Report version
         uses: ./.github/actions/update_version
         with:
           version: 0.0.0-${{ steps.get-sha.outputs.sha }}
-          file: ../test_report/Cargo.toml
+          file: test_report/Cargo.toml
 
       - name: Update Gem version
         uses: ./.github/actions/update_version
         with:
           version: 0.0.0-${{ steps.get-sha.outputs.sha }}
-          file: ./rspec_trunk_flaky_tests.gemspec
+          file: rspec-trunk-flaky-tests/rspec_trunk_flaky_tests.gemspec
+
+      - name: Copy Gemfile.lock to root
+        run: cp rspec-trunk-flaky-tests/Gemfile.lock ./Gemfile.lock
+        shell: bash
 
       - name: Build cross-compiled gem
         uses: oxidize-rb/actions/cross-gem@v1
         with:
           platform: x86_64-linux
+          working-directory: rspec-trunk-flaky-tests
           ruby-versions: "3.4"
 
       - name: Upload gem artifact
         uses: actions/upload-artifact@v4
         with:
           name: ruby-gem-main
-          path: ./pkg/*.gem
+          path: rspec-trunk-flaky-tests/pkg/*.gem
           if-no-files-found: error
           retention-days: 1
 
