@@ -240,6 +240,7 @@ async fn upload_bundle() {
 async fn upload_bundle_using_bep() {
     let temp_dir = tempdir().unwrap();
     generate_mock_git_repo(&temp_dir);
+    generate_mock_codeowners(&temp_dir);
     let bep_path = generate_mock_bazel_bep(&temp_dir);
 
     let state = MockServerBuilder::new().spawn_mock_server().await;
@@ -335,7 +336,9 @@ async fn upload_bundle_using_bep() {
     assert!(test_case_run.started_at.is_some());
     assert!(test_case_run.finished_at.is_some());
     assert!(!test_case_run.is_quarantined);
-    assert_eq!(test_case_run.codeowners.len(), 0);
+    assert_eq!(test_case_run.codeowners.len(), 2);
+    assert_eq!(test_case_run.codeowners[0].name, "@user");
+    assert_eq!(test_case_run.codeowners[1].name, "@user2");
 
     // HINT: View CLI output with `cargo test -- --nocapture`
     println!("{assert}");
