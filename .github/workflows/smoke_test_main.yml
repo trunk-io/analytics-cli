@@ -10,9 +10,6 @@ on:
       - staging-release
       - production-release
 
-  push:
-    branches:
-      - max/pin-rb-sys-version-in-smoke-tests
 jobs:
   build_cli:
     name: Smoke test ${{ matrix.platform.name }} cli from release
@@ -187,6 +184,8 @@ jobs:
           version: 0.0.0-${{ steps.get-sha.outputs.sha }}
           file: rspec-trunk-flaky-tests/rspec_trunk_flaky_tests.gemspec
 
+      # this is necessary because the cross-gem action doesn't support reading the Gemfile.lock from the subdirectory
+      # leading to a mismatch in the rb_sys version
       - name: Copy Gemfile.lock to root
         run: cp rspec-trunk-flaky-tests/Gemfile.lock ./Gemfile.lock
         shell: bash
