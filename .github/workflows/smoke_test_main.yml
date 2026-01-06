@@ -156,7 +156,7 @@ jobs:
       - name: Setup Ruby
         uses: ruby/setup-ruby@v1
         with:
-          ruby-version: 3.4.5
+          ruby-version: "3.4"
           bundler-cache: true
           working-directory: rspec-trunk-flaky-tests
 
@@ -187,9 +187,9 @@ jobs:
           version: 0.0.0-${{ steps.get-sha.outputs.sha }}
           file: rspec-trunk-flaky-tests/rspec_trunk_flaky_tests.gemspec
 
-      # - name: Copy Gemfile.lock to root
-      #   run: cp rspec-trunk-flaky-tests/Gemfile.lock ./Gemfile.lock
-      #   shell: bash
+      - name: Copy Gemfile.lock to root
+        run: echo 'rb_sys (= 0.9.123)' > ./Gemfile.lock
+        shell: bash
 
       - name: Build cross-compiled gem
         uses: oxidize-rb/actions/cross-gem@v1
