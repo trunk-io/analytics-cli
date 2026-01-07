@@ -629,7 +629,7 @@ impl EndOutput for UploadRunResult {
         ))?]));
         if self.quarantine_context.fetch_status.is_failure() {
             output.push(Line::from_iter([Span::new_styled(
-                style("   We were unable to determine the quarantine status for tests. Any failing tests will be reported as failures".to_string()).attribute(Attribute::Bold),
+                style("   We were unable to determine the quarantine status for tests. Any failing tests will be reported as failures".to_string()).with(Color::Yellow).attribute(Attribute::Bold),
             )?]));
         }
         output.push(Line::default());
