@@ -5,15 +5,15 @@ use std::sync::mpsc::Sender;
 
 use api::client::ApiClient;
 use api::{client::get_api_host, urls::url_for_test_case};
-use bundle::{unzip_tarball, BundleMeta, BundlerUtil, Test};
+use bundle::{BundleMeta, BundlerUtil, Test, unzip_tarball};
 use clap::{ArgAction, Args};
 use constants::EXIT_SUCCESS;
 use context::bazel_bep::common::BepParseResult;
 use display::{end_output::EndOutput, message::DisplayMessage};
 use pluralizer::pluralize;
 use superconsole::{
-    style::{style, Attribute, Color, Stylize},
     Line, Lines, Span,
+    style::{Attribute, Color, Stylize, style},
 };
 use tempfile::TempDir;
 
@@ -21,9 +21,9 @@ use crate::context_quarantine::QuarantineContext;
 use crate::validate_command::JunitReportValidations;
 use crate::{
     context::{
-        gather_debug_props, gather_exit_code_and_quarantined_tests_context,
+        PreTestContext, gather_debug_props, gather_exit_code_and_quarantined_tests_context,
         gather_initial_test_context, gather_post_test_context, gather_upload_id_context,
-        generate_internal_file, generate_internal_file_from_bep, PreTestContext,
+        generate_internal_file, generate_internal_file_from_bep,
     },
     error_report::ErrorReport,
     report_limiting::ValidationReport,
@@ -629,7 +629,7 @@ impl EndOutput for UploadRunResult {
         ))?]));
         if self.quarantine_context.fetch_status.is_failure() {
             output.push(Line::from_iter([Span::new_styled(
-                style("   We were unable to determine the quarantine status for tests. Any failing tests will be reported as failures".to_string()).attribute(Attribute::Dim),
+                style("   We were unable to determine the quarantine status for tests. Any failing tests will be reported as failures".to_string()).with(Color::Yellow).attribute(Attribute::Bold),
             )?]));
         }
         output.push(Line::default());
@@ -840,7 +840,9 @@ impl EndOutput for UploadRunResult {
         } else if failures.is_empty() && self.quarantine_context.exit_code != EXIT_SUCCESS {
             // no test failures found but exit code not 0
             output.push(Line::from_iter([
-                Span::new_unstyled("⚠️  No test failures found, but non zero exit code provided: ")?,
+                Span::new_unstyled(
+                    "⚠️  No test failures found, but non zero exit code provided: ",
+                )?,
                 Span::new_styled(
                     style(format!("{}", self.quarantine_context.exit_code))
                         .attribute(Attribute::Bold),
