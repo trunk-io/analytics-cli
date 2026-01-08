@@ -153,7 +153,7 @@ jobs:
       - name: Setup Ruby
         uses: ruby/setup-ruby@v1
         with:
-          ruby-version: "3.4"
+          ruby-version: "4.0"
           bundler-cache: true
           working-directory: rspec-trunk-flaky-tests
 
@@ -195,7 +195,7 @@ jobs:
         with:
           platform: x86_64-linux
           working-directory: rspec-trunk-flaky-tests
-          ruby-versions: "3.4"
+          ruby-versions: "4.0"
 
       - name: Upload gem artifact
         uses: actions/upload-artifact@v4
@@ -222,7 +222,7 @@ jobs:
       - name: Run Ruby gem smoke tests
         uses: ./.github/actions/test_ruby_gem_uploads
         with:
-          ruby-version: "3.4"
+          ruby-version: "4.0"
           trunk-token: ${{ secrets.TRUNK_STAGING_ORG_API_TOKEN }}
           trunk-public-api-address: https://api.trunk-staging.io
           trunk-org-slug: trunk-staging-org
@@ -246,7 +246,7 @@ jobs:
       - name: Run Ruby gem smoke tests
         uses: ./.github/actions/test_ruby_gem_uploads
         with:
-          ruby-version: "3.4"
+          ruby-version: "4.0"
           trunk-token: ${{ secrets.TRUNK_PROD_ORG_API_TOKEN }}
           trunk-public-api-address: https://api.trunk.io
           trunk-org-slug: trunk
