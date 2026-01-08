@@ -9,9 +9,6 @@ on:
     types:
       - staging-release
       - production-release
-  push:
-    branches:
-      - max/ruby-4-support
 
 jobs:
   build_cli:
