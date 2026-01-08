@@ -13,7 +13,7 @@ Gem::Specification.new do |s|
   s.email       = 'support@trunk.io'
   s.files       = Dir['lib/**/*.rb', 'ext/**/*.{rs,rb}', '**/Cargo.*']
   s.add_runtime_dependency('rspec-core', '>3.3')
-  s.add_dependency('rb_sys', '=0.9.123')
+  s.add_dependency('rb_sys', '=0.9.124')
   s.add_development_dependency('rspec')
   s.homepage    = 'https://docs.trunk.io/flaky-tests/get-started/frameworks/rspec'
   s.license     = 'MIT'
