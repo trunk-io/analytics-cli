@@ -433,24 +433,23 @@ impl<'a> CIInfoParser<'a> {
         // Construct job URL from workspace, repo slug, and build number
         // Format: https://bitbucket.org/{workspace}/{repo_slug}/pipelines/results/{build_number}
         // With step: https://bitbucket.org/{workspace}/{repo_slug}/pipelines/results/{build_number}/steps/{step_uuid}
-        self.ci_info.job_url = match (
+
+        if let (Some(workspace), Some(repo_slug), Some(build_number)) = (
             self.get_env_var("BITBUCKET_WORKSPACE"),
             self.get_env_var("BITBUCKET_REPO_SLUG"),
             self.get_env_var("BITBUCKET_BUILD_NUMBER"),
         ) {
-            (Some(workspace), Some(repo_slug), Some(build_number)) => {
+            self.ci_info.job_url = Some({
                 let base_url = format!(
                     "https://bitbucket.org/{workspace}/{repo_slug}/pipelines/results/{build_number}"
                 );
-                // Optionally append step UUID for more specific link
                 if let Some(step_uuid) = self.get_env_var("BITBUCKET_STEP_UUID") {
-                    Some(format!("{base_url}/steps/{step_uuid}"))
+                    format!("{base_url}/steps/{step_uuid}")
                 } else {
-                    Some(base_url)
+                    base_url
                 }
-            }
-            _ => None,
-        };
+            });
+        }
 
         self.ci_info.branch = self.get_env_var("BITBUCKET_BRANCH");
         self.ci_info.pr_number = Self::parse_pr_number(self.get_env_var("BITBUCKET_PR_ID"));
