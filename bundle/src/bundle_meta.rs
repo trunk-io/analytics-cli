@@ -20,8 +20,8 @@ use tsify_next::Tsify;
 use wasm_bindgen::prelude::*;
 
 use crate::{
-    files::{BundledFile, FileSet},
     CustomTag, Test,
+    files::{BundledFile, FileSet},
 };
 
 pub const META_VERSION: &str = "1";
@@ -301,6 +301,30 @@ pub enum VersionedBundle {
 }
 
 impl VersionedBundle {
+    pub fn base_props(&self) -> &BundleMetaBaseProps {
+        match self {
+            Self::V0_7_8(data) => &data.base_props,
+            Self::V0_7_7(data) => &data.base_props,
+            Self::V0_7_6(data) => &data.base_props,
+            Self::V0_6_3(data) => &data.base_props,
+            Self::V0_6_2(data) => &data.base_props,
+            Self::V0_5_34(data) => &data.base_props,
+            Self::V0_5_29(data) => &data.base_props,
+        }
+    }
+
+    pub fn bundle_upload_id_v2(&self) -> Option<&String> {
+        match self {
+            Self::V0_7_8(data) => Some(&data.bundle_upload_id_v2),
+            Self::V0_7_7(data) => Some(&data.bundle_upload_id_v2),
+            Self::V0_7_6(data) => Some(&data.bundle_upload_id_v2),
+            Self::V0_6_3(data) => Some(&data.bundle_upload_id_v2),
+            Self::V0_6_2(_) => None,
+            Self::V0_5_34(_) => None,
+            Self::V0_5_29(_) => None,
+        }
+    }
+
     pub fn internal_bundled_file(&self) -> Option<BundledFile> {
         match self {
             Self::V0_7_8(data) => data.internal_bundled_file.clone(),
