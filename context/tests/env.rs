@@ -1260,8 +1260,6 @@ fn test_bitbucket_missing_job_url_vars() {
     );
 }
 
-// ==================== CircleCI Tests ====================
-
 #[test]
 fn test_simple_circleci() {
     let branch = String::from("circleci-project-setup");

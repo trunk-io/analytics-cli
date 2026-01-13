@@ -467,7 +467,6 @@ impl<'a> CIInfoParser<'a> {
     }
 
     fn parse_circleci(&mut self) {
-        // CircleCI provides CIRCLE_BUILD_URL directly
         self.ci_info.job_url = self.get_env_var("CIRCLE_BUILD_URL");
         self.ci_info.branch = self.get_env_var("CIRCLE_BRANCH");
         self.ci_info.pr_number = Self::parse_pr_number(self.get_env_var("CIRCLE_PR_NUMBER"));
@@ -475,10 +474,6 @@ impl<'a> CIInfoParser<'a> {
 
         self.ci_info.workflow = self.get_env_var("CIRCLE_WORKFLOW_ID");
         self.ci_info.job = self.get_env_var("CIRCLE_JOB");
-
-        // Note: CircleCI doesn't provide author/committer info or commit message
-        // via environment variables. These will be populated from repo info
-        // via apply_repo_overrides(), or users can set them via CUSTOM env vars.
     }
 
     fn get_env_var<T: AsRef<str>>(&self, env_var: T) -> Option<String> {
