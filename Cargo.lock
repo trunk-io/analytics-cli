@@ -952,6 +952,7 @@ dependencies = [
  "magnus",
  "openssl",
  "openssl-src",
+ "percent-encoding",
  "pretty_assertions",
  "prost",
  "prost-wkt-types",

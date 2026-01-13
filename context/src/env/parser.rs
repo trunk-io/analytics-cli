@@ -1,5 +1,6 @@
 #[cfg(feature = "ruby")]
-use magnus::{value::ReprValue, Module, Object};
+use magnus::{Module, Object, value::ReprValue};
+use percent_encoding::{AsciiSet, CONTROLS, utf8_percent_encode};
 #[cfg(feature = "pyo3")]
 use pyo3::prelude::*;
 #[cfg(feature = "pyo3")]
@@ -224,12 +225,12 @@ impl<'a> CIInfoParser<'a> {
             CIPlatform::Semaphore => self.parse_semaphore(),
             CIPlatform::GitLabCI => self.parse_gitlab_ci(),
             CIPlatform::Drone => self.parse_drone(),
+            CIPlatform::BitbucketPipelines => self.parse_bitbucket_pipelines(),
             CIPlatform::Custom => self.parse_custom_info(),
             CIPlatform::CircleCI
             | CIPlatform::TravisCI
             | CIPlatform::Webappio
             | CIPlatform::AWSCodeBuild
-            | CIPlatform::BitbucketPipelines
             | CIPlatform::AzurePipelines
             | CIPlatform::Unknown => {
                 // TODO(TRUNK-12908): Switch to using a crate for parsing the CI platform and related env vars
@@ -429,6 +430,42 @@ impl<'a> CIInfoParser<'a> {
         self.ci_info.job_url = self.get_env_var("DRONE_BUILD_LINK");
     }
 
+    fn parse_bitbucket_pipelines(&mut self) {
+        // Construct job URL from workspace, repo slug, and build number
+        // Format: https://bitbucket.org/{workspace}/{repo_slug}/pipelines/results/{build_number}
+        // With step: https://bitbucket.org/{workspace}/{repo_slug}/pipelines/results/{build_number}/steps/{step_uuid}
+
+        if let (Some(workspace), Some(repo_slug), Some(build_number)) = (
+            self.get_env_var("BITBUCKET_WORKSPACE"),
+            self.get_env_var("BITBUCKET_REPO_SLUG"),
+            self.get_env_var("BITBUCKET_BUILD_NUMBER"),
+        ) {
+            self.ci_info.job_url = Some({
+                let base_url = format!(
+                    "https://bitbucket.org/{workspace}/{repo_slug}/pipelines/results/{build_number}"
+                );
+                if let Some(step_uuid) = self.get_env_var("BITBUCKET_STEP_UUID") {
+                    // URL-encode the step UUID for use in the URL path
+                    let encoded_step_uuid = url_encode_path_segment(&step_uuid);
+                    format!("{base_url}/steps/{encoded_step_uuid}")
+                } else {
+                    base_url
+                }
+            });
+        }
+
+        self.ci_info.branch = self.get_env_var("BITBUCKET_BRANCH");
+        self.ci_info.pr_number = Self::parse_pr_number(self.get_env_var("BITBUCKET_PR_ID"));
+
+        // Use pipeline UUID as workflow identifier and step UUID as job identifier
+        self.ci_info.workflow = self.get_env_var("BITBUCKET_PIPELINE_UUID");
+        self.ci_info.job = self.get_env_var("BITBUCKET_STEP_UUID");
+
+        // Note: Bitbucket Pipelines doesn't provide author/committer info, commit message,
+        // or PR title via environment variables. These will be populated from repo info
+        // via apply_repo_overrides(), or users can set them via CUSTOM env vars.
+    }
+
     fn get_env_var<T: AsRef<str>>(&self, env_var: T) -> Option<String> {
         self.env_vars
             .get(env_var.as_ref())
@@ -604,6 +641,24 @@ pub fn clean_branch(branch: &str) -> String {
         .replace("origin/", "");
 
     return String::from(safe_truncate_string::<MAX_BRANCH_NAME_SIZE, _>(&new_branch));
+}
+
+/// Characters that need to be percent-encoded in URL path segments
+/// This includes CONTROLS plus characters that are special in URLs
+const PATH_SEGMENT_ENCODE_SET: &AsciiSet = &CONTROLS
+    .add(b' ')
+    .add(b'"')
+    .add(b'#')
+    .add(b'<')
+    .add(b'>')
+    .add(b'`')
+    .add(b'?')
+    .add(b'{')
+    .add(b'}');
+
+/// URL-encode a string for use in a URL path segment
+fn url_encode_path_segment(s: &str) -> String {
+    utf8_percent_encode(s, PATH_SEGMENT_ENCODE_SET).to_string()
 }
 
 impl CIInfo {
