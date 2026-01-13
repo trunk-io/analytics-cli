@@ -1,5 +1,6 @@
 #[cfg(feature = "ruby")]
 use magnus::{Module, Object, value::ReprValue};
+use percent_encoding::{AsciiSet, CONTROLS, utf8_percent_encode};
 #[cfg(feature = "pyo3")]
 use pyo3::prelude::*;
 #[cfg(feature = "pyo3")]
@@ -444,7 +445,9 @@ impl<'a> CIInfoParser<'a> {
                     "https://bitbucket.org/{workspace}/{repo_slug}/pipelines/results/{build_number}"
                 );
                 if let Some(step_uuid) = self.get_env_var("BITBUCKET_STEP_UUID") {
-                    format!("{base_url}/steps/{step_uuid}")
+                    // URL-encode the step UUID for use in the URL path
+                    let encoded_step_uuid = url_encode_path_segment(&step_uuid);
+                    format!("{base_url}/steps/{encoded_step_uuid}")
                 } else {
                     base_url
                 }
@@ -638,6 +641,24 @@ pub fn clean_branch(branch: &str) -> String {
         .replace("origin/", "");
 
     return String::from(safe_truncate_string::<MAX_BRANCH_NAME_SIZE, _>(&new_branch));
+}
+
+/// Characters that need to be percent-encoded in URL path segments
+/// This includes CONTROLS plus characters that are special in URLs
+const PATH_SEGMENT_ENCODE_SET: &AsciiSet = &CONTROLS
+    .add(b' ')
+    .add(b'"')
+    .add(b'#')
+    .add(b'<')
+    .add(b'>')
+    .add(b'`')
+    .add(b'?')
+    .add(b'{')
+    .add(b'}');
+
+/// URL-encode a string for use in a URL path segment
+fn url_encode_path_segment(s: &str) -> String {
+    utf8_percent_encode(s, PATH_SEGMENT_ENCODE_SET).to_string()
 }
 
 impl CIInfo {

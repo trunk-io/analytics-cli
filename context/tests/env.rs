@@ -999,12 +999,14 @@ fn test_simple_bitbucket() {
 
     let ci_info = env_parser.into_ci_info_parser().unwrap().info_ci_info();
 
+    // step_uuid should be URL-encoded in the job_url (curly braces become %7B and %7D)
+    let encoded_step_uuid = step_uuid.replace('{', "%7B").replace('}', "%7D");
     pretty_assertions::assert_eq!(
         ci_info,
         CIInfo {
             platform: CIPlatform::BitbucketPipelines,
             job_url: Some(format!(
-                "https://bitbucket.org/{workspace}/{repo_slug}/pipelines/results/{build_number}/steps/{step_uuid}"
+                "https://bitbucket.org/{workspace}/{repo_slug}/pipelines/results/{build_number}/steps/{encoded_step_uuid}"
             )),
             branch: Some(branch),
             branch_class: Some(BranchClass::None),
@@ -1092,12 +1094,14 @@ fn test_bitbucket_pr() {
     let ci_info = env_parser.into_ci_info_parser().unwrap().info_ci_info();
 
     // Verify that PR branch class is correctly set when BITBUCKET_PR_ID is present
+    // step_uuid should be URL-encoded in the job_url
+    let encoded_step_uuid = step_uuid.replace('{', "%7B").replace('}', "%7D");
     pretty_assertions::assert_eq!(
         ci_info,
         CIInfo {
             platform: CIPlatform::BitbucketPipelines,
             job_url: Some(format!(
-                "https://bitbucket.org/{workspace}/{repo_slug}/pipelines/results/{build_number}/steps/{step_uuid}"
+                "https://bitbucket.org/{workspace}/{repo_slug}/pipelines/results/{build_number}/steps/{encoded_step_uuid}"
             )),
             branch: Some(branch),
             branch_class: Some(BranchClass::PullRequest),
