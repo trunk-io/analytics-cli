@@ -1,13 +1,9 @@
-// Entry point for env tests - submodules are split by CI provider
-
-// Common imports for all env tests
 use context::env::{
     self, EnvVars,
     parser::{BranchClass, CIInfo, CIPlatform, EnvParser},
     validator::{EnvValidationIssue, EnvValidationIssueSubOptimal, EnvValidationLevel},
 };
 
-// Test modules - each file contains tests for a specific CI provider
 #[path = "env/bitbucket.rs"]
 mod bitbucket;
 #[path = "env/buildkite.rs"]
