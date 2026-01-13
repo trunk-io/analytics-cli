@@ -4,7 +4,7 @@ use super::*;
 fn test_simple_buildkite() {
     let job_url = String::from("https://buildkite.com/test/builds/123");
     let job_id = String::from("job-id");
-    let full_job_url = format!("{}#{}", job_url, job_id);
+    let full_job_url = format!("{job_url}#{job_id}");
     let branch = String::from("some-branch-name");
     let env_vars = EnvVars::from_iter(vec![
         (
