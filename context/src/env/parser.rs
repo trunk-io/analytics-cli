@@ -1,5 +1,5 @@
 #[cfg(feature = "ruby")]
-use magnus::{value::ReprValue, Module, Object};
+use magnus::{Module, Object, value::ReprValue};
 #[cfg(feature = "pyo3")]
 use pyo3::prelude::*;
 #[cfg(feature = "pyo3")]
@@ -224,12 +224,12 @@ impl<'a> CIInfoParser<'a> {
             CIPlatform::Semaphore => self.parse_semaphore(),
             CIPlatform::GitLabCI => self.parse_gitlab_ci(),
             CIPlatform::Drone => self.parse_drone(),
+            CIPlatform::BitbucketPipelines => self.parse_bitbucket_pipelines(),
             CIPlatform::Custom => self.parse_custom_info(),
             CIPlatform::CircleCI
             | CIPlatform::TravisCI
             | CIPlatform::Webappio
             | CIPlatform::AWSCodeBuild
-            | CIPlatform::BitbucketPipelines
             | CIPlatform::AzurePipelines
             | CIPlatform::Unknown => {
                 // TODO(TRUNK-12908): Switch to using a crate for parsing the CI platform and related env vars
@@ -427,6 +427,41 @@ impl<'a> CIInfoParser<'a> {
         self.ci_info.author_email = self.get_env_var("DRONE_COMMIT_AUTHOR_EMAIL");
         self.ci_info.title = self.get_env_var("DRONE_PULL_REQUEST_TITLE");
         self.ci_info.job_url = self.get_env_var("DRONE_BUILD_LINK");
+    }
+
+    fn parse_bitbucket_pipelines(&mut self) {
+        // Construct job URL from workspace, repo slug, and build number
+        // Format: https://bitbucket.org/{workspace}/{repo_slug}/pipelines/results/{build_number}
+        // With step: https://bitbucket.org/{workspace}/{repo_slug}/pipelines/results/{build_number}/steps/{step_uuid}
+        self.ci_info.job_url = match (
+            self.get_env_var("BITBUCKET_WORKSPACE"),
+            self.get_env_var("BITBUCKET_REPO_SLUG"),
+            self.get_env_var("BITBUCKET_BUILD_NUMBER"),
+        ) {
+            (Some(workspace), Some(repo_slug), Some(build_number)) => {
+                let base_url = format!(
+                    "https://bitbucket.org/{workspace}/{repo_slug}/pipelines/results/{build_number}"
+                );
+                // Optionally append step UUID for more specific link
+                if let Some(step_uuid) = self.get_env_var("BITBUCKET_STEP_UUID") {
+                    Some(format!("{base_url}/steps/{step_uuid}"))
+                } else {
+                    Some(base_url)
+                }
+            }
+            _ => None,
+        };
+
+        self.ci_info.branch = self.get_env_var("BITBUCKET_BRANCH");
+        self.ci_info.pr_number = Self::parse_pr_number(self.get_env_var("BITBUCKET_PR_ID"));
+
+        // Use pipeline UUID as workflow identifier and step UUID as job identifier
+        self.ci_info.workflow = self.get_env_var("BITBUCKET_PIPELINE_UUID");
+        self.ci_info.job = self.get_env_var("BITBUCKET_STEP_UUID");
+
+        // Note: Bitbucket Pipelines doesn't provide author/committer info, commit message,
+        // or PR title via environment variables. These will be populated from repo info
+        // via apply_repo_overrides(), or users can set them via CUSTOM env vars.
     }
 
     fn get_env_var<T: AsRef<str>>(&self, env_var: T) -> Option<String> {
