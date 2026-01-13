@@ -226,9 +226,9 @@ impl<'a> CIInfoParser<'a> {
             CIPlatform::GitLabCI => self.parse_gitlab_ci(),
             CIPlatform::Drone => self.parse_drone(),
             CIPlatform::BitbucketPipelines => self.parse_bitbucket_pipelines(),
+            CIPlatform::CircleCI => self.parse_circleci(),
             CIPlatform::Custom => self.parse_custom_info(),
-            CIPlatform::CircleCI
-            | CIPlatform::TravisCI
+            CIPlatform::TravisCI
             | CIPlatform::Webappio
             | CIPlatform::AWSCodeBuild
             | CIPlatform::AzurePipelines
@@ -463,6 +463,21 @@ impl<'a> CIInfoParser<'a> {
 
         // Note: Bitbucket Pipelines doesn't provide author/committer info, commit message,
         // or PR title via environment variables. These will be populated from repo info
+        // via apply_repo_overrides(), or users can set them via CUSTOM env vars.
+    }
+
+    fn parse_circleci(&mut self) {
+        // CircleCI provides CIRCLE_BUILD_URL directly
+        self.ci_info.job_url = self.get_env_var("CIRCLE_BUILD_URL");
+        self.ci_info.branch = self.get_env_var("CIRCLE_BRANCH");
+        self.ci_info.pr_number = Self::parse_pr_number(self.get_env_var("CIRCLE_PR_NUMBER"));
+        self.ci_info.actor = self.get_env_var("CIRCLE_USERNAME");
+
+        self.ci_info.workflow = self.get_env_var("CIRCLE_WORKFLOW_ID");
+        self.ci_info.job = self.get_env_var("CIRCLE_JOB");
+
+        // Note: CircleCI doesn't provide author/committer info or commit message
+        // via environment variables. These will be populated from repo info
         // via apply_repo_overrides(), or users can set them via CUSTOM env vars.
     }
 
