@@ -1,3 +1,4 @@
+use std::fmt;
 use std::path::Path;
 use std::sync::mpsc::Sender;
 
@@ -10,6 +11,38 @@ use tokio::fs;
 
 use crate::call_api::CallApi;
 use crate::message;
+
+#[derive(Debug)]
+pub enum ApiErrorEndpoint {
+    CreateBundleUpload,
+    GetQuarantiningConfig,
+    PutBundleToS3,
+    TelemetryUploadMetrics,
+}
+
+impl ApiErrorEndpoint {
+    pub fn unknown_error_reason(&self) -> String {
+        match self {
+            Self::CreateBundleUpload => "unknown_create_bundle_upload".into(),
+            Self::GetQuarantiningConfig => "unknown_get_quarantining_config".into(),
+            Self::PutBundleToS3 => "unknown_put_bundle_to_s3".into(),
+            Self::TelemetryUploadMetrics => "unknown_telemetry_upload_metrics".into(),
+        }
+    }
+}
+
+impl fmt::Display for ApiErrorEndpoint {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::CreateBundleUpload => write!(f, "Error in create bundle upload endpoint"),
+            Self::GetQuarantiningConfig => write!(f, "Error in get quarantine config endpoint"),
+            Self::PutBundleToS3 => write!(f, "Error in put bundle to s3 endpoint"),
+            Self::TelemetryUploadMetrics => write!(f, "Error in telemetry upload metrics endpoint"),
+        }
+    }
+}
+
+impl std::error::Error for ApiErrorEndpoint {}
 
 pub struct ApiClient {
     pub api_host: String,
@@ -150,6 +183,7 @@ impl ApiClient {
         }
         .call_api()
         .await
+        .map_err(|e| e.context(ApiErrorEndpoint::CreateBundleUpload))
     }
 
     pub async fn get_quarantining_config(
@@ -192,6 +226,7 @@ impl ApiClient {
         }
         .call_api()
         .await
+        .map_err(|e| e.context(ApiErrorEndpoint::GetQuarantiningConfig))
     }
 
     pub async fn put_bundle_to_s3<U: AsRef<str>, B: AsRef<Path>>(
@@ -231,6 +266,7 @@ impl ApiClient {
         }
         .call_api()
         .await
+        .map_err(|e| e.context(ApiErrorEndpoint::PutBundleToS3))
     }
 
     pub async fn telemetry_upload_metrics(
@@ -285,6 +321,7 @@ impl ApiClient {
         }
         .call_api()
         .await
+        .map_err(|e| e.context(ApiErrorEndpoint::TelemetryUploadMetrics))
     }
 
     async fn deserialize_response<MessageType: DeserializeOwned>(
@@ -453,21 +490,23 @@ mod tests {
         api_client.api_host.clone_from(&state.host);
 
         assert!(
-            api_client
-                .get_quarantining_config(&message::GetQuarantineConfigRequest {
-                    repo: context::repo::RepoUrlParts {
-                        host: String::from("host"),
-                        owner: String::from("owner"),
-                        name: String::from("name"),
-                    },
-                    org_url_slug: String::from("org_url_slug"),
-                    test_identifiers: vec![],
-                    remote_urls: vec![],
-                })
-                .await
-                .unwrap_err()
-                .to_string()
-                .contains("501 Not Implemented")
+            format!(
+                "{:?}",
+                api_client
+                    .get_quarantining_config(&message::GetQuarantineConfigRequest {
+                        repo: context::repo::RepoUrlParts {
+                            host: String::from("host"),
+                            owner: String::from("owner"),
+                            name: String::from("name"),
+                        },
+                        org_url_slug: String::from("org_url_slug"),
+                        test_identifiers: vec![],
+                        remote_urls: vec![],
+                    })
+                    .await
+                    .unwrap_err()
+            )
+            .contains("501 Not Implemented")
         );
         assert_eq!(CALL_COUNT.load(Ordering::Relaxed), 1);
     }
@@ -499,21 +538,23 @@ mod tests {
         api_client.api_host.clone_from(&state.host);
 
         assert!(
-            api_client
-                .get_quarantining_config(&message::GetQuarantineConfigRequest {
-                    repo: context::repo::RepoUrlParts {
-                        host: String::from("api_host"),
-                        owner: String::from("owner"),
-                        name: String::from("name"),
-                    },
-                    remote_urls: vec![],
-                    org_url_slug: String::from("org_url_slug"),
-                    test_identifiers: vec![],
-                })
-                .await
-                .unwrap_err()
-                .to_string()
-                .contains("500 Internal Server Error")
+            format!(
+                "{:?}",
+                api_client
+                    .get_quarantining_config(&message::GetQuarantineConfigRequest {
+                        repo: context::repo::RepoUrlParts {
+                            host: String::from("api_host"),
+                            owner: String::from("owner"),
+                            name: String::from("name"),
+                        },
+                        remote_urls: vec![],
+                        org_url_slug: String::from("org_url_slug"),
+                        test_identifiers: vec![],
+                    })
+                    .await
+                    .unwrap_err()
+            )
+            .contains("500 Internal Server Error")
         );
         assert_eq!(CALL_COUNT.load(Ordering::Relaxed), 6);
     }
@@ -540,21 +581,23 @@ mod tests {
         api_client.api_host.clone_from(&state.host);
 
         assert!(
-            api_client
-                .get_quarantining_config(&message::GetQuarantineConfigRequest {
-                    repo: context::repo::RepoUrlParts {
-                        host: String::from("api_host"),
-                        owner: String::from("owner"),
-                        name: String::from("name"),
-                    },
-                    remote_urls: vec![],
-                    org_url_slug: String::from("org_url_slug"),
-                    test_identifiers: vec![],
-                })
-                .await
-                .unwrap_err()
-                .to_string()
-                .contains("404 Not Found")
+            format!(
+                "{:?}",
+                api_client
+                    .get_quarantining_config(&message::GetQuarantineConfigRequest {
+                        repo: context::repo::RepoUrlParts {
+                            host: String::from("api_host"),
+                            owner: String::from("owner"),
+                            name: String::from("name"),
+                        },
+                        remote_urls: vec![],
+                        org_url_slug: String::from("org_url_slug"),
+                        test_identifiers: vec![],
+                    })
+                    .await
+                    .unwrap_err()
+            )
+            .contains("404 Not Found")
         );
     }
 }
