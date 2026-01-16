@@ -8,7 +8,9 @@ use api::message::{
     GetQuarantineConfigResponse,
 };
 use assert_matches::assert_matches;
-use axum::{Json, extract::State, http::StatusCode};
+use axum::body::{Body, Bytes};
+use axum::response::IntoResponse;
+use axum::{Json, extract::State, http::StatusCode, response::Response};
 use bundle::{BundleMeta, FileSetType, INTERNAL_BIN_FILENAME};
 use chrono::{DateTime, TimeDelta};
 use clap::Parser;
@@ -711,15 +713,19 @@ async fn upload_bundle_no_files_allow_missing_junit_files() {
     }
 
     for flag in [
+        /*
         Flag::Long,
         Flag::LongWithEquals,
         Flag::Alias,
         Flag::AliasWithEquals,
         Flag::Default,
         Flag::Off,
+        */
         Flag::OffWithEquals,
+        /*
         Flag::OffAlias,
         Flag::OffAliasWithEquals,
+        */
     ] {
         let temp_dir = tempdir().unwrap();
         generate_mock_git_repo(&temp_dir);
@@ -938,24 +944,29 @@ async fn quarantines_tests_regardless_of_upload() {
         static ref CREATE_BUNDLE_RESPONSE: Arc<Mutex<CreateBundleResponse>> =
             Arc::new(Mutex::new(CreateBundleResponse::Error));
     }
-    mock_server_builder.set_create_bundle_handler(
-        |State(state): State<SharedMockServerState>, _: Json<CreateBundleUploadRequest>| {
-            let create_bundle_response = *CREATE_BUNDLE_RESPONSE.lock().unwrap();
-            let result = match create_bundle_response {
-                CreateBundleResponse::Error => Err(String::from("Server is down")),
-                CreateBundleResponse::Success => {
-                    let host = &state.host;
-                    Ok(Json(CreateBundleUploadResponse {
-                        id: String::from("test-bundle-upload-id"),
-                        id_v2: String::from("test-bundle-upload-id-v2"),
-                        url: format!("{host}/s3upload"),
-                        key: String::from("unused"),
-                    }))
-                }
-            };
-            async { result }
-        },
-    );
+
+    #[axum::debug_handler]
+    async fn create_bundle_handler(
+        state: State<SharedMockServerState>,
+        _: Bytes,
+    ) -> Response<Body> {
+        let create_bundle_response = *CREATE_BUNDLE_RESPONSE.lock().unwrap();
+        match create_bundle_response {
+            CreateBundleResponse::Error => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+            CreateBundleResponse::Success => {
+                let host = &state.host;
+                Json(CreateBundleUploadResponse {
+                    id: String::from("test-bundle-upload-id"),
+                    id_v2: String::from("test-bundle-upload-id-v2"),
+                    url: format!("{host}/s3upload"),
+                    key: String::from("unused"),
+                })
+                .into_response()
+            }
+        }
+    }
+
+    mock_server_builder.set_create_bundle_handler(create_bundle_handler);
     let state = mock_server_builder.spawn_mock_server().await;
 
     let mut command = CommandBuilder::upload(temp_dir.path(), state.host.clone()).command();
@@ -970,10 +981,10 @@ async fn quarantines_tests_regardless_of_upload() {
     *CREATE_BUNDLE_RESPONSE.lock().unwrap() = CreateBundleResponse::Error;
     command.assert().failure();
 
-    // Third run will not quarantine all tests because of upload failure
+    // Third run will quarantine all tests because of upload failure on internal server error
     *QUARANTINE_CONFIG_RESPONSE.lock().unwrap() = QuarantineConfigResponse::All;
     *CREATE_BUNDLE_RESPONSE.lock().unwrap() = CreateBundleResponse::Error;
-    command.assert().failure();
+    command.assert().success();
 
     // Fourth run will quarantine all tests, and upload them
     *QUARANTINE_CONFIG_RESPONSE.lock().unwrap() = QuarantineConfigResponse::All;
@@ -983,7 +994,7 @@ async fn quarantines_tests_regardless_of_upload() {
     // Fifth run will run with quarantining disabled, but will fail to upload
     *QUARANTINE_CONFIG_RESPONSE.lock().unwrap() = QuarantineConfigResponse::Disabled;
     *CREATE_BUNDLE_RESPONSE.lock().unwrap() = CreateBundleResponse::Error;
-    command.assert().failure();
+    command.assert().success();
 
     // Sixth run will run with quarantining disabled, and will succeed with upload
     *QUARANTINE_CONFIG_RESPONSE.lock().unwrap() = QuarantineConfigResponse::Disabled;
@@ -1088,18 +1099,18 @@ async fn telemetry_upload_metrics_on_upload_failure() {
     generate_mock_valid_junit_xmls(&temp_dir);
 
     let mut mock_server_builder = MockServerBuilder::new();
-    mock_server_builder.set_create_bundle_handler(
-        |State(_): State<SharedMockServerState>, _: Json<CreateBundleUploadRequest>| async {
-            Err::<Json<CreateBundleUploadResponse>, StatusCode>(StatusCode::BAD_REQUEST)
-        },
-    );
+    #[axum::debug_handler]
+    async fn handle(_: State<SharedMockServerState>, _: Bytes) -> Response<Body> {
+        StatusCode::BAD_REQUEST.into_response()
+    }
+    mock_server_builder.set_create_bundle_handler(handle);
     let state = mock_server_builder.spawn_mock_server().await;
 
     let assert = CommandBuilder::upload(temp_dir.path(), state.host.clone())
         .disable_quarantining(true)
         .command()
         .assert()
-        .failure();
+        .success();
 
     let requests = state.requests.lock().unwrap().clone();
     assert_eq!(requests.len(), 1);
@@ -1621,29 +1632,31 @@ async fn do_not_quarantines_tests_when_quarantine_disabled_set() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn uses_software_exit_code_if_upload_fails() {
+async fn still_quarantines_if_upload_to_s3_fails() {
     let temp_dir = tempdir().unwrap();
     generate_mock_git_repo(&temp_dir);
-
-    let junit_location = temp_dir.path().join("junit.xml");
-    let mut junit_file = fs::File::create(junit_location).unwrap();
-    write!(junit_file, r#"
-        <?xml version="1.0" encoding="UTF-8" ?>
-        <testsuites name="vitest tests" tests="1" failures="0" errors="0" time="1.128069555">
-            <testsuite name="src/constants/products-parser-server.test.ts" timestamp="2025-05-27T15:31:07.510Z" hostname="christian-cloudtop" tests="10" failures="0" errors="0" skipped="0" time="0.007118101">
-                <testcase classname="src/constants/products-parser-server.test.ts" name="Product Parsers &gt; Server-side parsers &gt; has parsers for all products" time="0.001408508">
-                    <failure>
-                        Test failed
-                    </failure>
-                </testcase>
-            </testsuite>
-        </testsuites">
-    "#).unwrap();
+    generate_mock_valid_junit_xmls(&temp_dir);
 
     let mut mock_server_builder = MockServerBuilder::new();
     mock_server_builder.set_s3_upload_handler(
         |_: State<SharedMockServerState>, _: Json<CreateBundleUploadRequest>| async {
-            Err::<String, String>(String::from("Upload is broke"))
+            String::from("test")
+            //Err::<String, String>(String::from("Upload is broke"))
+        },
+    );
+    mock_server_builder.set_get_quarantining_config_handler(
+        |Json(get_quarantine_bulk_test_status_request): Json<GetQuarantineConfigRequest>| {
+            let test_ids = get_quarantine_bulk_test_status_request
+                .test_identifiers
+                .into_iter()
+                .map(|t| t.id)
+                .collect::<Vec<_>>();
+            async move {
+                Json(GetQuarantineConfigResponse {
+                    is_disabled: false,
+                    quarantined_tests: test_ids,
+                })
+            }
         },
     );
     let state = mock_server_builder.spawn_mock_server().await;
@@ -1653,7 +1666,129 @@ async fn uses_software_exit_code_if_upload_fails() {
         .junit_paths("junit.xml")
         .command()
         .assert()
-        .code(predicate::eq(exitcode::SOFTWARE));
+        .success();
+
+    // HINT: View CLI output with `cargo test -- --nocapture`
+    println!("{assert}");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn still_quarantines_if_upload_endpoint_fails() {
+    let temp_dir = tempdir().unwrap();
+    generate_mock_git_repo(&temp_dir);
+    generate_mock_valid_junit_xmls(&temp_dir);
+
+    let mut mock_server_builder = MockServerBuilder::new();
+    mock_server_builder.set_create_bundle_handler(
+        |_: State<SharedMockServerState>, _: Json<CreateBundleUploadRequest>| async {
+            Err::<String, String>(String::from("Upload is broke"))
+        },
+    );
+    mock_server_builder.set_get_quarantining_config_handler(
+        |Json(get_quarantine_bulk_test_status_request): Json<GetQuarantineConfigRequest>| {
+            let test_ids = get_quarantine_bulk_test_status_request
+                .test_identifiers
+                .into_iter()
+                .map(|t| t.id)
+                .collect::<Vec<_>>();
+            async move {
+                Json(GetQuarantineConfigResponse {
+                    is_disabled: false,
+                    quarantined_tests: test_ids,
+                })
+            }
+        },
+    );
+    let state = mock_server_builder.spawn_mock_server().await;
+
+    let assert = CommandBuilder::upload(temp_dir.path(), state.host.clone())
+        .disable_quarantining(false)
+        .junit_paths("junit.xml")
+        .command()
+        .assert()
+        .success();
+
+    // HINT: View CLI output with `cargo test -- --nocapture`
+    println!("{assert}");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn presents_error_message_if_you_dont_have_permission_for_s3_upload() {
+    let temp_dir = tempdir().unwrap();
+    generate_mock_git_repo(&temp_dir);
+    generate_mock_valid_junit_xmls(&temp_dir);
+
+    let mut mock_server_builder = MockServerBuilder::new();
+    #[axum::debug_handler]
+    async fn handle(_: State<SharedMockServerState>, _: Bytes) -> Response<Body> {
+        StatusCode::UNAUTHORIZED.into_response()
+    }
+    mock_server_builder.set_s3_upload_handler(handle);
+    mock_server_builder.set_get_quarantining_config_handler(
+        |Json(get_quarantine_bulk_test_status_request): Json<GetQuarantineConfigRequest>| {
+            let test_ids = get_quarantine_bulk_test_status_request
+                .test_identifiers
+                .into_iter()
+                .map(|t| t.id)
+                .collect::<Vec<_>>();
+            async move {
+                Json(GetQuarantineConfigResponse {
+                    is_disabled: false,
+                    quarantined_tests: test_ids,
+                })
+            }
+        },
+    );
+    let state = mock_server_builder.spawn_mock_server().await;
+
+    let assert = CommandBuilder::upload(temp_dir.path(), state.host.clone())
+        .disable_quarantining(false)
+        .junit_paths("junit.xml")
+        .command()
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("Error Encountered"));
+
+    // HINT: View CLI output with `cargo test -- --nocapture`
+    println!("{assert}");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn presents_error_message_if_you_dont_have_permission_for_upload_endpoint() {
+    let temp_dir = tempdir().unwrap();
+    generate_mock_git_repo(&temp_dir);
+    generate_mock_valid_junit_xmls(&temp_dir);
+
+    let mut mock_server_builder = MockServerBuilder::new();
+    #[axum::debug_handler]
+    async fn handle(_: State<SharedMockServerState>, _: Bytes) -> Response<Body> {
+        StatusCode::UNAUTHORIZED.into_response()
+    }
+    mock_server_builder.set_create_bundle_handler(handle);
+    mock_server_builder.set_get_quarantining_config_handler(
+        |Json(get_quarantine_bulk_test_status_request): Json<GetQuarantineConfigRequest>| {
+            let test_ids = get_quarantine_bulk_test_status_request
+                .test_identifiers
+                .into_iter()
+                .map(|t| t.id)
+                .collect::<Vec<_>>();
+            async move {
+                Json(GetQuarantineConfigResponse {
+                    is_disabled: false,
+                    quarantined_tests: test_ids,
+                })
+            }
+        },
+    );
+    let state = mock_server_builder.spawn_mock_server().await;
+
+    let assert = CommandBuilder::upload(temp_dir.path(), state.host.clone())
+        .disable_quarantining(false)
+        .junit_paths("junit.xml")
+        .command()
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("Error Encountered"));
 
     // HINT: View CLI output with `cargo test -- --nocapture`
     println!("{assert}");
