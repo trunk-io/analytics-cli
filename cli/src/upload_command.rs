@@ -3,7 +3,7 @@ use std::env;
 use std::path::PathBuf;
 use std::sync::mpsc::Sender;
 
-use api::client::ApiClient;
+use api::client::{ApiClient, ApiErrorEndpoint};
 use api::{client::get_api_host, urls::url_for_test_case};
 use bundle::{BundleMeta, BundlerUtil, Test, unzip_tarball};
 use clap::{ArgAction, Args};
@@ -294,6 +294,12 @@ fn error_reason(error: &anyhow::Error) -> String {
     if let Some(reqwest_error) = root_cause.downcast_ref::<reqwest::Error>() {
         if let Some(status) = reqwest_error.status() {
             return status.to_string().replace(' ', "_").to_lowercase();
+        }
+    }
+
+    for cause in error.chain() {
+        if let Some(endpoint_context) = cause.downcast_ref::<ApiErrorEndpoint>() {
+            return endpoint_context.unknown_error_reason();
         }
     }
     "unknown".into()
