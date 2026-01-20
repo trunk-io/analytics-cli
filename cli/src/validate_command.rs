@@ -29,7 +29,10 @@ use superconsole::{
     style::{Attribute, Color, Stylize, style},
 };
 
-use crate::{context::fall_back_to_binary_parse, report_limiting::ValidationReport};
+use crate::{
+    context::fall_back_to_binary_parse, error_report::InterruptingError,
+    report_limiting::ValidationReport,
+};
 
 #[derive(Args, Clone, Debug)]
 pub struct ValidateArgs {
@@ -522,7 +525,7 @@ async fn validate(
     if file_set_builder.no_files_found() {
         let msg = "No test output files found to validate";
         tracing::warn!(msg);
-        return Err(anyhow::anyhow!(msg));
+        return Err(anyhow::anyhow!(InterruptingError::new(msg)));
     }
     let file_set_results = gen_file_set_results(&file_set_builder);
 

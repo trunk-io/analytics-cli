@@ -42,6 +42,7 @@ use tempfile::TempDir;
 #[cfg(target_os = "macos")]
 use xcresult::xcresult::XCResult;
 
+use crate::error_report::InterruptingError;
 use crate::{
     context_quarantine::{
         FailedTestsExtractor, QuarantineContext, QuarantineFetchStatus, gather_quarantine_context,
@@ -216,7 +217,9 @@ pub fn gather_post_test_context<U: AsRef<Path>>(
     )?;
 
     if !allow_empty_test_results && file_set_builder.no_files_found() {
-        return Err(anyhow::anyhow!("No test output files found to upload."));
+        return Err(anyhow::anyhow!(InterruptingError::new(
+            "No test output files found to upload."
+        )));
     }
 
     tracing::info!("Total files pack and upload: {}", file_set_builder.count());

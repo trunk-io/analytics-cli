@@ -25,6 +25,8 @@ third-party = { path = "../third-party" }
 display = { path = "../display" }
 log = "0.4.14"
 exitcode = "1.1.1"
+gix = { version = "0.74.0", default-features = false, features = [
+], optional = true }
 http = "1.1.0"
 tokio = { version = "*", default-features = false, features = [
   "rt-multi-thread",
@@ -80,3 +82,5 @@ vergen = { version = "8.3.1", features = [
 
 [features]
 force-sentry-env-dev = []
+default = ["git-access"]
+git-access = ["dep:gix"]

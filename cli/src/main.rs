@@ -136,6 +136,7 @@ fn main() -> anyhow::Result<()> {
                         .error_report
                         .as_ref()
                         .map(|e| e.context.exit_code)
+                        .flatten()
                         .unwrap_or(result_ptr.quarantine_context.exit_code);
                     close_out_and_exit(exit_code, guard, render_sender, render_handle)
                 }
@@ -162,7 +163,7 @@ fn main() -> anyhow::Result<()> {
                 }
                 Err(error) => {
                     let error_report = ErrorReport::new(error, org_url_slug, None);
-                    let exit_code = error_report.context.exit_code;
+                    let exit_code = error_report.context.exit_code.unwrap_or(exitcode::OK);
                     send_message(
                         DisplayMessage::Final(
                             Arc::new(error_report),

@@ -15,7 +15,7 @@ use axum::{
     extract::State,
     handler::Handler,
     http::StatusCode,
-    response::Response,
+    response::{IntoResponse, Response},
     routing::{MethodRouter, any, post, put},
 };
 use prost::Message;
@@ -29,6 +29,16 @@ pub enum RequestPayload {
     GetQuarantineConfig(GetQuarantineConfigRequest),
     S3Upload(PathBuf),
     TelemetryUploadMetrics(UploadMetrics),
+}
+
+pub struct RespError {
+    pub code: StatusCode,
+    pub msg: String,
+}
+impl IntoResponse for RespError {
+    fn into_response(self) -> axum::response::Response {
+        (self.code, self.msg).into_response()
+    }
 }
 
 #[derive(Debug, Default)]
