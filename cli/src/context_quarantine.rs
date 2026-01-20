@@ -49,7 +49,6 @@ pub struct QuarantineContext {
 }
 impl QuarantineContext {
     pub fn skip_fetch(failures: Vec<Test>) -> Self {
-        println!("SKIPPING FETHC");
         Self {
             exit_code: i32::default(),
             quarantine_status: QuarantineBulkTestStatus::default(),
@@ -61,7 +60,6 @@ impl QuarantineContext {
     }
 
     pub fn fail_fetch(error: anyhow::Error) -> Self {
-        println!("FAILING FETCH");
         Self {
             exit_code: i32::default(),
             quarantine_status: QuarantineBulkTestStatus::default(),
@@ -284,7 +282,6 @@ pub async fn gather_quarantine_context(
     test_run_exit_code: Option<i32>,
     variant: &String,
 ) -> anyhow::Result<QuarantineContext> {
-    println!("GATHERING");
     let failed_tests_extractor = failed_tests_extractor.unwrap_or_else(|| {
         FailedTestsExtractor::new(
             &request.repo,
@@ -334,7 +331,6 @@ pub async fn gather_quarantine_context(
         .unwrap_or_default()
     {
         tracing::info!("Quarantining is not enabled, not quarantining any tests");
-        println!("NOT ENABLED");
         return Ok(QuarantineContext {
             exit_code,
             quarantine_status: QuarantineBulkTestStatus::default(),

@@ -138,7 +138,6 @@ fn is_gix_error(error: &anyhow::Error) -> bool {
 }
 
 fn get_interrupting_message(error: &anyhow::Error) -> Option<String> {
-    println!("CHECKING {:?}, rc {:?}", error, error.root_cause());
     error
         .root_cause()
         .downcast_ref::<InterruptingError>()

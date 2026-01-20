@@ -713,19 +713,15 @@ async fn upload_bundle_no_files_allow_missing_junit_files() {
     }
 
     for flag in [
-        /*
         Flag::Long,
         Flag::LongWithEquals,
         Flag::Alias,
         Flag::AliasWithEquals,
         Flag::Default,
         Flag::Off,
-        */
         Flag::OffWithEquals,
-        /*
         Flag::OffAlias,
         Flag::OffAliasWithEquals,
-        */
     ] {
         let temp_dir = tempdir().unwrap();
         generate_mock_git_repo(&temp_dir);
