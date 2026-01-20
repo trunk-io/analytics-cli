@@ -2,8 +2,8 @@ use api::client::get_api_host;
 use display::end_output::EndOutput;
 use http::StatusCode;
 use superconsole::{
-    style::{style, Attribute, Stylize},
     Line, Span,
+    style::{Attribute, Stylize, style},
 };
 
 const HELP_TEXT: &str = "For more help, contact us at https://slack.trunk.io/";
@@ -11,6 +11,8 @@ const CONNECTION_REFUSED_CONTEXT: &str = concat!("Unable to connect to trunk's s
 
 pub(crate) const UNAUTHORIZED_CONTEXT: &str =
     concat!("Unathorized access, your Trunk organization URL slug or token may be incorrect",);
+
+const GIX_ERROR_CONTEXT: &str = "Unable to open git repository";
 
 fn add_settings_url_to_context(domain: String, org_url_slug: &String) -> String {
     let settings_url = format!("{}/{}/settings", domain.replace("api", "app"), org_url_slug);
@@ -20,10 +22,32 @@ fn add_settings_url_to_context(domain: String, org_url_slug: &String) -> String 
     )
 }
 
+pub struct InterruptingError {
+    message: String,
+}
+impl core::fmt::Display for InterruptingError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.message)
+    }
+}
+impl core::fmt::Debug for InterruptingError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self.message)
+    }
+}
+impl std::error::Error for InterruptingError {}
+impl InterruptingError {
+    pub fn new<T: AsRef<str>>(message: T) -> Self {
+        Self {
+            message: message.as_ref().into(),
+        }
+    }
+}
+
 pub struct Context {
     pub base_message: Option<String>,
     pub org_url_slug: String,
-    pub exit_code: i32,
+    pub exit_code: Option<i32>,
 }
 
 pub struct ErrorReport {
@@ -43,29 +67,44 @@ impl ErrorReport {
         }
     }
 
-    fn find_exit_code(error: &anyhow::Error) -> i32 {
+    fn find_exit_code(error: &anyhow::Error) -> Option<i32> {
         if is_connection_refused(error) {
             tracing::warn!(CONNECTION_REFUSED_CONTEXT);
-            return exitcode::OK;
+            return None;
         }
 
         if is_unauthorized(error) {
             tracing::warn!(UNAUTHORIZED_CONTEXT);
-            return exitcode::SOFTWARE;
+            return Some(exitcode::SOFTWARE);
+        }
+
+        if is_gix_error(error) {
+            tracing::warn!(GIX_ERROR_CONTEXT);
+            return Some(exitcode::SOFTWARE);
+        }
+
+        if let Some(message) = get_interrupting_message(error) {
+            tracing::warn!("{}", message);
+            return Some(exitcode::SOFTWARE);
         }
 
         tracing::error!("{}", error);
         tracing::error!(hidden_in_console = true, "Caused by error: {:#?}", error);
-        exitcode::SOFTWARE
+        None
+    }
+
+    pub fn should_block_quarantining(&self) -> bool {
+        is_unauthorized(&self.error)
+            || is_gix_error(&self.error)
+            || get_interrupting_message(&self.error).is_some()
     }
 }
 
 fn is_connection_refused(error: &anyhow::Error) -> bool {
-    if let Some(io_error) = error.root_cause().downcast_ref::<std::io::Error>() {
-        io_error.kind() == std::io::ErrorKind::ConnectionRefused
-    } else {
-        false
-    }
+    error
+        .root_cause()
+        .downcast_ref::<std::io::Error>()
+        .is_some()
 }
 
 fn is_unauthorized(error: &anyhow::Error) -> bool {
@@ -80,6 +119,29 @@ fn is_unauthorized(error: &anyhow::Error) -> bool {
     } else {
         false
     }
+}
+
+fn is_gix_error(error: &anyhow::Error) -> bool {
+    #[cfg(feature = "git-access")]
+    {
+        for cause in error.chain() {
+            if cause.downcast_ref::<gix::open::Error>().is_some() {
+                return true;
+            }
+        }
+        false
+    }
+    #[cfg(not(feature = "git-access"))]
+    {
+        false
+    }
+}
+
+fn get_interrupting_message(error: &anyhow::Error) -> Option<String> {
+    error
+        .root_cause()
+        .downcast_ref::<InterruptingError>()
+        .map(|e| e.message.clone())
 }
 
 impl EndOutput for ErrorReport {
@@ -135,23 +197,34 @@ impl EndOutput for ErrorReport {
         }
         lines.push(Line::from_iter([Span::new_unstyled(HELP_TEXT)?]));
         lines.push(Line::default());
-        if exit_code == &exitcode::OK {
-            lines.push(Line::from_iter([
+        match exit_code {
+            Some(exitcode::OK) => lines.push(Line::from_iter([
                 Span::new_unstyled("No errors occurred, returning default exit code: ")?,
-                Span::new_styled(style(exit_code.to_string()).attribute(Attribute::Bold))?,
-            ]));
-        } else if exit_code == &exitcode::SOFTWARE {
-            // SOFTWARE is used to indicate that the upload command failed
-            lines.push(Line::from_iter([
-                Span::new_unstyled("Errors occurred during execution, returning exit code: ")?,
-                Span::new_styled(style(exit_code.to_string()).attribute(Attribute::Bold))?,
-            ]));
-        } else {
-            // Should be an unused codepath, but we log it for completeness
-            lines.push(Line::from_iter([
-                Span::new_unstyled("Errors occurred during execution, returning exit code: ")?,
-                Span::new_styled(style(exit_code.to_string()).attribute(Attribute::Bold))?,
-            ]));
+                Span::new_styled(style(exitcode::OK.to_string()).attribute(Attribute::Bold))?,
+            ])),
+            Some(exitcode::SOFTWARE) => {
+                // SOFTWARE is used to indicate that the upload command failed due to user error
+                lines.push(Line::from_iter([
+                    Span::new_unstyled("Errors occurred during execution, returning exit code: ")?,
+                    Span::new_styled(
+                        style(exitcode::SOFTWARE.to_string()).attribute(Attribute::Bold),
+                    )?,
+                ]));
+            }
+            Some(other_code) => {
+                // Should be an unused codepath, but we log it for completeness
+                lines.push(Line::from_iter([
+                    Span::new_unstyled("Errors occurred during execution, returning exit code: ")?,
+                    Span::new_styled(style(other_code.to_string()).attribute(Attribute::Bold))?,
+                ]));
+            }
+            None => {
+                // If uploads fail because trunk is down, we fall back to whatever came out of quarantining
+                // to minimize customer impact
+                lines.push(Line::from_iter([Span::new_unstyled(
+                    "Errors occurred during execution, using quarantining exit code",
+                )?]));
+            }
         }
         Ok(lines)
     }

@@ -588,7 +588,14 @@ impl EndOutput for UploadRunResult {
         if let Some(error_report) = self.error_report.as_ref() {
             output.push(Line::default());
             output.extend(error_report.output()?);
-            return Ok(output);
+            if error_report.should_block_quarantining() {
+                return Ok(output);
+            } else {
+                output.push(Line::from_iter([Span::new_unstyled(
+                    "Proceeding with test report...",
+                )?]));
+                output.push(Line::default());
+            }
         }
 
         // Add the bundle upload ID message
