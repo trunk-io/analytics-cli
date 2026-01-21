@@ -313,6 +313,18 @@ impl VersionedBundle {
         }
     }
 
+    pub fn bundle_junit_props(&self) -> Option<&BundleMetaJunitProps> {
+        match self {
+            VersionedBundle::V0_7_8(data) => Some(&data.junit_props),
+            VersionedBundle::V0_7_7(data) => Some(&data.junit_props),
+            VersionedBundle::V0_7_6(data) => Some(&data.junit_props),
+            VersionedBundle::V0_6_3(data) => Some(&data.junit_props),
+            VersionedBundle::V0_6_2(data) => Some(&data.junit_props),
+            VersionedBundle::V0_5_34(data) => Some(&data.junit_props),
+            VersionedBundle::V0_5_29(_) => None,
+        }
+    }
+
     pub fn bundle_upload_id_v2(&self) -> Option<&String> {
         match self {
             Self::V0_7_8(data) => Some(&data.bundle_upload_id_v2),
