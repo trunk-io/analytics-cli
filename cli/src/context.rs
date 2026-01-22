@@ -35,7 +35,8 @@ use github_actions::extract_github_external_id;
 use lazy_static::lazy_static;
 use prost::Message;
 use proto::test_context::test_run::{
-    BazelBuildInformation, TestBuildResult, TestReport, TestResult, UploaderMetadata,
+    BazelAttemptNumber, BazelBuildInformation, TestBuildResult, TestReport, TestResult,
+    UploaderMetadata,
 };
 use regex::Regex;
 use tempfile::TempDir;
@@ -331,14 +332,27 @@ fn write_test_report_to_file(
     })
 }
 
-fn get_build_result_from_bep(bep_result: &BepParseResult, label: &str) -> i32 {
-    bep_result
+fn get_build_result_from_bep(bep_result: &BepParseResult, label: &str) -> (i32, Option<i32>) {
+    let test_result = bep_result
         .test_results
         .iter()
-        .find(|test_result| test_result.label == label)
+        .find(|test_result| test_result.label == label);
+
+    let build_result = test_result
         .and_then(|test_result| test_result.build_status)
         .map(|status| map_test_status_to_build_result(status) as i32)
-        .unwrap_or(TestBuildResult::Unspecified as i32)
+        .unwrap_or(TestBuildResult::Unspecified as i32);
+
+    let attempt_number =
+        test_result.and_then(|test_result: &context::bazel_bep::common::BepTestResult| {
+            test_result
+                .xml_files
+                .iter()
+                .map(|xml_file| xml_file.attempt)
+                .max()
+        });
+
+    (build_result, attempt_number)
 }
 
 pub fn generate_internal_file_from_bep(
@@ -385,9 +399,6 @@ pub fn generate_internal_file_from_bep(
                         quarantined_test_ids,
                         variant.as_deref().unwrap_or(""),
                     );
-                    for test_case_run in &mut xml_test_case_runs {
-                        test_case_run.attempt_number = xml_file.attempt;
-                    }
                     test_case_runs.extend(xml_test_case_runs);
                 }
             }
@@ -418,7 +429,7 @@ pub fn generate_internal_file_from_bep(
             }
         }
 
-        let build_result = get_build_result_from_bep(bep_result, &label);
+        let (build_result, attempt_number) = get_build_result_from_bep(bep_result, &label);
 
         test_results.push(create_test_result(
             test_case_runs,
@@ -427,6 +438,7 @@ pub fn generate_internal_file_from_bep(
                 BazelBuildInformation {
                     label,
                     result: build_result,
+                    attempt_number: attempt_number.map(|number| BazelAttemptNumber { number }),
                 }
             )),
         ));

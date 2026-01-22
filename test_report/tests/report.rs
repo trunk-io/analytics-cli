@@ -14,8 +14,7 @@ use constants::{
 use context::repo::RepoUrlParts;
 use prost::Message;
 use prost_wkt_types::Timestamp;
-use proto::test_context::test_run::TestCaseRunStatus;
-use proto::test_context::test_run::TestReport;
+use proto::test_context::test_run::{AttemptNumber, TestCaseRunStatus, TestReport};
 use serial_test::serial;
 use tempfile::tempdir;
 use test_report::report::{MutTestReport, Status};
@@ -236,6 +235,11 @@ async fn publish_test_report() {
     assert_eq!(test_case_run.status, TestCaseRunStatus::Success as i32);
     assert_eq!(test_case_run.line, 0);
     assert_eq!(test_case_run.attempt_number, 0);
+    assert_eq!(
+        test_case_run.attempt_number_wrapped,
+        Some(AttemptNumber { number: 0 })
+    );
+    assert_eq!(test_case_run.line_number_wrapped, None);
     assert_eq!(test_case_run.started_at, Some(test_started_at.clone()));
     assert_eq!(test_case_run.finished_at, Some(test_finished_at.clone()));
     assert!(!test_case_run.is_quarantined);

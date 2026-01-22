@@ -15,20 +15,32 @@ message CodeOwner {
   string name = 1;
 }
 
+message AttemptNumber {
+  int32 number = 1;
+}
+
+message LineNumber {
+  int32 number = 1;
+}
+
 message TestCaseRun {
   string id = 1;
   string name = 2;
   string classname = 3;
   string file = 4;
   string parent_name = 5;
-  int32 line = 6;
+  // Deprecated, use line_number_wrapped instead
+  int32 line = 6 [deprecated = true];
   TestCaseRunStatus status = 7;
-  int32 attempt_number = 8;
+  // Deprecated, use attempt_number_wrapped instead
+  int32 attempt_number = 8 [deprecated = true];
   google.protobuf.Timestamp started_at = 9;
   google.protobuf.Timestamp finished_at = 10;
   string status_output_message = 11;
   bool is_quarantined = 12;
   repeated CodeOwner codeowners = 13;
+  optional AttemptNumber attempt_number_wrapped = 14;
+  optional LineNumber line_number_wrapped = 15;
 }
 
 message UploaderMetadata {
@@ -38,9 +50,14 @@ message UploaderMetadata {
   string variant = 4;
 }
 
+message BazelAttemptNumber {
+  int32 number = 1;
+}
+
 message BazelBuildInformation {
   string label = 1; // test label for the execution 
   TestBuildResult result = 2; // result of the build
+  optional BazelAttemptNumber attempt_number = 3; // attempt number of the target test
 }
 
 message TestResult {

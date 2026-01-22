@@ -16,8 +16,8 @@ use context::repo::{BundleRepo, RepoUrlParts};
 use magnus::{Module, Object, value::ReprValue};
 use prost_wkt_types::Timestamp;
 use proto::test_context::test_run::{
-    CodeOwner, TestCaseRun, TestCaseRunStatus, TestReport as TestReportProto, TestResult,
-    UploaderMetadata,
+    AttemptNumber, CodeOwner, LineNumber, TestCaseRun, TestCaseRunStatus,
+    TestReport as TestReportProto, TestResult, UploaderMetadata,
 };
 use serde::{Deserialize, Serialize};
 use third_party::sentry;
@@ -744,6 +744,7 @@ impl MutTestReport {
         test.parent_name = parent_name;
         if let Some(line) = line {
             test.line = line;
+            test.line_number_wrapped = Some(LineNumber { number: line });
         }
         match status {
             Status::Success => test.status = TestCaseRunStatus::Success.into(),
@@ -752,6 +753,9 @@ impl MutTestReport {
             Status::Unspecified => test.status = TestCaseRunStatus::Unspecified.into(),
         }
         test.attempt_number = attempt_number;
+        test.attempt_number_wrapped = Some(AttemptNumber {
+            number: attempt_number,
+        });
         let started_at_date_time = DateTime::from_timestamp(started_at, 0).unwrap_or_default();
         let test_started_at = Timestamp {
             seconds: started_at_date_time.timestamp(),
