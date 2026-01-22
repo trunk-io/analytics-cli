@@ -209,8 +209,8 @@ async fn upload_bundle() {
     assert!(!test_case_run.classname.is_empty());
     assert!(!test_case_run.file.is_empty());
     assert!(!test_case_run.parent_name.is_empty());
-    assert_eq!(test_case_run.line_number_wrapped, None);
-    assert_eq!(test_case_run.attempt_number_wrapped, None);
+    assert_eq!(test_case_run.line_number, None);
+    assert_eq!(test_case_run.attempt_index, None);
     assert_eq!(test_case_run.line, 0);
     assert_eq!(test_case_run.attempt_number, 0);
     assert!(test_case_run.started_at.is_some());
@@ -335,8 +335,8 @@ async fn upload_bundle_using_bep() {
     assert!(!test_case_run.classname.is_empty());
     assert!(!test_case_run.file.is_empty());
     assert!(!test_case_run.parent_name.is_empty());
-    assert_eq!(test_case_run.line_number_wrapped, None);
-    assert_eq!(test_case_run.attempt_number_wrapped, None);
+    assert_eq!(test_case_run.line_number, None);
+    assert_eq!(test_case_run.attempt_index, None);
     assert_eq!(test_case_run.line, 0);
     assert_eq!(test_case_run.attempt_number, 0);
     assert!(test_case_run.started_at.is_some());
@@ -412,8 +412,8 @@ async fn upload_bundle_using_xcresult() {
     assert!(!test_case_run.id.is_empty());
     assert!(!test_case_run.name.is_empty());
     assert!(!test_case_run.classname.is_empty());
-    assert_eq!(test_case_run.line_number_wrapped, None);
-    assert_eq!(test_case_run.attempt_number_wrapped, None);
+    assert_eq!(test_case_run.line_number, None);
+    assert_eq!(test_case_run.attempt_index, None);
     assert_eq!(test_case_run.line, 0);
     assert_eq!(test_case_run.attempt_number, 0);
     // Note: xcresult-derived JUnit may not have timestamps, so we don't assert on them

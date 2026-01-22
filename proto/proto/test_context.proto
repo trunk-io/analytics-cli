@@ -29,18 +29,19 @@ message TestCaseRun {
   string classname = 3;
   string file = 4;
   string parent_name = 5;
-  // Deprecated, use line_number_wrapped instead
+  // Deprecated, use line_number instead
   int32 line = 6 [deprecated = true];
   TestCaseRunStatus status = 7;
-  // Deprecated, use attempt_number_wrapped instead
+  // Deprecated, use attempt_index instead
   int32 attempt_number = 8 [deprecated = true];
   google.protobuf.Timestamp started_at = 9;
   google.protobuf.Timestamp finished_at = 10;
   string status_output_message = 11;
   bool is_quarantined = 12;
   repeated CodeOwner codeowners = 13;
-  optional AttemptNumber attempt_number_wrapped = 14;
-  optional LineNumber line_number_wrapped = 15;
+  // Set by rspec, 0-indexed
+  optional AttemptNumber attempt_index = 14;
+  optional LineNumber line_number = 15;
 }
 
 message UploaderMetadata {

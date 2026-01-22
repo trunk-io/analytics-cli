@@ -332,7 +332,12 @@ fn write_test_report_to_file(
     })
 }
 
-fn get_build_result_from_bep(bep_result: &BepParseResult, label: &str) -> (i32, Option<i32>) {
+struct BuildResultFromBep {
+    build_result: i32,
+    max_attempt_number: Option<i32>,
+}
+
+fn get_build_result_from_bep(bep_result: &BepParseResult, label: &str) -> BuildResultFromBep {
     let test_result = bep_result
         .test_results
         .iter()
@@ -352,7 +357,10 @@ fn get_build_result_from_bep(bep_result: &BepParseResult, label: &str) -> (i32, 
                 .max()
         });
 
-    (build_result, max_attempt_number)
+    BuildResultFromBep {
+        build_result,
+        max_attempt_number,
+    }
 }
 
 pub fn generate_internal_file_from_bep(
@@ -429,7 +437,10 @@ pub fn generate_internal_file_from_bep(
             }
         }
 
-        let (build_result, max_attempt_number) = get_build_result_from_bep(bep_result, &label);
+        let BuildResultFromBep {
+            build_result,
+            max_attempt_number,
+        } = get_build_result_from_bep(bep_result, &label);
 
         test_results.push(create_test_result(
             test_case_runs,

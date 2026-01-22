@@ -354,9 +354,8 @@ impl JunitParser {
                         .get(extra_attrs::ATTEMPT_NUMBER)
                         .map(|v| v.to_string())
                         .and_then(|v| v.parse::<i32>().ok());
-                    test_case_run.line_number_wrapped =
-                        line_number.map(|number| LineNumber { number });
-                    test_case_run.attempt_number_wrapped =
+                    test_case_run.line_number = line_number.map(|number| LineNumber { number });
+                    test_case_run.attempt_index =
                         attempt_number.map(|number| AttemptNumber { number });
                     // TODO(TRUNK-1742): Remove populating legacy fields once ingestion is updated.
                     // trunk-ignore(clippy/deprecated)
@@ -1068,7 +1067,7 @@ mod tests {
         );
         assert_eq!(test_case_run1.file, "test.java");
         assert_eq!(test_case_run1.attempt_number, 0);
-        assert_eq!(test_case_run1.attempt_number_wrapped, None);
+        assert_eq!(test_case_run1.attempt_index, None);
         assert!(test_case_run1.is_quarantined);
         assert_eq!(
             test_case_run1.started_at,
@@ -1084,10 +1083,7 @@ mod tests {
                 nanos: 1000000
             })
         );
-        assert_eq!(
-            test_case_run1.line_number_wrapped,
-            Some(LineNumber { number: 5 })
-        );
+        assert_eq!(test_case_run1.line_number, Some(LineNumber { number: 5 }));
         assert_eq!(test_case_run1.line, 5);
         assert_eq!(test_case_run1.id, "");
 
@@ -1099,7 +1095,7 @@ mod tests {
         assert_eq!(test_case_run2.status_output_message, "Test failed");
         assert_eq!(test_case_run2.file, "test.java");
         assert_eq!(test_case_run2.attempt_number, 0);
-        assert_eq!(test_case_run2.attempt_number_wrapped, None);
+        assert_eq!(test_case_run2.attempt_index, None);
         assert!(!test_case_run2.is_quarantined);
         assert_eq!(test_case_run2.id, "",);
     }
@@ -1233,7 +1229,7 @@ mod tests {
         );
         assert_eq!(test_case_run1.file, "test.java");
         assert_eq!(test_case_run1.attempt_number, 0);
-        assert_eq!(test_case_run1.attempt_number_wrapped, None);
+        assert_eq!(test_case_run1.attempt_index, None);
         assert!(test_case_run1.is_quarantined);
         assert_eq!(
             test_case_run1.started_at,
@@ -1250,10 +1246,7 @@ mod tests {
             })
         );
         assert_eq!(test_case_run1.line, 5);
-        assert_eq!(
-            test_case_run1.line_number_wrapped,
-            Some(LineNumber { number: 5 })
-        );
+        assert_eq!(test_case_run1.line_number, Some(LineNumber { number: 5 }));
         assert_eq!(test_case_run1.id, "");
 
         let test_case_run2 = &test_case_runs[1];
@@ -1264,7 +1257,7 @@ mod tests {
         assert_eq!(test_case_run2.status_output_message, "Test failed");
         assert_eq!(test_case_run2.file, "test.java");
         assert_eq!(test_case_run2.attempt_number, 0);
-        assert_eq!(test_case_run2.attempt_number_wrapped, None);
+        assert_eq!(test_case_run2.attempt_index, None);
         assert!(!test_case_run2.is_quarantined);
         assert_eq!(test_case_run2.id, "",);
         assert_eq!(
@@ -1282,7 +1275,7 @@ mod tests {
             })
         );
         assert_eq!(test_case_run2.line, 0);
-        assert_eq!(test_case_run2.line_number_wrapped, None);
+        assert_eq!(test_case_run2.line_number, None);
     }
 
     #[cfg(feature = "bindings")]
@@ -1305,13 +1298,13 @@ mod tests {
             file: "test_file.java".to_string(),
             // trunk-ignore(clippy/deprecated)
             attempt_number: 0,
-            attempt_number_wrapped: Some(AttemptNumber { number: 1 }),
+            attempt_index: Some(AttemptNumber { number: 1 }),
             is_quarantined: false,
             started_at: None,
             finished_at: None,
             // trunk-ignore(clippy/deprecated)
             line: 0,
-            line_number_wrapped: Some(LineNumber { number: 42 }),
+            line_number: Some(LineNumber { number: 42 }),
             ..Default::default()
         };
 

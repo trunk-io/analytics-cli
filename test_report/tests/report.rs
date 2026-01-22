@@ -236,10 +236,10 @@ async fn publish_test_report() {
     assert_eq!(test_case_run.line, 0);
     assert_eq!(test_case_run.attempt_number, 0);
     assert_eq!(
-        test_case_run.attempt_number_wrapped,
+        test_case_run.attempt_index,
         Some(AttemptNumber { number: 0 })
     );
-    assert_eq!(test_case_run.line_number_wrapped, None);
+    assert_eq!(test_case_run.line_number, None);
     assert_eq!(test_case_run.started_at, Some(test_started_at.clone()));
     assert_eq!(test_case_run.finished_at, Some(test_finished_at.clone()));
     assert!(!test_case_run.is_quarantined);

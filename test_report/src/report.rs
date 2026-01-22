@@ -744,7 +744,7 @@ impl MutTestReport {
         test.parent_name = parent_name;
         if let Some(line) = line {
             test.line = line;
-            test.line_number_wrapped = Some(LineNumber { number: line });
+            test.line_number = Some(LineNumber { number: line });
         }
         match status {
             Status::Success => test.status = TestCaseRunStatus::Success.into(),
@@ -753,7 +753,7 @@ impl MutTestReport {
             Status::Unspecified => test.status = TestCaseRunStatus::Unspecified.into(),
         }
         test.attempt_number = attempt_number;
-        test.attempt_number_wrapped = Some(AttemptNumber {
+        test.attempt_index = Some(AttemptNumber {
             number: attempt_number,
         });
         let started_at_date_time = DateTime::from_timestamp(started_at, 0).unwrap_or_default();

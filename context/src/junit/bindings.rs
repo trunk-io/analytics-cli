@@ -220,8 +220,8 @@ impl From<TestCaseRun> for BindingsTestCase {
             attempt_number,
             is_quarantined,
             codeowners,
-            attempt_number_wrapped,
-            line_number_wrapped,
+            attempt_index,
+            line_number,
         }: TestCaseRun,
     ) -> Self {
         let started_at = started_at.unwrap_or_default();
@@ -245,21 +245,21 @@ impl From<TestCaseRun> for BindingsTestCase {
             ("is_quarantined".to_string(), is_quarantined.to_string()),
         ]);
 
-        if line != 0 {
+        if let Some(line_number) = &line_number {
+            extra.insert("line".to_string(), line_number.number.to_string());
+        } else if line != 0 {
             // Handle deprecated field
             extra.insert("line".to_string(), line.to_string());
-        } else if let Some(line_number_wrapped) = &line_number_wrapped {
-            extra.insert("line".to_string(), line_number_wrapped.number.to_string());
         }
 
-        if attempt_number != 0 {
-            // Handle deprecated field
-            extra.insert("attempt_number".to_string(), attempt_number.to_string());
-        } else if let Some(attempt_number_wrapped) = &attempt_number_wrapped {
+        if let Some(attempt_index) = &attempt_index {
             extra.insert(
                 "attempt_number".to_string(),
-                attempt_number_wrapped.number.to_string(),
+                attempt_index.number.to_string(),
             );
+        } else if attempt_number != 0 {
+            // Handle deprecated field
+            extra.insert("attempt_number".to_string(), attempt_number.to_string());
         }
 
         Self {
@@ -1188,11 +1188,11 @@ mod tests {
             parent_name: "test_parent_name1".into(),
             // trunk-ignore(clippy/deprecated)
             line: 0,
-            line_number_wrapped: Some(LineNumber { number: 1 }),
+            line_number: Some(LineNumber { number: 1 }),
             status: TestCaseRunStatus::Success.into(),
             // trunk-ignore(clippy/deprecated)
             attempt_number: 0,
-            attempt_number_wrapped: Some(AttemptNumber { number: 1 }),
+            attempt_index: Some(AttemptNumber { number: 1 }),
             started_at: Some(test_started_at.clone()),
             finished_at: Some(test_finished_at.clone()),
             status_output_message: "test_status_output_message".into(),
@@ -1255,11 +1255,11 @@ mod tests {
         assert_eq!(test_case1.extra["file"], test1.file);
         assert_eq!(
             test_case1.extra["line"],
-            test1.line_number_wrapped.unwrap().number.to_string()
+            test1.line_number.unwrap().number.to_string()
         );
         assert_eq!(
             test_case1.extra["attempt_number"],
-            test1.attempt_number_wrapped.unwrap().number.to_string()
+            test1.attempt_index.unwrap().number.to_string()
         );
         assert_eq!(test_case1.properties.len(), 0);
         assert_eq!(test_case1.codeowners.clone().unwrap().len(), 1);
