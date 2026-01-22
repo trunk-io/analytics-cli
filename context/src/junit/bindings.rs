@@ -48,7 +48,7 @@ pub enum BindingsTestBuildResult {
 pub struct BazelBuildInformation {
     pub label: String,
     pub result: BindingsTestBuildResult,
-    pub attempt_number: Option<i32>,
+    pub max_attempt_number: Option<i32>,
 }
 
 #[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass(get_all))]
@@ -184,7 +184,7 @@ impl From<TestResult> for BindingsReport {
                 label: bazel_build_information.label,
                 result: map_i32_to_bindings_test_build_result(bazel_build_information.result)
                     .unwrap_or(BindingsTestBuildResult::Unspecified),
-                attempt_number: bazel_build_information.attempt_number.map(|number| number.number),
+                max_attempt_number: bazel_build_information.max_attempt_number.map(|number| number.number),
             }),
             _ => None,
         };

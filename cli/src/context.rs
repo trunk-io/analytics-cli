@@ -343,7 +343,7 @@ fn get_build_result_from_bep(bep_result: &BepParseResult, label: &str) -> (i32, 
         .map(|status| map_test_status_to_build_result(status) as i32)
         .unwrap_or(TestBuildResult::Unspecified as i32);
 
-    let attempt_number =
+    let max_attempt_number =
         test_result.and_then(|test_result: &context::bazel_bep::common::BepTestResult| {
             test_result
                 .xml_files
@@ -352,7 +352,7 @@ fn get_build_result_from_bep(bep_result: &BepParseResult, label: &str) -> (i32, 
                 .max()
         });
 
-    (build_result, attempt_number)
+    (build_result, max_attempt_number)
 }
 
 pub fn generate_internal_file_from_bep(
@@ -429,7 +429,7 @@ pub fn generate_internal_file_from_bep(
             }
         }
 
-        let (build_result, attempt_number) = get_build_result_from_bep(bep_result, &label);
+        let (build_result, max_attempt_number) = get_build_result_from_bep(bep_result, &label);
 
         test_results.push(create_test_result(
             test_case_runs,
@@ -438,7 +438,7 @@ pub fn generate_internal_file_from_bep(
                 BazelBuildInformation {
                     label,
                     result: build_result,
-                    attempt_number: attempt_number.map(|number| BazelAttemptNumber { number }),
+                    max_attempt_number: max_attempt_number.map(|number| BazelAttemptNumber { number }),
                 }
             )),
         ));

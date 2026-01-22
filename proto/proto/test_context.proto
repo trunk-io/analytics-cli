@@ -57,7 +57,7 @@ message BazelAttemptNumber {
 message BazelBuildInformation {
   string label = 1; // test label for the execution 
   TestBuildResult result = 2; // result of the build
-  optional BazelAttemptNumber attempt_number = 3; // attempt number of the target test
+  optional BazelAttemptNumber max_attempt_number = 3; // attempt number of the target test
 }
 
 message TestResult {
