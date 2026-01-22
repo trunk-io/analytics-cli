@@ -24,6 +24,7 @@ This package provides JavaScript/TypeScript bindings to the analytics CLI's core
 - `pnpm` (package manager)
 - Rust and Cargo (for building WebAssembly bindings)
 - `wasm-pack` (installed automatically via devDependencies)
+- clang ([install](https://apt.llvm.org/))
 
 ### Installation
 
