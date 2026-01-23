@@ -417,9 +417,9 @@ describe("context-js", () => {
     expect(testSuite).toBeDefined();
     expect(testSuite?.test_cases).toHaveLength(1);
     expect(
-      testSuite?.test_cases.at(0)?.js_extra()["attempt_number"],
+      testSuite?.test_cases.at(0)?.js_extra().attempt_number,
     ).toBeUndefined();
-    expect(testSuite?.test_cases.at(0)?.js_extra()["line"]).toBe("9");
+    expect(testSuite?.test_cases.at(0)?.js_extra().line).toBe("9");
   });
 
   it("parses test_internal_bep_v2.bin", () => {
@@ -446,8 +446,8 @@ describe("context-js", () => {
     expect(testSuite).toBeDefined();
     expect(testSuite?.test_cases).toHaveLength(1);
     expect(
-      testSuite?.test_cases.at(0)?.js_extra()["attempt_number"],
+      testSuite?.test_cases.at(0)?.js_extra().attempt_number,
     ).toBeUndefined();
-    expect(testSuite?.test_cases.at(0)?.js_extra()["line"]).toBe("9");
+    expect(testSuite?.test_cases.at(0)?.js_extra().line).toBe("9");
   });
 });
