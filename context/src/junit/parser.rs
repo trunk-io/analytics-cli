@@ -8,7 +8,9 @@ use codeowners::CodeOwners;
 #[cfg(feature = "bindings")]
 use prost::Message;
 use prost_wkt_types::Timestamp;
-use proto::test_context::test_run::{CodeOwner, TestCaseRun, TestCaseRunStatus};
+use proto::test_context::test_run::{
+    AttemptNumber, CodeOwner, LineNumber, TestCaseRun, TestCaseRunStatus,
+};
 #[cfg(feature = "pyo3")]
 use pyo3::prelude::*;
 #[cfg(feature = "pyo3")]
@@ -341,18 +343,25 @@ impl JunitParser {
                     test_case_run.id = existing_id.map(|v| v.to_string()).unwrap_or_default();
 
                     test_case_run.file = file;
-                    test_case_run.line = test_case
+
+                    let line_number = test_case
                         .extra
                         .get(extra_attrs::LINE)
                         .map(|v| v.to_string())
-                        .and_then(|v| v.parse::<i32>().ok())
-                        .unwrap_or_default();
-                    test_case_run.attempt_number = test_case
+                        .and_then(|v| v.parse::<i32>().ok());
+                    let attempt_number = test_case
                         .extra
                         .get(extra_attrs::ATTEMPT_NUMBER)
                         .map(|v| v.to_string())
-                        .and_then(|v| v.parse::<i32>().ok())
-                        .unwrap_or_default();
+                        .and_then(|v| v.parse::<i32>().ok());
+                    test_case_run.line_number = line_number.map(|number| LineNumber { number });
+                    test_case_run.attempt_index =
+                        attempt_number.map(|number| AttemptNumber { number });
+                    // TODO(TRUNK-1742): Remove populating legacy fields once ingestion is updated.
+                    // trunk-ignore(clippy/deprecated)
+                    test_case_run.line = line_number.unwrap_or_default(); // 
+                    // trunk-ignore(clippy/deprecated)
+                    test_case_run.attempt_number = attempt_number.unwrap_or_default();
 
                     test_case_runs.push(test_case_run);
                 }
@@ -995,7 +1004,7 @@ mod tests {
     use std::io::BufReader;
 
     use prost_wkt_types::Timestamp;
-    use proto::test_context::test_run::TestCaseRunStatus;
+    use proto::test_context::test_run::{AttemptNumber, LineNumber, TestCaseRunStatus};
 
     use crate::{
         junit::parser::JunitParser,
@@ -1058,6 +1067,7 @@ mod tests {
         );
         assert_eq!(test_case_run1.file, "test.java");
         assert_eq!(test_case_run1.attempt_number, 0);
+        assert_eq!(test_case_run1.attempt_index, None);
         assert!(test_case_run1.is_quarantined);
         assert_eq!(
             test_case_run1.started_at,
@@ -1073,6 +1083,7 @@ mod tests {
                 nanos: 1000000
             })
         );
+        assert_eq!(test_case_run1.line_number, Some(LineNumber { number: 5 }));
         assert_eq!(test_case_run1.line, 5);
         assert_eq!(test_case_run1.id, "");
 
@@ -1084,6 +1095,7 @@ mod tests {
         assert_eq!(test_case_run2.status_output_message, "Test failed");
         assert_eq!(test_case_run2.file, "test.java");
         assert_eq!(test_case_run2.attempt_number, 0);
+        assert_eq!(test_case_run2.attempt_index, None);
         assert!(!test_case_run2.is_quarantined);
         assert_eq!(test_case_run2.id, "",);
     }
@@ -1217,6 +1229,7 @@ mod tests {
         );
         assert_eq!(test_case_run1.file, "test.java");
         assert_eq!(test_case_run1.attempt_number, 0);
+        assert_eq!(test_case_run1.attempt_index, None);
         assert!(test_case_run1.is_quarantined);
         assert_eq!(
             test_case_run1.started_at,
@@ -1233,6 +1246,7 @@ mod tests {
             })
         );
         assert_eq!(test_case_run1.line, 5);
+        assert_eq!(test_case_run1.line_number, Some(LineNumber { number: 5 }));
         assert_eq!(test_case_run1.id, "");
 
         let test_case_run2 = &test_case_runs[1];
@@ -1243,6 +1257,7 @@ mod tests {
         assert_eq!(test_case_run2.status_output_message, "Test failed");
         assert_eq!(test_case_run2.file, "test.java");
         assert_eq!(test_case_run2.attempt_number, 0);
+        assert_eq!(test_case_run2.attempt_index, None);
         assert!(!test_case_run2.is_quarantined);
         assert_eq!(test_case_run2.id, "",);
         assert_eq!(
@@ -1260,6 +1275,7 @@ mod tests {
             })
         );
         assert_eq!(test_case_run2.line, 0);
+        assert_eq!(test_case_run2.line_number, None);
     }
 
     #[cfg(feature = "bindings")]
@@ -1280,11 +1296,15 @@ mod tests {
             status: TestCaseRunStatus::Success as i32,
             status_output_message: "Test passed".to_string(),
             file: "test_file.java".to_string(),
-            attempt_number: 1,
+            // trunk-ignore(clippy/deprecated)
+            attempt_number: 0,
+            attempt_index: Some(AttemptNumber { number: 1 }),
             is_quarantined: false,
             started_at: None,
             finished_at: None,
-            line: 42,
+            // trunk-ignore(clippy/deprecated)
+            line: 0,
+            line_number: Some(LineNumber { number: 42 }),
             ..Default::default()
         };
 
@@ -1306,6 +1326,16 @@ mod tests {
         assert_eq!(reports[0].test_suites.len(), 1);
         assert_eq!(reports[0].test_suites[0].test_cases.len(), 1);
         assert_eq!(reports[0].test_suites[0].test_cases[0].name, "test_case_1");
+        assert_eq!(
+            reports[0].test_suites[0].test_cases[0]
+                .extra()
+                .get("attempt_number"),
+            Some(&String::from("1"))
+        );
+        assert_eq!(
+            reports[0].test_suites[0].test_cases[0].extra().get("line"),
+            Some(&String::from("42"))
+        );
 
         // Parse TestResult directly
         let test_result = TestResult {
@@ -1323,6 +1353,16 @@ mod tests {
         assert_eq!(reports[0].test_suites.len(), 1);
         assert_eq!(reports[0].test_suites[0].test_cases.len(), 1);
         assert_eq!(reports[0].test_suites[0].test_cases[0].name, "test_case_1");
+        assert_eq!(
+            reports[0].test_suites[0].test_cases[0]
+                .extra()
+                .get("attempt_number"),
+            Some(&String::from("1"))
+        );
+        assert_eq!(
+            reports[0].test_suites[0].test_cases[0].extra().get("line"),
+            Some(&String::from("42"))
+        );
 
         // Invalid binary data should return an error
         let invalid_data = b"invalid binary data";
