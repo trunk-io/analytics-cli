@@ -394,10 +394,10 @@ describe("context-js", () => {
     expect(rspecExpectationsSuite?.test_cases).toHaveLength(8);
   });
 
-  it("parses test_internal_v2.bin", () => {
+  it("parses test_internal_bep.bin", () => {
     expect.hasAssertions();
 
-    const file_path = path.resolve(__dirname, "./test_internal_v2.bin");
+    const file_path = path.resolve(__dirname, "./test_internal_bep.bin");
     const file = fs.readFileSync(file_path);
     const bindingsReports = bin_parse(file);
 
@@ -408,6 +408,7 @@ describe("context-js", () => {
     expect(result?.bazel_build_information?.label).toBe(
       "//trunk/hello_world/cc:hello_test",
     );
+    expect(result?.bazel_build_information?.max_attempt_number).toBeUndefined();
     expect(result?.tests).toBe(1);
     expect(result?.test_suites).toHaveLength(1);
 
@@ -415,5 +416,38 @@ describe("context-js", () => {
 
     expect(testSuite).toBeDefined();
     expect(testSuite?.test_cases).toHaveLength(1);
+    expect(
+      testSuite?.test_cases.at(0)?.js_extra().attempt_number,
+    ).toBeUndefined();
+    expect(testSuite?.test_cases.at(0)?.js_extra().line).toBe("9");
+  });
+
+  it("parses test_internal_bep_v2.bin", () => {
+    expect.hasAssertions();
+
+    const file_path = path.resolve(__dirname, "./test_internal_bep_v2.bin");
+    const file = fs.readFileSync(file_path);
+    const bindingsReports = bin_parse(file);
+
+    expect(bindingsReports).toHaveLength(1);
+
+    const result = bindingsReports.at(0);
+
+    expect(result?.bazel_build_information?.label).toBe(
+      "//trunk/hello_world/cc:hello_test",
+    );
+    // Newer format of BEP file has attempt number in bazel build information
+    expect(result?.bazel_build_information?.max_attempt_number).toBe(0);
+    expect(result?.tests).toBe(1);
+    expect(result?.test_suites).toHaveLength(1);
+
+    const testSuite = result?.test_suites.at(0);
+
+    expect(testSuite).toBeDefined();
+    expect(testSuite?.test_cases).toHaveLength(1);
+    expect(
+      testSuite?.test_cases.at(0)?.js_extra().attempt_number,
+    ).toBeUndefined();
+    expect(testSuite?.test_cases.at(0)?.js_extra().line).toBe("9");
   });
 });

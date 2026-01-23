@@ -121,8 +121,8 @@ mod tests {
         // Test that attempt numbers are captured correctly
         let attempt_numbers: Vec<i32> = test_result.xml_files.iter().map(|f| f.attempt).collect();
         assert_eq!(attempt_numbers.len(), 2, "Should have 2 attempt numbers");
+        assert!(attempt_numbers.contains(&0), "Should have attempt 0");
         assert!(attempt_numbers.contains(&1), "Should have attempt 1");
-        assert!(attempt_numbers.contains(&2), "Should have attempt 2");
 
         assert_eq!(
             parse_result.errors.len(),
@@ -269,9 +269,9 @@ mod tests {
             3,
             "Should have 3 attempt numbers for flaky test"
         );
+        assert!(attempt_numbers.contains(&0), "Should have attempt 0");
         assert!(attempt_numbers.contains(&1), "Should have attempt 1");
         assert!(attempt_numbers.contains(&2), "Should have attempt 2");
-        assert!(attempt_numbers.contains(&3), "Should have attempt 3");
     }
 
     #[test]

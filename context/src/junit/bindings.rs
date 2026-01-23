@@ -48,6 +48,7 @@ pub enum BindingsTestBuildResult {
 pub struct BazelBuildInformation {
     pub label: String,
     pub result: BindingsTestBuildResult,
+    pub max_attempt_number: Option<i32>,
 }
 
 #[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass(get_all))]
@@ -183,6 +184,7 @@ impl From<TestResult> for BindingsReport {
                 label: bazel_build_information.label,
                 result: map_i32_to_bindings_test_build_result(bazel_build_information.result)
                     .unwrap_or(BindingsTestBuildResult::Unspecified),
+                max_attempt_number: bazel_build_information.max_attempt_number.map(|number| number.number),
             }),
             _ => None,
         };
@@ -218,6 +220,8 @@ impl From<TestCaseRun> for BindingsTestCase {
             attempt_number,
             is_quarantined,
             codeowners,
+            attempt_index,
+            line_number,
         }: TestCaseRun,
     ) -> Self {
         let started_at = started_at.unwrap_or_default();
@@ -233,6 +237,31 @@ impl From<TestCaseRun> for BindingsTestCase {
         };
         let typed_status =
             TestCaseRunStatus::try_from(status).unwrap_or(TestCaseRunStatus::Unspecified);
+
+        let mut extra = HashMap::from([
+            ("id".to_string(), id.to_string()),
+            ("file".to_string(), file),
+            ("parent_name".to_string(), parent_name),
+            ("is_quarantined".to_string(), is_quarantined.to_string()),
+        ]);
+
+        if let Some(line_number) = &line_number {
+            extra.insert("line".to_string(), line_number.number.to_string());
+        } else if line != 0 {
+            // Handle deprecated field
+            extra.insert("line".to_string(), line.to_string());
+        }
+
+        if let Some(attempt_index) = &attempt_index {
+            extra.insert(
+                "attempt_number".to_string(),
+                attempt_index.number.to_string(),
+            );
+        } else if attempt_number != 0 {
+            // Handle deprecated field
+            extra.insert("attempt_number".to_string(), attempt_number.to_string());
+        }
+
         Self {
             name,
             classname,
@@ -277,14 +306,7 @@ impl From<TestCaseRun> for BindingsTestCase {
             },
             system_err: None,
             system_out: None,
-            extra: HashMap::from([
-                ("id".to_string(), id.to_string()),
-                ("file".to_string(), file),
-                ("line".to_string(), line.to_string()),
-                ("attempt_number".to_string(), attempt_number.to_string()),
-                ("parent_name".to_string(), parent_name),
-                ("is_quarantined".to_string(), is_quarantined.to_string()),
-            ]),
+            extra,
             properties: vec![],
         }
     }
@@ -1071,7 +1093,9 @@ impl BindingsJunitReportValidation {
 mod tests {
     use std::io::BufReader;
 
-    use proto::test_context::test_run::{CodeOwner, TestCaseRun, TestCaseRunStatus, TestResult};
+    use proto::test_context::test_run::{
+        AttemptNumber, CodeOwner, LineNumber, TestCaseRun, TestCaseRunStatus, TestResult,
+    };
 
     use crate::junit::bindings::BindingsReport;
     use crate::junit::parser::JunitParser;
@@ -1162,9 +1186,13 @@ mod tests {
             classname: "test_classname".into(),
             file: "test_file".into(),
             parent_name: "test_parent_name1".into(),
-            line: 1,
+            // trunk-ignore(clippy/deprecated)
+            line: 0,
+            line_number: Some(LineNumber { number: 1 }),
             status: TestCaseRunStatus::Success.into(),
-            attempt_number: 1,
+            // trunk-ignore(clippy/deprecated)
+            attempt_number: 0,
+            attempt_index: Some(AttemptNumber { number: 1 }),
             started_at: Some(test_started_at.clone()),
             finished_at: Some(test_finished_at.clone()),
             status_output_message: "test_status_output_message".into(),
@@ -1225,10 +1253,13 @@ mod tests {
         assert_eq!(test_case1.system_err, None);
         assert_eq!(test_case1.extra["id"], test1.id);
         assert_eq!(test_case1.extra["file"], test1.file);
-        assert_eq!(test_case1.extra["line"], test1.line.to_string());
+        assert_eq!(
+            test_case1.extra["line"],
+            test1.line_number.unwrap().number.to_string()
+        );
         assert_eq!(
             test_case1.extra["attempt_number"],
-            test1.attempt_number.to_string()
+            test1.attempt_index.unwrap().number.to_string()
         );
         assert_eq!(test_case1.properties.len(), 0);
         assert_eq!(test_case1.codeowners.clone().unwrap().len(), 1);

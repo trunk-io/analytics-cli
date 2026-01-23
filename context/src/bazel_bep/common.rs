@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use anyhow::{Ok, Result};
 use bazel_bep::types::build_event_stream::{
-    build_event::Payload, build_event_id::Id, file::File::Uri, BuildEvent, TestStatus, TestSummary,
+    BuildEvent, TestStatus, TestSummary, build_event::Payload, build_event_id::Id, file::File::Uri,
 };
 use chrono::DateTime;
 use proto::test_context::test_run::TestBuildResult;
@@ -140,7 +140,8 @@ impl BepParseResult {
                                                             .strip_prefix(FILE_URI_PREFIX)
                                                             .unwrap_or(&uri)
                                                             .to_string(),
-                                                        attempt: id.attempt,
+                                                        // bazel attempt number is 1-indexed, our representation is 0-indexed
+                                                        attempt: id.attempt - 1,
                                                     })
                                                 } else {
                                                     None
