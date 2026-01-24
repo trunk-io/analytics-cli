@@ -16,7 +16,7 @@ use context::repo::{BundleRepo, RepoUrlParts};
 use magnus::{Module, Object, value::ReprValue};
 use prost_wkt_types::Timestamp;
 use proto::test_context::test_run::{
-    AttemptNumber, CodeOwner, LineNumber, TestCaseRun, TestCaseRunStatus,
+    AttemptNumber, CodeOwner, FailureInformation, LineNumber, TestCaseRun, TestCaseRunStatus,
     TestReport as TestReportProto, TestResult, UploaderMetadata,
 };
 use serde::{Deserialize, Serialize};
@@ -768,7 +768,16 @@ impl MutTestReport {
             nanos: finished_at_date_time.timestamp_subsec_nanos() as i32,
         };
         test.finished_at = Some(test_finished_at);
-        test.status_output_message = output;
+        // trunk-ignore(clippy/deprecated)
+        test.status_output_message = output.clone();
+        if status != Status::Success {
+            test.failure_information = Some(FailureInformation {
+                text: output,
+                message: "".into(),
+                system_out: "".into(),
+                system_err: "".into(),
+            });
+        }
         test.is_quarantined = is_quarantined;
         self.0
             .borrow_mut()

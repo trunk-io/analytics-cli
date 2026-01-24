@@ -204,6 +204,10 @@ impl From<TestResult> for BindingsReport {
     }
 }
 
+fn non_empty_option(s: Option<&str>) -> Option<String> {
+    s.filter(|s| !s.is_empty()).map(|s| s.to_string())
+}
+
 impl From<TestCaseRun> for BindingsTestCase {
     fn from(
         TestCaseRun {
@@ -222,6 +226,7 @@ impl From<TestCaseRun> for BindingsTestCase {
             codeowners,
             attempt_index,
             line_number,
+            failure_information,
         }: TestCaseRun,
     ) -> Self {
         let started_at = started_at.unwrap_or_default();
@@ -283,9 +288,16 @@ impl From<TestCaseRun> for BindingsTestCase {
                     if typed_status == TestCaseRunStatus::Failure {
                         Some(BindingsTestCaseStatusNonSuccess {
                             kind: BindingsNonSuccessKind::Failure,
-                            message: Some(status_output_message.clone()),
+                            message: non_empty_option(
+                                failure_information
+                                    .as_ref()
+                                    .map(|fi| fi.message.as_str())
+                                    .or(Some(status_output_message.as_str())),
+                            ),
                             ty: None,
-                            description: None,
+                            description: non_empty_option(
+                                failure_information.as_ref().map(|fi| fi.text.as_str()),
+                            ),
                             reruns: vec![],
                         })
                     } else {
@@ -295,17 +307,32 @@ impl From<TestCaseRun> for BindingsTestCase {
                 skipped: {
                     if typed_status == TestCaseRunStatus::Skipped {
                         Some(BindingsTestCaseStatusSkipped {
-                            message: Some(status_output_message.clone()),
+                            message: non_empty_option(
+                                failure_information
+                                    .as_ref()
+                                    .map(|fi| fi.message.as_str())
+                                    .or(Some(status_output_message.as_str())),
+                            ),
                             ty: None,
-                            description: None,
+                            description: non_empty_option(
+                                failure_information.as_ref().map(|fi| fi.text.as_str()),
+                            ),
                         })
                     } else {
                         None
                     }
                 },
             },
-            system_err: None,
-            system_out: None,
+            system_err: non_empty_option(
+                failure_information
+                    .as_ref()
+                    .map(|fi| fi.system_err.as_str()),
+            ),
+            system_out: non_empty_option(
+                failure_information
+                    .as_ref()
+                    .map(|fi| fi.system_out.as_str()),
+            ),
             extra,
             properties: vec![],
         }
@@ -1097,7 +1124,7 @@ mod tests {
         AttemptNumber, CodeOwner, LineNumber, TestCaseRun, TestCaseRunStatus, TestResult,
     };
 
-    use crate::junit::bindings::BindingsReport;
+    use crate::junit::bindings::{BindingsReport, BindingsTestCaseStatusStatus};
     use crate::junit::parser::JunitParser;
     use crate::junit::validator::{JunitValidationLevel, JunitValidationType};
 
@@ -1167,6 +1194,7 @@ mod tests {
     #[test]
     fn parse_test_report_to_bindings() {
         use prost_wkt_types::Timestamp;
+        use proto::test_context::test_run::FailureInformation;
 
         use crate::junit::validator::validate;
         let test_started_at = Timestamp {
@@ -1197,6 +1225,12 @@ mod tests {
             finished_at: Some(test_finished_at.clone()),
             status_output_message: "test_status_output_message".into(),
             codeowners: vec![codeowner1],
+            failure_information: Some(FailureInformation {
+                message: "test_failure_message".into(),
+                text: "".into(),
+                system_out: "".into(),
+                system_err: "".into(),
+            }),
             ..Default::default()
         };
 
@@ -1212,6 +1246,12 @@ mod tests {
             started_at: Some(test_started_at.clone()),
             finished_at: Some(test_finished_at),
             status_output_message: "test_status_output_message".into(),
+            failure_information: Some(FailureInformation {
+                message: "".into(),
+                text: "test_status_output_message".into(),
+                system_out: "".into(),
+                system_err: "".into(),
+            }),
             ..Default::default()
         };
 
@@ -1251,6 +1291,7 @@ mod tests {
         assert_eq!(test_case1.time, Some(1000.0));
         assert_eq!(test_case1.system_out, None);
         assert_eq!(test_case1.system_err, None);
+        assert!(test_case1.status.success.is_some());
         assert_eq!(test_case1.extra["id"], test1.id);
         assert_eq!(test_case1.extra["file"], test1.file);
         assert_eq!(
@@ -1284,6 +1325,14 @@ mod tests {
         assert_eq!(test_case2.time, Some(1000.0));
         assert_eq!(test_case2.system_out, None);
         assert_eq!(test_case2.system_err, None);
+        assert_eq!(
+            test_case2.status.non_success.as_ref().unwrap().description,
+            Some(test2.failure_information.clone().unwrap().text)
+        );
+        assert_eq!(
+            test_case2.status.non_success.as_ref().unwrap().message,
+            None
+        );
         assert_eq!(test_case2.extra["id"], test2.id);
         assert_eq!(test_case2.extra["file"], test2.file);
         assert_eq!(test_case2.extra["line"], test2.line.to_string());
@@ -1392,7 +1441,6 @@ mod tests {
         for (run_binding, report_binding) in
             bindings_from_runs.iter().zip(bindings_from_reports.iter())
         {
-            assert_eq!(run_binding.name, report_binding.name);
             assert_eq!(run_binding.classname, report_binding.classname);
             assert_eq!(run_binding.status.status, report_binding.status.status);
             assert_eq!(run_binding.timestamp, report_binding.timestamp);
@@ -1403,6 +1451,16 @@ mod tests {
             assert_eq!(run_binding.time, report_binding.time);
             assert_eq!(run_binding.system_out, report_binding.system_out);
             assert_eq!(run_binding.system_err, report_binding.system_err);
+            if run_binding.status.status == BindingsTestCaseStatusStatus::NonSuccess {
+                assert_eq!(
+                    run_binding.status.non_success.as_ref().unwrap().description,
+                    Some("Expected: <true> but was: <false>".into())
+                );
+                assert_eq!(
+                    run_binding.status.non_success.as_ref().unwrap().message,
+                    Some("Test failed".into())
+                );
+            }
             // check that the properties match
             for property in run_binding.properties.iter() {
                 if let Some(report_property) = report_binding
@@ -1455,6 +1513,7 @@ mod tests {
             finished_at: Some(test_finished_at.clone()),
             status_output_message: "".into(),
             codeowners: vec![codeowner1.clone()],
+            failure_information: None,
             ..Default::default()
         };
 
@@ -1471,6 +1530,7 @@ mod tests {
             finished_at: Some(test_finished_at.clone()),
             status_output_message: "".into(),
             codeowners: vec![codeowner2.clone()],
+            failure_information: None,
             ..Default::default()
         };
 

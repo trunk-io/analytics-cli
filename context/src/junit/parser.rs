@@ -9,7 +9,7 @@ use codeowners::CodeOwners;
 use prost::Message;
 use prost_wkt_types::Timestamp;
 use proto::test_context::test_run::{
-    AttemptNumber, CodeOwner, LineNumber, TestCaseRun, TestCaseRunStatus,
+    AttemptNumber, CodeOwner, FailureInformation, LineNumber, TestCaseRun, TestCaseRunStatus,
 };
 #[cfg(feature = "pyo3")]
 use pyo3::prelude::*;
@@ -282,10 +282,28 @@ impl JunitParser {
                             description,
                             ..
                         } => {
-                            if let Some(description) = description {
+                            if let Some(description) = description.as_ref() {
                                 test_case_run.status_output_message = description.to_string();
-                            } else if let Some(message) = message {
+                            } else if let Some(message) = message.as_ref() {
                                 test_case_run.status_output_message = message.to_string();
+                            }
+                            let (system_out, system_err) =
+                                (test_case.system_out.as_ref(), test_case.system_err.as_ref());
+                            if description.is_some()
+                                || message.is_some()
+                                || system_out.is_some()
+                                || system_err.is_some()
+                            {
+                                test_case_run.failure_information = Some(FailureInformation {
+                                    message: message.map(|m| m.to_string()).unwrap_or_default(),
+                                    text: description.map(|d| d.to_string()).unwrap_or_default(),
+                                    system_out: system_out
+                                        .map(|s| s.to_string())
+                                        .unwrap_or_default(),
+                                    system_err: system_err
+                                        .map(|s| s.to_string())
+                                        .unwrap_or_default(),
+                                });
                             }
                             TestCaseRunStatus::Skipped.into()
                         }
@@ -294,10 +312,28 @@ impl JunitParser {
                             description,
                             ..
                         } => {
-                            if let Some(description) = description {
+                            if let Some(description) = description.as_ref() {
                                 test_case_run.status_output_message = description.to_string();
-                            } else if let Some(message) = message {
+                            } else if let Some(message) = message.as_ref() {
                                 test_case_run.status_output_message = message.to_string();
+                            }
+                            let (system_out, system_err) =
+                                (test_case.system_out.as_ref(), test_case.system_err.as_ref());
+                            if description.is_some()
+                                || message.is_some()
+                                || system_out.is_some()
+                                || system_err.is_some()
+                            {
+                                test_case_run.failure_information = Some(FailureInformation {
+                                    message: message.map(|m| m.to_string()).unwrap_or_default(),
+                                    text: description.map(|d| d.to_string()).unwrap_or_default(),
+                                    system_out: system_out
+                                        .map(|s| s.to_string())
+                                        .unwrap_or_default(),
+                                    system_err: system_err
+                                        .map(|s| s.to_string())
+                                        .unwrap_or_default(),
+                                });
                             }
                             TestCaseRunStatus::Failure.into()
                         }
@@ -1004,7 +1040,9 @@ mod tests {
     use std::io::BufReader;
 
     use prost_wkt_types::Timestamp;
-    use proto::test_context::test_run::{AttemptNumber, LineNumber, TestCaseRunStatus};
+    use proto::test_context::test_run::{
+        AttemptNumber, FailureInformation, LineNumber, TestCaseRunStatus,
+    };
 
     use crate::{
         junit::parser::JunitParser,
@@ -1065,6 +1103,15 @@ mod tests {
             test_case_run1.status_output_message,
             "Expected: <true> but was: <false>"
         );
+        assert_eq!(
+            test_case_run1.failure_information,
+            Some(FailureInformation {
+                text: "Expected: <true> but was: <false>".into(),
+                message: "Test failed".into(),
+                system_out: "".into(),
+                system_err: "".into(),
+            })
+        );
         assert_eq!(test_case_run1.file, "test.java");
         assert_eq!(test_case_run1.attempt_number, 0);
         assert_eq!(test_case_run1.attempt_index, None);
@@ -1093,6 +1140,15 @@ mod tests {
         assert_eq!(test_case_run2.classname, "");
         assert_eq!(test_case_run2.status, TestCaseRunStatus::Failure as i32);
         assert_eq!(test_case_run2.status_output_message, "Test failed");
+        assert_eq!(
+            test_case_run2.failure_information,
+            Some(FailureInformation {
+                text: "".into(),
+                message: "Test failed".into(),
+                system_out: "".into(),
+                system_err: "".into(),
+            })
+        );
         assert_eq!(test_case_run2.file, "test.java");
         assert_eq!(test_case_run2.attempt_number, 0);
         assert_eq!(test_case_run2.attempt_index, None);
@@ -1227,6 +1283,15 @@ mod tests {
             test_case_run1.status_output_message,
             "Expected: <true> but was: <false>"
         );
+        assert_eq!(
+            test_case_run1.failure_information,
+            Some(FailureInformation {
+                text: "Expected: <true> but was: <false>".into(),
+                message: "Test failed".into(),
+                system_out: "".into(),
+                system_err: "".into(),
+            })
+        );
         assert_eq!(test_case_run1.file, "test.java");
         assert_eq!(test_case_run1.attempt_number, 0);
         assert_eq!(test_case_run1.attempt_index, None);
@@ -1255,6 +1320,15 @@ mod tests {
         assert_eq!(test_case_run2.classname, "");
         assert_eq!(test_case_run2.status, TestCaseRunStatus::Failure as i32);
         assert_eq!(test_case_run2.status_output_message, "Test failed");
+        assert_eq!(
+            test_case_run2.failure_information,
+            Some(FailureInformation {
+                text: "".into(),
+                message: "Test failed".into(),
+                system_out: "".into(),
+                system_err: "".into(),
+            })
+        );
         assert_eq!(test_case_run2.file, "test.java");
         assert_eq!(test_case_run2.attempt_number, 0);
         assert_eq!(test_case_run2.attempt_index, None);
@@ -1295,6 +1369,12 @@ mod tests {
             classname: "TestClass".to_string(),
             status: TestCaseRunStatus::Success as i32,
             status_output_message: "Test passed".to_string(),
+            failure_information: Some(FailureInformation {
+                text: "".into(),
+                message: "Test passed".into(),
+                system_out: "".into(),
+                system_err: "".into(),
+            }),
             file: "test_file.java".to_string(),
             // trunk-ignore(clippy/deprecated)
             attempt_number: 0,
@@ -1326,6 +1406,14 @@ mod tests {
         assert_eq!(reports[0].test_suites.len(), 1);
         assert_eq!(reports[0].test_suites[0].test_cases.len(), 1);
         assert_eq!(reports[0].test_suites[0].test_cases[0].name, "test_case_1");
+        assert!(
+            reports[0].test_suites[0].test_cases[0]
+                .status
+                .success
+                .is_some()
+        );
+        assert_eq!(reports[0].test_suites[0].test_cases[0].system_out, None);
+        assert_eq!(reports[0].test_suites[0].test_cases[0].system_err, None);
         assert_eq!(
             reports[0].test_suites[0].test_cases[0]
                 .extra()
