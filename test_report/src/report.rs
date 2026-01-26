@@ -16,7 +16,7 @@ use context::repo::{BundleRepo, RepoUrlParts};
 use magnus::{Module, Object, value::ReprValue};
 use prost_wkt_types::Timestamp;
 use proto::test_context::test_run::{
-    AttemptNumber, CodeOwner, FailureInformation, LineNumber, TestCaseRun, TestCaseRunStatus,
+    AttemptNumber, CodeOwner, LineNumber, TestCaseRun, TestCaseRunStatus, TestOutput,
     TestReport as TestReportProto, TestResult, UploaderMetadata,
 };
 use serde::{Deserialize, Serialize};
@@ -771,7 +771,7 @@ impl MutTestReport {
         // trunk-ignore(clippy/deprecated)
         test.status_output_message = output.clone();
         if status != Status::Success {
-            test.failure_information = Some(FailureInformation {
+            test.test_output = Some(TestOutput {
                 text: output,
                 message: "".into(),
                 system_out: "".into(),

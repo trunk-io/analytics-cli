@@ -9,7 +9,7 @@ use codeowners::CodeOwners;
 use prost::Message;
 use prost_wkt_types::Timestamp;
 use proto::test_context::test_run::{
-    AttemptNumber, CodeOwner, FailureInformation, LineNumber, TestCaseRun, TestCaseRunStatus,
+    AttemptNumber, CodeOwner, LineNumber, TestCaseRun, TestCaseRunStatus, TestOutput,
 };
 #[cfg(feature = "pyo3")]
 use pyo3::prelude::*;
@@ -294,7 +294,7 @@ impl JunitParser {
                                 || system_out.is_some()
                                 || system_err.is_some()
                             {
-                                test_case_run.failure_information = Some(FailureInformation {
+                                test_case_run.test_output = Some(TestOutput {
                                     message: message.map(|m| m.to_string()).unwrap_or_default(),
                                     text: description.map(|d| d.to_string()).unwrap_or_default(),
                                     system_out: system_out
@@ -324,7 +324,7 @@ impl JunitParser {
                                 || system_out.is_some()
                                 || system_err.is_some()
                             {
-                                test_case_run.failure_information = Some(FailureInformation {
+                                test_case_run.test_output = Some(TestOutput {
                                     message: message.map(|m| m.to_string()).unwrap_or_default(),
                                     text: description.map(|d| d.to_string()).unwrap_or_default(),
                                     system_out: system_out
@@ -1040,9 +1040,7 @@ mod tests {
     use std::io::BufReader;
 
     use prost_wkt_types::Timestamp;
-    use proto::test_context::test_run::{
-        AttemptNumber, FailureInformation, LineNumber, TestCaseRunStatus,
-    };
+    use proto::test_context::test_run::{AttemptNumber, LineNumber, TestCaseRunStatus, TestOutput};
 
     use crate::{
         junit::parser::JunitParser,
@@ -1104,8 +1102,8 @@ mod tests {
             "Expected: <true> but was: <false>"
         );
         assert_eq!(
-            test_case_run1.failure_information,
-            Some(FailureInformation {
+            test_case_run1.test_output,
+            Some(TestOutput {
                 text: "Expected: <true> but was: <false>".into(),
                 message: "Test failed".into(),
                 system_out: "".into(),
@@ -1141,8 +1139,8 @@ mod tests {
         assert_eq!(test_case_run2.status, TestCaseRunStatus::Failure as i32);
         assert_eq!(test_case_run2.status_output_message, "Test failed");
         assert_eq!(
-            test_case_run2.failure_information,
-            Some(FailureInformation {
+            test_case_run2.test_output,
+            Some(TestOutput {
                 text: "".into(),
                 message: "Test failed".into(),
                 system_out: "".into(),
@@ -1284,8 +1282,8 @@ mod tests {
             "Expected: <true> but was: <false>"
         );
         assert_eq!(
-            test_case_run1.failure_information,
-            Some(FailureInformation {
+            test_case_run1.test_output,
+            Some(TestOutput {
                 text: "Expected: <true> but was: <false>".into(),
                 message: "Test failed".into(),
                 system_out: "".into(),
@@ -1321,8 +1319,8 @@ mod tests {
         assert_eq!(test_case_run2.status, TestCaseRunStatus::Failure as i32);
         assert_eq!(test_case_run2.status_output_message, "Test failed");
         assert_eq!(
-            test_case_run2.failure_information,
-            Some(FailureInformation {
+            test_case_run2.test_output,
+            Some(TestOutput {
                 text: "".into(),
                 message: "Test failed".into(),
                 system_out: "".into(),
@@ -1369,7 +1367,7 @@ mod tests {
             classname: "TestClass".to_string(),
             status: TestCaseRunStatus::Success as i32,
             status_output_message: "Test passed".to_string(),
-            failure_information: Some(FailureInformation {
+            test_output: Some(TestOutput {
                 text: "".into(),
                 message: "Test passed".into(),
                 system_out: "".into(),

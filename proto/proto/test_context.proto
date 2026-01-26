@@ -23,7 +23,7 @@ message LineNumber {
   int32 number = 1;
 }
 
-message FailureInformation {
+message TestOutput {
   string text = 1;
   string message = 2;
   string system_out = 3;
@@ -43,14 +43,14 @@ message TestCaseRun {
   int32 attempt_number = 8 [deprecated = true];
   google.protobuf.Timestamp started_at = 9;
   google.protobuf.Timestamp finished_at = 10;
-  // Deprecated, use failure_information instead
+  // Deprecated, use test_output instead
   string status_output_message = 11 [deprecated = true];
   bool is_quarantined = 12;
   repeated CodeOwner codeowners = 13;
   // Set by rspec, 0-indexed
   optional AttemptNumber attempt_index = 14;
   optional LineNumber line_number = 15;
-  optional FailureInformation failure_information = 16;
+  optional TestOutput test_output = 16;
 }
 
 message UploaderMetadata {

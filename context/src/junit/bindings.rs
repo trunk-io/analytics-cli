@@ -226,7 +226,7 @@ impl From<TestCaseRun> for BindingsTestCase {
             codeowners,
             attempt_index,
             line_number,
-            failure_information,
+            test_output,
         }: TestCaseRun,
     ) -> Self {
         let started_at = started_at.unwrap_or_default();
@@ -289,14 +289,14 @@ impl From<TestCaseRun> for BindingsTestCase {
                         Some(BindingsTestCaseStatusNonSuccess {
                             kind: BindingsNonSuccessKind::Failure,
                             message: non_empty_option(
-                                failure_information
+                                test_output
                                     .as_ref()
                                     .map(|fi| fi.message.as_str())
                                     .or(Some(status_output_message.as_str())),
                             ),
                             ty: None,
                             description: non_empty_option(
-                                failure_information.as_ref().map(|fi| fi.text.as_str()),
+                                test_output.as_ref().map(|fi| fi.text.as_str()),
                             ),
                             reruns: vec![],
                         })
@@ -308,14 +308,14 @@ impl From<TestCaseRun> for BindingsTestCase {
                     if typed_status == TestCaseRunStatus::Skipped {
                         Some(BindingsTestCaseStatusSkipped {
                             message: non_empty_option(
-                                failure_information
+                                test_output
                                     .as_ref()
                                     .map(|fi| fi.message.as_str())
                                     .or(Some(status_output_message.as_str())),
                             ),
                             ty: None,
                             description: non_empty_option(
-                                failure_information.as_ref().map(|fi| fi.text.as_str()),
+                                test_output.as_ref().map(|fi| fi.text.as_str()),
                             ),
                         })
                     } else {
@@ -323,16 +323,8 @@ impl From<TestCaseRun> for BindingsTestCase {
                     }
                 },
             },
-            system_err: non_empty_option(
-                failure_information
-                    .as_ref()
-                    .map(|fi| fi.system_err.as_str()),
-            ),
-            system_out: non_empty_option(
-                failure_information
-                    .as_ref()
-                    .map(|fi| fi.system_out.as_str()),
-            ),
+            system_err: non_empty_option(test_output.as_ref().map(|fi| fi.system_err.as_str())),
+            system_out: non_empty_option(test_output.as_ref().map(|fi| fi.system_out.as_str())),
             extra,
             properties: vec![],
         }
@@ -1194,7 +1186,7 @@ mod tests {
     #[test]
     fn parse_test_report_to_bindings() {
         use prost_wkt_types::Timestamp;
-        use proto::test_context::test_run::FailureInformation;
+        use proto::test_context::test_run::TestOutput;
 
         use crate::junit::validator::validate;
         let test_started_at = Timestamp {
@@ -1225,7 +1217,7 @@ mod tests {
             finished_at: Some(test_finished_at.clone()),
             status_output_message: "test_status_output_message".into(),
             codeowners: vec![codeowner1],
-            failure_information: Some(FailureInformation {
+            test_output: Some(TestOutput {
                 message: "test_failure_message".into(),
                 text: "".into(),
                 system_out: "".into(),
@@ -1246,7 +1238,7 @@ mod tests {
             started_at: Some(test_started_at.clone()),
             finished_at: Some(test_finished_at),
             status_output_message: "test_status_output_message".into(),
-            failure_information: Some(FailureInformation {
+            test_output: Some(TestOutput {
                 message: "".into(),
                 text: "test_status_output_message".into(),
                 system_out: "".into(),
@@ -1327,7 +1319,7 @@ mod tests {
         assert_eq!(test_case2.system_err, None);
         assert_eq!(
             test_case2.status.non_success.as_ref().unwrap().description,
-            Some(test2.failure_information.clone().unwrap().text)
+            Some(test2.test_output.clone().unwrap().text)
         );
         assert_eq!(
             test_case2.status.non_success.as_ref().unwrap().message,
@@ -1513,7 +1505,7 @@ mod tests {
             finished_at: Some(test_finished_at.clone()),
             status_output_message: "".into(),
             codeowners: vec![codeowner1.clone()],
-            failure_information: None,
+            test_output: None,
             ..Default::default()
         };
 
@@ -1530,7 +1522,7 @@ mod tests {
             finished_at: Some(test_finished_at.clone()),
             status_output_message: "".into(),
             codeowners: vec![codeowner2.clone()],
-            failure_information: None,
+            test_output: None,
             ..Default::default()
         };
 

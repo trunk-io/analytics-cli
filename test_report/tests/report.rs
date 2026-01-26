@@ -14,9 +14,7 @@ use constants::{
 use context::repo::RepoUrlParts;
 use prost::Message;
 use prost_wkt_types::Timestamp;
-use proto::test_context::test_run::{
-    AttemptNumber, FailureInformation, TestCaseRunStatus, TestReport,
-};
+use proto::test_context::test_run::{AttemptNumber, TestCaseRunStatus, TestOutput, TestReport};
 use serial_test::serial;
 use tempfile::tempdir;
 use test_report::report::{MutTestReport, Status};
@@ -248,7 +246,7 @@ async fn publish_test_report() {
     assert_eq!(test_case_run.status, TestCaseRunStatus::Success as i32);
     assert_eq!(test_case_run.status_output_message, "test-message");
     // Only store failure information for non-success statuses
-    assert_eq!(test_case_run.failure_information, None);
+    assert_eq!(test_case_run.test_output, None);
     assert_eq!(test_case_run.codeowners.len(), 1);
 
     let test_case_run = &result.test_case_runs[1];
@@ -266,8 +264,8 @@ async fn publish_test_report() {
     assert_eq!(test_case_run.status, TestCaseRunStatus::Failure as i32);
     assert_eq!(test_case_run.status_output_message, "test-message");
     assert_eq!(
-        test_case_run.failure_information,
-        Some(FailureInformation {
+        test_case_run.test_output,
+        Some(TestOutput {
             text: "test-message".into(),
             message: "".into(),
             system_out: "".into(),
