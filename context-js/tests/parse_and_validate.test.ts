@@ -21,6 +21,7 @@ import {
   BranchClass,
   GitLabMergeRequestEventType,
   bin_parse,
+  BindingsTestCaseStatusStatus,
 } from "../pkg/context_js";
 
 // eslint-disable-next-line vitest/require-hook
@@ -392,6 +393,30 @@ describe("context-js", () => {
 
     expect(rspecExpectationsSuite).toBeDefined();
     expect(rspecExpectationsSuite?.test_cases).toHaveLength(8);
+    expect(rspecExpectationsSuite?.test_cases.at(0)?.status.status).toBe(
+      BindingsTestCaseStatusStatus.Success,
+    );
+    expect(rspecExpectationsSuite?.test_cases.at(1)?.status.status).toBe(
+      BindingsTestCaseStatusStatus.Success,
+    );
+    expect(rspecExpectationsSuite?.test_cases.at(2)?.status.status).toBe(
+      BindingsTestCaseStatusStatus.Success,
+    );
+    expect(rspecExpectationsSuite?.test_cases.at(3)?.status.status).toBe(
+      BindingsTestCaseStatusStatus.Success,
+    );
+    expect(rspecExpectationsSuite?.test_cases.at(4)?.status.status).toBe(
+      BindingsTestCaseStatusStatus.Success,
+    );
+    expect(rspecExpectationsSuite?.test_cases.at(5)?.status.status).toBe(
+      BindingsTestCaseStatusStatus.Success,
+    );
+    expect(rspecExpectationsSuite?.test_cases.at(6)?.status.status).toBe(
+      BindingsTestCaseStatusStatus.Success,
+    );
+    expect(rspecExpectationsSuite?.test_cases.at(7)?.status.status).toBe(
+      BindingsTestCaseStatusStatus.Success,
+    );
   });
 
   it("parses test_internal_bep.bin", () => {
@@ -416,6 +441,10 @@ describe("context-js", () => {
 
     expect(testSuite).toBeDefined();
     expect(testSuite?.test_cases).toHaveLength(1);
+
+    expect(testSuite?.test_cases.at(0).status.status).toBe(
+      BindingsTestCaseStatusStatus.Success,
+    );
     expect(
       testSuite?.test_cases.at(0)?.js_extra().attempt_number,
     ).toBeUndefined();
@@ -445,6 +474,9 @@ describe("context-js", () => {
 
     expect(testSuite).toBeDefined();
     expect(testSuite?.test_cases).toHaveLength(1);
+    expect(testSuite?.test_cases.at(0).status.status).toBe(
+      BindingsTestCaseStatusStatus.Success,
+    );
     expect(
       testSuite?.test_cases.at(0)?.js_extra().attempt_number,
     ).toBeUndefined();
