@@ -390,7 +390,6 @@ pub fn generate_internal_file_from_bep(
 
         if let Some(bep_result) = bep_test_result {
             for xml_file in bep_result.xml_files.iter() {
-                // donotland: need to do this more smartly and include the bazel info here after parsing
                 if xml_file.file.ends_with(".xml") {
                     let Some(junit_parser) = parse_and_optionally_validate_junit_file(
                         &xml_file.file,
