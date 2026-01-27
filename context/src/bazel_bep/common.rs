@@ -66,6 +66,9 @@ pub enum BepTestStatus {
 pub struct BepXMLFile {
     pub file: String,
     pub attempt: i32,
+    pub label: String,
+    pub start_time: Option<chrono::DateTime<chrono::Utc>>,
+    pub end_time: Option<chrono::DateTime<chrono::Utc>>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -128,6 +131,19 @@ impl BepParseResult {
                                 acc.bep_test_events.push(build_event);
                             }
                             (Some(Payload::TestResult(test_result)), Some(Id::TestResult(id))) => {
+                                let start_time =
+                                    test_result.test_attempt_start.clone().and_then(|ts| {
+                                        DateTime::from_timestamp(ts.seconds, ts.nanos as u32)
+                                    });
+                                let end_time = start_time.and_then(|start| {
+                                    test_result.test_attempt_duration.clone().map(|duration| {
+                                        let duration_secs = duration.seconds;
+                                        let duration_nanos = duration.nanos as i64;
+                                        start
+                                            + chrono::Duration::seconds(duration_secs)
+                                            + chrono::Duration::nanoseconds(duration_nanos)
+                                    })
+                                });
                                 let xml_files = test_result
                                     .test_action_output
                                     .iter()
@@ -142,6 +158,9 @@ impl BepParseResult {
                                                             .to_string(),
                                                         // bazel attempt number is 1-indexed, our representation is 0-indexed
                                                         attempt: id.attempt - 1,
+                                                        label: id.label.clone(),
+                                                        start_time,
+                                                        end_time,
                                                     })
                                                 } else {
                                                     None

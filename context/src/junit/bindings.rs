@@ -21,6 +21,7 @@ use super::{
 };
 use crate::junit::validator::JunitReportValidation;
 use crate::junit::{parser::extra_attrs, validator::TestRunnerReportValidation};
+// donotland: this file size is absurd, need to split out
 
 #[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass(get_all))]
 #[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
@@ -208,6 +209,23 @@ fn non_empty_option(s: Option<&str>) -> Option<String> {
     s.filter(|s| !s.is_empty()).map(|s| s.to_string())
 }
 
+struct TimestampWrapper {
+    datetime: chrono::DateTime<chrono::Utc>,
+    timestamp: i64,
+    timestamp_micros: i64,
+}
+
+impl From<prost_wkt_types::Timestamp> for TimestampWrapper {
+    fn from(value: prost_wkt_types::Timestamp) -> Self {
+        let datetime = chrono::DateTime::from(value.clone());
+        TimestampWrapper {
+            datetime: datetime,
+            timestamp: datetime.timestamp(),
+            timestamp_micros: datetime.timestamp_micros(),
+        }
+    }
+}
+
 impl From<TestCaseRun> for BindingsTestCase {
     fn from(
         TestCaseRun {
@@ -227,12 +245,13 @@ impl From<TestCaseRun> for BindingsTestCase {
             attempt_index,
             line_number,
             test_output,
+            test_runner_information,
         }: TestCaseRun,
     ) -> Self {
         let started_at = started_at.unwrap_or_default();
-        let timestamp = chrono::DateTime::from(started_at.clone());
-        let timestamp_micros = chrono::DateTime::from(started_at).timestamp_micros();
-        let time = (chrono::DateTime::from(finished_at.unwrap_or_default()) - timestamp)
+        let started_at_wrapper = TimestampWrapper::from(started_at);
+        let time = (chrono::DateTime::from(finished_at.unwrap_or_default())
+            - started_at_wrapper.datetime)
             .to_std()
             .unwrap_or_default();
         let classname = if classname.is_empty() {
@@ -272,8 +291,8 @@ impl From<TestCaseRun> for BindingsTestCase {
             classname,
             codeowners: Some(codeowners.iter().map(|c| c.name.to_owned()).collect()),
             assertions: None,
-            timestamp: Some(timestamp.timestamp()),
-            timestamp_micros: Some(timestamp_micros),
+            timestamp: Some(started_at_wrapper.timestamp),
+            timestamp_micros: Some(started_at_wrapper.timestamp_micros),
             time: Some(time.as_secs_f64()),
             status: BindingsTestCaseStatus {
                 status: typed_status.into(),
@@ -327,6 +346,24 @@ impl From<TestCaseRun> for BindingsTestCase {
             system_out: non_empty_option(test_output.as_ref().map(|fi| fi.system_out.as_str())),
             extra,
             properties: vec![],
+            bazel_run_information: match test_runner_information {
+                Some(proto::test_context::test_run::test_case_run::TestRunnerInformation::BazelRunInformation(
+                    bazel_run_information,
+                )) => {
+                    let started_at_wrapper = TimestampWrapper::from(bazel_run_information.started_at.unwrap_or_default());
+                    let finished_at_wrapper = TimestampWrapper::from(bazel_run_information.finished_at.unwrap_or_default());
+
+                    Some(BindingsBazelRunInformation {
+                        label: bazel_run_information.label,
+                        attempt_number: bazel_run_information.attempt_number,
+                        started_at: Some(started_at_wrapper.timestamp),
+                        started_at_micros: Some(started_at_wrapper.timestamp_micros),
+                        finished_at: Some(finished_at_wrapper.timestamp),
+                        finished_at_micros: Some(finished_at_wrapper.timestamp_micros),
+                    })
+                },
+                _ => None,
+            },
         }
     }
 }
@@ -605,6 +642,18 @@ impl From<BindingsProperty> for Property {
 #[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass(get_all))]
 #[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
 #[derive(Clone, Debug)]
+pub struct BindingsBazelRunInformation {
+    pub label: String,
+    pub attempt_number: i32,
+    pub started_at: Option<i64>,
+    pub started_at_micros: Option<i64>,
+    pub finished_at: Option<i64>,
+    pub finished_at_micros: Option<i64>,
+}
+
+#[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass(get_all))]
+#[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
+#[derive(Clone, Debug)]
 pub struct BindingsTestCase {
     pub name: String,
     pub classname: Option<String>,
@@ -618,6 +667,7 @@ pub struct BindingsTestCase {
     pub codeowners: Option<Vec<String>>,
     extra: HashMap<String, String>,
     pub properties: Vec<BindingsProperty>,
+    pub bazel_run_information: Option<BindingsBazelRunInformation>,
 }
 
 #[cfg(feature = "pyo3")]
@@ -694,6 +744,7 @@ impl From<TestCase> for BindingsTestCase {
             ),
             properties: properties.into_iter().map(BindingsProperty::from).collect(),
             codeowners: None,
+            bazel_run_information: None,
         }
     }
 }
@@ -715,7 +766,9 @@ impl TryInto<TestCase> for BindingsTestCase {
             system_err,
             extra,
             properties,
+            bazel_run_information: _,
         } = self;
+        // donotland: anything here?
         let mut test_case = TestCase::new(name, status.try_into()?);
         test_case.classname = classname.map(|c| c.into());
         test_case.assertions = assertions;
