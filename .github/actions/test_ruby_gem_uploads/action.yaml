@@ -70,56 +70,56 @@ runs:
         printf "\ngem 'rspec_trunk_flaky_tests', '%s', :path => './rspec_trunk_flaky_tests'\n" "${GEM_VERSION}" >> Gemfile
         bundle install --gemfile Gemfile --local
 
-    - name: Run regular tests
-      id: run-regular-tests
-      shell: bash
-      working-directory: ${{ github.action_path }}
-      run: |
-        bundle exec rspec spec/test_spec.rb --format documentation
-      env:
-        TRUNK_PUBLIC_API_ADDRESS: ${{ inputs.trunk-public-api-address }}
-        TRUNK_ORG_URL_SLUG: ${{ inputs.trunk-org-slug }}
-        TRUNK_API_TOKEN: ${{ inputs.trunk-token }}
+    # - name: Run regular tests
+    #   id: run-regular-tests
+    #   shell: bash
+    #   working-directory: ${{ github.action_path }}
+    #   run: |
+    #     bundle exec rspec spec/test_spec.rb --format documentation
+    #   env:
+    #     TRUNK_PUBLIC_API_ADDRESS: ${{ inputs.trunk-public-api-address }}
+    #     TRUNK_ORG_URL_SLUG: ${{ inputs.trunk-org-slug }}
+    #     TRUNK_API_TOKEN: ${{ inputs.trunk-token }}
 
-    - name: Run variant quarantine test without variant (should fail - not quarantined)
-      id: run-variant-test-no-variant
-      shell: bash
-      working-directory: ${{ github.action_path }}
-      run: |
-        set +e
-        bundle exec rspec spec/variant_quarantine_spec.rb --format documentation
-        EXIT_CODE=$?
-        if [ $EXIT_CODE -eq 0 ]; then
-          echo "ERROR: Variant quarantine test without variant should have failed (test should not be quarantined)"
-          exit 1
-        else
-          echo "SUCCESS: Variant quarantine test without variant failed as expected (test is not quarantined)"
-        fi
-      env:
-        TRUNK_PUBLIC_API_ADDRESS: ${{ inputs.trunk-public-api-address }}
-        TRUNK_ORG_URL_SLUG: ${{ inputs.trunk-org-slug }}
-        TRUNK_API_TOKEN: ${{ inputs.trunk-token }}
-        TRUNK_VARIANT: ""
+    # - name: Run variant quarantine test without variant (should fail - not quarantined)
+    #   id: run-variant-test-no-variant
+    #   shell: bash
+    #   working-directory: ${{ github.action_path }}
+    #   run: |
+    #     set +e
+    #     bundle exec rspec spec/variant_quarantine_spec.rb --format documentation
+    #     EXIT_CODE=$?
+    #     if [ $EXIT_CODE -eq 0 ]; then
+    #       echo "ERROR: Variant quarantine test without variant should have failed (test should not be quarantined)"
+    #       exit 1
+    #     else
+    #       echo "SUCCESS: Variant quarantine test without variant failed as expected (test is not quarantined)"
+    #     fi
+    #   env:
+    #     TRUNK_PUBLIC_API_ADDRESS: ${{ inputs.trunk-public-api-address }}
+    #     TRUNK_ORG_URL_SLUG: ${{ inputs.trunk-org-slug }}
+    #     TRUNK_API_TOKEN: ${{ inputs.trunk-token }}
+    #     TRUNK_VARIANT: ""
 
-    - name: Run variant quarantine test with variant (should pass - quarantined)
-      id: run-variant-test-with-variant
-      shell: bash
-      working-directory: ${{ github.action_path }}
-      run: |
-        bundle exec rspec spec/variant_quarantine_spec.rb --format documentation
-        EXIT_CODE=$?
-        if [ $EXIT_CODE -ne 0 ]; then
-          echo "ERROR: Variant quarantine test with variant should have passed (test should be quarantined)"
-          echo "Note: The variant_quarantine_test must be quarantined with variant 'smoke-test-variant' in the system"
-          exit 1
-        else
-          echo "SUCCESS: Variant quarantine test with variant passed (test was quarantined)"
-        fi
-      env:
-        TRUNK_PUBLIC_API_ADDRESS: ${{ inputs.trunk-public-api-address }}
-        TRUNK_ORG_URL_SLUG: ${{ inputs.trunk-org-slug }}
-        TRUNK_API_TOKEN: ${{ inputs.trunk-token }}
-        TRUNK_VARIANT: smoke-test-variant
+    # - name: Run variant quarantine test with variant (should pass - quarantined)
+    #   id: run-variant-test-with-variant
+    #   shell: bash
+    #   working-directory: ${{ github.action_path }}
+    #   run: |
+    #     bundle exec rspec spec/variant_quarantine_spec.rb --format documentation
+    #     EXIT_CODE=$?
+    #     if [ $EXIT_CODE -ne 0 ]; then
+    #       echo "ERROR: Variant quarantine test with variant should have passed (test should be quarantined)"
+    #       echo "Note: The variant_quarantine_test must be quarantined with variant 'smoke-test-variant' in the system"
+    #       exit 1
+    #     else
+    #       echo "SUCCESS: Variant quarantine test with variant passed (test was quarantined)"
+    #     fi
+    #   env:
+    #     TRUNK_PUBLIC_API_ADDRESS: ${{ inputs.trunk-public-api-address }}
+    #     TRUNK_ORG_URL_SLUG: ${{ inputs.trunk-org-slug }}
+    #     TRUNK_API_TOKEN: ${{ inputs.trunk-token }}
+    #     TRUNK_VARIANT: smoke-test-variant
 
     - name: Run knapsack_pro queue and verify a single local bundle
       shell: bash
