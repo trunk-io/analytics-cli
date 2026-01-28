@@ -19,8 +19,21 @@ See more in the [rspec README.md](../../../rspec-trunk-flaky-tests/README.md).
 
 Repeat steps 1-5 above, and run:
 
-1. `KNAPSACK_PRO_CI_NODE_BUILD_ID=$(openssl rand -base64 32)`
-2. `KNAPSACK_PRO_TEST_DIR=spec KNAPSACK_PRO_TEST_FILE_PATTERN="**/*.rb" KNAPSACK_PRO_PROJECT_DIR=. KNAPSACK_PRO_REPOSITORY_ADAPTER=git KNAPSACK_PRO_LOG_LEVEL=debug KNAPSACK_PRO_TEST_SUITE_TOKEN_RSPEC="<api-key>" KNAPSACK_PRO_CI_NODE_TOTAL=1 KNAPSACK_PRO_CI_NODE_INDEX=0 KNAPSACK_PRO_FIXED_QUEUE_SPLIT=false bundle exec rake "knapsack_pro:queue:rspec"`
+```bash
+export KNAPSACK_PRO_CI_NODE_BUILD_ID=$(openssl rand -base64 32)
+export KNAPSACK_PRO_TEST_DIR=spec
+export KNAPSACK_PRO_TEST_FILE_PATTERN="**/*.rb"
+export KNAPSACK_PRO_PROJECT_DIR=.
+export KNAPSACK_PRO_REPOSITORY_ADAPTER=git
+export KNAPSACK_PRO_LOG_LEVEL=debug
+export KNAPSACK_PRO_TEST_SUITE_TOKEN_RSPEC="<api-key>"
+export KNAPSACK_PRO_CI_NODE_TOTAL=1
+export KNAPSACK_PRO_CI_NODE_INDEX=0
+export KNAPSACK_PRO_FIXED_QUEUE_SPLIT=false
+
+bundle exec rake "knapsack_pro:queue:rspec:initialize"
+bundle exec rake "knapsack_pro:queue:rspec"
+```
 
 ### Reference
 
