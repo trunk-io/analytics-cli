@@ -33,10 +33,10 @@ use context::{
 };
 use github_actions::extract_github_external_id;
 use lazy_static::lazy_static;
-use prost::Message;
+use proto::test_context::test_run::test_case_run::TestRunnerInformation;
 use proto::test_context::test_run::{
-    BazelAttemptNumber, BazelBuildInformation, TestBuildResult, TestReport, TestResult,
-    UploaderMetadata,
+    BazelAttemptNumber, BazelBuildInformation, BazelRunInformation, TestBuildResult, TestReport,
+    TestResult, UploaderMetadata,
 };
 use regex::Regex;
 use tempfile::TempDir;
@@ -407,6 +407,26 @@ pub fn generate_internal_file_from_bep(
                         quarantined_test_ids,
                         variant.as_deref().unwrap_or(""),
                     );
+                    xml_test_case_runs.iter_mut().for_each(|test_case_run| {
+                        test_case_run.test_runner_information = Some(
+                            TestRunnerInformation::BazelRunInformation(BazelRunInformation {
+                                label: label.clone(),
+                                attempt_number: xml_file.attempt,
+                                started_at: xml_file.start_time.map(|time| {
+                                    prost_wkt_types::Timestamp {
+                                        seconds: time.timestamp(),
+                                        nanos: time.timestamp_subsec_nanos() as i32,
+                                    }
+                                }),
+                                finished_at: xml_file.end_time.map(|time| {
+                                    prost_wkt_types::Timestamp {
+                                        seconds: time.timestamp(),
+                                        nanos: time.timestamp_subsec_nanos() as i32,
+                                    }
+                                }),
+                            }),
+                        );
+                    });
                     test_case_runs.extend(xml_test_case_runs);
                 }
             }

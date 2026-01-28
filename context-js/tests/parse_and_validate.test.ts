@@ -442,13 +442,12 @@ describe("context-js", () => {
     expect(testSuite).toBeDefined();
     expect(testSuite?.test_cases).toHaveLength(1);
 
-    expect(testSuite?.test_cases.at(0).status.status).toBe(
-      BindingsTestCaseStatusStatus.Success,
-    );
-    expect(
-      testSuite?.test_cases.at(0)?.js_extra().attempt_number,
-    ).toBeUndefined();
-    expect(testSuite?.test_cases.at(0)?.js_extra().line).toBe("9");
+    const testCase = testSuite?.test_cases.at(0);
+
+    expect(testCase?.status.status).toBe(BindingsTestCaseStatusStatus.Success);
+    expect(testCase?.js_extra().attempt_number).toBeUndefined();
+    expect(testCase?.js_extra().line).toBe("9");
+    expect(testCase?.bazel_run_information).toBeUndefined();
   });
 
   it("parses test_internal_bep_v2.bin", () => {
@@ -474,12 +473,57 @@ describe("context-js", () => {
 
     expect(testSuite).toBeDefined();
     expect(testSuite?.test_cases).toHaveLength(1);
-    expect(testSuite?.test_cases.at(0).status.status).toBe(
-      BindingsTestCaseStatusStatus.Success,
+
+    const testCase = testSuite?.test_cases.at(0);
+
+    expect(testCase?.status.status).toBe(BindingsTestCaseStatusStatus.Success);
+    expect(testCase?.js_extra().attempt_number).toBeUndefined();
+    expect(testCase?.js_extra().line).toBe("9");
+    expect(testCase?.bazel_run_information).toBeUndefined();
+  });
+
+  it("parses test_internal_bep_v3.bin", () => {
+    expect.hasAssertions();
+
+    const file_path = path.resolve(__dirname, "./test_internal_bep_v3.bin");
+    const file = fs.readFileSync(file_path);
+    const bindingsReports = bin_parse(file);
+
+    expect(bindingsReports).toHaveLength(1);
+
+    const result = bindingsReports.at(0);
+
+    expect(result?.bazel_build_information?.label).toBe(
+      "//trunk/hello_world/cc:hello_test",
+    );
+    // Newer format of BEP file has attempt number in bazel build information
+    expect(result?.bazel_build_information?.max_attempt_number).toBe(0);
+    expect(result?.tests).toBe(1);
+    expect(result?.test_suites).toHaveLength(1);
+
+    const testSuite = result?.test_suites.at(0);
+
+    expect(testSuite).toBeDefined();
+    expect(testSuite?.test_cases).toHaveLength(1);
+
+    const testCase = testSuite?.test_cases.at(0);
+
+    expect(testCase?.status.status).toBe(BindingsTestCaseStatusStatus.Success);
+    expect(testCase?.js_extra().attempt_number).toBeUndefined();
+    expect(testCase?.js_extra().line).toBe("9");
+    expect(testCase?.bazel_run_information).toBeDefined();
+    expect(testCase?.bazel_run_information?.label).toBe(
+      "//trunk/hello_world/cc:hello_test",
     );
     expect(
-      testSuite?.test_cases.at(0)?.js_extra().attempt_number,
-    ).toBeUndefined();
-    expect(testSuite?.test_cases.at(0)?.js_extra().line).toBe("9");
+      new Date(
+        Number(testCase?.bazel_run_information?.started_at) * 1000,
+      ).toISOString(),
+    ).toBe("2026-01-22T06:07:16.000Z");
+    expect(
+      new Date(
+        Number(testCase?.bazel_run_information?.finished_at) * 1000,
+      ).toISOString(),
+    ).toBe("2026-01-22T06:07:16.000Z");
   });
 });

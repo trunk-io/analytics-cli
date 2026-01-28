@@ -28,6 +28,7 @@ exitcode = "1.1.1"
 gix = { version = "0.74.0", default-features = false, features = [
 ], optional = true }
 http = "1.1.0"
+prost-wkt-types = { version = "0.5.1", features = ["vendored-protox"] }
 tokio = { version = "*", default-features = false, features = [
   "rt-multi-thread",
   "macros",
