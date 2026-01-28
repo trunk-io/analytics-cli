@@ -126,6 +126,8 @@ runs:
       if: inputs.knapsack-pro-test-suite-token-rspec != ''
       working-directory: ${{ github.action_path }}
       env:
+        KNAPSACK_PRO_TEST_DIR: spec
+        KNAPSACK_PRO_TEST_FILE_PATTERN: "**/*.rb"
         KNAPSACK_PRO_TEST_SUITE_TOKEN_RSPEC: ${{ inputs.knapsack-pro-test-suite-token-rspec }}
         KNAPSACK_PRO_CI_NODE_TOTAL: 1
         KNAPSACK_PRO_CI_NODE_INDEX: 0
@@ -139,6 +141,7 @@ runs:
         set -euo pipefail
         rm -rf "${TRUNK_LOCAL_UPLOAD_DIR}"
         mkdir -p "${TRUNK_LOCAL_UPLOAD_DIR}"
+        export KNAPSACK_PRO_CI_NODE_BUILD_ID=$(openssl rand -base64 32)
         set +e
         # Initialize is not required, but some custom setups will use it
         bundle exec rake "knapsack_pro:queue:rspec:initialize"
