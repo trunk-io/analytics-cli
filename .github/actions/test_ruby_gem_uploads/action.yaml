@@ -129,7 +129,8 @@ runs:
         KNAPSACK_PRO_TEST_SUITE_TOKEN_RSPEC: ${{ inputs.knapsack-pro-test-suite-token-rspec }}
         KNAPSACK_PRO_CI_NODE_TOTAL: 3
         KNAPSACK_PRO_CI_NODE_INDEX: 1
-        KNAPSACK_PRO_RSPEC_SPLIT_BY_TEST_EXAMPLES: true
+        # https://docs.knapsackpro.com/ruby/queue-mode/#dynamic-split-vs-fixed-split
+        KNAPSACK_PRO_FIXED_QUEUE_SPLIT: false
         TRUNK_API_TOKEN: ${{ inputs.trunk-token }}
         TRUNK_ORG_URL_SLUG: ${{ inputs.trunk-org-slug }}
         TRUNK_PUBLIC_API_ADDRESS: ${{ inputs.trunk-public-api-address }}
@@ -140,6 +141,8 @@ runs:
         rm -rf "${TRUNK_LOCAL_UPLOAD_DIR}"
         mkdir -p "${TRUNK_LOCAL_UPLOAD_DIR}"
         set +e
+        # Initialize is not required, but some custom setups will use it
+        bundle exec rake "knapsack_pro:queue:rspec:initialize"
         bundle exec rake "knapsack_pro:queue:rspec"
         set -e
         ls -la "${TRUNK_LOCAL_UPLOAD_DIR}"
