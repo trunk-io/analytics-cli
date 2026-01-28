@@ -8,7 +8,7 @@ From `cd rspec-trunk-flaky-tests`:
 2. `bundle install`
 3. `bundle exec rake build`
 4. `cd ../.github/actions/test_ruby_gem_uploads`
-5. Add `gem 'rspec_trunk_flaky_tests', :path => '../../../rspec-trunk-flaky-tests'` to [Gemfile](./Gemfile)
+5. Verify [Gemfile](./Gemfile) points to the built gem, i.e. `gem 'rspec_trunk_flaky_tests', :path => '../../../rspec-trunk-flaky-tests'`
 6. Run `bundle exec rspec spec/variant_quarantine_spec.rb --format documentation`
 
 After `cd .github/actions/test_ruby_gem_uploads`

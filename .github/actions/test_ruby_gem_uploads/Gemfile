@@ -7,5 +7,4 @@ gem 'knapsack_pro'
 gem 'rake'
 gem 'rake-compiler'
 gem 'logger'
-# donotland
-# gem 'rspec_trunk_flaky_tests', :path => '../../../rspec-trunk-flaky-tests'
+gem 'rspec_trunk_flaky_tests', :path => '../../../rspec-trunk-flaky-tests'
