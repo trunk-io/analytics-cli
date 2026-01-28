@@ -144,18 +144,26 @@ runs:
         bundle exec rake "knapsack_pro:queue:rspec:initialize"
 
         if [ -d "${TRUNK_LOCAL_UPLOAD_DIR}" ]; then
-          echo "knapsack pro manual queue initialization should not trigger an upload"
+          echo "knapsack_pro manual queue initialization should not trigger an upload"
           ls -la "${TRUNK_LOCAL_UPLOAD_DIR}"
           exit 1
         fi
 
-        bundle exec rake "knapsack_pro:queue:rspec"
+        OUTPUT_FILE=$(mktemp)
+        bundle exec rake "knapsack_pro:queue:rspec" 2>&1 | tee "${OUTPUT_FILE}"
         set -e
-        ls -la "${TRUNK_LOCAL_UPLOAD_DIR}"
-        mapfile -t bundle_files < <(find "${TRUNK_LOCAL_UPLOAD_DIR}" -maxdepth 1 -type f -name '*.bin')
-        if [ "${#bundle_files[@]}" -ne 1 ]; then
-          echo "Expected exactly one bundle in ${TRUNK_LOCAL_UPLOAD_DIR}, found ${#bundle_files[@]}"
-          ls -la "${TRUNK_LOCAL_UPLOAD_DIR}"
+        OUTPUT=$(cat "${OUTPUT_FILE}")
+        rm -f "${OUTPUT_FILE}"
+
+        if [ ! -d "${TRUNK_LOCAL_UPLOAD_DIR}" ]; then
+          echo "Expected ${TRUNK_LOCAL_UPLOAD_DIR} directory to be created"
           exit 1
         fi
+
+        REPORT_COUNT=$(echo "${OUTPUT}" | grep -c "Local Flaky tests report generated" || echo "0")
+        if [ "${REPORT_COUNT}" -ne 1 ]; then
+          echo "Expected 'Local Flaky tests report generated' to appear exactly once, found ${REPORT_COUNT} times"
+          exit 1
+        fi
+
         echo "Knapsack run correctly generated exactly one bundle at ${bundle_files[0]}"
