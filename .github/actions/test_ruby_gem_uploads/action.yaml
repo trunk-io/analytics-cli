@@ -24,6 +24,9 @@ inputs:
   platform:
     description: The platform that the gem was built for
     required: true
+  knapsack-pro-test-suite-token-rspec:
+    description: Optional Knapsack Pro test suite token for RSpec
+    required: true
 
 runs:
   using: composite
@@ -63,8 +66,8 @@ runs:
         gem unpack "${GEM_FILE}" --target=rspec_trunk_flaky_tests
         mv rspec_trunk_flaky_tests/rspec_trunk_flaky_tests*/lib rspec_trunk_flaky_tests/lib
         bundle install
+        sed -i "s|gem 'rspec_trunk_flaky_tests'.*|gem 'rspec_trunk_flaky_tests', '${GEM_VERSION}', :path => './rspec_trunk_flaky_tests'|" Gemfile
         bundle lock --remove-platform ruby || true
-        echo "gem 'rspec_trunk_flaky_tests', '${GEM_VERSION}', :path => './rspec_trunk_flaky_tests'" >> Gemfile
         bundle install --gemfile Gemfile --local
 
     - name: Run regular tests
@@ -117,3 +120,56 @@ runs:
         TRUNK_ORG_URL_SLUG: ${{ inputs.trunk-org-slug }}
         TRUNK_API_TOKEN: ${{ inputs.trunk-token }}
         TRUNK_VARIANT: smoke-test-variant
+
+    - name: Run knapsack_pro queue and verify a single local bundle
+      shell: bash
+      if: inputs.knapsack-pro-test-suite-token-rspec != ''
+      working-directory: ${{ github.action_path }}
+      env:
+        KNAPSACK_PRO_TEST_DIR: spec
+        # Required when using queue intialization
+        KNAPSACK_PRO_TEST_FILE_PATTERN: spec/*.rb
+        KNAPSACK_PRO_TEST_SUITE_TOKEN_RSPEC: ${{ inputs.knapsack-pro-test-suite-token-rspec }}
+        KNAPSACK_PRO_CI_NODE_TOTAL: 1
+        KNAPSACK_PRO_CI_NODE_INDEX: 0
+        # https://docs.knapsackpro.com/ruby/queue-mode/#dynamic-split-vs-fixed-split
+        KNAPSACK_PRO_FIXED_QUEUE_SPLIT: false
+        TRUNK_API_TOKEN: ${{ inputs.trunk-token }}
+        TRUNK_ORG_URL_SLUG: ${{ inputs.trunk-org-slug }}
+        TRUNK_PUBLIC_API_ADDRESS: ${{ inputs.trunk-public-api-address }}
+        TRUNK_LOCAL_UPLOAD_DIR: bundles
+      run: |
+        set -euo pipefail
+        rm -rf "${TRUNK_LOCAL_UPLOAD_DIR}"
+        mkdir -p "${TRUNK_LOCAL_UPLOAD_DIR}"
+        set +e
+        # Initialize is not required, but some custom setups will use it
+        bundle exec rake "knapsack_pro:queue:rspec:initialize"
+
+        FILE_COUNT=$(find "${TRUNK_LOCAL_UPLOAD_DIR}" -maxdepth 1 -type f 2>/dev/null | wc -l)
+        if [ "${FILE_COUNT}" -ne 0 ]; then
+          echo "knapsack_pro manual queue initialization should not trigger an upload"
+          ls -la "${TRUNK_LOCAL_UPLOAD_DIR}"
+          exit 1
+        fi
+
+        OUTPUT_FILE=$(mktemp)
+        bundle exec rake "knapsack_pro:queue:rspec" 2>&1 | tee "${OUTPUT_FILE}"
+        set -e
+        OUTPUT=$(cat "${OUTPUT_FILE}")
+        rm -f "${OUTPUT_FILE}"
+
+        FILE_COUNT=$(find "${TRUNK_LOCAL_UPLOAD_DIR}" -maxdepth 1 -type f 2>/dev/null | wc -l)
+        if [ "${FILE_COUNT}" -ne 1 ]; then
+          echo "knapsack_pro execution run should trigger an upload"
+          ls -la "${TRUNK_LOCAL_UPLOAD_DIR}"
+          exit 1
+        fi
+
+        REPORT_COUNT=$(echo "${OUTPUT}" | grep -c "Local Flaky tests report generated" || echo "0")
+        if [ "${REPORT_COUNT}" -ne 1 ]; then
+          echo "Expected 'Local Flaky tests report generated' to appear exactly once, found ${REPORT_COUNT} times"
+          exit 1
+        fi
+
+        echo "Knapsack run correctly generated exactly one bundle"
