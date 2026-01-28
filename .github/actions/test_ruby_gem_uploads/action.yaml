@@ -24,6 +24,9 @@ inputs:
   platform:
     description: The platform that the gem was built for
     required: true
+  knapsack-pro-test-suite-token-rspec:
+    description: Optional Knapsack Pro test suite token for RSpec
+    required: true
 
 runs:
   using: composite
@@ -64,7 +67,7 @@ runs:
         mv rspec_trunk_flaky_tests/rspec_trunk_flaky_tests*/lib rspec_trunk_flaky_tests/lib
         bundle install
         bundle lock --remove-platform ruby || true
-        echo "gem 'rspec_trunk_flaky_tests', '${GEM_VERSION}', :path => './rspec_trunk_flaky_tests'" >> Gemfile
+        printf "\ngem 'rspec_trunk_flaky_tests', '%s', :path => './rspec_trunk_flaky_tests'\n" "${GEM_VERSION}" >> Gemfile
         bundle install --gemfile Gemfile --local
 
     - name: Run regular tests
@@ -117,3 +120,32 @@ runs:
         TRUNK_ORG_URL_SLUG: ${{ inputs.trunk-org-slug }}
         TRUNK_API_TOKEN: ${{ inputs.trunk-token }}
         TRUNK_VARIANT: smoke-test-variant
+
+    - name: Run knapsack_pro queue and verify a single local bundle
+      shell: bash
+      if: inputs.knapsack-pro-test-suite-token-rspec != ''
+      working-directory: ${{ github.action_path }}
+      env:
+        KNAPSACK_PRO_TEST_SUITE_TOKEN_RSPEC: ${{ inputs.knapsack-pro-test-suite-token-rspec }}
+        KNAPSACK_PRO_CI_NODE_TOTAL: 3
+        KNAPSACK_PRO_CI_NODE_INDEX: 1
+        TRUNK_API_TOKEN: ${{ inputs.trunk-token }}
+        TRUNK_ORG_URL_SLUG: ${{ inputs.trunk-org-slug }}
+        TRUNK_PUBLIC_API_ADDRESS: ${{ inputs.trunk-public-api-address }}
+        TRUNK_LOCAL_UPLOAD_DIR: bundles
+        TRUNK_LOCAL_UPLOAD_DIR_ALLOW_MULTIPLE: true # donotland
+      run: |
+        set -euo pipefail
+        rm -rf "${TRUNK_LOCAL_UPLOAD_DIR}"
+        mkdir -p "${TRUNK_LOCAL_UPLOAD_DIR}"
+        set +e
+        bundle exec rake "knapsack_pro:rspec"
+        set -e
+        ls -la "${TRUNK_LOCAL_UPLOAD_DIR}"
+        mapfile -t bundle_files < <(find "${TRUNK_LOCAL_UPLOAD_DIR}" -maxdepth 1 -type f -name '*.bin')
+        if [ "${#bundle_files[@]}" -ne 1 ]; then
+          echo "Expected exactly one bundle in ${TRUNK_LOCAL_UPLOAD_DIR}, found ${#bundle_files[@]}"
+          ls -la "${TRUNK_LOCAL_UPLOAD_DIR}"
+          exit 1
+        fi
+        echo "Knapsack run correctly generated exactly one bundle at ${bundle_files[0]}"

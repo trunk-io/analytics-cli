@@ -3,3 +3,8 @@
 source 'https://rubygems.org'
 
 gem 'rspec'
+gem 'knapsack_pro'
+gem 'rake'
+gem 'rake-compiler'
+# donotland
+# gem 'rspec_trunk_flaky_tests', :path => '../../../rspec-trunk-flaky-tests'

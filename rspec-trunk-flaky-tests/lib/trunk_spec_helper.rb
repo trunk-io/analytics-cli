@@ -65,7 +65,14 @@ end
 
 def knapsack_detector_command?
   command_line = "#{$PROGRAM_NAME} #{ARGV.join(' ')}".strip
-  command_line.include?('knapsack_pro:rspec_test_example_detector')
+  # donotland
+  # command_line.include?('knapsack_pro:rspec_test_example_detector')
+  if command_line.include?('knapsack_pro:rspec_test_example_detector')
+    puts "Detected knapsack example detector command: #{command_line}".yellow
+    true
+  else
+    false
+  end
 end
 
 def trunk_disabled
