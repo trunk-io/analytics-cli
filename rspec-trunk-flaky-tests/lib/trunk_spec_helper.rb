@@ -71,6 +71,7 @@ def knapsack_detector_command?
     puts "Detected knapsack example detector command: #{command_line}".yellow
     true
   else
+    puts "Detected knapsack example detector other command: #{command_line}".red
     false
   end
 end
