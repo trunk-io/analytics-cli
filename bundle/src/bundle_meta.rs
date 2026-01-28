@@ -344,6 +344,13 @@ impl VersionedBundle {
             _ => None,
         }
     }
+
+    pub fn failed_tests(&self) -> Option<&Vec<Test>> {
+        match self {
+            Self::V0_7_8(data) => Some(&data.failed_tests),
+            _ => None,
+        }
+    }
 }
 
 #[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
