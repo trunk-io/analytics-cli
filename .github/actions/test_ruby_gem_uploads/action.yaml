@@ -143,7 +143,8 @@ runs:
         # Initialize is not required, but some custom setups will use it
         bundle exec rake "knapsack_pro:queue:rspec:initialize"
 
-        if [ -d "${TRUNK_LOCAL_UPLOAD_DIR}" ]; then
+        FILE_COUNT=$(find "${TRUNK_LOCAL_UPLOAD_DIR}" -maxdepth 1 -type f 2>/dev/null | wc -l)
+        if [ "${FILE_COUNT}" -ne 0 ]; then
           echo "knapsack_pro manual queue initialization should not trigger an upload"
           ls -la "${TRUNK_LOCAL_UPLOAD_DIR}"
           exit 1
@@ -155,8 +156,10 @@ runs:
         OUTPUT=$(cat "${OUTPUT_FILE}")
         rm -f "${OUTPUT_FILE}"
 
-        if [ ! -d "${TRUNK_LOCAL_UPLOAD_DIR}" ]; then
-          echo "Expected ${TRUNK_LOCAL_UPLOAD_DIR} directory to be created"
+        FILE_COUNT=$(find "${TRUNK_LOCAL_UPLOAD_DIR}" -maxdepth 1 -type f 2>/dev/null | wc -l)
+        if [ "${FILE_COUNT}" -ne 1 ]; then
+          echo "knapsack_pro execution run should trigger an upload"
+          ls -la "${TRUNK_LOCAL_UPLOAD_DIR}"
           exit 1
         fi
 
