@@ -68,10 +68,10 @@ def knapsack_detector_command?
   # donotland
   # command_line.include?('knapsack_pro:rspec_test_example_detector')
   if command_line.include?('knapsack_pro:rspec_test_example_detector')
-    puts "Detected knapsack example detector command: #{command_line}".yellow
+    puts "Detected knapsack example detector command: #{command_line}\n\n".yellow
     true
   else
-    puts "Detected knapsack example detector other command: #{command_line}".red
+    puts "Detected knapsack other command: #{command_line}\n\n".yellow
     false
   end
 end
