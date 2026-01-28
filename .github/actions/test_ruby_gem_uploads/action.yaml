@@ -135,7 +135,6 @@ runs:
         TRUNK_ORG_URL_SLUG: ${{ inputs.trunk-org-slug }}
         TRUNK_PUBLIC_API_ADDRESS: ${{ inputs.trunk-public-api-address }}
         TRUNK_LOCAL_UPLOAD_DIR: bundles
-        TRUNK_LOCAL_UPLOAD_DIR_ALLOW_MULTIPLE: true # donotland
       run: |
         set -euo pipefail
         rm -rf "${TRUNK_LOCAL_UPLOAD_DIR}"
@@ -143,6 +142,13 @@ runs:
         set +e
         # Initialize is not required, but some custom setups will use it
         bundle exec rake "knapsack_pro:queue:rspec:initialize"
+
+        if [ -d "${TRUNK_LOCAL_UPLOAD_DIR}" ]; then
+          echo "knapsack pro manual queue initialization should not trigger an upload"
+          ls -la "${TRUNK_LOCAL_UPLOAD_DIR}"
+          exit 1
+        fi
+
         bundle exec rake "knapsack_pro:queue:rspec"
         set -e
         ls -la "${TRUNK_LOCAL_UPLOAD_DIR}"

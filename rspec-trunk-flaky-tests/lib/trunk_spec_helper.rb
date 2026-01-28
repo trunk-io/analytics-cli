@@ -65,13 +65,12 @@ end
 
 def knapsack_detector_command?
   command_line = "#{$PROGRAM_NAME} #{ARGV.join(' ')}".strip
-  # donotland
-  # command_line.include?('knapsack_pro:rspec_test_example_detector')
-  if command_line.include?('knapsack_pro:rspec_test_example_detector')
-    # knapsack_pro:queue:rspec:initialize
+  if command_line.include?('knapsack_pro:rspec_test_example_detector') || command_line.include?('knapsack_pro:queue:rspec:initialize')
+    # donotland
     puts "Detected knapsack example detector command: #{command_line}\n\n".yellow
     true
   else
+    # donotland
     puts "Detected knapsack other command: #{command_line}\n\n".yellow
     false
   end
