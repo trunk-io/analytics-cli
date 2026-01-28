@@ -127,8 +127,8 @@ runs:
       working-directory: ${{ github.action_path }}
       env:
         KNAPSACK_PRO_TEST_SUITE_TOKEN_RSPEC: ${{ inputs.knapsack-pro-test-suite-token-rspec }}
-        KNAPSACK_PRO_CI_NODE_TOTAL: 3
-        KNAPSACK_PRO_CI_NODE_INDEX: 1
+        KNAPSACK_PRO_CI_NODE_TOTAL: 1
+        KNAPSACK_PRO_CI_NODE_INDEX: 0
         # https://docs.knapsackpro.com/ruby/queue-mode/#dynamic-split-vs-fixed-split
         KNAPSACK_PRO_FIXED_QUEUE_SPLIT: false
         TRUNK_API_TOKEN: ${{ inputs.trunk-token }}
@@ -169,4 +169,4 @@ runs:
           exit 1
         fi
 
-        echo "Knapsack run correctly generated exactly one bundle at ${bundle_files[0]}"
+        echo "Knapsack run correctly generated exactly one bundle"
