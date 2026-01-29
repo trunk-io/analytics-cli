@@ -65,7 +65,8 @@ end
 
 def knapsack_detector_command?
   command_line = "#{$PROGRAM_NAME} #{ARGV.join(' ')}".strip
-  command_line.include?('knapsack_pro:rspec_test_example_detector')
+  command_line.include?('knapsack_pro:rspec_test_example_detector') ||
+    command_line.include?('knapsack_pro:queue:rspec:initialize')
 end
 
 def trunk_disabled
