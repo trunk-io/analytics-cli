@@ -1,0 +1,5 @@
+require 'rake/testtask'
+require 'rake/extensiontask'
+require 'knapsack_pro'
+require 'rspec/core/rake_task'
+KnapsackPro.load_tasks if defined?(KnapsackPro)
