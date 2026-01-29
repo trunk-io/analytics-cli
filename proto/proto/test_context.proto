@@ -30,6 +30,13 @@ message TestOutput {
   string system_err = 4;
 }
 
+message BazelRunInformation {
+  string label = 1; // test label for the execution (same test case id may currently have multiple labels)
+  int32 attempt_number = 2; // attempt number per label, not necessarily "test case"
+  google.protobuf.Timestamp started_at = 3; // start time of the target execution, may diverge from the JUnit
+  google.protobuf.Timestamp finished_at = 4; // finish time of the target execution, may diverge from the JUnit
+}
+
 message TestCaseRun {
   string id = 1;
   string name = 2;
@@ -51,6 +58,10 @@ message TestCaseRun {
   optional AttemptNumber attempt_index = 14;
   optional LineNumber line_number = 15;
   optional TestOutput test_output = 16;
+  oneof test_runner_information {
+    BazelRunInformation bazel_run_information = 17;
+    // Other test runner information can be added here in the future
+  }
 }
 
 message UploaderMetadata {
@@ -72,8 +83,8 @@ message BazelBuildInformation {
 
 message TestResult {
   repeated TestCaseRun test_case_runs = 1;
-  // use the uplaoder metadata in test report instead
-  UploaderMetadata uploader_metadata = 2 [deprecated = true];;
+  // use the uploader metadata in test report instead
+  UploaderMetadata uploader_metadata = 2 [deprecated = true];
   oneof test_build_information {
     BazelBuildInformation bazel_build_information = 3;
     // Other build information can be added here in the future
