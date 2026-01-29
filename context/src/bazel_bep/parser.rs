@@ -118,11 +118,45 @@ mod tests {
             &BepTestStatus::Passed
         );
 
-        // Test that attempt numbers are captured correctly
-        let attempt_numbers: Vec<i32> = test_result.xml_files.iter().map(|f| f.attempt).collect();
-        assert_eq!(attempt_numbers.len(), 2, "Should have 2 attempt numbers");
-        assert!(attempt_numbers.contains(&0), "Should have attempt 0");
-        assert!(attempt_numbers.contains(&1), "Should have attempt 1");
+        // Test that xml files include correct testResult information
+        let xml_files = &test_result.xml_files;
+        assert_eq!(xml_files.len(), 2);
+        assert_eq!(xml_files[0].label, "//trunk/hello_world/cc:hello_test");
+        assert_eq!(xml_files[0].attempt, 0);
+        assert_eq!(
+            xml_files[0].start_time,
+            Some(
+                DateTime::parse_from_rfc3339("2024-12-10T06:17:23.963Z")
+                    .unwrap()
+                    .into()
+            )
+        );
+        assert_eq!(
+            xml_files[0].end_time,
+            Some(
+                DateTime::parse_from_rfc3339("2024-12-10T06:17:24.006Z")
+                    .unwrap()
+                    .into()
+            )
+        );
+        assert_eq!(xml_files[1].label, "//trunk/hello_world/cc:hello_test");
+        assert_eq!(xml_files[1].attempt, 1);
+        assert_eq!(
+            xml_files[1].start_time,
+            Some(
+                DateTime::parse_from_rfc3339("2024-12-10T06:17:24.011Z")
+                    .unwrap()
+                    .into()
+            )
+        );
+        assert_eq!(
+            xml_files[1].end_time,
+            Some(
+                DateTime::parse_from_rfc3339("2024-12-10T06:17:24.055Z")
+                    .unwrap()
+                    .into()
+            )
+        );
 
         assert_eq!(
             parse_result.errors.len(),
@@ -259,19 +293,63 @@ mod tests {
             .iter()
             .find(|r| r.label == "//trunk/hello_world/cc:hello_test")
             .expect("Should find hello_test result");
-        let attempt_numbers: Vec<i32> = hello_test_result
-            .xml_files
-            .iter()
-            .map(|f| f.attempt)
-            .collect();
+
+        let xml_files = &hello_test_result.xml_files;
+        assert_eq!(xml_files.len(), 3);
+        assert_eq!(xml_files[0].label, "//trunk/hello_world/cc:hello_test");
+        assert_eq!(xml_files[0].attempt, 0);
         assert_eq!(
-            attempt_numbers.len(),
-            3,
-            "Should have 3 attempt numbers for flaky test"
+            xml_files[0].start_time,
+            Some(
+                DateTime::parse_from_rfc3339("2024-12-17T04:10:55.311Z")
+                    .unwrap()
+                    .into()
+            )
         );
-        assert!(attempt_numbers.contains(&0), "Should have attempt 0");
-        assert!(attempt_numbers.contains(&1), "Should have attempt 1");
-        assert!(attempt_numbers.contains(&2), "Should have attempt 2");
+        assert_eq!(
+            xml_files[0].end_time,
+            Some(
+                DateTime::parse_from_rfc3339("2024-12-17T04:10:55.357Z")
+                    .unwrap()
+                    .into()
+            )
+        );
+        assert_eq!(xml_files[1].label, "//trunk/hello_world/cc:hello_test");
+        assert_eq!(xml_files[1].attempt, 1);
+        assert_eq!(
+            xml_files[1].start_time,
+            Some(
+                DateTime::parse_from_rfc3339("2024-12-17T04:10:55.377Z")
+                    .unwrap()
+                    .into()
+            )
+        );
+        assert_eq!(
+            xml_files[1].end_time,
+            Some(
+                DateTime::parse_from_rfc3339("2024-12-17T04:10:55.421Z")
+                    .unwrap()
+                    .into()
+            )
+        );
+        assert_eq!(xml_files[2].label, "//trunk/hello_world/cc:hello_test");
+        assert_eq!(xml_files[2].attempt, 2);
+        assert_eq!(
+            xml_files[2].start_time,
+            Some(
+                DateTime::parse_from_rfc3339("2024-12-17T04:10:55.425Z")
+                    .unwrap()
+                    .into()
+            )
+        );
+        assert_eq!(
+            xml_files[2].end_time,
+            Some(
+                DateTime::parse_from_rfc3339("2024-12-17T04:10:55.466Z")
+                    .unwrap()
+                    .into()
+            )
+        );
     }
 
     #[test]
