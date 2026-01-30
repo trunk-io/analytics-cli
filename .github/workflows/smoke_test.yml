@@ -107,7 +107,7 @@ jobs:
         run: |
           if [[ "${{ matrix.platform.name }}" == "windows" ]]; then
             curl -fsSLO --retry 5 --retry-all-errors --retry-delay 2 https://github.com/trunk-io/analytics-cli/releases/download/${{ needs.determine_releases.outputs.release }}/trunk-analytics-cli-${{ matrix.platform.download-target }}.zip
-            unzip -q trunk-analytics-cli-${{ matrix.platform.download-target }}-experimental.zip
+            unzip -q trunk-analytics-cli-${{ matrix.platform.download-target }}.zip
           else
             curl -fsSLO --retry 5 --retry-all-errors --retry-delay 2 https://github.com/trunk-io/analytics-cli/releases/download/${{ needs.determine_releases.outputs.release }}/trunk-analytics-cli-${{ matrix.platform.download-target }}.tar.gz
             tar -zxf trunk-analytics-cli-${{ matrix.platform.download-target }}.tar.gz
