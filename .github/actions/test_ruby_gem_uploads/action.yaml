@@ -65,8 +65,11 @@ runs:
         gem unpack "${GEM_FILE}" --spec --target=rspec_trunk_flaky_tests
         gem unpack "${GEM_FILE}" --target=rspec_trunk_flaky_tests
         mv rspec_trunk_flaky_tests/rspec_trunk_flaky_tests*/lib rspec_trunk_flaky_tests/lib
+
+        sed -i.bak "/gem 'rspec_trunk_flaky_tests'.*/d" Gemfile && rm -f Gemfile.bak
         bundle install
-        sed -i "s|gem 'rspec_trunk_flaky_tests'.*|gem 'rspec_trunk_flaky_tests', '${GEM_VERSION}', :path => './rspec_trunk_flaky_tests'|" Gemfile
+        echo "gem 'rspec_trunk_flaky_tests', '${GEM_VERSION}', :path => './rspec_trunk_flaky_tests'" >> Gemfile
+
         bundle lock --remove-platform ruby || true
         bundle install --gemfile Gemfile --local
 
