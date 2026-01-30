@@ -202,61 +202,62 @@ jobs:
           artifact-pattern: ""
           knapsack-pro-test-suite-token-rspec: ${{ secrets.KNAPSACK_PRO_TEST_SUITE_TOKEN_RSPEC }}
 
-  # donotland
-  # production-slack-workflow-status:
-  #   if: always() && github.ref == 'refs/heads/main' && (needs.build_cli.outputs.production-success != 'true' || needs.test_ruby_gem_production.result != 'success')
-  #   name: Post Production Smoke Test Failure
-  #   needs:
-  #     - build_cli
-  #     - test_ruby_gem_production
-  #   runs-on: ubuntu-latest
-  #   permissions:
-  #     actions: read
-  #   env:
-  #     SLACK_BOT_TOKEN: ${{ secrets.TRUNKBOT_SLACK_BOT_TOKEN }}
-  #   steps:
-  #     - name: Analytics Cli Smoke Test Failure
-  #       uses: slackapi/slack-github-action@v1
-  #       with:
-  #         channel-id: production-notifications
-  #         payload: |
-  #           {
-  #             "blocks": [
-  #               {
-  #                 "type": "section",
-  #                 "text": {
-  #                   "type": "mrkdwn",
-  #                   "text": "Release ${{ needs.determine_releases.outputs.release }} of the analytics cli is broken on production! CLI test result: ${{ needs.build_cli.result }}, Ruby gem test result: ${{ needs.test_ruby_gem_production.result }}. Failed workflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}. Details on responding to this can be found at https://trunk.slite.com/app/docs/zQ99Scfw1VgDSO/Analytics-CLI-Smoke-Tests-Are-Broken"
-  #                 }
-  #               }
-  #             ]
-  #           }
+  production-slack-workflow-status:
+    if: always() && github.ref == 'refs/heads/main' && (needs.build_cli.outputs.production-success != 'true' || needs.test_ruby_gem_production.result != 'success')
+    name: Post Production Smoke Test Failure
+    needs:
+      - build_cli
+      - test_ruby_gem_production
+      - determine_releases
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+    env:
+      SLACK_BOT_TOKEN: ${{ secrets.TRUNKBOT_SLACK_BOT_TOKEN }}
+    steps:
+      - name: Analytics Cli Smoke Test Failure
+        uses: slackapi/slack-github-action@v1
+        with:
+          channel-id: production-notifications
+          payload: |
+            {
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "Release ${{ needs.determine_releases.outputs.release }} of the analytics cli is broken on production! CLI test result: ${{ needs.build_cli.result }}, Ruby gem test result: ${{ needs.test_ruby_gem_production.result }}. Failed workflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}. Details on responding to this can be found at https://trunk.slite.com/app/docs/zQ99Scfw1VgDSO/Analytics-CLI-Smoke-Tests-Are-Broken"
+                  }
+                }
+              ]
+            }
 
-  # staging-slack-workflow-status:
-  #   if: always() && github.ref == 'refs/heads/main' && (needs.build_cli.outputs.staging-success != 'true' || needs.test_ruby_gem_staging.result != 'success')
-  #   name: Post Staging Smoke Test Failure
-  #   needs:
-  #     - build_cli
-  #     - test_ruby_gem_staging
-  #   runs-on: ubuntu-latest
-  #   permissions:
-  #     actions: read
-  #   env:
-  #     SLACK_BOT_TOKEN: ${{ secrets.TRUNKBOT_SLACK_BOT_TOKEN }}
-  #   steps:
-  #     - name: Analytics Cli Smoke Test Failure
-  #       uses: slackapi/slack-github-action@v1
-  #       with:
-  #         channel-id: staging-notifications
-  #         payload: |
-  #           {
-  #             "blocks": [
-  #               {
-  #                 "type": "section",
-  #                 "text": {
-  #                   "type": "mrkdwn",
-  #                   "text": "Release ${{ needs.determine_releases.outputs.release }} of the analytics cli is broken on staging! CLI test result: ${{ needs.build_cli.result }}, Ruby gem test result: ${{ needs.test_ruby_gem_staging.result }}. Failed workflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}. Details on responding to this can be found at https://trunk.slite.com/app/docs/zQ99Scfw1VgDSO/Analytics-CLI-Smoke-Tests-Are-Broken"
-  #                 }
-  #               }
-  #             ]
-  #           }
+  staging-slack-workflow-status:
+    if: always() && github.ref == 'refs/heads/main' && (needs.build_cli.outputs.staging-success != 'true' || needs.test_ruby_gem_staging.result != 'success')
+    name: Post Staging Smoke Test Failure
+    needs:
+      - build_cli
+      - test_ruby_gem_staging
+      - determine_releases
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+    env:
+      SLACK_BOT_TOKEN: ${{ secrets.TRUNKBOT_SLACK_BOT_TOKEN }}
+    steps:
+      - name: Analytics Cli Smoke Test Failure
+        uses: slackapi/slack-github-action@v1
+        with:
+          channel-id: staging-notifications
+          payload: |
+            {
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "Release ${{ needs.determine_releases.outputs.release }} of the analytics cli is broken on staging! CLI test result: ${{ needs.build_cli.result }}, Ruby gem test result: ${{ needs.test_ruby_gem_staging.result }}. Failed workflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}. Details on responding to this can be found at https://trunk.slite.com/app/docs/zQ99Scfw1VgDSO/Analytics-CLI-Smoke-Tests-Are-Broken"
+                  }
+                }
+              ]
+            }
