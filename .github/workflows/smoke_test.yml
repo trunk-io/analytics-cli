@@ -2,20 +2,68 @@ name: Smoke Test
 permissions:
   actions: read
 on:
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      # trunk-ignore(checkov/CKV_GHA_7)
+      release:
+        description: Release version to test (optional, defaults to latest)
+        required: false
+      rspec_release:
+        description: RSpec release version to test (optional, defaults to latest)
+        required: false
   schedule:
     - cron: 0 0/2 * * *
   repository_dispatch:
     types:
       - staging-release
       - production-release
-env:
-  RELEASE: 0.10.10
-  RSPEC_RELEASE: 0.11.8
 jobs:
+  determine_releases:
+    name: Determine Release Versions
+    runs-on: ubuntu-latest
+    outputs:
+      release: ${{ steps.set-releases.outputs.release }}
+      rspec_release: ${{ steps.set-releases.outputs.rspec_release }}
+    steps:
+      - name: Get Latest Release
+        id: get-latest-release
+        uses: pozetroninc/github-action-get-latest-release@v0.8.0
+        with:
+          repository: trunk-io/analytics-cli
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set Release Versions
+        id: set-releases
+        run: |
+          # Strip 'v' prefix if present from the release tag
+          LATEST_RELEASE="${{ steps.get-latest-release.outputs.release }}"
+
+          if [ -n "${{ inputs.release }}" ]; then
+            RELEASE="${{ inputs.release }}"
+          else
+            RELEASE="$LATEST_RELEASE"
+          fi
+
+          if [ -n "${{ inputs.rspec_release }}" ]; then
+            RSPEC_RELEASE="${{ inputs.rspec_release }}"
+          else
+            # If latest release contains .beta, change .beta to .pre.beta for rspec release
+            # https://guides.rubygems.org/patterns/#prerelease-gems
+            if [[ "$LATEST_RELEASE" == *".beta"* ]]; then
+              RSPEC_RELEASE=$(echo "$LATEST_RELEASE" | sed 's/\.beta/.pre.beta/g')
+            else
+              RSPEC_RELEASE="$LATEST_RELEASE"
+            fi
+          fi
+
+          echo "release=$RELEASE" >> $GITHUB_OUTPUT
+          echo "rspec_release=$RSPEC_RELEASE" >> $GITHUB_OUTPUT
+          echo "Using RELEASE: $RELEASE"
+          echo "Using RSPEC_RELEASE: $RSPEC_RELEASE"
   build_cli:
     name: Smoke test ${{ matrix.platform.name }} cli from release
     runs-on: ${{ matrix.platform.os }}
+    needs: determine_releases
     outputs:
       production-success: ${{ steps.run-tests.outputs.production-success }}
       staging-success: ${{ steps.run-tests.outputs.staging-success }}
@@ -33,12 +81,11 @@ jobs:
             target: arm64-apple-darwin
             download-target: aarch64-apple-darwin
             binary-name: trunk-analytics-cli
-          #TODO ENABLE WINDOWS TESTS WHEN WE HAVE A WINDOWS RELEASE
-          # - name: windows
-          #   os: windows-latest
-          #   target: x86_64-pc-windows-gnu
-          #   download-target: x86_64-pc-windows-gnu
-          #   binary-name: trunk-analytics-cli.exe
+          - name: windows
+            os: windows-latest
+            target: x86_64-pc-windows-gnu
+            download-target: x86_64-pc-windows-gnu
+            binary-name: trunk-analytics-cli.exe
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -52,17 +99,17 @@ jobs:
             trunk-analytics-cli.exe
             trunk-analytics-cli-*.tar.gz
             trunk-analytics-cli-*.zip
-          key: cli-release-${{ env.RELEASE }}-${{ matrix.platform.download-target }}
+          key: cli-release-${{ needs.determine_releases.outputs.release }}-${{ matrix.platform.download-target }}
 
       - name: Get Release
         shell: bash
         if: steps.cache-cli-release.outputs.cache-hit != 'true'
         run: |
           if [[ "${{ matrix.platform.name }}" == "windows" ]]; then
-            curl -fsSLO --retry 5 --retry-all-errors --retry-delay 2 https://github.com/trunk-io/analytics-cli/releases/download/${{ env.RELEASE }}/trunk-analytics-cli-${{ matrix.platform.download-target }}.zip
+            curl -fsSLO --retry 5 --retry-all-errors --retry-delay 2 https://github.com/trunk-io/analytics-cli/releases/download/${{ needs.determine_releases.outputs.release }}/trunk-analytics-cli-${{ matrix.platform.download-target }}.zip
             unzip -q trunk-analytics-cli-${{ matrix.platform.download-target }}-experimental.zip
           else
-            curl -fsSLO --retry 5 --retry-all-errors --retry-delay 2 https://github.com/trunk-io/analytics-cli/releases/download/${{ env.RELEASE }}/trunk-analytics-cli-${{ matrix.platform.download-target }}.tar.gz
+            curl -fsSLO --retry 5 --retry-all-errors --retry-delay 2 https://github.com/trunk-io/analytics-cli/releases/download/${{ needs.determine_releases.outputs.release }}/trunk-analytics-cli-${{ matrix.platform.download-target }}.tar.gz
             tar -zxf trunk-analytics-cli-${{ matrix.platform.download-target }}.tar.gz
             chmod +x trunk-analytics-cli
           fi
@@ -82,6 +129,7 @@ jobs:
   download_ruby_gem:
     name: Download Ruby gem from release
     runs-on: ubuntu-latest
+    needs: determine_releases
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -93,7 +141,7 @@ jobs:
 
       - name: Download gem from RubyGems
         run: |
-          gem fetch rspec_trunk_flaky_tests -v ${{ env.RSPEC_RELEASE }}
+          gem fetch rspec_trunk_flaky_tests -v ${{ needs.determine_releases.outputs.rspec_release }}
           mkdir -p gems
           mv rspec_trunk_flaky_tests-*.gem gems/
 
@@ -154,60 +202,61 @@ jobs:
           artifact-pattern: ""
           knapsack-pro-test-suite-token-rspec: ${{ secrets.KNAPSACK_PRO_TEST_SUITE_TOKEN_RSPEC }}
 
-  production-slack-workflow-status:
-    if: always() && github.ref == 'refs/heads/main' && (needs.build_cli.outputs.production-success != 'true' || needs.test_ruby_gem_production.result != 'success')
-    name: Post Production Smoke Test Failure
-    needs:
-      - build_cli
-      - test_ruby_gem_production
-    runs-on: ubuntu-latest
-    permissions:
-      actions: read
-    env:
-      SLACK_BOT_TOKEN: ${{ secrets.TRUNKBOT_SLACK_BOT_TOKEN }}
-    steps:
-      - name: Analytics Cli Smoke Test Failure
-        uses: slackapi/slack-github-action@v1
-        with:
-          channel-id: production-notifications
-          payload: |
-            {
-              "blocks": [
-                {
-                  "type": "section",
-                  "text": {
-                    "type": "mrkdwn",
-                    "text": "Release ${{ env.RELEASE }} of the analytics cli is broken on production! CLI test result: ${{ needs.build_cli.result }}, Ruby gem test result: ${{ needs.test_ruby_gem_production.result }}. Failed workflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}. Details on responding to this can be found at https://trunk.slite.com/app/docs/zQ99Scfw1VgDSO/Analytics-CLI-Smoke-Tests-Are-Broken"
-                  }
-                }
-              ]
-            }
+  # donotland
+  # production-slack-workflow-status:
+  #   if: always() && github.ref == 'refs/heads/main' && (needs.build_cli.outputs.production-success != 'true' || needs.test_ruby_gem_production.result != 'success')
+  #   name: Post Production Smoke Test Failure
+  #   needs:
+  #     - build_cli
+  #     - test_ruby_gem_production
+  #   runs-on: ubuntu-latest
+  #   permissions:
+  #     actions: read
+  #   env:
+  #     SLACK_BOT_TOKEN: ${{ secrets.TRUNKBOT_SLACK_BOT_TOKEN }}
+  #   steps:
+  #     - name: Analytics Cli Smoke Test Failure
+  #       uses: slackapi/slack-github-action@v1
+  #       with:
+  #         channel-id: production-notifications
+  #         payload: |
+  #           {
+  #             "blocks": [
+  #               {
+  #                 "type": "section",
+  #                 "text": {
+  #                   "type": "mrkdwn",
+  #                   "text": "Release ${{ needs.determine_releases.outputs.release }} of the analytics cli is broken on production! CLI test result: ${{ needs.build_cli.result }}, Ruby gem test result: ${{ needs.test_ruby_gem_production.result }}. Failed workflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}. Details on responding to this can be found at https://trunk.slite.com/app/docs/zQ99Scfw1VgDSO/Analytics-CLI-Smoke-Tests-Are-Broken"
+  #                 }
+  #               }
+  #             ]
+  #           }
 
-  staging-slack-workflow-status:
-    if: always() && github.ref == 'refs/heads/main' && (needs.build_cli.outputs.staging-success != 'true' || needs.test_ruby_gem_staging.result != 'success')
-    name: Post Staging Smoke Test Failure
-    needs:
-      - build_cli
-      - test_ruby_gem_staging
-    runs-on: ubuntu-latest
-    permissions:
-      actions: read
-    env:
-      SLACK_BOT_TOKEN: ${{ secrets.TRUNKBOT_SLACK_BOT_TOKEN }}
-    steps:
-      - name: Analytics Cli Smoke Test Failure
-        uses: slackapi/slack-github-action@v1
-        with:
-          channel-id: staging-notifications
-          payload: |
-            {
-              "blocks": [
-                {
-                  "type": "section",
-                  "text": {
-                    "type": "mrkdwn",
-                    "text": "Release ${{ env.RELEASE }} of the analytics cli is broken on staging! CLI test result: ${{ needs.build_cli.result }}, Ruby gem test result: ${{ needs.test_ruby_gem_staging.result }}. Failed workflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}. Details on responding to this can be found at https://trunk.slite.com/app/docs/zQ99Scfw1VgDSO/Analytics-CLI-Smoke-Tests-Are-Broken"
-                  }
-                }
-              ]
-            }
+  # staging-slack-workflow-status:
+  #   if: always() && github.ref == 'refs/heads/main' && (needs.build_cli.outputs.staging-success != 'true' || needs.test_ruby_gem_staging.result != 'success')
+  #   name: Post Staging Smoke Test Failure
+  #   needs:
+  #     - build_cli
+  #     - test_ruby_gem_staging
+  #   runs-on: ubuntu-latest
+  #   permissions:
+  #     actions: read
+  #   env:
+  #     SLACK_BOT_TOKEN: ${{ secrets.TRUNKBOT_SLACK_BOT_TOKEN }}
+  #   steps:
+  #     - name: Analytics Cli Smoke Test Failure
+  #       uses: slackapi/slack-github-action@v1
+  #       with:
+  #         channel-id: staging-notifications
+  #         payload: |
+  #           {
+  #             "blocks": [
+  #               {
+  #                 "type": "section",
+  #                 "text": {
+  #                   "type": "mrkdwn",
+  #                   "text": "Release ${{ needs.determine_releases.outputs.release }} of the analytics cli is broken on staging! CLI test result: ${{ needs.build_cli.result }}, Ruby gem test result: ${{ needs.test_ruby_gem_staging.result }}. Failed workflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}. Details on responding to this can be found at https://trunk.slite.com/app/docs/zQ99Scfw1VgDSO/Analytics-CLI-Smoke-Tests-Are-Broken"
+  #                 }
+  #               }
+  #             ]
+  #           }
