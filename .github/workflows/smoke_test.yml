@@ -47,10 +47,10 @@ jobs:
           if [ -n "${{ inputs.rspec_release }}" ]; then
             RSPEC_RELEASE="${{ inputs.rspec_release }}"
           else
-            # If latest release contains .beta, change .beta to .pre.beta for rspec release
+            # If latest release contains -beta, change -beta to .pre.beta for rspec release
             # https://guides.rubygems.org/patterns/#prerelease-gems
-            if [[ "$LATEST_RELEASE" == *".beta"* ]]; then
-              RSPEC_RELEASE=$(echo "$LATEST_RELEASE" | sed 's/\.beta/.pre.beta/g')
+            if [[ "$LATEST_RELEASE" == *"-beta"* ]]; then
+              RSPEC_RELEASE=$(echo "$LATEST_RELEASE" | sed 's/-beta/.pre.beta/g')
             else
               RSPEC_RELEASE="$LATEST_RELEASE"
             fi
@@ -83,8 +83,8 @@ jobs:
             binary-name: trunk-analytics-cli
           - name: windows
             os: windows-latest
-            target: x86_64-pc-windows-gnu
-            download-target: x86_64-pc-windows-gnu
+            target: x86_64-pc-windows-gnu-experimental
+            download-target: x86_64-pc-windows-gnu-experimental
             binary-name: trunk-analytics-cli.exe
     steps:
       - name: Checkout
