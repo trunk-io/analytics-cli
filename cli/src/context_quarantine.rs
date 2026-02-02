@@ -81,7 +81,8 @@ fn convert_case_to_test<T: AsRef<str> + ToString>(
 ) -> Test {
     let name = String::from(case.name.as_str());
     let class_name = case.classname.clone();
-    let file = case.extra().get("file").cloned();
+    let extra = case.extra();
+    let file = extra.get("file").or(extra.get("filepath")).cloned();
     // convert timestamp_micros to millis using chrono
     let timestamp_millis = Some(TimeDelta::num_milliseconds(&TimeDelta::microseconds(
         case.timestamp_micros
@@ -661,5 +662,57 @@ mod tests {
 
         assert_eq!(test.name, "test_case");
         assert_eq!(test.failure_message, Some("This is a failure".to_string()));
+    }
+
+    #[test]
+    fn test_convert_case_to_test_file_prefers_file_then_filepath() {
+        use quick_junit::{TestCase, TestCaseStatus, TestSuite};
+
+        let repo = RepoUrlParts {
+            host: "github.com".to_string(),
+            owner: "test-owner".to_string(),
+            name: "test-repo".to_string(),
+        };
+        let org_slug = "test-org";
+        let parent_name = "TestSuite".to_string();
+        let test_suite = TestSuite::new(parent_name.clone());
+
+        // When extra has "file", result uses it
+        let mut with_file =
+            TestCase::new(String::from("test_with_file"), TestCaseStatus::success());
+        with_file
+            .extra
+            .insert("file".into(), "path/from/file".into());
+        let case = BindingsTestCase::from(with_file);
+        let suite = BindingsTestSuite::from(test_suite.clone());
+        let test =
+            super::convert_case_to_test(&repo, org_slug, parent_name.clone(), &case, &suite, "");
+        assert_eq!(test.file, Some("path/from/file".to_string()));
+
+        // When extra has only "filepath", result falls back to it
+        let mut with_filepath_only = TestCase::new(
+            String::from("test_with_filepath"),
+            TestCaseStatus::success(),
+        );
+        with_filepath_only
+            .extra
+            .insert("filepath".into(), "path/from/filepath".into());
+        let case = BindingsTestCase::from(with_filepath_only);
+        let test =
+            super::convert_case_to_test(&repo, org_slug, parent_name.clone(), &case, &suite, "");
+        assert_eq!(test.file, Some("path/from/filepath".to_string()));
+
+        // When extra has both "file" and "filepath", "file" is preferred
+        let mut with_both =
+            TestCase::new(String::from("test_with_both"), TestCaseStatus::success());
+        with_both
+            .extra
+            .insert("file".into(), "path/from/file".into());
+        with_both
+            .extra
+            .insert("filepath".into(), "path/from/filepath".into());
+        let case = BindingsTestCase::from(with_both);
+        let test = super::convert_case_to_test(&repo, org_slug, parent_name, &case, &suite, "");
+        assert_eq!(test.file, Some("path/from/file".to_string()));
     }
 }
