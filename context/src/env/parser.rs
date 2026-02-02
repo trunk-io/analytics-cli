@@ -39,6 +39,8 @@ mod ci_platform_env_key {
     pub const GITLAB_CI: &str = "GITLAB_CI";
     /// https://docs.drone.io/pipeline/environment/reference/drone/
     pub const DRONE: &str = "DRONE";
+    /// https://confluence.atlassian.com/bamboo/bamboo-variables-289277087.html
+    pub const BAMBOO: &str = "bamboo_buildNumber";
     /// Custom environment allowing users to manually set upload metadata using these env vars, all of which are optional:
     /// JOB_URL: Url for the ci job that was run
     /// JOB_NAME: Name of the ci job that was run
@@ -68,6 +70,7 @@ pub enum CIPlatform {
     AzurePipelines,
     GitLabCI,
     Drone,
+    Bamboo,
     Custom,
     Unknown,
 }
@@ -87,6 +90,7 @@ impl From<CIPlatform> for &str {
             CIPlatform::AzurePipelines => ci_platform_env_key::AZURE_PIPELINES,
             CIPlatform::GitLabCI => ci_platform_env_key::GITLAB_CI,
             CIPlatform::Drone => ci_platform_env_key::DRONE,
+            CIPlatform::Bamboo => ci_platform_env_key::BAMBOO,
             CIPlatform::Custom => ci_platform_env_key::CUSTOM,
             CIPlatform::Unknown => "UNKNOWN",
         }
@@ -136,7 +140,8 @@ impl magnus::TryConvert for CIPlatform {
             9 => Ok(CIPlatform::AzurePipelines),
             10 => Ok(CIPlatform::GitLabCI),
             11 => Ok(CIPlatform::Drone),
-            12 => Ok(CIPlatform::Custom),
+            12 => Ok(CIPlatform::Bamboo),
+            13 => Ok(CIPlatform::Custom),
             _ => Err(magnus::Error::new(
                 magnus::Ruby::get_with(val).exception_type_error(),
                 format!("invalid CIPlatform: {}", val),
@@ -160,6 +165,7 @@ impl From<&str> for CIPlatform {
             ci_platform_env_key::AZURE_PIPELINES => CIPlatform::AzurePipelines,
             ci_platform_env_key::GITLAB_CI => CIPlatform::GitLabCI,
             ci_platform_env_key::DRONE => CIPlatform::Drone,
+            ci_platform_env_key::BAMBOO => CIPlatform::Bamboo,
             ci_platform_env_key::CUSTOM => CIPlatform::Custom,
             _ => CIPlatform::Unknown,
         }
@@ -227,6 +233,7 @@ impl<'a> CIInfoParser<'a> {
             CIPlatform::Drone => self.parse_drone(),
             CIPlatform::BitbucketPipelines => self.parse_bitbucket_pipelines(),
             CIPlatform::CircleCI => self.parse_circleci(),
+            CIPlatform::Bamboo => self.parse_bamboo(),
             CIPlatform::Custom => self.parse_custom_info(),
             CIPlatform::TravisCI
             | CIPlatform::Webappio
@@ -474,6 +481,20 @@ impl<'a> CIInfoParser<'a> {
 
         self.ci_info.workflow = self.get_env_var("CIRCLE_WORKFLOW_ID");
         self.ci_info.job = self.get_env_var("CIRCLE_JOB");
+    }
+
+    fn parse_bamboo(&mut self) {
+        self.ci_info.job_url = self
+            .get_env_var("bamboo_buildResultsUrl")
+            .or_else(|| self.get_env_var("bamboo_resultsUrl"));
+        self.ci_info.branch = self
+            .get_env_var("bamboo_planRepository_branch")
+            .or_else(|| self.get_env_var("bamboo_planRepository_branchName"));
+        self.ci_info.pr_number =
+            Self::parse_pr_number(self.get_env_var("bamboo_repository_pr_key"));
+        self.ci_info.actor = self.get_env_var("bamboo_planRepository_username");
+        self.ci_info.workflow = self.get_env_var("bamboo_planName");
+        self.ci_info.job = self.get_env_var("bamboo_shortJobName");
     }
 
     fn get_env_var<T: AsRef<str>>(&self, env_var: T) -> Option<String> {
