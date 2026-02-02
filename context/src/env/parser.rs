@@ -140,8 +140,8 @@ impl magnus::TryConvert for CIPlatform {
             9 => Ok(CIPlatform::AzurePipelines),
             10 => Ok(CIPlatform::GitLabCI),
             11 => Ok(CIPlatform::Drone),
-            12 => Ok(CIPlatform::Bamboo),
-            13 => Ok(CIPlatform::Custom),
+            12 => Ok(CIPlatform::Custom),
+            13 => Ok(CIPlatform::Bamboo),
             _ => Err(magnus::Error::new(
                 magnus::Ruby::get_with(val).exception_type_error(),
                 format!("invalid CIPlatform: {}", val),
