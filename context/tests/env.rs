@@ -1522,3 +1522,151 @@ fn does_not_cross_contaminate_prioritizes_custom() {
 
     pretty_assertions::assert_eq!(ci_info, custom_info);
 }
+
+#[test]
+fn test_simple_bamboo() {
+    let job_url = String::from("https://bamboo.example.com/browse/BUILD-123");
+    let branch = String::from("feature-branch");
+    let actor = String::from("testuser");
+    let workflow = String::from("My Plan");
+    let job = String::from("My Job");
+
+    let env_vars = EnvVars::from_iter(vec![
+        (String::from("bamboo_buildNumber"), String::from("123")),
+        (
+            String::from("bamboo_buildResultsUrl"),
+            String::from(&job_url),
+        ),
+        (
+            String::from("bamboo_planRepository_branch"),
+            String::from(&branch),
+        ),
+        (
+            String::from("bamboo_planRepository_username"),
+            String::from(&actor),
+        ),
+        (String::from("bamboo_planName"), String::from(&workflow)),
+        (String::from("bamboo_shortJobName"), String::from(&job)),
+    ]);
+
+    let mut env_parser = EnvParser::new();
+    env_parser.parse(&env_vars, &[], None);
+
+    let ci_info = env_parser.into_ci_info_parser().unwrap().info_ci_info();
+
+    pretty_assertions::assert_eq!(
+        ci_info,
+        CIInfo {
+            platform: CIPlatform::Bamboo,
+            job_url: Some(job_url),
+            branch: Some(branch),
+            branch_class: Some(BranchClass::None),
+            pr_number: None,
+            actor: Some(actor),
+            committer_name: None,
+            committer_email: None,
+            author_name: None,
+            author_email: None,
+            commit_message: None,
+            title: None,
+            workflow: Some(workflow),
+            job: Some(job),
+        }
+    );
+}
+
+#[test]
+fn test_bamboo_pr() {
+    let job_url = String::from("https://bamboo.example.com/browse/BUILD-222");
+    let branch = String::from("pr-branch");
+    let pr_number = 42;
+    let actor = String::from("pr-author");
+
+    let env_vars = EnvVars::from_iter(vec![
+        (String::from("bamboo_buildNumber"), String::from("222")),
+        (
+            String::from("bamboo_buildResultsUrl"),
+            String::from(&job_url),
+        ),
+        (
+            String::from("bamboo_planRepository_branch"),
+            String::from(&branch),
+        ),
+        (
+            String::from("bamboo_repository_pr_key"),
+            pr_number.to_string(),
+        ),
+        (
+            String::from("bamboo_planRepository_username"),
+            String::from(&actor),
+        ),
+    ]);
+
+    let mut env_parser = EnvParser::new();
+    env_parser.parse(&env_vars, &[], None);
+
+    let ci_info = env_parser.into_ci_info_parser().unwrap().info_ci_info();
+
+    pretty_assertions::assert_eq!(
+        ci_info,
+        CIInfo {
+            platform: CIPlatform::Bamboo,
+            job_url: Some(job_url),
+            branch: Some(branch),
+            branch_class: Some(BranchClass::PullRequest),
+            pr_number: Some(pr_number),
+            actor: Some(actor),
+            committer_name: None,
+            committer_email: None,
+            author_name: None,
+            author_email: None,
+            commit_message: None,
+            title: None,
+            workflow: None,
+            job: None,
+        }
+    );
+}
+
+#[test]
+fn test_bamboo_stable_branch() {
+    let job_url = String::from("https://bamboo.example.com/browse/BUILD-333");
+    let branch = String::from("main");
+
+    let env_vars = EnvVars::from_iter(vec![
+        (String::from("bamboo_buildNumber"), String::from("333")),
+        (
+            String::from("bamboo_buildResultsUrl"),
+            String::from(&job_url),
+        ),
+        (
+            String::from("bamboo_planRepository_branch"),
+            String::from(&branch),
+        ),
+    ]);
+
+    let mut env_parser = EnvParser::new();
+    env_parser.parse(&env_vars, &["main", "master"], None);
+
+    let ci_info = env_parser.into_ci_info_parser().unwrap().info_ci_info();
+
+    pretty_assertions::assert_eq!(
+        ci_info,
+        CIInfo {
+            platform: CIPlatform::Bamboo,
+            job_url: Some(job_url),
+            branch: Some(branch),
+            branch_class: Some(BranchClass::ProtectedBranch),
+            pr_number: None,
+            actor: None,
+            committer_name: None,
+            committer_email: None,
+            author_name: None,
+            author_email: None,
+            commit_message: None,
+            title: None,
+            workflow: None,
+            job: None,
+        }
+    );
+}
