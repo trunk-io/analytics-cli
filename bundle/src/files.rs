@@ -5,7 +5,7 @@ use std::{
     time::SystemTime,
 };
 
-use chrono::{serde::ts_milliseconds, DateTime, Utc};
+use chrono::{DateTime, Utc, serde::ts_milliseconds};
 use codeowners::{CodeOwners, Owners, OwnersOfPath};
 use constants::ALLOW_LIST;
 use context::junit::junit_path::{

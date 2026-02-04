@@ -2,7 +2,7 @@
 name = "test_report"
 # Must be 0.0.0 in order for release workflow to update
 version = "0.0.0"
-edition = "2021"
+edition = "2024"
 
 [dependencies]
 wasm-bindgen = { version = "0.2.95", optional = true }

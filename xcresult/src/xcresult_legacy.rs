@@ -5,11 +5,11 @@ use std::{
 };
 
 use petgraph::{
-    graph::{DiGraph, NodeIndex},
     Direction::Incoming,
+    graph::{DiGraph, NodeIndex},
 };
 
-use crate::types::{legacy_schema, SWIFT_DEFAULT_TEST_SUITE_NAME};
+use crate::types::{SWIFT_DEFAULT_TEST_SUITE_NAME, legacy_schema};
 use crate::xcrun::{xcresulttool_get_object, xcresulttool_get_object_id};
 
 #[derive(Debug, Clone, Default)]
@@ -435,7 +435,7 @@ impl<'a> XCResultTestLegacyNodeTree<'a> {
                         failure_summary_id: None,
                     };
                     let node_index = self.add_node(test_node);
-                    if let Some(ref subtests) = subtests {
+                    if let Some(subtests) = &subtests {
                         self.traverse(&subtests.values, Some(node_index));
                     }
                     if let Some(parent_node) = parent_node {

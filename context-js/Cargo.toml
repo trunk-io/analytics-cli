@@ -2,7 +2,7 @@
 name = "context-js"
 # Needs to match package.json
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 
 [lib]
 crate-type = ["cdylib", "rlib"]
