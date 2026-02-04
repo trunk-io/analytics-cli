@@ -31,24 +31,26 @@ pub fn generate_mock_codeowners<T: AsRef<Path>>(directory: T) {
 
 /// Cleans up all TRUNK_* and CI-related environment variables to avoid test interference
 fn cleanup_env_vars() {
-    env::remove_var(TRUNK_PUBLIC_API_ADDRESS_ENV);
-    env::remove_var(TRUNK_API_TOKEN_ENV);
-    env::remove_var(TRUNK_ORG_URL_SLUG_ENV);
-    env::remove_var(TRUNK_REPO_ROOT_ENV);
-    env::remove_var(TRUNK_REPO_URL_ENV);
-    env::remove_var(TRUNK_REPO_HEAD_SHA_ENV);
-    env::remove_var(TRUNK_REPO_HEAD_BRANCH_ENV);
-    env::remove_var(TRUNK_REPO_HEAD_COMMIT_EPOCH_ENV);
-    env::remove_var(TRUNK_REPO_HEAD_AUTHOR_NAME_ENV);
-    env::remove_var(TRUNK_VARIANT_ENV);
-    env::remove_var(TRUNK_USE_UNCLONED_REPO_ENV);
-    env::remove_var(TRUNK_DISABLE_QUARANTINING_ENV);
-    env::remove_var(TRUNK_ALLOW_EMPTY_TEST_RESULTS_ENV);
-    env::remove_var(TRUNK_DRY_RUN_ENV);
-    env::remove_var(TRUNK_CODEOWNERS_PATH_ENV);
-    env::remove_var("CI");
-    env::remove_var("GITHUB_JOB");
-    env::remove_var(TRUNK_QUARANTINED_TESTS_DISK_CACHE_TTL_SECS_ENV);
+    unsafe {
+        env::remove_var(TRUNK_PUBLIC_API_ADDRESS_ENV);
+        env::remove_var(TRUNK_API_TOKEN_ENV);
+        env::remove_var(TRUNK_ORG_URL_SLUG_ENV);
+        env::remove_var(TRUNK_REPO_ROOT_ENV);
+        env::remove_var(TRUNK_REPO_URL_ENV);
+        env::remove_var(TRUNK_REPO_HEAD_SHA_ENV);
+        env::remove_var(TRUNK_REPO_HEAD_BRANCH_ENV);
+        env::remove_var(TRUNK_REPO_HEAD_COMMIT_EPOCH_ENV);
+        env::remove_var(TRUNK_REPO_HEAD_AUTHOR_NAME_ENV);
+        env::remove_var(TRUNK_VARIANT_ENV);
+        env::remove_var(TRUNK_USE_UNCLONED_REPO_ENV);
+        env::remove_var(TRUNK_DISABLE_QUARANTINING_ENV);
+        env::remove_var(TRUNK_ALLOW_EMPTY_TEST_RESULTS_ENV);
+        env::remove_var(TRUNK_DRY_RUN_ENV);
+        env::remove_var(TRUNK_CODEOWNERS_PATH_ENV);
+        env::remove_var("CI");
+        env::remove_var("GITHUB_JOB");
+        env::remove_var(TRUNK_QUARANTINED_TESTS_DISK_CACHE_TTL_SECS_ENV);
+    }
 }
 
 fn clean_up_cache_files() {
@@ -71,12 +73,14 @@ async fn publish_test_report() {
     let set_current_dir_res = env::set_current_dir(&temp_dir);
     assert!(set_current_dir_res.is_ok());
     let state = MockServerBuilder::new().spawn_mock_server().await;
-    env::set_var(TRUNK_PUBLIC_API_ADDRESS_ENV, &state.host);
-    env::set_var("CI", "1");
-    env::set_var("GITHUB_JOB", "test-job");
-    env::set_var(TRUNK_API_TOKEN_ENV, "test-token");
-    env::set_var(TRUNK_ORG_URL_SLUG_ENV, "test-org");
-    env::set_var(TRUNK_QUARANTINED_TESTS_DISK_CACHE_TTL_SECS_ENV, "0");
+    unsafe {
+        env::set_var(TRUNK_PUBLIC_API_ADDRESS_ENV, &state.host);
+        env::set_var("CI", "1");
+        env::set_var("GITHUB_JOB", "test-job");
+        env::set_var(TRUNK_API_TOKEN_ENV, "test-token");
+        env::set_var(TRUNK_ORG_URL_SLUG_ENV, "test-org");
+        env::set_var(TRUNK_QUARANTINED_TESTS_DISK_CACHE_TTL_SECS_ENV, "0");
+    }
 
     let thread_join_handle = thread::spawn(|| {
         let test_report = MutTestReport::new(
@@ -319,30 +323,32 @@ async fn test_environment_variable_overrides() {
         std::path::PathBuf::from("/tmp")
     });
 
-    // Set all TRUNK_* environment variables to override defaults
-    env::set_var(TRUNK_PUBLIC_API_ADDRESS_ENV, &state.host);
-    env::set_var(TRUNK_API_TOKEN_ENV, "test-token");
-    env::set_var(TRUNK_ORG_URL_SLUG_ENV, "test-org");
-    // Don't set TRUNK_REPO_ROOT when using uncloned repo mode as they conflict
-    env::set_var(
-        TRUNK_REPO_URL_ENV,
-        "https://github.com/test-org/test-repo.git",
-    );
-    env::set_var(TRUNK_REPO_HEAD_SHA_ENV, "abc123def456789");
-    env::set_var(TRUNK_REPO_HEAD_BRANCH_ENV, "feature-branch");
-    env::set_var(TRUNK_REPO_HEAD_COMMIT_EPOCH_ENV, "1234567890");
-    env::set_var(TRUNK_REPO_HEAD_AUTHOR_NAME_ENV, "Test Author");
-    env::set_var(TRUNK_VARIANT_ENV, "env-variant");
-    env::set_var(TRUNK_USE_UNCLONED_REPO_ENV, "true");
-    env::set_var(TRUNK_DISABLE_QUARANTINING_ENV, "true");
-    env::set_var(TRUNK_ALLOW_EMPTY_TEST_RESULTS_ENV, "false");
-    env::set_var(TRUNK_DRY_RUN_ENV, "false");
-    env::set_var(
-        TRUNK_CODEOWNERS_PATH_ENV,
-        temp_dir.path().join("CODEOWNERS").to_str().unwrap(),
-    );
-    env::set_var("CI", "1");
-    env::set_var("GITHUB_JOB", "test-job");
+    unsafe {
+        // Set all TRUNK_* environment variables to override defaults
+        env::set_var(TRUNK_PUBLIC_API_ADDRESS_ENV, &state.host);
+        env::set_var(TRUNK_API_TOKEN_ENV, "test-token");
+        env::set_var(TRUNK_ORG_URL_SLUG_ENV, "test-org");
+        // Don't set TRUNK_REPO_ROOT when using uncloned repo mode as they conflict
+        env::set_var(
+            TRUNK_REPO_URL_ENV,
+            "https://github.com/test-org/test-repo.git",
+        );
+        env::set_var(TRUNK_REPO_HEAD_SHA_ENV, "abc123def456789");
+        env::set_var(TRUNK_REPO_HEAD_BRANCH_ENV, "feature-branch");
+        env::set_var(TRUNK_REPO_HEAD_COMMIT_EPOCH_ENV, "1234567890");
+        env::set_var(TRUNK_REPO_HEAD_AUTHOR_NAME_ENV, "Test Author");
+        env::set_var(TRUNK_VARIANT_ENV, "env-variant");
+        env::set_var(TRUNK_USE_UNCLONED_REPO_ENV, "true");
+        env::set_var(TRUNK_DISABLE_QUARANTINING_ENV, "true");
+        env::set_var(TRUNK_ALLOW_EMPTY_TEST_RESULTS_ENV, "false");
+        env::set_var(TRUNK_DRY_RUN_ENV, "false");
+        env::set_var(
+            TRUNK_CODEOWNERS_PATH_ENV,
+            temp_dir.path().join("CODEOWNERS").to_str().unwrap(),
+        );
+        env::set_var("CI", "1");
+        env::set_var("GITHUB_JOB", "test-job");
+    }
 
     let thread_join_handle = thread::spawn(move || {
         let test_report = MutTestReport::new(
@@ -452,21 +458,23 @@ async fn test_variant_priority_constructor_over_env() {
         std::path::PathBuf::from("/tmp")
     });
 
-    // Set environment variables
-    env::set_var(TRUNK_PUBLIC_API_ADDRESS_ENV, &state.host);
-    env::set_var(TRUNK_API_TOKEN_ENV, "test-token");
-    env::set_var(TRUNK_ORG_URL_SLUG_ENV, "test-org");
-    env::set_var(
-        TRUNK_REPO_URL_ENV,
-        "https://github.com/test-org/test-repo.git",
-    );
-    env::set_var(TRUNK_REPO_HEAD_SHA_ENV, "abc123def456789");
-    env::set_var(TRUNK_REPO_HEAD_BRANCH_ENV, "feature-branch");
-    env::set_var(TRUNK_REPO_HEAD_AUTHOR_NAME_ENV, "Test Author");
-    env::set_var(TRUNK_VARIANT_ENV, "env-variant");
-    env::set_var(TRUNK_USE_UNCLONED_REPO_ENV, "true");
-    env::set_var("CI", "1");
-    env::set_var("GITHUB_JOB", "test-job");
+    unsafe {
+        // Set environment variables
+        env::set_var(TRUNK_PUBLIC_API_ADDRESS_ENV, &state.host);
+        env::set_var(TRUNK_API_TOKEN_ENV, "test-token");
+        env::set_var(TRUNK_ORG_URL_SLUG_ENV, "test-org");
+        env::set_var(
+            TRUNK_REPO_URL_ENV,
+            "https://github.com/test-org/test-repo.git",
+        );
+        env::set_var(TRUNK_REPO_HEAD_SHA_ENV, "abc123def456789");
+        env::set_var(TRUNK_REPO_HEAD_BRANCH_ENV, "feature-branch");
+        env::set_var(TRUNK_REPO_HEAD_AUTHOR_NAME_ENV, "Test Author");
+        env::set_var(TRUNK_VARIANT_ENV, "env-variant");
+        env::set_var(TRUNK_USE_UNCLONED_REPO_ENV, "true");
+        env::set_var("CI", "1");
+        env::set_var("GITHUB_JOB", "test-job");
+    }
 
     let thread_join_handle = thread::spawn(move || {
         let test_report = MutTestReport::new(
@@ -614,14 +622,16 @@ async fn test_variant_impacts_quarantining() {
         builder.spawn_mock_server().await
     };
 
-    env::set_var(TRUNK_PUBLIC_API_ADDRESS_ENV, &state.host);
-    env::set_var(TRUNK_API_TOKEN_ENV, "test-token");
-    env::set_var(TRUNK_ORG_URL_SLUG_ENV, "test-org");
-    env::set_var(TRUNK_USE_UNCLONED_REPO_ENV, "false");
-    env::set_var(TRUNK_QUARANTINED_TESTS_DISK_CACHE_TTL_SECS_ENV, "0");
+    unsafe {
+        env::set_var(TRUNK_PUBLIC_API_ADDRESS_ENV, &state.host);
+        env::set_var(TRUNK_API_TOKEN_ENV, "test-token");
+        env::set_var(TRUNK_ORG_URL_SLUG_ENV, "test-org");
+        env::set_var(TRUNK_USE_UNCLONED_REPO_ENV, "false");
+        env::set_var(TRUNK_QUARANTINED_TESTS_DISK_CACHE_TTL_SECS_ENV, "0");
 
-    // Test with variant1 - should find the quarantined test (without ID)
-    env::set_var(TRUNK_VARIANT_ENV, "variant1");
+        // Test with variant1 - should find the quarantined test (without ID)
+        env::set_var(TRUNK_VARIANT_ENV, "variant1");
+    }
     let test_name_v1 = test_name.clone();
     let test_parent_name_v1 = test_parent_name.clone();
     let test_classname_v1 = test_classname.clone();
@@ -648,7 +658,9 @@ async fn test_variant_impacts_quarantining() {
     );
 
     // Test with variant1 - should find the quarantined test (with ID)
-    env::set_var(TRUNK_VARIANT_ENV, "variant1");
+    unsafe {
+        env::set_var(TRUNK_VARIANT_ENV, "variant1");
+    }
     let test_name_v1_id = test_name.clone();
     let test_parent_name_v1_id = test_parent_name.clone();
     let test_classname_v1_id = test_classname.clone();
@@ -672,7 +684,9 @@ async fn test_variant_impacts_quarantining() {
     );
 
     // Test with variant2 - should NOT find the quarantined test (different variant, without ID)
-    env::set_var(TRUNK_VARIANT_ENV, "variant2");
+    unsafe {
+        env::set_var(TRUNK_VARIANT_ENV, "variant2");
+    }
     let test_name_v2 = test_name.clone();
     let test_parent_name_v2 = test_parent_name.clone();
     let test_classname_v2 = test_classname.clone();
@@ -695,7 +709,9 @@ async fn test_variant_impacts_quarantining() {
     );
 
     // Test with variant2 - should NOT find the quarantined test (different variant, with ID)
-    env::set_var(TRUNK_VARIANT_ENV, "variant2");
+    unsafe {
+        env::set_var(TRUNK_VARIANT_ENV, "variant2");
+    }
     let test_name_v2_id = test_name.clone();
     let test_parent_name_v2_id = test_parent_name.clone();
     let test_classname_v2_id = test_classname.clone();
@@ -719,7 +735,9 @@ async fn test_variant_impacts_quarantining() {
     );
 
     // Test with no variant - should NOT find the quarantined test (without ID)
-    env::remove_var(TRUNK_VARIANT_ENV);
+    unsafe {
+        env::remove_var(TRUNK_VARIANT_ENV);
+    }
     let test_name_v3 = test_name.clone();
     let test_parent_name_v3 = test_parent_name.clone();
     let test_classname_v3 = test_classname.clone();
@@ -742,7 +760,9 @@ async fn test_variant_impacts_quarantining() {
     );
 
     // Test with no variant - should NOT find the quarantined test (with ID)
-    env::remove_var(TRUNK_VARIANT_ENV);
+    unsafe {
+        env::remove_var(TRUNK_VARIANT_ENV);
+    }
     let test_name_v3_id = test_name.clone();
     let test_parent_name_v3_id = test_parent_name.clone();
     let test_classname_v3_id = test_classname.clone();
@@ -791,12 +811,14 @@ async fn test_get_quarantine_config_disk_cache() {
     let test_classname_2 = Some("TestClass2".to_string());
     let test_file_2 = Some("test_file_2.rs".to_string());
 
-    env::set_var(TRUNK_ORG_URL_SLUG_ENV, "test-org");
-    env::set_var(TRUNK_REPO_URL_ENV, repo_url_1);
-    env::set_var(TRUNK_USE_UNCLONED_REPO_ENV, "true");
-    env::set_var(TRUNK_REPO_HEAD_SHA_ENV, "");
-    env::set_var(TRUNK_REPO_HEAD_BRANCH_ENV, "");
-    env::set_var(TRUNK_REPO_HEAD_AUTHOR_NAME_ENV, "");
+    unsafe {
+        env::set_var(TRUNK_ORG_URL_SLUG_ENV, "test-org");
+        env::set_var(TRUNK_REPO_URL_ENV, repo_url_1);
+        env::set_var(TRUNK_USE_UNCLONED_REPO_ENV, "true");
+        env::set_var(TRUNK_REPO_HEAD_SHA_ENV, "");
+        env::set_var(TRUNK_REPO_HEAD_BRANCH_ENV, "");
+        env::set_var(TRUNK_REPO_HEAD_AUTHOR_NAME_ENV, "");
+    }
 
     use context::repo::BundleRepo;
     let bundle_repo_1 = BundleRepo::new(
@@ -822,7 +844,9 @@ async fn test_get_quarantine_config_disk_cache() {
     )
     .id;
 
-    env::set_var(TRUNK_REPO_URL_ENV, repo_url_2);
+    unsafe {
+        env::set_var(TRUNK_REPO_URL_ENV, repo_url_2);
+    }
     let bundle_repo_2 = BundleRepo::new(
         env::var(TRUNK_REPO_ROOT_ENV).ok(),
         env::var(TRUNK_REPO_URL_ENV).ok(),
@@ -846,7 +870,9 @@ async fn test_get_quarantine_config_disk_cache() {
     )
     .id;
 
-    env::set_var(TRUNK_REPO_URL_ENV, repo_url_1);
+    unsafe {
+        env::set_var(TRUNK_REPO_URL_ENV, repo_url_1);
+    }
 
     // test_id_1 and test_id_2 are quarantined
     use api::message::GetQuarantineConfigResponse;
@@ -874,8 +900,10 @@ async fn test_get_quarantine_config_disk_cache() {
         builder.spawn_mock_server().await
     };
 
-    env::set_var(TRUNK_PUBLIC_API_ADDRESS_ENV, &state.host);
-    env::set_var(TRUNK_API_TOKEN_ENV, "test-token");
+    unsafe {
+        env::set_var(TRUNK_PUBLIC_API_ADDRESS_ENV, &state.host);
+        env::set_var(TRUNK_API_TOKEN_ENV, "test-token");
+    }
 
     let (test_1_is_quarantined, test_3_is_quarantined) = thread::spawn(|| {
         let test_report_1 = MutTestReport::new("test".into(), "test-command-1".into(), None);
@@ -947,7 +975,9 @@ async fn test_get_quarantine_config_disk_cache() {
     }
 
     // third test report with different repo - should make a new API call due to cache miss
-    env::set_var(TRUNK_REPO_URL_ENV, repo_url_2);
+    unsafe {
+        env::set_var(TRUNK_REPO_URL_ENV, repo_url_2);
+    }
 
     thread::spawn(|| {
         let test_report_3 = MutTestReport::new("test".into(), "test-command-3".into(), None);

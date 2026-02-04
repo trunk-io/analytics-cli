@@ -1,6 +1,6 @@
 [package]
 name = "trunk-analytics-cli"
-edition = "2021"
+edition = "2024"
 # Must be 0.0.0 in order for release workflow to update
 version = "0.0.0"
 

@@ -3,7 +3,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use glob::glob;
 use regex::Regex;
 use sysinfo::System;
@@ -224,7 +224,7 @@ mod tests {
     fn test_extract_github_external_id_returns_some_when_in_github_actions() {
         // Test that the function returns Some(external_id) when running in GitHub Actions
         // Set GITHUB_ACTIONS to simulate running in GitHub Actions
-        env::set_var("GITHUB_ACTIONS", "true");
+        unsafe { env::set_var("GITHUB_ACTIONS", "true") };
 
         // Note: This test would require mocking the process finding and log file reading
         // In the test environment, the process finding will likely fail, so we expect Ok(None)
@@ -246,6 +246,6 @@ mod tests {
         }
 
         // Clean up
-        env::remove_var("GITHUB_ACTIONS");
+        unsafe { env::remove_var("GITHUB_ACTIONS") };
     }
 }

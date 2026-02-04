@@ -769,7 +769,7 @@ impl<'a> EnvParser<'a> {
         Default::default()
     }
 
-    pub fn ci_info_parser(&self) -> &Option<CIInfoParser> {
+    pub fn ci_info_parser(&self) -> &Option<CIInfoParser<'_>> {
         &self.ci_info_parser
     }
 
