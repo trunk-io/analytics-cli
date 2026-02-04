@@ -351,6 +351,18 @@ impl VersionedBundle {
             _ => None,
         }
     }
+
+    pub fn variant(&self) -> Option<&String> {
+        match self {
+            Self::V0_7_8(data) => data.variant.as_ref(),
+            Self::V0_7_7(data) => data.variant.as_ref(),
+            Self::V0_7_6(data) => data.variant.as_ref(),
+            Self::V0_6_3(data) => None,
+            Self::V0_6_2(data) => None,
+            Self::V0_5_34(data) => None,
+            Self::V0_5_29(data) => None,
+        }
+    }
 }
 
 #[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
