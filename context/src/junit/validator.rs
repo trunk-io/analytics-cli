@@ -1,6 +1,6 @@
-use std::{cmp::Ordering, collections::HashSet, fmt};
+use std::{cmp::Ordering, collections::HashSet, fmt, marker};
 
-use chrono::{DateTime, FixedOffset, TimeDelta};
+use chrono::{DateTime, Datelike, FixedOffset, TimeDelta};
 #[cfg(feature = "pyo3")]
 use pyo3::prelude::*;
 #[cfg(feature = "pyo3")]
@@ -19,8 +19,14 @@ use crate::{
 
 pub const MAX_FIELD_LEN: usize = 1_000;
 
-const TIMESTAMP_OLD_HOURS: u32 = 24;
-const TIMESTAMP_STALE_HOURS: u32 = 1;
+pub const TIMESTAMP_OLD_HOURS: u32 = 24;
+pub const TIMESTAMP_STALE_HOURS: u32 = 1;
+
+/// Don't even consider timestamps older than this reference date time delta when validating
+/// timestamps. These timestamps are considered to be defaulted by the test runner, test reporter,
+/// or test suite, so they are unactionable and should be ignored.
+pub const DISCARD_DEFAULTED_TIMESTAMP_OLDER_THAN_REFERENCE_TIMESTAMP: TimeDelta =
+    TimeDelta::days(30);
 
 #[cfg_attr(feature = "pyo3", gen_stub_pyclass_enum, pyclass(eq, eq_int))]
 #[cfg_attr(feature = "wasm", wasm_bindgen)]
@@ -741,54 +747,53 @@ fn validate_test_case_timestamp(
     test_runner_report: Option<TestRunnerReport>,
     reference_timestamp: DateTime<FixedOffset>,
 ) -> Vec<JunitTestCaseValidationIssueSubOptimal> {
+    let timestamp_with_fallbacks = [test_case_timestamp, test_suite_timestamp, report_timestamp]
+        .iter()
+        .find_map(|ts| ts.discard_defaulted_timestamp(reference_timestamp));
+
+    let Some(timestamp) = timestamp_with_fallbacks else {
+        return vec![JunitTestCaseValidationIssueSubOptimal::TestCaseNoTimestamp];
+    };
+
+    let test_runner_report_start_time_override_timestamp_diff = test_runner_report
+        .as_ref()
+        .map(|test_runner_report| {
+            let ts_diff_from = report_timestamp
+                .or(test_suite_timestamp)
+                .unwrap_or(timestamp);
+            test_runner_report
+                .start_time
+                .signed_duration_since(ts_diff_from)
+        })
+        .unwrap_or_default();
+
+    let timestamp = timestamp
+        .checked_add_signed(test_runner_report_start_time_override_timestamp_diff)
+        .unwrap_or(timestamp);
+
     let mut issues: Vec<JunitTestCaseValidationIssueSubOptimal> = Vec::new();
 
-    if let Some(timestamp) = test_case_timestamp
-        .or(test_suite_timestamp)
-        .or(report_timestamp)
-    {
-        let test_runner_report_start_time_override_timestamp_diff =
-            if let Some(ref test_runner_report) = test_runner_report {
-                let ts_diff_from = report_timestamp
-                    .or(test_suite_timestamp)
-                    .unwrap_or(timestamp);
-                test_runner_report
-                    .start_time
-                    .signed_duration_since(ts_diff_from)
-            } else {
-                TimeDelta::zero()
-            };
-        let timestamp = timestamp
-            .checked_add_signed(test_runner_report_start_time_override_timestamp_diff)
-            .unwrap_or(timestamp);
-
-        match validate_timestamp(timestamp, reference_timestamp) {
-            TimestampValidation::Future(timestamp) => {
-                issues.push(
-                    JunitTestCaseValidationIssueSubOptimal::TestCaseFutureTimestamp(timestamp),
-                );
-            }
-            TimestampValidation::Old(timestamp) => {
-                issues
-                    .push(JunitTestCaseValidationIssueSubOptimal::TestCaseOldTimestamp(timestamp));
-            }
-            TimestampValidation::Stale(timestamp) => {
-                issues.push(
-                    JunitTestCaseValidationIssueSubOptimal::TestCaseStaleTimestamp(timestamp),
-                );
-            }
-            TimestampValidation::Valid => {}
-        };
-
-        if let Some(ref test_runner_report) = test_runner_report {
-            if let TimestampValidation::Future(timestamp) =
-                validate_timestamp(timestamp, test_runner_report.start_time)
-            {
-                issues.push(JunitTestCaseValidationIssueSubOptimal::TestCaseTimestampIsAfterTestReportEndTime(timestamp));
-            }
+    match validate_timestamp(timestamp, reference_timestamp) {
+        TimestampValidation::Future(timestamp) => {
+            issues.push(JunitTestCaseValidationIssueSubOptimal::TestCaseFutureTimestamp(timestamp));
         }
-    } else {
-        issues.push(JunitTestCaseValidationIssueSubOptimal::TestCaseNoTimestamp);
+        TimestampValidation::Old(timestamp) => {
+            issues.push(JunitTestCaseValidationIssueSubOptimal::TestCaseOldTimestamp(timestamp));
+        }
+        TimestampValidation::Stale(timestamp) => {
+            issues.push(JunitTestCaseValidationIssueSubOptimal::TestCaseStaleTimestamp(timestamp));
+        }
+        TimestampValidation::Valid => {}
+    };
+
+    if let Some(TimestampValidation::Future(timestamp)) = test_runner_report
+        .map(|test_runner_report| validate_timestamp(timestamp, test_runner_report.start_time))
+    {
+        issues.push(
+            JunitTestCaseValidationIssueSubOptimal::TestCaseTimestampIsAfterTestReportEndTime(
+                timestamp,
+            ),
+        );
     }
 
     issues
@@ -816,5 +821,22 @@ fn validate_timestamp<T: Into<DateTime<FixedOffset>>, U: Into<DateTime<FixedOffs
         TimestampValidation::Stale(timestamp)
     } else {
         TimestampValidation::Valid
+    }
+}
+
+trait DiscardDefaultedTimestamp<T: Into<DateTime<FixedOffset>>> {
+    fn discard_defaulted_timestamp(self, reference_timestamp: T) -> Self
+    where
+        Self: marker::Sized;
+}
+
+impl DiscardDefaultedTimestamp<DateTime<FixedOffset>> for Option<DateTime<FixedOffset>> {
+    fn discard_defaulted_timestamp(self, reference_timestamp: DateTime<FixedOffset>) -> Self {
+        self.filter(|timestamp| {
+            *timestamp
+                > reference_timestamp
+                    .checked_sub_signed(DISCARD_DEFAULTED_TIMESTAMP_OLDER_THAN_REFERENCE_TIMESTAMP)
+                    .unwrap_or_default()
+        })
     }
 }
