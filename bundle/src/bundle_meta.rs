@@ -337,10 +337,10 @@ impl VersionedBundle {
         }
     }
 
-    pub fn internal_bundled_file(&self) -> Option<BundledFile> {
+    pub fn internal_bundled_file(&self) -> Option<&BundledFile> {
         match self {
-            Self::V0_7_8(data) => data.internal_bundled_file.clone(),
-            Self::V0_7_7(data) => data.internal_bundled_file.clone(),
+            Self::V0_7_8(data) => data.internal_bundled_file.as_ref(),
+            Self::V0_7_7(data) => data.internal_bundled_file.as_ref(),
             _ => None,
         }
     }
