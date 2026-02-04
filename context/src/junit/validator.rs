@@ -1,6 +1,6 @@
 use std::{cmp::Ordering, collections::HashSet, fmt, marker};
 
-use chrono::{DateTime, Datelike, FixedOffset, TimeDelta};
+use chrono::{DateTime, FixedOffset, TimeDelta};
 #[cfg(feature = "pyo3")]
 use pyo3::prelude::*;
 #[cfg(feature = "pyo3")]
