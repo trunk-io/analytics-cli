@@ -340,16 +340,21 @@ mod tests {
     #[cfg(feature = "bindings")]
     #[test]
     fn parse_test_report_to_bindings() {
+        use chrono::{Days, Utc};
         use prost_wkt_types::Timestamp;
         use proto::test_context::test_run::TestOutput;
 
         use crate::junit::validator::validate;
+        let two_days_ago = Utc::now()
+            .checked_sub_days(Days::new(2))
+            .unwrap()
+            .timestamp();
         let test_started_at = Timestamp {
-            seconds: 1000,
+            seconds: two_days_ago,
             nanos: 0,
         };
         let test_finished_at = Timestamp {
-            seconds: 2000,
+            seconds: two_days_ago + 1000,
             nanos: 0,
         };
         let codeowner1 = CodeOwner {

@@ -290,51 +290,69 @@ fn validate_max_level() {
 
 #[test]
 fn validate_timestamps() {
-    let (seed, mut generated_reports) = generate_mock_junit_reports(1, Some(1), Some(4));
-    let mut generated_report = generated_reports.pop().unwrap();
-    let generated_report_timestamp = generated_report.timestamp.unwrap();
+    let (seed, mut generated_reports) = generate_mock_junit_reports(3, Some(1), Some(5));
+    for (generated_report_index, generated_report) in generated_reports.iter_mut().enumerate() {
+        let generated_report_start_time = generated_report.timestamp.unwrap();
+        let generated_report_end_time =
+            generated_report_start_time + generated_report.time.unwrap();
 
-    for test_suite in &mut generated_report.test_suites {
-        for (index, test_case) in &mut test_suite.test_cases.iter_mut().enumerate() {
-            match index {
-                0 => {
-                    // future timestamp
-                    test_case.timestamp = Utc::now()
-                        .fixed_offset()
-                        .checked_add_signed(TimeDelta::hours(1));
-                }
-                1 => {
-                    // stale timestamp
-                    test_case.timestamp =
-                        generated_report_timestamp.checked_sub_signed(TimeDelta::hours(1))
-                }
-                2 => {
-                    // old timestamp
-                    test_case.timestamp =
-                        generated_report_timestamp.checked_sub_signed(TimeDelta::hours(24))
-                }
-                _ => {
-                    // valid timestamp
-                }
-            };
+        for test_suite in &mut generated_report.test_suites {
+            for (index, test_case) in &mut test_suite.test_cases.iter_mut().enumerate() {
+                match index {
+                    0 => {
+                        // future timestamp
+                        test_case.timestamp =
+                            generated_report_end_time.checked_add_signed(TimeDelta::hours(1));
+                    }
+                    1 => {
+                        // stale timestamp
+                        test_case.timestamp = generated_report_start_time.checked_sub_signed(
+                            TimeDelta::hours((junit::validator::TIMESTAMP_STALE_HOURS + 1) as i64),
+                        )
+                    }
+                    2 => {
+                        // old timestamp
+                        test_case.timestamp = generated_report_start_time.checked_sub_signed(
+                            TimeDelta::hours((junit::validator::TIMESTAMP_OLD_HOURS + 1) as i64),
+                        )
+                    }
+                    3 => {
+                        // discarded timestamp
+                        test_case.timestamp = generated_report_start_time.checked_sub_signed(junit::validator::DISCARD_DEFAULTED_TIMESTAMP_OLDER_THAN_REFERENCE_TIMESTAMP + TimeDelta::days(1))
+                    }
+                    _ => {
+                        // valid timestamp
+                    }
+                };
+            }
+            // remove discarded timestamp test suite fallback
+            if generated_report_index > 0 {
+                test_suite.timestamp = None;
+            }
         }
-    }
+        // remove discarded timestamp report fallback
+        if generated_report_index > 1 {
+            generated_report.timestamp = None;
+        }
 
-    let bindings_report = BindingsReport::from(generated_report.clone());
-    let bindings_validation =
-        junit::validator::validate(&bindings_report, &None, Utc::now().fixed_offset());
-    let report_validation = JunitReportValidation::from(bindings_validation);
+        let bindings_report = BindingsReport::from(generated_report.clone());
+        let bindings_validation = junit::validator::validate(
+            &bindings_report,
+            &None,
+            generated_report_end_time
+                .checked_add_signed(TimeDelta::minutes(10))
+                .unwrap(),
+        );
+        let report_validation = JunitReportValidation::from(bindings_validation);
 
-    assert_eq!(
-        report_validation.max_level(),
-        JunitValidationLevel::SubOptimal,
-        "failed to validate with seed `{}`",
-        seed,
-    );
+        assert_eq!(
+            report_validation.max_level(),
+            JunitValidationLevel::SubOptimal,
+            "failed to validate with seed `{}`",
+            seed,
+        );
 
-    pretty_assertions::assert_eq!(
-        report_validation.all_issues(),
-        vec![
+        let mut expected_issues = vec![
             JunitValidationIssueType::Report(JunitReportValidationIssue::SubOptimal(
                 JunitReportValidationIssueSubOptimal::OldTimestamps,
             )),
@@ -344,10 +362,24 @@ fn validate_timestamps() {
             JunitValidationIssueType::Report(JunitReportValidationIssue::SubOptimal(
                 JunitReportValidationIssueSubOptimal::FutureTimestamps,
             )),
-        ],
-        "failed to validate with seed `{}`",
-        seed,
-    );
+        ];
+        // discarded timestamps have fallbacks, so timestamps are only reported missing if there's
+        // other non-discarded timestamps present
+        if generated_report_index > 1 {
+            expected_issues.push(JunitValidationIssueType::Report(
+                JunitReportValidationIssue::SubOptimal(
+                    JunitReportValidationIssueSubOptimal::MissingTimestamps,
+                ),
+            ));
+        }
+
+        pretty_assertions::assert_eq!(
+            report_validation.all_issues(),
+            expected_issues,
+            "failed to validate with seed `{}`",
+            seed,
+        );
+    }
 }
 
 #[test]
