@@ -42,6 +42,8 @@ mod ci_platform_env_key {
     pub const DRONE: &str = "DRONE";
     /// https://confluence.atlassian.com/bamboo/bamboo-variables-289277087.html
     pub const BAMBOO: &str = "bamboo_buildNumber";
+    /// https://docs.cloud.google.com/build/docs/configuring-builds/substitute-variable-values
+    pub const GOOGLE_CLOUD_BUILD: &str = "TRIGGER_NAME";
     /// Custom environment allowing users to manually set upload metadata using these env vars, all of which are optional:
     /// JOB_URL: Url for the ci job that was run
     /// JOB_NAME: Name of the ci job that was run
@@ -72,6 +74,7 @@ pub enum CIPlatform {
     GitLabCI,
     Drone,
     Bamboo,
+    GoogleCloudBuild,
     Custom,
     Unknown,
 }
@@ -92,6 +95,7 @@ impl From<CIPlatform> for &str {
             CIPlatform::GitLabCI => ci_platform_env_key::GITLAB_CI,
             CIPlatform::Drone => ci_platform_env_key::DRONE,
             CIPlatform::Bamboo => ci_platform_env_key::BAMBOO,
+            CIPlatform::GoogleCloudBuild => ci_platform_env_key::GOOGLE_CLOUD_BUILD,
             CIPlatform::Custom => ci_platform_env_key::CUSTOM,
             CIPlatform::Unknown => "UNKNOWN",
         }
@@ -115,10 +119,14 @@ impl CIPlatform {
     // between the two)
     fn prioritize(self, other: CIPlatform) -> CIPlatform {
         match (self, other) {
-            (CIPlatform::Custom, _) => CIPlatform::Custom,
-            (_, CIPlatform::Custom) => CIPlatform::Custom,
-            (CIPlatform::Unknown, anything_else) => anything_else,
-            (anything_else, CIPlatform::Unknown) => anything_else,
+            (CIPlatform::Custom, _) | (_, CIPlatform::Custom) => CIPlatform::Custom,
+            (CIPlatform::GoogleCloudBuild, CIPlatform::JenkinsPipeline)
+            | (CIPlatform::JenkinsPipeline, CIPlatform::GoogleCloudBuild) => {
+                CIPlatform::GoogleCloudBuild
+            }
+            (CIPlatform::Unknown, anything_else) | (anything_else, CIPlatform::Unknown) => {
+                anything_else
+            }
             (_, _) => self,
         }
     }
@@ -143,6 +151,7 @@ impl magnus::TryConvert for CIPlatform {
             11 => Ok(CIPlatform::Drone),
             12 => Ok(CIPlatform::Custom),
             13 => Ok(CIPlatform::Bamboo),
+            14 => Ok(CIPlatform::GoogleCloudBuild),
             _ => Err(magnus::Error::new(
                 magnus::Ruby::get_with(val).exception_type_error(),
                 format!("invalid CIPlatform: {}", val),
@@ -167,6 +176,7 @@ impl From<&str> for CIPlatform {
             ci_platform_env_key::GITLAB_CI => CIPlatform::GitLabCI,
             ci_platform_env_key::DRONE => CIPlatform::Drone,
             ci_platform_env_key::BAMBOO => CIPlatform::Bamboo,
+            ci_platform_env_key::GOOGLE_CLOUD_BUILD => CIPlatform::GoogleCloudBuild,
             ci_platform_env_key::CUSTOM => CIPlatform::Custom,
             _ => CIPlatform::Unknown,
         }
@@ -235,6 +245,7 @@ impl<'a> CIInfoParser<'a> {
             CIPlatform::BitbucketPipelines => self.parse_bitbucket_pipelines(),
             CIPlatform::CircleCI => self.parse_circleci(),
             CIPlatform::Bamboo => self.parse_bamboo(),
+            CIPlatform::GoogleCloudBuild => self.parse_google_cloud_build(),
             CIPlatform::Custom => self.parse_custom_info(),
             CIPlatform::TravisCI
             | CIPlatform::Webappio
@@ -495,6 +506,23 @@ impl<'a> CIInfoParser<'a> {
         self.ci_info.actor = self.get_env_var("bamboo_planRepository_username");
         self.ci_info.workflow = self.get_env_var("bamboo_planName");
         self.ci_info.job = self.get_env_var("bamboo_shortJobName");
+    }
+
+    fn parse_google_cloud_build(&mut self) {
+        self.ci_info.branch = self
+            .get_env_var("_HEAD_BRANCH")
+            .or_else(|| self.get_env_var("BRANCH_NAME"));
+        self.ci_info.pr_number = Self::parse_pr_number(self.get_env_var("_PR_NUMBER"));
+        self.ci_info.workflow = self.get_env_var("TRIGGER_NAME");
+        let build_id = self.get_env_var("BUILD_ID");
+        if let Some(build_id) = build_id {
+            if let Some(project_id) = self.get_env_var("PROJECT_ID") {
+                self.ci_info.job_url = Some(format!(
+                    "https://console.cloud.google.com/cloud-build/builds/{build_id}?project={project_id}"
+                ));
+            }
+            self.ci_info.job = Some(build_id);
+        }
     }
 
     fn get_env_var<T: AsRef<str>>(&self, env_var: T) -> Option<String> {
