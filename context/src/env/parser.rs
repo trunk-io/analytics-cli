@@ -512,7 +512,7 @@ impl<'a> CIInfoParser<'a> {
         self.ci_info.branch = self
             .get_env_var("_HEAD_BRANCH")
             .or_else(|| self.get_env_var("BRANCH_NAME"));
-        self.ci_info.pr_number = Self::parse_pr_number(self.get_env_var("_PR_NUMBER"));
+        self.ci_info.pr_number = self.parse_pr_number(self.get_env_var("_PR_NUMBER"));
         self.ci_info.workflow = self.get_env_var("TRIGGER_NAME");
         let build_id = self.get_env_var("BUILD_ID");
         if let Some(build_id) = build_id {

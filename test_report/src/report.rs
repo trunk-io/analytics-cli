@@ -624,6 +624,9 @@ impl MutTestReport {
             .ok()
             .and_then(|v| v.parse().ok())
             .unwrap_or(false);
+        upload_args.pr_number = env::var(constants::TRUNK_PR_NUMBER_ENV)
+            .ok()
+            .and_then(|v| v.parse::<usize>().ok());
         let debug_props = BundleMetaDebugProps {
             command_line: self.0.borrow().command.clone(),
         };
