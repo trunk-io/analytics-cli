@@ -5,7 +5,7 @@ use axum::{Json, extract::State};
 use bundle::{BundleMeta, FileSetType, Test};
 use constants::{
     TRUNK_ALLOW_EMPTY_TEST_RESULTS_ENV, TRUNK_API_TOKEN_ENV, TRUNK_CODEOWNERS_PATH_ENV,
-    TRUNK_DISABLE_QUARANTINING_ENV, TRUNK_DRY_RUN_ENV, TRUNK_ORG_URL_SLUG_ENV,
+    TRUNK_DISABLE_QUARANTINING_ENV, TRUNK_DRY_RUN_ENV, TRUNK_ORG_URL_SLUG_ENV, TRUNK_PR_NUMBER_ENV,
     TRUNK_PUBLIC_API_ADDRESS_ENV, TRUNK_QUARANTINED_TESTS_DISK_CACHE_TTL_SECS_ENV,
     TRUNK_REPO_HEAD_AUTHOR_NAME_ENV, TRUNK_REPO_HEAD_BRANCH_ENV, TRUNK_REPO_HEAD_COMMIT_EPOCH_ENV,
     TRUNK_REPO_HEAD_SHA_ENV, TRUNK_REPO_ROOT_ENV, TRUNK_REPO_URL_ENV, TRUNK_USE_UNCLONED_REPO_ENV,
@@ -346,6 +346,7 @@ async fn test_environment_variable_overrides() {
             TRUNK_CODEOWNERS_PATH_ENV,
             temp_dir.path().join("CODEOWNERS").to_str().unwrap(),
         );
+        env::set_var(TRUNK_PR_NUMBER_ENV, "123");
         env::set_var("CI", "1");
         env::set_var("GITHUB_JOB", "test-job");
     }
@@ -432,6 +433,11 @@ async fn test_environment_variable_overrides() {
     if let Some(uploader_metadata) = &test_result.uploader_metadata {
         assert_eq!(uploader_metadata.variant, "env-variant");
     }
+
+    assert_eq!(
+        base_props.envs.get(TRUNK_PR_NUMBER_ENV),
+        Some(&String::from("123"))
+    );
 
     // Clean up environment variables
     cleanup_env_vars();

@@ -1,3 +1,4 @@
+use constants::TRUNK_PR_NUMBER_ENV;
 #[cfg(feature = "ruby")]
 use magnus::{Module, Object, value::ReprValue};
 use percent_encoding::{AsciiSet, CONTROLS, utf8_percent_encode};
@@ -304,7 +305,7 @@ impl<'a> CIInfoParser<'a> {
         self.ci_info.branch = self.get_env_var("COMMIT_BRANCH");
         self.ci_info.commit_message = self.get_env_var("COMMIT_MESSAGE");
 
-        self.ci_info.pr_number = Self::parse_pr_number(self.get_env_var("PR_NUMBER"));
+        self.ci_info.pr_number = self.parse_pr_number(self.get_env_var("PR_NUMBER"));
         self.ci_info.title = self.get_env_var("PR_TITLE");
     }
 
@@ -316,7 +317,7 @@ impl<'a> CIInfoParser<'a> {
                     .unwrap_or(gh_ref.as_str())
                     .splitn(3, '/')
                     .last();
-                self.ci_info.pr_number = Self::parse_pr_number(stripped_ref);
+                self.ci_info.pr_number = self.parse_pr_number(stripped_ref);
             }
             if let Some(gh_head_ref) = self.get_env_var("GITHUB_HEAD_REF") {
                 self.ci_info.branch = Some(gh_head_ref);
@@ -352,7 +353,7 @@ impl<'a> CIInfoParser<'a> {
         self.ci_info.branch = self
             .get_env_var("CHANGE_BRANCH")
             .or_else(|| self.get_env_var("BRANCH_NAME"));
-        self.ci_info.pr_number = Self::parse_pr_number(self.get_env_var("CHANGE_ID"));
+        self.ci_info.pr_number = self.parse_pr_number(self.get_env_var("CHANGE_ID"));
         self.ci_info.actor = self.get_env_var("CHANGE_AUTHOR_EMAIL");
         self.ci_info.committer_name = self.get_env_var("CHANGE_AUTHOR_DISPLAY_NAME");
         self.ci_info.committer_email = self.get_env_var("CHANGE_AUTHOR_EMAIL");
@@ -368,7 +369,7 @@ impl<'a> CIInfoParser<'a> {
             self.ci_info.job_url = Some(format!("{}#{}", url, id));
         }
         self.ci_info.branch = self.get_env_var("BUILDKITE_BRANCH");
-        self.ci_info.pr_number = Self::parse_pr_number(self.get_env_var("BUILDKITE_PULL_REQUEST"));
+        self.ci_info.pr_number = self.parse_pr_number(self.get_env_var("BUILDKITE_PULL_REQUEST"));
         self.ci_info.actor = self.get_env_var("BUILDKITE_BUILD_AUTHOR_EMAIL");
         self.ci_info.committer_name = self.get_env_var("BUILDKITE_BUILD_AUTHOR");
         self.ci_info.committer_email = self.get_env_var("BUILDKITE_BUILD_AUTHOR_EMAIL");
@@ -388,7 +389,7 @@ impl<'a> CIInfoParser<'a> {
             .get_env_var("SEMAPHORE_GIT_PR_BRANCH")
             .or_else(|| self.get_env_var("SEMAPHORE_GIT_WORKING_BRANCH"))
             .or_else(|| self.get_env_var("SEMAPHORE_GIT_BRANCH"));
-        self.ci_info.pr_number = Self::parse_pr_number(self.get_env_var("SEMAPHORE_GIT_PR_NUMBER"));
+        self.ci_info.pr_number = self.parse_pr_number(self.get_env_var("SEMAPHORE_GIT_PR_NUMBER"));
         self.ci_info.actor = self.get_env_var("SEMAPHORE_GIT_COMMIT_AUTHOR");
         self.ci_info.committer_name = self.get_env_var("SEMAPHORE_GIT_COMMITTER");
         self.ci_info.author_name = self.get_env_var("SEMAPHORE_GIT_COMMIT_AUTHOR");
@@ -410,7 +411,7 @@ impl<'a> CIInfoParser<'a> {
                 branch
             });
         }
-        self.ci_info.pr_number = Self::parse_pr_number(self.get_env_var("CI_MERGE_REQUEST_IID"));
+        self.ci_info.pr_number = self.parse_pr_number(self.get_env_var("CI_MERGE_REQUEST_IID"));
         // `CI_COMMIT_AUTHOR` has format `Name <email>`
         // https://docs.gitlab.com/ee/ci/variables/predefined_variables.html
         if let Some((name, email)) = self
@@ -438,7 +439,7 @@ impl<'a> CIInfoParser<'a> {
 
     fn parse_drone(&mut self) {
         self.ci_info.branch = self.get_env_var("DRONE_SOURCE_BRANCH");
-        self.ci_info.pr_number = Self::parse_pr_number(self.get_env_var("DRONE_PULL_REQUEST"));
+        self.ci_info.pr_number = self.parse_pr_number(self.get_env_var("DRONE_PULL_REQUEST"));
         self.ci_info.actor = self.get_env_var("DRONE_COMMIT_AUTHOR");
         self.ci_info.committer_name = self.get_env_var("DRONE_COMMIT_AUTHOR_NAME");
         self.ci_info.committer_email = self.get_env_var("DRONE_COMMIT_AUTHOR_EMAIL");
@@ -473,7 +474,7 @@ impl<'a> CIInfoParser<'a> {
         }
 
         self.ci_info.branch = self.get_env_var("BITBUCKET_BRANCH");
-        self.ci_info.pr_number = Self::parse_pr_number(self.get_env_var("BITBUCKET_PR_ID"));
+        self.ci_info.pr_number = self.parse_pr_number(self.get_env_var("BITBUCKET_PR_ID"));
 
         // Use pipeline UUID as workflow identifier and step UUID as job identifier
         self.ci_info.workflow = self.get_env_var("BITBUCKET_PIPELINE_UUID");
@@ -487,7 +488,7 @@ impl<'a> CIInfoParser<'a> {
     fn parse_circleci(&mut self) {
         self.ci_info.job_url = self.get_env_var("CIRCLE_BUILD_URL");
         self.ci_info.branch = self.get_env_var("CIRCLE_BRANCH");
-        self.ci_info.pr_number = Self::parse_pr_number(self.get_env_var("CIRCLE_PR_NUMBER"));
+        self.ci_info.pr_number = self.parse_pr_number(self.get_env_var("CIRCLE_PR_NUMBER"));
         self.ci_info.actor = self.get_env_var("CIRCLE_USERNAME");
 
         self.ci_info.workflow = self.get_env_var("CIRCLE_WORKFLOW_ID");
@@ -501,8 +502,7 @@ impl<'a> CIInfoParser<'a> {
         self.ci_info.branch = self
             .get_env_var("bamboo_planRepository_branch")
             .or_else(|| self.get_env_var("bamboo_planRepository_branchName"));
-        self.ci_info.pr_number =
-            Self::parse_pr_number(self.get_env_var("bamboo_repository_pr_key"));
+        self.ci_info.pr_number = self.parse_pr_number(self.get_env_var("bamboo_repository_pr_key"));
         self.ci_info.actor = self.get_env_var("bamboo_planRepository_username");
         self.ci_info.workflow = self.get_env_var("bamboo_planName");
         self.ci_info.job = self.get_env_var("bamboo_shortJobName");
@@ -512,7 +512,7 @@ impl<'a> CIInfoParser<'a> {
         self.ci_info.branch = self
             .get_env_var("_HEAD_BRANCH")
             .or_else(|| self.get_env_var("BRANCH_NAME"));
-        self.ci_info.pr_number = Self::parse_pr_number(self.get_env_var("_PR_NUMBER"));
+        self.ci_info.pr_number = self.parse_pr_number(self.get_env_var("_PR_NUMBER"));
         self.ci_info.workflow = self.get_env_var("TRIGGER_NAME");
         let build_id = self.get_env_var("BUILD_ID");
         if let Some(build_id) = build_id {
@@ -581,7 +581,12 @@ impl<'a> CIInfoParser<'a> {
         }
     }
 
-    fn parse_pr_number<T: AsRef<str>>(env_var: Option<T>) -> Option<usize> {
+    fn parse_pr_number<T: AsRef<str>>(&self, env_var: Option<T>) -> Option<usize> {
+        if let Some(trunk_pr_number) = self.get_env_var(TRUNK_PR_NUMBER_ENV) {
+            if let Ok(pr_num) = trunk_pr_number.parse::<usize>() {
+                return Some(pr_num);
+            }
+        }
         env_var.and_then(|pr_number_str| pr_number_str.as_ref().parse::<usize>().ok())
     }
 }

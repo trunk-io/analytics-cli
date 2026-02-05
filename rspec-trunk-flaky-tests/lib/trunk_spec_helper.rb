@@ -16,6 +16,7 @@
 #   TRUNK_REPO_HEAD_BRANCH - HEAD branch name
 #   TRUNK_REPO_HEAD_COMMIT_EPOCH - HEAD commit timestamp (seconds since epoch)
 #   TRUNK_REPO_HEAD_AUTHOR_NAME - HEAD commit author name
+#   TRUNK_PR_NUMBER - PR number, if uploading from a PR (normally inferred from CI environment variables)
 #
 # Optional environment variables for configuration:
 #   TRUNK_CODEOWNERS_PATH - Path to CODEOWNERS file
