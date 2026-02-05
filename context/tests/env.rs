@@ -1670,3 +1670,73 @@ fn test_bamboo_stable_branch() {
         }
     );
 }
+
+#[test]
+fn test_google_cloud_build() {
+    const BRANCH: &str = "main";
+    const PR_NUMBER: &str = "123";
+    const TRIGGER_NAME: &str = "test-trigger";
+    const BUILD_ID: &str = "1234567890";
+    const PROJECT_ID: &str = "test-project";
+
+    enum CIInfoType {
+        PR,
+        StableBranch,
+    }
+
+    for (ci_info_type, env_var) in [
+        (
+            CIInfoType::StableBranch,
+            (String::from("_HEAD_BRANCH"), String::from(BRANCH)),
+        ),
+        (
+            CIInfoType::PR,
+            (String::from("_PR_NUMBER"), String::from(PR_NUMBER)),
+        ),
+    ] {
+        let env_vars = EnvVars::from_iter(vec![
+            (String::from("TRIGGER_NAME"), String::from(TRIGGER_NAME)),
+            (String::from("BUILD_ID"), String::from(BUILD_ID)),
+            (String::from("PROJECT_ID"), String::from(PROJECT_ID)),
+            env_var,
+        ]);
+        let mut env_parser = EnvParser::new();
+        env_parser.parse(&env_vars, &[BRANCH], None);
+
+        let ci_info = env_parser.into_ci_info_parser().unwrap().info_ci_info();
+
+        pretty_assertions::assert_eq!(
+            ci_info,
+            CIInfo {
+                platform: CIPlatform::GoogleCloudBuild,
+                job_url: Some(format!(
+                    "https://console.cloud.google.com/cloud-build/builds/{BUILD_ID}?project={PROJECT_ID}"
+                )),
+                branch: if matches!(ci_info_type, CIInfoType::StableBranch) {
+                    Some(String::from(BRANCH))
+                } else {
+                    None
+                },
+                branch_class: if matches!(ci_info_type, CIInfoType::StableBranch) {
+                    Some(BranchClass::ProtectedBranch)
+                } else {
+                    None
+                },
+                pr_number: if matches!(ci_info_type, CIInfoType::PR) {
+                    Some(PR_NUMBER.parse::<usize>().unwrap())
+                } else {
+                    None
+                },
+                actor: None,
+                committer_name: None,
+                committer_email: None,
+                author_name: None,
+                author_email: None,
+                commit_message: None,
+                title: None,
+                workflow: Some(String::from(TRIGGER_NAME)),
+                job: Some(String::from(BUILD_ID)),
+            }
+        );
+    }
+}
