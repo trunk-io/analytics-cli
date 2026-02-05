@@ -1,3 +1,4 @@
+use constants::TRUNK_PR_NUMBER_ENV;
 use context::env::{
     self, EnvVars,
     parser::{BranchClass, CIInfo, CIPlatform, EnvParser},
@@ -1669,4 +1670,76 @@ fn test_bamboo_stable_branch() {
             job: None,
         }
     );
+}
+
+#[test]
+fn test_trunk_pr_number_overrides_bamboo() {
+    let job_url = String::from("https://bamboo.example.com/browse/BUILD-333");
+    let branch = String::from("feature-branch");
+    let ci_pr_number = 123;
+    let override_pr_number = 456;
+
+    let env_vars = EnvVars::from_iter(vec![
+        (String::from("bamboo_buildNumber"), String::from("333")),
+        (
+            String::from("bamboo_buildResultsUrl"),
+            String::from(&job_url),
+        ),
+        (
+            String::from("bamboo_planRepository_branch"),
+            String::from(&branch),
+        ),
+        (
+            String::from("bamboo_repository_pr_key"),
+            ci_pr_number.to_string(),
+        ),
+        (
+            TRUNK_PR_NUMBER_ENV.to_string(),
+            override_pr_number.to_string(),
+        ),
+    ]);
+
+    let mut env_parser = EnvParser::new();
+    env_parser.parse(&env_vars, &[], None);
+
+    let ci_info = env_parser.into_ci_info_parser().unwrap().info_ci_info();
+
+    pretty_assertions::assert_eq!(ci_info.pr_number, Some(override_pr_number));
+    pretty_assertions::assert_eq!(ci_info.branch_class, Some(BranchClass::PullRequest));
+}
+
+#[test]
+fn test_trunk_pr_number_fallback_when_not_set() {
+    let run_id = String::from("42069");
+    let pr_number = 123;
+    let actor = String::from("username");
+    let repository = String::from("test/tester");
+    let branch = String::from("some-branch-name");
+    let workflow = String::from("Pull Request");
+    let job = String::from("test-job");
+
+    let env_vars = EnvVars::from_iter(vec![
+        (String::from("GITHUB_ACTIONS"), String::from("true")),
+        (
+            String::from("GITHUB_EVENT_NAME"),
+            String::from("pull_request"),
+        ),
+        (String::from("GITHUB_RUN_ID"), String::from(&run_id)),
+        (String::from("GITHUB_ACTOR"), String::from(&actor)),
+        (String::from("GITHUB_REPOSITORY"), String::from(&repository)),
+        (String::from("GITHUB_HEAD_REF"), String::from(&branch)),
+        (
+            String::from("GITHUB_REF"),
+            format!("refs/pull/{pr_number}/merge"),
+        ),
+        (String::from("GITHUB_WORKFLOW"), String::from(&workflow)),
+        (String::from("GITHUB_JOB"), String::from(&job)),
+    ]);
+
+    let mut env_parser = EnvParser::new();
+    env_parser.parse(&env_vars, &[], None);
+
+    let ci_info = env_parser.into_ci_info_parser().unwrap().info_ci_info();
+
+    pretty_assertions::assert_eq!(ci_info.pr_number, Some(pr_number));
 }

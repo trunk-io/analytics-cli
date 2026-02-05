@@ -16,7 +16,7 @@ use bundle::{
     QuarantineBulkTestStatus, bin_parse,
 };
 use codeowners::CodeOwners;
-use constants::ENVS_TO_GET;
+use constants::{ENVS_TO_GET, TRUNK_PR_NUMBER_ENV};
 use context::{
     bazel_bep::{
         binary_parser::BazelBepBinParser,
@@ -76,7 +76,7 @@ pub fn gather_debug_props(args: Vec<String>, token: String) -> BundleMetaDebugPr
     }
 }
 
-fn capture_env_vars() -> HashMap<String, String> {
+fn capture_env_vars(pr_number: Option<usize>) -> HashMap<String, String> {
     let mut envs: HashMap<String, String> = ENVS_TO_GET
         .iter()
         .filter_map(|&env_var| {
@@ -100,6 +100,10 @@ fn capture_env_vars() -> HashMap<String, String> {
         }
     };
 
+    if let Some(pr_num) = pr_number {
+        envs.insert(TRUNK_PR_NUMBER_ENV.to_string(), pr_num.to_string());
+    }
+
     envs
 }
 
@@ -121,6 +125,7 @@ pub fn gather_initial_test_context(
         repo_head_commit_epoch,
         allow_empty_test_results,
         repo_head_author_name,
+        pr_number,
         #[cfg(target_os = "macos")]
         use_experimental_failure_summary,
         ..
@@ -153,7 +158,7 @@ pub fn gather_initial_test_context(
             allow_empty_test_results,
         )?;
 
-    let envs = capture_env_vars();
+    let envs = capture_env_vars(pr_number);
 
     let meta = BundleMeta {
         junit_props: BundleMetaJunitProps::default(),

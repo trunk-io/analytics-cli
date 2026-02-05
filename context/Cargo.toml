@@ -22,6 +22,7 @@ percent-encoding = "2.3"
 bazel-bep = { path = "../bazel-bep" }
 chrono = "0.4.33"
 clap = { version = "4.4.18", features = ["derive", "env"], optional = true }
+constants = { path = "../constants" }
 gix = { version = "0.74.0", default-features = false, features = [
 ], optional = true }
 js-sys = { version = "0.3.70", optional = true }

@@ -206,6 +206,14 @@ pub struct UploadArgs {
     pub repo_head_author_name: Option<String>,
     #[arg(
         long,
+        env = constants::TRUNK_PR_NUMBER_ENV,
+        help = "Override the PR number (normally inferred from CI environment variables).",
+        required = false,
+        num_args = 1
+    )]
+    pub pr_number: Option<usize>,
+    #[arg(
+        long,
         env = constants::TRUNK_USE_UNCLONED_REPO_ENV,
         help = "Enable upload mode for repositories not cloned locally. Requires --repo-url, --repo-head-sha, --repo-head-branch, and --repo-head-author-name to be set.",
         required = false,
