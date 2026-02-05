@@ -943,6 +943,7 @@ dependencies = [
  "anyhow",
  "bazel-bep",
  "chrono",
+ "clap",
  "codeowners",
  "gix",
  "itertools 0.14.0",
