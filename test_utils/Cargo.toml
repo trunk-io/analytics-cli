@@ -7,7 +7,7 @@ edition = "2024"
 anyhow = "1.0.44"
 api = { path = "../api" }
 axum = { version = "0.7.5", features = ["macros"] }
-git2 = "0.19.0"
+git2 = "0.20.4"
 proto = { version = "0.0.0", path = "../proto" }
 sentry = "=0.36.0"
 tar = { version = "0.4.30", default-features = false }
