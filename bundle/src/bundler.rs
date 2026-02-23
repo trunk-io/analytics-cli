@@ -273,6 +273,51 @@ pub async fn parse_internal_bin_and_meta_from_tarball<R: AsyncBufRead>(
     Err(anyhow::anyhow!("No internal.bin file found in the tarball"))
 }
 
+/// Synchronously decompresses a zstd-compressed tarball from an in-memory buffer
+/// and extracts the meta.json and internal.bin contents.
+///
+/// Callers should run this on a blocking thread pool.
+pub fn parse_internal_bin_and_meta_from_bytes(
+    bytes: &[u8],
+) -> anyhow::Result<(TestReport, VersionedBundle)> {
+    let zstd_decoder = zstd::Decoder::new(std::io::Cursor::new(bytes))?;
+    let mut archive = tar::Archive::new(zstd_decoder);
+
+    let mut meta: Option<VersionedBundle> = None;
+    let mut internal_bin: Option<TestReport> = None;
+
+    for entry in archive.entries()? {
+        let mut entry = entry?;
+        let path = entry.path()?.to_path_buf();
+        let path_str = path.to_str().unwrap_or("");
+
+        if path_str == META_FILENAME {
+            let mut meta_bytes = Vec::new();
+            std::io::Read::read_to_end(&mut entry, &mut meta_bytes)?;
+            meta = Some(parse_meta(meta_bytes)?);
+        } else if meta.is_some() {
+            let expected_filename = meta
+                .as_ref()
+                .and_then(|m| m.internal_bundled_file())
+                .map(|bf| bf.path.as_str())
+                .unwrap_or(INTERNAL_BIN_FILENAME);
+
+            if path_str == expected_filename || path_str == INTERNAL_BIN_FILENAME {
+                let mut bin_bytes = Vec::new();
+                std::io::Read::read_to_end(&mut entry, &mut bin_bytes)?;
+                internal_bin = Some(bin_parse(&bin_bytes)?);
+                break;
+            }
+        }
+    }
+
+    match (internal_bin, meta) {
+        (Some(bin), Some(m)) => Ok((bin, m)),
+        (_, None) => Err(anyhow::anyhow!("No meta.json file found in the tarball")),
+        (None, _) => Err(anyhow::anyhow!("No internal.bin file found in the tarball")),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::{
@@ -297,7 +342,10 @@ mod tests {
             BundleMeta, BundleMetaBaseProps, BundleMetaDebugProps, BundleMetaJunitProps,
             META_VERSION,
         },
-        bundler::{BUNDLE_FILE_NAME, BundlerUtil, INTERNAL_BIN_FILENAME, parse_meta_from_tarball},
+        bundler::{
+            BUNDLE_FILE_NAME, BundlerUtil, INTERNAL_BIN_FILENAME,
+            parse_internal_bin_and_meta_from_bytes, parse_meta_from_tarball,
+        },
         files::{FileSet, FileSetType},
         parse_internal_bin_and_meta_from_tarball,
     };
@@ -569,6 +617,110 @@ mod tests {
         assert_eq!(
             internal_0_count, 1,
             "Expected 'internal/0' to appear exactly once in the tarball, but it appeared {internal_0_count} times"
+        );
+    }
+
+    fn read_bundle_bytes(temp_dir: &TempDir, meta: &BundleMeta) -> Vec<u8> {
+        let bundle_path = temp_dir.path().join(BUNDLE_FILE_NAME);
+        BundlerUtil::new(meta, None)
+            .make_tarball(&bundle_path)
+            .unwrap();
+        std::fs::read(&bundle_path).unwrap()
+    }
+
+    #[test]
+    fn test_sync_parse_roundtrip() {
+        let temp_dir = tempdir().unwrap();
+        let (internal_bundled_file, test_report) = create_internal_bundled_file(&temp_dir, None);
+        let meta = create_bundle_meta(Some(internal_bundled_file));
+        let bytes = read_bundle_bytes(&temp_dir, &meta);
+
+        let (report, bundle) = parse_internal_bin_and_meta_from_bytes(&bytes).unwrap();
+        assert_eq!(report, test_report);
+        assert_eq!(bundle, VersionedBundle::V0_7_8(meta));
+    }
+
+    #[test]
+    fn test_sync_parse_nondefault_bin_path() {
+        let temp_dir = tempdir().unwrap();
+        let (internal_bundled_file, test_report) =
+            create_internal_bundled_file(&temp_dir, Some("new_bin_file.bin".to_string()));
+        let meta = create_bundle_meta(Some(internal_bundled_file));
+        let bytes = read_bundle_bytes(&temp_dir, &meta);
+
+        let (report, bundle) = parse_internal_bin_and_meta_from_bytes(&bytes).unwrap();
+        assert_eq!(report, test_report);
+        assert_eq!(bundle, VersionedBundle::V0_7_8(meta));
+    }
+
+    #[test]
+    fn test_sync_parse_missing_internal_bin() {
+        let temp_dir = tempdir().unwrap();
+        let meta = create_bundle_meta(None);
+        let bytes = read_bundle_bytes(&temp_dir, &meta);
+
+        let result = parse_internal_bin_and_meta_from_bytes(&bytes);
+        assert!(result.is_err());
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("No internal.bin file found")
+        );
+    }
+
+    #[test]
+    fn test_sync_parse_missing_meta() {
+        // Build a tarball that only contains an internal.bin entry (no meta.json)
+        let temp_dir = tempdir().unwrap();
+        let tarball_path = temp_dir.path().join("no_meta.tar.zstd");
+
+        {
+            let tar_file = std::fs::File::create(&tarball_path).unwrap();
+            let zstd_enc = zstd::Encoder::new(tar_file, 15).unwrap();
+            let mut tar_builder = tar::Builder::new(zstd_enc);
+
+            let content = b"not a real protobuf";
+            let mut header = tar::Header::new_gnu();
+            header.set_size(content.len() as u64);
+            header.set_cksum();
+            tar_builder
+                .append_data(&mut header, INTERNAL_BIN_FILENAME, &content[..])
+                .unwrap();
+
+            tar_builder.into_inner().unwrap().finish().unwrap();
+        }
+
+        let bytes = std::fs::read(&tarball_path).unwrap();
+        let result = parse_internal_bin_and_meta_from_bytes(&bytes);
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("No meta.json file found in the tarball")
+        );
+    }
+
+    #[test]
+    fn test_sync_parse_empty_tarball() {
+        // Build an empty tarball (no entries)
+        let temp_dir = tempdir().unwrap();
+        let tarball_path = temp_dir.path().join("empty.tar.zstd");
+
+        {
+            let tar_file = std::fs::File::create(&tarball_path).unwrap();
+            let zstd_enc = zstd::Encoder::new(tar_file, 15).unwrap();
+            let tar_builder = tar::Builder::new(zstd_enc);
+            tar_builder.into_inner().unwrap().finish().unwrap();
+        }
+
+        let bytes = std::fs::read(&tarball_path).unwrap();
+        let result = parse_internal_bin_and_meta_from_bytes(&bytes);
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("No meta.json file found in the tarball")
         );
     }
 }
