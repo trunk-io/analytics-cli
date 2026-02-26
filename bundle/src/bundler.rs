@@ -43,7 +43,7 @@ pub fn unzip_tarball(bundle_path: &PathBuf, unpack_dir: &PathBuf) -> anyhow::Res
 }
 
 impl<'a> BundlerUtil<'a> {
-    const ZSTD_COMPRESSION_LEVEL: i32 = 15; // This gives roughly 10x compression for text, 22 gives 11x.
+    const ZSTD_COMPRESSION_LEVEL: i32 = 1; // Use low compression level for faster compression/decompression.
 
     pub fn new(meta: &'a BundleMeta, bep_result: Option<BepParseResult>) -> Self {
         Self { meta, bep_result }
@@ -521,7 +521,7 @@ mod tests {
 
         {
             let tar_file = std::fs::File::create(&new_bundle_path).unwrap();
-            let zstd_encoder = zstd::Encoder::new(tar_file, 15).unwrap();
+            let zstd_encoder = zstd::Encoder::new(tar_file, 1).unwrap();
             let mut tar_builder = tar::Builder::new(zstd_encoder);
 
             for mut entry in entries_with_internal_bin_last {
@@ -677,7 +677,7 @@ mod tests {
 
         {
             let tar_file = std::fs::File::create(&tarball_path).unwrap();
-            let zstd_enc = zstd::Encoder::new(tar_file, 15).unwrap();
+            let zstd_enc = zstd::Encoder::new(tar_file, 1).unwrap();
             let mut tar_builder = tar::Builder::new(zstd_enc);
 
             let content = b"not a real protobuf";
@@ -709,7 +709,7 @@ mod tests {
 
         {
             let tar_file = std::fs::File::create(&tarball_path).unwrap();
-            let zstd_enc = zstd::Encoder::new(tar_file, 15).unwrap();
+            let zstd_enc = zstd::Encoder::new(tar_file, 1).unwrap();
             let tar_builder = tar::Builder::new(zstd_enc);
             tar_builder.into_inner().unwrap().finish().unwrap();
         }
