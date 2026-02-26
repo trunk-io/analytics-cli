@@ -6,7 +6,7 @@ use pyo3_stub_gen::derive::gen_stub_pyclass;
 use wasm_bindgen::prelude::*;
 
 use crate::{
-    env::parser::{clean_branch, BranchClass, CIInfo},
+    env::parser::{BranchClass, CIInfo, clean_branch},
     repo::BundleRepo,
 };
 

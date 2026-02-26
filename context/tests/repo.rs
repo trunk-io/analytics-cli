@@ -1,12 +1,11 @@
 use chrono::{DateTime, Utc};
 use context::repo::{
-    self,
+    self, BundleRepo, RepoUrlParts,
     validator::{
-        RepoValidationIssue, RepoValidationIssueSubOptimal, RepoValidationLevel, MAX_SHA_FIELD_LEN,
+        MAX_SHA_FIELD_LEN, RepoValidationIssue, RepoValidationIssueSubOptimal, RepoValidationLevel,
     },
-    BundleRepo, RepoUrlParts,
 };
-use test_utils::mock_git_repo::{setup_repo_with_commit, TEST_BRANCH, TEST_ORIGIN};
+use test_utils::mock_git_repo::{TEST_BRANCH, TEST_ORIGIN, setup_repo_with_commit};
 
 #[test]
 fn test_try_read_from_root() {

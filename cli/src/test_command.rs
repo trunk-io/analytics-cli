@@ -1,7 +1,7 @@
 use std::{
     env,
     process::{Command, Stdio},
-    sync::{mpsc::Sender, Arc},
+    sync::{Arc, mpsc::Sender},
     time::SystemTime,
 };
 
@@ -9,16 +9,16 @@ use clap::Args;
 use constants::EXIT_FAILURE;
 use display::{
     end_output::EndOutput,
-    message::{send_message, DisplayMessage},
+    message::{DisplayMessage, send_message},
 };
 use superconsole::{
-    style::{Attribute, Stylize},
     Line, Span,
+    style::{Attribute, Stylize},
 };
 
 use crate::{
     context::{gather_debug_props, gather_initial_test_context},
-    upload_command::{run_upload, UploadArgs, UploadRunResult},
+    upload_command::{UploadArgs, UploadRunResult, run_upload},
 };
 
 enum RunOutput {

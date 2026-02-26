@@ -1,13 +1,13 @@
 use context::{
     env::{
-        parser::{CIInfo, EnvParser},
         EnvVars,
+        parser::{CIInfo, EnvParser},
     },
     meta::{
-        validator::{
-            validate, MetaValidationIssue, MetaValidationIssueInvalid, MetaValidationLevel,
-        },
         MetaContext,
+        validator::{
+            MetaValidationIssue, MetaValidationIssueInvalid, MetaValidationLevel, validate,
+        },
     },
     repo::{BundleRepo, RepoUrlParts},
 };

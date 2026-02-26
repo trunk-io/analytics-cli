@@ -317,7 +317,11 @@ where
     U: AsRef<Path>,
 {
     let file = repo_root.as_ref().join(location).join(CODEOWNERS);
-    if file.is_file() { Some(file) } else { None }
+    if file.is_file() {
+        Some(file)
+    } else {
+        None
+    }
 }
 
 #[cfg(test)]

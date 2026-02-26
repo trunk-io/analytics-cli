@@ -1,12 +1,12 @@
-use std::sync::mpsc::Sender;
 use std::sync::Arc;
+use std::sync::mpsc::Sender;
 use std::{env, time::Duration};
 
 use constants::TRUNK_API_CLIENT_RETRY_COUNT_ENV;
-use display::message::{send_message, DisplayMessage, ProgressMessage};
+use display::message::{DisplayMessage, ProgressMessage, send_message};
 use http::StatusCode;
 use tokio::time::{self, Instant};
-use tokio_retry::{strategy::ExponentialBackoff, Action, RetryIf};
+use tokio_retry::{Action, RetryIf, strategy::ExponentialBackoff};
 
 use crate::client::{NOT_FOUND_CONTEXT, UNAUTHORIZED_CONTEXT};
 
@@ -26,7 +26,9 @@ const fn enforce_increment_check_progress_interval_secs(
         return report_slow_progress_timeout_secs;
     }
     // NOTE: This is a build time error due to `const fn`
-    panic!("`report_slow_progress_timeout_secs` must be an increment of `CHECK_PROGRESS_INTERVAL_SECS`")
+    panic!(
+        "`report_slow_progress_timeout_secs` must be an increment of `CHECK_PROGRESS_INTERVAL_SECS`"
+    )
 }
 
 fn default_delay() -> std::iter::Take<ExponentialBackoff> {
@@ -199,8 +201,8 @@ where
 mod tests {
     use std::{
         sync::{
-            atomic::{AtomicUsize, Ordering},
             Arc, Mutex,
+            atomic::{AtomicUsize, Ordering},
         },
         time::Duration,
     };
@@ -211,10 +213,10 @@ mod tests {
     use tokio::time;
 
     use super::{
-        CallApi, CHECK_PROGRESS_INTERVAL_SECS, REPORT_SLOW_PROGRESS_TIMEOUT_SECS,
+        CHECK_PROGRESS_INTERVAL_SECS, CallApi, REPORT_SLOW_PROGRESS_TIMEOUT_SECS,
         RETRY_COUNT_DEFAULT,
     };
-    use crate::client::{status_code_help, CheckNotFound, CheckUnauthorized};
+    use crate::client::{CheckNotFound, CheckUnauthorized, status_code_help};
     #[derive(Debug, Serialize, Clone, Deserialize, PartialEq, Eq)]
     struct EmptyResponse {}
 

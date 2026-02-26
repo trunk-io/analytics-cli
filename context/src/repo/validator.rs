@@ -8,7 +8,7 @@ use thiserror::Error;
 use wasm_bindgen::prelude::*;
 
 use super::BundleRepo;
-use crate::string_safety::{validate_field_len, FieldLen};
+use crate::string_safety::{FieldLen, validate_field_len};
 
 pub const MAX_BRANCH_NAME_LEN: usize = 36;
 pub const MAX_EMAIL_LEN: usize = 254;
