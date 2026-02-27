@@ -8,3 +8,5 @@ gem 'rake'
 gem 'rake-compiler'
 gem 'logger'
 gem 'rspec_trunk_flaky_tests', :path => '../../../rspec-trunk-flaky-tests'
+
+gem "rspec-retryable", "~> 0.4.0"

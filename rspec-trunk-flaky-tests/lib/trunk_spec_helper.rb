@@ -94,6 +94,15 @@ module RSpec
         return set_exception_core(exception) if metadata[:pending]
         return set_exception_core(exception) if trunk_disabled
         return set_exception_core(exception) if metadata[:retry_attempts]&.positive?
+        # When rspec-retryable is in use: only run quarantine on retry runs (after first failure).
+        # metadata[:retryable] is created in finish(), which runs after set_exception. On first
+        # failure it is nil, so we skip quarantine and let the test fail → rspec-retryable retries.
+        # On retry runs the duplicate shares metadata; retryable exists with attempts >= 1.
+        if defined?(RSpec::Retryable) && !metadata[:retryable]&.attempts&.positive?
+          puts "set_exception first #{metadata[:retryable]&.attempts}"
+          return set_exception_core(exception)
+        end
+        puts "set_exception otherwise #{metadata[:retryable]&.to_h.inspect}"
 
         handle_quarantine_check(exception)
       end
@@ -232,7 +241,19 @@ class TrunkAnalyticsListener
     finished_at = example.execution_result.finished_at.to_i
     id = example.generate_trunk_id
 
-    attempt_number = example.metadata[:retry_attempts] || example.metadata[:attempt_number] || 0
+    if example.metadata[:retryable]&.retry
+      puts "retry: #{example.metadata[:retryable]&.retry}"
+    else
+      # stringify the metadata retryable object to print
+      puts "no retry"
+      puts "no retry #{example.metadata[:retryable]&.to_h.inspect}"
+    end
+
+    puts "example.metadata: #{example.metadata[:retryable]}"
+    attempt_number = example.metadata[:retryable]&.attempts ||
+                     example.metadata[:retry_attempts] ||
+                     example.metadata[:attempt_number] ||
+                     0
     status = example.execution_result.status.to_s
     # set the status to failure, but mark it as quarantined
     is_quarantined = example.metadata[:quarantined_exception] ? true : false

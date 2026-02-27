@@ -2,6 +2,7 @@
 
 describe 'variant_quarantine_test' do
   it 'should be quarantined when run with variant' do
+    puts "running the test!"
     # This test should fail when run without a variant (not quarantined)
     # and be quarantined (not fail) when run with a variant
     expect(2 + 2).to eq(5)

@@ -38,3 +38,11 @@ bundle exec rake "knapsack_pro:queue:rspec"
 ### Reference
 
 - [More information about Queue Mode](https://docs.knapsackpro.com/ruby/queue-mode/)
+
+## Debugging
+
+The standard CLI options work as environment variables. For example, you can run:
+
+```bash
+TRUNK_DRY_RUN=true TRUNK_PUBLIC_API_ADDRESS=https://api.trunk-staging.io TRUNK_ORG_URL_SLUG=trunk-staging-org TRUNK_VARIANT=smoke-test-variant TRUNK_API_TOKEN=<token>  bundle exec rspec spec/variant_quarantine_spec.rb --format documentation
+```

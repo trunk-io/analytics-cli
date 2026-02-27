@@ -1,6 +1,7 @@
 # frozen_string_literal: true
-
+require 'retry_setup'
 require 'trunk_spec_helper'
+
 if ENV['KNAPSACK_PRO_TEST_SUITE_TOKEN_RSPEC']
   # Enable Knapsack queueing when CI provides a suite token
   require 'knapsack_pro'
