@@ -46,7 +46,7 @@ impl From<JunitReportValidation> for BindingsJunitReportValidation {
                 .collect(),
             level,
             test_suites,
-            valid_test_suites: valid_test_suites.into_iter().collect(),
+            valid_test_suites,
             test_runner_report,
         }
     }
