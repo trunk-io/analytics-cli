@@ -262,8 +262,8 @@ impl BindingsTestCase {
 }
 
 impl BindingsTestCase {
-    pub fn extra(&self) -> HashMap<String, String> {
-        self.extra.clone()
+    pub fn extra(&self) -> &HashMap<String, String> {
+        &self.extra
     }
 
     pub fn is_quarantined(&self) -> bool {

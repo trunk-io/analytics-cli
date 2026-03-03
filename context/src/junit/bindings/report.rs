@@ -91,16 +91,16 @@ impl From<TestResult> for BindingsReport {
             test_build_information,
         }: TestResult,
     ) -> Self {
-        let test_cases: Vec<BindingsTestCase> = test_case_runs
+        let parent_name_map: HashMap<String, Vec<BindingsTestCase>> = test_case_runs
             .into_iter()
             .map(BindingsTestCase::from)
-            .collect();
-        let parent_name_map: HashMap<String, Vec<BindingsTestCase>> =
-            test_cases.iter().fold(HashMap::new(), |mut acc, testcase| {
+            .fold(HashMap::new(), |mut acc, testcase| {
                 if let Some(parent_name) = testcase.extra.get("parent_name") {
-                    acc.entry(parent_name.clone())
-                        .or_default()
-                        .push(testcase.to_owned());
+                    if let Some(parent_name_vec) = acc.get_mut(parent_name) {
+                        parent_name_vec.push(testcase);
+                    } else {
+                        acc.insert(parent_name.to_string(), vec![testcase]);
+                    }
                 }
                 acc
             });
