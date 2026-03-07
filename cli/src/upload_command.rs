@@ -68,7 +68,7 @@ pub struct UploadArgs {
         help = "Comma-separated list of glob patterns to test report files. Supports JUnit XML, Bazel BEP, and XCResult formats."
     )]
     pub test_reports: Vec<String>,
-    #[arg(long, env = constants::TRUNK_ORG_URL_SLUG_ENV, help = "Organization url slug.")]
+    #[arg(long, env = constants::TRUNK_ORG_URL_SLUG_ENV, value_parser = parse_org_url_slug, help = "Organization url slug.")]
     pub org_url_slug: String,
     #[arg(
         long,
@@ -270,6 +270,10 @@ fn parse_sha(s: &str) -> anyhow::Result<String> {
     }
 }
 
+fn parse_org_url_slug(s: &str) -> anyhow::Result<String> {
+    Ok(s.to_lowercase())
+}
+
 impl UploadArgs {
     pub fn new(
         token: String,
@@ -280,7 +284,7 @@ impl UploadArgs {
     ) -> Self {
         Self {
             junit_paths,
-            org_url_slug,
+            org_url_slug: org_url_slug.to_lowercase(),
             token,
             repo_root,
             allow_empty_test_results: true,
