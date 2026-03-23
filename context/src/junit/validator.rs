@@ -225,6 +225,17 @@ pub fn validate(
             .into_iter()
             .for_each(|i| test_case_validation.add_issue(JunitValidationIssue::SubOptimal(i)));
 
+            if tracing::enabled!(tracing::Level::TRACE) {
+                test_case_validation.issues().iter().for_each(|issue| {
+                    trace_test_case_validation_issue(
+                        issue,
+                        test_suite,
+                        test_case,
+                        &test_runner_report_for_validation,
+                    );
+                });
+            }
+
             if test_case_validation.level != JunitValidationLevel::Invalid {
                 valid_test_cases.push(test_case.clone());
             }
@@ -243,6 +254,34 @@ pub fn validate(
     report_validation.test_runner_report = test_runner_report_validation;
     report_validation.derive_all_issues();
     super::bindings::BindingsJunitReportValidation::from(report_validation)
+}
+
+fn trace_test_case_validation_issue(
+    issue: &JunitTestCaseValidationIssue,
+    test_suite: &BindingsTestSuite,
+    test_case: &BindingsTestCase,
+    test_runner_report: &Option<TestRunnerReport>,
+) {
+    let test_case_extra = test_case.extra();
+    let test_suite_extra = test_suite.extra();
+    let file_or_filepath = test_case_extra
+        .get(extra_attrs::FILE)
+        .or(test_case_extra.get(extra_attrs::FILEPATH))
+        .or(test_suite_extra.get(extra_attrs::FILE))
+        .or(test_suite_extra.get(extra_attrs::FILEPATH))
+        .map(String::as_str)
+        .unwrap_or_default();
+
+    tracing::trace!(
+        issue_message = %issue,
+        test_suite_name = %test_suite.name,
+        test_case_name = %test_case.name,
+        test_case_classname = ?test_case.classname,
+        test_case_file_or_filepath = %file_or_filepath,
+        test_case_time = ?test_case.time,
+        test_runner_label = test_runner_report.as_ref().and_then(|report| report.label.as_deref()),
+        "junit testcase validation issue"
+    );
 }
 
 #[derive(Debug, Clone, Default)]
