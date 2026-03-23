@@ -1,7 +1,8 @@
-use std::{fs::File, path::PathBuf};
+use std::{fs::File, path::PathBuf, time::Instant};
 
 use clap::{Parser, ValueEnum};
-use codeowners::{associate_codeowners, FromReader, GitHubOwners, GitLabOwners, Owners};
+use codeowners::{FromReader, GitHubOwners, GitLabOwners, Owners, associate_codeowners};
+use tracing_subscriber::EnvFilter;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
 #[value(rename_all = "lower")]
@@ -24,12 +25,17 @@ pub struct Cli {
 }
 
 fn main() -> anyhow::Result<()> {
+    tracing_subscriber::fmt()
+        .with_env_filter(EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()))
+        .init();
+
     let Cli {
         codeowners_type,
         codeowners_path,
         test_case_path,
     } = Cli::parse();
 
+    let parse_started_at = Instant::now();
     let owners = match codeowners_type {
         CodeownersType::GitHub => File::open(&codeowners_path)
             .map_err(anyhow::Error::from)
@@ -38,16 +44,26 @@ fn main() -> anyhow::Result<()> {
             .map_err(anyhow::Error::from)
             .and_then(|file| GitLabOwners::from_reader(&file).map(Owners::GitLabOwners))?,
     };
+    tracing::info!(
+        parse_ms = parse_started_at.elapsed().as_millis(),
+        codeowners_type = ?codeowners_type,
+        "Completed CODEOWNERS parse"
+    );
 
     let associated_owners = associate_codeowners(&owners, &test_case_path);
+    tracing::info!(
+        owner_count = associated_owners.len(),
+        test_case_path = %test_case_path,
+        "Completed CODEOWNERS association"
+    );
 
     if associated_owners.is_empty() {
-        eprintln!("No owners found for {}", test_case_path);
+        tracing::error!(test_case_path = %test_case_path, "No owners found");
         std::process::exit(1);
     } else {
-        println!("Owners found for {}:", test_case_path);
-        for owner in associated_owners {
-            println!("{}", owner);
+        tracing::info!(test_case_path = %test_case_path, "Owners found");
+        for owner in &associated_owners {
+            tracing::info!(owner = %owner);
         }
     }
 

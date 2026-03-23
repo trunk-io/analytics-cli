@@ -6,7 +6,7 @@ use std::{
 };
 
 use chrono::{DateTime, Utc, serde::ts_milliseconds};
-use codeowners::{CodeOwners, Owners, OwnersOfPath};
+use codeowners::{CodeOwners, Owners, OwnersOfPath, OwnersSource};
 use constants::ALLOW_LIST;
 use context::junit::junit_path::{
     JunitReportFileWithTestRunnerReport, TestRunnerReport, TestRunnerReportStatus,
@@ -35,11 +35,12 @@ impl FileSetBuilder {
         repo_root: T,
         junit_paths: &[JunitReportFileWithTestRunnerReport],
         codeowners_path: &Option<U>,
+        codeowners_type: Option<OwnersSource>,
         exec_start: Option<SystemTime>,
     ) -> anyhow::Result<Self> {
         let repo_root = repo_root.as_ref();
 
-        let codeowners = CodeOwners::find_file(repo_root, codeowners_path);
+        let codeowners = CodeOwners::find_file(repo_root, codeowners_path, codeowners_type);
 
         let file_set_builder =
             Self::file_sets_from_glob(repo_root, junit_paths, codeowners, exec_start)?;

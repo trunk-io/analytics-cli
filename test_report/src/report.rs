@@ -189,6 +189,13 @@ impl MutTestReport {
                         .ok()
                         .map(PathBuf::from)
                         .as_deref(),
+                    env::var(constants::TRUNK_CODEOWNERS_TYPE_ENV)
+                        .ok()
+                        .and_then(|v| match v.to_lowercase().as_str() {
+                            "github" => Some(codeowners::OwnersSource::GitHub),
+                            "gitlab" => Some(codeowners::OwnersSource::GitLab),
+                            _ => None,
+                        }),
                 )
             });
         let quarantined_tests_disk_cache_ttl = Duration::from_secs(
