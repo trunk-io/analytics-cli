@@ -6,7 +6,7 @@ use std::{
 
 use bundle::{FileSet, FileSetBuilder, FileSetTestRunnerReport};
 use clap::{ArgAction, Args, arg};
-use codeowners::CodeOwners;
+use codeowners::{CodeOwners, OwnersSource};
 use constants::{EXIT_FAILURE, EXIT_SUCCESS};
 use context::{
     bazel_bep::{common::BepParseResult, parser::BazelBepParser},
@@ -31,7 +31,7 @@ use superconsole::{
 
 use crate::{
     context::fall_back_to_binary_parse, error_report::InterruptingError,
-    report_limiting::ValidationReport,
+    report_limiting::ValidationReport, upload_command::CodeownersType,
 };
 
 #[derive(Args, Clone, Debug)]
@@ -66,6 +66,13 @@ pub struct ValidateArgs {
         help = "Override the path to a CODEOWNERS file. Used to validate code ownership associations."
     )]
     pub codeowners_path: Option<String>,
+    #[arg(
+        long,
+        env = constants::TRUNK_CODEOWNERS_TYPE_ENV,
+        value_enum,
+        help = "Specify CODEOWNERS parser type ('github' or 'gitlab'). Optional; when unset, codeowners type will be inferred."
+    )]
+    pub codeowners_type: Option<CodeownersType>,
     #[arg(
         long,
         help = "Deprecated (does nothing, left in to avoid breaking existing flows)",
@@ -456,6 +463,7 @@ pub async fn run_validate(validate_args: ValidateArgs) -> anyhow::Result<Validat
         test_reports,
         show_warnings: _,
         codeowners_path,
+        codeowners_type,
         ..
     } = validate_args;
 
@@ -496,7 +504,13 @@ pub async fn run_validate(validate_args: ValidateArgs) -> anyhow::Result<Validat
             ),
         }
     };
-    validate(junit_file_paths, codeowners_path, bep_validate_result).await
+    validate(
+        junit_file_paths,
+        codeowners_path,
+        codeowners_type.map(OwnersSource::from),
+        bep_validate_result,
+    )
+    .await
 }
 
 type JunitFileToReportAndParseIssues = BTreeMap<
@@ -514,14 +528,20 @@ type JunitFileToValidation = BTreeMap<String, JunitReportValidation>;
 async fn validate(
     junit_paths: Vec<JunitReportFileWithTestRunnerReport>,
     codeowners_path: Option<String>,
+    codeowners_type: Option<OwnersSource>,
     bep_result: Option<BepValidateResult>,
 ) -> anyhow::Result<ValidateRunResult> {
     let current_dir = std::env::current_dir()
         .ok()
         .and_then(|p| p.to_str().map(String::from))
         .unwrap_or_default();
-    let file_set_builder =
-        FileSetBuilder::build_file_sets(&current_dir, &junit_paths, &Option::<&str>::None, None)?;
+    let file_set_builder = FileSetBuilder::build_file_sets(
+        &current_dir,
+        &junit_paths,
+        &Option::<&str>::None,
+        None,
+        None,
+    )?;
     if file_set_builder.no_files_found() {
         let msg = "No test output files found to validate";
         tracing::warn!(msg);
@@ -569,7 +589,7 @@ async fn validate(
         .collect();
     let test_issues = gen_test_issues(&report_validations);
 
-    let codeowners = CodeOwners::find_file(&current_dir, &codeowners_path);
+    let codeowners = CodeOwners::find_file(&current_dir, &codeowners_path, codeowners_type);
     let codeowners_issues = gen_codeowners_issues(codeowners, &report_validations);
 
     Ok(ValidateRunResult {

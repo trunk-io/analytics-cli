@@ -15,6 +15,7 @@ pub struct UploadArgs {
     no_upload: Option<bool>,
     team: Option<String>,
     codeowners_path: Option<String>,
+    codeowners_type: Option<String>,
     disable_quarantining: Option<bool>,
     allow_empty_test_results: Option<bool>,
     variant: Option<String>,
@@ -38,6 +39,7 @@ impl UploadArgs {
             no_upload: None,
             team: None,
             codeowners_path: None,
+            codeowners_type: None,
             disable_quarantining: None,
             allow_empty_test_results: None,
             variant: None,
@@ -122,6 +124,14 @@ impl UploadArgs {
                 .into_iter()
                 .flat_map(|codeowners_path: String| {
                     vec![String::from("--codeowners-path"), codeowners_path]
+                }),
+        )
+        .chain(
+            self.codeowners_type
+                .clone()
+                .into_iter()
+                .flat_map(|codeowners_type: String| {
+                    vec![String::from("--codeowners-type"), codeowners_type]
                 }),
         )
         .chain(

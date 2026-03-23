@@ -1,5 +1,6 @@
 use std::{
     fs::File,
+    io::{Read, Seek},
     path::{Path, PathBuf},
     sync::Arc,
 };
@@ -83,6 +84,7 @@ impl CodeOwners {
     pub fn find_file<T: AsRef<Path>, U: AsRef<Path>>(
         repo_root: T,
         codeowners_path_cli_option: &Option<U>,
+        owners_source: Option<OwnersSource>,
     ) -> Option<Self> {
         let cli_option_location = codeowners_path_cli_option
             .as_slice()
@@ -97,13 +99,23 @@ impl CodeOwners {
             all_locations.find_map(|location| locate_codeowners(&repo_root, location));
 
         codeowners_path.map(|path| {
-            let owners_result = File::open(&path)
+            let owners_result: anyhow::Result<Owners> = File::open(&path)
                 .map_err(anyhow::Error::from)
-                .and_then(|file| GitLabOwners::from_reader(&file).map(Owners::GitLabOwners))
-                .or_else(|_| {
-                    File::open(&path)
-                        .map_err(anyhow::Error::from)
-                        .and_then(|file| GitHubOwners::from_reader(&file).map(Owners::GitHubOwners))
+                .and_then(|mut file| {
+                    let parse_github = |r: &mut File| {
+                        GitHubOwners::from_reader(r.by_ref()).map(Owners::GitHubOwners)
+                    };
+                    let parse_gitlab = |r: &mut File| {
+                        GitLabOwners::from_reader(r.by_ref()).map(Owners::GitLabOwners)
+                    };
+                    match owners_source {
+                        Some(OwnersSource::GitHub) => parse_github(&mut file),
+                        Some(OwnersSource::GitLab) => parse_gitlab(&mut file),
+                        _ => parse_gitlab(&mut file).or_else(|_| {
+                            file.seek(std::io::SeekFrom::Start(0))?;
+                            parse_github(&mut file)
+                        }),
+                    }
                 });
 
             if let Err(ref err) = owners_result {
@@ -322,6 +334,10 @@ where
 
 #[cfg(test)]
 mod tests {
+    use std::fs;
+    use std::path::Path;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
     use super::*;
 
     fn make_codeowners_bytes(i: usize, owners_source: Option<OwnersSource>) -> CodeOwnersFile {
@@ -431,5 +447,39 @@ mod tests {
             let user_id = i % num_codeowners_files;
             assert_eq!(owners[0], format!("@user{user_id}"));
         }
+    }
+
+    #[test]
+    fn test_find_file_with_explicit_owners_source() {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let temp_dir = std::env::temp_dir().join(format!("codeowners-source-test-{unique}"));
+        fs::create_dir_all(&temp_dir).unwrap();
+        let codeowners_file = temp_dir.join("CODEOWNERS");
+        fs::write(
+            &codeowners_file,
+            "[DefaultOwners] @gitlab-owner\nREADME.md\n",
+        )
+        .unwrap();
+
+        let parsed_gitlab =
+            CodeOwners::find_file(&temp_dir, &Some(Path::new(".")), Some(OwnersSource::GitLab))
+                .unwrap();
+        let gitlab_owners = flatten_code_owners(&parsed_gitlab, &"README.md".to_string());
+        assert_eq!(gitlab_owners, vec!["@gitlab-owner".to_string()]);
+
+        let parsed_github =
+            CodeOwners::find_file(&temp_dir, &Some(Path::new(".")), Some(OwnersSource::GitHub))
+                .unwrap();
+        let github_owners = flatten_code_owners(&parsed_github, &"README.md".to_string());
+        assert!(github_owners.is_empty());
+
+        let parsed_default = CodeOwners::find_file(&temp_dir, &Some(Path::new(".")), None).unwrap();
+        let default_owners = flatten_code_owners(&parsed_default, &"README.md".to_string());
+        assert_eq!(default_owners, vec!["@gitlab-owner".to_string()]);
+
+        fs::remove_dir_all(temp_dir).ok();
     }
 }

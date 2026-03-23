@@ -7,6 +7,7 @@ use api::client::{ApiClient, ApiErrorEndpoint};
 use api::{client::get_api_host, urls::url_for_test_case};
 use bundle::{BundleMeta, BundlerUtil, Test, unzip_tarball};
 use clap::{ArgAction, Args};
+use codeowners::OwnersSource;
 use constants::EXIT_SUCCESS;
 use context::bazel_bep::common::BepParseResult;
 use display::{end_output::EndOutput, message::DisplayMessage};
@@ -123,6 +124,13 @@ pub struct UploadArgs {
         help = "Override the path to a CODEOWNERS file. Used to associate test failures with code owners."
     )]
     pub codeowners_path: Option<String>,
+    #[arg(
+        long,
+        env = constants::TRUNK_CODEOWNERS_TYPE_ENV,
+        value_enum,
+        help = "Specify CODEOWNERS parser type ('github' or 'gitlab'). Optional; when unset, codeowners type will be inferred."
+    )]
+    pub codeowners_type: Option<CodeownersType>,
     #[arg(
         long,
         help = "Run commands with the quarantining step. Deprecated, prefer --disable-quarantining, which takes priority over this flag, to control quarantining.",
@@ -259,6 +267,23 @@ pub struct UploadArgs {
     pub show_failure_messages: bool,
 }
 
+#[derive(clap::ValueEnum, Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[value(rename_all = "lower")]
+pub enum CodeownersType {
+    #[default]
+    GitHub,
+    GitLab,
+}
+
+impl From<CodeownersType> for OwnersSource {
+    fn from(value: CodeownersType) -> Self {
+        match value {
+            CodeownersType::GitHub => OwnersSource::GitHub,
+            CodeownersType::GitLab => OwnersSource::GitLab,
+        }
+    }
+}
+
 fn parse_sha(s: &str) -> anyhow::Result<String> {
     if s.len() > 40 {
         anyhow::bail!(anyhow::Error::msg(format!(
@@ -384,6 +409,7 @@ pub async fn run_upload(
         &mut meta,
         junit_path_wrappers,
         &upload_args.codeowners_path,
+        upload_args.codeowners_type.map(Into::into),
         upload_args.allow_empty_test_results,
         &test_run_result,
     )?;
