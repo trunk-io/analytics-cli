@@ -58,12 +58,12 @@ fn main() -> anyhow::Result<()> {
     );
 
     if associated_owners.is_empty() {
-        eprintln!("No owners found for {}", test_case_path);
+        tracing::error!(test_case_path = %test_case_path, "No owners found");
         std::process::exit(1);
     } else {
-        println!("Owners found for {}:", test_case_path);
-        for owner in associated_owners {
-            println!("{}", owner);
+        tracing::info!(test_case_path = %test_case_path, "Owners found");
+        for owner in &associated_owners {
+            tracing::info!(owner = %owner);
         }
     }
 

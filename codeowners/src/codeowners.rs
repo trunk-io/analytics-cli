@@ -1,5 +1,6 @@
 use std::{
     fs::File,
+    io::{Read, Seek},
     path::{Path, PathBuf},
     sync::Arc,
 };
@@ -98,24 +99,24 @@ impl CodeOwners {
             all_locations.find_map(|location| locate_codeowners(&repo_root, location));
 
         codeowners_path.map(|path| {
-            let owners_result = match owners_source {
-                Some(OwnersSource::GitHub) => File::open(&path)
-                    .map_err(anyhow::Error::from)
-                    .and_then(|file| GitHubOwners::from_reader(&file).map(Owners::GitHubOwners)),
-                Some(OwnersSource::GitLab) => File::open(&path)
-                    .map_err(anyhow::Error::from)
-                    .and_then(|file| GitLabOwners::from_reader(&file).map(Owners::GitLabOwners)),
-                _ => File::open(&path)
-                    .map_err(anyhow::Error::from)
-                    .and_then(|file| GitLabOwners::from_reader(&file).map(Owners::GitLabOwners))
-                    .or_else(|_| {
-                        File::open(&path)
-                            .map_err(anyhow::Error::from)
-                            .and_then(|file| {
-                                GitHubOwners::from_reader(&file).map(Owners::GitHubOwners)
-                            })
-                    }),
-            };
+            let owners_result: anyhow::Result<Owners> = File::open(&path)
+                .map_err(anyhow::Error::from)
+                .and_then(|mut file| {
+                    let parse_github = |r: &mut File| {
+                        GitHubOwners::from_reader(r.by_ref()).map(Owners::GitHubOwners)
+                    };
+                    let parse_gitlab = |r: &mut File| {
+                        GitLabOwners::from_reader(r.by_ref()).map(Owners::GitLabOwners)
+                    };
+                    match owners_source {
+                        Some(OwnersSource::GitHub) => parse_github(&mut file),
+                        Some(OwnersSource::GitLab) => parse_gitlab(&mut file),
+                        _ => parse_gitlab(&mut file).or_else(|_| {
+                            file.seek(std::io::SeekFrom::Start(0))?;
+                            parse_github(&mut file)
+                        }),
+                    }
+                });
 
             if let Err(ref err) = owners_result {
                 tracing::warn!(
