@@ -15,7 +15,7 @@ use bundle::{
     FileSet, FileSetBuilder, FileSetType, INTERNAL_BIN_FILENAME, META_VERSION,
     QuarantineBulkTestStatus, bin_parse,
 };
-use codeowners::CodeOwners;
+use codeowners::{CodeOwners, OwnersSource};
 use constants::{ENVS_TO_GET, TRUNK_PR_NUMBER_ENV};
 use context::{
     bazel_bep::{
@@ -212,6 +212,7 @@ pub fn gather_post_test_context<U: AsRef<Path>>(
     meta: &mut BundleMeta,
     junit_path_wrappers: Vec<JunitReportFileWithTestRunnerReport>,
     codeowners_path: &Option<U>,
+    codeowners_type: Option<OwnersSource>,
     allow_empty_test_results: bool,
     test_run_result: &Option<TestRunResult>,
 ) -> anyhow::Result<FileSetBuilder> {
@@ -219,6 +220,7 @@ pub fn gather_post_test_context<U: AsRef<Path>>(
         &meta.base_props.repo.repo_root,
         &junit_path_wrappers,
         codeowners_path,
+        codeowners_type,
         test_run_result.as_ref().and_then(|r| r.exec_start),
     )?;
 

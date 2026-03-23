@@ -1,11 +1,7 @@
-use std::{
-    fs::File,
-    path::PathBuf,
-    time::Instant,
-};
+use std::{fs::File, path::PathBuf, time::Instant};
 
 use clap::{Parser, ValueEnum};
-use codeowners::{associate_codeowners, FromReader, GitHubOwners, GitLabOwners, Owners};
+use codeowners::{FromReader, GitHubOwners, GitLabOwners, Owners, associate_codeowners};
 use tracing_subscriber::EnvFilter;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
