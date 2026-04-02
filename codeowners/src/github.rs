@@ -882,7 +882,7 @@ mod tests {
         assert_eq!(
             result_owners.len(),
             1,
-            "Should have 1 owner from /src/components, got: {result_owners}",
+            "Should have 1 owner from /src/components, got: {result_owners:?}",
         );
 
         let owner_strings: Vec<String> = result_owners.iter().map(|o| o.to_string()).collect();
