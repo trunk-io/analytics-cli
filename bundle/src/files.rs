@@ -339,15 +339,18 @@ impl BundledFile {
         }
 
         // Get owners of file.
+        // Use the repo-relative path for codeowners matching, not the absolute path.
+        // CODEOWNERS patterns are relative to the repo root (e.g., `/src/components`),
+        // so we must pass the relative path for correct matching.
         let owners = codeowners
             .as_ref()
             .and_then(|codeowners| codeowners.owners.as_ref())
             .and_then(|codeowners_owners| match codeowners_owners {
                 Owners::GitHubOwners(gho) => gho
-                    .of(path)
+                    .of(&original_path_rel)
                     .map(|o| o.iter().map(ToString::to_string).collect::<Vec<String>>()),
                 Owners::GitLabOwners(glo) => glo
-                    .of(path)
+                    .of(&original_path_rel)
                     .map(|o| o.iter().map(ToString::to_string).collect::<Vec<String>>()),
             })
             .unwrap_or_default();
