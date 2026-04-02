@@ -770,7 +770,6 @@ mod tests {
         )
     }
 
-    // Anchored directory patterns without trailing slash should match deeply nested files
     #[test]
     fn anchored_directory_matches_deeply_nested_files() {
         let codeowners = r#"
@@ -804,7 +803,6 @@ mod tests {
         );
     }
 
-    // Test that the fallback pattern is created correctly for anchored dirs without trailing slash
     #[test]
     fn pattern_fallback_for_anchored_directory() {
         // /src/components should create base "src/components" with fallback "src/components/**"
@@ -837,7 +835,6 @@ mod tests {
         assert!(pat.matches_path_with(nested_path, opts));
     }
 
-    // Test parent walking behavior
     #[test]
     fn parent_walking_matches_intermediate_paths() {
         let pat = pattern("/src/components").unwrap();
@@ -864,7 +861,6 @@ mod tests {
         );
     }
 
-    // More specific pattern should win over less specific, even for deeply nested files
     #[test]
     fn specific_pattern_wins_over_general_for_nested_files() {
         let codeowners = r#"
@@ -886,8 +882,7 @@ mod tests {
         assert_eq!(
             result_owners.len(),
             1,
-            "Should have 1 owner from /src/components, got: {:?}",
-            result_owners
+            "Should have 1 owner from /src/components, got: {result_owners}",
         );
 
         let owner_strings: Vec<String> = result_owners.iter().map(|o| o.to_string()).collect();
