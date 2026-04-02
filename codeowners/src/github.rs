@@ -769,4 +769,139 @@ mod tests {
             Some(vec![GitHubOwner::Username("@doug".into())])
         )
     }
+
+    #[test]
+    fn anchored_directory_matches_deeply_nested_files() {
+        let codeowners = r#"
+/src @owner1
+/src/components @owner2
+"#;
+        let owners = GitHubOwners::from_reader(codeowners.as_bytes()).unwrap();
+
+        // Deeply nested file should match /src/components (the more specific pattern)
+        assert_eq!(
+            owners.of("src/components/ui/buttons/primary_button.rs"),
+            Some(vec![GitHubOwner::Username("@owner2".into())])
+        );
+
+        // Less deeply nested should also work
+        assert_eq!(
+            owners.of("src/components/foo.rs"),
+            Some(vec![GitHubOwner::Username("@owner2".into())])
+        );
+
+        // Direct child should work
+        assert_eq!(
+            owners.of("src/components/file.rs"),
+            Some(vec![GitHubOwner::Username("@owner2".into())])
+        );
+
+        // src/ alone should match owner1
+        assert_eq!(
+            owners.of("src/other/file.rs"),
+            Some(vec![GitHubOwner::Username("@owner1".into())])
+        );
+    }
+
+    #[test]
+    fn pattern_fallback_for_anchored_directory() {
+        // /src/components should create base "src/components" with fallback "src/components/**"
+        let pat = pattern("/src/components").unwrap();
+        assert_eq!(pat.base.as_str(), "src/components");
+        assert!(pat.fallback.is_some());
+        assert_eq!(pat.fallback.as_ref().unwrap().as_str(), "src/components/**");
+
+        // Verify the fallback pattern actually matches nested paths
+        let opts = glob::MatchOptions {
+            case_sensitive: false,
+            require_literal_separator: true,
+            require_literal_leading_dot: false,
+        };
+        let nested_path = Path::new("src/components/ui/buttons/primary_button.rs");
+
+        // Base should NOT match (it's just "src/components")
+        assert!(!pat.base.matches_path_with(nested_path, opts));
+
+        // Fallback SHOULD match
+        assert!(
+            pat.fallback
+                .as_ref()
+                .unwrap()
+                .matches_path_with(nested_path, opts),
+            "Fallback pattern 'src/components/**' should match deeply nested path"
+        );
+
+        // Combined matches_path_with should work
+        assert!(pat.matches_path_with(nested_path, opts));
+    }
+
+    #[test]
+    fn parent_walking_matches_intermediate_paths() {
+        let pat = pattern("/src/components").unwrap();
+        let opts = glob::MatchOptions {
+            case_sensitive: false,
+            require_literal_separator: true,
+            require_literal_leading_dot: false,
+        };
+
+        // The base pattern should match the exact directory path
+        assert!(
+            pat.base
+                .matches_path_with(Path::new("src/components"), opts),
+            "Base pattern 'src/components' should match exact path 'src/components'"
+        );
+
+        // The fallback should match intermediate paths under the directory
+        assert!(
+            pat.fallback
+                .as_ref()
+                .unwrap()
+                .matches_path_with(Path::new("src/components/ui"), opts),
+            "Fallback 'src/components/**' should match 'src/components/ui'"
+        );
+    }
+
+    #[test]
+    fn specific_pattern_wins_over_general_for_nested_files() {
+        let codeowners = r#"
+* @fallback-owner
+/src @general-owner @extra-owner
+/src/components @specific-owner
+/src/components/special @very-specific-owner
+"#;
+        let owners = GitHubOwners::from_reader(codeowners.as_bytes()).unwrap();
+
+        // Deeply nested file should match /src/components, not /src or *
+        let file_path = "src/components/nested/deeply/file.rs";
+        let result = owners.of(file_path);
+
+        assert!(result.is_some(), "File should have owners");
+        let result_owners = result.unwrap();
+
+        // Should get exactly 1 owner from /src/components
+        assert_eq!(
+            result_owners.len(),
+            1,
+            "Should have 1 owner from /src/components, got: {result_owners:?}",
+        );
+
+        let owner_strings: Vec<String> = result_owners.iter().map(|o| o.to_string()).collect();
+
+        // Should NOT contain @extra-owner (that's from /src)
+        assert!(
+            !owner_strings.iter().any(|o| o.contains("extra-owner")),
+            "Should NOT contain @extra-owner (that's from /src). Got: {:?}",
+            owner_strings
+        );
+
+        // Should NOT contain @fallback-owner (that's from *)
+        assert!(
+            !owner_strings.iter().any(|o| o.contains("fallback-owner")),
+            "Should NOT contain @fallback-owner (that's from *). Got: {:?}",
+            owner_strings
+        );
+
+        // Should contain the specific owner
+        assert!(owner_strings.contains(&"@specific-owner".to_string()));
+    }
 }
