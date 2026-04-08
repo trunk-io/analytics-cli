@@ -82,9 +82,6 @@ lint:
         # Ignore generated files
         - target/**
         - "**/target/**"
-    # Ignore occassionaly clippy errors on generated files
-    - linters: [clippy]
-      paths: [target/**/*]
     - linters: [prettier]
       paths:
         - context/test_fixtures/*.json
