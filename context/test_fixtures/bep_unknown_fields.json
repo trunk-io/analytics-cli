@@ -1,0 +1,51 @@
+{
+  "id": {
+    "started": {}
+  },
+  "children": [
+    { "buildFinished": {} }
+  ],
+  "started": {
+    "uuid": "test-uuid",
+    "startTimeMillis": "1733431512924",
+    "buildToolVersion": "7.4.0",
+    "optionsDescription": "",
+    "command": "test",
+    "workingDirectory": "/repos/trunk",
+    "workspaceDirectory": "/repos/trunk",
+    "serverPid": "4030542",
+    "startTime": "2024-12-05T20:45:12.924Z",
+    "host": "my-build-host.example.com"
+  }
+}
+{
+  "id": {
+    "testResult": {
+      "label": "//trunk/hello_world/cc:hello_test",
+      "run": 1,
+      "shard": 1,
+      "attempt": 1,
+      "configuration": {
+        "id": "abc123"
+      }
+    }
+  },
+  "testResult": {
+    "testActionOutput": [
+      {
+        "name": "test.log",
+        "uri": "file:///tmp/hello_test/test.log"
+      },
+      {
+        "name": "test.xml",
+        "uri": "file:///tmp/hello_test/test.xml"
+      }
+    ],
+    "testAttemptDurationMillis": "153",
+    "status": "PASSED",
+    "testAttemptStartMillisEpoch": "1733171237474",
+    "executionInfo": {},
+    "testAttemptStart": "2024-12-02T20:27:17.474Z",
+    "testAttemptDuration": "0.153s"
+  }
+}

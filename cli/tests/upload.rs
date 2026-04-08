@@ -561,7 +561,7 @@ async fn upload_bundle_success_status_code() {
 async fn upload_bundle_bep_with_unknown_fields() {
     let temp_dir = tempdir().unwrap();
     generate_mock_git_repo(&temp_dir);
-    let test_bep_path = get_test_file_path("test_fixtures/bep_with_unknown_fields");
+    let test_bep_path = get_test_file_path("test_fixtures/bep_with_unknown_fields.json");
     let uri_fail = format!(
         "file://{}",
         get_test_file_path("test_fixtures/junit1_fail.xml")
