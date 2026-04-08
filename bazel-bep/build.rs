@@ -37,6 +37,7 @@ fn main() -> io::Result<()> {
 
     pbjson_build::Builder::new()
         .register_descriptors(&file_descriptors_bytes)?
+        .ignore_unknown_fields()
         .build(&["."])?;
 
     Ok(())
