@@ -82,6 +82,10 @@ lint:
         # Ignore generated files
         - target/**
         - "**/target/**"
+    - linters: [prettier]
+      paths:
+        - context/test_fixtures/*.json
+        - cli/test_fixtures/*.json
     - linters: [rubocop]
       paths:
         - .github/actions/test_ruby_gem_uploads/Gemfile
