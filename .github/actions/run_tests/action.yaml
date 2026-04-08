@@ -4,8 +4,6 @@ description: Run tests
 inputs:
   target:
     description: Rust target triple, e.g. x86_64-apple-darwin
-  codecov-token:
-    description: Codecov secret, used for uploads
 
 runs:
   using: composite
@@ -46,11 +44,3 @@ runs:
         cargo llvm-cov --no-report --doc
         cargo llvm-cov report --doctests --lcov --output-path lcov.info
         exit "$exitcode"
-
-    - name: Upload coverage reports to Codecov
-      uses: codecov/codecov-action@v5
-      if: always()
-      with:
-        token: ${{ inputs.codecov-token }}
-        slug: trunk-io/analytics-cli
-        files: lcov.info

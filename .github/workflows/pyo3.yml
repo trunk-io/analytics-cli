@@ -149,13 +149,6 @@ jobs:
             uv pip install context-py --find-links ../dist --force-reinstall
             pytest --cov
 
-      - name: Upload coverage reports to Codecov
-        uses: codecov/codecov-action@v5
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          slug: trunk-io/analytics-cli
-          directory: ./context-py
-
   macos:
     needs: [get-date-sha]
     runs-on: ${{ matrix.platform.runner }}
