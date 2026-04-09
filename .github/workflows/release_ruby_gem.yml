@@ -122,16 +122,15 @@ jobs:
           ruby -e "require 'rubygems/package'
             spec = Gem::Package.new('${GEM_FILE}').spec
             abort 'ERROR: platform is not ruby' unless spec.platform.to_s == 'ruby'
-            abort 'ERROR: missing extensions' if spec.extensions.empty?
-            abort 'ERROR: missing extconf.rb' unless spec.extensions.include?('ext/rspec_trunk_flaky_tests/extconf.rb')
+            abort 'ERROR: should have no extensions' unless spec.extensions.empty?
+            abort 'ERROR: should not depend on rb_sys' if spec.dependencies.any? { |d| d.name == 'rb_sys' }
             files = spec.files
-            abort 'ERROR: missing Rust source' unless files.any? { |f| f.end_with?('.rs') }
-            abort 'ERROR: missing Cargo.toml' unless files.any? { |f| f.end_with?('Cargo.toml') }
+            abort 'ERROR: should not include native source' if files.any? { |f| f.end_with?('.rs') }
             abort 'ERROR: missing lib/*.rb' unless files.any? { |f| f.start_with?('lib/') && f.end_with?('.rb') }
             puts 'Ruby platform gem validated successfully:'
             puts \"  platform=#{spec.platform}\"
             puts \"  extensions=#{spec.extensions}\"
-            puts \"  files=#{files.length} files\"
+            puts \"  files=#{files.join(', ')}\"
           "
 
       - uses: actions/upload-artifact@v4
