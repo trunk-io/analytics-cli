@@ -26,6 +26,28 @@ end
 
 task build: :compile
 
+desc 'Build the pure ruby platform gem (fallback that raises a helpful error)'
+task :ruby_gem do
+  require 'tempfile'
+
+  spec = GEMSPEC.dup
+  # Remove native extension so the gem does not attempt to compile Rust on install
+  spec.extensions = []
+  # Only include Ruby lib files — no native source
+  spec.files = Dir['lib/**/*.rb']
+  # rb_sys is only needed for native compilation
+  spec.dependencies.reject! { |d| d.name == 'rb_sys' }
+
+  Dir.mktmpdir do |dir|
+    gemspec_path = File.join(dir, 'rspec_trunk_flaky_tests.gemspec')
+    File.write(gemspec_path, spec.to_ruby)
+    sh 'gem', 'build', gemspec_path
+    mkdir_p 'pkg'
+    built_gem = Dir["rspec_trunk_flaky_tests-*.gem"].first
+    mv built_gem, "pkg/#{built_gem}" if built_gem
+  end
+end
+
 # for some reason I haven't been able to figure out, rspec is unable to be loaded in when running inside of a container
 begin
   require 'rspec/core/rake_task'
