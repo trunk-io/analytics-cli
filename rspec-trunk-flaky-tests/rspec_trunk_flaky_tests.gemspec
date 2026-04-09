@@ -16,6 +16,7 @@ Gem::Specification.new do |s|
   s.add_dependency('rb_sys', '=0.9.124')
   s.add_development_dependency('rspec')
   s.homepage    = 'https://docs.trunk.io/flaky-tests/get-started/frameworks/rspec'
+  s.metadata["source_code_uri"] = 'https://github.com/trunk-io/analytics-cli/tree/main/rspec-trunk-flaky-tests'
   s.license     = 'MIT'
   s.executables = []
   s.require_paths = ['lib']
