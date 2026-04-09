@@ -26,6 +26,14 @@ end
 
 task build: :compile
 
+desc 'Build the pure ruby platform gem (compiles native extension on install)'
+task :ruby_gem do
+  sh 'gem', 'build', GEMSPEC_PATH
+  mkdir_p 'pkg'
+  built_gem = Dir["rspec_trunk_flaky_tests-*.gem"].first
+  mv built_gem, "pkg/#{built_gem}" if built_gem
+end
+
 # for some reason I haven't been able to figure out, rspec is unable to be loaded in when running inside of a container
 begin
   require 'rspec/core/rake_task'

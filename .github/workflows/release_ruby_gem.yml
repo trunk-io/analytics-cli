@@ -101,6 +101,50 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
+  ruby-gem:
+    name: Build pure ruby gem
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "4.0"
+          bundler-cache: true
+          working-directory: rspec-trunk-flaky-tests
+
+      - name: Update CLI version
+        uses: ./.github/actions/update_version
+        if: "!cancelled()"
+        with:
+          version: ${{ github.event.inputs.release_tag || inputs.release_tag }}
+          file: ./cli/Cargo.toml
+
+      - name: Update Test Report version
+        uses: ./.github/actions/update_version
+        if: "!cancelled()"
+        with:
+          version: ${{ github.event.inputs.release_tag || inputs.release_tag }}
+          file: ./test_report/Cargo.toml
+
+      - name: Update Gem version
+        uses: ./.github/actions/update_version
+        if: "!cancelled()"
+        with:
+          version: ${{ github.event.inputs.release_tag || inputs.release_tag }}
+          file: rspec-trunk-flaky-tests/rspec_trunk_flaky_tests.gemspec
+
+      - name: Build ruby platform gem
+        working-directory: rspec-trunk-flaky-tests
+        run: bundle exec rake ruby_gem
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cross-gem-ruby
+          path: rspec-trunk-flaky-tests/pkg/*.gem
+          if-no-files-found: error
+          retention-days: 1
+
   test-ruby-gem:
     name: Test Ruby Gem
     runs-on: ${{ matrix.platform.os }}
@@ -130,7 +174,7 @@ jobs:
 
   publish_ruby_gem:
     runs-on: ubuntu-latest
-    needs: test-ruby-gem
+    needs: [test-ruby-gem, ruby-gem]
     steps:
       - uses: actions/checkout@v4
 
