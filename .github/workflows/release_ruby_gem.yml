@@ -138,6 +138,36 @@ jobs:
         working-directory: rspec-trunk-flaky-tests
         run: bundle exec rake ruby_gem
 
+      - name: Validate ruby platform gem
+        working-directory: rspec-trunk-flaky-tests
+        shell: bash
+        run: |
+          set -euxo pipefail
+          GEM_FILE=$(ls pkg/rspec_trunk_flaky_tests-*.gem)
+          echo "Built gem: ${GEM_FILE}"
+
+          # Must not have a platform suffix (e.g. -x86_64-linux)
+          if echo "${GEM_FILE}" | grep -qE '-(x86_64|aarch64|arm64)-(linux|darwin)\.gem$'; then
+            echo "ERROR: Gem has a platform suffix, expected pure ruby gem"
+            exit 1
+          fi
+
+          # Validate gem metadata via ruby
+          ruby -e "require 'rubygems/package'
+            spec = Gem::Package.new('${GEM_FILE}').spec
+            abort 'ERROR: platform is not ruby' unless spec.platform.to_s == 'ruby'
+            abort 'ERROR: missing extensions' if spec.extensions.empty?
+            abort 'ERROR: missing extconf.rb' unless spec.extensions.include?('ext/rspec_trunk_flaky_tests/extconf.rb')
+            files = spec.files
+            abort 'ERROR: missing Rust source' unless files.any? { |f| f.end_with?('.rs') }
+            abort 'ERROR: missing Cargo.toml' unless files.any? { |f| f.end_with?('Cargo.toml') }
+            abort 'ERROR: missing lib/*.rb' unless files.any? { |f| f.start_with?('lib/') && f.end_with?('.rb') }
+            puts 'Ruby platform gem validated successfully:'
+            puts \"  platform=#{spec.platform}\"
+            puts \"  extensions=#{spec.extensions}\"
+            puts \"  files=#{files.length} files\"
+          "
+
       - uses: actions/upload-artifact@v4
         with:
           name: cross-gem-ruby
