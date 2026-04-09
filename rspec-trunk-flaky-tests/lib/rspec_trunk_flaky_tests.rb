@@ -10,19 +10,23 @@ rescue LoadError
     raise LoadError, <<~MSG
       Could not load the native extension for rspec_trunk_flaky_tests.
 
-      You are likely installing the pure ruby variant of this gem, which does not
-      include a precompiled native extension. To fix this, add your platform to
-      your Gemfile.lock:
+      You are using the pure ruby variant of this gem, which is a placeholder
+      that exists so that Gemfile.lock files with `PLATFORMS ruby` can resolve
+      this dependency. It does not include a precompiled native extension.
 
-          bundle lock --add-platform x86_64-linux    # Standard Linux
-          bundle lock --add-platform aarch64-linux   # ARM Linux
-          bundle lock --add-platform arm64-darwin    # Apple Silicon macOS
-          bundle lock --add-platform x86_64-darwin   # Intel macOS
+      Precompiled native gems are available for:
+        x86_64-linux, aarch64-linux, arm64-darwin, x86_64-darwin
 
-      Then run `bundle install` again. Bundler will automatically select the
-      precompiled native gem for your platform.
+      If you are on a supported platform and seeing this error, make sure
+      bundler is selecting the native variant for your platform:
 
-      Supported platforms: x86_64-linux, aarch64-linux, arm64-darwin, x86_64-darwin
+          bundle lock --add-platform #{RUBY_PLATFORM}
+          bundle install
+
+      If you are on an unsupported platform, this gem cannot be used in your
+      environment. Please open an issue at:
+        https://github.com/trunk-io/analytics-cli/issues
+
       Current platform: #{RUBY_PLATFORM}
       Current Ruby version: #{RUBY_VERSION}
     MSG
