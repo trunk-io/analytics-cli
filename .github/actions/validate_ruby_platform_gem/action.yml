@@ -1,0 +1,47 @@
+name: Validate Ruby Platform Gem
+description: Build and validate the pure ruby platform gem (fallback stub)
+
+inputs:
+  working-directory:
+    description: Directory containing the gem
+    default: rspec-trunk-flaky-tests
+
+runs:
+  using: composite
+  steps:
+    - name: Build ruby platform gem
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        # Disable frozen mode since the gemspec version may have been updated after bundle install
+        bundle config set frozen false
+        bundle exec rake ruby_gem
+
+    - name: Validate ruby platform gem
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        set -euxo pipefail
+        GEM_FILE=$(ls pkg/rspec_trunk_flaky_tests-*.gem)
+        echo "Built gem: ${GEM_FILE}"
+
+        # Must not have a platform suffix (e.g. -x86_64-linux)
+        if echo "${GEM_FILE}" | grep -qE '-(x86_64|aarch64|arm64)-(linux|darwin)\.gem$'; then
+          echo "ERROR: Gem has a platform suffix, expected pure ruby gem"
+          exit 1
+        fi
+
+        # Validate gem metadata via ruby
+        ruby -e "require 'rubygems/package'
+          spec = Gem::Package.new('${GEM_FILE}').spec
+          abort 'ERROR: platform is not ruby' unless spec.platform.to_s == 'ruby'
+          abort 'ERROR: should have no extensions' unless spec.extensions.empty?
+          abort 'ERROR: should not depend on rb_sys' if spec.dependencies.any? { |d| d.name == 'rb_sys' }
+          files = spec.files
+          abort 'ERROR: should not include native source' if files.any? { |f| f.end_with?('.rs') }
+          abort 'ERROR: missing lib/*.rb' unless files.any? { |f| f.start_with?('lib/') && f.end_with?('.rb') }
+          puts 'Ruby platform gem validated successfully:'
+          puts \"  platform=#{spec.platform}\"
+          puts \"  extensions=#{spec.extensions}\"
+          puts \"  files=#{files.join(', ')}\"
+        "
