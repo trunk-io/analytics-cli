@@ -53,13 +53,9 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: 3.13
-      # aarch64 builds use cross-compilation, so stub_gen must run on host (x86_64)
-      # x86_64 builds run stub_gen inside container to avoid glibc mismatch
       - name: Setup Rust & Cargo
-        if: matrix.platform.target == 'aarch64'
         uses: ./.github/actions/setup_rust_cargo
       - name: Generate Python stubs
-        if: matrix.platform.target == 'aarch64'
         run: cargo run --bin stub_gen --manifest-path context-py/Cargo.toml --no-default-features
       - name: Build wheels
         uses: PyO3/maturin-action@v1
@@ -67,23 +63,18 @@ jobs:
           target: ${{ matrix.platform.target }}
           args: --release --out dist --find-interpreter --manifest-path ./context-py/Cargo.toml
           manylinux: auto
-          # Required version in order to support Glue
-          container: "2_17"
+          # manylinux_2_28 provides glibc 2.28 which is compatible with ubuntu-latest
+          container: "2_28"
           before-script-linux: |
             # Needed for `openssl-sys`:
             # https://docs.rs/openssl/latest/openssl/
-            if [ -f /usr/bin/yum ]; then
-              # quay.io/pypa/manylinux2014_x86_64:latest
-              /usr/bin/yum -y upgrade
-              /usr/bin/yum -y install perl-IPC-Cmd perl-List-MoreUtils openssl-devel python3-pip unzip
-              /usr/bin/ln -s /usr/bin/pip3 /usr/bin/pip
-              # Generate Python stubs inside x86_64 container to avoid glibc mismatch
-              cargo run --bin stub_gen --manifest-path context-py/Cargo.toml --no-default-features
-            elif [ -f /usr/bin/apt ]; then
-              # ghcr.io/rust-cross/manylinux2014-cross:aarch64
-              # Note: stub_gen already ran on host for aarch64 (can't run aarch64 binary here)
-              /usr/bin/apt update
-              /usr/bin/apt install -y pkg-config libssl-dev unzip
+            if command -v yum &> /dev/null; then
+              # manylinux_2_28 x86_64 (AlmaLinux 8)
+              yum -y install perl-IPC-Cmd openssl-devel python3-pip unzip
+            elif command -v apt &> /dev/null; then
+              # manylinux_2_28 cross-compile (aarch64)
+              apt update
+              apt install -y pkg-config libssl-dev unzip
             fi
       - name: Upload wheels
         uses: actions/upload-artifact@v4
