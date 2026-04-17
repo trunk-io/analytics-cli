@@ -1330,6 +1330,69 @@ fn test_simple_circleci() {
 }
 
 #[test]
+fn test_circleci_app_job_url_for_github_hosted_build() {
+    let branch = String::from("main");
+    let build_url = String::from("https://circleci.com/gh/acme/widget/42");
+    let pipeline_id = String::from("00000000-0000-4000-8000-000000000001");
+    let workflow_id = String::from("00000000-0000-4000-8000-000000000002");
+
+    let env_vars = EnvVars::from_iter(vec![
+        (String::from("CIRCLECI"), String::from("true")),
+        (String::from("CIRCLE_BRANCH"), String::from(&branch)),
+        (String::from("CIRCLE_BUILD_URL"), String::from(&build_url)),
+        // https://discuss.circleci.com/t/circle-build-url-environment-variable-changing-for-projects-that-use-github-app-gitlab/49980/7
+        // Job URL must use org/repo from CIRCLE_BUILD_URL, not these:
+        (
+            String::from("CIRCLE_PROJECT_USERNAME"),
+            String::from("wrong-org"),
+        ),
+        (
+            String::from("CIRCLE_PROJECT_REPONAME"),
+            String::from("wrong-repo"),
+        ),
+        (
+            String::from("CIRCLE_PIPELINE_ID"),
+            String::from(&pipeline_id),
+        ),
+        (
+            String::from("CIRCLE_WORKFLOW_ID"),
+            String::from(&workflow_id),
+        ),
+        (String::from("CIRCLE_BUILD_NUM"), String::from("42")),
+        (String::from("CIRCLE_NODE_INDEX"), String::from("0")),
+    ]);
+
+    let mut env_parser = EnvParser::new();
+    env_parser.parse(&env_vars, &[], None);
+
+    let ci_info = env_parser.into_ci_info_parser().unwrap().info_ci_info();
+
+    let expected_job_url = format!(
+        "https://app.circleci.com/pipelines/github/acme/widget/{pipeline_id}/workflows/{workflow_id}/jobs/42/parallel-runs/0"
+    );
+
+    pretty_assertions::assert_eq!(
+        ci_info,
+        CIInfo {
+            platform: CIPlatform::CircleCI,
+            job_url: Some(expected_job_url),
+            branch: Some(branch),
+            branch_class: Some(BranchClass::None),
+            pr_number: None,
+            actor: None,
+            committer_name: None,
+            committer_email: None,
+            author_name: None,
+            author_email: None,
+            commit_message: None,
+            title: None,
+            workflow: Some(workflow_id),
+            job: None,
+        }
+    );
+}
+
+#[test]
 fn test_circleci_pr() {
     let branch = String::from("feature/add-feature");
     let build_url = String::from("https://circleci.com/gh/my-org/my-repo/456");

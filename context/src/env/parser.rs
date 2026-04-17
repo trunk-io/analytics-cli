@@ -486,7 +486,31 @@ impl<'a> CIInfoParser<'a> {
     }
 
     fn parse_circleci(&mut self) {
-        self.ci_info.job_url = self.get_env_var("CIRCLE_BUILD_URL");
+        let build_url = self.get_env_var("CIRCLE_BUILD_URL");
+        self.ci_info.job_url = match build_url.as_deref() {
+            Some(url) if url.starts_with("https://circleci.com/gh/") => {
+                if let (
+                    Some((org, repo)),
+                    Some(pipeline_id),
+                    Some(workflow_id),
+                    Some(build_num),
+                    Some(node_index),
+                ) = (
+                    circleci_gh_org_repo_from_build_url(url),
+                    self.get_env_var("CIRCLE_PIPELINE_ID"),
+                    self.get_env_var("CIRCLE_WORKFLOW_ID"),
+                    self.get_env_var("CIRCLE_BUILD_NUM"),
+                    self.get_env_var("CIRCLE_NODE_INDEX"),
+                ) {
+                    Some(format!(
+                        "https://app.circleci.com/pipelines/github/{org}/{repo}/{pipeline_id}/workflows/{workflow_id}/jobs/{build_num}/parallel-runs/{node_index}"
+                    ))
+                } else {
+                    build_url
+                }
+            }
+            _ => build_url,
+        };
         self.ci_info.branch = self.get_env_var("CIRCLE_BRANCH");
         self.ci_info.pr_number = self.parse_pr_number(self.get_env_var("CIRCLE_PR_NUMBER"));
         self.ci_info.actor = self.get_env_var("CIRCLE_USERNAME");
@@ -705,6 +729,21 @@ pub fn clean_branch(branch: &str) -> String {
         .replace("origin/", "");
 
     return String::from(safe_truncate_string::<MAX_BRANCH_NAME_SIZE, _>(&new_branch));
+}
+
+/// Default `CIRCLE_BUILD_URL` for GitHub projects:
+/// `https://circleci.com/gh/{org}/{repo}/{build_num}`.
+/// Reference: https://discuss.circleci.com/t/circle-build-url-environment-variable-changing-for-projects-that-use-github-app-gitlab/49980/7
+fn circleci_gh_org_repo_from_build_url(url: &str) -> Option<(&str, &str)> {
+    const PREFIX: &str = "https://circleci.com/gh/";
+    let path = url.strip_prefix(PREFIX)?.split('?').next()?;
+    let path = path.trim_end_matches('/');
+    let mut segments = path.split('/').filter(|s| !s.is_empty());
+    let org = segments.next()?;
+    let repo = segments.next()?;
+    // Require the trailing build-number segment present in real CircleCI URLs.
+    segments.next()?;
+    Some((org, repo))
 }
 
 /// Characters that need to be percent-encoded in URL path segments
