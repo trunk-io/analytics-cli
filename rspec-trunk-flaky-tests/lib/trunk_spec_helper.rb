@@ -189,6 +189,8 @@ end
 # TrunkAnalyticsListener is a class that is used to listen to the execution of the Example class
 # it generates and submits the final test reports
 class TrunkAnalyticsListener
+  MAX_TEXT_FIELD_SIZE = 8_000
+
   def initialize
     @testreport = $test_report
   end
@@ -221,8 +223,15 @@ class TrunkAnalyticsListener
 
   # trunk-ignore(rubocop/Metrics/CyclomaticComplexity,rubocop/Metrics/AbcSize,rubocop/Metrics/MethodLength)
   def add_test_case(example)
-    failure_message = example.exception.to_s if example.exception
-    failure_message = example.metadata[:quarantined_exception].to_s if example.metadata[:quarantined_exception]
+    exception = example.exception || example.metadata[:quarantined_exception]
+    failure_message = ''
+    backtrace = ''
+    if exception
+      failure_message = exception.to_s
+      backtrace = exception.backtrace.join("\n") if exception.backtrace && !exception.backtrace.empty?
+    end
+    failure_message = failure_message[0...MAX_TEXT_FIELD_SIZE] if failure_message.length > MAX_TEXT_FIELD_SIZE
+    backtrace = backtrace[0...MAX_TEXT_FIELD_SIZE] if backtrace.length > MAX_TEXT_FIELD_SIZE
     # TODO: should we use concatenated string or alias when auto-generated description?
     name = example.full_description
     file = escape(example.metadata[:file_path])
@@ -247,7 +256,7 @@ class TrunkAnalyticsListener
     parent_name = example.example_group.metadata[:description]
     parent_name = parent_name.empty? ? 'rspec' : parent_name
     @testreport.add_test(id, name, classname, file, parent_name, line, status, attempt_number,
-                         started_at, finished_at, failure_message || '', is_quarantined)
+                         started_at, finished_at, failure_message || '', backtrace || '', is_quarantined)
   end
 end
 
