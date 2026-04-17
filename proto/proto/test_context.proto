@@ -24,7 +24,9 @@ message LineNumber {
 }
 
 message TestOutput {
+  // Typically the full message, including backtrace if applicable
   string text = 1;
+  // Typically the short failure message
   string message = 2;
   string system_out = 3;
   string system_err = 4;

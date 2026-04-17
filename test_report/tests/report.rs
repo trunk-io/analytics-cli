@@ -100,6 +100,7 @@ async fn publish_test_report() {
             1000,
             1001,
             "test-message".into(),
+            "test-backtrace".into(),
             false,
         );
         // call this twice to later validate we only send one request
@@ -129,6 +130,7 @@ async fn publish_test_report() {
             1000,
             1001,
             "test-message".into(),
+            "test-backtrace".into(),
             true,
         );
         let result = test_report.publish();
@@ -270,8 +272,8 @@ async fn publish_test_report() {
     assert_eq!(
         test_case_run.test_output,
         Some(TestOutput {
-            text: "test-message".into(),
-            message: "".into(),
+            text: "test-backtrace".into(),
+            message: "test-message".into(),
             system_out: "".into(),
             system_err: "".into(),
         })
@@ -369,6 +371,7 @@ async fn test_environment_variable_overrides() {
             1000,
             1001,
             "test-message".into(),
+            "test-backtrace".into(),
             false,
         );
         let result = test_report.publish();
@@ -500,6 +503,7 @@ async fn test_variant_priority_constructor_over_env() {
             1000,
             1001,
             "test-message".into(),
+            "test-backtrace".into(),
             false,
         );
         let result = test_report.publish();

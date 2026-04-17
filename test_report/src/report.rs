@@ -727,7 +727,8 @@ impl MutTestReport {
         attempt_number: i32,
         started_at: i64,
         finished_at: i64,
-        output: String,
+        failure_text: String,
+        backtrace: String,
         is_quarantined: bool,
     ) {
         let mut test = TestCaseRun::default();
@@ -779,11 +780,11 @@ impl MutTestReport {
         };
         test.finished_at = Some(test_finished_at);
         // trunk-ignore(clippy/deprecated)
-        test.status_output_message = output.clone();
+        test.status_output_message = failure_text.clone();
         if status != Status::Success {
             test.test_output = Some(TestOutput {
-                text: output,
-                message: "".into(),
+                text: backtrace,
+                message: failure_text,
                 system_out: "".into(),
                 system_err: "".into(),
             });
@@ -828,7 +829,7 @@ pub fn ruby_init(ruby: &magnus::Ruby) -> Result<(), magnus::Error> {
     test_report.define_singleton_method("new", magnus::function!(MutTestReport::new, 3))?;
     test_report.define_method("to_s", magnus::method!(MutTestReport::to_string, 0))?;
     test_report.define_method("publish", magnus::method!(MutTestReport::publish, 0))?;
-    test_report.define_method("add_test", magnus::method!(MutTestReport::add_test, 12))?;
+    test_report.define_method("add_test", magnus::method!(MutTestReport::add_test, 13))?;
     test_report.define_method("try_save", magnus::method!(MutTestReport::try_save, 1))?;
     test_report.define_method(
         "is_quarantined",
