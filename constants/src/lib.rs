@@ -132,6 +132,10 @@ pub const ENVS_TO_GET: &[&str] = &[
     "CIRCLE_USERNAME",
     "CIRCLE_WORKFLOW_ID",
     "CIRCLE_WORKFLOW_JOB_ID",
+    "CIRCLE_NODE_INDEX",
+    "CIRCLE_NODE_TOTAL",
+    "CIRCLE_PIPELINE_ID",
+    "CIRCLE_PIPELINE_NUMBER", // not a built-in but is common practice
     // Buildkite
     "BUILDKITE",
     "BUILDKITE_BRANCH",
