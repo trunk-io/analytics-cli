@@ -5,7 +5,7 @@ use std::sync::mpsc::Sender;
 
 use api::client::{ApiClient, ApiErrorEndpoint};
 use api::{client::get_api_host, urls::url_for_test_case};
-use bundle::{BundleMeta, BundlerUtil, Test, unzip_tarball};
+use bundle::{BundleMeta, BundlerUtil, DiscoveredTrace, Test, unzip_tarball};
 use clap::{ArgAction, Args};
 use codeowners::OwnersSource;
 use constants::EXIT_SUCCESS;
@@ -444,7 +444,13 @@ pub async fn run_upload(
         .collect();
 
     let temp_dir = tempfile::tempdir()?;
-    let internal_bundled_file = if let Some(ref bep_result) = bep_result {
+    let repo_root_path = std::path::PathBuf::from(&meta.base_props.repo.repo_root);
+    let repo_root_for_traces = if repo_root_path.as_os_str().is_empty() {
+        None
+    } else {
+        Some(repo_root_path.as_path())
+    };
+    let internal_file_result = if let Some(ref bep_result) = bep_result {
         generate_internal_file_from_bep(
             bep_result,
             &temp_dir,
@@ -458,6 +464,7 @@ pub async fn run_upload(
             &upload_args.org_url_slug,
             &quarantine_context.repo,
             &quarantined_test_ids,
+            repo_root_for_traces,
         )
     } else {
         generate_internal_file(
@@ -473,15 +480,20 @@ pub async fn run_upload(
             &upload_args.org_url_slug,
             &quarantine_context.repo,
             &quarantined_test_ids,
+            repo_root_for_traces,
         )
     };
-    let validations = if let Ok((internal_bundled_file, junit_validations)) = internal_bundled_file
-    {
-        meta.internal_bundled_file = Some(internal_bundled_file);
-        JunitReportValidations::new(junit_validations)
-    } else {
-        JunitReportValidations::new(BTreeMap::new())
-    };
+    let (validations, discovered_traces): (JunitReportValidations, Vec<DiscoveredTrace>) =
+        match internal_file_result {
+            Ok(result) => {
+                meta.internal_bundled_file = Some(result.bundled_file);
+                (
+                    JunitReportValidations::new(result.validations),
+                    result.traces,
+                )
+            }
+            Err(_) => (JunitReportValidations::new(BTreeMap::new()), Vec::new()),
+        };
 
     meta.base_props.quarantined_tests = quarantine_context
         .quarantine_status
@@ -497,6 +509,7 @@ pub async fn run_upload(
         &mut meta,
         &api_client,
         bep_result,
+        discovered_traces,
         quarantine_context.exit_code,
         upload_args.dry_run,
     )
@@ -571,6 +584,7 @@ async fn upload_bundle(
     meta: &mut BundleMeta,
     api_client: &ApiClient,
     bep_result: Option<BepParseResult>,
+    traces: Vec<DiscoveredTrace>,
     exit_code: i32,
     dry_run: bool,
 ) -> anyhow::Result<(PathBuf, TempDir)> {
@@ -580,7 +594,9 @@ async fn upload_bundle(
         bundle_temp_file,
         // directory is removed on drop
         bundle_temp_dir,
-    ) = BundlerUtil::new(meta, bep_result).make_tarball_in_temp_dir()?;
+    ) = BundlerUtil::new(meta, bep_result)
+        .with_traces(traces)
+        .make_tarball_in_temp_dir()?;
     tracing::info!("Flushed temporary tarball to {:?}", bundle_temp_file);
 
     if dry_run {
