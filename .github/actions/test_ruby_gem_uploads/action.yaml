@@ -78,7 +78,7 @@ runs:
       shell: bash
       working-directory: ${{ github.action_path }}
       run: |
-        bundle exec rspec spec/test_spec.rb --format documentation
+        bundle exec rspec spec/test_spec.rb spec/multiple_exception_spec.rb --format documentation
       env:
         TRUNK_PUBLIC_API_ADDRESS: ${{ inputs.trunk-public-api-address }}
         TRUNK_ORG_URL_SLUG: ${{ inputs.trunk-org-slug }}
