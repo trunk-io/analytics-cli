@@ -186,6 +186,35 @@ module RSpec
   end
 end
 
+def format_exception_message(exception)
+  case exception
+  when RSpec::Core::MultipleExceptionError
+    # MultipleExceptionError contains multiple exceptions in @exceptions array
+    messages = exception.all_exceptions.map { |e| "#{e.class}: #{e.message}" }
+    "#{exception.class}: #{messages.join(' | ')}"
+  else
+    exception.to_s
+  end
+end
+
+# trunk-ignore(rubocop/Metrics/MethodLength)
+def format_exception_backtrace(exception)
+  case exception
+  when RSpec::Core::MultipleExceptionError
+    # Collect backtraces from all nested exceptions
+    backtraces = exception.all_exceptions.map do |e|
+      if e.backtrace && !e.backtrace.empty?
+        "#{e.class}: #{e.message}\n#{e.backtrace.join("\n")}"
+      else
+        "#{e.class}: #{e.message}"
+      end
+    end
+    backtraces.join("\n\n")
+  else
+    exception.backtrace&.join("\n") || ''
+  end
+end
+
 # TrunkAnalyticsListener is a class that is used to listen to the execution of the Example class
 # it generates and submits the final test reports
 class TrunkAnalyticsListener
@@ -227,8 +256,8 @@ class TrunkAnalyticsListener
     failure_message = ''
     backtrace = ''
     if exception
-      failure_message = exception.to_s
-      backtrace = exception.backtrace.join("\n") if exception.backtrace && !exception.backtrace.empty?
+      failure_message = format_exception_message(exception)
+      backtrace = format_exception_backtrace(exception)
     end
     failure_message = failure_message[0...MAX_TEXT_FIELD_SIZE] if failure_message.length > MAX_TEXT_FIELD_SIZE
     backtrace = backtrace[0...MAX_TEXT_FIELD_SIZE] if backtrace.length > MAX_TEXT_FIELD_SIZE
