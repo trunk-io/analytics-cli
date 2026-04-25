@@ -73,6 +73,14 @@ pub struct UploadArgs {
     pub org_url_slug: String,
     #[arg(
         long,
+        env = constants::TRUNK_TEST_COLLECTION_SHORT_ID_ENV,
+        help = "Optional test collection short ID to attach to the uploaded bundle for collection-aware ingestion.",
+        required = false,
+        num_args = 1
+    )]
+    pub test_collection_short_id: Option<String>,
+    #[arg(
+        long,
         required = true,
         env = constants::TRUNK_API_TOKEN_ENV,
         help = "Organization token. Defaults to TRUNK_API_TOKEN env var."

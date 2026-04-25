@@ -399,6 +399,7 @@ mod tests {
             base_props: BundleMetaBaseProps {
                 version: META_VERSION.to_string(),
                 org: "org".to_string(),
+                test_collection_short_id: None,
                 repo: repo.clone(),
                 cli_version: "0.0.1".to_string(),
                 bundle_upload_id: "00".to_string(),
