@@ -127,6 +127,7 @@ const generateBundleMeta = (): TestBundleMeta => ({
   use_uncloned_repo: null,
   upload_time_epoch: faker.number.int(),
   tags: [],
+  test_collection_short_id: null,
   test_command: faker.hacker.verb(),
 });
 
