@@ -304,7 +304,6 @@ fn create_test_result(
 ) -> TestResult {
     TestResult {
         test_case_runs,
-        // trunk-ignore(clippy/deprecated)
         uploader_metadata: Some(UploaderMetadata {
             variant: variant.unwrap_or_default(),
             ..Default::default()

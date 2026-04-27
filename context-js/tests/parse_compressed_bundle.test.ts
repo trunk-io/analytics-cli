@@ -288,9 +288,9 @@ describe("context-js", () => {
       includeInternalBin: RUBY_INTERNAL_BIN,
     });
 
-    await expect(
-      async () => await parse_meta_from_tarball(readableStream),
-    ).rejects.toThrow("missing field `version`");
+    await expect(parse_meta_from_tarball(readableStream)).rejects.toThrowError(
+      "missing field `version`",
+    );
   });
 
   it("decompresses and parses internal.bin", async () => {
@@ -411,7 +411,7 @@ describe("context-js", () => {
 
     await expect(
       parse_internal_bin_and_meta_from_tarball(readableStream),
-    ).rejects.toThrow("No internal.bin file found in the tarball");
+    ).rejects.toThrowError("No internal.bin file found in the tarball");
   });
 
   it("correctly gets and sets variant", async () => {
