@@ -293,6 +293,7 @@ def test_parse_and_dump_meta_roundtrip():
         },
         "schema": "V0_5_29",
         "tags": [],
+        "test_collection_short_id": None,
         "test_command": None,
         "upload_time_epoch": 1721095230,
         "use_uncloned_repo": None,

@@ -118,6 +118,7 @@ pub fn gather_initial_test_context(
         bazel_bep_path,
         test_reports,
         org_url_slug,
+        test_collection_short_id,
         repo_root,
         repo_url,
         repo_head_sha,
@@ -167,6 +168,7 @@ pub fn gather_initial_test_context(
         base_props: BundleMetaBaseProps {
             version: META_VERSION.to_string(),
             org: org_url_slug,
+            test_collection_short_id,
             repo,
             cli_version: format!(
                 "cargo={} git={} rustc={}",
@@ -302,7 +304,6 @@ fn create_test_result(
 ) -> TestResult {
     TestResult {
         test_case_runs,
-        // trunk-ignore(clippy/deprecated)
         uploader_metadata: Some(UploaderMetadata {
             variant: variant.unwrap_or_default(),
             ..Default::default()

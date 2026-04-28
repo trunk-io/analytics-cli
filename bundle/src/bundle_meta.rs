@@ -33,6 +33,7 @@ pub struct BundleMetaBaseProps {
     pub version: String,
     pub cli_version: String,
     pub org: String,
+    pub test_collection_short_id: Option<String>,
     pub repo: BundleRepo,
     pub bundle_upload_id: String,
     pub tags: Vec<CustomTag>,

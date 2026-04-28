@@ -27,6 +27,7 @@ pub const TRUNK_API_CLIENT_RETRY_COUNT_ENV: &str = "TRUNK_API_CLIENT_RETRY_COUNT
 // Trunk CLI environment variable names for configuration overrides
 pub const TRUNK_API_TOKEN_ENV: &str = "TRUNK_API_TOKEN";
 pub const TRUNK_ORG_URL_SLUG_ENV: &str = "TRUNK_ORG_URL_SLUG";
+pub const TRUNK_TEST_COLLECTION_SHORT_ID_ENV: &str = "TRUNK_TEST_COLLECTION_SHORT_ID";
 pub const TRUNK_REPO_ROOT_ENV: &str = "TRUNK_REPO_ROOT";
 pub const TRUNK_REPO_URL_ENV: &str = "TRUNK_REPO_URL";
 pub const TRUNK_REPO_HEAD_SHA_ENV: &str = "TRUNK_REPO_HEAD_SHA";
