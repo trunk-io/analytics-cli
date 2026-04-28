@@ -512,7 +512,19 @@ impl<'a> CIInfoParser<'a> {
             _ => build_url,
         };
         self.ci_info.branch = self.get_env_var("CIRCLE_BRANCH");
-        self.ci_info.pr_number = self.parse_pr_number(self.get_env_var("CIRCLE_PR_NUMBER"));
+        // CIRCLE_PR_NUMBER is only set on forks
+        // https://circleci.com/docs/reference/variables/#built-in-environment-variables
+        self.ci_info.pr_number = self
+            .parse_pr_number(self.get_env_var("CIRCLE_PR_NUMBER"))
+            .or_else(|| {
+                self.get_env_var("CIRCLE_PULL_REQUEST")
+                    .and_then(|pull_request_url| {
+                        pull_request_url
+                            .rsplit('/')
+                            .next()
+                            .and_then(|pr_number| pr_number.parse::<usize>().ok())
+                    })
+            });
         self.ci_info.actor = self.get_env_var("CIRCLE_USERNAME");
 
         self.ci_info.workflow = self.get_env_var("CIRCLE_WORKFLOW_ID");
