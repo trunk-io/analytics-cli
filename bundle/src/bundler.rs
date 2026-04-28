@@ -21,6 +21,7 @@ use wasm_bindgen::prelude::*;
 
 use crate::bundle_meta::{BundleMeta, VersionedBundle};
 use crate::files::FileSetType;
+use crate::traces::{DiscoveredTrace, trace_archive_name};
 
 /// Utility type for packing files into tarball.
 ///
@@ -28,6 +29,11 @@ use crate::files::FileSetType;
 pub struct BundlerUtil<'a> {
     meta: &'a BundleMeta,
     bep_result: Option<BepParseResult>,
+    /// Playwright traces discovered from JUnit `[[ATTACHMENT|...]]` references.
+    /// Each trace is packed at `traces/<identity_hash>.zip`. Multiple
+    /// `DiscoveredTrace` entries with the same identity hash collapse to a
+    /// single tarball entry — the first non-empty source wins.
+    traces: Vec<DiscoveredTrace>,
 }
 
 pub const META_FILENAME: &str = "meta.json";
@@ -46,7 +52,19 @@ impl<'a> BundlerUtil<'a> {
     const ZSTD_COMPRESSION_LEVEL: i32 = 15; // This gives roughly 10x compression for text, 22 gives 11x.
 
     pub fn new(meta: &'a BundleMeta, bep_result: Option<BepParseResult>) -> Self {
-        Self { meta, bep_result }
+        Self {
+            meta,
+            bep_result,
+            traces: Vec::new(),
+        }
+    }
+
+    /// Attaches Playwright traces discovered from JUnit attachments to be
+    /// packed alongside `internal.bin`. Repeated calls replace the previous
+    /// list rather than append.
+    pub fn with_traces(mut self, traces: Vec<DiscoveredTrace>) -> Self {
+        self.traces = traces;
+        self
     }
 
     /// Writes compressed tarball to disk.
@@ -119,6 +137,42 @@ impl<'a> BundlerUtil<'a> {
             bep_events_file.seek(std::io::SeekFrom::Start(0))?;
             tar.append_file("bazel_bep.json", &mut bep_events_file)?;
             total_bytes_in += bep_events_file.seek(std::io::SeekFrom::End(0))?;
+        }
+
+        // Pack discovered Playwright traces. Each is best-effort: a missing
+        // or unreadable trace is logged and skipped so a single bad file
+        // can't take down the whole upload. Duplicate identity hashes
+        // collapse to one tarball entry.
+        let mut packed_trace_hashes: std::collections::HashSet<String> =
+            std::collections::HashSet::new();
+        for trace in &self.traces {
+            if !packed_trace_hashes.insert(trace.identity_hash.clone()) {
+                continue;
+            }
+            let archive_name = trace_archive_name(&trace.identity_hash);
+            let mut file = match File::open(&trace.source_path) {
+                Ok(f) => f,
+                Err(e) => {
+                    tracing::warn!(
+                        "Skipping Playwright trace at {:?}: {}",
+                        trace.source_path,
+                        e
+                    );
+                    continue;
+                }
+            };
+            if let Err(e) = tar.append_file(&archive_name, &mut file) {
+                tracing::warn!(
+                    "Failed to append Playwright trace {:?} as {}: {}",
+                    trace.source_path,
+                    archive_name,
+                    e
+                );
+                continue;
+            }
+            total_bytes_in += std::fs::metadata(&trace.source_path)
+                .map(|m| m.len())
+                .unwrap_or(0);
         }
 
         // Flush to disk.
@@ -668,6 +722,134 @@ mod tests {
                 .to_string()
                 .contains("No internal.bin file found")
         );
+    }
+
+    #[test]
+    fn test_traces_are_packed_under_traces_prefix() {
+        use std::io::Read;
+
+        use crate::traces::{
+            DiscoveredTrace, TRACES_PREFIX, compute_trace_identity_hash, trace_archive_name,
+        };
+
+        let temp_dir = tempdir().unwrap();
+        let bundle_path = temp_dir.path().join(BUNDLE_FILE_NAME);
+        let (internal_bundled_file, _test_report) = create_internal_bundled_file(&temp_dir, None);
+        let meta = create_bundle_meta(Some(internal_bundled_file));
+
+        // Two distinct traces and one duplicate identity hash that should
+        // collapse to a single tarball entry.
+        let trace_a_path = temp_dir.path().join("a-trace.zip");
+        std::fs::write(&trace_a_path, b"trace-a-bytes").unwrap();
+        let trace_b_path = temp_dir.path().join("b-trace.zip");
+        std::fs::write(&trace_b_path, b"trace-b-bytes").unwrap();
+
+        let hash_a = compute_trace_identity_hash(
+            Some("file_a.ts"),
+            Some("ClassA"),
+            "suite",
+            "test_a",
+            "variant",
+        );
+        let hash_b = compute_trace_identity_hash(
+            Some("file_b.ts"),
+            Some("ClassB"),
+            "suite",
+            "test_b",
+            "variant",
+        );
+        assert_ne!(hash_a, hash_b);
+
+        let traces = vec![
+            DiscoveredTrace {
+                identity_hash: hash_a.clone(),
+                source_path: trace_a_path.clone(),
+            },
+            DiscoveredTrace {
+                identity_hash: hash_b.clone(),
+                source_path: trace_b_path.clone(),
+            },
+            // Duplicate: should be deduped by the bundler.
+            DiscoveredTrace {
+                identity_hash: hash_a.clone(),
+                source_path: trace_a_path.clone(),
+            },
+        ];
+
+        BundlerUtil::new(&meta, None)
+            .with_traces(traces)
+            .make_tarball(&bundle_path)
+            .unwrap();
+
+        // Read back the tarball and look for trace entries.
+        let zstd_decoder = zstd::Decoder::new(std::fs::File::open(&bundle_path).unwrap()).unwrap();
+        let mut archive = tar::Archive::new(zstd_decoder);
+        let mut found: std::collections::HashMap<String, Vec<u8>> =
+            std::collections::HashMap::new();
+        for entry in archive.entries().unwrap() {
+            let mut entry = entry.unwrap();
+            let path = entry.path().unwrap().to_string_lossy().to_string();
+            if path.starts_with(TRACES_PREFIX) {
+                let mut buf = Vec::new();
+                entry.read_to_end(&mut buf).unwrap();
+                found.insert(path, buf);
+            }
+        }
+
+        assert_eq!(
+            found.len(),
+            2,
+            "expected exactly two unique trace entries after dedupe"
+        );
+        assert_eq!(
+            found
+                .get(&trace_archive_name(&hash_a))
+                .map(|v| v.as_slice()),
+            Some(b"trace-a-bytes".as_slice())
+        );
+        assert_eq!(
+            found
+                .get(&trace_archive_name(&hash_b))
+                .map(|v| v.as_slice()),
+            Some(b"trace-b-bytes".as_slice())
+        );
+    }
+
+    #[test]
+    fn test_missing_trace_file_is_skipped_not_fatal() {
+        use crate::traces::{DiscoveredTrace, compute_trace_identity_hash, trace_archive_name};
+
+        let temp_dir = tempdir().unwrap();
+        let bundle_path = temp_dir.path().join(BUNDLE_FILE_NAME);
+        let (internal_bundled_file, _test_report) = create_internal_bundled_file(&temp_dir, None);
+        let meta = create_bundle_meta(Some(internal_bundled_file));
+
+        let hash = compute_trace_identity_hash(None, None, "suite", "test", "");
+        let missing_path = temp_dir.path().join("does-not-exist.zip");
+
+        BundlerUtil::new(&meta, None)
+            .with_traces(vec![DiscoveredTrace {
+                identity_hash: hash.clone(),
+                source_path: missing_path,
+            }])
+            .make_tarball(&bundle_path)
+            .expect("missing trace file must not fail the bundle");
+
+        let zstd_decoder = zstd::Decoder::new(std::fs::File::open(&bundle_path).unwrap()).unwrap();
+        let mut archive = tar::Archive::new(zstd_decoder);
+        let archive_name = trace_archive_name(&hash);
+        let has_trace = archive
+            .entries()
+            .unwrap()
+            .filter_map(Result::ok)
+            .any(|entry| {
+                entry
+                    .path()
+                    .ok()
+                    .map(|p| p.to_string_lossy() == archive_name.as_str())
+                    .unwrap_or(false)
+            });
+        assert!(!has_trace, "missing source file should not be packed");
     }
 
     #[test]
