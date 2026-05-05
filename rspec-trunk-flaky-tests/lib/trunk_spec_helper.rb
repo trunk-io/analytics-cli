@@ -225,7 +225,12 @@ def format_exception_backtrace(exception, example)
     depth += 1
   end
 
-  lines.join("\n")
+  result = lines.join("\n")
+  # The exception presenter may choke on MultipleExceptionError, such as errors in before
+  # and after hooks, so we fall back to the legacy formatter
+  return legacy_format_exception_backtrace(exception) if result.strip.empty?
+
+  result
 rescue StandardError
   legacy_format_exception_backtrace(exception)
 end
@@ -247,6 +252,7 @@ def legacy_format_exception_message(exception)
   end
 end
 
+# trunk-ignore(rubocop/Metrics/MethodLength)
 def legacy_format_exception_backtrace(exception)
   case exception
   when RSpec::Core::MultipleExceptionError
@@ -260,34 +266,6 @@ def legacy_format_exception_backtrace(exception)
   else
     exception.backtrace&.join("\n") || ''
   end
-end
-
-# When a field exceeds the size limit, drop characters from the middle and keep
-# both ends. The head usually carries the exception class/message and the tail
-# usually carries the project-local frames; either alone is much less useful.
-# trunk-ignore(rubocop/Metrics/MethodLength,rubocop/Metrics/AbcSize)
-def truncate_middle(text, max_size)
-  return text if text.nil? || text.length <= max_size
-
-  truncated_count = text.length - max_size
-  marker = "\n... [truncated #{truncated_count} characters from middle] ...\n"
-  budget = max_size - marker.length
-  return text[0, max_size] if budget <= 0
-
-  head_size = budget / 2
-  tail_size = budget - head_size
-
-  head = text[0, head_size]
-  tail = text[-tail_size, tail_size] || ''
-
-  if (idx = head.rindex("\n"))
-    head = head[0, idx]
-  end
-  if (idx = tail.index("\n"))
-    tail = tail[(idx + 1)..-1] || ''
-  end
-
-  head + marker + tail
 end
 
 # TrunkAnalyticsListener is a class that is used to listen to the execution of the Example class
@@ -331,11 +309,11 @@ class TrunkAnalyticsListener
     failure_message = ''
     backtrace = ''
     if exception
-      failure_message = format_exception_message(exception, example)
-      backtrace = format_exception_backtrace(exception, example)
+      failure_message = format_exception_message(exception, example).strip
+      backtrace = format_exception_backtrace(exception, example).strip
     end
-    failure_message = truncate_middle(failure_message, MAX_TEXT_FIELD_SIZE)
-    backtrace = truncate_middle(backtrace, MAX_TEXT_FIELD_SIZE)
+    failure_message = failure_message[0...MAX_TEXT_FIELD_SIZE] if failure_message.length > MAX_TEXT_FIELD_SIZE
+    backtrace = backtrace[0...MAX_TEXT_FIELD_SIZE] if backtrace.length > MAX_TEXT_FIELD_SIZE
     # TODO: should we use concatenated string or alias when auto-generated description?
     name = example.full_description
     file = escape(example.metadata[:file_path])
