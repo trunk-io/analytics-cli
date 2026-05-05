@@ -6,7 +6,7 @@ use std::{
     time::{Duration, SystemTime},
 };
 
-use api::{client::ApiClient, message};
+use api::{auth::TrunkApiCredential, client::ApiClient, message};
 use bundle::BundleMetaDebugProps;
 use bundle::Test;
 use chrono::prelude::*;
@@ -304,16 +304,21 @@ impl MutTestReport {
         file: Option<String>,
     ) -> IsQuarantinedResult {
         let token = self.get_token();
+        let public_repo_id = self.get_public_repo_id();
         let org_url_slug = self.get_org_url_slug();
-        if token.is_empty() {
-            tracing::warn!("Not checking quarantine status because TRUNK_API_TOKEN is empty");
+        let Some(auth) =
+            TrunkApiCredential::resolve(Some(token.as_str()), Some(public_repo_id.as_str()))
+        else {
+            tracing::warn!(
+                "Not checking quarantine status because neither TRUNK_API_TOKEN nor TRUNK_PUBLIC_REPO_ID is set"
+            );
             return IsQuarantinedResult::default();
-        }
+        };
         if org_url_slug.is_empty() {
             tracing::warn!("Not checking quarantine status because TRUNK_ORG_URL_SLUG is empty");
             return IsQuarantinedResult::default();
         }
-        let api_client = ApiClient::new(token, org_url_slug.clone(), None);
+        let api_client = ApiClient::new(auth, org_url_slug.clone(), None);
         let use_uncloned_repo = env::var(constants::TRUNK_USE_UNCLONED_REPO_ENV)
             .ok()
             .and_then(|v| v.parse().ok())
@@ -526,6 +531,10 @@ impl MutTestReport {
         env::var(constants::TRUNK_API_TOKEN_ENV).unwrap_or_default()
     }
 
+    fn get_public_repo_id(&self) -> String {
+        env::var(constants::TRUNK_PUBLIC_REPO_ID_ENV).unwrap_or_default()
+    }
+
     // sends out to the trunk api
     pub fn publish(&self) -> bool {
         let release_name = format!("rspec-flaky-tests@{}", env!("CARGO_PKG_VERSION"));
@@ -538,9 +547,14 @@ impl MutTestReport {
         }
 
         let token = self.get_token();
+        let public_repo_id = self.get_public_repo_id();
         let org_url_slug = self.get_org_url_slug();
-        if token.is_empty() {
-            tracing::warn!("Not publishing results because TRUNK_API_TOKEN is empty");
+        if TrunkApiCredential::resolve(Some(token.as_str()), Some(public_repo_id.as_str()))
+            .is_none()
+        {
+            tracing::warn!(
+                "Not publishing results because neither TRUNK_API_TOKEN nor TRUNK_PUBLIC_REPO_ID is set"
+            );
             return false;
         }
         if org_url_slug.is_empty() {
@@ -603,6 +617,9 @@ impl MutTestReport {
             env::var(constants::TRUNK_REPO_ROOT_ENV).ok(),
             true,
         );
+        if !public_repo_id.is_empty() {
+            upload_args.public_repo_id = Some(public_repo_id);
+        }
 
         // Read additional environment variables using constants
         upload_args.repo_url = env::var(constants::TRUNK_REPO_URL_ENV).ok();

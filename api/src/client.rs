@@ -9,6 +9,7 @@ use reqwest::{Client, Response, StatusCode, header};
 use serde::de::DeserializeOwned;
 use tokio::fs;
 
+use crate::auth::TrunkApiCredential;
 use crate::call_api::CallApi;
 use crate::message;
 
@@ -49,7 +50,10 @@ pub struct ApiClient {
     pub telemetry_host: String,
     s3_client: Client,
     trunk_api_client: Client,
-    telemetry_client: Client,
+    /// `None` when the CLI is running with only a public-repo-id (fork PR
+    /// path) — the telemetry endpoint does not accept that header, so we
+    /// short-circuit telemetry sends rather than fire 401s.
+    telemetry_client: Option<Client>,
     version_path_prefix: String,
     org_url_slug: String,
     render_sender: Option<Sender<DisplayMessage>>,
@@ -66,20 +70,27 @@ impl ApiClient {
     const TRUNK_API_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
     // This should always be fast
     const TRUNK_TELEMETRY_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(1);
-    const TRUNK_API_TOKEN_HEADER: &'static str = "x-api-token";
 
-    pub fn new<T: AsRef<str>>(
-        api_token: T,
-        org_url_slug: T,
+    pub fn new<S: AsRef<str>>(
+        auth: TrunkApiCredential,
+        org_url_slug: S,
         render_sender: Option<Sender<DisplayMessage>>,
     ) -> anyhow::Result<ApiClient> {
         let org_url_slug = String::from(org_url_slug.as_ref());
-        let api_token = api_token.as_ref();
-        if api_token.trim().is_empty() {
-            return Err(anyhow::anyhow!("Trunk API token is required."));
+
+        let auth_header_value = HeaderValue::from_str(auth.header_value()).map_err(|_| {
+            anyhow::Error::msg(if auth.is_token() {
+                "Trunk API token is not ASCII"
+            } else {
+                "Trunk public repo id is not ASCII"
+            })
+        })?;
+
+        if !auth.is_token() {
+            tracing::info!(
+                "Using X-Trunk-Public-Repo-Id auth (TRUNK_API_TOKEN not set; assuming fork PR)"
+            );
         }
-        let api_token_header_value = HeaderValue::from_str(api_token)
-            .map_err(|_| anyhow::Error::msg("Trunk API token is not ASCII"))?;
 
         let api_host = get_api_host();
         tracing::debug!("Using public api address {}", api_host);
@@ -101,26 +112,33 @@ impl ApiClient {
             header::CONTENT_TYPE,
             HeaderValue::from_static("application/json"),
         );
-        trunk_api_client_default_headers
-            .append(Self::TRUNK_API_TOKEN_HEADER, api_token_header_value.clone());
+        trunk_api_client_default_headers.append(auth.header_name(), auth_header_value.clone());
 
         let trunk_api_client = Client::builder()
             .timeout(Self::TRUNK_API_TIMEOUT)
             .default_headers(trunk_api_client_default_headers)
             .build()?;
 
-        let mut telemetry_client_default_headers = HeaderMap::new();
-        telemetry_client_default_headers.append(
-            header::CONTENT_TYPE,
-            HeaderValue::from_static("application/x-protobuf"),
-        );
-        telemetry_client_default_headers
-            .append(Self::TRUNK_API_TOKEN_HEADER, api_token_header_value);
+        // The telemetry endpoint does not accept the public-repo-id auth path,
+        // so when we only have a public-repo-id we skip building the telemetry
+        // client and short-circuit telemetry sends in `telemetry_upload_metrics`.
+        let telemetry_client = if auth.is_token() {
+            let mut telemetry_client_default_headers = HeaderMap::new();
+            telemetry_client_default_headers.append(
+                header::CONTENT_TYPE,
+                HeaderValue::from_static("application/x-protobuf"),
+            );
+            telemetry_client_default_headers.append(auth.header_name(), auth_header_value);
 
-        let telemetry_client = Client::builder()
-            .timeout(Self::TRUNK_TELEMETRY_TIMEOUT)
-            .default_headers(telemetry_client_default_headers)
-            .build()?;
+            Some(
+                Client::builder()
+                    .timeout(Self::TRUNK_TELEMETRY_TIMEOUT)
+                    .default_headers(telemetry_client_default_headers)
+                    .build()?,
+            )
+        } else {
+            None
+        };
 
         let mut s3_client_default_headers = HeaderMap::new();
         s3_client_default_headers.append(
@@ -273,13 +291,16 @@ impl ApiClient {
         &self,
         request: &message::TelemetryUploadMetricsRequest,
     ) -> anyhow::Result<()> {
+        let Some(telemetry_client) = self.telemetry_client.clone() else {
+            tracing::debug!("Skipping telemetry upload: no API token configured");
+            return Ok(());
+        };
         CallApi {
             action: || async {
                 if std::env::var("DISABLE_TELEMETRY").is_ok() {
                     return Ok(());
                 }
-                let response = self
-                    .telemetry_client
+                let response = telemetry_client
                     .post(format!(
                         "{}{}/flakytests-cli/upload-metrics",
                         self.telemetry_host, self.version_path_prefix
@@ -461,7 +482,12 @@ mod tests {
     use test_utils::mock_server::MockServerBuilder;
 
     use super::ApiClient;
+    use crate::auth::TrunkApiCredential;
     use crate::message;
+
+    fn mock_token_auth() -> TrunkApiCredential {
+        TrunkApiCredential::Token(String::from("mock-token"))
+    }
 
     #[tokio::test(start_paused = true)]
     async fn does_not_retry_on_ok_501() {
@@ -486,7 +512,7 @@ mod tests {
         let state = mock_server_builder.spawn_mock_server().await;
 
         let mut api_client =
-            ApiClient::new(String::from("mock-token"), String::from("mock-org"), None).unwrap();
+            ApiClient::new(mock_token_auth(), String::from("mock-org"), None).unwrap();
         api_client.api_host.clone_from(&state.host);
 
         assert!(
@@ -534,7 +560,7 @@ mod tests {
         let state = mock_server_builder.spawn_mock_server().await;
 
         let mut api_client =
-            ApiClient::new(String::from("mock-token"), String::from("mock-org"), None).unwrap();
+            ApiClient::new(mock_token_auth(), String::from("mock-org"), None).unwrap();
         api_client.api_host.clone_from(&state.host);
 
         assert!(
@@ -577,7 +603,7 @@ mod tests {
         let state = mock_server_builder.spawn_mock_server().await;
 
         let mut api_client =
-            ApiClient::new(String::from("mock-token"), String::from("mock-org"), None).unwrap();
+            ApiClient::new(mock_token_auth(), String::from("mock-org"), None).unwrap();
         api_client.api_host.clone_from(&state.host);
 
         assert!(

@@ -3,6 +3,7 @@ use std::env;
 use std::path::PathBuf;
 use std::sync::mpsc::Sender;
 
+use api::auth::TrunkApiCredential;
 use api::client::{ApiClient, ApiErrorEndpoint};
 use api::{client::get_api_host, urls::url_for_test_case};
 use bundle::{BundleMeta, BundlerUtil, Test, unzip_tarball};
@@ -81,11 +82,17 @@ pub struct UploadArgs {
     pub test_collection_short_id: Option<String>,
     #[arg(
         long,
-        required = true,
         env = constants::TRUNK_API_TOKEN_ENV,
-        help = "Organization token. Defaults to TRUNK_API_TOKEN env var."
+        help = "Organization token. Defaults to TRUNK_API_TOKEN env var. Required unless --public-repo-id is set (e.g. for fork PRs).",
+        default_value = ""
     )]
     pub token: String,
+    #[arg(
+        long,
+        env = constants::TRUNK_PUBLIC_REPO_ID_ENV,
+        help = "Non-secret per-repo identifier from the Trunk settings page. Used in place of --token on workflows triggered from forked pull requests where the org API token is unavailable."
+    )]
+    pub public_repo_id: Option<String>,
     #[arg(
         long,
         env = constants::TRUNK_REPO_ROOT_ENV,
@@ -396,7 +403,16 @@ pub async fn run_upload(
         );
     }
 
-    let api_client = ApiClient::new(&upload_args.token, &upload_args.org_url_slug, render_sender)?;
+    let auth = TrunkApiCredential::resolve(
+        Some(upload_args.token.as_str()),
+        upload_args.public_repo_id.as_deref(),
+    )
+    .ok_or_else(|| {
+        anyhow::anyhow!(
+            "Authentication required: set --token / TRUNK_API_TOKEN, or --public-repo-id / TRUNK_PUBLIC_REPO_ID for fork-PR runs."
+        )
+    })?;
+    let api_client = ApiClient::new(auth, &upload_args.org_url_slug, render_sender)?;
 
     let PreTestContext {
         mut meta,
