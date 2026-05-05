@@ -104,7 +104,7 @@ require 'trunk_spec_helper'
 
 ### Environment Variables
 
-For a complete list of environment variables that the gem accepts, see [`lib/trunk_spec_helper.rb`](lib/trunk_spec_helper.rb). The gem uses the same environment variables as the Trunk Analytics CLI for configuration overrides.
+For a complete list of environment variables that the gem accepts, see [`lib/trunk_spec_helper.rb`](lib/trunk_spec_helper.rb). The gem uses the same environment variables as the Trunk Analytics CLI for configuration overrides. `TRUNK_ORG_URL_SLUG` and `TRUNK_API_TOKEN` must be set to activate the plugin.
 
 #### `TRUNK_LOCAL_UPLOAD_DIR` (Experimental)
 

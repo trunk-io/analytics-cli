@@ -30,6 +30,7 @@
 #   DISABLE_RSPEC_TRUNK_FLAKY_TESTS - Set to 'true' to completely disable Trunk
 #
 require 'rspec/core'
+require 'rspec/core/formatters/exception_presenter'
 require 'time'
 require 'rspec_trunk_flaky_tests'
 
@@ -186,10 +187,64 @@ module RSpec
   end
 end
 
-def format_exception_message(exception)
+# PlainColorizer is a no-op colorizer passed to RSpec's ExceptionPresenter so the
+# formatted output is plain text suitable for storage and the web UI.
+module PlainColorizer
+  module_function
+
+  def wrap(text, _code_or_symbol)
+    text
+  end
+end
+
+# Defer to RSpec's own ExceptionPresenter so the failure_message field matches
+# what users see in their RSpec console output (Failure/Error: <source line>,
+# the exception class and message, and any "Caused by:" chain).
+def format_exception_message(exception, example)
+  return '' unless exception
+
+  presenter = RSpec::Core::Formatters::ExceptionPresenter.new(exception, example)
+  presenter.fully_formatted(nil, PlainColorizer)
+rescue StandardError
+  legacy_format_exception_message(exception)
+end
+
+# trunk-ignore(rubocop/Metrics/MethodLength)
+def format_exception_backtrace(exception, example)
+  return '' unless exception
+
+  lines = exception_backtrace_lines(exception, example)
+
+  cause = exception.cause
+  depth = 0
+  while cause && depth < 10
+    lines << ''
+    lines << "Caused by: #{cause.class}: #{cause.message}"
+    lines.concat(exception_backtrace_lines(cause, example))
+    cause = cause.cause
+    depth += 1
+  end
+
+  result = lines.join("\n")
+  # The exception presenter may choke on MultipleExceptionError, such as errors in before
+  # and after hooks, so we fall back to the legacy formatter
+  return legacy_format_exception_backtrace(exception) if result.strip.empty?
+
+  result
+rescue StandardError
+  legacy_format_exception_backtrace(exception)
+end
+
+def exception_backtrace_lines(exception, example)
+  presenter = RSpec::Core::Formatters::ExceptionPresenter.new(exception, example)
+  Array(presenter.formatted_backtrace)
+rescue StandardError
+  Array(exception.backtrace)
+end
+
+def legacy_format_exception_message(exception)
   case exception
   when RSpec::Core::MultipleExceptionError
-    # MultipleExceptionError contains multiple exceptions in @exceptions array
     messages = exception.all_exceptions.map { |e| "#{e.class}: #{e.message}" }
     "#{exception.class}: #{messages.join(' | ')}"
   else
@@ -198,18 +253,16 @@ def format_exception_message(exception)
 end
 
 # trunk-ignore(rubocop/Metrics/MethodLength)
-def format_exception_backtrace(exception)
+def legacy_format_exception_backtrace(exception)
   case exception
   when RSpec::Core::MultipleExceptionError
-    # Collect backtraces from all nested exceptions
-    backtraces = exception.all_exceptions.map do |e|
+    exception.all_exceptions.map do |e|
       if e.backtrace && !e.backtrace.empty?
         "#{e.class}: #{e.message}\n#{e.backtrace.join("\n")}"
       else
         "#{e.class}: #{e.message}"
       end
-    end
-    backtraces.join("\n\n")
+    end.join("\n\n")
   else
     exception.backtrace&.join("\n") || ''
   end
@@ -256,8 +309,8 @@ class TrunkAnalyticsListener
     failure_message = ''
     backtrace = ''
     if exception
-      failure_message = format_exception_message(exception)
-      backtrace = format_exception_backtrace(exception)
+      failure_message = format_exception_message(exception, example).strip
+      backtrace = format_exception_backtrace(exception, example).strip
     end
     failure_message = failure_message[0...MAX_TEXT_FIELD_SIZE] if failure_message.length > MAX_TEXT_FIELD_SIZE
     backtrace = backtrace[0...MAX_TEXT_FIELD_SIZE] if backtrace.length > MAX_TEXT_FIELD_SIZE
