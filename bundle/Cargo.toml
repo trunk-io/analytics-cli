@@ -12,6 +12,8 @@ required-features = ["build-binary"]
 anyhow = "1.0.44"
 clap = { version = "4.4.18", features = ["derive", "env"], optional = true }
 codeowners = { path = "../codeowners" }
+hex = "0.4"
+sha2 = "0.10"
 js-sys = { version = "0.3.70", optional = true }
 chrono = { version = "0.4.38", features = ["serde"] }
 proto = { path = "../proto" }

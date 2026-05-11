@@ -12,8 +12,9 @@ use std::{
 use api::{client::ApiClient, message::CreateBundleUploadResponse};
 use bundle::{
     BundleMeta, BundleMetaBaseProps, BundleMetaDebugProps, BundleMetaJunitProps, BundledFile,
-    FileSet, FileSetBuilder, FileSetType, INTERNAL_BIN_FILENAME, META_VERSION,
-    QuarantineBulkTestStatus, bin_parse,
+    DiscoveredTrace, FileSet, FileSetBuilder, FileSetType, INTERNAL_BIN_FILENAME, META_VERSION,
+    QuarantineBulkTestStatus, bin_parse, compute_trace_identity_hash, extract_attachment_paths,
+    is_trace_archive_path,
 };
 use codeowners::{CodeOwners, OwnersSource};
 use constants::{ENVS_TO_GET, TRUNK_PR_NUMBER_ENV};
@@ -26,7 +27,7 @@ use context::{
     junit::{
         bindings::BindingsReport,
         junit_path::JunitReportFileWithTestRunnerReport,
-        parser::JunitParser,
+        parser::{JunitParser, extra_attrs},
         validator::{JunitReportValidation, validate},
     },
     repo::{BundleRepo, RepoUrlParts},
@@ -254,6 +255,108 @@ pub fn gather_post_test_context<U: AsRef<Path>>(
     Ok(file_set_builder)
 }
 
+/// Walks a parsed JUnit report and produces one `DiscoveredTrace` for each
+/// `[[ATTACHMENT|<path>]]` line that points at a `.zip` file. The identity
+/// hash is computed from the same tuple the ingester uses
+/// (`file|className|parentName|name|variant`). Attachment paths are resolved
+/// in this order:
+///   1. As-is if absolute,
+///   2. Relative to the JUnit XML's parent directory,
+///   3. Relative to `repo_root` if set.
+/// Paths that don't exist on disk after that lookup are skipped with a warning.
+fn discover_traces_from_junit_parser(
+    junit_parser: &JunitParser,
+    junit_path: &str,
+    repo_root: Option<&Path>,
+    variant: &str,
+) -> Vec<DiscoveredTrace> {
+    let junit_dir = Path::new(junit_path).parent();
+    let mut traces: Vec<DiscoveredTrace> = Vec::new();
+
+    for report in junit_parser.reports() {
+        for test_suite in &report.test_suites {
+            for test_case in &test_suite.test_cases {
+                let Some(system_out) = test_case.system_out.as_ref() else {
+                    continue;
+                };
+                let attachments: Vec<String> = extract_attachment_paths(system_out.as_str())
+                    .into_iter()
+                    .filter(|p| is_trace_archive_path(p))
+                    .map(|p| p.to_string())
+                    .collect();
+                if attachments.is_empty() {
+                    continue;
+                }
+
+                let file = [
+                    (&test_case.extra, extra_attrs::FILE),
+                    (&test_case.extra, extra_attrs::FILEPATH),
+                    (&test_suite.extra, extra_attrs::FILE),
+                    (&test_suite.extra, extra_attrs::FILEPATH),
+                ]
+                .into_iter()
+                .find_map(|(extra, key)| {
+                    extra
+                        .iter()
+                        .find(|(k, _)| k.as_str() == key)
+                        .map(|(_, v)| v.as_str().to_string())
+                })
+                .unwrap_or_default();
+                let classname = test_case.classname.as_ref().map(|c| c.as_str().to_string());
+                let parent_name = test_suite.name.as_str().to_string();
+                let name = test_case.name.as_str().to_string();
+
+                let identity_hash = compute_trace_identity_hash(
+                    if file.is_empty() {
+                        None
+                    } else {
+                        Some(file.as_str())
+                    },
+                    classname.as_deref(),
+                    parent_name.as_str(),
+                    name.as_str(),
+                    variant,
+                );
+
+                for raw_path in attachments {
+                    let candidate = std::path::PathBuf::from(&raw_path);
+                    let resolved = if candidate.is_absolute() && candidate.exists() {
+                        Some(candidate)
+                    } else {
+                        let mut found = None;
+                        if let Some(dir) = junit_dir {
+                            let p = dir.join(&raw_path);
+                            if p.exists() {
+                                found = Some(p);
+                            }
+                        }
+                        if found.is_none()
+                            && let Some(root) = repo_root
+                        {
+                            let p = root.join(&raw_path);
+                            if p.exists() {
+                                found = Some(p);
+                            }
+                        }
+                        found
+                    };
+
+                    match resolved {
+                        Some(source_path) => traces.push(DiscoveredTrace {
+                            identity_hash: identity_hash.clone(),
+                            source_path,
+                        }),
+                        None => tracing::warn!(
+                            "Trace attachment {raw_path:?} from {junit_path} not found on disk; skipping"
+                        ),
+                    }
+                }
+            }
+        }
+    }
+    traces
+}
+
 fn parse_and_optionally_validate_junit_file(
     junit_path: &str,
     show_warnings: bool,
@@ -371,6 +474,17 @@ fn get_build_result_from_bep(bep_result: &BepParseResult, label: &str) -> BuildR
     }
 }
 
+/// Result of building `internal.bin` from JUnit/BEP inputs, plus any
+/// Playwright traces discovered alongside the test cases.
+pub struct InternalFileResult {
+    pub bundled_file: BundledFile,
+    pub validations: BTreeMap<String, anyhow::Result<JunitReportValidation>>,
+    /// Discovered Playwright trace archives, ready to be packed into the
+    /// bundle tarball at `traces/<identity_hash>.zip`.
+    pub traces: Vec<DiscoveredTrace>,
+}
+
+#[allow(clippy::too_many_arguments)]
 pub fn generate_internal_file_from_bep(
     bep_result: &BepParseResult,
     temp_dir: &TempDir,
@@ -380,13 +494,13 @@ pub fn generate_internal_file_from_bep(
     org_slug: &String,
     repo: &RepoUrlParts,
     quarantined_test_ids: &[String],
-) -> anyhow::Result<(
-    BundledFile,
-    BTreeMap<String, anyhow::Result<JunitReportValidation>>,
-)> {
+    repo_root: Option<&Path>,
+) -> anyhow::Result<InternalFileResult> {
     let mut junit_validations = BTreeMap::new();
     let labels_map = bep_result.uncached_labels();
     let mut test_results = vec![];
+    let mut traces: Vec<DiscoveredTrace> = Vec::new();
+    let variant_str = variant.as_deref().unwrap_or("");
 
     for (label, file_with_test_runner_report) in labels_map.into_iter() {
         let mut test_case_runs = Vec::new();
@@ -408,12 +522,19 @@ pub fn generate_internal_file_from_bep(
                         continue;
                     };
 
+                    traces.extend(discover_traces_from_junit_parser(
+                        &junit_parser,
+                        &xml_file.file,
+                        repo_root,
+                        variant_str,
+                    ));
+
                     let mut xml_test_case_runs = junit_parser.into_test_case_runs(
                         codeowners,
                         org_slug,
                         repo,
                         quarantined_test_ids,
-                        variant.as_deref().unwrap_or(""),
+                        variant_str,
                     );
                     xml_test_case_runs.iter_mut().for_each(|test_case_run| {
                         test_case_run.test_runner_information = Some(
@@ -454,12 +575,19 @@ pub fn generate_internal_file_from_bep(
                         continue;
                     };
 
+                    traces.extend(discover_traces_from_junit_parser(
+                        &junit_parser,
+                        &junit_path,
+                        repo_root,
+                        variant_str,
+                    ));
+
                     test_case_runs.extend(junit_parser.into_test_case_runs(
                         codeowners,
                         org_slug,
                         repo,
                         quarantined_test_ids,
-                        variant.as_deref().unwrap_or(""),
+                        variant_str,
                     ));
                 }
             }
@@ -485,9 +613,14 @@ pub fn generate_internal_file_from_bep(
 
     let bundled_file = write_test_report_to_file(test_results, variant, temp_dir)?;
 
-    Ok((bundled_file, junit_validations))
+    Ok(InternalFileResult {
+        bundled_file,
+        validations: junit_validations,
+        traces,
+    })
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn generate_internal_file(
     file_sets: &[FileSet],
     temp_dir: &TempDir,
@@ -497,12 +630,12 @@ pub fn generate_internal_file(
     org_slug: &String,
     repo: &RepoUrlParts,
     quarantined_test_ids: &[String],
-) -> anyhow::Result<(
-    BundledFile,
-    BTreeMap<String, anyhow::Result<JunitReportValidation>>,
-)> {
+    repo_root: Option<&Path>,
+) -> anyhow::Result<InternalFileResult> {
     let mut junit_validations = BTreeMap::new();
     let mut test_case_runs = Vec::new();
+    let mut traces: Vec<DiscoveredTrace> = Vec::new();
+    let variant_str = variant.as_deref().unwrap_or("");
 
     for file_set in file_sets {
         if file_set.file_set_type == FileSetType::Internal {
@@ -515,7 +648,11 @@ pub fn generate_internal_file(
                 ));
             }
             // Internal file set, we should just use that directly and assume it's valid
-            return Ok((file_set.files[0].clone(), BTreeMap::new()));
+            return Ok(InternalFileResult {
+                bundled_file: file_set.files[0].clone(),
+                validations: BTreeMap::new(),
+                traces: Vec::new(),
+            });
         } else {
             for file in &file_set.files {
                 if file.original_path.ends_with(".xml") {
@@ -530,12 +667,19 @@ pub fn generate_internal_file(
                         continue;
                     };
 
+                    traces.extend(discover_traces_from_junit_parser(
+                        &junit_parser,
+                        &file.original_path,
+                        repo_root,
+                        variant_str,
+                    ));
+
                     test_case_runs.extend(junit_parser.into_test_case_runs(
                         codeowners,
                         org_slug,
                         repo,
                         quarantined_test_ids,
-                        variant.as_deref().unwrap_or(""),
+                        variant_str,
                     ));
                 }
             }
@@ -550,7 +694,11 @@ pub fn generate_internal_file(
 
     let bundled_file = write_test_report_to_file(test_results, variant, temp_dir)?;
 
-    Ok((bundled_file, junit_validations))
+    Ok(InternalFileResult {
+        bundled_file,
+        validations: junit_validations,
+        traces,
+    })
 }
 
 pub fn fall_back_to_binary_parse(
