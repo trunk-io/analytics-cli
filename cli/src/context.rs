@@ -165,6 +165,8 @@ pub fn gather_initial_test_context(
         junit_props: BundleMetaJunitProps::default(),
         debug_props,
         bundle_upload_id_v2: String::with_capacity(0),
+        test_collection_bundle_meta_id: None,
+        test_collection_bundle_meta_created_at: None,
         base_props: BundleMetaBaseProps {
             version: META_VERSION.to_string(),
             org: org_url_slug,
@@ -810,10 +812,16 @@ pub async fn gather_upload_id_context(
             client_version: format!("trunk-analytics-cli {}", meta.base_props.cli_version),
             remote_urls: vec![meta.base_props.repo.repo_url.clone()],
             external_id,
+            test_collection_short_id: meta.base_props.test_collection_short_id.clone(),
         })
         .await?;
     meta.base_props.bundle_upload_id.clone_from(&upload.id);
     meta.bundle_upload_id_v2.clone_from(&upload.id_v2);
+    if meta.base_props.test_collection_short_id.is_some() {
+        meta.test_collection_bundle_meta_id = upload.test_collection_bundle_meta_id.clone();
+        meta.test_collection_bundle_meta_created_at =
+            upload.test_collection_bundle_meta_created_at.clone();
+    }
     Ok(upload)
 }
 

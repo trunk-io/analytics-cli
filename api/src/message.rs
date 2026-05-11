@@ -13,6 +13,8 @@ pub struct CreateBundleUploadRequest {
     pub remote_urls: Vec<String>,
     #[serde(rename = "externalId")]
     pub external_id: Option<String>,
+    #[serde(rename = "testCollectionShortId")]
+    pub test_collection_short_id: Option<String>,
 }
 
 #[derive(Debug, Serialize, Clone, Deserialize)]
@@ -22,6 +24,10 @@ pub struct CreateBundleUploadResponse {
     pub id_v2: String,
     pub url: String,
     pub key: String,
+    #[serde(rename = "testCollectionBundleMetaId")]
+    pub test_collection_bundle_meta_id: Option<String>,
+    #[serde(rename = "testCollectionBundleMetaCreatedAt")]
+    pub test_collection_bundle_meta_created_at: Option<String>,
 }
 
 #[derive(Debug, Serialize, Clone, Deserialize, Default)]

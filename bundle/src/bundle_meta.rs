@@ -207,6 +207,10 @@ pub struct BundleMetaV0_7_8 {
     #[serde(flatten)]
     pub debug_props: BundleMetaDebugProps,
     pub bundle_upload_id_v2: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub test_collection_bundle_meta_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub test_collection_bundle_meta_created_at: Option<String>,
     pub variant: Option<String>,
     pub internal_bundled_file: Option<BundledFile>,
     pub failed_tests: Vec<Test>,

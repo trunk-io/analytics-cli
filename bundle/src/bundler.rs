@@ -392,6 +392,8 @@ mod tests {
         BundleMeta {
             junit_props: BundleMetaJunitProps::default(),
             bundle_upload_id_v2: String::with_capacity(0),
+            test_collection_bundle_meta_id: None,
+            test_collection_bundle_meta_created_at: None,
             debug_props: BundleMetaDebugProps {
                 command_line: String::with_capacity(0),
             },

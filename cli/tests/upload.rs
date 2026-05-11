@@ -58,6 +58,8 @@ async fn upload_bundle() {
     let assert = command_builder
         .command()
         .env("GITHUB_EXTERNAL_ID", "test-external-id-123")
+        .arg("--test-collection-short-id")
+        .arg("tc_123")
         .assert()
         // should fail due to quarantine and succeed without quarantining
         .failure();
@@ -108,6 +110,10 @@ async fn upload_bundle() {
     assert!(upload_request.client_version.contains(" git="));
     assert!(upload_request.client_version.contains(" rustc="));
     assert!(upload_request.external_id.is_some());
+    assert_eq!(
+        upload_request.test_collection_short_id,
+        Some(String::from("tc_123"))
+    );
 
     let tar_extract_directory =
         assert_matches!(requests_iter.next().unwrap(), RequestPayload::S3Upload(d) => d);
@@ -149,6 +155,7 @@ async fn upload_bundle() {
         "your.email@example.com"
     );
     assert_eq!(base_props.bundle_upload_id, "test-bundle-upload-id");
+    assert_eq!(base_props.test_collection_short_id, Some(String::from("tc_123")));
     assert_eq!(base_props.tags, &[]);
     assert_eq!(base_props.file_sets.len(), 1);
     assert_eq!(junit_props.num_files, 1);
@@ -165,6 +172,15 @@ async fn upload_bundle() {
     assert!(base_props.os_info.is_some());
     assert!(base_props.quarantined_tests.is_empty());
     assert_eq!(bundle_meta.failed_tests.len(), failure_count);
+    assert_eq!(bundle_meta.bundle_upload_id_v2, "test-bundle-upload-id-v2");
+    assert_eq!(
+        bundle_meta.test_collection_bundle_meta_id,
+        Some(String::from("82c6a6e5-f8ea-4d93-9a26-b8ab6ff8f6bc"))
+    );
+    assert_eq!(
+        bundle_meta.test_collection_bundle_meta_created_at,
+        Some(String::from("2026-05-10T12:34:56.000Z"))
+    );
     assert_eq!(
         base_props.codeowners,
         Some(CodeOwners {
@@ -220,10 +236,14 @@ async fn upload_bundle() {
     assert_eq!(test_case_run.codeowners[0].name, "@user");
     assert_eq!(test_case_run.codeowners[1].name, "@user2");
 
+    let mut expected_command_args = command_builder.build_args();
+    expected_command_args.extend([
+        String::from("--test-collection-short-id"),
+        String::from("tc_123"),
+    ]);
     assert!(
         debug_props.command_line.ends_with(
-            &command_builder
-                .build_args()
+            &expected_command_args
                 .join(" ")
                 .replace("test-token", "")
                 .replace("--token", "")
@@ -265,6 +285,9 @@ async fn upload_bundle_using_bep() {
     let bundle_meta: BundleMeta = serde_json::from_reader(meta_json).unwrap();
 
     assert!(!bundle_meta.base_props.file_sets.is_empty());
+    assert_eq!(bundle_meta.base_props.test_collection_short_id, None);
+    assert_eq!(bundle_meta.test_collection_bundle_meta_id, None);
+    assert_eq!(bundle_meta.test_collection_bundle_meta_created_at, None);
     bundle_meta
         .base_props
         .file_sets
@@ -1016,6 +1039,12 @@ async fn quarantines_tests_regardless_of_upload() {
                     id_v2: String::from("test-bundle-upload-id-v2"),
                     url: format!("{host}/s3upload"),
                     key: String::from("unused"),
+                    test_collection_bundle_meta_id: Some(String::from(
+                        "82c6a6e5-f8ea-4d93-9a26-b8ab6ff8f6bc",
+                    )),
+                    test_collection_bundle_meta_created_at: Some(String::from(
+                        "2026-05-10T12:34:56.000Z",
+                    )),
                 })
                 .into_response()
             }
@@ -1629,6 +1658,12 @@ async fn do_not_quarantines_tests_when_quarantine_disabled_set() {
                         id_v2: String::from("test-bundle-upload-id-v2"),
                         url: format!("{host}/s3upload"),
                         key: String::from("unused"),
+                        test_collection_bundle_meta_id: Some(String::from(
+                            "82c6a6e5-f8ea-4d93-9a26-b8ab6ff8f6bc",
+                        )),
+                        test_collection_bundle_meta_created_at: Some(String::from(
+                            "2026-05-10T12:34:56.000Z",
+                        )),
                     }))
                 }
             };
