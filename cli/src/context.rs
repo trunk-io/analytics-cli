@@ -13,7 +13,7 @@ use api::{client::ApiClient, message::CreateBundleUploadResponse};
 use bundle::{
     BundleMeta, BundleMetaBaseProps, BundleMetaDebugProps, BundleMetaJunitProps, BundledFile,
     FileSet, FileSetBuilder, FileSetType, INTERNAL_BIN_FILENAME, META_VERSION,
-    QuarantineBulkTestStatus, bin_parse,
+    QuarantineBulkTestStatus, TestCollectionProps, bin_parse,
 };
 use codeowners::{CodeOwners, OwnersSource};
 use constants::{ENVS_TO_GET, TRUNK_PR_NUMBER_ENV};
@@ -118,7 +118,7 @@ pub fn gather_initial_test_context(
         bazel_bep_path,
         test_reports,
         org_url_slug,
-        test_collection_short_id,
+        test_collection_short_id: _test_collection_short_id,
         repo_root,
         repo_url,
         repo_head_sha,
@@ -165,12 +165,10 @@ pub fn gather_initial_test_context(
         junit_props: BundleMetaJunitProps::default(),
         debug_props,
         bundle_upload_id_v2: String::with_capacity(0),
-        test_collection_bundle_meta_id: None,
-        test_collection_bundle_meta_created_at: None,
         base_props: BundleMetaBaseProps {
             version: META_VERSION.to_string(),
             org: org_url_slug,
-            test_collection_short_id,
+            test_collection: None,
             repo,
             cli_version: format!(
                 "cargo={} git={} rustc={}",
@@ -798,6 +796,7 @@ pub async fn gather_exit_code_and_quarantined_tests_context(
 
 pub async fn gather_upload_id_context(
     meta: &mut BundleMeta,
+    requested_test_collection_short_id: Option<String>,
     api_client: &ApiClient,
     dry_run: bool,
 ) -> anyhow::Result<CreateBundleUploadResponse> {
@@ -812,16 +811,25 @@ pub async fn gather_upload_id_context(
             client_version: format!("trunk-analytics-cli {}", meta.base_props.cli_version),
             remote_urls: vec![meta.base_props.repo.repo_url.clone()],
             external_id,
-            test_collection_short_id: meta.base_props.test_collection_short_id.clone(),
+            test_collection_short_id: requested_test_collection_short_id.clone(),
         })
         .await?;
     meta.base_props.bundle_upload_id.clone_from(&upload.id);
     meta.bundle_upload_id_v2.clone_from(&upload.id_v2);
-    if meta.base_props.test_collection_short_id.is_some() {
-        meta.test_collection_bundle_meta_id = upload.test_collection_bundle_meta_id.clone();
-        meta.test_collection_bundle_meta_created_at =
-            upload.test_collection_bundle_meta_created_at.clone();
-    }
+    meta.base_props.test_collection = match (
+        requested_test_collection_short_id,
+        upload.test_collection_bundle_meta_id.clone(),
+        upload.test_collection_bundle_meta_created_at.clone(),
+    ) {
+        (Some(short_id), Some(bundle_meta_id), Some(bundle_meta_created_at)) => {
+            Some(TestCollectionProps {
+                short_id,
+                bundle_meta_id,
+                bundle_meta_created_at,
+            })
+        }
+        _ => None,
+    };
     Ok(upload)
 }
 

@@ -392,8 +392,6 @@ mod tests {
         BundleMeta {
             junit_props: BundleMetaJunitProps::default(),
             bundle_upload_id_v2: String::with_capacity(0),
-            test_collection_bundle_meta_id: None,
-            test_collection_bundle_meta_created_at: None,
             debug_props: BundleMetaDebugProps {
                 command_line: String::with_capacity(0),
             },
@@ -401,7 +399,7 @@ mod tests {
             base_props: BundleMetaBaseProps {
                 version: META_VERSION.to_string(),
                 org: "org".to_string(),
-                test_collection_short_id: None,
+                test_collection: None,
                 repo: repo.clone(),
                 cli_version: "0.0.1".to_string(),
                 bundle_upload_id: "00".to_string(),

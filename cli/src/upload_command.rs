@@ -502,6 +502,7 @@ pub async fn run_upload(
     tracing::info!("Uploading test results...");
     let upload_bundle_result = upload_bundle(
         &mut meta,
+        upload_args.test_collection_short_id.clone(),
         &api_client,
         bep_result,
         quarantine_context.exit_code,
@@ -576,12 +577,19 @@ pub async fn run_upload(
 
 async fn upload_bundle(
     meta: &mut BundleMeta,
+    requested_test_collection_short_id: Option<String>,
     api_client: &ApiClient,
     bep_result: Option<BepParseResult>,
     exit_code: i32,
     dry_run: bool,
 ) -> anyhow::Result<(PathBuf, TempDir)> {
-    let upload_result = gather_upload_id_context(meta, api_client, dry_run).await;
+    let upload_result = gather_upload_id_context(
+        meta,
+        requested_test_collection_short_id,
+        api_client,
+        dry_run,
+    )
+    .await;
 
     let (
         bundle_temp_file,
