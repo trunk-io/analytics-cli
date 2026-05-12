@@ -52,15 +52,3 @@ fn serializes_test_collection_props_as_flattened_fields() {
     let reparsed: BundleMetaBaseProps = serde_json::from_value(value).unwrap();
     assert_eq!(reparsed.test_collection, base_props.test_collection);
 }
-
-#[test]
-fn deserializes_partial_legacy_test_collection_fields_as_none() {
-    let mut value = serde_json::to_value(build_base_props(None)).unwrap();
-    value
-        .as_object_mut()
-        .unwrap()
-        .insert(String::from("test_collection_short_id"), json!("tc_123"));
-
-    let reparsed: BundleMetaBaseProps = serde_json::from_value(value).unwrap();
-    assert_eq!(reparsed.test_collection, None);
-}

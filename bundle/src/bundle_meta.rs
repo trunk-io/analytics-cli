@@ -39,7 +39,6 @@ pub struct TestCollectionProps {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
-#[serde(from = "BundleMetaBasePropsSerde")]
 #[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass(get_all))]
 #[cfg_attr(feature = "wasm", derive(Tsify))]
 pub struct BundleMetaBaseProps {
@@ -59,67 +58,6 @@ pub struct BundleMetaBaseProps {
     pub quarantined_tests: Vec<Test>,
     pub codeowners: Option<CodeOwners>,
     pub use_uncloned_repo: Option<bool>,
-}
-
-#[derive(Debug, Deserialize)]
-struct BundleMetaBasePropsSerde {
-    pub version: String,
-    pub cli_version: String,
-    pub org: String,
-    #[serde(rename = "test_collection_short_id")]
-    pub test_collection_short_id: Option<String>,
-    #[serde(rename = "test_collection_bundle_meta_id")]
-    pub test_collection_bundle_meta_id: Option<String>,
-    #[serde(rename = "test_collection_bundle_meta_created_at")]
-    pub test_collection_bundle_meta_created_at: Option<String>,
-    pub repo: BundleRepo,
-    pub bundle_upload_id: String,
-    pub tags: Vec<CustomTag>,
-    pub file_sets: Vec<FileSet>,
-    pub envs: HashMap<String, String>,
-    pub upload_time_epoch: u64,
-    pub test_command: Option<String>,
-    pub os_info: Option<String>,
-    pub quarantined_tests: Vec<Test>,
-    pub codeowners: Option<CodeOwners>,
-    pub use_uncloned_repo: Option<bool>,
-}
-
-impl From<BundleMetaBasePropsSerde> for BundleMetaBaseProps {
-    fn from(raw: BundleMetaBasePropsSerde) -> Self {
-        let test_collection = match (
-            raw.test_collection_short_id,
-            raw.test_collection_bundle_meta_id,
-            raw.test_collection_bundle_meta_created_at,
-        ) {
-            (Some(short_id), Some(bundle_meta_id), Some(bundle_meta_created_at)) => {
-                Some(TestCollectionProps {
-                    short_id,
-                    bundle_meta_id,
-                    bundle_meta_created_at,
-                })
-            }
-            _ => None,
-        };
-
-        BundleMetaBaseProps {
-            version: raw.version,
-            cli_version: raw.cli_version,
-            org: raw.org,
-            test_collection,
-            repo: raw.repo,
-            bundle_upload_id: raw.bundle_upload_id,
-            tags: raw.tags,
-            file_sets: raw.file_sets,
-            envs: raw.envs,
-            upload_time_epoch: raw.upload_time_epoch,
-            test_command: raw.test_command,
-            os_info: raw.os_info,
-            quarantined_tests: raw.quarantined_tests,
-            codeowners: raw.codeowners,
-            use_uncloned_repo: raw.use_uncloned_repo,
-        }
-    }
 }
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass(get_all))]
