@@ -4,8 +4,6 @@ def square(val)
   val * val
 end
 
-ANSI_ESCAPE_PATTERN = /(?:\e[@-Z\\-_]|\e\[[0-?]*[ -\/]*[@-~])/.freeze
-
 describe 'simple_test' do
   around do |example|
     original_color_mode = RSpec.configuration.color_mode

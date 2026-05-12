@@ -54,7 +54,7 @@ class String
   end
 end
 
-ANSI_ESCAPE_PATTERN = /(?:\e[@-Z\\-_]|\e\[[0-?]*[ -\/]*[@-~])/.freeze
+ANSI_ESCAPE_PATTERN = %r{(?:\e[@-Z\\-_]|\e\[[0-?]*[ -/]*[@-~])}
 
 def escape(str)
   str.dump[1..-2]
@@ -215,7 +215,7 @@ rescue StandardError
   legacy_format_exception_message(exception)
 end
 
-# trunk-ignore(rubocop/Metrics/MethodLength)
+# trunk-ignore(rubocop/Metrics/MethodLength,rubocop/Metrics/AbcSize)
 def format_exception_backtrace(exception, example)
   return '' unless exception
 
@@ -258,7 +258,7 @@ def legacy_format_exception_message(exception)
   end
 end
 
-# trunk-ignore(rubocop/Metrics/MethodLength)
+# trunk-ignore(rubocop/Metrics/MethodLength,rubocop/Metrics/AbcSize)
 def legacy_format_exception_backtrace(exception)
   case exception
   when RSpec::Core::MultipleExceptionError
