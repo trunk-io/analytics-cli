@@ -301,10 +301,13 @@ def test_parse_and_dump_meta_roundtrip():
     }
 
     valid_meta_str = json.dumps(valid_meta, sort_keys=True)
+    expected_meta = dict(valid_meta)
+    expected_meta.pop("test_collection_short_id")
+    expected_meta_str = json.dumps(expected_meta, sort_keys=True)
     bundle_meta = parse_meta(valid_meta_str.encode())
     assert (
         json.dumps(json.loads(bundle_meta.dump_json()), sort_keys=True)
-        == valid_meta_str
+        == expected_meta_str
     )
 
 

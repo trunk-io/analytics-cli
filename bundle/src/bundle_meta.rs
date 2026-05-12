@@ -25,6 +25,18 @@ use crate::{
 };
 
 pub const META_VERSION: &str = "1";
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass(get_all))]
+#[cfg_attr(feature = "wasm", derive(Tsify))]
+pub struct TestCollectionProps {
+    #[serde(rename = "test_collection_short_id")]
+    pub short_id: String,
+    #[serde(rename = "test_collection_bundle_meta_id")]
+    pub bundle_meta_id: String,
+    #[serde(rename = "test_collection_bundle_meta_created_at")]
+    pub bundle_meta_created_at: String,
+}
+
 // 0.5.29 was first version to include bundle_upload_id and serves as the base
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass(get_all))]
@@ -33,7 +45,8 @@ pub struct BundleMetaBaseProps {
     pub version: String,
     pub cli_version: String,
     pub org: String,
-    pub test_collection_short_id: Option<String>,
+    #[serde(flatten, default)]
+    pub test_collection: Option<TestCollectionProps>,
     pub repo: BundleRepo,
     pub bundle_upload_id: String,
     pub tags: Vec<CustomTag>,
