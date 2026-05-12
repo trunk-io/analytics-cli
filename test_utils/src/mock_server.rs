@@ -168,12 +168,8 @@ pub async fn create_bundle_handler(
         id_v2: String::from("test-bundle-upload-id-v2"),
         url: format!("{host}/s3upload"),
         key: String::from("unused"),
-        test_collection_bundle_meta_id: Some(String::from(
-            "82c6a6e5-f8ea-4d93-9a26-b8ab6ff8f6bc",
-        )),
-        test_collection_bundle_meta_created_at: Some(String::from(
-            "2026-05-10T12:34:56.000Z",
-        )),
+        test_collection_bundle_meta_id: Some(String::from("82c6a6e5-f8ea-4d93-9a26-b8ab6ff8f6bc")),
+        test_collection_bundle_meta_created_at: Some(String::from("2026-05-10T12:34:56.000Z")),
     })
 }
 
