@@ -66,3 +66,15 @@ fn omits_test_collection_fields_when_absent() {
     let reparsed: BundleMetaBaseProps = serde_json::from_value(value).unwrap();
     assert_eq!(reparsed.test_collection, None);
 }
+
+#[test]
+fn ignores_null_test_collection_short_id() {
+    let mut value = serde_json::to_value(build_base_props(None)).unwrap();
+    value
+        .as_object_mut()
+        .unwrap()
+        .insert(String::from("test_collection_short_id"), serde_json::Value::Null);
+
+    let reparsed: BundleMetaBaseProps = serde_json::from_value(value).unwrap();
+    assert_eq!(reparsed.test_collection, None);
+}
