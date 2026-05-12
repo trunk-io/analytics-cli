@@ -52,3 +52,17 @@ fn serializes_test_collection_props_as_flattened_fields() {
     let reparsed: BundleMetaBaseProps = serde_json::from_value(value).unwrap();
     assert_eq!(reparsed.test_collection, base_props.test_collection);
 }
+
+#[test]
+fn omits_test_collection_fields_when_absent() {
+    let value = serde_json::to_value(build_base_props(None)).unwrap();
+    let object = value.as_object().unwrap();
+
+    assert_eq!(object.get("test_collection"), None);
+    assert_eq!(object.get("test_collection_short_id"), None);
+    assert_eq!(object.get("test_collection_bundle_meta_id"), None);
+    assert_eq!(object.get("test_collection_bundle_meta_created_at"), None);
+
+    let reparsed: BundleMetaBaseProps = serde_json::from_value(value).unwrap();
+    assert_eq!(reparsed.test_collection, None);
+}
