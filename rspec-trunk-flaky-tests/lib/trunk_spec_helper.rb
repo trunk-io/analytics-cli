@@ -54,8 +54,14 @@ class String
   end
 end
 
+ANSI_ESCAPE_PATTERN = %r{(?:\e[@-Z\\-_]|\e\[[0-?]*[ -/]*[@-~])}
+
 def escape(str)
   str.dump[1..-2]
+end
+
+def strip_ansi_codes(text)
+  text.to_s.gsub(ANSI_ESCAPE_PATTERN, '')
 end
 
 # Knapsack example detector instantiates all test cases in order to determine how to shard them
@@ -204,12 +210,12 @@ def format_exception_message(exception, example)
   return '' unless exception
 
   presenter = RSpec::Core::Formatters::ExceptionPresenter.new(exception, example)
-  presenter.fully_formatted(nil, PlainColorizer)
+  strip_ansi_codes(presenter.fully_formatted(nil, PlainColorizer))
 rescue StandardError
   legacy_format_exception_message(exception)
 end
 
-# trunk-ignore(rubocop/Metrics/MethodLength)
+# trunk-ignore(rubocop/Metrics/MethodLength,rubocop/Metrics/AbcSize)
 def format_exception_backtrace(exception, example)
   return '' unless exception
 
@@ -230,7 +236,7 @@ def format_exception_backtrace(exception, example)
   # and after hooks, so we fall back to the legacy formatter
   return legacy_format_exception_backtrace(exception) if result.strip.empty?
 
-  result
+  strip_ansi_codes(result)
 rescue StandardError
   legacy_format_exception_backtrace(exception)
 end
@@ -246,25 +252,25 @@ def legacy_format_exception_message(exception)
   case exception
   when RSpec::Core::MultipleExceptionError
     messages = exception.all_exceptions.map { |e| "#{e.class}: #{e.message}" }
-    "#{exception.class}: #{messages.join(' | ')}"
+    strip_ansi_codes("#{exception.class}: #{messages.join(' | ')}")
   else
-    exception.to_s
+    strip_ansi_codes(exception.to_s)
   end
 end
 
-# trunk-ignore(rubocop/Metrics/MethodLength)
+# trunk-ignore(rubocop/Metrics/MethodLength,rubocop/Metrics/AbcSize)
 def legacy_format_exception_backtrace(exception)
   case exception
   when RSpec::Core::MultipleExceptionError
-    exception.all_exceptions.map do |e|
+    strip_ansi_codes(exception.all_exceptions.map do |e|
       if e.backtrace && !e.backtrace.empty?
         "#{e.class}: #{e.message}\n#{e.backtrace.join("\n")}"
       else
         "#{e.class}: #{e.message}"
       end
-    end.join("\n\n")
+    end.join("\n\n"))
   else
-    exception.backtrace&.join("\n") || ''
+    strip_ansi_codes(exception.backtrace&.join("\n") || '')
   end
 end
 

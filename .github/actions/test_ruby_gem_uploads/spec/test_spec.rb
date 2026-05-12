@@ -5,6 +5,14 @@ def square(val)
 end
 
 describe 'simple_test' do
+  around do |example|
+    original_color_mode = RSpec.configuration.color_mode
+    RSpec.configuration.color_mode = :on
+    example.run
+  ensure
+    RSpec.configuration.color_mode = original_color_mode
+  end
+
   [1, 2, 3].each do |i|
     it do
       expect(square(i)).to eq(i * i)

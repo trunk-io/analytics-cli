@@ -3,6 +3,7 @@
 source 'https://rubygems.org'
 
 gem 'rspec'
+gem 'coderay'
 gem 'knapsack_pro'
 gem 'rake'
 gem 'rake-compiler'
