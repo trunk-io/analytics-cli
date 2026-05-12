@@ -15,6 +15,7 @@ import {
   VersionedBundle,
   TestRunnerReportStatus,
   FileSet,
+  BundleMetaBaseProps,
 } from "../pkg/context_js";
 
 // eslint-disable-next-line vitest/require-hook
@@ -31,105 +32,111 @@ type RecursiveOmit<T, K extends PropertyKey> = T extends unknown[]
         : T[P];
     };
 
-type TestBundleMeta = Omit<RecursiveOmit<VersionedBundle, "free">, "schema">;
+type OmitWasmUtils<T> = RecursiveOmit<T, "free" | SymbolConstructor["dispose"]>;
 
-const generateBundleMeta = (): TestBundleMeta => ({
-  version: "1",
-  bundle_upload_id: faker.string.uuid(),
-  cli_version: faker.system.semver(),
-  envs: {
-    RUNNER_OS: "Linux",
-    GITHUB_REF: "refs/heads/main",
-  },
-  file_sets: [
-    {
-      file_set_type: "Junit",
-      files: [
-        {
-          original_path: "/abs/path/junit.xml",
-          original_path_rel: "junit.xml",
-          path: "0.xml",
-          owners: ["owner"],
-          team: "team",
-        },
-      ],
-      glob: "**/*.xml",
-      resolved_status: "Passed",
-      resolved_start_time_epoch_ms: dayjs.utc().subtract(5, "minute").valueOf(),
-      resolved_end_time_epoch_ms: dayjs.utc().subtract(2, "minute").valueOf(),
-      resolved_label: null,
+const generateBundleMeta = () =>
+  ({
+    version: "1",
+    bundle_upload_id: faker.string.uuid(),
+    cli_version: faker.system.semver(),
+    envs: {
+      RUNNER_OS: "Linux",
+      GITHUB_REF: "refs/heads/main",
     },
-    {
-      file_set_type: "Junit",
-      files: [
-        {
-          original_path: "/abs/path/junit.xml",
-          original_path_rel: "junit.xml",
-          path: "0.xml",
-          owners: ["owner"],
-          team: "team",
-        },
-      ],
-      glob: "**/*.xml",
-      resolved_status: "Passed",
+    file_sets: [
+      {
+        file_set_type: "Junit",
+        files: [
+          {
+            original_path: "/abs/path/junit.xml",
+            original_path_rel: "junit.xml",
+            path: "0.xml",
+            owners: ["owner"],
+            team: "team",
+          },
+        ],
+        glob: "**/*.xml",
+        resolved_status: "Passed",
+        resolved_start_time_epoch_ms: dayjs
+          .utc()
+          .subtract(5, "minute")
+          .valueOf(),
+        resolved_end_time_epoch_ms: dayjs.utc().subtract(2, "minute").valueOf(),
+        resolved_label: null,
+      },
+      {
+        file_set_type: "Junit",
+        files: [
+          {
+            original_path: "/abs/path/junit.xml",
+            original_path_rel: "junit.xml",
+            path: "0.xml",
+            owners: ["owner"],
+            team: "team",
+          },
+        ],
+        glob: "**/*.xml",
+        resolved_status: "Passed",
+      },
+      {
+        file_set_type: "Junit",
+        files: [
+          {
+            original_path: "/abs/path/junit.xml",
+            original_path_rel: "junit.xml",
+            path: "0.xml",
+            owners: ["owner"],
+            team: "team",
+          },
+        ],
+        glob: "**/*.xml",
+        // NOTE: This is intentional to test backwards compatibility with old bundles
+        resolved_status: null as unknown as TestRunnerReportStatus,
+      },
+      {
+        file_set_type: "Junit",
+        files: [
+          {
+            original_path: "/abs/path/junit.xml",
+            original_path_rel: "junit.xml",
+            path: "0.xml",
+            owners: ["owner"],
+            team: "team",
+          },
+        ],
+        glob: "**/*.xml",
+      },
+    ],
+    org: faker.company.name(),
+    os_info: process.platform,
+    quarantined_tests: [],
+    codeowners: {
+      path: faker.system.filePath(),
     },
-    {
-      file_set_type: "Junit",
-      files: [
-        {
-          original_path: "/abs/path/junit.xml",
-          original_path_rel: "junit.xml",
-          path: "0.xml",
-          owners: ["owner"],
-          team: "team",
-        },
-      ],
-      glob: "**/*.xml",
-      // NOTE: This is intentional to test backwards compatibility with old bundles
-      resolved_status: null as unknown as TestRunnerReportStatus,
-    },
-    {
-      file_set_type: "Junit",
-      files: [
-        {
-          original_path: "/abs/path/junit.xml",
-          original_path_rel: "junit.xml",
-          path: "0.xml",
-          owners: ["owner"],
-          team: "team",
-        },
-      ],
-      glob: "**/*.xml",
-    },
-  ],
-  org: faker.company.name(),
-  os_info: process.platform,
-  quarantined_tests: [],
-  codeowners: {
-    path: faker.system.filePath(),
-  },
-  repo: {
-    repo_head_branch: faker.git.branch(),
-    repo_head_sha: faker.git.commitSha(),
-    repo_head_sha_short: faker.git.commitSha().slice(0, 7),
-    repo_head_author_email: faker.internet.email(),
-    repo_head_author_name: faker.person.fullName(),
-    repo_head_commit_message: faker.lorem.sentence(),
-    repo_head_commit_epoch: faker.number.bigInt(),
-    repo_root: faker.system.directoryPath(),
-    repo_url: faker.internet.url(),
     repo: {
-      host: "github.com",
-      owner: faker.company.name(),
-      name: faker.company.catchPhraseNoun(),
+      repo_head_branch: faker.git.branch(),
+      repo_head_sha: faker.git.commitSha(),
+      repo_head_sha_short: faker.git.commitSha().slice(0, 7),
+      repo_head_author_email: faker.internet.email(),
+      repo_head_author_name: faker.person.fullName(),
+      repo_head_commit_message: faker.lorem.sentence(),
+      repo_head_commit_epoch: faker.number.bigInt(),
+      repo_root: faker.system.directoryPath(),
+      repo_url: faker.internet.url(),
+      repo: {
+        host: "github.com",
+        owner: faker.company.name(),
+        name: faker.company.catchPhraseNoun(),
+      },
+      use_uncloned_repo: undefined,
     },
-  },
-  use_uncloned_repo: null,
-  upload_time_epoch: faker.number.int(),
-  tags: [],
-  test_collection_short_id: null,
-  test_command: faker.hacker.verb(),
-});
+    use_uncloned_repo: null,
+    upload_time_epoch: faker.number.int(),
+    tags: [],
+    // NOTE: This is intentional to test backwards compatibility with old bundles
+    test_collection_short_id: null as unknown as string,
+    test_command: faker.hacker.verb(),
+  }) as const satisfies OmitWasmUtils<BundleMetaBaseProps>;
 
 const bundleMetaJsonSerializer = (_key: unknown, value: unknown) =>
   typeof value === "bigint" ? Number(value) : value;
@@ -179,43 +186,54 @@ const compressAndUploadMeta = async ({
   return readableStream;
 };
 
-describe("context-js", () => {
-  type Versions = Pick<VersionedBundle, "schema">["schema"];
-  const versionTests: [Versions, Partial<VersionedBundle>][] = [
-    ["V0_5_29", {}],
-    [
-      "V0_5_34",
-      { num_tests: faker.number.int(100), num_files: faker.number.int(100) },
-    ],
-    [
-      "V0_6_2",
-      {
-        num_tests: faker.number.int(100),
-        num_files: faker.number.int(100),
-        command_line: "trunk-analytics-cli upload --token=***",
-      },
-    ],
-    [
-      "V0_7_7",
-      {
-        num_tests: faker.number.int(100),
-        num_files: faker.number.int(100),
-        command_line: "trunk-analytics-cli upload --token=***",
-        bundle_upload_id_v2: "SOME ID",
-        variant: null,
-        internal_bundled_file: null,
-      },
-    ],
-  ];
+const VERSION_TESTS = [
+  { schema: "V0_5_29", ...generateBundleMeta() },
+  {
+    schema: "V0_5_34",
+    ...generateBundleMeta(),
+    num_tests: faker.number.int(100),
+    num_files: faker.number.int(100),
+  },
+  {
+    schema: "V0_6_2",
+    ...generateBundleMeta(),
+    num_tests: faker.number.int(100),
+    num_files: faker.number.int(100),
+    command_line: "trunk-analytics-cli upload --token=***",
+  },
+  {
+    schema: "V0_7_7",
+    ...generateBundleMeta(),
+    num_tests: faker.number.int(100),
+    num_files: faker.number.int(100),
+    command_line: "trunk-analytics-cli upload --token=***",
+    bundle_upload_id_v2: "SOME ID",
+    variant: null,
+    internal_bundled_file: null,
+  },
+  {
+    schema: "V0_7_8",
+    ...generateBundleMeta(),
+    num_tests: faker.number.int(100),
+    num_files: faker.number.int(100),
+    command_line: "trunk-analytics-cli upload --token=***",
+    bundle_upload_id_v2: "SOME ID",
+    variant: null,
+    internal_bundled_file: null,
+    failed_tests: [],
+  },
+] as const satisfies VersionedBundle[];
 
-  const createExpectedVersionedBundle = (
-    schema: Versions,
-    uploadMeta: TestBundleMeta,
-  ) => {
-    const expectedMeta = {
-      schema,
-      ...uploadMeta,
-      file_sets: uploadMeta.file_sets.map((fileSet) => {
+const createExpectedVersionedBundle = (
+  bundleMeta: OmitWasmUtils<BundleMetaBaseProps>,
+) => {
+  const { repo: bundleMetaRepo, ...restBundleMeta } = bundleMeta;
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { use_uncloned_repo: _, ...restBundleMetaRepo } = bundleMetaRepo;
+  const expectedMeta = {
+    ...restBundleMeta,
+    file_sets: restBundleMeta.file_sets.map(
+      (fileSet): OmitWasmUtils<FileSet> => {
         if (!("resolved_status" in fileSet)) {
           return fileSet;
         }
@@ -246,28 +264,39 @@ describe("context-js", () => {
               }
             : {}),
         };
-      }) as FileSet[],
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-      upload_time_epoch: expect.any(Number),
-    };
-
+      },
+    ),
     // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-    expectedMeta.repo.repo_head_commit_epoch = expect.any(Number);
-    if (expectedMeta.test_collection_short_id === null) {
-      delete expectedMeta.test_collection_short_id;
-    }
-
-    return expectedMeta;
+    upload_time_epoch: expect.any(Number),
+    repo: {
+      ...restBundleMetaRepo,
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+      repo_head_commit_epoch: expect.any(Number),
+    },
   };
 
-  it.each(versionTests)(
+  // NOTE: This is intentional to test backwards compatibility with old bundles
+  if (
+    "test_collection_short_id" in expectedMeta &&
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+    expectedMeta.test_collection_short_id === null
+  ) {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { test_collection_short_id: __, ...restExpectedMeta } = expectedMeta;
+    return restExpectedMeta;
+  }
+
+  return expectedMeta;
+};
+
+describe("context-js", () => {
+  it.each(VERSION_TESTS)(
     "decompresses and parses meta.json %s",
-    async (schema, extras) => {
+    async (versionedBundle) => {
       expect.hasAssertions();
 
-      const uploadMeta = { ...generateBundleMeta(), ...extras };
       const metaInfoJson = JSON.stringify(
-        uploadMeta,
+        versionedBundle,
         bundleMetaJsonSerializer,
         2,
       );
@@ -277,7 +306,7 @@ describe("context-js", () => {
       });
 
       const res = await parse_meta_from_tarball(readableStream);
-      const expectedMeta = createExpectedVersionedBundle(schema, uploadMeta);
+      const expectedMeta = createExpectedVersionedBundle(versionedBundle);
 
       expect(res).toStrictEqual(expectedMeta);
     },
@@ -339,19 +368,18 @@ describe("context-js", () => {
   it("decompresses and parses both meta.json and internal.bin", async () => {
     expect.hasAssertions();
 
-    const uploadMeta = {
+    const versionedBundle = {
+      schema: "V0_7_7",
       ...generateBundleMeta(),
-      ...{
-        num_tests: faker.number.int(100),
-        num_files: faker.number.int(100),
-        command_line: "trunk-analytics-cli upload --token=***",
-        bundle_upload_id_v2: "SOME ID",
-        variant: "some-variant",
-        internal_bundled_file: null,
-      },
-    };
+      num_tests: faker.number.int(100),
+      num_files: faker.number.int(100),
+      command_line: "trunk-analytics-cli upload --token=***",
+      bundle_upload_id_v2: "SOME ID",
+      variant: "some-variant",
+      internal_bundled_file: null,
+    } as const satisfies VersionedBundle;
     const metaInfoJson = JSON.stringify(
-      uploadMeta,
+      versionedBundle,
       bundleMetaJsonSerializer,
       2,
     );
@@ -363,7 +391,7 @@ describe("context-js", () => {
     const { bindings_report, versioned_bundle } =
       await parse_internal_bin_and_meta_from_tarball(readableStream);
 
-    const expectedMeta = createExpectedVersionedBundle("V0_7_7", uploadMeta);
+    const expectedMeta = createExpectedVersionedBundle(versionedBundle);
 
     expect(versioned_bundle).toStrictEqual(expectedMeta);
 
