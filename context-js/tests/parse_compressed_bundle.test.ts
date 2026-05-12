@@ -253,6 +253,9 @@ describe("context-js", () => {
 
     // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     expectedMeta.repo.repo_head_commit_epoch = expect.any(Number);
+    if (expectedMeta.test_collection_short_id === null) {
+      delete expectedMeta.test_collection_short_id;
+    }
 
     return expectedMeta;
   };
