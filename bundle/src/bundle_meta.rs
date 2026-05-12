@@ -25,7 +25,6 @@ use crate::{
 };
 
 pub const META_VERSION: &str = "1";
-// 0.5.29 was first version to include bundle_upload_id and serves as the base
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass(get_all))]
 #[cfg_attr(feature = "wasm", derive(Tsify))]
@@ -38,6 +37,7 @@ pub struct TestCollectionProps {
     pub bundle_meta_created_at: String,
 }
 
+// 0.5.29 was first version to include bundle_upload_id and serves as the base
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass(get_all))]
 #[cfg_attr(feature = "wasm", derive(Tsify))]

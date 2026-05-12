@@ -3,67 +3,57 @@ use context::repo::RepoUrlParts;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Clone, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
 pub struct CreateBundleUploadRequest {
     pub repo: RepoUrlParts,
-    #[serde(rename = "orgUrlSlug")]
     pub org_url_slug: String,
-    #[serde(rename = "clientVersion")]
     pub client_version: String,
-    #[serde(rename = "remoteUrls")]
     pub remote_urls: Vec<String>,
-    #[serde(rename = "externalId")]
     pub external_id: Option<String>,
-    #[serde(rename = "testCollectionShortId")]
     pub test_collection_short_id: Option<String>,
 }
 
 #[derive(Debug, Serialize, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct CreateBundleUploadResponse {
     pub id: String,
-    #[serde(rename = "idV2")]
     pub id_v2: String,
     pub url: String,
     pub key: String,
-    #[serde(rename = "testCollectionBundleMetaId")]
     pub test_collection_bundle_meta_id: Option<String>,
-    #[serde(rename = "testCollectionBundleMetaCreatedAt")]
     pub test_collection_bundle_meta_created_at: Option<String>,
 }
 
 #[derive(Debug, Serialize, Clone, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
 pub struct GetQuarantineConfigResponse {
-    #[serde(rename = "isDisabled")]
     pub is_disabled: bool,
     #[serde(rename = "testIds")]
     pub quarantined_tests: Vec<String>,
 }
 
 #[derive(Debug, Serialize, Clone, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
 pub struct GetQuarantineConfigRequest {
     pub repo: RepoUrlParts,
-    #[serde(rename = "remoteUrls")]
     pub remote_urls: Vec<String>,
-    #[serde(rename = "orgUrlSlug")]
     pub org_url_slug: String,
-    #[serde(rename = "testIdentifiers")]
     pub test_identifiers: Vec<Test>,
 }
 
 #[derive(Debug, Serialize, Clone, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
 pub struct CreateBundleUploadIntentRequest {
     pub repo: RepoUrlParts,
-    #[serde(rename = "orgUrlSlug")]
     pub org_url_slug: String,
-    #[serde(rename = "clientVersion")]
     pub client_version: String,
 }
 
 #[derive(Debug, Serialize, Clone, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
 pub struct CreateBundleUploadIntentResponse {
     pub repo: RepoUrlParts,
-    #[serde(rename = "orgUrlSlug")]
     pub org_url_slug: String,
-    #[serde(rename = "clientVersion")]
     pub client_version: String,
 }
 
