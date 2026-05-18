@@ -3,6 +3,7 @@ use std::{fs::File, path::Path};
 use context::repo::RepoUrlParts;
 use flate2::read::GzDecoder;
 use lazy_static::lazy_static;
+use rstest::rstest;
 use tar::Archive;
 use temp_testdir::TempDir;
 use xcresult::xcresult::XCResult;
@@ -31,6 +32,8 @@ lazy_static! {
         unpack_archive_to_temp_dir("tests/data/test-swift-without-test-suites.xcresult.tar.gz");
     static ref TEMP_DIR_TEST_SWIFT_MIX: TempDir =
         unpack_archive_to_temp_dir("tests/data/test-swift-mix.xcresult.tar.gz");
+    static ref TEMP_DIR_TEST_SWIFT_SNAPSHOT_TESTING: TempDir =
+        unpack_archive_to_temp_dir("tests/data/test-swift-snapshot-testing.xcresult.tar.gz");
     static ref TEMP_DIR_TEST_TIMESTAMP: TempDir =
         unpack_archive_to_temp_dir("tests/data/test-timestamp.xcresult.tar.gz");
     static ref TEMP_DIR_TEST_VARIANT: TempDir =
@@ -209,6 +212,36 @@ fn test_xcresult_with_valid_path_invalid_os() {
     pretty_assertions::assert_eq!(
         xcresult.err().unwrap().to_string(),
         "xcrun is only available on macOS"
+    );
+}
+
+#[cfg(target_os = "macos")]
+#[rstest]
+#[case::experimental_failure_summary(true)]
+#[case::legacy_fallback(false)]
+fn test_swift_snapshot_testing_trait_failure_uses_assertion_file(
+    #[case] use_experimental_failure_summary: bool,
+) {
+    let path = TEMP_DIR_TEST_SWIFT_SNAPSHOT_TESTING
+        .as_ref()
+        .join("SnapshotRepro.xcresult");
+    let path_str = path.to_str().unwrap();
+    let xcresult = XCResult::new(
+        path_str,
+        ORG_URL_SLUG.clone(),
+        REPO_FULL_NAME.clone(),
+        use_experimental_failure_summary,
+    );
+    assert!(xcresult.is_ok());
+
+    let mut junits = xcresult.unwrap().generate_junits();
+    assert_eq!(junits.len(), 1);
+    let junit = junits.pop().unwrap();
+    let mut junit_writer: Vec<u8> = Vec::new();
+    junit.serialize(&mut junit_writer).unwrap();
+    pretty_assertions::assert_eq!(
+        String::from_utf8(junit_writer).unwrap(),
+        include_str!("data/test-swift-snapshot-testing.junit.xml")
     );
 }
 

@@ -34,44 +34,112 @@ impl XCResultTestLegacy {
                     // grab the first failure summary if there are multiple
                     failure_summaries.values.first()
                 })
-                .and_then(|failure_summary| {
+                .and_then(Self::find_file_in_failure_summary)
+        })
+    }
+
+    fn find_file_in_failure_summary(
+        failure_summary: &legacy_schema::ActionTestFailureSummary,
+    ) -> Option<String> {
+        Self::normalize_file_path(failure_summary.file_name.as_ref().map(|file| &file.value))
+            .or_else(|| {
+                Self::normalize_file_path(
                     failure_summary
                         .source_code_context
                         .as_ref()
-                        .and_then(|source_code_context| {
-                            source_code_context
-                                .call_stack
-                                .as_ref()
-                                .and_then(|call_stack| {
-                                    call_stack
-                                        .values
-                                        .iter()
-                                        .filter_map(|call_stack| {
-                                            call_stack
-                                                .symbol_info
-                                                .as_ref()
-                                                .and_then(|symbol_info| {
-                                                    symbol_info.location.as_ref().and_then(
-                                                        |location| location.file_path.as_ref(),
-                                                    )
-                                                })
-                                                .map(|file_path| {
-                                                    file_path.value.replace(' ', "%20")
-                                                })
-                                        })
-                                        .filter(|file_path| {
-                                            std::path::Path::new(&file_path)
-                                                .extension()
-                                                .map(|ext| ext == "swift" || ext == "m")
-                                                .unwrap_or(false)
-                                        })
-                                        // use the last valid swift / obj-c file-path in the stack
-                                        .last()
-                                })
-                        })
-                })
-        })
+                        .and_then(|source_code_context| source_code_context.location.as_ref())
+                        .and_then(|location| location.file_path.as_ref())
+                        .map(|file_path| &file_path.value),
+                )
+            })
+            .or_else(|| {
+                failure_summary
+                    .source_code_context
+                    .as_ref()
+                    .and_then(Self::find_file_in_source_code_context_call_stack)
+            })
     }
+
+    fn find_file_in_source_code_context_call_stack(
+        source_code_context: &legacy_schema::SourceCodeContext,
+    ) -> Option<String> {
+        source_code_context
+            .call_stack
+            .as_ref()
+            .and_then(|call_stack| {
+                call_stack
+                    .values
+                    .iter()
+                    .filter_map(|call_stack| {
+                        call_stack
+                            .symbol_info
+                            .as_ref()
+                            .and_then(|symbol_info| {
+                                symbol_info
+                                    .location
+                                    .as_ref()
+                                    .and_then(|location| location.file_path.as_ref())
+                            })
+                            .and_then(|file_path| Self::normalize_file_path(Some(&file_path.value)))
+                    })
+                    .filter(|file_path| {
+                        std::path::Path::new(&file_path)
+                            .extension()
+                            .map(|ext| ext == "swift" || ext == "m")
+                            .unwrap_or(false)
+                    })
+                    // use the last valid swift / obj-c file-path in the stack
+                    .last()
+            })
+    }
+
+    fn normalize_file_path(file_path: Option<&String>) -> Option<String> {
+        file_path.map(|file_path| file_path.replace(' ', "%20"))
+    }
+
+    fn fallback_file_from_failure_issue_summary(
+        failure_summary: &legacy_schema::TestFailureIssueSummary,
+    ) -> Option<(Option<&str>, String)> {
+        failure_summary
+            .document_location_in_creating_workspace
+            .as_ref()
+            .and_then(|document_location_in_creating_workspace| {
+                document_location_in_creating_workspace.url.as_ref()
+            })
+            .map(|file| {
+                let file = file
+                    .value
+                    .replace("file://", "")
+                    .split('#')
+                    .next()
+                    .unwrap_or_default()
+                    .into();
+                let producing_target = failure_summary
+                    .producing_target
+                    .as_ref()
+                    .map(|x| x.value.as_ref());
+                if producing_target.is_some() {
+                    return (producing_target, file);
+                }
+                let test_case_name = failure_summary
+                    .test_case_name
+                    .as_ref()
+                    .map(|x| x.value.as_ref());
+                (test_case_name, file)
+            })
+    }
+
+    fn find_fallback_file<'a>(
+        files: &HashMap<Option<&'a str>, String>,
+        test_suite_name: Option<&str>,
+        formatted_test_case_name: &str,
+    ) -> Option<String> {
+        files
+            .get(&test_suite_name)
+            .or_else(|| files.get(&Some(formatted_test_case_name)))
+            .cloned()
+    }
+
     pub fn generate_from_object<T: AsRef<OsStr>>(
         path: T,
         use_experimental_failure_summary: bool,
@@ -234,34 +302,7 @@ impl XCResultTestLegacy {
                         failure_summaries
                             .values
                             .iter()
-                            .flat_map(|failure_summary| {
-                                failure_summary
-                                    .document_location_in_creating_workspace
-                                    .as_ref()
-                                    .and_then(|document_location_in_creating_workspace| {
-                                        document_location_in_creating_workspace.url.as_ref()
-                                    })
-                                    .map(|file| {
-                                        let mut file = file.value.clone();
-                                        file = file
-                                            .replace("file://", "")
-                                            .split('#')
-                                            .collect::<Vec<&str>>()[0]
-                                            .into();
-                                        let producing_target = failure_summary
-                                            .producing_target
-                                            .as_ref()
-                                            .map(|x| x.value.as_ref());
-                                        if producing_target.is_some() {
-                                            return (producing_target, file);
-                                        }
-                                        let test_case_name = failure_summary
-                                            .test_case_name
-                                            .as_ref()
-                                            .map(|x| x.value.as_ref());
-                                        (test_case_name, file)
-                                    })
-                            })
+                            .flat_map(Self::fallback_file_from_failure_issue_summary)
                             .collect::<HashMap<_, _>>()
                     });
                     leafs
@@ -308,10 +349,11 @@ impl XCResultTestLegacy {
                             };
                             if file.is_none() {
                                 file = files.as_ref().and_then(|files| {
-                                    files
-                                        .get(&test_suite_name)
-                                        .or_else(|| files.get(&Some(&formatted_test_case_name)))
-                                        .cloned()
+                                    Self::find_fallback_file(
+                                        files,
+                                        test_suite_name,
+                                        &formatted_test_case_name,
+                                    )
                                 })
                             }
 
@@ -500,5 +542,141 @@ impl<'a> XCResultTestLegacyNodeTree<'a> {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use rstest::rstest;
+    use serde_json::{Value, json};
+
+    use super::*;
+
+    fn xc_string(value: &str) -> Value {
+        json!({ "_value": value })
+    }
+
+    #[rstest]
+    #[case::file_name_wins(
+        Some("/repo/Tests/My Test.swift"),
+        Some("/repo/Tests/Other.swift"),
+        &[],
+        Some("/repo/Tests/My%20Test.swift")
+    )]
+    #[case::location_before_call_stack(
+        None,
+        Some("/repo/Tests/Assertion.swift"),
+        &["/repo/Packages/SnapshotTesting/SnapshotsTestTrait.swift"],
+        Some("/repo/Tests/Assertion.swift")
+    )]
+    #[case::last_swift_or_objc_stack_frame(
+        None,
+        None,
+        &[
+            "/repo/Tests/Generated.cc",
+            "/repo/Tests/First.swift",
+            "/repo/Tests/Second.m",
+            "/repo/Tests/Readme.md",
+        ],
+        Some("/repo/Tests/Second.m")
+    )]
+    #[case::no_usable_file(
+        None,
+        None,
+        &["/repo/Tests/Generated.cc", "/repo/Tests/Readme.md"],
+        None
+    )]
+    fn failure_summary_file_sources(
+        #[case] file_name: Option<&str>,
+        #[case] location: Option<&str>,
+        #[case] stack: &[&str],
+        #[case] expected: Option<&str>,
+    ) {
+        let summary = serde_json::from_value(json!({
+            "fileName": file_name.map(xc_string),
+            "sourceCodeContext": {
+                "location": { "filePath": location.map(xc_string) },
+                "callStack": { "_values": stack.iter().map(|path| {
+                    let stack_frame = json!({
+                        "symbolInfo": {
+                            "location": {
+                                "filePath": xc_string(path)
+                            }
+                        }
+                    });
+                    stack_frame
+                }).collect::<Vec<_>>() }
+            }
+        }))
+        .unwrap();
+        let file = XCResultTestLegacy::find_file_in_failure_summary(&summary);
+        assert_eq!(file, expected.map(String::from));
+    }
+
+    #[rstest]
+    #[case::producing_target_key(
+        Some("file:///repo/Tests/Test.swift#EndingLineNumber=8"),
+        Some("SnapshotReproTests"),
+        Some("SnapshotReproTests.failingSnapshot()"),
+        Some((Some("SnapshotReproTests"), "/repo/Tests/Test.swift"))
+    )]
+    #[case::test_case_key(
+        Some("file:///repo/Tests/Test.swift"),
+        None,
+        Some("SnapshotReproTests.failingSnapshot()"),
+        Some((Some("SnapshotReproTests.failingSnapshot()"), "/repo/Tests/Test.swift"))
+    )]
+    #[case::missing_document_location(
+        None,
+        None,
+        Some("SnapshotReproTests.failingSnapshot()"),
+        None
+    )]
+    fn fallback_issue_summary_cleans_url_and_selects_key(
+        #[case] url: Option<&str>,
+        #[case] producing_target: Option<&str>,
+        #[case] test_case_name: Option<&str>,
+        #[case] expected: Option<(Option<&str>, &str)>,
+    ) {
+        let summary = serde_json::from_value(json!({
+            "documentLocationInCreatingWorkspace": { "url": url.map(xc_string) },
+            "producingTarget": producing_target.map(xc_string),
+            "testCaseName": test_case_name.map(xc_string)
+        }))
+        .unwrap();
+        let file = XCResultTestLegacy::fallback_file_from_failure_issue_summary(&summary)
+            .map(|(key, file)| (key.map(String::from), file));
+        assert_eq!(
+            file,
+            expected.map(|(key, file)| (key.map(String::from), file.to_string()))
+        );
+    }
+
+    #[rstest]
+    #[case::suite_key_wins(true, Some("/repo/Tests/Suite.swift"))]
+    #[case::formatted_case_fallback(false, Some("/repo/Tests/TestCase.swift"))]
+    fn fallback_file_lookup_prefers_suite_then_formatted_case(
+        #[case] include_suite_file: bool,
+        #[case] expected: Option<&str>,
+    ) {
+        let mut files = HashMap::new();
+        if include_suite_file {
+            files.insert(
+                Some("SnapshotReproTests"),
+                "/repo/Tests/Suite.swift".to_string(),
+            );
+        }
+        files.insert(
+            Some("SnapshotReproTests.failingSnapshot()"),
+            "/repo/Tests/TestCase.swift".to_string(),
+        );
+        assert_eq!(
+            XCResultTestLegacy::find_fallback_file(
+                &files,
+                Some("SnapshotReproTests"),
+                "SnapshotReproTests.failingSnapshot()",
+            ),
+            expected.map(String::from)
+        );
     }
 }
