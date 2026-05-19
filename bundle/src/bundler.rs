@@ -394,6 +394,7 @@ mod tests {
             bundle_upload_id_v2: String::with_capacity(0),
             debug_props: BundleMetaDebugProps {
                 command_line: String::with_capacity(0),
+                trunk_envs: HashMap::new(),
             },
             variant: Some("variant".to_string()),
             base_props: BundleMetaBaseProps {

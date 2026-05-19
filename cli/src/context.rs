@@ -16,7 +16,7 @@ use bundle::{
     QuarantineBulkTestStatus, TestCollectionProps, bin_parse,
 };
 use codeowners::{CodeOwners, OwnersSource};
-use constants::{ENVS_TO_GET, TRUNK_PR_NUMBER_ENV};
+use constants::{ENVS_TO_GET, TRUNK_API_TOKEN_ENV, TRUNK_ENVS_TO_CAPTURE, TRUNK_PR_NUMBER_ENV};
 use context::{
     bazel_bep::{
         binary_parser::BazelBepBinParser,
@@ -67,12 +67,22 @@ lazy_static! {
 // This function is used to gather debug properties for the bundle meta.
 // It will trigger EXC_BAD_ACCESS on arm64-darwin builds when compiled under cdylib
 pub fn gather_debug_props(args: Vec<String>, token: String) -> BundleMetaDebugProps {
+    let trunk_envs: HashMap<String, String> = TRUNK_ENVS_TO_CAPTURE
+        .iter()
+        .filter_map(|&env_var| {
+            env::var(env_var)
+                .map(|env_var_value| (env_var.to_string(), env_var_value))
+                .ok()
+        })
+        .collect();
+
     BundleMetaDebugProps {
         command_line: COMMAND_REGEX
             .replace(&args.join(" "), "")
             .replace(&token, "")
             .trim()
             .to_string(),
+        trunk_envs,
     }
 }
 
@@ -952,6 +962,8 @@ fn parse_num_tests(file_sets: &[FileSet]) -> usize {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+    use std::env;
 
     use bundle::BundleMetaDebugProps;
     #[cfg(target_os = "macos")]
@@ -976,6 +988,7 @@ mod tests {
             upload_args.clone(),
             BundleMetaDebugProps {
                 command_line: "test".to_string(),
+                trunk_envs: HashMap::new(),
             },
         )
         .unwrap();
@@ -988,6 +1001,7 @@ mod tests {
             upload_args.clone(),
             BundleMetaDebugProps {
                 command_line: "test".to_string(),
+                trunk_envs: HashMap::new(),
             },
         )
         .unwrap();
@@ -1000,6 +1014,7 @@ mod tests {
             upload_args,
             BundleMetaDebugProps {
                 command_line: "test".to_string(),
+                trunk_envs: HashMap::new(),
             },
         )
         .unwrap();
@@ -1114,5 +1129,42 @@ mod tests {
         let args: Vec<String> = vec!["trunk flakytests".into(), "token".into()];
         let debug_props = super::gather_debug_props(args, "token".to_string());
         assert_eq!(debug_props.command_line, "trunk flakytests");
+    }
+
+    #[test]
+    fn test_gather_debug_props_trunk_envs() {
+        unsafe {
+            env::set_var("TRUNK_REPO_URL", "https://github.com/example/repo");
+            env::set_var("TRUNK_API_TOKEN", "supersecret");
+            env::set_var("TRUNK_VARIANT", "my-variant");
+        }
+
+        let args: Vec<String> = vec!["trunk".into(), "upload".into()];
+        let debug_props = super::gather_debug_props(args, "irrelevant".to_string());
+
+        // TRUNK_REPO_URL is in the allowlist, should be captured
+        assert_eq!(
+            debug_props
+                .trunk_envs
+                .get("TRUNK_REPO_URL")
+                .map(String::as_str),
+            Some("https://github.com/example/repo")
+        );
+        // TRUNK_API_TOKEN is intentionally excluded from the allowlist
+        assert!(!debug_props.trunk_envs.contains_key("TRUNK_API_TOKEN"));
+        // TRUNK_VARIANT is in the allowlist, should be captured
+        assert_eq!(
+            debug_props
+                .trunk_envs
+                .get("TRUNK_VARIANT")
+                .map(String::as_str),
+            Some("my-variant")
+        );
+
+        unsafe {
+            env::remove_var("TRUNK_REPO_URL");
+            env::remove_var("TRUNK_API_TOKEN");
+            env::remove_var("TRUNK_VARIANT");
+        }
     }
 }

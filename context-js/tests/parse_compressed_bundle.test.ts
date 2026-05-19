@@ -200,6 +200,7 @@ const VERSION_TESTS = [
     num_tests: faker.number.int(100),
     num_files: faker.number.int(100),
     command_line: "trunk-analytics-cli upload --token=***",
+    trunk_envs: {},
   },
   {
     schema: "V0_7_7",
@@ -210,6 +211,7 @@ const VERSION_TESTS = [
     bundle_upload_id_v2: "SOME ID",
     variant: null,
     internal_bundled_file: null,
+    trunk_envs: {},
   },
   {
     schema: "V0_7_8",
@@ -221,6 +223,7 @@ const VERSION_TESTS = [
     variant: null,
     internal_bundled_file: null,
     failed_tests: [],
+    trunk_envs: {},
   },
 ] as const satisfies VersionedBundle[];
 
@@ -377,6 +380,7 @@ describe("context-js", () => {
       bundle_upload_id_v2: "SOME ID",
       variant: "some-variant",
       internal_bundled_file: null,
+      trunk_envs: {},
     } as const satisfies VersionedBundle;
     const metaInfoJson = JSON.stringify(
       versionedBundle,

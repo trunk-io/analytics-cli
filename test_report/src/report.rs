@@ -636,6 +636,7 @@ impl MutTestReport {
             .and_then(|v| v.parse::<usize>().ok());
         let debug_props = BundleMetaDebugProps {
             command_line: self.0.borrow().command.clone(),
+            trunk_envs: HashMap::new(),
         };
         let test_run_result = trunk_analytics_cli::test_command::TestRunResult {
             command: self.0.borrow().command.clone(),

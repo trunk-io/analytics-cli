@@ -115,6 +115,8 @@ impl From<BundleMetaV0_6_2> for BundleMetaV0_5_29 {
 #[cfg_attr(feature = "wasm", derive(Tsify))]
 pub struct BundleMetaDebugProps {
     pub command_line: String,
+    #[serde(default)]
+    pub trunk_envs: HashMap<String, String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
