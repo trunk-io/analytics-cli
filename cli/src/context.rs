@@ -16,7 +16,7 @@ use bundle::{
     QuarantineBulkTestStatus, TestCollectionProps, bin_parse,
 };
 use codeowners::{CodeOwners, OwnersSource};
-use constants::{ENVS_TO_GET, TRUNK_API_TOKEN_ENV, TRUNK_PR_NUMBER_ENV};
+use constants::{ENVS_TO_GET, TRUNK_API_TOKEN_ENV, TRUNK_ENVS_TO_CAPTURE, TRUNK_PR_NUMBER_ENV};
 use context::{
     bazel_bep::{
         binary_parser::BazelBepBinParser,
@@ -67,15 +67,12 @@ lazy_static! {
 // This function is used to gather debug properties for the bundle meta.
 // It will trigger EXC_BAD_ACCESS on arm64-darwin builds when compiled under cdylib
 pub fn gather_debug_props(args: Vec<String>, token: String) -> BundleMetaDebugProps {
-    let trunk_envs: HashMap<String, String> = env::vars()
-        .filter(|(key, _)| key.starts_with("TRUNK_"))
-        .map(|(key, value)| {
-            let masked_value = if key == TRUNK_API_TOKEN_ENV {
-                "***".to_string()
-            } else {
-                value
-            };
-            (key, masked_value)
+    let trunk_envs: HashMap<String, String> = TRUNK_ENVS_TO_CAPTURE
+        .iter()
+        .filter_map(|&env_var| {
+            env::var(env_var)
+                .map(|env_var_value| (env_var.to_string(), env_var_value))
+                .ok()
         })
         .collect();
 
@@ -1145,6 +1142,7 @@ mod tests {
         let args: Vec<String> = vec!["trunk".into(), "upload".into()];
         let debug_props = super::gather_debug_props(args, "irrelevant".to_string());
 
+        // TRUNK_REPO_URL is in the allowlist, should be captured
         assert_eq!(
             debug_props
                 .trunk_envs
@@ -1152,13 +1150,9 @@ mod tests {
                 .map(String::as_str),
             Some("https://github.com/example/repo")
         );
-        assert_eq!(
-            debug_props
-                .trunk_envs
-                .get("TRUNK_API_TOKEN")
-                .map(String::as_str),
-            Some("***")
-        );
+        // TRUNK_API_TOKEN is intentionally excluded from the allowlist
+        assert!(!debug_props.trunk_envs.contains_key("TRUNK_API_TOKEN"));
+        // TRUNK_VARIANT is in the allowlist, should be captured
         assert_eq!(
             debug_props
                 .trunk_envs
