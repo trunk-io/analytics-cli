@@ -1,15 +1,16 @@
 use std::{env, fs, io::BufReader, path::Path, thread};
 
+use api::message::{GetQuarantineConfigRequest, GetQuarantineConfigResponse};
 use assert_matches::assert_matches;
-use axum::{Json, extract::State};
+use axum::{Json, extract::State, http::StatusCode};
 use bundle::{BundleMeta, FileSetType, Test};
 use constants::{
-    TRUNK_ALLOW_EMPTY_TEST_RESULTS_ENV, TRUNK_API_TOKEN_ENV, TRUNK_CODEOWNERS_PATH_ENV,
-    TRUNK_DISABLE_QUARANTINING_ENV, TRUNK_DRY_RUN_ENV, TRUNK_ORG_URL_SLUG_ENV, TRUNK_PR_NUMBER_ENV,
-    TRUNK_PUBLIC_API_ADDRESS_ENV, TRUNK_QUARANTINED_TESTS_DISK_CACHE_TTL_SECS_ENV,
-    TRUNK_REPO_HEAD_AUTHOR_NAME_ENV, TRUNK_REPO_HEAD_BRANCH_ENV, TRUNK_REPO_HEAD_COMMIT_EPOCH_ENV,
-    TRUNK_REPO_HEAD_SHA_ENV, TRUNK_REPO_ROOT_ENV, TRUNK_REPO_URL_ENV, TRUNK_USE_UNCLONED_REPO_ENV,
-    TRUNK_VARIANT_ENV,
+    TRUNK_ALLOW_EMPTY_TEST_RESULTS_ENV, TRUNK_API_CLIENT_RETRY_COUNT_ENV, TRUNK_API_TOKEN_ENV,
+    TRUNK_CODEOWNERS_PATH_ENV, TRUNK_DISABLE_QUARANTINING_ENV, TRUNK_DRY_RUN_ENV,
+    TRUNK_ORG_URL_SLUG_ENV, TRUNK_PR_NUMBER_ENV, TRUNK_PUBLIC_API_ADDRESS_ENV,
+    TRUNK_QUARANTINED_TESTS_DISK_CACHE_TTL_SECS_ENV, TRUNK_REPO_HEAD_AUTHOR_NAME_ENV,
+    TRUNK_REPO_HEAD_BRANCH_ENV, TRUNK_REPO_HEAD_COMMIT_EPOCH_ENV, TRUNK_REPO_HEAD_SHA_ENV,
+    TRUNK_REPO_ROOT_ENV, TRUNK_REPO_URL_ENV, TRUNK_USE_UNCLONED_REPO_ENV, TRUNK_VARIANT_ENV,
 };
 use context::repo::RepoUrlParts;
 use prost::Message;
@@ -50,6 +51,7 @@ fn cleanup_env_vars() {
         env::remove_var("CI");
         env::remove_var("GITHUB_JOB");
         env::remove_var(TRUNK_QUARANTINED_TESTS_DISK_CACHE_TTL_SECS_ENV);
+        env::remove_var(TRUNK_API_CLIENT_RETRY_COUNT_ENV);
     }
 }
 
@@ -666,6 +668,10 @@ async fn test_variant_impacts_quarantining() {
         !is_quarantined_v1.quarantining_disabled_for_repo,
         "Quarantining should not be disabled for the repo"
     );
+    assert!(
+        !is_quarantined_v1.quarantine_lookup_failed,
+        "Quarantine lookup should not fail"
+    );
 
     // Test with variant1 - should find the quarantined test (with ID)
     unsafe {
@@ -1031,5 +1037,190 @@ async fn test_get_quarantine_config_disk_cache() {
             .collect();
         assert_eq!(get_quarantine_config_requests.len(), 2);
         assert_eq!(get_quarantine_config_requests[1].repo, repo_2,);
+    }
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[serial]
+async fn test_quarantining_disabled_for_repo() {
+    cleanup_env_vars();
+
+    let temp_dir = tempdir().unwrap();
+    let _ = env::set_current_dir(&temp_dir);
+
+    let repo_url = "https://github.com/test-org/test-repo.git";
+    let test_name = Some("test-name".to_string());
+    let test_parent_name = Some("test-parent-name".to_string());
+    let test_classname = Some("TestClass".to_string());
+    let test_file = Some("test_file.rs".to_string());
+
+    unsafe {
+        env::set_var(TRUNK_ORG_URL_SLUG_ENV, "test-org");
+        env::set_var(TRUNK_REPO_URL_ENV, repo_url);
+        env::set_var(TRUNK_USE_UNCLONED_REPO_ENV, "true");
+        env::set_var(TRUNK_REPO_HEAD_SHA_ENV, "");
+        env::set_var(TRUNK_REPO_HEAD_BRANCH_ENV, "");
+        env::set_var(TRUNK_REPO_HEAD_AUTHOR_NAME_ENV, "");
+    }
+
+    use context::repo::BundleRepo;
+    let bundle_repo = BundleRepo::new(
+        env::var(TRUNK_REPO_ROOT_ENV).ok(),
+        env::var(TRUNK_REPO_URL_ENV).ok(),
+        env::var(TRUNK_REPO_HEAD_SHA_ENV).ok(),
+        env::var(TRUNK_REPO_HEAD_BRANCH_ENV).ok(),
+        env::var(TRUNK_REPO_HEAD_COMMIT_EPOCH_ENV).ok(),
+        env::var(TRUNK_REPO_HEAD_AUTHOR_NAME_ENV).ok(),
+        true,
+    )
+    .unwrap();
+    let computed_test_id = Test::new(
+        None,
+        test_name.clone().unwrap_or_default(),
+        test_parent_name.clone().unwrap_or_default(),
+        test_classname.clone(),
+        test_file.clone(),
+        "test-org".to_string(),
+        &bundle_repo.repo,
+        None,
+        "".to_string(),
+    )
+    .id;
+
+    let computed_test_id_for_handler = computed_test_id.clone();
+    let state = {
+        let mut builder = MockServerBuilder::new();
+        builder.set_get_quarantining_config_handler(
+            move |_state: State<SharedMockServerState>,
+                  _req: Json<GetQuarantineConfigRequest>| async move {
+                Json(GetQuarantineConfigResponse {
+                    is_disabled: true,
+                    quarantined_tests: vec![],
+                })
+            },
+        );
+        builder.spawn_mock_server().await
+    };
+
+    unsafe {
+        env::set_var(TRUNK_PUBLIC_API_ADDRESS_ENV, &state.host);
+        env::set_var(TRUNK_API_TOKEN_ENV, "test-token");
+        env::set_var(TRUNK_QUARANTINED_TESTS_DISK_CACHE_TTL_SECS_ENV, "0");
+    }
+
+    let test_name_spawn = test_name.clone();
+    let test_parent_name_spawn = test_parent_name.clone();
+    let test_classname_spawn = test_classname.clone();
+    let test_file_spawn = test_file.clone();
+    let result = thread::spawn(move || {
+        let test_report = MutTestReport::new("test".into(), "test-command".into(), None);
+        test_report.is_quarantined(
+            None,
+            test_name_spawn,
+            test_parent_name_spawn,
+            test_classname_spawn,
+            test_file_spawn,
+        )
+    })
+    .join()
+    .unwrap();
+
+    assert!(
+        result.quarantining_disabled_for_repo,
+        "Quarantining should be disabled for the repo"
+    );
+    assert!(
+        !result.quarantine_lookup_failed,
+        "Quarantine lookup should not fail"
+    );
+    assert!(
+        !result.test_is_quarantined,
+        "Test should not be quarantined"
+    );
+    assert!(!bool::from(result), "Test should not be quarantined");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[serial]
+async fn test_quarantine_lookup_failed_when_endpoint_fails() {
+    cleanup_env_vars();
+    clean_up_cache_files();
+
+    let temp_dir = tempdir().unwrap();
+    let _ = env::set_current_dir(&temp_dir);
+
+    let repo_url = "https://github.com/test-org/test-repo.git";
+
+    unsafe {
+        env::set_var(TRUNK_ORG_URL_SLUG_ENV, "test-org");
+        env::set_var(TRUNK_REPO_URL_ENV, repo_url);
+        env::set_var(TRUNK_USE_UNCLONED_REPO_ENV, "true");
+        env::set_var(TRUNK_REPO_HEAD_SHA_ENV, "");
+        env::set_var(TRUNK_REPO_HEAD_BRANCH_ENV, "");
+        env::set_var(TRUNK_REPO_HEAD_AUTHOR_NAME_ENV, "");
+    }
+
+    let state = {
+        let mut builder = MockServerBuilder::new();
+        builder.set_get_quarantining_config_handler(
+            |Json(_): Json<GetQuarantineConfigRequest>| async {
+                Err::<Json<GetQuarantineConfigResponse>, StatusCode>(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                )
+            },
+        );
+        builder.spawn_mock_server().await
+    };
+
+    unsafe {
+        env::set_var(TRUNK_PUBLIC_API_ADDRESS_ENV, &state.host);
+        env::set_var(TRUNK_API_TOKEN_ENV, "test-token");
+        env::set_var(TRUNK_QUARANTINED_TESTS_DISK_CACHE_TTL_SECS_ENV, "0");
+        env::set_var(TRUNK_API_CLIENT_RETRY_COUNT_ENV, "0");
+    }
+
+    let result = thread::spawn(|| {
+        let test_report = MutTestReport::new("test".into(), "test-command".into(), None);
+        test_report.is_quarantined(
+            None,
+            Some("test-name".to_string()),
+            Some("test-parent-name".to_string()),
+            Some("TestClass".to_string()),
+            Some("test_file.rs".to_string()),
+        )
+    })
+    .join()
+    .unwrap();
+
+    assert!(
+        result.quarantine_lookup_failed,
+        "Quarantine lookup should fail"
+    );
+    assert!(
+        !result.quarantining_disabled_for_repo,
+        "Quarantining should not be disabled for the repo"
+    );
+    assert!(
+        !result.test_is_quarantined,
+        "Test should not be quarantined"
+    );
+    assert!(!bool::from(result), "Test should not be quarantined");
+
+    let cache_dir = env::temp_dir().join(constants::CACHE_DIR);
+    if cache_dir.exists() {
+        let cache_files: Vec<_> = fs::read_dir(&cache_dir)
+            .unwrap()
+            .flatten()
+            .filter(|entry| {
+                entry
+                    .file_name()
+                    .to_str()
+                    .is_some_and(|name| name.starts_with("quarantine_config_"))
+            })
+            .collect();
+        assert!(
+            cache_files.is_empty(),
+            "quarantine config should not be cached when lookup fails"
+        );
     }
 }

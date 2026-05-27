@@ -30,6 +30,7 @@ use wasm_bindgen::prelude::wasm_bindgen;
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 struct QuarantineConfig {
     quarantining_disabled_for_repo: bool,
+    quarantine_lookup_failed: bool,
     quarantined_tests: HashMap<String, bool>,
 }
 
@@ -57,6 +58,7 @@ pub struct TestReport {
 pub struct IsQuarantinedResult {
     pub test_is_quarantined: bool,
     pub quarantining_disabled_for_repo: bool,
+    pub quarantine_lookup_failed: bool,
 }
 
 #[cfg(feature = "ruby")]
@@ -68,11 +70,17 @@ impl IsQuarantinedResult {
     pub fn quarantining_disabled_for_repo(&self) -> bool {
         self.quarantining_disabled_for_repo
     }
+
+    pub fn quarantine_lookup_failed(&self) -> bool {
+        self.quarantine_lookup_failed
+    }
 }
 
 impl From<IsQuarantinedResult> for bool {
     fn from(val: IsQuarantinedResult) -> Self {
-        val.test_is_quarantined && !val.quarantining_disabled_for_repo
+        val.test_is_quarantined
+            && !val.quarantining_disabled_for_repo
+            && !val.quarantine_lookup_failed
     }
 }
 
@@ -80,7 +88,9 @@ impl std::ops::Not for IsQuarantinedResult {
     type Output = bool;
 
     fn not(self) -> Self::Output {
-        !self.test_is_quarantined || self.quarantining_disabled_for_repo
+        !self.test_is_quarantined
+            || self.quarantining_disabled_for_repo
+            || self.quarantine_lookup_failed
     }
 }
 
@@ -355,13 +365,20 @@ impl MutTestReport {
                             .contains_key(&test_identifier.id),
                         quarantining_disabled_for_repo: quarantine_config
                             .quarantining_disabled_for_repo,
+                        quarantine_lookup_failed: quarantine_config.quarantine_lookup_failed,
                     };
                 }
-                IsQuarantinedResult::default()
+                IsQuarantinedResult {
+                    quarantine_lookup_failed: true,
+                    ..IsQuarantinedResult::default()
+                }
             }
             _ => {
                 tracing::warn!("Unable to fetch quarantined tests");
-                IsQuarantinedResult::default()
+                IsQuarantinedResult {
+                    quarantine_lookup_failed: true,
+                    ..IsQuarantinedResult::default()
+                }
             }
         }
     }
@@ -491,13 +508,13 @@ impl MutTestReport {
             .build()
             .unwrap()
             .block_on(api_client.get_quarantining_config(&request));
-        let quarantining_disabled = match response {
+        let (quarantining_disabled, quarantine_lookup_failed) = match response {
             Ok(response) => {
                 let is_disabled = response.is_disabled;
                 for quarantined_test_id in response.quarantined_tests.iter() {
                     quarantined_tests.insert(quarantined_test_id.clone(), true);
                 }
-                is_disabled
+                (is_disabled, false)
             }
             Err(err) => {
                 tracing::warn!("Unable to fetch quarantined tests");
@@ -506,16 +523,19 @@ impl MutTestReport {
                     "Error fetching quarantined tests: {:?}",
                     err
                 );
-                false
+                (false, true)
             }
         };
 
         let quarantine_config = QuarantineConfig {
             quarantining_disabled_for_repo: quarantining_disabled,
+            quarantine_lookup_failed,
             quarantined_tests: quarantined_tests.clone(),
         };
         self.0.borrow_mut().quarantine_config = Some(quarantine_config.clone());
-        self.save_quarantine_config_to_disk_cache(&org_url_slug, &repo_url, &quarantine_config);
+        if !quarantine_lookup_failed {
+            self.save_quarantine_config_to_disk_cache(&org_url_slug, &repo_url, &quarantine_config);
+        }
     }
 
     fn get_org_url_slug(&self) -> String {
@@ -825,6 +845,10 @@ pub fn ruby_init(ruby: &magnus::Ruby) -> Result<(), magnus::Error> {
     is_quarantined_result.define_method(
         "quarantining_disabled_for_repo",
         magnus::method!(IsQuarantinedResult::quarantining_disabled_for_repo, 0),
+    )?;
+    is_quarantined_result.define_method(
+        "quarantine_lookup_failed",
+        magnus::method!(IsQuarantinedResult::quarantine_lookup_failed, 0),
     )?;
     let test_report = ruby.define_class("TestReport", ruby.class_object())?;
     test_report.define_singleton_method("new", magnus::function!(MutTestReport::new, 3))?;
