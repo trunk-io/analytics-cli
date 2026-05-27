@@ -34,6 +34,8 @@ require 'rspec/core/formatters/exception_presenter'
 require 'time'
 require 'rspec_trunk_flaky_tests'
 
+# trunk-ignore-all(rubocop/Style/GlobalVars)
+
 # String is an override to the main String class that is used to colorize the output
 # it is used to make the output more readable
 class String
@@ -85,6 +87,7 @@ end
 # we want to cache the test report in memory so we can add to it as we go and reduce the number of API calls
 $test_report = TestReport.new('rspec', "#{$PROGRAM_NAME} #{ARGV.join(' ')}", nil)
 $failure_encountered_and_quarantining_disabled = false
+$failure_encountered_and_quarantine_lookup_failed = false
 
 module RSpec
   module Core
@@ -105,7 +108,7 @@ module RSpec
         handle_quarantine_check(exception)
       end
 
-      # trunk-ignore(rubocop/Metrics/AbcSize,rubocop/Metrics/MethodLength)
+      # trunk-ignore(rubocop/Metrics/AbcSize,rubocop/Metrics/MethodLength,rubocop/Metrics/CyclomaticComplexity)
       def handle_quarantine_check(exception)
         id = generate_trunk_id
         name = full_description
@@ -117,7 +120,14 @@ module RSpec
           puts "Test failed, checking if it can be quarantined: `#{location}`".yellow
         end
         is_quarantined_result = $test_report.is_quarantined(id, name, parent_name, classname, file)
-        if is_quarantined_result.quarantining_disabled_for_repo
+
+        if is_quarantined_result.quarantine_lookup_failed
+          unless $failure_encountered_and_quarantine_lookup_failed
+            puts 'Failed to check quarantining status, no failures will be quarantined'.yellow
+            $failure_encountered_and_quarantine_lookup_failed = true
+          end
+          set_exception_core(exception)
+        elsif is_quarantined_result.quarantining_disabled_for_repo
           unless $failure_encountered_and_quarantining_disabled
             puts 'Quarantining is disabled for this repo, no failures will be quarantined'.yellow
             $failure_encountered_and_quarantining_disabled = true
@@ -287,11 +297,15 @@ class TrunkAnalyticsListener
     add_test_case(notification.example)
   end
 
-  # trunk-ignore(rubocop/Metrics/MethodLength)
+  # trunk-ignore(rubocop/Metrics/MethodLength,rubocop/Metrics/AbcSize)
   def close(_notification)
     if $failure_encountered_and_quarantining_disabled
       puts 'Note: Quarantining is disabled for this repo. Test failures were not quarantined.'.yellow
     end
+    if $failure_encountered_and_quarantine_lookup_failed
+      puts 'Note: Failed to check quarantining status. Test failures were not quarantined.'.yellow
+    end
+
     if ENV['TRUNK_LOCAL_UPLOAD_DIR']
       saved = @testreport.try_save(ENV['TRUNK_LOCAL_UPLOAD_DIR'])
       if saved
