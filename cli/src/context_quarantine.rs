@@ -21,6 +21,7 @@ use context::{
 };
 use pluralizer::pluralize;
 use prost::Message;
+use proto::upload_metrics::trunk::QuarantineQueryResult;
 
 #[derive(Debug)]
 pub enum QuarantineFetchStatus {
@@ -68,6 +69,21 @@ impl QuarantineContext {
             org_url_slug: String::default(),
             fetch_status: QuarantineFetchStatus::FetchFailed(error),
         }
+    }
+}
+
+pub fn quarantine_query_result(
+    disable_quarantining: bool,
+    ctx: &QuarantineContext,
+) -> proto::upload_metrics::trunk::QuarantineQueryResult {
+    if disable_quarantining || ctx.quarantine_status.quarantining_disabled_for_repo {
+        return QuarantineQueryResult::Disabled;
+    }
+
+    match &ctx.fetch_status {
+        QuarantineFetchStatus::FetchFailed(_) => QuarantineQueryResult::Failure,
+        QuarantineFetchStatus::FetchSkipped => QuarantineQueryResult::Skipped,
+        QuarantineFetchStatus::FetchSucceeded => QuarantineQueryResult::Success,
     }
 }
 
@@ -334,7 +350,10 @@ pub async fn gather_quarantine_context(
         tracing::info!("Quarantining is not enabled, not quarantining any tests");
         return Ok(QuarantineContext {
             exit_code,
-            quarantine_status: QuarantineBulkTestStatus::default(),
+            quarantine_status: QuarantineBulkTestStatus {
+                quarantining_disabled_for_repo: true,
+                ..Default::default()
+            },
             failures: failed_tests_extractor.failed_tests().to_vec(),
             repo: request.repo.clone(),
             org_url_slug: request.org_url_slug.clone(),
@@ -625,6 +644,53 @@ mod tests {
         multi_failures.sort_by(|a, b| a.name.cmp(&b.name));
         assert_eq!(multi_failures.len(), 1);
         assert_eq!(multi_failures[0].name, "Hello");
+    }
+
+    #[test]
+    fn test_quarantine_query_result_mapper() {
+        use proto::upload_metrics::trunk::QuarantineQueryResult;
+
+        let success_ctx = QuarantineContext {
+            exit_code: 0,
+            quarantine_status: QuarantineBulkTestStatus::default(),
+            failures: vec![],
+            repo: RepoUrlParts::default(),
+            org_url_slug: String::new(),
+            fetch_status: QuarantineFetchStatus::FetchSucceeded,
+        };
+        assert_eq!(
+            quarantine_query_result(false, &success_ctx),
+            QuarantineQueryResult::Success
+        );
+        assert_eq!(
+            quarantine_query_result(true, &success_ctx),
+            QuarantineQueryResult::Disabled
+        );
+
+        let skipped_ctx = QuarantineContext {
+            fetch_status: QuarantineFetchStatus::FetchSkipped,
+            ..success_ctx
+        };
+        assert_eq!(
+            quarantine_query_result(false, &skipped_ctx),
+            QuarantineQueryResult::Skipped
+        );
+
+        let repo_disabled_ctx = QuarantineContext {
+            quarantine_status: QuarantineBulkTestStatus {
+                quarantining_disabled_for_repo: true,
+                ..Default::default()
+            },
+            fetch_status: QuarantineFetchStatus::FetchSucceeded,
+            exit_code: 0,
+            failures: vec![],
+            repo: RepoUrlParts::default(),
+            org_url_slug: String::new(),
+        };
+        assert_eq!(
+            quarantine_query_result(false, &repo_disabled_ctx),
+            QuarantineQueryResult::Disabled
+        );
     }
 
     #[test]

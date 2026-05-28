@@ -104,6 +104,8 @@ pub struct QuarantineBulkTestStatus {
     pub group_is_quarantined: bool,
     #[serde(rename = "quarantineResults")]
     pub quarantine_results: Vec<Test>,
+    #[serde(rename = "quarantiningDisabledForRepo")]
+    pub quarantining_disabled_for_repo: bool,
 }
 
 #[derive(Debug, Serialize, Clone)]

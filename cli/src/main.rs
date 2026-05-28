@@ -192,7 +192,7 @@ async fn run(cli: Cli, render_sender: Sender<DisplayMessage>) -> anyhow::Result<
     );
     match cli.command {
         Commands::Upload(upload_args) => {
-            let result = run_upload(upload_args, None, None, Some(render_sender)).await?;
+            let result = run_upload(upload_args, None, None, Some(render_sender), None).await?;
             Ok(RunResult::Upload(result))
         }
         Commands::Test(test_args) => {

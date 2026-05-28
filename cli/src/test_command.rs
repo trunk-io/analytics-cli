@@ -136,6 +136,7 @@ pub async fn run_test(
         Some(test_context),
         Some(test_run_result.clone()),
         None,
+        None,
     )
     .await;
     match upload_run_result {

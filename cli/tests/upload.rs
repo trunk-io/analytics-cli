@@ -34,6 +34,7 @@ use lazy_static::lazy_static;
 use predicates::prelude::*;
 use pretty_assertions::assert_eq;
 use prost::Message;
+use proto::upload_metrics::trunk::QuarantineQueryResult;
 use tempfile::tempdir;
 #[cfg(target_os = "macos")]
 use test_utils::inputs::unpack_archive_to_dir;
@@ -1322,6 +1323,10 @@ async fn telemetry_upload_metrics_on_upload_failure() {
     assert_eq!(telemetry_request_repo.owner, "trunk-io");
     assert_eq!(telemetry_request_repo.name, "analytics-cli");
     assert_eq!(telemetry_request.failure_reason, "400_bad_request");
+    assert_eq!(
+        QuarantineQueryResult::try_from(telemetry_request.quarantine_query_result).unwrap(),
+        QuarantineQueryResult::Disabled
+    );
 
     // HINT: View CLI output with `cargo test -- --nocapture`
     println!("{assert}");
@@ -1353,9 +1358,124 @@ async fn telemetry_upload_metrics_on_upload_success() {
     assert_eq!(telemetry_request_repo.owner, "trunk-io");
     assert_eq!(telemetry_request_repo.name, "analytics-cli");
     assert_eq!(telemetry_request.failure_reason, "");
+    assert_eq!(
+        QuarantineQueryResult::try_from(telemetry_request.quarantine_query_result).unwrap(),
+        QuarantineQueryResult::Disabled
+    );
 
     // HINT: View CLI output with `cargo test -- --nocapture`
     println!("{assert}");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn telemetry_upload_metrics_quarantine_query_result_success() {
+    let temp_dir = tempdir().unwrap();
+    generate_mock_git_repo(&temp_dir);
+    generate_mock_valid_junit_xmls_with_failures(&temp_dir);
+
+    let state = MockServerBuilder::new().spawn_mock_server().await;
+
+    CommandBuilder::upload(temp_dir.path(), state.host.clone())
+        .command()
+        .assert()
+        .failure();
+
+    let requests = state.requests.lock().unwrap().clone();
+    let quarantine_query_result = requests
+        .iter()
+        .rev()
+        .find_map(|req| match req {
+            RequestPayload::TelemetryUploadMetrics(ur) => Some(ur.quarantine_query_result),
+            _ => None,
+        })
+        .expect("telemetry upload metrics request");
+    assert_eq!(
+        QuarantineQueryResult::try_from(quarantine_query_result).unwrap(),
+        QuarantineQueryResult::Success
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn telemetry_upload_metrics_quarantine_query_result_failure() {
+    let temp_dir = tempdir().unwrap();
+    generate_mock_git_repo(&temp_dir);
+    generate_mock_valid_junit_xmls_with_failures(&temp_dir);
+
+    let mut mock_server_builder = MockServerBuilder::new();
+    mock_server_builder.set_get_quarantining_config_handler(
+        |Json(_): Json<GetQuarantineConfigRequest>| async {
+            Err::<Json<GetQuarantineConfigResponse>, StatusCode>(StatusCode::INTERNAL_SERVER_ERROR)
+        },
+    );
+    let state = mock_server_builder.spawn_mock_server().await;
+
+    CommandBuilder::upload(temp_dir.path(), state.host.clone())
+        .command()
+        .assert()
+        .failure();
+
+    let requests = state.requests.lock().unwrap().clone();
+    let quarantine_query_result = requests
+        .iter()
+        .rev()
+        .find_map(|req| match req {
+            RequestPayload::TelemetryUploadMetrics(ur) => Some(ur.quarantine_query_result),
+            _ => None,
+        })
+        .expect("telemetry upload metrics request");
+    assert_eq!(
+        QuarantineQueryResult::try_from(quarantine_query_result).unwrap(),
+        QuarantineQueryResult::Failure
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn telemetry_upload_metrics_quarantine_query_result_skipped() {
+    let temp_dir = tempdir().unwrap();
+    generate_mock_git_repo(&temp_dir);
+
+    // All-passing JUnit so quarantine lookup is skipped (no failed tests).
+    let test_case_options = junit_mock::TestCaseOptions {
+        test_case_names: Some(vec![String::from("test_case")]),
+        test_case_classnames: Some(vec![String::from("TestClass")]),
+        test_case_random_count: 0usize,
+        test_case_sys_out_percentage: 0u8,
+        test_case_sys_err_percentage: 0u8,
+        test_case_duration_range: vec![Duration::new(10, 0).into(), Duration::new(20, 0).into()],
+        test_case_success_to_skip_to_fail_to_error_percentage: vec![vec![100u8, 0u8, 0u8, 0u8]],
+    };
+    let options = junit_mock::Options {
+        global: junit_mock::GlobalOptions::try_parse_from([""]).unwrap(),
+        report: junit_mock::ReportOptions::try_parse_from([""]).unwrap(),
+        test_suite: junit_mock::TestSuiteOptions::try_parse_from([""]).unwrap(),
+        test_case: test_case_options,
+        test_rerun: junit_mock::TestRerunOptions::try_parse_from([""]).unwrap(),
+    };
+    let mut mock = JunitMock::new(options);
+    let reports = mock.generate_reports();
+    mock.write_reports_to_file(temp_dir.as_ref(), reports)
+        .unwrap();
+
+    let state = MockServerBuilder::new().spawn_mock_server().await;
+
+    CommandBuilder::upload(temp_dir.path(), state.host.clone())
+        .command()
+        .assert()
+        .success();
+
+    let requests = state.requests.lock().unwrap().clone();
+    let quarantine_query_result = requests
+        .iter()
+        .rev()
+        .find_map(|req| match req {
+            RequestPayload::TelemetryUploadMetrics(ur) => Some(ur.quarantine_query_result),
+            _ => None,
+        })
+        .expect("telemetry upload metrics request");
+    assert_eq!(
+        QuarantineQueryResult::try_from(quarantine_query_result).unwrap(),
+        QuarantineQueryResult::Skipped
+    );
 }
 
 #[tokio::test(flavor = "multi_thread")]

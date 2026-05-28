@@ -40,12 +40,21 @@ struct QuarantineConfigDiskCacheEntry {
     cached_at_secs: u64,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum QuarantineLookupSource {
+    Api,
+    DiskCache,
+    Failed,
+    Disabled,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct TestReport {
     test_report: TestReportProto,
     command: String,
     started_at: SystemTime,
     quarantine_config: Option<QuarantineConfig>,
+    quarantine_lookup_source: Option<QuarantineLookupSource>,
     quarantined_tests_disk_cache_ttl: Duration,
     codeowners: Option<CodeOwners>,
     variant: Option<String>,
@@ -219,11 +228,30 @@ impl MutTestReport {
             command,
             started_at,
             quarantine_config: None,
+            quarantine_lookup_source: None,
             quarantined_tests_disk_cache_ttl,
             codeowners,
             repo,
             variant: variant.clone(),
         }))
+    }
+
+    fn record_quarantine_lookup_source(&self, source: QuarantineLookupSource) {
+        self.0.borrow_mut().quarantine_lookup_source = Some(source);
+    }
+
+    fn quarantine_query_result_for_telemetry(
+        &self,
+    ) -> proto::upload_metrics::trunk::QuarantineQueryResult {
+        use proto::upload_metrics::trunk::QuarantineQueryResult;
+
+        match self.0.borrow().quarantine_lookup_source {
+            Some(QuarantineLookupSource::DiskCache) => QuarantineQueryResult::Cached,
+            Some(QuarantineLookupSource::Api) => QuarantineQueryResult::Success,
+            Some(QuarantineLookupSource::Failed) => QuarantineQueryResult::Failure,
+            Some(QuarantineLookupSource::Disabled) => QuarantineQueryResult::Disabled,
+            None => QuarantineQueryResult::Skipped,
+        }
     }
 
     fn serialize_test_report(&self) -> Vec<u8> {
@@ -493,6 +521,7 @@ impl MutTestReport {
             self.load_quarantine_config_from_disk_cache(&org_url_slug, &repo_url)
         {
             self.0.borrow_mut().quarantine_config = Some(cache_entry.quarantine_config);
+            self.record_quarantine_lookup_source(QuarantineLookupSource::DiskCache);
             return;
         }
 
@@ -514,6 +543,11 @@ impl MutTestReport {
                 for quarantined_test_id in response.quarantined_tests.iter() {
                     quarantined_tests.insert(quarantined_test_id.clone(), true);
                 }
+                if is_disabled {
+                    self.record_quarantine_lookup_source(QuarantineLookupSource::Disabled);
+                } else {
+                    self.record_quarantine_lookup_source(QuarantineLookupSource::Api);
+                }
                 (is_disabled, false)
             }
             Err(err) => {
@@ -523,6 +557,7 @@ impl MutTestReport {
                     "Error fetching quarantined tests: {:?}",
                     err
                 );
+                self.record_quarantine_lookup_source(QuarantineLookupSource::Failed);
                 (false, true)
             }
         };
@@ -676,6 +711,7 @@ impl MutTestReport {
                         Some(pre_test_context),
                         Some(test_run_result),
                         None,
+                        Some(self.quarantine_query_result_for_telemetry()),
                     )) {
                     Ok(upload_result) => {
                         if let Some(upload_bundle_error) =
