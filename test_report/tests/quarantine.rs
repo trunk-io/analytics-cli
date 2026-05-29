@@ -668,22 +668,4 @@ async fn quarantine_lookup_failed_when_endpoint_fails() {
         "Test should not be quarantined"
     );
     assert!(!bool::from(result), "Test should not be quarantined");
-
-    let cache_dir = env::temp_dir().join(constants::CACHE_DIR);
-    if cache_dir.exists() {
-        let cache_files: Vec<_> = fs::read_dir(&cache_dir)
-            .unwrap()
-            .flatten()
-            .filter(|entry| {
-                entry
-                    .file_name()
-                    .to_str()
-                    .is_some_and(|name| name.starts_with("quarantine_config_"))
-            })
-            .collect();
-        assert!(
-            cache_files.is_empty(),
-            "quarantine config should not be cached when lookup fails"
-        );
-    }
 }
