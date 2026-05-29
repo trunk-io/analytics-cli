@@ -114,7 +114,7 @@ runs:
       shell: bash
       run: |
         ./${{ inputs.cli-binary-location }} upload \
-        --org-url-slug trunk \
+        --org-url-slug trunk-staging-org \
         --junit-paths "${{ github.workspace }}/target/**/*junit.xml" \
         --public-repo-id NNSvcFXb \
         --use-uncloned-repo \
