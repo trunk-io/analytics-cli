@@ -25,6 +25,7 @@ pub struct UploadArgs {
     verbose: Option<bool>,
     validation_report: Option<String>,
     dry_run: bool,
+    public_repo_id: Option<String>,
 }
 
 impl UploadArgs {
@@ -49,167 +50,168 @@ impl UploadArgs {
             verbose: None,
             validation_report: None,
             dry_run: false,
+            public_repo_id: None,
         }
     }
 
     pub fn build_args(&self) -> Vec<String> {
-        vec![
-            String::from("--org-url-slug"),
-            String::from("test-org"),
-            String::from("--token"),
-            String::from("test-token"),
-        ]
-        .into_iter()
-        .chain(
-            self.repo_root
-                .clone()
-                .into_iter()
-                .flat_map(|repo_root: String| vec![String::from("--repo-root"), repo_root]),
-        )
-        .chain(
-            self.repo_url
-                .clone()
-                .into_iter()
-                .flat_map(|repo_url: String| vec![String::from("--repo-url"), repo_url]),
-        )
-        .chain(
-            self.repo_head_branch
-                .clone()
-                .into_iter()
-                .flat_map(|repo_head_branch: String| {
+        // A public repo id is an alternative to the token, so when one is set we send it
+        // in place of --token (mirroring a fork-PR run that has no repo secrets).
+        let mut auth_args = vec![String::from("--org-url-slug"), String::from("test-org")];
+        match &self.public_repo_id {
+            Some(public_repo_id) => {
+                auth_args.push(String::from("--public-repo-id"));
+                auth_args.push(public_repo_id.clone());
+            }
+            None => {
+                auth_args.push(String::from("--token"));
+                auth_args.push(String::from("test-token"));
+            }
+        }
+        auth_args
+            .into_iter()
+            .chain(
+                self.repo_root
+                    .clone()
+                    .into_iter()
+                    .flat_map(|repo_root: String| vec![String::from("--repo-root"), repo_root]),
+            )
+            .chain(
+                self.repo_url
+                    .clone()
+                    .into_iter()
+                    .flat_map(|repo_url: String| vec![String::from("--repo-url"), repo_url]),
+            )
+            .chain(self.repo_head_branch.clone().into_iter().flat_map(
+                |repo_head_branch: String| {
                     vec![String::from("--repo-head-branch"), repo_head_branch]
-                }),
-        )
-        .chain(
-            self.repo_head_sha
-                .clone()
-                .into_iter()
-                .flat_map(|repo_head_sha: String| {
-                    vec![String::from("--repo-head-sha"), repo_head_sha]
-                }),
-        )
-        .chain(self.repo_head_commit_epoch.clone().into_iter().flat_map(
-            |repo_head_commit_epoch: String| {
-                vec![
-                    String::from("--repo-head-commit-epoch"),
-                    repo_head_commit_epoch,
-                ]
-            },
-        ))
-        .chain(self.tags.clone().into_iter().flat_map(|tags: Vec<String>| {
-            if tags.is_empty() {
-                vec![]
-            } else {
-                let mut args = vec![String::from("--tags")];
-                args.extend(tags);
-                args
-            }
-        }))
-        .chain(self.no_upload.into_iter().flat_map(|no_upload: bool| {
-            if no_upload {
-                vec![String::from("--repo-root")]
-            } else {
-                vec![]
-            }
-        }))
-        .chain(
-            self.team
-                .clone()
-                .into_iter()
-                .flat_map(|team: String| vec![String::from("--team"), team]),
-        )
-        .chain(
-            self.codeowners_path
-                .clone()
-                .into_iter()
-                .flat_map(|codeowners_path: String| {
-                    vec![String::from("--codeowners-path"), codeowners_path]
-                }),
-        )
-        .chain(
-            self.codeowners_type
-                .clone()
-                .into_iter()
-                .flat_map(|codeowners_type: String| {
-                    vec![String::from("--codeowners-type"), codeowners_type]
-                }),
-        )
-        .chain(
-            self.disable_quarantining
-                .into_iter()
-                .flat_map(|disable_quarantining: bool| {
-                    if disable_quarantining {
-                        vec![String::from("--disable-quarantining")]
-                    } else {
-                        vec![String::from("--disable-quarantining=false")]
-                    }
-                }),
-        )
-        .chain(self.allow_empty_test_results.into_iter().flat_map(
-            |allow_empty_test_results: bool| {
-                if allow_empty_test_results {
-                    vec![String::from("--allow-empty-test-results")]
+                },
+            ))
+            .chain(
+                self.repo_head_sha
+                    .clone()
+                    .into_iter()
+                    .flat_map(|repo_head_sha: String| {
+                        vec![String::from("--repo-head-sha"), repo_head_sha]
+                    }),
+            )
+            .chain(self.repo_head_commit_epoch.clone().into_iter().flat_map(
+                |repo_head_commit_epoch: String| {
+                    vec![
+                        String::from("--repo-head-commit-epoch"),
+                        repo_head_commit_epoch,
+                    ]
+                },
+            ))
+            .chain(self.tags.clone().into_iter().flat_map(|tags: Vec<String>| {
+                if tags.is_empty() {
+                    vec![]
+                } else {
+                    let mut args = vec![String::from("--tags")];
+                    args.extend(tags);
+                    args
+                }
+            }))
+            .chain(self.no_upload.into_iter().flat_map(|no_upload: bool| {
+                if no_upload {
+                    vec![String::from("--repo-root")]
                 } else {
                     vec![]
                 }
-            },
-        ))
-        .chain(
-            self.variant
-                .clone()
-                .into_iter()
-                .flat_map(|variant: String| vec![String::from("--variant"), variant]),
-        )
-        .chain(
-            self.test_process_exit_code
-                .into_iter()
-                .flat_map(|test_process_exit_code: i32| {
+            }))
+            .chain(
+                self.team
+                    .clone()
+                    .into_iter()
+                    .flat_map(|team: String| vec![String::from("--team"), team]),
+            )
+            .chain(
+                self.codeowners_path
+                    .clone()
+                    .into_iter()
+                    .flat_map(|codeowners_path: String| {
+                        vec![String::from("--codeowners-path"), codeowners_path]
+                    }),
+            )
+            .chain(
+                self.codeowners_type
+                    .clone()
+                    .into_iter()
+                    .flat_map(|codeowners_type: String| {
+                        vec![String::from("--codeowners-type"), codeowners_type]
+                    }),
+            )
+            .chain(
+                self.disable_quarantining
+                    .into_iter()
+                    .flat_map(|disable_quarantining: bool| {
+                        if disable_quarantining {
+                            vec![String::from("--disable-quarantining")]
+                        } else {
+                            vec![String::from("--disable-quarantining=false")]
+                        }
+                    }),
+            )
+            .chain(self.allow_empty_test_results.into_iter().flat_map(
+                |allow_empty_test_results: bool| {
+                    if allow_empty_test_results {
+                        vec![String::from("--allow-empty-test-results")]
+                    } else {
+                        vec![]
+                    }
+                },
+            ))
+            .chain(
+                self.variant
+                    .clone()
+                    .into_iter()
+                    .flat_map(|variant: String| vec![String::from("--variant"), variant]),
+            )
+            .chain(self.test_process_exit_code.into_iter().flat_map(
+                |test_process_exit_code: i32| {
                     vec![
                         String::from("--test-process-exit-code"),
                         test_process_exit_code.to_string(),
                     ]
-                }),
-        )
-        .chain(
-            self.use_uncloned_repo
-                .into_iter()
-                .flat_map(|use_uncloned_repo: bool| {
-                    if use_uncloned_repo {
-                        vec![String::from("--use-uncloned-repo")]
-                    } else {
-                        vec![String::from("")]
-                    }
-                }),
-        )
-        .chain(self.repo_head_author_name.clone().into_iter().flat_map(
-            |repo_head_author_name: String| {
-                vec![
-                    String::from("--repo-head-author-name"),
-                    repo_head_author_name,
-                ]
-            },
-        ))
-        .chain(self.verbose.into_iter().flat_map(|verbose: bool| {
-            if verbose {
-                vec![String::from("--verbose")]
+                },
+            ))
+            .chain(
+                self.use_uncloned_repo
+                    .into_iter()
+                    .flat_map(|use_uncloned_repo: bool| {
+                        if use_uncloned_repo {
+                            vec![String::from("--use-uncloned-repo")]
+                        } else {
+                            vec![String::from("")]
+                        }
+                    }),
+            )
+            .chain(self.repo_head_author_name.clone().into_iter().flat_map(
+                |repo_head_author_name: String| {
+                    vec![
+                        String::from("--repo-head-author-name"),
+                        repo_head_author_name,
+                    ]
+                },
+            ))
+            .chain(self.verbose.into_iter().flat_map(|verbose: bool| {
+                if verbose {
+                    vec![String::from("--verbose")]
+                } else {
+                    vec![]
+                }
+            }))
+            .chain(self.validation_report.clone().into_iter().flat_map(
+                |validation_report: String| {
+                    vec![String::from("--validation-report"), validation_report]
+                },
+            ))
+            .chain(if self.dry_run {
+                vec![String::from("--dry-run")]
             } else {
                 vec![]
-            }
-        }))
-        .chain(
-            self.validation_report
-                .clone()
-                .into_iter()
-                .flat_map(|validation_report: String| {
-                    vec![String::from("--validation-report"), validation_report]
-                }),
-        )
-        .chain(if self.dry_run {
-            vec![String::from("--dry-run")]
-        } else {
-            vec![]
-        })
-        .collect()
+            })
+            .collect()
     }
 }
 
@@ -519,6 +521,19 @@ impl<'b> CommandBuilder<'b> {
 
     pub fn use_uncloned_repo(&mut self, new_flag: bool) -> &mut Self {
         self.command_type.use_uncloned_repo(new_flag);
+        self
+    }
+
+    pub fn public_repo_id(&mut self, new_value: &str) -> &mut Self {
+        match &mut self.command_type {
+            CommandType::Upload { upload_args, .. } => {
+                upload_args.public_repo_id = Some(new_value.to_string());
+            }
+            CommandType::Test { upload_args, .. } => {
+                upload_args.public_repo_id = Some(new_value.to_string());
+            }
+            CommandType::Validate { .. } => {}
+        }
         self
     }
 

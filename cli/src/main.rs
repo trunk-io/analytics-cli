@@ -35,8 +35,8 @@ struct Cli {
 impl Cli {
     pub fn debug_props(&self) -> String {
         let token = match &self.command {
-            Commands::Test(args) => Some(args.token()),
-            Commands::Upload(args) => Some(args.token.clone()),
+            Commands::Test(args) => args.token(),
+            Commands::Upload(args) => args.token.clone(),
             Commands::Validate(..) => None,
         };
 

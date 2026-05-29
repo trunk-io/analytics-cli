@@ -259,6 +259,51 @@ async fn upload_bundle() {
     ));
 }
 
+// NOTE: must be multi threaded to start a mock server
+#[tokio::test(flavor = "multi_thread")]
+async fn upload_bundle_with_public_repo_id() {
+    let temp_dir = tempdir().unwrap();
+    generate_mock_git_repo(&temp_dir);
+    generate_mock_valid_junit_xmls(&temp_dir);
+    generate_mock_codeowners(&temp_dir);
+
+    let state = MockServerBuilder::new().spawn_mock_server().await;
+
+    let mut command_builder = CommandBuilder::upload(temp_dir.path(), state.host.clone());
+    // Authenticate with a public repo id instead of a token (the fork-PR path).
+    command_builder.public_repo_id("public-repo-id-123");
+
+    command_builder.command().assert();
+
+    // The bundle still uploads even though we used a public repo id rather than a token.
+    let requests = state.requests.lock().unwrap().clone();
+    assert!(
+        requests
+            .iter()
+            .any(|request| matches!(request, RequestPayload::CreateBundleUpload(_))),
+        "expected a createBundleUpload request"
+    );
+
+    // Both authenticated endpoints must carry the public repo id header and no token.
+    let headers = state.request_headers.lock().unwrap();
+    for endpoint in ["createBundleUpload", "getQuarantineConfig"] {
+        let endpoint_headers = headers
+            .get(endpoint)
+            .unwrap_or_else(|| panic!("no captured headers for {endpoint}"));
+        assert_eq!(
+            endpoint_headers
+                .get("x-trunk-public-repo-id")
+                .and_then(|value| value.to_str().ok()),
+            Some("public-repo-id-123"),
+            "{endpoint} should send the public repo id header"
+        );
+        assert!(
+            endpoint_headers.get("x-api-token").is_none(),
+            "{endpoint} should not send a token when using a public repo id"
+        );
+    }
+}
+
 #[tokio::test(flavor = "multi_thread")]
 async fn upload_bundle_using_bep() {
     let temp_dir = tempdir().unwrap();

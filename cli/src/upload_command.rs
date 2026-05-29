@@ -81,11 +81,18 @@ pub struct UploadArgs {
     pub test_collection_short_id: Option<String>,
     #[arg(
         long,
-        required = true,
+        required_unless_present = "public_repo_id",
         env = constants::TRUNK_API_TOKEN_ENV,
         help = "Organization token. Defaults to TRUNK_API_TOKEN env var."
     )]
-    pub token: String,
+    pub token: Option<String>,
+    #[arg(
+        long,
+        required_unless_present = "token",
+        env = constants::TRUNK_PUBLIC_REPO_ID_ENV,
+        help = "Non-secret per-repo identifier, usable instead of --token on fork PRs where repo secrets are unavailable."
+    )]
+    pub public_repo_id: Option<String>,
     #[arg(
         long,
         env = constants::TRUNK_REPO_ROOT_ENV,
@@ -314,7 +321,7 @@ impl UploadArgs {
         Self {
             junit_paths,
             org_url_slug,
-            token,
+            token: Some(token),
             repo_root,
             allow_empty_test_results: true,
             disable_quarantining,
@@ -396,7 +403,12 @@ pub async fn run_upload(
         );
     }
 
-    let api_client = ApiClient::new(&upload_args.token, &upload_args.org_url_slug, render_sender)?;
+    let api_client = ApiClient::new(
+        upload_args.token.clone(),
+        upload_args.public_repo_id.clone(),
+        &upload_args.org_url_slug,
+        render_sender,
+    )?;
 
     let PreTestContext {
         mut meta,
@@ -409,7 +421,10 @@ pub async fn run_upload(
     } else {
         gather_initial_test_context(
             upload_args.clone(),
-            gather_debug_props(env::args().collect::<Vec<String>>(), upload_args.token),
+            gather_debug_props(
+                env::args().collect::<Vec<String>>(),
+                upload_args.token.clone().unwrap_or_default(),
+            ),
         )?
     };
 
