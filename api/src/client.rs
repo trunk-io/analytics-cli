@@ -67,19 +67,40 @@ impl ApiClient {
     // This should always be fast
     const TRUNK_TELEMETRY_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(1);
     const TRUNK_API_TOKEN_HEADER: &'static str = "x-api-token";
+    const TRUNK_PUBLIC_REPO_ID_HEADER: &'static str = "x-trunk-public-repo-id";
 
-    pub fn new<T: AsRef<str>>(
-        api_token: T,
-        org_url_slug: T,
+    pub fn new(
+        api_token: Option<String>,
+        public_repo_id: Option<String>,
+        org_url_slug: impl AsRef<str>,
         render_sender: Option<Sender<DisplayMessage>>,
     ) -> anyhow::Result<ApiClient> {
         let org_url_slug = String::from(org_url_slug.as_ref());
-        let api_token = api_token.as_ref();
-        if api_token.trim().is_empty() {
-            return Err(anyhow::anyhow!("Trunk API token is required."));
+
+        // Either a secret API token or a non-secret public repo id authenticates the
+        // request. Fork PRs can't read repo secrets, so they rely on the public repo id.
+        let api_token = api_token.filter(|token| !token.trim().is_empty());
+        let public_repo_id = public_repo_id.filter(|id| !id.trim().is_empty());
+        if api_token.is_none() && public_repo_id.is_none() {
+            return Err(anyhow::anyhow!(
+                "Either a Trunk API token or a public repo id is required."
+            ));
         }
-        let api_token_header_value = HeaderValue::from_str(api_token)
-            .map_err(|_| anyhow::Error::msg("Trunk API token is not ASCII"))?;
+
+        let api_token_header_value = api_token
+            .as_deref()
+            .map(|token| {
+                HeaderValue::from_str(token)
+                    .map_err(|_| anyhow::Error::msg("Trunk API token is not ASCII"))
+            })
+            .transpose()?;
+        let public_repo_id_header_value = public_repo_id
+            .as_deref()
+            .map(|id| {
+                HeaderValue::from_str(id)
+                    .map_err(|_| anyhow::Error::msg("Trunk public repo id is not ASCII"))
+            })
+            .transpose()?;
 
         let api_host = get_api_host();
         tracing::debug!("Using public api address {}", api_host);
@@ -101,8 +122,16 @@ impl ApiClient {
             header::CONTENT_TYPE,
             HeaderValue::from_static("application/json"),
         );
-        trunk_api_client_default_headers
-            .append(Self::TRUNK_API_TOKEN_HEADER, api_token_header_value.clone());
+        if let Some(api_token_header_value) = api_token_header_value.clone() {
+            trunk_api_client_default_headers
+                .append(Self::TRUNK_API_TOKEN_HEADER, api_token_header_value);
+        }
+        if let Some(public_repo_id_header_value) = public_repo_id_header_value {
+            trunk_api_client_default_headers.append(
+                Self::TRUNK_PUBLIC_REPO_ID_HEADER,
+                public_repo_id_header_value,
+            );
+        }
 
         let trunk_api_client = Client::builder()
             .timeout(Self::TRUNK_API_TIMEOUT)
@@ -114,8 +143,13 @@ impl ApiClient {
             header::CONTENT_TYPE,
             HeaderValue::from_static("application/x-protobuf"),
         );
-        telemetry_client_default_headers
-            .append(Self::TRUNK_API_TOKEN_HEADER, api_token_header_value);
+        // Telemetry only authenticates via the API token (the server did not extend the
+        // public repo id to this endpoint); a token-less run sends no auth header and its
+        // best-effort failures are swallowed downstream.
+        if let Some(api_token_header_value) = api_token_header_value {
+            telemetry_client_default_headers
+                .append(Self::TRUNK_API_TOKEN_HEADER, api_token_header_value);
+        }
 
         let telemetry_client = Client::builder()
             .timeout(Self::TRUNK_TELEMETRY_TIMEOUT)
@@ -451,11 +485,14 @@ fn does_not_add_settings_if_domain_absent() {
 #[cfg(test)]
 mod tests {
     use std::sync::{
-        Arc,
+        Arc, Mutex,
         atomic::{AtomicUsize, Ordering},
     };
 
-    use axum::{http::StatusCode, response::Response};
+    use axum::{
+        http::{HeaderMap, StatusCode},
+        response::Response,
+    };
     use context;
     use lazy_static::lazy_static;
     use test_utils::mock_server::MockServerBuilder;
@@ -486,7 +523,7 @@ mod tests {
         let state = mock_server_builder.spawn_mock_server().await;
 
         let mut api_client =
-            ApiClient::new(String::from("mock-token"), String::from("mock-org"), None).unwrap();
+            ApiClient::new(Some(String::from("mock-token")), None, "mock-org", None).unwrap();
         api_client.api_host.clone_from(&state.host);
 
         assert!(
@@ -534,7 +571,7 @@ mod tests {
         let state = mock_server_builder.spawn_mock_server().await;
 
         let mut api_client =
-            ApiClient::new(String::from("mock-token"), String::from("mock-org"), None).unwrap();
+            ApiClient::new(Some(String::from("mock-token")), None, "mock-org", None).unwrap();
         api_client.api_host.clone_from(&state.host);
 
         assert!(
@@ -577,7 +614,7 @@ mod tests {
         let state = mock_server_builder.spawn_mock_server().await;
 
         let mut api_client =
-            ApiClient::new(String::from("mock-token"), String::from("mock-org"), None).unwrap();
+            ApiClient::new(Some(String::from("mock-token")), None, "mock-org", None).unwrap();
         api_client.api_host.clone_from(&state.host);
 
         assert!(
@@ -598,6 +635,94 @@ mod tests {
                     .unwrap_err()
             )
             .contains("404 Not Found")
+        );
+    }
+
+    #[test]
+    fn requires_a_token_or_public_repo_id() {
+        // Neither credential is an error.
+        let err = ApiClient::new(None, None, "mock-org", None)
+            .err()
+            .expect("expected an error when no credentials are provided");
+        assert!(
+            err.to_string()
+                .contains("Either a Trunk API token or a public repo id is required")
+        );
+
+        // Blank values are treated as absent.
+        assert!(
+            ApiClient::new(
+                Some(String::from("   ")),
+                Some(String::from("   ")),
+                "mock-org",
+                None
+            )
+            .is_err()
+        );
+
+        // A public repo id alone is sufficient - no token required.
+        assert!(
+            ApiClient::new(None, Some(String::from("public-repo-id")), "mock-org", None).is_ok()
+        );
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn sends_public_repo_id_header_in_place_of_token() {
+        let mut mock_server_builder = MockServerBuilder::new();
+
+        lazy_static! {
+            static ref CAPTURED_HEADERS: Arc<Mutex<HeaderMap>> =
+                Arc::new(Mutex::new(HeaderMap::new()));
+        }
+
+        let quarantining_config_handler = move |headers: HeaderMap| async move {
+            *CAPTURED_HEADERS.lock().unwrap() = headers;
+            Response::builder()
+                .status(StatusCode::NOT_FOUND)
+                .body(String::from(
+                    r#"{ "status_code": 404, "error": "not found" }"#,
+                ))
+                .unwrap()
+        };
+        mock_server_builder.set_get_quarantining_config_handler(quarantining_config_handler);
+
+        let state = mock_server_builder.spawn_mock_server().await;
+
+        let mut api_client = ApiClient::new(
+            None,
+            Some(String::from("public-repo-id-123")),
+            "mock-org",
+            None,
+        )
+        .unwrap();
+        api_client.api_host.clone_from(&state.host);
+
+        // The call itself errors (404) - we only care about the headers it sent.
+        let _ = api_client
+            .get_quarantining_config(&message::GetQuarantineConfigRequest {
+                repo: context::repo::RepoUrlParts {
+                    host: String::from("host"),
+                    owner: String::from("owner"),
+                    name: String::from("name"),
+                },
+                org_url_slug: String::from("org_url_slug"),
+                test_identifiers: vec![],
+                remote_urls: vec![],
+            })
+            .await;
+
+        let headers = CAPTURED_HEADERS.lock().unwrap();
+        assert_eq!(
+            headers
+                .get(super::ApiClient::TRUNK_PUBLIC_REPO_ID_HEADER)
+                .and_then(|value| value.to_str().ok()),
+            Some("public-repo-id-123")
+        );
+        assert!(
+            headers
+                .get(super::ApiClient::TRUNK_API_TOKEN_HEADER)
+                .is_none(),
+            "token header should be absent when only a public repo id is provided"
         );
     }
 }
