@@ -143,9 +143,7 @@ impl ApiClient {
             header::CONTENT_TYPE,
             HeaderValue::from_static("application/x-protobuf"),
         );
-        // Telemetry only authenticates via the API token (the server did not extend the
-        // public repo id to this endpoint); a token-less run sends no auth header and its
-        // best-effort failures are swallowed downstream.
+
         if let Some(api_token_header_value) = api_token_header_value {
             telemetry_client_default_headers
                 .append(Self::TRUNK_API_TOKEN_HEADER, api_token_header_value);

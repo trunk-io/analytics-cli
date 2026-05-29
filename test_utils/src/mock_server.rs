@@ -1,4 +1,5 @@
 use std::{
+    collections::HashMap,
     fs,
     io::Read,
     path::PathBuf,
@@ -14,7 +15,7 @@ use axum::{
     body::Bytes,
     extract::State,
     handler::Handler,
-    http::StatusCode,
+    http::{HeaderMap, StatusCode},
     response::{IntoResponse, Response},
     routing::{MethodRouter, any, post, put},
 };
@@ -44,6 +45,9 @@ impl IntoResponse for RespError {
 #[derive(Debug, Default)]
 pub struct MockServerState {
     pub requests: Mutex<Vec<RequestPayload>>,
+    /// Request headers captured per endpoint (keyed by endpoint name, e.g.
+    /// "createBundleUpload"), so tests can assert on auth headers.
+    pub request_headers: Mutex<HashMap<String, HeaderMap>>,
     pub host: String,
 }
 
@@ -153,8 +157,14 @@ pub type SharedMockServerState = Arc<MockServerState>;
 #[axum::debug_handler]
 pub async fn create_bundle_handler(
     State(state): State<SharedMockServerState>,
+    headers: HeaderMap,
     Json(create_bundle_upload_request): Json<CreateBundleUploadRequest>,
 ) -> Json<CreateBundleUploadResponse> {
+    state
+        .request_headers
+        .lock()
+        .unwrap()
+        .insert(String::from("createBundleUpload"), headers);
     state
         .requests
         .lock()
@@ -176,8 +186,14 @@ pub async fn create_bundle_handler(
 #[axum::debug_handler]
 pub async fn get_quarantining_config_handler(
     State(state): State<SharedMockServerState>,
+    headers: HeaderMap,
     Json(get_quarantine_config_request): Json<GetQuarantineConfigRequest>,
 ) -> Json<GetQuarantineConfigResponse> {
+    state
+        .request_headers
+        .lock()
+        .unwrap()
+        .insert(String::from("getQuarantineConfig"), headers);
     state
         .requests
         .lock()
