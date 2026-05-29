@@ -660,6 +660,9 @@ mod tests {
             .is_err()
         );
 
+        // A token alone is sufficient - no public repo id required.
+        assert!(ApiClient::new(Some(String::from("token")), None, "mock-org", None).is_ok());
+
         // A public repo id alone is sufficient - no token required.
         assert!(
             ApiClient::new(None, Some(String::from("public-repo-id")), "mock-org", None).is_ok()

@@ -323,7 +323,7 @@ impl MutTestReport {
             tracing::warn!("Not checking quarantine status because TRUNK_ORG_URL_SLUG is empty");
             return IsQuarantinedResult::default();
         }
-        let api_client = ApiClient::new(token, org_url_slug.clone(), None);
+        let api_client = ApiClient::new(Some(token), None, org_url_slug.clone(), None);
         let use_uncloned_repo = env::var(constants::TRUNK_USE_UNCLONED_REPO_ENV)
             .ok()
             .and_then(|v| v.parse().ok())
