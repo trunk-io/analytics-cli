@@ -5,7 +5,7 @@ use std::{env, fs, thread};
 use api::message::{GetQuarantineConfigRequest, GetQuarantineConfigResponse};
 use axum::{Json, extract::State, http::StatusCode};
 use bundle::Test;
-use common::{clean_up_cache_files, cleanup_env_vars};
+use common::{clean_up_cache_files, cleanup_env_vars, setup_quarantine_disk_cache_dir};
 use constants::{
     TRUNK_API_CLIENT_RETRY_COUNT_ENV, TRUNK_API_TOKEN_ENV, TRUNK_ORG_URL_SLUG_ENV,
     TRUNK_PUBLIC_API_ADDRESS_ENV, TRUNK_QUARANTINED_TESTS_DISK_CACHE_TTL_SECS_ENV,
@@ -25,6 +25,7 @@ use test_utils::mock_server::{MockServerBuilder, RequestPayload, SharedMockServe
 async fn quarantine_variant_impacts_quarantining() {
     cleanup_env_vars();
     let temp_dir = tempdir().unwrap();
+    setup_quarantine_disk_cache_dir(&temp_dir);
     let repo_setup_res = setup_repo_with_commit(&temp_dir);
     assert!(repo_setup_res.is_ok());
     let _ = env::set_current_dir(&temp_dir);
@@ -295,9 +296,11 @@ async fn quarantine_variant_impacts_quarantining() {
 #[serial]
 async fn quarantine_disk_cache() {
     cleanup_env_vars();
-    clean_up_cache_files();
 
     let temp_dir = tempdir().unwrap();
+    setup_quarantine_disk_cache_dir(&temp_dir);
+    clean_up_cache_files();
+
     let _ = env::set_current_dir(&temp_dir);
 
     let repo_url_1 = "https://github.com/test-org/test-repo-1.git";
@@ -534,6 +537,7 @@ async fn quarantine_disabled_for_repo() {
     cleanup_env_vars();
 
     let temp_dir = tempdir().unwrap();
+    setup_quarantine_disk_cache_dir(&temp_dir);
     let _ = env::set_current_dir(&temp_dir);
 
     let repo_url = "https://github.com/test-org/test-repo.git";
@@ -607,9 +611,11 @@ async fn quarantine_disabled_for_repo() {
 #[serial]
 async fn quarantine_lookup_failed_when_endpoint_fails() {
     cleanup_env_vars();
-    clean_up_cache_files();
 
     let temp_dir = tempdir().unwrap();
+    setup_quarantine_disk_cache_dir(&temp_dir);
+    clean_up_cache_files();
+
     let _ = env::set_current_dir(&temp_dir);
 
     let repo_url = "https://github.com/test-org/test-repo.git";

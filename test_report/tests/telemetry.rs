@@ -4,7 +4,7 @@ use std::{env, thread};
 
 use api::message::{GetQuarantineConfigRequest, GetQuarantineConfigResponse};
 use axum::{Json, extract::State, http::StatusCode};
-use common::{clean_up_cache_files, cleanup_env_vars};
+use common::{clean_up_cache_files, cleanup_env_vars, setup_quarantine_disk_cache_dir};
 use constants::{
     TRUNK_API_CLIENT_RETRY_COUNT_ENV, TRUNK_API_TOKEN_ENV, TRUNK_ORG_URL_SLUG_ENV,
     TRUNK_PUBLIC_API_ADDRESS_ENV, TRUNK_QUARANTINED_TESTS_DISK_CACHE_TTL_SECS_ENV,
@@ -80,9 +80,9 @@ fn publish_minimal_success_test(test_report: &MutTestReport) {
 async fn telemetry_query_result_success_on_publish() {
     cleanup_env_vars();
     let temp_dir = tempdir().unwrap();
-    let repo_setup_res = setup_repo_with_commit(&temp_dir);
-    assert!(repo_setup_res.is_ok());
-    assert!(env::set_current_dir(&temp_dir).is_ok());
+    setup_quarantine_disk_cache_dir(&temp_dir);
+    setup_repo_with_commit(&temp_dir).unwrap();
+    env::set_current_dir(&temp_dir).unwrap();
     let state = MockServerBuilder::new().spawn_mock_server().await;
     set_mock_api_env(&state.host);
     unsafe {
@@ -117,7 +117,8 @@ async fn telemetry_query_result_success_on_publish() {
 async fn telemetry_query_result_skipped_without_lookup_on_publish() {
     cleanup_env_vars();
     let temp_dir = tempdir().unwrap();
-    let _ = env::set_current_dir(&temp_dir);
+    setup_quarantine_disk_cache_dir(&temp_dir);
+    env::set_current_dir(&temp_dir).unwrap();
 
     let state = MockServerBuilder::new().spawn_mock_server().await;
     set_mock_api_env(&state.host);
@@ -138,13 +139,14 @@ async fn telemetry_query_result_skipped_without_lookup_on_publish() {
 #[serial]
 async fn telemetry_query_result_cached_on_publish() {
     cleanup_env_vars();
-    clean_up_cache_files();
 
     let temp_dir = tempdir().unwrap();
-    let _ = env::set_current_dir(&temp_dir);
+    setup_quarantine_disk_cache_dir(&temp_dir);
+    clean_up_cache_files();
 
-    let repo_url = "https://github.com/test-org/test-repo-cache-telemetry.git";
-    set_uncloned_repo_publish_env(repo_url);
+    env::set_current_dir(&temp_dir).unwrap();
+
+    set_uncloned_repo_publish_env("https://github.com/test-org/test-repo-cache-telemetry.git");
 
     let state = MockServerBuilder::new().spawn_mock_server().await;
     set_mock_api_env(&state.host);
@@ -191,10 +193,10 @@ async fn telemetry_query_result_disabled_on_publish() {
     cleanup_env_vars();
 
     let temp_dir = tempdir().unwrap();
-    let _ = env::set_current_dir(&temp_dir);
+    setup_quarantine_disk_cache_dir(&temp_dir);
+    env::set_current_dir(&temp_dir).unwrap();
 
-    let repo_url = "https://github.com/test-org/test-repo-disabled-telemetry.git";
-    set_uncloned_repo_publish_env(repo_url);
+    set_uncloned_repo_publish_env("https://github.com/test-org/test-repo-disabled-telemetry.git");
 
     let state = {
         let mut builder = MockServerBuilder::new();
@@ -236,13 +238,14 @@ async fn telemetry_query_result_disabled_on_publish() {
 #[serial]
 async fn telemetry_query_result_failure_on_publish() {
     cleanup_env_vars();
-    clean_up_cache_files();
 
     let temp_dir = tempdir().unwrap();
-    let _ = env::set_current_dir(&temp_dir);
+    setup_quarantine_disk_cache_dir(&temp_dir);
+    clean_up_cache_files();
 
-    let repo_url = "https://github.com/test-org/test-repo-failure-telemetry.git";
-    set_uncloned_repo_publish_env(repo_url);
+    env::set_current_dir(&temp_dir).unwrap();
+
+    set_uncloned_repo_publish_env("https://github.com/test-org/test-repo-failure-telemetry.git");
 
     let state = {
         let mut builder = MockServerBuilder::new();

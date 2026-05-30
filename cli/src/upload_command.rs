@@ -362,13 +362,35 @@ pub struct UploadRunResult {
     pub show_failure_messages: bool,
 }
 
+pub struct RunUploadOptions {
+    pub pre_test_context: Option<PreTestContext>,
+    pub test_run_result: Option<TestRunResult>,
+    pub render_sender: Option<Sender<DisplayMessage>>,
+    pub quarantine_query_result_override:
+        Option<proto::upload_metrics::trunk::QuarantineQueryResult>,
+}
+
+impl Default for RunUploadOptions {
+    fn default() -> Self {
+        Self {
+            pre_test_context: None,
+            test_run_result: None,
+            render_sender: None,
+            quarantine_query_result_override: None,
+        }
+    }
+}
+
 pub async fn run_upload(
     upload_args: UploadArgs,
-    pre_test_context: Option<PreTestContext>,
-    test_run_result: Option<TestRunResult>,
-    render_sender: Option<Sender<DisplayMessage>>,
-    quarantine_query_result_override: Option<proto::upload_metrics::trunk::QuarantineQueryResult>,
+    options: RunUploadOptions,
 ) -> anyhow::Result<UploadRunResult> {
+    let RunUploadOptions {
+        pre_test_context,
+        test_run_result,
+        render_sender,
+        quarantine_query_result_override,
+    } = options;
     // grab the exec start if provided (`test` subcommand) or use the current time
     let cli_started_at = if let Some(test_run_result) = test_run_result.as_ref() {
         test_run_result

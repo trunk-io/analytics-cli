@@ -18,7 +18,7 @@ use superconsole::{
 
 use crate::{
     context::{gather_debug_props, gather_initial_test_context},
-    upload_command::{UploadArgs, UploadRunResult, run_upload},
+    upload_command::{RunUploadOptions, UploadArgs, UploadRunResult, run_upload},
 };
 
 enum RunOutput {
@@ -133,10 +133,11 @@ pub async fn run_test(
 
     let upload_run_result = run_upload(
         upload_args,
-        Some(test_context),
-        Some(test_run_result.clone()),
-        None,
-        None,
+        RunUploadOptions {
+            pre_test_context: Some(test_context),
+            test_run_result: Some(test_run_result.clone()),
+            ..Default::default()
+        },
     )
     .await;
     match upload_run_result {

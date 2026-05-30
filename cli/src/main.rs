@@ -16,7 +16,7 @@ use trunk_analytics_cli::{
     context::gather_debug_props,
     error_report::ErrorReport,
     test_command::{TestArgs, run_test},
-    upload_command::{UploadArgs, UploadRunResult, run_upload},
+    upload_command::{RunUploadOptions, UploadArgs, UploadRunResult, run_upload},
     validate_command::{ValidateArgs, ValidateRunResult, run_validate},
 };
 
@@ -192,7 +192,14 @@ async fn run(cli: Cli, render_sender: Sender<DisplayMessage>) -> anyhow::Result<
     );
     match cli.command {
         Commands::Upload(upload_args) => {
-            let result = run_upload(upload_args, None, None, Some(render_sender), None).await?;
+            let result = run_upload(
+                upload_args,
+                RunUploadOptions {
+                    render_sender: Some(render_sender),
+                    ..Default::default()
+                },
+            )
+            .await?;
             Ok(RunResult::Upload(result))
         }
         Commands::Test(test_args) => {

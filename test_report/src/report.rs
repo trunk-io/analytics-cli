@@ -22,8 +22,17 @@ use proto::test_context::test_run::{
 use serde::{Deserialize, Serialize};
 use third_party::sentry;
 use tracing_subscriber::{filter::FilterFn, prelude::*};
-use trunk_analytics_cli::{context::gather_initial_test_context, upload_command::run_upload};
+use trunk_analytics_cli::{
+    context::gather_initial_test_context,
+    upload_command::{RunUploadOptions, run_upload},
+};
 use uuid::Uuid;
+
+pub fn quarantine_disk_cache_dir() -> PathBuf {
+    env::var(constants::TRUNK_QUARANTINE_DISK_CACHE_DIR_ENV)
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| env::temp_dir().join(constants::CACHE_DIR))
+}
 #[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::wasm_bindgen;
 
@@ -419,9 +428,7 @@ impl MutTestReport {
         .to_string();
         let quarantine_config_cache_file_name = format!("quarantine_config_{cache_key}.json");
 
-        env::temp_dir()
-            .join(constants::CACHE_DIR)
-            .join(quarantine_config_cache_file_name)
+        quarantine_disk_cache_dir().join(quarantine_config_cache_file_name)
     }
 
     fn load_quarantine_config_from_disk_cache(
@@ -708,10 +715,14 @@ impl MutTestReport {
                     .unwrap()
                     .block_on(run_upload(
                         upload_args,
-                        Some(pre_test_context),
-                        Some(test_run_result),
-                        None,
-                        Some(self.quarantine_query_result_for_telemetry()),
+                        RunUploadOptions {
+                            pre_test_context: Some(pre_test_context),
+                            test_run_result: Some(test_run_result),
+                            quarantine_query_result_override: Some(
+                                self.quarantine_query_result_for_telemetry(),
+                            ),
+                            ..Default::default()
+                        },
                     )) {
                     Ok(upload_result) => {
                         if let Some(upload_bundle_error) =

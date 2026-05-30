@@ -6,12 +6,17 @@ import "common.proto";
 import "google/protobuf/timestamp.proto";
 
 enum QuarantineQueryResult {
+  // Default; should not be sent from new CLI versions in practice.
   QUARANTINE_QUERY_RESULT_UNSPECIFIED = 0;
+  // Successfully retrieved quarantined test results from the API.
   QUARANTINE_QUERY_RESULT_SUCCESS = 1;
+  // Query failed (includes auth errors like 403/404; not differentiated yet).
   QUARANTINE_QUERY_RESULT_FAILURE = 2;
+  // Disabled via CLI flag/env var or repo setting from the DB.
   QUARANTINE_QUERY_RESULT_DISABLED = 3;
+  // No tests failed; quarantine lookup was not needed.
   QUARANTINE_QUERY_RESULT_SKIPPED = 4;
-  // rspec only
+  // RSpec only: quarantined results served from disk cache.
   QUARANTINE_QUERY_RESULT_CACHED = 5;
 }
 
