@@ -18,7 +18,7 @@ use superconsole::{
 };
 use tempfile::TempDir;
 
-use crate::context_quarantine::QuarantineContext;
+use crate::context_quarantine::{QuarantineContext, quarantine_query_result};
 use crate::validate_command::JunitReportValidations;
 use crate::{
     context::{
@@ -362,12 +362,35 @@ pub struct UploadRunResult {
     pub show_failure_messages: bool,
 }
 
+pub struct RunUploadOptions {
+    pub pre_test_context: Option<PreTestContext>,
+    pub test_run_result: Option<TestRunResult>,
+    pub render_sender: Option<Sender<DisplayMessage>>,
+    pub quarantine_query_result_override:
+        Option<proto::upload_metrics::trunk::QuarantineQueryResult>,
+}
+
+impl Default for RunUploadOptions {
+    fn default() -> Self {
+        Self {
+            pre_test_context: None,
+            test_run_result: None,
+            render_sender: None,
+            quarantine_query_result_override: None,
+        }
+    }
+}
+
 pub async fn run_upload(
     upload_args: UploadArgs,
-    pre_test_context: Option<PreTestContext>,
-    test_run_result: Option<TestRunResult>,
-    render_sender: Option<Sender<DisplayMessage>>,
+    options: RunUploadOptions,
 ) -> anyhow::Result<UploadRunResult> {
+    let RunUploadOptions {
+        pre_test_context,
+        test_run_result,
+        render_sender,
+        quarantine_query_result_override,
+    } = options;
     // grab the exec start if provided (`test` subcommand) or use the current time
     let cli_started_at = if let Some(test_run_result) = test_run_result.as_ref() {
         test_run_result
@@ -524,6 +547,8 @@ pub async fn run_upload(
         upload_args.dry_run,
     )
     .await;
+    let quarantine_query_result = quarantine_query_result_override
+        .unwrap_or_else(|| quarantine_query_result(disable_quarantining, &quarantine_context));
     let upload_metrics = proto::upload_metrics::trunk::UploadMetrics {
         client_version: Some(proto::upload_metrics::trunk::Semver {
             major: env!("CARGO_PKG_VERSION_MAJOR").parse().unwrap_or_default(),
@@ -541,6 +566,7 @@ pub async fn run_upload(
         upload_finished_at: Some(chrono::Utc::now().into()),
         failed: false,
         failure_reason: "".into(),
+        quarantine_query_result: quarantine_query_result.into(),
     };
     let mut request = api::message::TelemetryUploadMetricsRequest { upload_metrics };
     if !upload_args.dry_run {

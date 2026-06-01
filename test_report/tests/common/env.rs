@@ -4,10 +4,13 @@ use constants::{
     TRUNK_ALLOW_EMPTY_TEST_RESULTS_ENV, TRUNK_API_CLIENT_RETRY_COUNT_ENV, TRUNK_API_TOKEN_ENV,
     TRUNK_CODEOWNERS_PATH_ENV, TRUNK_DISABLE_QUARANTINING_ENV, TRUNK_DRY_RUN_ENV,
     TRUNK_ORG_URL_SLUG_ENV, TRUNK_PR_NUMBER_ENV, TRUNK_PUBLIC_API_ADDRESS_ENV,
-    TRUNK_QUARANTINED_TESTS_DISK_CACHE_TTL_SECS_ENV, TRUNK_REPO_HEAD_AUTHOR_NAME_ENV,
-    TRUNK_REPO_HEAD_BRANCH_ENV, TRUNK_REPO_HEAD_COMMIT_EPOCH_ENV, TRUNK_REPO_HEAD_SHA_ENV,
-    TRUNK_REPO_ROOT_ENV, TRUNK_REPO_URL_ENV, TRUNK_USE_UNCLONED_REPO_ENV, TRUNK_VARIANT_ENV,
+    TRUNK_QUARANTINE_DISK_CACHE_DIR_ENV, TRUNK_QUARANTINED_TESTS_DISK_CACHE_TTL_SECS_ENV,
+    TRUNK_REPO_HEAD_AUTHOR_NAME_ENV, TRUNK_REPO_HEAD_BRANCH_ENV, TRUNK_REPO_HEAD_COMMIT_EPOCH_ENV,
+    TRUNK_REPO_HEAD_SHA_ENV, TRUNK_REPO_ROOT_ENV, TRUNK_REPO_URL_ENV, TRUNK_USE_UNCLONED_REPO_ENV,
+    TRUNK_VARIANT_ENV,
 };
+use tempfile::TempDir;
+use test_report::report::quarantine_disk_cache_dir;
 
 /// Cleans up all TRUNK_* and CI-related environment variables to avoid test interference.
 pub fn cleanup_env_vars() {
@@ -32,12 +35,20 @@ pub fn cleanup_env_vars() {
         env::remove_var("GITHUB_JOB");
         env::remove_var(TRUNK_QUARANTINED_TESTS_DISK_CACHE_TTL_SECS_ENV);
         env::remove_var(TRUNK_API_CLIENT_RETRY_COUNT_ENV);
+        env::remove_var(TRUNK_QUARANTINE_DISK_CACHE_DIR_ENV);
+    }
+}
+
+pub fn setup_quarantine_disk_cache_dir(temp_dir: &TempDir) {
+    let cache_dir = temp_dir.path().join(constants::CACHE_DIR);
+    unsafe {
+        env::set_var(TRUNK_QUARANTINE_DISK_CACHE_DIR_ENV, cache_dir);
     }
 }
 
 #[allow(dead_code)]
 pub fn clean_up_cache_files() {
-    let cache_dir = env::temp_dir().join(constants::CACHE_DIR);
+    let cache_dir = quarantine_disk_cache_dir();
     if let Ok(entries) = std::fs::read_dir(&cache_dir) {
         for entry in entries.flatten() {
             let _ = std::fs::remove_file(entry.path());

@@ -21,6 +21,7 @@ pub const CODEOWNERS_LOCATIONS: &[&str] = &[".github", ".bitbucket", ".", "docs"
 pub const DEFAULT_ORIGIN: &str = "https://api.trunk.io";
 pub const DEFAULT_QUARANTINED_TESTS_DISK_CACHE_TTL_SECS: u64 = 5 * 60; // 5 minutes
 pub const CACHE_DIR: &str = "trunk-flaky-tests";
+pub const TRUNK_QUARANTINE_DISK_CACHE_DIR_ENV: &str = "TRUNK_QUARANTINE_DISK_CACHE_DIR";
 pub const TRUNK_PUBLIC_API_ADDRESS_ENV: &str = "TRUNK_PUBLIC_API_ADDRESS";
 pub const TRUNK_API_CLIENT_RETRY_COUNT_ENV: &str = "TRUNK_API_CLIENT_RETRY_COUNT";
 
@@ -53,6 +54,7 @@ pub const TRUNK_DEBUG_ENV: &str = "TRUNK_DEBUG";
 // TRUNK_* environment variables to capture in bundle metadata for debugging.
 // TRUNK_API_TOKEN_ENV is intentionally omitted.
 pub const TRUNK_ENVS_TO_CAPTURE: &[&str] = &[
+    TRUNK_QUARANTINE_DISK_CACHE_DIR_ENV,
     TRUNK_PUBLIC_API_ADDRESS_ENV,
     TRUNK_API_CLIENT_RETRY_COUNT_ENV,
     TRUNK_PUBLIC_REPO_ID_ENV,

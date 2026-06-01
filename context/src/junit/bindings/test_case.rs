@@ -332,7 +332,7 @@ impl TryInto<TestCase> for BindingsTestCase {
             properties,
             bazel_run_information: _,
         } = self;
-        // donotland: anything here?
+
         let mut test_case = TestCase::new(name, status.try_into()?);
         test_case.classname = classname.map(|c| c.into());
         test_case.assertions = assertions;

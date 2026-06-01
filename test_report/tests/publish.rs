@@ -4,7 +4,7 @@ use std::{env, fs, io::BufReader, path::Path, thread};
 
 use assert_matches::assert_matches;
 use bundle::{BundleMeta, FileSetType};
-use common::cleanup_env_vars;
+use common::{cleanup_env_vars, setup_quarantine_disk_cache_dir};
 use constants::{
     TRUNK_ALLOW_EMPTY_TEST_RESULTS_ENV, TRUNK_API_TOKEN_ENV, TRUNK_CODEOWNERS_PATH_ENV,
     TRUNK_DISABLE_QUARANTINING_ENV, TRUNK_DRY_RUN_ENV, TRUNK_ORG_URL_SLUG_ENV, TRUNK_PR_NUMBER_ENV,
@@ -35,6 +35,7 @@ fn generate_mock_codeowners<T: AsRef<Path>>(directory: T) {
 async fn publish_uploads_test_report() {
     cleanup_env_vars();
     let temp_dir = tempdir().unwrap();
+    setup_quarantine_disk_cache_dir(&temp_dir);
     let repo_setup_res = setup_repo_with_commit(&temp_dir);
     generate_mock_codeowners(&temp_dir);
     assert!(repo_setup_res.is_ok());
@@ -253,6 +254,7 @@ async fn publish_uploads_test_report() {
 fn publish_try_save() {
     cleanup_env_vars();
     let temp_dir = tempdir().unwrap();
+    setup_quarantine_disk_cache_dir(&temp_dir);
     let report = MutTestReport::new(
         "test-origin".into(),
         "test-command".into(),
@@ -277,6 +279,7 @@ fn publish_try_save() {
 async fn publish_environment_variable_overrides() {
     cleanup_env_vars();
     let temp_dir = tempdir().unwrap();
+    setup_quarantine_disk_cache_dir(&temp_dir);
     generate_mock_codeowners(&temp_dir);
 
     // Set current directory to a safe location first (in case previous test left it in a bad state)
@@ -415,6 +418,7 @@ async fn publish_environment_variable_overrides() {
 async fn publish_variant_priority_constructor_over_env() {
     cleanup_env_vars();
     let temp_dir = tempdir().unwrap();
+    setup_quarantine_disk_cache_dir(&temp_dir);
     generate_mock_codeowners(&temp_dir);
 
     // Set current directory to a safe location first (in case previous test left it in a bad state)
