@@ -1282,7 +1282,7 @@ fn test_simple_circleci() {
         (String::from("CIRCLE_BUILD_NUM"), String::from("6")),
         (String::from("CIRCLE_BUILD_URL"), String::from(&build_url)),
         (
-            String::from("CIRCLE_WORKFLOW_ID"),
+            String::from("CIRCLE_WORKFLOW_NAME"),
             String::from(&workflow_id),
         ),
         (
@@ -1406,7 +1406,7 @@ fn test_circleci_pr() {
         (String::from("CIRCLE_BRANCH"), String::from(&branch)),
         (String::from("CIRCLE_BUILD_URL"), String::from(&build_url)),
         (
-            String::from("CIRCLE_WORKFLOW_ID"),
+            String::from("CIRCLE_WORKFLOW_NAME"),
             String::from(&workflow_id),
         ),
         (String::from("CIRCLE_JOB"), String::from(&job_name)),
