@@ -1,3 +1,4 @@
+use std::sync::Arc;
 use std::{
     fmt,
     fs::File,
@@ -6,7 +7,6 @@ use std::{
     str::FromStr,
 };
 
-use glob::{MatchOptions, Pattern};
 use lazy_static::lazy_static;
 use once_cell::sync::Lazy;
 #[cfg(feature = "pyo3")]
@@ -14,6 +14,7 @@ use pyo3::prelude::*;
 #[cfg(feature = "pyo3")]
 use pyo3_stub_gen::derive::{gen_stub_pyclass, gen_stub_pymethods};
 use regex::Regex;
+use zlob::{ZlobFlags, ZlobPattern};
 
 use crate::{FromPath, FromReader, OwnersOfPath};
 
@@ -89,19 +90,14 @@ impl OwnersOfPath for GitHubOwners {
             .iter()
             .filter_map(|mapping| {
                 let (pattern, owners) = mapping;
-                let opts = glob::MatchOptions {
-                    case_sensitive: false,
-                    require_literal_separator: pattern.contains('/'),
-                    require_literal_leading_dot: false,
-                };
-                if pattern.matches_path_with(path.as_ref(), opts) {
+                if pattern.matches_path(path.as_ref()) {
                     Some(owners)
                 } else {
                     // NOTE: if the path is relative, we need to strip the leading dot
                     // to match the pattern. We are doing this as a workaround for
                     // cases where the provided path is relative, like `./foo/bar/baz.rs`
                     if let Ok(simplified_path) = path.as_ref().strip_prefix("./") {
-                        if pattern.matches_path_with(simplified_path, opts) {
+                        if pattern.matches_path(simplified_path) {
                             return Some(owners);
                         }
                     }
@@ -113,7 +109,7 @@ impl OwnersOfPath for GitHubOwners {
                     // owned by @owner
                     let mut p = path.as_ref();
                     while let Some(parent) = p.parent() {
-                        if pattern.matches_path_with(parent, opts) {
+                        if pattern.matches_path(parent) {
                             return Some(owners);
                         } else {
                             p = parent;
@@ -186,24 +182,71 @@ impl BindingsGitHubOwners {
     }
 }
 
-#[derive(Debug, PartialEq, Clone, Eq)]
 pub struct PatternWithFallback {
-    base: Pattern,
-    fallback: Option<Pattern>,
+    base_str: String,
+    base: Arc<ZlobPattern>,
+    fallback_str: Option<String>,
+    fallback: Option<Arc<ZlobPattern>>,
+}
+
+impl PartialEq for PatternWithFallback {
+    fn eq(&self, other: &Self) -> bool {
+        self.base_str == other.base_str && self.fallback_str == other.fallback_str
+    }
+}
+impl Eq for PatternWithFallback {}
+
+impl Clone for PatternWithFallback {
+    fn clone(&self) -> Self {
+        Self {
+            base_str: self.base_str.clone(),
+            base: self.base.clone(),
+            fallback_str: self.fallback_str.clone(),
+            fallback: self.fallback.clone(),
+        }
+    }
+}
+
+impl fmt::Debug for PatternWithFallback {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("PatternWithFallback")
+            .field("base", &self.base_str)
+            .field("fallback", &self.fallback_str)
+            .finish()
+    }
+}
+
+fn glob_flags() -> ZlobFlags {
+    ZlobFlags::DOUBLESTAR_RECURSIVE | ZlobFlags::PERIOD
+}
+
+/// Patterns like `*.js` or `*` start with `*` (not `**`) and have no `/`, so
+/// they need a `**/` prefix — zlob's `*` won't cross path separators.
+fn normalize_zlob(pattern: &str) -> String {
+    if pattern.starts_with('*') && !pattern.starts_with("**") && !pattern.contains('/') {
+        format!("**/{}", pattern)
+    } else {
+        pattern.to_string()
+    }
+}
+
+fn compile_zlob(pattern: &str) -> anyhow::Result<Arc<ZlobPattern>> {
+    ZlobPattern::compile(pattern, glob_flags())
+        .map(Arc::new)
+        .map_err(|e| anyhow::anyhow!("{:?}", e))
 }
 
 impl PatternWithFallback {
     pub fn new(base: &str) -> anyhow::Result<Self> {
         let result = if base.ends_with("**") && !base.ends_with("/**") && base.len() > 2 {
             let un_wildcarded = base.strip_suffix("**").unwrap_or(base);
-            let base_pattern =
-                Pattern::new(format!("{}*", un_wildcarded).as_str()).map_err(anyhow::Error::msg)?;
-            let fallback_pattern = Pattern::new(format!("{}*/**", un_wildcarded).as_str())
-                .map_err(anyhow::Error::msg)?;
-
+            let base_str = normalize_zlob(&format!("{}*", un_wildcarded).to_lowercase());
+            let fallback_str = format!("{}*/**", un_wildcarded).to_lowercase();
             Self {
-                base: base_pattern,
-                fallback: Some(fallback_pattern),
+                base: compile_zlob(&base_str)?,
+                fallback: Some(compile_zlob(&fallback_str)?),
+                base_str,
+                fallback_str: Some(fallback_str),
             }
         } else {
             // Matches anything that ends with neither a slash nor a period nor an asterisk,
@@ -211,41 +254,52 @@ impl PatternWithFallback {
             static FALLBACK_NEEDED_REGEX: Lazy<Regex> =
                 Lazy::new(|| Regex::new(r"^\/?(.*\/)*((\.?)[^\/\.\*]+)$").unwrap());
 
-            let base_pattern = Pattern::new(base).map_err(anyhow::Error::msg)?;
-            let mut fallback_pattern = None;
-            if FALLBACK_NEEDED_REGEX.is_match(base) {
-                let mut subdir_match = base.to_string();
-                subdir_match.push_str("/**");
-                fallback_pattern = Pattern::new(&subdir_match).ok();
-            }
+            let base_str = normalize_zlob(&base.to_lowercase());
+            let base_compiled = compile_zlob(&base_str)?;
+
+            let (fallback_str, fallback) = if FALLBACK_NEEDED_REGEX.is_match(base) {
+                let f = format!("{}/**", base).to_lowercase();
+                let compiled = compile_zlob(&f)?;
+                (Some(f), Some(compiled))
+            } else {
+                (None, None)
+            };
 
             Self {
-                base: base_pattern,
-                fallback: fallback_pattern,
+                base_str,
+                base: base_compiled,
+                fallback_str,
+                fallback,
             }
         };
 
         Ok(result)
     }
 
-    pub fn matches_path_with(&self, path: &Path, options: MatchOptions) -> bool {
-        self.base.matches_path_with(path, options)
+    pub fn matches_path(&self, path: &Path) -> bool {
+        let path_lower = path.to_string_lossy().to_lowercase();
+        let flags = glob_flags();
+        self.base.matches(&path_lower, flags)
             || self
                 .fallback
                 .as_ref()
-                .is_some_and(|fallback| fallback.matches_path_with(path, options))
+                .is_some_and(|fallback| fallback.matches(&path_lower, flags))
     }
 
     pub fn is_direct_children(&self) -> bool {
-        self.fallback.is_none() && self.base.as_str().ends_with("/*")
+        self.fallback_str.is_none() && self.base_str.ends_with("/*")
     }
 
     pub fn contains(&self, sub: char) -> bool {
-        self.base.as_str().contains(sub)
-            || self
-                .fallback
-                .as_ref()
-                .is_some_and(|fallback| fallback.as_str().contains(sub))
+        self.base_str.contains(sub) || self.fallback_str.as_ref().is_some_and(|f| f.contains(sub))
+    }
+
+    pub fn base_str(&self) -> &str {
+        &self.base_str
+    }
+
+    pub fn fallback_str(&self) -> Option<&str> {
+        self.fallback_str.as_deref()
     }
 }
 
@@ -272,274 +326,174 @@ mod tests {
     use super::*;
     const EXAMPLE: &[u8] = include_bytes!("../test_fixtures/github/codeowners_example");
 
+    impl PatternWithFallback {
+        fn with_strs(base: &str, fallback: Option<&str>) -> Self {
+            let base_lower = base.to_lowercase();
+            let fallback_lower = fallback.map(|f| f.to_lowercase());
+            Self {
+                base: Arc::new(ZlobPattern::compile(&base_lower, glob_flags()).unwrap()),
+                base_str: base_lower,
+                fallback: fallback_lower
+                    .as_deref()
+                    .map(|f| Arc::new(ZlobPattern::compile(f, glob_flags()).unwrap())),
+                fallback_str: fallback_lower,
+            }
+        }
+
+        fn base_matches_path(&self, path: &Path) -> bool {
+            let path_lower = path.to_string_lossy().to_lowercase();
+            self.base.matches(&path_lower, glob_flags())
+        }
+    }
+
     #[test]
     fn pattern_with_fallback() {
+        // Patterns starting with `*` (not `**`) with no `/` get a `**/` prefix
+        // so that single `*` doesn't need to cross path separators in zlob.
         assert_eq!(
             PatternWithFallback::new("*").unwrap(),
-            PatternWithFallback {
-                base: Pattern::new("*").unwrap(),
-                fallback: None,
-            },
+            PatternWithFallback::with_strs("**/*", None),
         );
-
         assert_eq!(
             PatternWithFallback::new("*.js").unwrap(),
-            PatternWithFallback {
-                base: Pattern::new("*.js").unwrap(),
-                fallback: None,
-            },
+            PatternWithFallback::with_strs("**/*.js", None),
         );
 
         assert_eq!(
             PatternWithFallback::new("abc/**").unwrap(),
-            PatternWithFallback {
-                base: Pattern::new("abc/**").unwrap(),
-                fallback: None,
-            },
+            PatternWithFallback::with_strs("abc/**", None),
         );
 
         assert_eq!(
             PatternWithFallback::new(".xyz").unwrap(),
-            PatternWithFallback {
-                base: Pattern::new(".xyz").unwrap(),
-                fallback: Some(Pattern::new(".xyz/**").unwrap()),
-            },
+            PatternWithFallback::with_strs(".xyz", Some(".xyz/**")),
         );
         assert_eq!(
             PatternWithFallback::new(".xyz/").unwrap(),
-            PatternWithFallback {
-                base: Pattern::new(".xyz/").unwrap(),
-                fallback: None,
-            },
+            PatternWithFallback::with_strs(".xyz/", None),
         );
         assert_eq!(
             PatternWithFallback::new(".xyz.js").unwrap(),
-            PatternWithFallback {
-                base: Pattern::new(".xyz.js").unwrap(),
-                fallback: None,
-            },
+            PatternWithFallback::with_strs(".xyz.js", None),
         );
 
         assert_eq!(
             PatternWithFallback::new("/.abc/xyz").unwrap(),
-            PatternWithFallback {
-                base: Pattern::new("/.abc/xyz").unwrap(),
-                fallback: Some(Pattern::new("/.abc/xyz/**").unwrap()),
-            },
+            PatternWithFallback::with_strs("/.abc/xyz", Some("/.abc/xyz/**")),
         );
         assert_eq!(
             PatternWithFallback::new("/.abc/xyz/").unwrap(),
-            PatternWithFallback {
-                base: Pattern::new("/.abc/xyz/").unwrap(),
-                fallback: None,
-            },
+            PatternWithFallback::with_strs("/.abc/xyz/", None),
         );
         assert_eq!(
             PatternWithFallback::new("/.abc/xyz.js").unwrap(),
-            PatternWithFallback {
-                base: Pattern::new("/.abc/xyz.js").unwrap(),
-                fallback: None,
-            },
-        );
-
-        assert_eq!(
-            PatternWithFallback::new(".xyz").unwrap(),
-            PatternWithFallback {
-                base: Pattern::new(".xyz").unwrap(),
-                fallback: Some(Pattern::new(".xyz/**").unwrap()),
-            },
-        );
-        assert_eq!(
-            PatternWithFallback::new(".xyz/").unwrap(),
-            PatternWithFallback {
-                base: Pattern::new(".xyz/").unwrap(),
-                fallback: None,
-            },
-        );
-        assert_eq!(
-            PatternWithFallback::new(".xyz.js").unwrap(),
-            PatternWithFallback {
-                base: Pattern::new(".xyz.js").unwrap(),
-                fallback: None,
-            },
+            PatternWithFallback::with_strs("/.abc/xyz.js", None),
         );
 
         assert_eq!(
             PatternWithFallback::new("/abc/.xyz").unwrap(),
-            PatternWithFallback {
-                base: Pattern::new("/abc/.xyz").unwrap(),
-                fallback: Some(Pattern::new("/abc/.xyz/**").unwrap()),
-            },
+            PatternWithFallback::with_strs("/abc/.xyz", Some("/abc/.xyz/**")),
         );
         assert_eq!(
             PatternWithFallback::new("/abc/.xyz/").unwrap(),
-            PatternWithFallback {
-                base: Pattern::new("/abc/.xyz/").unwrap(),
-                fallback: None,
-            },
+            PatternWithFallback::with_strs("/abc/.xyz/", None),
         );
         assert_eq!(
             PatternWithFallback::new("/abc/.xyz.js").unwrap(),
-            PatternWithFallback {
-                base: Pattern::new("/abc/.xyz.js").unwrap(),
-                fallback: None,
-            },
+            PatternWithFallback::with_strs("/abc/.xyz.js", None),
         );
 
         assert_eq!(
             PatternWithFallback::new("abc/**/xyz").unwrap(),
-            PatternWithFallback {
-                base: Pattern::new("abc/**/xyz").unwrap(),
-                fallback: Some(Pattern::new("abc/**/xyz/**").unwrap()),
-            },
+            PatternWithFallback::with_strs("abc/**/xyz", Some("abc/**/xyz/**")),
         );
         assert_eq!(
             PatternWithFallback::new("abc/**/xyz/").unwrap(),
-            PatternWithFallback {
-                base: Pattern::new("abc/**/xyz/").unwrap(),
-                fallback: None,
-            },
+            PatternWithFallback::with_strs("abc/**/xyz/", None),
         );
         assert_eq!(
             PatternWithFallback::new("abc/**/xyz.js").unwrap(),
-            PatternWithFallback {
-                base: Pattern::new("abc/**/xyz.js").unwrap(),
-                fallback: None,
-            },
+            PatternWithFallback::with_strs("abc/**/xyz.js", None),
         );
 
         assert_eq!(
             PatternWithFallback::new("/abc/xyz").unwrap(),
-            PatternWithFallback {
-                base: Pattern::new("/abc/xyz").unwrap(),
-                fallback: Some(Pattern::new("/abc/xyz/**").unwrap()),
-            },
+            PatternWithFallback::with_strs("/abc/xyz", Some("/abc/xyz/**")),
         );
         assert_eq!(
             PatternWithFallback::new("/abc/xyz/").unwrap(),
-            PatternWithFallback {
-                base: Pattern::new("/abc/xyz/").unwrap(),
-                fallback: None,
-            },
+            PatternWithFallback::with_strs("/abc/xyz/", None),
         );
         assert_eq!(
             PatternWithFallback::new("/abc/xyz.js").unwrap(),
-            PatternWithFallback {
-                base: Pattern::new("/abc/xyz.js").unwrap(),
-                fallback: None,
-            },
+            PatternWithFallback::with_strs("/abc/xyz.js", None),
         );
 
         assert_eq!(
             PatternWithFallback::new("xyz").unwrap(),
-            PatternWithFallback {
-                base: Pattern::new("xyz").unwrap(),
-                fallback: Some(Pattern::new("xyz/**").unwrap()),
-            },
+            PatternWithFallback::with_strs("xyz", Some("xyz/**")),
         );
         assert_eq!(
             PatternWithFallback::new("xyz/").unwrap(),
-            PatternWithFallback {
-                base: Pattern::new("xyz/").unwrap(),
-                fallback: None,
-            },
+            PatternWithFallback::with_strs("xyz/", None),
         );
         assert_eq!(
             PatternWithFallback::new("xyz.js").unwrap(),
-            PatternWithFallback {
-                base: Pattern::new("xyz.js").unwrap(),
-                fallback: None,
-            },
+            PatternWithFallback::with_strs("xyz.js", None),
         );
 
         assert_eq!(
             PatternWithFallback::new("abc/xyz").unwrap(),
-            PatternWithFallback {
-                base: Pattern::new("abc/xyz").unwrap(),
-                fallback: Some(Pattern::new("abc/xyz/**").unwrap()),
-            },
+            PatternWithFallback::with_strs("abc/xyz", Some("abc/xyz/**")),
         );
         assert_eq!(
             PatternWithFallback::new("abc/xyz/").unwrap(),
-            PatternWithFallback {
-                base: Pattern::new("abc/xyz/").unwrap(),
-                fallback: None,
-            },
+            PatternWithFallback::with_strs("abc/xyz/", None),
         );
         assert_eq!(
             PatternWithFallback::new("abc/xyz.js").unwrap(),
-            PatternWithFallback {
-                base: Pattern::new("abc/xyz.js").unwrap(),
-                fallback: None,
-            },
+            PatternWithFallback::with_strs("abc/xyz.js", None),
         );
 
         assert_eq!(
             PatternWithFallback::new("/a bc/xyz").unwrap(),
-            PatternWithFallback {
-                base: Pattern::new("/a bc/xyz").unwrap(),
-                fallback: Some(Pattern::new("/a bc/xyz/**").unwrap()),
-            },
+            PatternWithFallback::with_strs("/a bc/xyz", Some("/a bc/xyz/**")),
         );
         assert_eq!(
             PatternWithFallback::new("/a bc/xyz/").unwrap(),
-            PatternWithFallback {
-                base: Pattern::new("/a bc/xyz/").unwrap(),
-                fallback: None,
-            },
+            PatternWithFallback::with_strs("/a bc/xyz/", None),
         );
         assert_eq!(
             PatternWithFallback::new("/a bc/xyz.js").unwrap(),
-            PatternWithFallback {
-                base: Pattern::new("/a bc/xyz.js").unwrap(),
-                fallback: None,
-            },
+            PatternWithFallback::with_strs("/a bc/xyz.js", None),
         );
 
         assert_eq!(
             PatternWithFallback::new("/abc/x yz").unwrap(),
-            PatternWithFallback {
-                base: Pattern::new("/abc/x yz").unwrap(),
-                fallback: Some(Pattern::new("/abc/x yz/**").unwrap()),
-            },
+            PatternWithFallback::with_strs("/abc/x yz", Some("/abc/x yz/**")),
         );
         assert_eq!(
             PatternWithFallback::new("/abc/x yz/").unwrap(),
-            PatternWithFallback {
-                base: Pattern::new("/abc/x yz/").unwrap(),
-                fallback: None,
-            },
+            PatternWithFallback::with_strs("/abc/x yz/", None),
         );
         assert_eq!(
             PatternWithFallback::new("/abc/x yz.js").unwrap(),
-            PatternWithFallback {
-                base: Pattern::new("/abc/x yz.js").unwrap(),
-                fallback: None,
-            },
+            PatternWithFallback::with_strs("/abc/x yz.js", None),
         );
 
         assert_eq!(
             PatternWithFallback::new("/abc**").unwrap(),
-            PatternWithFallback {
-                base: Pattern::new("/abc*").unwrap(),
-                fallback: Some(Pattern::new("/abc*/**").unwrap()),
-            },
+            PatternWithFallback::with_strs("/abc*", Some("/abc*/**")),
         );
 
         assert_eq!(
             PatternWithFallback::new("/**").unwrap(),
-            PatternWithFallback {
-                base: Pattern::new("/**").unwrap(),
-                fallback: None,
-            },
+            PatternWithFallback::with_strs("/**", None),
         );
 
         assert_eq!(
             PatternWithFallback::new("**").unwrap(),
-            PatternWithFallback {
-                base: Pattern::new("**").unwrap(),
-                fallback: None,
-            },
+            PatternWithFallback::with_strs("**", None),
         );
     }
 
@@ -566,66 +520,39 @@ mod tests {
             GitHubOwners {
                 paths: vec![
                     (
-                        PatternWithFallback {
-                            base: Pattern::new("**/another").unwrap(),
-                            fallback: Some(Pattern::new("**/another/**").unwrap()),
-                        },
+                        PatternWithFallback::with_strs("**/another", Some("**/another/**")),
                         vec![GitHubOwner::Username("@bctocat".into())]
                     ),
                     (
-                        PatternWithFallback {
-                            base: Pattern::new("**/etc/**").unwrap(),
-                            fallback: None,
-                        },
+                        PatternWithFallback::with_strs("**/etc/**", None),
                         vec![GitHubOwner::Username("@actocat".into())]
                     ),
                     (
-                        PatternWithFallback {
-                            base: Pattern::new("docs/**").unwrap(),
-                            fallback: None,
-                        },
+                        PatternWithFallback::with_strs("docs/**", None),
                         vec![GitHubOwner::Username("@doctocat".into())]
                     ),
                     (
-                        PatternWithFallback {
-                            base: Pattern::new("**/apps/**").unwrap(),
-                            fallback: None,
-                        },
+                        PatternWithFallback::with_strs("**/apps/**", None),
                         vec![GitHubOwner::Username("@octocat".into())]
                     ),
                     (
-                        PatternWithFallback {
-                            base: Pattern::new("**/docs/*").unwrap(),
-                            fallback: None,
-                        },
+                        PatternWithFallback::with_strs("**/docs/*", None),
                         vec![GitHubOwner::Email("docs@example.com".into())]
                     ),
                     (
-                        PatternWithFallback {
-                            base: Pattern::new("build/logs/**").unwrap(),
-                            fallback: None,
-                        },
+                        PatternWithFallback::with_strs("build/logs/**", None),
                         vec![GitHubOwner::Username("@doctocat".into())]
                     ),
                     (
-                        PatternWithFallback {
-                            base: Pattern::new("*.go").unwrap(),
-                            fallback: None,
-                        },
+                        PatternWithFallback::with_strs("**/*.go", None),
                         vec![GitHubOwner::Email("docs@example.com".into())]
                     ),
                     (
-                        PatternWithFallback {
-                            base: Pattern::new("*.js").unwrap(),
-                            fallback: None,
-                        },
+                        PatternWithFallback::with_strs("**/*.js", None),
                         vec![GitHubOwner::Username("@js-owner".into())]
                     ),
                     (
-                        PatternWithFallback {
-                            base: Pattern::new("*").unwrap(),
-                            fallback: None,
-                        },
+                        PatternWithFallback::with_strs("**/*", None),
                         vec![
                             GitHubOwner::Username("@global-owner1".into()),
                             GitHubOwner::Username("@global-owner2".into()),
@@ -807,56 +734,36 @@ mod tests {
     fn pattern_fallback_for_anchored_directory() {
         // /src/components should create base "src/components" with fallback "src/components/**"
         let pat = pattern("/src/components").unwrap();
-        assert_eq!(pat.base.as_str(), "src/components");
-        assert!(pat.fallback.is_some());
-        assert_eq!(pat.fallback.as_ref().unwrap().as_str(), "src/components/**");
+        assert_eq!(pat.base_str(), "src/components");
+        assert!(pat.fallback_str().is_some());
+        assert_eq!(pat.fallback_str().unwrap(), "src/components/**");
 
-        // Verify the fallback pattern actually matches nested paths
-        let opts = glob::MatchOptions {
-            case_sensitive: false,
-            require_literal_separator: true,
-            require_literal_leading_dot: false,
-        };
         let nested_path = Path::new("src/components/ui/buttons/primary_button.rs");
 
-        // Base should NOT match (it's just "src/components")
-        assert!(!pat.base.matches_path_with(nested_path, opts));
+        // Base alone should NOT match
+        assert!(!pat.base_matches_path(nested_path));
 
-        // Fallback SHOULD match
+        // Fallback should make the combined match succeed
         assert!(
-            pat.fallback
-                .as_ref()
-                .unwrap()
-                .matches_path_with(nested_path, opts),
+            pat.matches_path(nested_path),
             "Fallback pattern 'src/components/**' should match deeply nested path"
         );
-
-        // Combined matches_path_with should work
-        assert!(pat.matches_path_with(nested_path, opts));
     }
 
     #[test]
     fn parent_walking_matches_intermediate_paths() {
         let pat = pattern("/src/components").unwrap();
-        let opts = glob::MatchOptions {
-            case_sensitive: false,
-            require_literal_separator: true,
-            require_literal_leading_dot: false,
-        };
 
         // The base pattern should match the exact directory path
         assert!(
-            pat.base
-                .matches_path_with(Path::new("src/components"), opts),
+            pat.base_matches_path(Path::new("src/components")),
             "Base pattern 'src/components' should match exact path 'src/components'"
         );
 
         // The fallback should match intermediate paths under the directory
         assert!(
-            pat.fallback
-                .as_ref()
-                .unwrap()
-                .matches_path_with(Path::new("src/components/ui"), opts),
+            PatternWithFallback::with_strs(pat.fallback_str().unwrap(), None)
+                .matches_path(Path::new("src/components/ui")),
             "Fallback 'src/components/**' should match 'src/components/ui'"
         );
     }

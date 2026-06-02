@@ -42,3 +42,6 @@ incremental = true
 opt-level = 0
 debug = true
 incremental = true
+
+[patch.crates-io]
+zlob = { path = "../zlob/rust" }

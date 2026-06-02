@@ -3,9 +3,14 @@ use std::{io::BufRead, path::PathBuf};
 use fancy_regex::Regex;
 use indexmap::IndexMap;
 use lazy_static::lazy_static;
+use zlob::{ZlobFlags, ZlobPattern};
 
 use super::{Entry, Error, Section, SectionParser};
 use crate::gitlab::{ErrorType, ReferenceExtractor};
+
+const GLOB_FLAGS: ZlobFlags = ZlobFlags::from_bits_retain(
+    ZlobFlags::DOUBLESTAR_RECURSIVE.bits() | ZlobFlags::PERIOD.bits() | ZlobFlags::PATHNAME.bits(),
+);
 
 pub type ParsedData = IndexMap<String, IndexMap<String, Entry>>;
 
@@ -229,19 +234,9 @@ impl File {
     }
 
     fn path_matches<T: AsRef<str>, U: AsRef<str>>(pattern: T, path: U) -> bool {
-        glob::Pattern::new(pattern.as_ref())
-            .ok()
-            .map(|p| {
-                p.matches_with(
-                    path.as_ref(),
-                    glob::MatchOptions {
-                        case_sensitive: true,
-                        require_literal_leading_dot: false,
-                        require_literal_separator: true,
-                    },
-                )
-            })
-            .unwrap_or_default()
+        ZlobPattern::compile(pattern.as_ref(), GLOB_FLAGS)
+            .map(|p| p.matches(path.as_ref(), GLOB_FLAGS))
+            .unwrap_or(false)
     }
 
     fn add_error(&mut self, message: ErrorType, line_number: usize) {
@@ -295,7 +290,7 @@ mod tests {
 
     mod parsed_data {
         mod when_codeowners_file_contains_no_sections {
-            use crate::gitlab::file::tests::{owner_line, FILE};
+            use crate::gitlab::file::tests::{FILE, owner_line};
 
             #[test]
             fn parses_all_the_required_lines() {
@@ -332,11 +327,11 @@ mod tests {
 
         mod when_handling_a_sectional_codeowners_file {
             use crate::gitlab::{
+                Section,
                 file::tests::{
                     FILE, FILE_MIXED_CASE_SECTIONAL_CODEOWNERS_EXAMPLE,
                     FILE_SECTIONAL_CODEOWNERS_EXAMPLE,
                 },
-                Section,
             };
 
             mod creates_expected_parsed_sectional_results {
@@ -606,7 +601,7 @@ mod tests {
     }
 
     mod empty {
-        use crate::gitlab::{file::tests::FILE, File};
+        use crate::gitlab::{File, file::tests::FILE};
 
         #[test]
         fn is_not_empty() {
