@@ -1265,7 +1265,6 @@ fn test_bitbucket_missing_job_url_vars() {
 fn test_simple_circleci() {
     let branch = String::from("circleci-project-setup");
     let build_url = String::from("https://circleci.com/gh/trunk-io/trunk2/6");
-    let workflow_id = String::from("5a984496-cf63-4f63-b315-5776a3186d4b");
     let job_name = String::from("unit-tests");
     let username = String::from("mmatheson");
 
@@ -1281,10 +1280,6 @@ fn test_simple_circleci() {
         (String::from("CIRCLE_USERNAME"), String::from(&username)),
         (String::from("CIRCLE_BUILD_NUM"), String::from("6")),
         (String::from("CIRCLE_BUILD_URL"), String::from(&build_url)),
-        (
-            String::from("CIRCLE_WORKFLOW_NAME"),
-            String::from(&workflow_id),
-        ),
         (
             String::from("CIRCLE_REPOSITORY_URL"),
             String::from("git@github.com:trunk-io/trunk2.git"),
@@ -1323,7 +1318,7 @@ fn test_simple_circleci() {
             author_email: None,
             commit_message: None,
             title: None,
-            workflow: Some(workflow_id),
+            workflow: None,
             job: Some(job_name),
         }
     );
@@ -1386,7 +1381,7 @@ fn test_circleci_app_job_url_for_github_hosted_build() {
             author_email: None,
             commit_message: None,
             title: None,
-            workflow: Some(workflow_id),
+            workflow: None,
             job: None,
         }
     );
@@ -1396,7 +1391,6 @@ fn test_circleci_app_job_url_for_github_hosted_build() {
 fn test_circleci_pr() {
     let branch = String::from("feature/add-feature");
     let build_url = String::from("https://circleci.com/gh/my-org/my-repo/456");
-    let workflow_id = String::from("workflow-def-456");
     let job_name = String::from("build-and-test");
     let username = String::from("janedoe");
     let pr_number = 42;
@@ -1405,10 +1399,6 @@ fn test_circleci_pr() {
         (String::from("CIRCLECI"), String::from("true")),
         (String::from("CIRCLE_BRANCH"), String::from(&branch)),
         (String::from("CIRCLE_BUILD_URL"), String::from(&build_url)),
-        (
-            String::from("CIRCLE_WORKFLOW_NAME"),
-            String::from(&workflow_id),
-        ),
         (String::from("CIRCLE_JOB"), String::from(&job_name)),
         (String::from("CIRCLE_USERNAME"), String::from(&username)),
         (String::from("CIRCLE_PR_NUMBER"), pr_number.to_string()),
@@ -1434,7 +1424,7 @@ fn test_circleci_pr() {
             author_email: None,
             commit_message: None,
             title: None,
-            workflow: Some(workflow_id),
+            workflow: None,
             job: Some(job_name),
         }
     );
@@ -1483,7 +1473,7 @@ fn test_circleci_pull_request_url_fallback() {
             author_email: None,
             commit_message: None,
             title: None,
-            workflow: Some(workflow_id),
+            workflow: None,
             job: Some(job_name),
         }
     );

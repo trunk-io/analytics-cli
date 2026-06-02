@@ -527,7 +527,6 @@ impl<'a> CIInfoParser<'a> {
             });
         self.ci_info.actor = self.get_env_var("CIRCLE_USERNAME");
 
-        self.ci_info.workflow = self.get_env_var("CIRCLE_WORKFLOW_NAME");
         self.ci_info.job = self.get_env_var("CIRCLE_JOB");
     }
 
