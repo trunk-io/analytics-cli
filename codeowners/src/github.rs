@@ -86,40 +86,17 @@ impl OwnersOfPath for GitHubOwners {
     where
         P: AsRef<Path>,
     {
+        let path_str = path.as_ref().to_string_lossy();
+        // Strip ./ prefix once so patterns don't need to account for it.
+        let path_lower = path_str
+            .strip_prefix("./")
+            .unwrap_or(&path_str)
+            .to_lowercase();
+
         self.paths
             .iter()
-            .filter_map(|mapping| {
-                let (pattern, owners) = mapping;
-                if pattern.matches_path(path.as_ref()) {
-                    Some(owners)
-                } else {
-                    // NOTE: if the path is relative, we need to strip the leading dot
-                    // to match the pattern. We are doing this as a workaround for
-                    // cases where the provided path is relative, like `./foo/bar/baz.rs`
-                    if let Ok(simplified_path) = path.as_ref().strip_prefix("./") {
-                        if pattern.matches_path(simplified_path) {
-                            return Some(owners);
-                        }
-                    }
-                    if pattern.is_direct_children() {
-                        return None;
-                    }
-                    // case of implied owned children
-                    // foo/bar @owner should indicate that foo/bar/baz.rs is
-                    // owned by @owner
-                    let mut p = path.as_ref();
-                    while let Some(parent) = p.parent() {
-                        if pattern.matches_path(parent) {
-                            return Some(owners);
-                        } else {
-                            p = parent;
-                        }
-                    }
-                    None
-                }
-            })
-            .next()
-            .cloned()
+            .find(|(pattern, _)| pattern.matches_str(&path_lower))
+            .map(|(_, owners)| owners.clone())
     }
 }
 
@@ -216,9 +193,8 @@ impl fmt::Debug for PatternWithFallback {
     }
 }
 
-fn glob_flags() -> ZlobFlags {
-    ZlobFlags::DOUBLESTAR_RECURSIVE | ZlobFlags::PERIOD
-}
+const GLOB_FLAGS: ZlobFlags =
+    ZlobFlags::from_bits_retain(ZlobFlags::DOUBLESTAR_RECURSIVE.bits() | ZlobFlags::PERIOD.bits());
 
 /// Patterns like `*.js` or `*` start with `*` (not `**`) and have no `/`, so
 /// they need a `**/` prefix — zlob's `*` won't cross path separators.
@@ -231,7 +207,7 @@ fn normalize_zlob(pattern: &str) -> String {
 }
 
 fn compile_zlob(pattern: &str) -> anyhow::Result<Arc<ZlobPattern>> {
-    ZlobPattern::compile(pattern, glob_flags())
+    ZlobPattern::compile(pattern, GLOB_FLAGS)
         .map(Arc::new)
         .map_err(|e| anyhow::anyhow!("{:?}", e))
 }
@@ -276,16 +252,20 @@ impl PatternWithFallback {
         Ok(result)
     }
 
-    pub fn matches_path(&self, path: &Path) -> bool {
-        let path_lower = path.to_string_lossy().to_lowercase();
-        let flags = glob_flags();
-        self.base.matches(&path_lower, flags)
+    fn matches_str(&self, path: &str) -> bool {
+        self.base.matches(path, GLOB_FLAGS)
             || self
                 .fallback
                 .as_ref()
-                .is_some_and(|fallback| fallback.matches(&path_lower, flags))
+                .is_some_and(|fallback| fallback.matches(path, GLOB_FLAGS))
     }
 
+    #[allow(dead_code)]
+    pub fn matches_path(&self, path: &Path) -> bool {
+        self.matches_str(&path.to_string_lossy().to_lowercase())
+    }
+
+    #[allow(dead_code)]
     pub fn is_direct_children(&self) -> bool {
         self.fallback_str.is_none() && self.base_str.ends_with("/*")
     }
@@ -331,18 +311,18 @@ mod tests {
             let base_lower = base.to_lowercase();
             let fallback_lower = fallback.map(|f| f.to_lowercase());
             Self {
-                base: Arc::new(ZlobPattern::compile(&base_lower, glob_flags()).unwrap()),
+                base: Arc::new(ZlobPattern::compile(&base_lower, GLOB_FLAGS).unwrap()),
                 base_str: base_lower,
                 fallback: fallback_lower
                     .as_deref()
-                    .map(|f| Arc::new(ZlobPattern::compile(f, glob_flags()).unwrap())),
+                    .map(|f| Arc::new(ZlobPattern::compile(f, GLOB_FLAGS).unwrap())),
                 fallback_str: fallback_lower,
             }
         }
 
         fn base_matches_path(&self, path: &Path) -> bool {
             let path_lower = path.to_string_lossy().to_lowercase();
-            self.base.matches(&path_lower, glob_flags())
+            self.base.matches(&path_lower, GLOB_FLAGS)
         }
     }
 
