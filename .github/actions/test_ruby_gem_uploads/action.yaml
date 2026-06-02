@@ -124,6 +124,30 @@ runs:
         TRUNK_API_TOKEN: ${{ inputs.trunk-token }}
         TRUNK_VARIANT: smoke-test-variant
 
+    - name: Run quarantine lookup failure abort test (should fail fast, skip slow_test)
+      id: run-quarantine-abort-test
+      shell: bash
+      working-directory: ${{ github.action_path }}
+      run: |
+        set +e
+        timeout 25s bundle exec rspec spec/test_spec.rb spec/slow_test.rb --format documentation
+        EXIT_CODE=$?
+        if [ $EXIT_CODE -eq 124 ]; then
+          echo "ERROR: Test run exceeded 25s timeout — slow_test was not skipped (abort regression)"
+          exit 1
+        elif [ $EXIT_CODE -eq 0 ]; then
+          echo "ERROR: Expected non-zero exit (fail_test should fail)"
+          exit 1
+        else
+          echo "SUCCESS: Quarantine lookup failure aborted run before slow_test (exit ${EXIT_CODE})"
+        fi
+      env:
+        TRUNK_QUARANTINE_QUERY_FAILURE_EXIT: "true"
+        TRUNK_ORG_URL_SLUG: fake-org
+        TRUNK_API_TOKEN: fake-token
+        TRUNK_QUARANTINED_TESTS_DISK_CACHE_TTL_SECS: "0"
+        TRUNK_API_CLIENT_RETRY_COUNT: "0"
+
     - name: Run knapsack_pro queue and verify a single local bundle
       shell: bash
       if: inputs.knapsack-pro-test-suite-token-rspec != ''

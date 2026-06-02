@@ -106,6 +106,16 @@ require 'trunk_spec_helper'
 
 For a complete list of environment variables that the gem accepts, see [`lib/trunk_spec_helper.rb`](lib/trunk_spec_helper.rb). The gem uses the same environment variables as the Trunk Analytics CLI for configuration overrides. `TRUNK_ORG_URL_SLUG` and `TRUNK_API_TOKEN` must be set to activate the plugin.
 
+#### `TRUNK_QUARANTINE_QUERY_FAILURE_EXIT`
+
+When set to `true`, the RSpec run aborts on the first quarantine lookup failure. The current failing example is still marked as failed, but remaining examples are skipped and not executed. Partial test results are still uploaded via the normal `close` hook.
+
+By default (when unset or not `true`), quarantine lookup failures print a warning and the run continues as normal.
+
+```bash
+TRUNK_QUARANTINE_QUERY_FAILURE_EXIT=true bundle exec rspec
+```
+
 #### `TRUNK_LOCAL_UPLOAD_DIR` (Experimental)
 
 > **⚠️ Experimental Feature**: This feature is experimental. Please reach out to support@trunk.io before attempting to use it.
