@@ -39,3 +39,85 @@ jobs:
       - name: Validate ruby platform gem
         if: "!cancelled()"
         uses: ./.github/actions/validate_ruby_platform_gem
+
+  build-ruby-gem:
+    name: Build Ruby gem
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.4"
+          bundler-cache: true
+          working-directory: rspec-trunk-flaky-tests
+
+      - name: Get commit SHA
+        id: get-sha
+        shell: bash
+        run: |
+          COMMIT_SHA=$(git rev-parse --short HEAD)
+          echo "sha=${COMMIT_SHA}" >> $GITHUB_OUTPUT
+          echo "Setting version to 0.0.0-${COMMIT_SHA}"
+
+      - name: Update version with commit SHA
+        uses: ./.github/actions/update_version
+        with:
+          version: 0.0.0-${{ steps.get-sha.outputs.sha }}
+          file: cli/Cargo.toml
+
+      - name: Update Test Report version
+        uses: ./.github/actions/update_version
+        with:
+          version: 0.0.0-${{ steps.get-sha.outputs.sha }}
+          file: test_report/Cargo.toml
+
+      - name: Update Gem version
+        uses: ./.github/actions/update_version
+        with:
+          version: 0.0.0-${{ steps.get-sha.outputs.sha }}
+          file: rspec-trunk-flaky-tests/rspec_trunk_flaky_tests.gemspec
+
+      # this is necessary because the cross-gem action doesn't support reading the Gemfile.lock from the subdirectory
+      # leading to a mismatch in the rb_sys version
+      - name: Copy Gemfile.lock to root
+        run: cp rspec-trunk-flaky-tests/Gemfile.lock ./Gemfile.lock
+        shell: bash
+
+      - name: Build cross-compiled gem
+        uses: oxidize-rb/actions/cross-gem@v1
+        with:
+          platform: x86_64-linux
+          working-directory: rspec-trunk-flaky-tests
+          ruby-versions: "3.4"
+
+      - name: Upload gem artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ruby-gem-pr
+          path: rspec-trunk-flaky-tests/pkg/*.gem
+          if-no-files-found: error
+          retention-days: 1
+
+  test-ruby-gem-uploads:
+    name: Test Ruby gem uploads
+    runs-on: ubuntu-latest
+    needs: build-ruby-gem
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download gem artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ruby-gem-pr
+          path: .github/actions/test_ruby_gem_uploads/
+
+      - uses: ./.github/actions/test_ruby_gem_uploads
+        with:
+          ruby-version: "3.4"
+          trunk-token: ${{ secrets.TRUNK_STAGING_ORG_API_TOKEN }}
+          trunk-public-api-address: https://api.trunk-staging.io
+          trunk-org-slug: trunk-staging-org
+          platform: x86_64-linux
+          artifact-pattern: ""
+          knapsack-pro-test-suite-token-rspec: ${{ secrets.KNAPSACK_PRO_TEST_SUITE_TOKEN_RSPEC }}
