@@ -147,6 +147,7 @@ runs:
         TRUNK_API_TOKEN: fake-token
         TRUNK_QUARANTINED_TESTS_DISK_CACHE_TTL_SECS: "0"
         TRUNK_API_CLIENT_RETRY_COUNT: "0"
+        DISABLE_TELEMETRY: "true"
 
     - name: Run knapsack_pro queue and verify a single local bundle
       shell: bash
