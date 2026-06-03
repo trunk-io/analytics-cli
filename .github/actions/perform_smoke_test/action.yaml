@@ -90,7 +90,8 @@ runs:
         --org-url-slug trunk-staging-org \
         --xcresult-path smoke-test/swift/TestResults.xcresult \
         --token ${{ inputs.staging-api-token }} \
-        --test-process-exit-code $EXIT_CODE
+        --test-process-exit-code $EXIT_CODE \
+        --test-collection-short-id z2dzjLHm
       env:
         TRUNK_PUBLIC_API_ADDRESS: https://api.trunk-staging.io
 
@@ -104,7 +105,8 @@ runs:
         ./${{ inputs.cli-binary-location }} upload \
         --org-url-slug trunk-staging-org \
         --junit-paths "${{ github.workspace }}/target/**/*junit.xml" \
-        --token ${{ inputs.staging-api-token }}
+        --token ${{ inputs.staging-api-token }} \
+        --test-collection-short-id z2dzjLHm
 
     - name: Upload to staging with public repo id
       id: staging-upload-public-repo-id
@@ -136,7 +138,8 @@ runs:
         --org-url-slug trunk-staging-org \
         --junit-paths "${{ github.workspace }}/target/**/*junit.xml" \
         --token ${{ inputs.staging-api-token }} \
-        --variant smoke-test-variant
+        --variant smoke-test-variant \
+        --test-collection-short-id z2dzjLHm
         EXIT_CODE=$?
         if [ $EXIT_CODE -eq 0 ]; then
           echo "ERROR: Expected upload with variant to fail, but it succeeded"
