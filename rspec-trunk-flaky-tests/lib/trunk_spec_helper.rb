@@ -27,6 +27,8 @@
 #   TRUNK_USE_UNCLONED_REPO - Set to 'true' for uncloned repo mode
 #   TRUNK_LOCAL_UPLOAD_DIR - Directory to save test results locally (disables upload)
 #   TRUNK_QUARANTINED_TESTS_DISK_CACHE_TTL_SECS - Time to cache quarantined tests on disk (in seconds)
+#   TRUNK_QUARANTINE_QUERY_FAILURE_EXIT - Set to 'true' to abort the RSpec run when quarantine
+#     lookup fails (remaining examples are skipped)
 #   DISABLE_RSPEC_TRUNK_FLAKY_TESTS - Set to 'true' to completely disable Trunk
 #
 require 'rspec/core'
@@ -84,6 +86,10 @@ def trunk_disabled
     ENV['TRUNK_ORG_URL_SLUG'].nil? || ENV['TRUNK_API_TOKEN'].nil?
 end
 
+def quarantine_query_failure_exit?
+  ENV['TRUNK_QUARANTINE_QUERY_FAILURE_EXIT'] == 'true'
+end
+
 # we want to cache the test report in memory so we can add to it as we go and reduce the number of API calls
 $test_report = TestReport.new('rspec', "#{$PROGRAM_NAME} #{ARGV.join(' ')}", nil)
 $failure_encountered_and_quarantining_disabled = false
@@ -125,6 +131,10 @@ module RSpec
           unless $failure_encountered_and_quarantine_lookup_failed
             puts 'Failed to check quarantining status, no failures will be quarantined'.yellow
             $failure_encountered_and_quarantine_lookup_failed = true
+          end
+          if quarantine_query_failure_exit?
+            puts 'Quarantine lookup failed, exiting early'.red
+            RSpec.world.wants_to_quit = true
           end
           set_exception_core(exception)
         elsif is_quarantined_result.quarantining_disabled_for_repo
@@ -364,6 +374,12 @@ end
 
 RSpec.configure do |c|
   next if trunk_disabled
+
+  c.before(:example) do
+    if $failure_encountered_and_quarantine_lookup_failed && quarantine_query_failure_exit?
+      skip('Quarantine lookup failed, skipping test run')
+    end
+  end
 
   c.reporter.register_listener TrunkAnalyticsListener.new, :example_finished, :close
 end

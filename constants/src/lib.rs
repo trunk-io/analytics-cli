@@ -50,6 +50,9 @@ pub const TRUNK_TEST_PROCESS_EXIT_CODE_ENV: &str = "TRUNK_TEST_PROCESS_EXIT_CODE
 pub const TRUNK_VALIDATION_REPORT_ENV: &str = "TRUNK_VALIDATION_REPORT";
 pub const TRUNK_SHOW_FAILURE_MESSAGES_ENV: &str = "TRUNK_SHOW_FAILURE_MESSAGES";
 pub const TRUNK_DEBUG_ENV: &str = "TRUNK_DEBUG";
+// RSpec-only: when set to "true", aborts the RSpec run if quarantine lookup fails.
+// Handled in rspec-trunk-flaky-tests/lib/trunk_spec_helper.rb, not the CLI.
+pub const TRUNK_QUARANTINE_QUERY_FAILURE_EXIT_ENV: &str = "TRUNK_QUARANTINE_QUERY_FAILURE_EXIT";
 
 // TRUNK_* environment variables to capture in bundle metadata for debugging.
 // TRUNK_API_TOKEN_ENV is intentionally omitted.
@@ -73,6 +76,7 @@ pub const TRUNK_ENVS_TO_CAPTURE: &[&str] = &[
     TRUNK_VARIANT_ENV,
     TRUNK_USE_UNCLONED_REPO_ENV,
     TRUNK_DISABLE_QUARANTINING_ENV,
+    TRUNK_QUARANTINE_QUERY_FAILURE_EXIT_ENV,
     TRUNK_ALLOW_EMPTY_TEST_RESULTS_ENV,
     TRUNK_DRY_RUN_ENV,
     TRUNK_TEST_PROCESS_EXIT_CODE_ENV,
