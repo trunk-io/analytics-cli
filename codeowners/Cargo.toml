@@ -12,6 +12,9 @@ assert_matches = "1.5.0"
 pretty_assertions = "0.6"
 rand = "0.8.5"
 criterion = { version = "0.5", features = ["html_reports"] }
+fast-glob = "1.0.1"
+glob = "0.3"
+regex = "1.2"
 
 [[bench]]
 name = "matching"
@@ -20,9 +23,21 @@ harness = false
 [[example]]
 name = "stress"
 
+[[example]]
+name = "real_bench"
+
+[[example]]
+name = "parse_profile"
+
+[[example]]
+name = "glob_compare"
+
+[[example]]
+name = "ac_value"
+
 [dependencies]
 clap = { version = "4.4.18", features = ["derive", "env"] }
-glob = "0.3"
+owners-glob = { path = "../owners-glob" }
 regex = "1.2"
 lazy_static = "1.4"
 anyhow = "1.0.86"

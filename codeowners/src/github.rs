@@ -6,9 +6,8 @@ use std::{
     str::FromStr,
 };
 
-use glob::{MatchOptions, Pattern};
 use lazy_static::lazy_static;
-use once_cell::sync::Lazy;
+use owners_glob::{PatternOptions, acmatcher::AcMatcher};
 #[cfg(feature = "pyo3")]
 use pyo3::prelude::*;
 #[cfg(feature = "pyo3")]
@@ -73,10 +72,21 @@ impl FromStr for GitHubOwner {
 }
 
 /// Mappings of GitHub owners to path patterns
-#[derive(Debug, PartialEq, Clone, Eq)]
+#[derive(Debug, Clone)]
 pub struct GitHubOwners {
-    paths: Vec<(PatternWithFallback, Vec<GitHubOwner>)>,
+    matcher: AcMatcher,
+    owners: Vec<Vec<GitHubOwner>>,
 }
+
+impl PartialEq for GitHubOwners {
+    fn eq(&self, other: &Self) -> bool {
+        // Compare the externally observable bits — the input owner mappings.
+        // `AcMatcher` is an opaque index over the same data.
+        self.owners == other.owners
+    }
+}
+
+impl Eq for GitHubOwners {}
 
 impl OwnersOfPath for GitHubOwners {
     type Owner = GitHubOwner;
@@ -85,45 +95,10 @@ impl OwnersOfPath for GitHubOwners {
     where
         P: AsRef<Path>,
     {
-        self.paths
-            .iter()
-            .filter_map(|mapping| {
-                let (pattern, owners) = mapping;
-                let opts = glob::MatchOptions {
-                    case_sensitive: false,
-                    require_literal_separator: pattern.contains('/'),
-                    require_literal_leading_dot: false,
-                };
-                if pattern.matches_path_with(path.as_ref(), opts) {
-                    Some(owners)
-                } else {
-                    // NOTE: if the path is relative, we need to strip the leading dot
-                    // to match the pattern. We are doing this as a workaround for
-                    // cases where the provided path is relative, like `./foo/bar/baz.rs`
-                    if let Ok(simplified_path) = path.as_ref().strip_prefix("./") {
-                        if pattern.matches_path_with(simplified_path, opts) {
-                            return Some(owners);
-                        }
-                    }
-                    if pattern.is_direct_children() {
-                        return None;
-                    }
-                    // case of implied owned children
-                    // foo/bar @owner should indicate that foo/bar/baz.rs is
-                    // owned by @owner
-                    let mut p = path.as_ref();
-                    while let Some(parent) = p.parent() {
-                        if pattern.matches_path_with(parent, opts) {
-                            return Some(owners);
-                        } else {
-                            p = parent;
-                        }
-                    }
-                    None
-                }
-            })
-            .next()
-            .cloned()
+        let path_str = path.as_ref().to_string_lossy();
+        self.matcher
+            .first_match(&path_str)
+            .map(|idx| self.owners[idx].clone())
     }
 }
 
@@ -137,38 +112,35 @@ impl FromPath for GitHubOwners {
 }
 
 impl FromReader for GitHubOwners {
-    /// Parse a CODEOWNERS file from some readable source
-    /// This format is defined in
-    /// [Github's documentation](https://help.github.com/articles/about-codeowners/)
-    /// The syntax is uses gitgnore
-    /// [patterns](https://www.kernel.org/pub/software/scm/git/docs/gitignore.html#_pattern_format)
-    /// followed by an identifier for an owner. More information can be found
-    /// [here](https://help.github.com/articles/about-codeowners/#codeowners-syntax)
+    /// Parse a CODEOWNERS file from some readable source.
+    ///
+    /// The format follows GitHub's documentation:
+    /// <https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners>
     fn from_reader<R>(read: R) -> anyhow::Result<GitHubOwners>
     where
         R: Read,
     {
-        let mut paths = BufReader::new(read)
+        let mut entries: Vec<(String, Vec<GitHubOwner>)> = BufReader::new(read)
             .lines()
             /* trunk-ignore(clippy/lines_filter_map_ok) */
             .filter_map(Result::ok)
             .filter(|line| !line.is_empty() && !line.starts_with('#'))
-            .try_fold(Vec::new(), |mut paths, line| -> anyhow::Result<_> {
+            .filter_map(|line| {
                 let mut elements = line.split_whitespace();
-                if let Some(path) = elements.next() {
-                    let owners = elements.fold(Vec::new(), |mut result, owner| {
-                        if let Ok(owner) = owner.parse() {
-                            result.push(owner)
-                        }
-                        result
-                    });
-                    paths.push((pattern(path)?, owners))
-                }
-                Ok(paths)
-            })?;
-        // last match takes precedence
-        paths.reverse();
-        Ok(GitHubOwners { paths })
+                let raw_pattern = elements.next()?.to_owned();
+                let owners = elements
+                    .filter_map(|o| o.parse().ok())
+                    .collect::<Vec<GitHubOwner>>();
+                Some((raw_pattern, owners))
+            })
+            .collect();
+        // Last match in the file takes precedence — reverse so index 0 = highest priority.
+        entries.reverse();
+        let raw_patterns: Vec<&str> = entries.iter().map(|(p, _)| p.as_str()).collect();
+        let matcher = AcMatcher::new(raw_patterns, PatternOptions::default())
+            .map_err(|e| anyhow::anyhow!("{e}"))?;
+        let owners = entries.into_iter().map(|(_, o)| o).collect();
+        Ok(GitHubOwners { matcher, owners })
     }
 }
 
@@ -186,362 +158,10 @@ impl BindingsGitHubOwners {
     }
 }
 
-#[derive(Debug, PartialEq, Clone, Eq)]
-pub struct PatternWithFallback {
-    base: Pattern,
-    fallback: Option<Pattern>,
-}
-
-impl PatternWithFallback {
-    pub fn new(base: &str) -> anyhow::Result<Self> {
-        let result = if base.ends_with("**") && !base.ends_with("/**") && base.len() > 2 {
-            let un_wildcarded = base.strip_suffix("**").unwrap_or(base);
-            let base_pattern =
-                Pattern::new(format!("{}*", un_wildcarded).as_str()).map_err(anyhow::Error::msg)?;
-            let fallback_pattern = Pattern::new(format!("{}*/**", un_wildcarded).as_str())
-                .map_err(anyhow::Error::msg)?;
-
-            Self {
-                base: base_pattern,
-                fallback: Some(fallback_pattern),
-            }
-        } else {
-            // Matches anything that ends with neither a slash nor a period nor an asterisk,
-            // see test pattern_with_fallback for cases
-            static FALLBACK_NEEDED_REGEX: Lazy<Regex> =
-                Lazy::new(|| Regex::new(r"^\/?(.*\/)*((\.?)[^\/\.\*]+)$").unwrap());
-
-            let base_pattern = Pattern::new(base).map_err(anyhow::Error::msg)?;
-            let mut fallback_pattern = None;
-            if FALLBACK_NEEDED_REGEX.is_match(base) {
-                let mut subdir_match = base.to_string();
-                subdir_match.push_str("/**");
-                fallback_pattern = Pattern::new(&subdir_match).ok();
-            }
-
-            Self {
-                base: base_pattern,
-                fallback: fallback_pattern,
-            }
-        };
-
-        Ok(result)
-    }
-
-    pub fn matches_path_with(&self, path: &Path, options: MatchOptions) -> bool {
-        self.base.matches_path_with(path, options)
-            || self
-                .fallback
-                .as_ref()
-                .is_some_and(|fallback| fallback.matches_path_with(path, options))
-    }
-
-    pub fn is_direct_children(&self) -> bool {
-        self.fallback.is_none() && self.base.as_str().ends_with("/*")
-    }
-
-    pub fn contains(&self, sub: char) -> bool {
-        self.base.as_str().contains(sub)
-            || self
-                .fallback
-                .as_ref()
-                .is_some_and(|fallback| fallback.as_str().contains(sub))
-    }
-}
-
-fn pattern(path: &str) -> anyhow::Result<PatternWithFallback> {
-    // if pattern starts with anchor or explicit wild card, it should
-    // match any prefix
-    let prefixed = if path.starts_with('*') || path.starts_with('/') {
-        path.to_owned()
-    } else {
-        format!("**/{}", path)
-    };
-    // if pattern starts with anchor it should only match paths
-    // relative to root
-    let mut normalized = prefixed.trim_start_matches('/').to_string();
-    // if pattern ends with /, it should match children of that directory
-    if normalized.ends_with('/') {
-        normalized.push_str("**");
-    }
-    PatternWithFallback::new(&normalized).map_err(anyhow::Error::msg)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     const EXAMPLE: &[u8] = include_bytes!("../test_fixtures/github/codeowners_example");
-
-    #[test]
-    fn pattern_with_fallback() {
-        assert_eq!(
-            PatternWithFallback::new("*").unwrap(),
-            PatternWithFallback {
-                base: Pattern::new("*").unwrap(),
-                fallback: None,
-            },
-        );
-
-        assert_eq!(
-            PatternWithFallback::new("*.js").unwrap(),
-            PatternWithFallback {
-                base: Pattern::new("*.js").unwrap(),
-                fallback: None,
-            },
-        );
-
-        assert_eq!(
-            PatternWithFallback::new("abc/**").unwrap(),
-            PatternWithFallback {
-                base: Pattern::new("abc/**").unwrap(),
-                fallback: None,
-            },
-        );
-
-        assert_eq!(
-            PatternWithFallback::new(".xyz").unwrap(),
-            PatternWithFallback {
-                base: Pattern::new(".xyz").unwrap(),
-                fallback: Some(Pattern::new(".xyz/**").unwrap()),
-            },
-        );
-        assert_eq!(
-            PatternWithFallback::new(".xyz/").unwrap(),
-            PatternWithFallback {
-                base: Pattern::new(".xyz/").unwrap(),
-                fallback: None,
-            },
-        );
-        assert_eq!(
-            PatternWithFallback::new(".xyz.js").unwrap(),
-            PatternWithFallback {
-                base: Pattern::new(".xyz.js").unwrap(),
-                fallback: None,
-            },
-        );
-
-        assert_eq!(
-            PatternWithFallback::new("/.abc/xyz").unwrap(),
-            PatternWithFallback {
-                base: Pattern::new("/.abc/xyz").unwrap(),
-                fallback: Some(Pattern::new("/.abc/xyz/**").unwrap()),
-            },
-        );
-        assert_eq!(
-            PatternWithFallback::new("/.abc/xyz/").unwrap(),
-            PatternWithFallback {
-                base: Pattern::new("/.abc/xyz/").unwrap(),
-                fallback: None,
-            },
-        );
-        assert_eq!(
-            PatternWithFallback::new("/.abc/xyz.js").unwrap(),
-            PatternWithFallback {
-                base: Pattern::new("/.abc/xyz.js").unwrap(),
-                fallback: None,
-            },
-        );
-
-        assert_eq!(
-            PatternWithFallback::new(".xyz").unwrap(),
-            PatternWithFallback {
-                base: Pattern::new(".xyz").unwrap(),
-                fallback: Some(Pattern::new(".xyz/**").unwrap()),
-            },
-        );
-        assert_eq!(
-            PatternWithFallback::new(".xyz/").unwrap(),
-            PatternWithFallback {
-                base: Pattern::new(".xyz/").unwrap(),
-                fallback: None,
-            },
-        );
-        assert_eq!(
-            PatternWithFallback::new(".xyz.js").unwrap(),
-            PatternWithFallback {
-                base: Pattern::new(".xyz.js").unwrap(),
-                fallback: None,
-            },
-        );
-
-        assert_eq!(
-            PatternWithFallback::new("/abc/.xyz").unwrap(),
-            PatternWithFallback {
-                base: Pattern::new("/abc/.xyz").unwrap(),
-                fallback: Some(Pattern::new("/abc/.xyz/**").unwrap()),
-            },
-        );
-        assert_eq!(
-            PatternWithFallback::new("/abc/.xyz/").unwrap(),
-            PatternWithFallback {
-                base: Pattern::new("/abc/.xyz/").unwrap(),
-                fallback: None,
-            },
-        );
-        assert_eq!(
-            PatternWithFallback::new("/abc/.xyz.js").unwrap(),
-            PatternWithFallback {
-                base: Pattern::new("/abc/.xyz.js").unwrap(),
-                fallback: None,
-            },
-        );
-
-        assert_eq!(
-            PatternWithFallback::new("abc/**/xyz").unwrap(),
-            PatternWithFallback {
-                base: Pattern::new("abc/**/xyz").unwrap(),
-                fallback: Some(Pattern::new("abc/**/xyz/**").unwrap()),
-            },
-        );
-        assert_eq!(
-            PatternWithFallback::new("abc/**/xyz/").unwrap(),
-            PatternWithFallback {
-                base: Pattern::new("abc/**/xyz/").unwrap(),
-                fallback: None,
-            },
-        );
-        assert_eq!(
-            PatternWithFallback::new("abc/**/xyz.js").unwrap(),
-            PatternWithFallback {
-                base: Pattern::new("abc/**/xyz.js").unwrap(),
-                fallback: None,
-            },
-        );
-
-        assert_eq!(
-            PatternWithFallback::new("/abc/xyz").unwrap(),
-            PatternWithFallback {
-                base: Pattern::new("/abc/xyz").unwrap(),
-                fallback: Some(Pattern::new("/abc/xyz/**").unwrap()),
-            },
-        );
-        assert_eq!(
-            PatternWithFallback::new("/abc/xyz/").unwrap(),
-            PatternWithFallback {
-                base: Pattern::new("/abc/xyz/").unwrap(),
-                fallback: None,
-            },
-        );
-        assert_eq!(
-            PatternWithFallback::new("/abc/xyz.js").unwrap(),
-            PatternWithFallback {
-                base: Pattern::new("/abc/xyz.js").unwrap(),
-                fallback: None,
-            },
-        );
-
-        assert_eq!(
-            PatternWithFallback::new("xyz").unwrap(),
-            PatternWithFallback {
-                base: Pattern::new("xyz").unwrap(),
-                fallback: Some(Pattern::new("xyz/**").unwrap()),
-            },
-        );
-        assert_eq!(
-            PatternWithFallback::new("xyz/").unwrap(),
-            PatternWithFallback {
-                base: Pattern::new("xyz/").unwrap(),
-                fallback: None,
-            },
-        );
-        assert_eq!(
-            PatternWithFallback::new("xyz.js").unwrap(),
-            PatternWithFallback {
-                base: Pattern::new("xyz.js").unwrap(),
-                fallback: None,
-            },
-        );
-
-        assert_eq!(
-            PatternWithFallback::new("abc/xyz").unwrap(),
-            PatternWithFallback {
-                base: Pattern::new("abc/xyz").unwrap(),
-                fallback: Some(Pattern::new("abc/xyz/**").unwrap()),
-            },
-        );
-        assert_eq!(
-            PatternWithFallback::new("abc/xyz/").unwrap(),
-            PatternWithFallback {
-                base: Pattern::new("abc/xyz/").unwrap(),
-                fallback: None,
-            },
-        );
-        assert_eq!(
-            PatternWithFallback::new("abc/xyz.js").unwrap(),
-            PatternWithFallback {
-                base: Pattern::new("abc/xyz.js").unwrap(),
-                fallback: None,
-            },
-        );
-
-        assert_eq!(
-            PatternWithFallback::new("/a bc/xyz").unwrap(),
-            PatternWithFallback {
-                base: Pattern::new("/a bc/xyz").unwrap(),
-                fallback: Some(Pattern::new("/a bc/xyz/**").unwrap()),
-            },
-        );
-        assert_eq!(
-            PatternWithFallback::new("/a bc/xyz/").unwrap(),
-            PatternWithFallback {
-                base: Pattern::new("/a bc/xyz/").unwrap(),
-                fallback: None,
-            },
-        );
-        assert_eq!(
-            PatternWithFallback::new("/a bc/xyz.js").unwrap(),
-            PatternWithFallback {
-                base: Pattern::new("/a bc/xyz.js").unwrap(),
-                fallback: None,
-            },
-        );
-
-        assert_eq!(
-            PatternWithFallback::new("/abc/x yz").unwrap(),
-            PatternWithFallback {
-                base: Pattern::new("/abc/x yz").unwrap(),
-                fallback: Some(Pattern::new("/abc/x yz/**").unwrap()),
-            },
-        );
-        assert_eq!(
-            PatternWithFallback::new("/abc/x yz/").unwrap(),
-            PatternWithFallback {
-                base: Pattern::new("/abc/x yz/").unwrap(),
-                fallback: None,
-            },
-        );
-        assert_eq!(
-            PatternWithFallback::new("/abc/x yz.js").unwrap(),
-            PatternWithFallback {
-                base: Pattern::new("/abc/x yz.js").unwrap(),
-                fallback: None,
-            },
-        );
-
-        assert_eq!(
-            PatternWithFallback::new("/abc**").unwrap(),
-            PatternWithFallback {
-                base: Pattern::new("/abc*").unwrap(),
-                fallback: Some(Pattern::new("/abc*/**").unwrap()),
-            },
-        );
-
-        assert_eq!(
-            PatternWithFallback::new("/**").unwrap(),
-            PatternWithFallback {
-                base: Pattern::new("/**").unwrap(),
-                fallback: None,
-            },
-        );
-
-        assert_eq!(
-            PatternWithFallback::new("**").unwrap(),
-            PatternWithFallback {
-                base: Pattern::new("**").unwrap(),
-                fallback: None,
-            },
-        );
-    }
 
     #[test]
     fn owner_parses() {
@@ -561,79 +181,50 @@ mod tests {
     #[test]
     fn from_reader_parses() {
         let owners = GitHubOwners::from_reader(EXAMPLE).unwrap();
+        // 9 rules in the fixture.
+        assert_eq!(owners.matcher.len(), 9);
+        // Spot-check each rule via behavioral queries.
         assert_eq!(
-            owners,
-            GitHubOwners {
-                paths: vec![
-                    (
-                        PatternWithFallback {
-                            base: Pattern::new("**/another").unwrap(),
-                            fallback: Some(Pattern::new("**/another/**").unwrap()),
-                        },
-                        vec![GitHubOwner::Username("@bctocat".into())]
-                    ),
-                    (
-                        PatternWithFallback {
-                            base: Pattern::new("**/etc/**").unwrap(),
-                            fallback: None,
-                        },
-                        vec![GitHubOwner::Username("@actocat".into())]
-                    ),
-                    (
-                        PatternWithFallback {
-                            base: Pattern::new("docs/**").unwrap(),
-                            fallback: None,
-                        },
-                        vec![GitHubOwner::Username("@doctocat".into())]
-                    ),
-                    (
-                        PatternWithFallback {
-                            base: Pattern::new("**/apps/**").unwrap(),
-                            fallback: None,
-                        },
-                        vec![GitHubOwner::Username("@octocat".into())]
-                    ),
-                    (
-                        PatternWithFallback {
-                            base: Pattern::new("**/docs/*").unwrap(),
-                            fallback: None,
-                        },
-                        vec![GitHubOwner::Email("docs@example.com".into())]
-                    ),
-                    (
-                        PatternWithFallback {
-                            base: Pattern::new("build/logs/**").unwrap(),
-                            fallback: None,
-                        },
-                        vec![GitHubOwner::Username("@doctocat".into())]
-                    ),
-                    (
-                        PatternWithFallback {
-                            base: Pattern::new("*.go").unwrap(),
-                            fallback: None,
-                        },
-                        vec![GitHubOwner::Email("docs@example.com".into())]
-                    ),
-                    (
-                        PatternWithFallback {
-                            base: Pattern::new("*.js").unwrap(),
-                            fallback: None,
-                        },
-                        vec![GitHubOwner::Username("@js-owner".into())]
-                    ),
-                    (
-                        PatternWithFallback {
-                            base: Pattern::new("*").unwrap(),
-                            fallback: None,
-                        },
-                        vec![
-                            GitHubOwner::Username("@global-owner1".into()),
-                            GitHubOwner::Username("@global-owner2".into()),
-                        ]
-                    ),
-                ],
-            }
-        )
+            owners.of("x/another"),
+            Some(vec![GitHubOwner::Username("@bctocat".into())])
+        );
+        assert_eq!(
+            owners.of("x/etc/foo"),
+            Some(vec![GitHubOwner::Username("@actocat".into())])
+        );
+        assert_eq!(
+            owners.of("docs/foo.js"),
+            Some(vec![GitHubOwner::Username("@doctocat".into())])
+        );
+        assert_eq!(
+            owners.of("x/apps/foo"),
+            Some(vec![GitHubOwner::Username("@octocat".into())])
+        );
+        // docs/* matches files directly inside docs/ at any path depth (unanchored).
+        // x/docs/ is not root-level so /docs/ doesn't apply; docs/* → docs@example.com.
+        assert_eq!(
+            owners.of("x/docs/file.txt"),
+            Some(vec![GitHubOwner::Email("docs@example.com".into())])
+        );
+        assert_eq!(
+            owners.of("build/logs/foo"),
+            Some(vec![GitHubOwner::Username("@doctocat".into())])
+        );
+        assert_eq!(
+            owners.of("foo.go"),
+            Some(vec![GitHubOwner::Email("docs@example.com".into())])
+        );
+        assert_eq!(
+            owners.of("foo.js"),
+            Some(vec![GitHubOwner::Username("@js-owner".into())])
+        );
+        assert_eq!(
+            owners.of("anything.txt"),
+            Some(vec![
+                GitHubOwner::Username("@global-owner1".into()),
+                GitHubOwner::Username("@global-owner2".into()),
+            ])
+        );
     }
 
     #[test]
@@ -684,7 +275,6 @@ mod tests {
     #[test]
     fn owners_owns_anchored_build_logs() {
         let owners = GitHubOwners::from_reader(EXAMPLE).unwrap();
-        // relative to root
         assert_eq!(
             owners.of("build/logs/foo.go"),
             Some(vec![GitHubOwner::Username("@doctocat".into())])
@@ -712,7 +302,7 @@ mod tests {
             owners.of("foo/bar/docs/foo.js"),
             Some(vec![GitHubOwner::Email("docs@example.com".into())])
         );
-        // but not nested
+        // but not nested deeper (docs/* only one level)
         assert_eq!(
             owners.of("foo/bar/docs/foo/foo.js"),
             Some(vec![GitHubOwner::Username("@js-owner".into())])
@@ -735,7 +325,6 @@ mod tests {
     #[test]
     fn owners_owns_anchored_docs() {
         let owners = GitHubOwners::from_reader(EXAMPLE).unwrap();
-        // relative to root
         assert_eq!(
             owners.of("docs/foo.js"),
             Some(vec![GitHubOwner::Username("@doctocat".into())])
@@ -771,6 +360,17 @@ mod tests {
     }
 
     #[test]
+    fn no_implied_children_owners() {
+        let owners = GitHubOwners::from_reader("*.go @doug".as_bytes()).unwrap();
+        assert_eq!(
+            owners.of("foo/bar.go"),
+            Some(vec![GitHubOwner::Username("@doug".into())])
+        );
+        // A file extension pattern should NOT match inside a directory of that name.
+        assert_eq!(owners.of("foo/bar.go/baz"), None);
+    }
+
+    #[test]
     fn anchored_directory_matches_deeply_nested_files() {
         let codeowners = r#"
 /src @owner1
@@ -778,86 +378,17 @@ mod tests {
 "#;
         let owners = GitHubOwners::from_reader(codeowners.as_bytes()).unwrap();
 
-        // Deeply nested file should match /src/components (the more specific pattern)
         assert_eq!(
             owners.of("src/components/ui/buttons/primary_button.rs"),
             Some(vec![GitHubOwner::Username("@owner2".into())])
         );
-
-        // Less deeply nested should also work
         assert_eq!(
             owners.of("src/components/foo.rs"),
             Some(vec![GitHubOwner::Username("@owner2".into())])
         );
-
-        // Direct child should work
-        assert_eq!(
-            owners.of("src/components/file.rs"),
-            Some(vec![GitHubOwner::Username("@owner2".into())])
-        );
-
-        // src/ alone should match owner1
         assert_eq!(
             owners.of("src/other/file.rs"),
             Some(vec![GitHubOwner::Username("@owner1".into())])
-        );
-    }
-
-    #[test]
-    fn pattern_fallback_for_anchored_directory() {
-        // /src/components should create base "src/components" with fallback "src/components/**"
-        let pat = pattern("/src/components").unwrap();
-        assert_eq!(pat.base.as_str(), "src/components");
-        assert!(pat.fallback.is_some());
-        assert_eq!(pat.fallback.as_ref().unwrap().as_str(), "src/components/**");
-
-        // Verify the fallback pattern actually matches nested paths
-        let opts = glob::MatchOptions {
-            case_sensitive: false,
-            require_literal_separator: true,
-            require_literal_leading_dot: false,
-        };
-        let nested_path = Path::new("src/components/ui/buttons/primary_button.rs");
-
-        // Base should NOT match (it's just "src/components")
-        assert!(!pat.base.matches_path_with(nested_path, opts));
-
-        // Fallback SHOULD match
-        assert!(
-            pat.fallback
-                .as_ref()
-                .unwrap()
-                .matches_path_with(nested_path, opts),
-            "Fallback pattern 'src/components/**' should match deeply nested path"
-        );
-
-        // Combined matches_path_with should work
-        assert!(pat.matches_path_with(nested_path, opts));
-    }
-
-    #[test]
-    fn parent_walking_matches_intermediate_paths() {
-        let pat = pattern("/src/components").unwrap();
-        let opts = glob::MatchOptions {
-            case_sensitive: false,
-            require_literal_separator: true,
-            require_literal_leading_dot: false,
-        };
-
-        // The base pattern should match the exact directory path
-        assert!(
-            pat.base
-                .matches_path_with(Path::new("src/components"), opts),
-            "Base pattern 'src/components' should match exact path 'src/components'"
-        );
-
-        // The fallback should match intermediate paths under the directory
-        assert!(
-            pat.fallback
-                .as_ref()
-                .unwrap()
-                .matches_path_with(Path::new("src/components/ui"), opts),
-            "Fallback 'src/components/**' should match 'src/components/ui'"
         );
     }
 
@@ -870,38 +401,10 @@ mod tests {
 /src/components/special @very-specific-owner
 "#;
         let owners = GitHubOwners::from_reader(codeowners.as_bytes()).unwrap();
-
-        // Deeply nested file should match /src/components, not /src or *
-        let file_path = "src/components/nested/deeply/file.rs";
-        let result = owners.of(file_path);
-
-        assert!(result.is_some(), "File should have owners");
-        let result_owners = result.unwrap();
-
-        // Should get exactly 1 owner from /src/components
+        let result = owners.of("src/components/nested/deeply/file.rs").unwrap();
         assert_eq!(
-            result_owners.len(),
-            1,
-            "Should have 1 owner from /src/components, got: {result_owners:?}",
+            result,
+            vec![GitHubOwner::Username("@specific-owner".into())]
         );
-
-        let owner_strings: Vec<String> = result_owners.iter().map(|o| o.to_string()).collect();
-
-        // Should NOT contain @extra-owner (that's from /src)
-        assert!(
-            !owner_strings.iter().any(|o| o.contains("extra-owner")),
-            "Should NOT contain @extra-owner (that's from /src). Got: {:?}",
-            owner_strings
-        );
-
-        // Should NOT contain @fallback-owner (that's from *)
-        assert!(
-            !owner_strings.iter().any(|o| o.contains("fallback-owner")),
-            "Should NOT contain @fallback-owner (that's from *). Got: {:?}",
-            owner_strings
-        );
-
-        // Should contain the specific owner
-        assert!(owner_strings.contains(&"@specific-owner".to_string()));
     }
 }

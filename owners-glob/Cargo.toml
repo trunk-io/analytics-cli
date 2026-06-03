@@ -1,0 +1,10 @@
+[package]
+name = "owners-glob"
+edition = "2021"
+version = "0.1.0"
+
+[dependencies]
+aho-corasick = "1"
+fast-glob = "1.0.1"
+regex = "1.2"
+thiserror = "1.0"

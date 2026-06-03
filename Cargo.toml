@@ -15,6 +15,7 @@ members = [
   "test_report",
   "third-party",
   "display",
+  "owners-glob",
 ]
 exclude = ["rspec-trunk-flaky-tests/ext/context_ruby"]
 resolver = "2"

@@ -3,29 +3,61 @@ use std::{io::BufRead, path::PathBuf};
 use fancy_regex::Regex;
 use indexmap::IndexMap;
 use lazy_static::lazy_static;
+use owners_glob::{Pattern, PatternOptions, acmatcher::AcMatcher};
 
 use super::{Entry, Error, Section, SectionParser};
 use crate::gitlab::{ErrorType, ReferenceExtractor};
 
 pub type ParsedData = IndexMap<String, IndexMap<String, Entry>>;
 
+#[derive(Debug, Clone)]
+struct SectionMatcher {
+    matcher: AcMatcher,
+    /// Entries in reversed insertion order (last original entry = index 0).
+    entries: Vec<Entry>,
+}
+
 /// Reference: https://gitlab.com/gitlab-org/gitlab/-/blob/master/ee/lib/gitlab/code_owners/file.rb
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub struct File {
     path: PathBuf,
     errors: Vec<Error>,
     parsed_data: ParsedData,
+    section_matchers: IndexMap<String, SectionMatcher>,
 }
+
+impl Default for File {
+    fn default() -> Self {
+        Self {
+            path: PathBuf::default(),
+            errors: Vec::new(),
+            parsed_data: ParsedData::new(),
+            section_matchers: IndexMap::new(),
+        }
+    }
+}
+
+impl PartialEq for File {
+    fn eq(&self, other: &Self) -> bool {
+        self.path == other.path
+            && self.errors == other.errors
+            && self.parsed_data == other.parsed_data
+    }
+}
+
+impl Eq for File {}
 
 impl File {
     pub fn new<B: BufRead>(buf_read: B, path: Option<PathBuf>) -> Self {
         let mut file = Self {
             path: path.unwrap_or_default(),
             errors: Vec::new(),
-            ..Default::default()
+            parsed_data: ParsedData::new(),
+            section_matchers: IndexMap::new(),
         };
 
         file.parsed_data = file.get_parsed_data(buf_read);
+        file.section_matchers = build_section_matchers(&file.parsed_data);
 
         file
     }
@@ -64,29 +96,16 @@ impl File {
     }
 
     pub fn entries_for_path(&self, path: String) -> Vec<Entry> {
-        // NOTE: if the path is relative, we need to strip the leading dot
-        // to match the pattern. We are doing this as a workaround for
-        // cases where the provided path is relative, like `./foo/bar/baz.rs`
-        let stripped_path = path.strip_prefix("./");
-        let path = if path.starts_with('/') {
-            path
-        } else if stripped_path.is_some() {
-            format!(
-                "/{}",
-                stripped_path.map(|s| s.to_string()).unwrap_or_default()
-            )
-        } else {
-            format!("/{path}")
-        };
-        self.parsed_data
-            .iter()
-            .filter_map(|(_, section_entries)| {
-                section_entries
-                    .iter()
-                    .rev()
-                    .find(|(pattern, ..)| File::path_matches(pattern, &path))
-                    .map(|(_, entry)| entry)
-                    .cloned()
+        // AcMatcher::first_match handles leading `./` and `/` stripping internally,
+        // but we do it here once so we pass the same clean path to all matchers.
+        let path = path.strip_prefix("./").unwrap_or(&path);
+        let path = path.strip_prefix('/').unwrap_or(path);
+        self.section_matchers
+            .values()
+            .filter_map(|sm| {
+                sm.matcher
+                    .first_match(path)
+                    .map(|idx| sm.entries[idx].clone())
             })
             .collect()
     }
@@ -228,26 +247,43 @@ impl File {
         pattern
     }
 
-    fn path_matches<T: AsRef<str>, U: AsRef<str>>(pattern: T, path: U) -> bool {
-        glob::Pattern::new(pattern.as_ref())
-            .ok()
-            .map(|p| {
-                p.matches_with(
-                    path.as_ref(),
-                    glob::MatchOptions {
-                        case_sensitive: true,
-                        require_literal_leading_dot: false,
-                        require_literal_separator: true,
-                    },
-                )
-            })
-            .unwrap_or_default()
-    }
-
     fn add_error(&mut self, message: ErrorType, line_number: usize) {
         self.errors
             .push(Error::new(message, line_number, self.path.clone()));
     }
+}
+
+/// Build one `AcMatcher` per section from the fully-parsed data.
+///
+/// GitLab uses last-entry-wins within a section, so entries are reversed
+/// before being handed to `AcMatcher` (which returns the first / lowest-index
+/// match).  Index 0 in the stored `entries` vec therefore corresponds to the
+/// last original entry, which is the one that takes precedence.
+fn build_section_matchers(parsed_data: &ParsedData) -> IndexMap<String, SectionMatcher> {
+    let opts = PatternOptions::gitlab();
+    parsed_data
+        .iter()
+        .filter_map(|(section_name, patterns)| {
+            if patterns.is_empty() {
+                return None;
+            }
+            // Reverse so the last original entry becomes index 0 (highest priority).
+            // Skip patterns that fail to compile (e.g. malformed character classes
+            // from lines that were also rejected as invalid section headers).
+            let (raw_patterns, entries): (Vec<&str>, Vec<Entry>) = patterns
+                .iter()
+                .rev()
+                .filter(|(k, _)| Pattern::with_options(k, opts).is_ok())
+                .map(|(k, v)| (k.as_str(), v.clone()))
+                .unzip();
+            if raw_patterns.is_empty() {
+                return None;
+            }
+            let matcher = AcMatcher::new(raw_patterns.into_iter(), opts)
+                .expect("AcMatcher build failed despite pre-validation");
+            Some((section_name.clone(), SectionMatcher { matcher, entries }))
+        })
+        .collect()
 }
 
 /// Reference: https://gitlab.com/gitlab-org/gitlab/-/blob/master/ee/spec/lib/gitlab/code_owners/file_spec.rb
@@ -295,7 +331,7 @@ mod tests {
 
     mod parsed_data {
         mod when_codeowners_file_contains_no_sections {
-            use crate::gitlab::file::tests::{owner_line, FILE};
+            use crate::gitlab::file::tests::{FILE, owner_line};
 
             #[test]
             fn parses_all_the_required_lines() {
@@ -332,11 +368,11 @@ mod tests {
 
         mod when_handling_a_sectional_codeowners_file {
             use crate::gitlab::{
+                Section,
                 file::tests::{
                     FILE, FILE_MIXED_CASE_SECTIONAL_CODEOWNERS_EXAMPLE,
                     FILE_SECTIONAL_CODEOWNERS_EXAMPLE,
                 },
-                Section,
             };
 
             mod creates_expected_parsed_sectional_results {
@@ -606,7 +642,7 @@ mod tests {
     }
 
     mod empty {
-        use crate::gitlab::{file::tests::FILE, File};
+        use crate::gitlab::{File, file::tests::FILE};
 
         #[test]
         fn is_not_empty() {

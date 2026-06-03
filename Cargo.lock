@@ -144,6 +144,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "69f7f8c3906b62b754cd5326047894316021dcfe5a194c8ea52bdd94934a3457"
 
 [[package]]
+name = "arrayvec"
+version = "0.7.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7c02d123df017efcdfbd739ef81735b36c5ba83ec3c59c80a9d7ecc718f92e50"
+
+[[package]]
 name = "assert_cmd"
 version = "2.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -901,11 +907,13 @@ dependencies = [
  "constants",
  "criterion",
  "fancy-regex",
+ "fast-glob",
  "glob",
  "indexmap 2.12.0",
  "js-sys",
  "lazy_static",
  "once_cell",
+ "owners-glob",
  "pretty_assertions",
  "pyo3",
  "pyo3-stub-gen",
@@ -1434,6 +1442,15 @@ dependencies = [
  "bit-set",
  "regex-automata",
  "regex-syntax",
+]
+
+[[package]]
+name = "fast-glob"
+version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3b9e81515b0279bf618200fd15d132e7195d2048fb46eed6f0f3c10cbc068266"
+dependencies = [
+ "arrayvec",
 ]
 
 [[package]]
@@ -3773,6 +3790,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "628223faebab4e3e40667ee0b2336d34a5b960ff60ea743ddfdbcf7770bcfb66"
 dependencies = [
  "winapi",
+]
+
+[[package]]
+name = "owners-glob"
+version = "0.1.0"
+dependencies = [
+ "aho-corasick",
+ "fast-glob",
+ "regex",
+ "thiserror 1.0.69",
 ]
 
 [[package]]
