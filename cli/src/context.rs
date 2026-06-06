@@ -26,7 +26,7 @@ use context::{
     junit::{
         bindings::BindingsReport,
         junit_path::JunitReportFileWithTestRunnerReport,
-        parser::JunitParser,
+        parser::{IntoTestCaseRunsOptions, JunitParser},
         validator::{JunitReportValidation, validate},
     },
     repo::{BundleRepo, RepoUrlParts},
@@ -389,6 +389,7 @@ pub fn generate_internal_file_from_bep(
     org_slug: &String,
     repo: &RepoUrlParts,
     quarantined_test_ids: &[String],
+    use_bazel_target_for_codeowners: bool,
 ) -> anyhow::Result<(
     BundledFile,
     BTreeMap<String, anyhow::Result<JunitReportValidation>>,
@@ -417,13 +418,15 @@ pub fn generate_internal_file_from_bep(
                         continue;
                     };
 
-                    let mut xml_test_case_runs = junit_parser.into_test_case_runs(
-                        codeowners,
-                        org_slug,
-                        repo,
-                        quarantined_test_ids,
-                        variant.as_deref().unwrap_or(""),
-                    );
+                    let mut xml_test_case_runs =
+                        junit_parser.into_test_case_runs(IntoTestCaseRunsOptions {
+                            org_slug,
+                            repo,
+                            codeowners,
+                            quarantined_test_ids,
+                            variant: variant.as_deref().unwrap_or(""),
+                            bazel_label: use_bazel_target_for_codeowners.then_some(label.as_str()),
+                        });
                     xml_test_case_runs.iter_mut().for_each(|test_case_run| {
                         test_case_run.test_runner_information = Some(
                             TestRunnerInformation::BazelRunInformation(BazelRunInformation {
@@ -464,11 +467,14 @@ pub fn generate_internal_file_from_bep(
                     };
 
                     test_case_runs.extend(junit_parser.into_test_case_runs(
-                        codeowners,
-                        org_slug,
-                        repo,
-                        quarantined_test_ids,
-                        variant.as_deref().unwrap_or(""),
+                        IntoTestCaseRunsOptions {
+                            org_slug,
+                            repo,
+                            codeowners,
+                            quarantined_test_ids,
+                            variant: variant.as_deref().unwrap_or(""),
+                            bazel_label: use_bazel_target_for_codeowners.then_some(label.as_str()),
+                        },
                     ));
                 }
             }
@@ -506,6 +512,7 @@ pub fn generate_internal_file(
     org_slug: &String,
     repo: &RepoUrlParts,
     quarantined_test_ids: &[String],
+    use_bazel_target_for_codeowners: bool,
 ) -> anyhow::Result<(
     BundledFile,
     BTreeMap<String, anyhow::Result<JunitReportValidation>>,
@@ -539,13 +546,23 @@ pub fn generate_internal_file(
                         continue;
                     };
 
-                    test_case_runs.extend(junit_parser.into_test_case_runs(
-                        codeowners,
-                        org_slug,
-                        repo,
-                        quarantined_test_ids,
-                        variant.as_deref().unwrap_or(""),
-                    ));
+                    test_case_runs.extend(
+                        junit_parser.into_test_case_runs(IntoTestCaseRunsOptions {
+                            org_slug,
+                            repo,
+                            codeowners,
+                            quarantined_test_ids,
+                            variant: variant.as_deref().unwrap_or(""),
+                            bazel_label: use_bazel_target_for_codeowners
+                                .then(|| {
+                                    file_set
+                                        .test_runner_report
+                                        .as_ref()
+                                        .and_then(|r| r.resolved_label.as_deref())
+                                })
+                                .flatten(),
+                        }),
+                    );
                 }
             }
         }

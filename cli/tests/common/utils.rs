@@ -54,11 +54,14 @@ pub fn generate_mock_valid_junit_xmls_with_failures<T: AsRef<Path>>(directory: T
         .unwrap()
 }
 
-pub fn generate_mock_bazel_bep<T: AsRef<Path>>(directory: T) -> PathBuf {
-    let mut jm = generate_mock_valid_junit_mocker();
-    let reports = jm.generate_reports();
+fn write_bazel_bep_from_reports<T: AsRef<Path>>(
+    directory: T,
+    jm: &mut JunitMock,
+    reports: &[quick_junit::Report],
+    output_filename: &str,
+) -> PathBuf {
     let mock_junits = jm
-        .write_reports_to_file(directory.as_ref(), &reports)
+        .write_reports_to_file(directory.as_ref(), reports)
         .unwrap();
 
     let build_events = mock_junits
@@ -128,10 +131,31 @@ pub fn generate_mock_bazel_bep<T: AsRef<Path>>(directory: T) -> PathBuf {
         .map(|l| serde_json::to_string(l).unwrap())
         .collect::<Vec<_>>()
         .join("\n");
-    let file_path = directory.as_ref().join("bep.json");
+    let file_path = directory.as_ref().join(output_filename);
     let mut file = fs::File::create(&file_path).unwrap();
     file.write_all(outputs_contents.as_bytes()).unwrap();
     file_path
+}
+
+pub fn generate_mock_bazel_bep<T: AsRef<Path>>(directory: T) -> PathBuf {
+    let mut jm = generate_mock_valid_junit_mocker();
+    let reports = jm.generate_reports();
+    write_bazel_bep_from_reports(directory, &mut jm, &reports, "bep.json")
+}
+
+/// Like `generate_mock_bazel_bep` but the JUnit XMLs have no `file` attributes,
+/// so codeowners association requires the Bazel label fallback.
+pub fn generate_mock_bazel_bep_no_file_attrs<T: AsRef<Path>>(directory: T) -> PathBuf {
+    let mut jm = generate_mock_valid_junit_mocker();
+    let mut reports = jm.generate_reports();
+    for report in reports.iter_mut() {
+        for testsuite in report.test_suites.iter_mut() {
+            for test_case in testsuite.test_cases.iter_mut() {
+                test_case.extra.swap_remove("file");
+            }
+        }
+    }
+    write_bazel_bep_from_reports(directory, &mut jm, &reports, "bep_no_file_attrs.json")
 }
 
 pub fn generate_mock_invalid_junit_xmls<T: AsRef<Path>>(directory: T) {

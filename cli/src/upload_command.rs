@@ -148,6 +148,18 @@ pub struct UploadArgs {
     pub codeowners_type: Option<CodeownersType>,
     #[arg(
         long,
+        env = constants::TRUNK_CODEOWNERS_USE_BAZEL_TARGET_ENV,
+        help = "Use the Bazel target label as a fallback path for CODEOWNERS association when no file attribute is present in the JUnit XML.",
+        action = ArgAction::Set,
+        required = false,
+        require_equals = true,
+        num_args = 0..=1,
+        default_value = "false",
+        default_missing_value = "true",
+    )]
+    pub use_bazel_target_for_codeowners: bool,
+    #[arg(
+        long,
         help = "Run commands with the quarantining step. Deprecated, prefer --disable-quarantining, which takes priority over this flag, to control quarantining.",
         action = ArgAction::Set,
         required = false,
@@ -504,6 +516,7 @@ pub async fn run_upload(
             &upload_args.org_url_slug,
             &quarantine_context.repo,
             &quarantined_test_ids,
+            upload_args.use_bazel_target_for_codeowners,
         )
     } else {
         generate_internal_file(
@@ -519,6 +532,7 @@ pub async fn run_upload(
             &upload_args.org_url_slug,
             &quarantine_context.repo,
             &quarantined_test_ids,
+            upload_args.use_bazel_target_for_codeowners,
         )
     };
     let validations = if let Ok((internal_bundled_file, junit_validations)) = internal_bundled_file
