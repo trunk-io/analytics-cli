@@ -8,7 +8,7 @@ use wasm_bindgen::prelude::*;
 
 use super::MetaContext;
 use crate::env::validator::{
-    validate as env_validate, EnvValidationIssue, EnvValidationIssueSubOptimal,
+    EnvValidationIssue, EnvValidationIssueSubOptimal, validate as env_validate,
 };
 
 #[cfg_attr(feature = "pyo3", gen_stub_pyclass_enum, pyclass(eq, eq_int))]
