@@ -12,26 +12,33 @@ plugins:
 # Many linters and tools depend on runtimes - configure them here. (https://docs.trunk.io/runtimes)
 runtimes:
   enabled:
-    - rust@1.82.0
+    - go@1.21.0
+    - rust@SYSTEM
     - node@25.9.0
     - python@3.14.4
     - ruby@4.0.5
 # This is the section where you manage your linters. (https://docs.trunk.io/check/configuration)
 lint:
+  disabled:
+    # handled by cargo-fmt already
+    - rustfmt
   enabled:
+    - grype@0.110.0
+    - shellcheck@0.11.0
+    - shfmt@3.6.0
     - rubocop@1.87.0
     - actionlint@1.7.12
     - bandit@1.9.4
     - black@26.5.1
-    - checkov@3.2.532
+    - checkov@3.3.1
     - clippy@SYSTEM
     - eslint@10.4.1
     - git-diff-check
     - isort@8.0.1
     - markdownlint@0.48.0
     - osv-scanner@2.3.8
-    - prettier@3.8.3
-    - ruff@0.15.15
+    - prettier@3.8.4
+    - ruff@0.15.16
     - cargo-fmt@SYSTEM
     - taplo@0.10.0
     - trufflehog@3.95.5
