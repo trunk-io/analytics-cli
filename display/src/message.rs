@@ -1,9 +1,9 @@
-use std::sync::{mpsc::Sender, Arc};
+use std::sync::{Arc, mpsc::Sender};
 
 use anyhow::Result;
 use superconsole::{Component, Dimensions, DrawMode, Line, Lines, Span, SuperConsole};
 
-use crate::end_output::{display_end, EndOutput};
+use crate::end_output::{EndOutput, display_end};
 
 pub enum DisplayMessage {
     Progress(Arc<dyn Component + Send + Sync>, String),

@@ -222,7 +222,7 @@ def traverse_fd_types_inheritance_hierarchy(
 
 
 def order_fd_types_by_inheritance_hierarchy_by_number_of_properties(
-    fd_types_inheritance_hierarchy: Dict[str, Dict[str, int]]
+    fd_types_inheritance_hierarchy: Dict[str, Dict[str, int]],
 ) -> Dict[str, list[str]]:
     fd_types_inheritance_hierarchy_orderd_by_number_of_properties: Dict[
         str, list[str]

@@ -6,8 +6,8 @@ use chrono::{DateTime, Utc};
 use quick_junit::{NonSuccessKind, Report, TestCase, TestCaseStatus, TestRerun, TestSuite};
 
 use crate::types::{
-    schema::{TestNode, TestNodeType, TestResult, Tests},
     SWIFT_DEFAULT_TEST_SUITE_NAME,
+    schema::{TestNode, TestNodeType, TestResult, Tests},
 };
 use crate::xcresult_legacy::XCResultTestLegacy;
 use crate::xcrun::{xcresulttool_get_object, xcresulttool_get_test_results_tests};
@@ -135,8 +135,12 @@ impl XCResult {
                     )
                 } else if matches!(test_bundle_or_test_suite.node_type, TestNodeType::TestSuite) {
                     let test_suite = test_bundle_or_test_suite;
-                    vec![self
-                        .xcresult_test_suite_to_junit_test_suite(test_suite, Option::<&str>::None)]
+                    vec![
+                        self.xcresult_test_suite_to_junit_test_suite(
+                            test_suite,
+                            Option::<&str>::None,
+                        ),
+                    ]
                 } else {
                     vec![]
                 }

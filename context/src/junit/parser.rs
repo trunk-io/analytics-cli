@@ -395,7 +395,7 @@ impl JunitParser {
                         attempt_number.map(|number| AttemptNumber { number });
                     // TODO(TRUNK-1742): Remove populating legacy fields once ingestion is updated.
                     // trunk-ignore(clippy/deprecated)
-                    test_case_run.line = line_number.unwrap_or_default(); // 
+                    test_case_run.line = line_number.unwrap_or_default();
                     // trunk-ignore(clippy/deprecated)
                     test_case_run.attempt_number = attempt_number.unwrap_or_default();
 

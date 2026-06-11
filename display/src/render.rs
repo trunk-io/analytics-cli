@@ -1,10 +1,10 @@
 use std::{
-    sync::mpsc::{channel, Receiver, Sender},
+    sync::mpsc::{Receiver, Sender, channel},
     thread::{self, JoinHandle},
 };
 
 use superconsole::{Dimensions, SuperConsole};
-use terminal_size::{terminal_size, Height, Width};
+use terminal_size::{Height, Width, terminal_size};
 
 use crate::message::DisplayMessage;
 

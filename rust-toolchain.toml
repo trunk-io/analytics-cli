@@ -1,5 +1,5 @@
 [toolchain]
-channel = "nightly-2026-01-19"
+channel = "nightly-2026-06-11"
 components = ["clippy", "rustfmt", "rust-src"]
 # These targets are used for cross compilation within docker containers
 # They allow us to cross compile the ruby gem for different platforms
