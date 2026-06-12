@@ -27,6 +27,9 @@ inputs:
   knapsack-pro-test-suite-token-rspec:
     description: Optional Knapsack Pro test suite token for RSpec
     required: true
+  test-collection-id:
+    description: Optional Trunk test collection ID
+    required: false
 
 runs:
   using: composite
@@ -83,6 +86,7 @@ runs:
         TRUNK_PUBLIC_API_ADDRESS: ${{ inputs.trunk-public-api-address }}
         TRUNK_ORG_URL_SLUG: ${{ inputs.trunk-org-slug }}
         TRUNK_API_TOKEN: ${{ inputs.trunk-token }}
+        TRUNK_TEST_COLLECTION_ID: ${{ inputs.test-collection-id }}
 
     - name: Run variant quarantine test without variant (should fail - not quarantined)
       id: run-variant-test-no-variant
@@ -102,6 +106,7 @@ runs:
         TRUNK_PUBLIC_API_ADDRESS: ${{ inputs.trunk-public-api-address }}
         TRUNK_ORG_URL_SLUG: ${{ inputs.trunk-org-slug }}
         TRUNK_API_TOKEN: ${{ inputs.trunk-token }}
+        TRUNK_TEST_COLLECTION_ID: ${{ inputs.test-collection-id }}
         TRUNK_VARIANT: ""
 
     - name: Run variant quarantine test with variant (should pass - quarantined)
@@ -122,6 +127,7 @@ runs:
         TRUNK_PUBLIC_API_ADDRESS: ${{ inputs.trunk-public-api-address }}
         TRUNK_ORG_URL_SLUG: ${{ inputs.trunk-org-slug }}
         TRUNK_API_TOKEN: ${{ inputs.trunk-token }}
+        TRUNK_TEST_COLLECTION_ID: ${{ inputs.test-collection-id }}
         TRUNK_VARIANT: smoke-test-variant
 
     - name: Run quarantine lookup failure abort test (should fail fast, skip slow_test)
@@ -165,6 +171,7 @@ runs:
         TRUNK_API_TOKEN: ${{ inputs.trunk-token }}
         TRUNK_ORG_URL_SLUG: ${{ inputs.trunk-org-slug }}
         TRUNK_PUBLIC_API_ADDRESS: ${{ inputs.trunk-public-api-address }}
+        TRUNK_TEST_COLLECTION_ID: ${{ inputs.test-collection-id }}
         TRUNK_LOCAL_UPLOAD_DIR: bundles
       run: |
         set -euo pipefail

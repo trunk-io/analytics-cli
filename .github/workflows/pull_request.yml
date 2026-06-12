@@ -205,7 +205,7 @@ jobs:
              --org-url-slug trunk-staging-org \
              --token ${{ secrets.TRUNK_STAGING_ORG_API_TOKEN }} \
              --test-process-exit-code ${{ steps.extract.outputs.test-step-outcome }} \
-             --test-collection-short-id 2tYJWMu7
+             --test-collection-id 2tYJWMu7
 
       - name: Upload results to prod using built CLI
         shell: bash
@@ -216,7 +216,8 @@ jobs:
           target/${{ matrix.platform.target }}/release/trunk-analytics-cli upload \
             --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
             --org-url-slug trunk \
-            --token ${{ secrets.TRUNK_PROD_ORG_API_TOKEN }}
+            --token ${{ secrets.TRUNK_PROD_ORG_API_TOKEN }} \
+            --test-collection-id EWhNPVic
 
   trunk_check_runner:
     name: Trunk Check runner [linux]
