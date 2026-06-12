@@ -208,7 +208,8 @@ runs:
         ./${{ inputs.cli-binary-location }} upload \
         --org-url-slug trunk \
         --junit-paths "${{ github.workspace }}/target/**/*junit.xml" \
-        --token ${{ inputs.production-api-token }}
+        --token ${{ inputs.production-api-token }} \
+        --test-collection-short-id 4B2wfoEU
 
     - name: Upload to production with public repo id
       id: production-upload-public-repo-id
