@@ -73,7 +73,7 @@ pub struct UploadArgs {
     pub org_url_slug: String,
     #[arg(
         long = "test-collection-id",
-        env = constants::TRUNK_TEST_COLLECTION_SHORT_ID_ENV,
+        env = constants::TRUNK_TEST_COLLECTION_ID_ENV,
         help = "Optional 8 character alphanumeric ID for a test collection.",
         required = false,
         num_args = 1

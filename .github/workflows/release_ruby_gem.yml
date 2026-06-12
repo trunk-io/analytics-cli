@@ -132,6 +132,7 @@ jobs:
         with:
           ruby-version: ${{ matrix.ruby-version }}
           trunk-token: ${{ secrets.TRUNK_STAGING_ORG_API_TOKEN }}
+          test-collection-id: T5yKSn9h
           platform: ${{ matrix.platform.name }}
           artifact-pattern: cross-gem-${{ matrix.platform.name }}
           knapsack-pro-test-suite-token-rspec: ${{ secrets.KNAPSACK_PRO_TEST_SUITE_TOKEN_RSPEC }}

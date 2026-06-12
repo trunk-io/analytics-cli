@@ -20,6 +20,7 @@
 #
 # Optional environment variables for configuration:
 #   TRUNK_CODEOWNERS_PATH - Path to CODEOWNERS file
+#   TRUNK_TEST_COLLECTION_ID - Optional 8 character alphanumeric ID for a test collection
 #   TRUNK_VARIANT - Variant name for test results (e.g., 'linux', 'pr-123')
 #   TRUNK_DISABLE_QUARANTINING - Set to 'true' to disable quarantining
 #   TRUNK_ALLOW_EMPTY_TEST_RESULTS - Set to 'true' to allow empty results
