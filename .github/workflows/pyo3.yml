@@ -132,6 +132,25 @@ jobs:
           uv pip install context-py --find-links ../dist --force-reinstall
           pytest --cov --junitxml=junit.xml
 
+      - name: Upload x86_64 test results to staging
+        if: "!cancelled() && startsWith(matrix.platform.target, 'x86_64')"
+        uses: trunk-io/analytics-uploader@v2
+        with:
+          junit-paths: context-py/junit.xml
+          org-url-slug: trunk-staging-org
+          token: ${{ secrets.TRUNK_STAGING_ORG_API_TOKEN }}
+          api-address: https://api.trunk-staging.io
+          test-collection-id: 6E6WINjl
+
+      - name: Upload x86_64 test results to prod
+        if: "!cancelled() && startsWith(matrix.platform.target, 'x86_64') && github.event_name != 'pull_request'"
+        uses: trunk-io/analytics-uploader@v2
+        with:
+          junit-paths: context-py/junit.xml
+          org-url-slug: trunk
+          token: ${{ secrets.TRUNK_PROD_ORG_API_TOKEN }}
+          test-collection-id: 68IdP3pq
+
       - name: pytest
         if: ${{ startsWith(matrix.platform.target, 'aarch64') }}
         uses: uraimo/run-on-arch-action@v2
@@ -152,8 +171,8 @@ jobs:
             uv pip install context-py --find-links ../dist --force-reinstall
             pytest --cov --junitxml=junit.xml
 
-      - name: Upload test results to staging
-        if: "!cancelled()"
+      - name: Upload aarch64 test results to staging
+        if: "!cancelled() && startsWith(matrix.platform.target, 'aarch64')"
         uses: trunk-io/analytics-uploader@v2
         with:
           junit-paths: context-py/junit.xml
@@ -162,8 +181,8 @@ jobs:
           api-address: https://api.trunk-staging.io
           test-collection-id: 6E6WINjl
 
-      - name: Upload test results to prod
-        if: "!cancelled() && github.event_name != 'pull_request'"
+      - name: Upload aarch64 test results to prod
+        if: "!cancelled() && startsWith(matrix.platform.target, 'aarch64') && github.event_name != 'pull_request'"
         uses: trunk-io/analytics-uploader@v2
         with:
           junit-paths: context-py/junit.xml
