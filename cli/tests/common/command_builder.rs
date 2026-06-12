@@ -16,6 +16,7 @@ pub struct UploadArgs {
     team: Option<String>,
     codeowners_path: Option<String>,
     codeowners_type: Option<String>,
+    use_bazel_target_for_codeowners: Option<bool>,
     disable_quarantining: Option<bool>,
     allow_empty_test_results: Option<bool>,
     variant: Option<String>,
@@ -41,6 +42,7 @@ impl UploadArgs {
             team: None,
             codeowners_path: None,
             codeowners_type: None,
+            use_bazel_target_for_codeowners: None,
             disable_quarantining: None,
             allow_empty_test_results: None,
             variant: None,
@@ -139,6 +141,17 @@ impl UploadArgs {
                     .into_iter()
                     .flat_map(|codeowners_type: String| {
                         vec![String::from("--codeowners-type"), codeowners_type]
+                    }),
+            )
+            .chain(
+                self.use_bazel_target_for_codeowners
+                    .into_iter()
+                    .flat_map(|flag: bool| {
+                        if flag {
+                            vec![String::from("--use-bazel-target-for-codeowners")]
+                        } else {
+                            vec![String::from("--use-bazel-target-for-codeowners=false")]
+                        }
                     }),
             )
             .chain(
@@ -498,6 +511,19 @@ impl<'b> CommandBuilder<'b> {
 
     pub fn disable_quarantining(&mut self, new_flag: bool) -> &mut Self {
         self.command_type.disable_quarantining(new_flag);
+        self
+    }
+
+    pub fn use_bazel_target_for_codeowners(&mut self, new_flag: bool) -> &mut Self {
+        match &mut self.command_type {
+            CommandType::Upload { upload_args, .. } => {
+                upload_args.use_bazel_target_for_codeowners = Some(new_flag)
+            }
+            CommandType::Test { upload_args, .. } => {
+                upload_args.use_bazel_target_for_codeowners = Some(new_flag)
+            }
+            CommandType::Validate { .. } => (),
+        }
         self
     }
 

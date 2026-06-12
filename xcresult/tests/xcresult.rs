@@ -306,17 +306,18 @@ fn test_xcresult_to_bindings_report_with_id_and_timestamps() {
         .expect("Failed to parse generated JUnit XML");
 
     let test_case_runs: Vec<BindingsTestCase> = junit_parser
-        .into_test_case_runs(
-            None,
-            &ORG_URL_SLUG.as_str(),
-            &context::repo::RepoUrlParts {
+        .into_test_case_runs(context::junit::parser::IntoTestCaseRunsOptions {
+            org_slug: ORG_URL_SLUG.as_str(),
+            repo: &context::repo::RepoUrlParts {
                 host: "github.com".to_string(),
                 owner: "trunk-io".to_string(),
                 name: "analytics-cli".to_string(),
             },
-            &[],
-            "",
-        )
+            codeowners: None,
+            quarantined_test_ids: &[],
+            variant: "",
+            bazel_label: None,
+        })
         .into_iter()
         .map(BindingsTestCase::from)
         .collect();
@@ -402,7 +403,14 @@ fn test_xcresult_with_variant_id_generation() {
         .expect("Failed to parse generated JUnit XML");
 
     let test_case_runs_no_variant: Vec<BindingsTestCase> = junit_parser_no_variant
-        .into_test_case_runs(None, &ORG_URL_SLUG.as_str(), &repo_parts, &[], "")
+        .into_test_case_runs(context::junit::parser::IntoTestCaseRunsOptions {
+            org_slug: ORG_URL_SLUG.as_str(),
+            repo: &repo_parts,
+            codeowners: None,
+            quarantined_test_ids: &[],
+            variant: "",
+            bazel_label: None,
+        })
         .into_iter()
         .map(BindingsTestCase::from)
         .collect();
@@ -415,7 +423,14 @@ fn test_xcresult_with_variant_id_generation() {
         .expect("Failed to parse generated JUnit XML");
 
     let test_case_runs_with_variant: Vec<BindingsTestCase> = junit_parser_with_variant
-        .into_test_case_runs(None, &ORG_URL_SLUG.as_str(), &repo_parts, &[], variant)
+        .into_test_case_runs(context::junit::parser::IntoTestCaseRunsOptions {
+            org_slug: ORG_URL_SLUG.as_str(),
+            repo: &repo_parts,
+            codeowners: None,
+            quarantined_test_ids: &[],
+            variant,
+            bazel_label: None,
+        })
         .into_iter()
         .map(BindingsTestCase::from)
         .collect();

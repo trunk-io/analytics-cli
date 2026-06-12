@@ -19,8 +19,8 @@ mod common;
 use codeowners::CodeOwners;
 use common::command_builder::CommandBuilder;
 use common::utils::{
-    generate_mock_bazel_bep, generate_mock_codeowners, generate_mock_git_repo,
-    generate_mock_invalid_junit_xmls, generate_mock_valid_junit_xmls,
+    generate_mock_bazel_bep, generate_mock_bazel_bep_no_file_attrs, generate_mock_codeowners,
+    generate_mock_git_repo, generate_mock_invalid_junit_xmls, generate_mock_valid_junit_xmls,
     generate_mock_valid_junit_xmls_with_failures,
 };
 use constants::EXIT_FAILURE;
@@ -414,6 +414,86 @@ async fn upload_bundle_using_bep() {
 
     // HINT: View CLI output with `cargo test -- --nocapture`
     println!("{assert}");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn upload_bundle_using_bep_with_bazel_label_codeowners_fallback() {
+    let temp_dir = tempdir().unwrap();
+    generate_mock_git_repo(&temp_dir);
+    generate_mock_codeowners(&temp_dir);
+    let bep_path = generate_mock_bazel_bep_no_file_attrs(&temp_dir);
+
+    let state = MockServerBuilder::new().spawn_mock_server().await;
+
+    CommandBuilder::upload(temp_dir.path(), state.host.clone())
+        .bazel_bep_path(bep_path.to_str().unwrap())
+        .use_bazel_target_for_codeowners(true)
+        .command()
+        .assert()
+        .success();
+
+    let requests = state.requests.lock().unwrap().clone();
+    let tar_extract_directory = assert_matches!(&requests[1], RequestPayload::S3Upload(d) => d);
+
+    let bin = {
+        let meta_json = fs::File::open(tar_extract_directory.join("meta.json")).unwrap();
+        let bundle_meta: BundleMeta = serde_json::from_reader(meta_json).unwrap();
+        let path = &bundle_meta.internal_bundled_file.as_ref().unwrap().path;
+        fs::read(tar_extract_directory.join(path)).unwrap()
+    };
+    let report = proto::test_context::test_run::TestReport::decode(&*bin).unwrap();
+    let test_case_run = &report.test_results[0].test_case_runs[0];
+
+    assert!(
+        test_case_run.file.is_empty(),
+        "file attr should be absent in this fixture"
+    );
+    assert_eq!(
+        test_case_run
+            .codeowners
+            .iter()
+            .map(|co| &co.name)
+            .collect::<Vec<_>>(),
+        ["@user", "@user2"]
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn upload_bundle_using_bep_without_bazel_label_codeowners_fallback() {
+    let temp_dir = tempdir().unwrap();
+    generate_mock_git_repo(&temp_dir);
+    generate_mock_codeowners(&temp_dir);
+    let bep_path = generate_mock_bazel_bep_no_file_attrs(&temp_dir);
+
+    let state = MockServerBuilder::new().spawn_mock_server().await;
+
+    CommandBuilder::upload(temp_dir.path(), state.host.clone())
+        .bazel_bep_path(bep_path.to_str().unwrap())
+        .command()
+        .assert()
+        .success();
+
+    let requests = state.requests.lock().unwrap().clone();
+    let tar_extract_directory = assert_matches!(&requests[1], RequestPayload::S3Upload(d) => d);
+
+    let bin = {
+        let meta_json = fs::File::open(tar_extract_directory.join("meta.json")).unwrap();
+        let bundle_meta: BundleMeta = serde_json::from_reader(meta_json).unwrap();
+        let path = &bundle_meta.internal_bundled_file.as_ref().unwrap().path;
+        fs::read(tar_extract_directory.join(path)).unwrap()
+    };
+    let report = proto::test_context::test_run::TestReport::decode(&*bin).unwrap();
+    let test_case_run = &report.test_results[0].test_case_runs[0];
+
+    assert!(
+        test_case_run.file.is_empty(),
+        "file attr should be absent in this fixture"
+    );
+    assert_eq!(
+        test_case_run.codeowners.len(),
+        0,
+        "codeowners should be empty without the flag"
+    );
 }
 
 #[tokio::test(flavor = "multi_thread")]

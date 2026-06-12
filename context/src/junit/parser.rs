@@ -141,6 +141,16 @@ enum CurrentReportState {
 }
 
 #[derive(Debug, Clone)]
+pub struct IntoTestCaseRunsOptions<'a> {
+    pub org_slug: &'a str,
+    pub repo: &'a RepoUrlParts,
+    pub codeowners: Option<&'a CodeOwners>,
+    pub quarantined_test_ids: &'a [String],
+    pub variant: &'a str,
+    pub bazel_label: Option<&'a str>,
+}
+
+#[derive(Debug, Clone)]
 pub struct JunitParser {
     date_parser: JunitDateParser,
     issues: Vec<JunitParseIssue>,
@@ -199,14 +209,15 @@ impl JunitParser {
         self.reports
     }
 
-    pub fn into_test_case_runs<T: AsRef<str>>(
-        self,
-        codeowners: Option<&CodeOwners>,
-        org_slug: &T,
-        repo: &RepoUrlParts,
-        quarantined_test_ids: &[String],
-        variant: &str,
-    ) -> Vec<TestCaseRun> {
+    pub fn into_test_case_runs(self, options: IntoTestCaseRunsOptions<'_>) -> Vec<TestCaseRun> {
+        let IntoTestCaseRunsOptions {
+            codeowners,
+            org_slug,
+            repo,
+            quarantined_test_ids,
+            variant,
+            bazel_label,
+        } = options;
         let mut test_case_runs = Vec::new();
         for report in self.reports {
             for test_suite in report.test_suites {
@@ -218,7 +229,7 @@ impl JunitParser {
                     };
                     test_case_run.classname = test_case
                         .classname
-                        .clone()
+                        .as_ref()
                         .map(|v| v.to_string())
                         .unwrap_or_default();
                     if let Some(test_case_timestamp) = test_case.timestamp {
@@ -346,15 +357,22 @@ impl JunitParser {
                         .or_else(|| test_suite.extra.get(extra_attrs::FILEPATH))
                         .map(|v| v.to_string())
                         .unwrap_or_default();
-                    if !file.is_empty() && codeowners.is_some() {
-                        let codeowners: Option<Vec<String>> = codeowners
-                            .as_ref()
-                            .map(|co| codeowners::flatten_code_owners(co, &file));
-                        if let Some(codeowners) = codeowners {
-                            test_case_run.codeowners = codeowners
-                                .iter()
-                                .map(|name| CodeOwner { name: name.clone() })
-                                .collect();
+                    if codeowners.is_some() {
+                        let codeowners_path = if !file.is_empty() {
+                            Some(file.clone())
+                        } else {
+                            bazel_label.and_then(bazel_label_to_package_path)
+                        };
+                        if let Some(path) = codeowners_path {
+                            let resolved: Option<Vec<String>> = codeowners
+                                .as_ref()
+                                .map(|co| codeowners::flatten_code_owners(co, &path));
+                            if let Some(resolved) = resolved {
+                                test_case_run.codeowners = resolved
+                                    .into_iter()
+                                    .map(|name| CodeOwner { name: name })
+                                    .collect();
+                            }
                         }
                     }
 
@@ -365,7 +383,7 @@ impl JunitParser {
                         existing_id.unwrap().to_string()
                     } else {
                         gen_info_id(
-                            org_slug.as_ref(),
+                            org_slug,
                             repo.repo_full_name().as_str(),
                             Some(file.as_str()),
                             test_case.classname.map(|v| v.to_string()).as_deref(),
@@ -852,6 +870,20 @@ impl JunitParser {
     }
 }
 
+/// Converts `//pkg/path:target` to `Some("pkg/path")` for codeowners lookup.
+/// Returns `None` if the label has no package component (e.g. `//:target`).
+fn bazel_label_to_package_path(label: &str) -> Option<String> {
+    let without_prefix = label.strip_prefix("//").unwrap_or(label);
+    let (package, _) = without_prefix
+        .rsplit_once(':')
+        .unwrap_or((without_prefix, ""));
+    if package.is_empty() {
+        None
+    } else {
+        Some(package.to_string())
+    }
+}
+
 mod parse_attr {
     use std::{borrow::Cow, str::FromStr, time::Duration};
 
@@ -1043,10 +1075,35 @@ mod tests {
     use proto::test_context::test_run::{AttemptNumber, LineNumber, TestCaseRunStatus, TestOutput};
 
     use crate::{
-        junit::parser::JunitParser,
+        junit::parser::{IntoTestCaseRunsOptions, JunitParser, bazel_label_to_package_path},
         meta::id::{gen_info_id, gen_info_id_base},
         repo::RepoUrlParts,
     };
+
+    #[test]
+    fn test_bazel_label_to_package_path() {
+        assert_eq!(
+            bazel_label_to_package_path("//trunk/hello_world/cc:hello_test"),
+            Some("trunk/hello_world/cc".to_string())
+        );
+        assert_eq!(
+            bazel_label_to_package_path("//pkg:target"),
+            Some("pkg".to_string())
+        );
+        // root-level target with no package
+        assert_eq!(bazel_label_to_package_path("//:target"), None);
+        // no // prefix
+        assert_eq!(
+            bazel_label_to_package_path("pkg/path:target"),
+            Some("pkg/path".to_string())
+        );
+        // label with no colon (unusual but handled)
+        assert_eq!(
+            bazel_label_to_package_path("//pkg/path"),
+            Some("pkg/path".to_string())
+        );
+    }
+
     #[test]
     fn test_into_test_case_runs() {
         let mut junit_parser = JunitParser::new();
@@ -1075,11 +1132,11 @@ mod tests {
             name: "repo-name".into(),
         };
 
-        let test_case_runs = junit_parser.into_test_case_runs(
-            None,
-            &org_slug,
-            &repo,
-            &[gen_info_id_base(
+        let test_case_runs = junit_parser.into_test_case_runs(IntoTestCaseRunsOptions {
+            org_slug: &org_slug,
+            repo: &repo,
+            codeowners: None,
+            quarantined_test_ids: &[gen_info_id_base(
                 org_slug.as_str(),
                 repo.repo_full_name().as_str(),
                 Some("test.java"),
@@ -1089,8 +1146,9 @@ mod tests {
                 None,
                 "",
             )],
-            "",
-        );
+            variant: "",
+            bazel_label: None,
+        });
         assert_eq!(test_case_runs.len(), 2);
         let test_case_run1 = &test_case_runs[0];
         assert_eq!(test_case_run1.name, "test_variant_truncation1");
@@ -1177,7 +1235,14 @@ mod tests {
             name: "repo-name".into(),
         };
 
-        let test_case_runs = junit_parser.into_test_case_runs(None, &org_slug, &repo, &[], "");
+        let test_case_runs = junit_parser.into_test_case_runs(IntoTestCaseRunsOptions {
+            org_slug: &org_slug,
+            repo: &repo,
+            codeowners: None,
+            quarantined_test_ids: &[],
+            variant: "",
+            bazel_label: None,
+        });
         assert_eq!(test_case_runs.len(), 1);
         let test_case_run = &test_case_runs[0];
 
@@ -1213,7 +1278,14 @@ mod tests {
             name: "repo-name".into(),
         };
 
-        let test_case_runs = junit_parser.into_test_case_runs(None, &org_slug, &repo, &[], "");
+        let test_case_runs = junit_parser.into_test_case_runs(IntoTestCaseRunsOptions {
+            org_slug: &org_slug,
+            repo: &repo,
+            codeowners: None,
+            quarantined_test_ids: &[],
+            variant: "",
+            bazel_label: None,
+        });
         assert_eq!(test_case_runs.len(), 2);
 
         // First test case should have the custom ID
@@ -1255,11 +1327,11 @@ mod tests {
             name: "repo-name".into(),
         };
 
-        let test_case_runs = junit_parser.into_test_case_runs(
-            None,
-            &org_slug,
-            &repo,
-            &[gen_info_id_base(
+        let test_case_runs = junit_parser.into_test_case_runs(IntoTestCaseRunsOptions {
+            org_slug: &org_slug,
+            repo: &repo,
+            codeowners: None,
+            quarantined_test_ids: &[gen_info_id_base(
                 org_slug.as_str(),
                 repo.repo_full_name().as_str(),
                 Some("test.java"),
@@ -1269,8 +1341,9 @@ mod tests {
                 None,
                 "",
             )],
-            "",
-        );
+            variant: "",
+            bazel_label: None,
+        });
         assert_eq!(test_case_runs.len(), 2);
         let test_case_run1 = &test_case_runs[0];
         assert_eq!(test_case_run1.name, "test_variant_truncation1");
@@ -1476,17 +1549,18 @@ mod tests {
             .unwrap();
 
         // Get test case runs - this is what gets stored in internal.bin
-        let test_case_runs = junit_parser.into_test_case_runs(
-            None,
-            &String::from("test-org"),
-            &RepoUrlParts {
+        let test_case_runs = junit_parser.into_test_case_runs(IntoTestCaseRunsOptions {
+            org_slug: "test-org",
+            repo: &RepoUrlParts {
                 host: "github.com".into(),
                 owner: "test-owner".into(),
                 name: "test-repo".into(),
             },
-            &[],
-            "",
-        );
+            codeowners: None,
+            quarantined_test_ids: &[],
+            variant: "",
+            bazel_label: None,
+        });
 
         assert_eq!(test_case_runs.len(), 1);
         let test_case_run = &test_case_runs[0];
@@ -1548,7 +1622,14 @@ mod tests {
         let test_case_runs_with_variant =
             junit_parser
                 .clone()
-                .into_test_case_runs(None, &org_slug, &repo, &[], variant);
+                .into_test_case_runs(IntoTestCaseRunsOptions {
+                    org_slug: &org_slug,
+                    repo: &repo,
+                    codeowners: None,
+                    quarantined_test_ids: &[],
+                    variant,
+                    bazel_label: None,
+                });
 
         assert_eq!(test_case_runs_with_variant.len(), 1);
         let test_case_with_variant = &test_case_runs_with_variant[0];
@@ -1563,7 +1644,14 @@ mod tests {
             .parse(BufReader::new(file_contents.as_bytes()))
             .unwrap();
         let test_case_runs_no_variant =
-            junit_parser_no_variant.into_test_case_runs(None, &org_slug, &repo, &[], "");
+            junit_parser_no_variant.into_test_case_runs(IntoTestCaseRunsOptions {
+                org_slug: &org_slug,
+                repo: &repo,
+                codeowners: None,
+                quarantined_test_ids: &[],
+                variant: "",
+                bazel_label: None,
+            });
 
         assert_eq!(test_case_runs_no_variant.len(), 1);
         let test_case_no_variant = &test_case_runs_no_variant[0];
@@ -1593,7 +1681,14 @@ mod tests {
             name: "repo-name".into(),
         };
 
-        let test_case_runs = junit_parser.into_test_case_runs(None, &org_slug, &repo, &[], "");
+        let test_case_runs = junit_parser.into_test_case_runs(IntoTestCaseRunsOptions {
+            org_slug: &org_slug,
+            repo: &repo,
+            codeowners: None,
+            quarantined_test_ids: &[],
+            variant: "",
+            bazel_label: None,
+        });
         assert_eq!(test_case_runs.len(), 2);
 
         let test_case_run1 = &test_case_runs[0];
@@ -1633,7 +1728,14 @@ mod tests {
             name: "repo-name".into(),
         };
 
-        let test_case_runs = junit_parser.into_test_case_runs(None, &org_slug, &repo, &[], "");
+        let test_case_runs = junit_parser.into_test_case_runs(IntoTestCaseRunsOptions {
+            org_slug: &org_slug,
+            repo: &repo,
+            codeowners: None,
+            quarantined_test_ids: &[],
+            variant: "",
+            bazel_label: None,
+        });
         assert_eq!(test_case_runs.len(), 1);
 
         let test_case_run = &test_case_runs[0];

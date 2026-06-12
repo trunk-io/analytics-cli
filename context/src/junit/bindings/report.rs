@@ -542,6 +542,7 @@ mod tests {
     #[cfg(feature = "bindings")]
     #[test]
     fn test_junit_conversion_paths() {
+        use crate::junit::parser::IntoTestCaseRunsOptions;
         use crate::repo::RepoUrlParts;
 
         let mut junit_parser = JunitParser::new();
@@ -562,17 +563,18 @@ mod tests {
         assert!(parsed_results.is_ok());
 
         // Get test case runs from parser
-        let test_case_runs = junit_parser.into_test_case_runs(
-            None,
-            &String::from(""),
-            &RepoUrlParts {
+        let test_case_runs = junit_parser.into_test_case_runs(IntoTestCaseRunsOptions {
+            org_slug: "",
+            repo: &RepoUrlParts {
                 host: "".into(),
                 owner: "".into(),
                 name: "".into(),
             },
-            &[],
-            "",
-        );
+            codeowners: None,
+            quarantined_test_ids: &[],
+            variant: "",
+            bazel_label: None,
+        });
         assert_eq!(test_case_runs.len(), 2);
 
         // Convert test case runs to bindings
