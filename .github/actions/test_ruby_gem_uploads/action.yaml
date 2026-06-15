@@ -24,6 +24,9 @@ inputs:
   platform:
     description: The platform that the gem was built for
     required: true
+  test-collection-id:
+    description: Optional 8 character alphanumeric ID for a test collection
+    required: false
   knapsack-pro-test-suite-token-rspec:
     description: Optional Knapsack Pro test suite token for RSpec
     required: true

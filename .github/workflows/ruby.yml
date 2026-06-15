@@ -119,6 +119,7 @@ jobs:
           trunk-token: ${{ secrets.TRUNK_STAGING_ORG_API_TOKEN }}
           trunk-public-api-address: https://api.trunk-staging.io
           trunk-org-slug: trunk-staging-org
+          test-collection-id: T5yKSn9h
           platform: x86_64-linux
           artifact-pattern: ""
           knapsack-pro-test-suite-token-rspec: ${{ secrets.KNAPSACK_PRO_TEST_SUITE_TOKEN_RSPEC }}
