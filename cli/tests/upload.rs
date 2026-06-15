@@ -59,7 +59,7 @@ async fn upload_bundle() {
     let assert = command_builder
         .command()
         .env("GITHUB_EXTERNAL_ID", "test-external-id-123")
-        .arg("--test-collection-short-id")
+        .arg("--test-collection-id")
         .arg("tc_123")
         .assert()
         // should fail due to quarantine and succeed without quarantining
@@ -237,10 +237,7 @@ async fn upload_bundle() {
     assert_eq!(test_case_run.codeowners[1].name, "@user2");
 
     let mut expected_command_args = command_builder.build_args();
-    expected_command_args.extend([
-        String::from("--test-collection-short-id"),
-        String::from("tc_123"),
-    ]);
+    expected_command_args.extend([String::from("--test-collection-id"), String::from("tc_123")]);
     assert!(
         debug_props.command_line.ends_with(
             &expected_command_args
@@ -530,7 +527,7 @@ async fn upload_bundle_without_canonical_test_collection_metadata_keeps_bundle_g
 
     CommandBuilder::upload(temp_dir.path(), state.host.clone())
         .command()
-        .arg("--test-collection-short-id")
+        .arg("--test-collection-id")
         .arg("tc_123")
         .assert()
         .failure();

@@ -696,6 +696,8 @@ impl MutTestReport {
         upload_args.pr_number = env::var(constants::TRUNK_PR_NUMBER_ENV)
             .ok()
             .and_then(|v| v.parse::<usize>().ok());
+        upload_args.test_collection_short_id =
+            env::var(constants::TRUNK_TEST_COLLECTION_ID_ENV).ok();
         let debug_props = BundleMetaDebugProps {
             command_line: self.0.borrow().command.clone(),
             trunk_envs: HashMap::new(),
