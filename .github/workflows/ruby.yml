@@ -123,4 +123,3 @@ jobs:
           platform: x86_64-linux
           artifact-pattern: ""
           knapsack-pro-test-suite-token-rspec: ${{ secrets.KNAPSACK_PRO_TEST_SUITE_TOKEN_RSPEC }}
-          test-collection-id: T5yKSn9h

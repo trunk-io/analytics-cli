@@ -230,7 +230,6 @@ jobs:
           platform: x86_64-linux
           artifact-pattern: ""
           knapsack-pro-test-suite-token-rspec: ${{ secrets.KNAPSACK_PRO_TEST_SUITE_TOKEN_RSPEC }}
-          test-collection-id: T5yKSn9h
 
   test_ruby_gem_production:
     name: Test Ruby gem on production
@@ -257,7 +256,6 @@ jobs:
           platform: x86_64-linux
           artifact-pattern: ""
           knapsack-pro-test-suite-token-rspec: ${{ secrets.KNAPSACK_PRO_TEST_SUITE_TOKEN_RSPEC }}
-          test-collection-id: BiBP2neA
 
   production-slack-workflow-status:
     if: always() && github.ref == 'refs/heads/main' && (needs.test_cli.result != 'success' || needs.test_ruby_gem_production.result != 'success')

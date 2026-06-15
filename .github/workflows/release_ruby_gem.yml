@@ -136,7 +136,6 @@ jobs:
           platform: ${{ matrix.platform.name }}
           artifact-pattern: cross-gem-${{ matrix.platform.name }}
           knapsack-pro-test-suite-token-rspec: ${{ secrets.KNAPSACK_PRO_TEST_SUITE_TOKEN_RSPEC }}
-          test-collection-id: T5yKSn9h
 
   publish_ruby_gem:
     runs-on: ubuntu-latest
