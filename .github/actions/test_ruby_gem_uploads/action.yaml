@@ -24,12 +24,12 @@ inputs:
   platform:
     description: The platform that the gem was built for
     required: true
-  knapsack-pro-test-suite-token-rspec:
-    description: Optional Knapsack Pro test suite token for RSpec
-    required: true
   test-collection-id:
     description: Optional Trunk test collection ID
     required: false
+  knapsack-pro-test-suite-token-rspec:
+    description: Optional Knapsack Pro test suite token for RSpec
+    required: true
 
 runs:
   using: composite
