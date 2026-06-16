@@ -134,7 +134,7 @@ jobs:
 
       - name: Upload x86_64 test results to staging
         if: "!cancelled() && startsWith(matrix.platform.target, 'x86_64')"
-        uses: trunk-io/analytics-uploader@v2
+        uses: trunk-io/analytics-uploader@main
         with:
           junit-paths: context-py/junit.xml
           org-url-slug: trunk-staging-org
@@ -146,7 +146,7 @@ jobs:
 
       - name: Upload x86_64 test results to prod
         if: "!cancelled() && startsWith(matrix.platform.target, 'x86_64') && github.event_name != 'pull_request'"
-        uses: trunk-io/analytics-uploader@v2
+        uses: trunk-io/analytics-uploader@main
         with:
           junit-paths: context-py/junit.xml
           org-url-slug: trunk
@@ -178,7 +178,7 @@ jobs:
 
       - name: Upload aarch64 test results to staging
         if: "!cancelled() && startsWith(matrix.platform.target, 'aarch64')"
-        uses: trunk-io/analytics-uploader@v2
+        uses: trunk-io/analytics-uploader@main
         with:
           junit-paths: context-py/junit.xml
           org-url-slug: trunk-staging-org
@@ -190,7 +190,7 @@ jobs:
 
       - name: Upload aarch64 test results to prod
         if: "!cancelled() && startsWith(matrix.platform.target, 'aarch64') && github.event_name != 'pull_request'"
-        uses: trunk-io/analytics-uploader@v2
+        uses: trunk-io/analytics-uploader@main
         with:
           junit-paths: context-py/junit.xml
           org-url-slug: trunk
