@@ -19,6 +19,7 @@ use superconsole::{
 use tempfile::TempDir;
 
 use crate::context_quarantine::{QuarantineContext, quarantine_query_result};
+use crate::summary_output::write_summary_output_file;
 use crate::validate_command::JunitReportValidations;
 use crate::{
     context::{
@@ -292,6 +293,14 @@ pub struct UploadArgs {
         default_missing_value = "true"
     )]
     pub show_failure_messages: bool,
+    #[arg(
+        long,
+        env = constants::TRUNK_SUMMARY_OUTPUT_FILE_ENV,
+        help = "Write a JSON summary of test results to the given file path. Useful for CI annotation workflows.",
+        required = false,
+        num_args = 1
+    )]
+    pub summary_output_file: Option<PathBuf>,
 }
 
 #[derive(clap::ValueEnum, Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -369,24 +378,29 @@ pub struct UploadRunResult {
     pub error_report: Option<ErrorReport>,
     pub quarantine_context: QuarantineContext,
     pub meta: BundleMeta,
+    pub test_report: Option<proto::test_context::test_run::TestReport>,
     pub validations: JunitReportValidations,
     pub validation_report: ValidationReport,
     pub show_failure_messages: bool,
+    pub summary_output_file: Option<PathBuf>,
+    pub summary_output_written: bool,
 }
 
-pub struct RunUploadOptions {
+pub struct RunUploadOptions<'a> {
     pub pre_test_context: Option<PreTestContext>,
     pub test_run_result: Option<TestRunResult>,
+    pub test_report_override: Option<&'a proto::test_context::test_run::TestReport>,
     pub render_sender: Option<Sender<DisplayMessage>>,
     pub quarantine_query_result_override:
         Option<proto::upload_metrics::trunk::QuarantineQueryResult>,
 }
 
-impl Default for RunUploadOptions {
+impl Default for RunUploadOptions<'_> {
     fn default() -> Self {
         Self {
             pre_test_context: None,
             test_run_result: None,
+            test_report_override: None,
             render_sender: None,
             quarantine_query_result_override: None,
         }
@@ -395,11 +409,12 @@ impl Default for RunUploadOptions {
 
 pub async fn run_upload(
     upload_args: UploadArgs,
-    options: RunUploadOptions,
+    options: RunUploadOptions<'_>,
 ) -> anyhow::Result<UploadRunResult> {
     let RunUploadOptions {
         pre_test_context,
         test_run_result,
+        test_report_override,
         render_sender,
         quarantine_query_result_override,
     } = options;
@@ -518,6 +533,9 @@ pub async fn run_upload(
             &quarantined_test_ids,
             upload_args.use_bazel_target_for_codeowners,
         )
+        .map(|(bundled_file, test_report, junit_validations)| {
+            (bundled_file, Some(test_report), junit_validations)
+        })
     } else {
         generate_internal_file(
             &meta.base_props.file_sets,
@@ -535,12 +553,16 @@ pub async fn run_upload(
             upload_args.use_bazel_target_for_codeowners,
         )
     };
-    let validations = if let Ok((internal_bundled_file, junit_validations)) = internal_bundled_file
+    let (validations, test_report) = if let Ok((internal_bundled_file, test_report, junit_validations)) =
+        internal_bundled_file
     {
         meta.internal_bundled_file = Some(internal_bundled_file);
-        JunitReportValidations::new(junit_validations)
+        (
+            JunitReportValidations::new(junit_validations),
+            test_report,
+        )
     } else {
-        JunitReportValidations::new(BTreeMap::new())
+        (JunitReportValidations::new(BTreeMap::new()), None)
     };
 
     meta.base_props.quarantined_tests = quarantine_context
@@ -620,14 +642,37 @@ pub async fn run_upload(
             Some("There was an unexpected error that occurred while uploading test results".into()),
         )),
     };
-    Ok(UploadRunResult {
+
+    let mut run_result = UploadRunResult {
         quarantine_context,
         error_report,
         meta,
+        test_report,
         validations,
         validation_report: upload_args.validation_report,
         show_failure_messages: upload_args.show_failure_messages,
-    })
+        summary_output_file: upload_args.summary_output_file.clone(),
+        summary_output_written: false,
+    };
+
+    if let Some(path) = &upload_args.summary_output_file {
+        match write_summary_output_file(path, &run_result, test_report_override) {
+            Ok(()) => {
+                run_result.summary_output_written = true;
+                tracing::info!("Summary written to {}", path.display());
+            }
+            Err(err) => {
+                tracing::error!(
+                    hidden_in_console = true,
+                    "Failed to write summary output file to {}: {:?}",
+                    path.display(),
+                    err
+                );
+            }
+        }
+    }
+
+    Ok(run_result)
 }
 
 async fn upload_bundle(
@@ -980,6 +1025,22 @@ impl EndOutput for UploadRunResult {
                 )?,
             ]));
         }
+
+        if self.summary_output_written {
+            if let Some(path) = &self.summary_output_file {
+                output.push(Line::default());
+                output.push(Line::from_iter([Span::new_unstyled(format!(
+                    "Summary written to {}",
+                    path.display()
+                ))?]));
+            }
+        } else if self.summary_output_file.is_some() {
+            output.push(Line::default());
+            output.push(Line::from_iter([Span::new_styled(
+                style("Failed to write summary output file".to_string()).with(Color::Yellow),
+            )?]));
+        }
+
         Ok(output)
     }
 }

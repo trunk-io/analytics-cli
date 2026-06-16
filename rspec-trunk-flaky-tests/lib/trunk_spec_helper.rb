@@ -24,6 +24,7 @@
 #   TRUNK_DISABLE_QUARANTINING - Set to 'true' to disable quarantining
 #   TRUNK_ALLOW_EMPTY_TEST_RESULTS - Set to 'true' to allow empty results
 #   TRUNK_DRY_RUN - Set to 'true' to save bundle locally instead of uploading
+#   TRUNK_SUMMARY_OUTPUT_FILE - Path to write a JSON summary of test results for CI annotation
 #   TRUNK_USE_UNCLONED_REPO - Set to 'true' for uncloned repo mode
 #   TRUNK_LOCAL_UPLOAD_DIR - Directory to save test results locally (disables upload)
 #   TRUNK_QUARANTINED_TESTS_DISK_CACHE_TTL_SECS - Time to cache quarantined tests on disk (in seconds)

@@ -33,6 +33,7 @@ use context::{
 };
 use github_actions::extract_github_external_id;
 use lazy_static::lazy_static;
+use prost::Message;
 use proto::test_context::test_run::test_case_run::TestRunnerInformation;
 use proto::test_context::test_run::{
     BazelAttemptNumber, BazelBuildInformation, BazelRunInformation, TestBuildResult, TestReport,
@@ -325,10 +326,10 @@ fn write_test_report_to_file(
     test_results: Vec<TestResult>,
     variant: Option<String>,
     temp_dir: &TempDir,
-) -> anyhow::Result<BundledFile> {
+) -> anyhow::Result<(BundledFile, TestReport)> {
     let test_report = TestReport {
         uploader_metadata: Some(UploaderMetadata {
-            variant: variant.unwrap_or_default(),
+            variant: variant.clone().unwrap_or_default(),
             ..Default::default()
         }),
         test_results,
@@ -339,14 +340,17 @@ fn write_test_report_to_file(
     let test_report_path = temp_dir.path().join(INTERNAL_BIN_FILENAME);
     std::fs::write(&test_report_path, buf)?;
 
-    Ok(BundledFile {
-        original_path: test_report_path.to_string_lossy().to_string(),
-        original_path_rel: None,
-        owners: vec![],
-        path: INTERNAL_BIN_FILENAME.to_string(),
-        // last_modified_epoch_ns does not serialize so the compiler complains it does not exist
-        ..Default::default()
-    })
+    Ok((
+        BundledFile {
+            original_path: test_report_path.to_string_lossy().to_string(),
+            original_path_rel: None,
+            owners: vec![],
+            path: INTERNAL_BIN_FILENAME.to_string(),
+            // last_modified_epoch_ns does not serialize so the compiler complains it does not exist
+            ..Default::default()
+        },
+        test_report,
+    ))
 }
 
 struct BuildResultFromBep {
@@ -392,6 +396,7 @@ pub fn generate_internal_file_from_bep(
     use_bazel_target_for_codeowners: bool,
 ) -> anyhow::Result<(
     BundledFile,
+    TestReport,
     BTreeMap<String, anyhow::Result<JunitReportValidation>>,
 )> {
     let mut junit_validations = BTreeMap::new();
@@ -498,9 +503,9 @@ pub fn generate_internal_file_from_bep(
         ));
     }
 
-    let bundled_file = write_test_report_to_file(test_results, variant, temp_dir)?;
+    let (bundled_file, test_report) = write_test_report_to_file(test_results, variant, temp_dir)?;
 
-    Ok((bundled_file, junit_validations))
+    Ok((bundled_file, test_report, junit_validations))
 }
 
 pub fn generate_internal_file(
@@ -515,6 +520,7 @@ pub fn generate_internal_file(
     use_bazel_target_for_codeowners: bool,
 ) -> anyhow::Result<(
     BundledFile,
+    Option<TestReport>,
     BTreeMap<String, anyhow::Result<JunitReportValidation>>,
 )> {
     let mut junit_validations = BTreeMap::new();
@@ -530,8 +536,9 @@ pub fn generate_internal_file(
                     "Internal file set contains more than one file"
                 ));
             }
-            // Internal file set, we should just use that directly and assume it's valid
-            return Ok((file_set.files[0].clone(), BTreeMap::new()));
+            // Internal file sets are pre-encoded proto files; pass through as-is.
+            let bundled_file = file_set.files[0].clone();
+            return Ok((bundled_file, None, BTreeMap::new()));
         } else {
             for file in &file_set.files {
                 if file.original_path.ends_with(".xml") {
@@ -574,9 +581,9 @@ pub fn generate_internal_file(
         None, // No build information for non-BEP files
     )];
 
-    let bundled_file = write_test_report_to_file(test_results, variant, temp_dir)?;
+    let (bundled_file, test_report) = write_test_report_to_file(test_results, variant, temp_dir)?;
 
-    Ok((bundled_file, junit_validations))
+    Ok((bundled_file, Some(test_report), junit_validations))
 }
 
 pub fn fall_back_to_binary_parse(

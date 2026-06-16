@@ -42,6 +42,7 @@ use test_utils::{
     inputs::get_test_file_path,
     mock_server::{MockServerBuilder, RequestPayload, SharedMockServerState},
 };
+use trunk_analytics_cli::summary_output::{SummaryCounts, SummaryReport};
 use trunk_analytics_cli::upload_command::{DRY_RUN_OUTPUT_DIR, get_bundle_upload_id_message};
 
 // NOTE: must be multi threaded to start a mock server
@@ -258,6 +259,55 @@ async fn upload_bundle() {
     assert.stderr(predicate::str::contains(
         get_bundle_upload_id_message(&bundle_upload_id).as_str(),
     ));
+}
+
+// NOTE: must be multi threaded to start a mock server
+#[tokio::test(flavor = "multi_thread")]
+async fn upload_writes_summary_output_file() {
+    let temp_dir = tempdir().unwrap();
+    generate_mock_git_repo(&temp_dir);
+    generate_mock_valid_junit_xmls_with_failures(&temp_dir);
+
+    let state = MockServerBuilder::new().spawn_mock_server().await;
+    let summary_path = temp_dir.path().join("summary.json");
+
+    CommandBuilder::upload(temp_dir.path(), state.host.clone())
+        .summary_output_file(summary_path.to_str().unwrap())
+        .command()
+        .assert()
+        .failure();
+
+    let report: SummaryReport =
+        serde_json::from_reader(fs::File::open(&summary_path).unwrap()).unwrap();
+
+    assert_eq!(report.schema_version, 1);
+    assert!(report.summary.total > 0);
+    assert_eq!(
+        report.summary,
+        SummaryCounts {
+            total: report.summary.total,
+            pass: report.summary.pass,
+            fail: report.summary.fail,
+            quarantined: report.summary.quarantined,
+            pass_ratio: Some(
+                ((report.summary.pass as f64 / report.summary.total as f64) * 100.0).round()
+                    / 100.0,
+            ),
+        }
+    );
+    assert_eq!(
+        report.failures.len(),
+        report.summary.fail + report.summary.quarantined
+    );
+    for failure in &report.failures {
+        assert!(!failure.name.is_empty());
+        assert!(failure.trunk_url.contains("flaky-tests/test/"));
+        assert!(!failure.is_quarantined);
+    }
+
+    let round_trip: SummaryReport =
+        serde_json::from_str(&serde_json::to_string(&report).unwrap()).unwrap();
+    assert_eq!(report, round_trip);
 }
 
 // NOTE: must be multi threaded to start a mock server

@@ -27,6 +27,7 @@ pub struct UploadArgs {
     validation_report: Option<String>,
     dry_run: bool,
     public_repo_id: Option<String>,
+    summary_output_file: Option<String>,
 }
 
 impl UploadArgs {
@@ -53,6 +54,7 @@ impl UploadArgs {
             validation_report: None,
             dry_run: false,
             public_repo_id: None,
+            summary_output_file: None,
         }
     }
 
@@ -219,6 +221,17 @@ impl UploadArgs {
                     vec![String::from("--validation-report"), validation_report]
                 },
             ))
+            .chain(
+                self.summary_output_file
+                    .clone()
+                    .into_iter()
+                    .flat_map(|summary_output_file: String| {
+                        vec![
+                            String::from("--summary-output-file"),
+                            summary_output_file,
+                        ]
+                    }),
+            )
             .chain(if self.dry_run {
                 vec![String::from("--dry-run")]
             } else {
@@ -557,6 +570,19 @@ impl<'b> CommandBuilder<'b> {
             }
             CommandType::Test { upload_args, .. } => {
                 upload_args.public_repo_id = Some(new_value.to_string());
+            }
+            CommandType::Validate { .. } => {}
+        }
+        self
+    }
+
+    pub fn summary_output_file(&mut self, new_value: &str) -> &mut Self {
+        match &mut self.command_type {
+            CommandType::Upload { upload_args, .. } => {
+                upload_args.summary_output_file = Some(new_value.to_string());
+            }
+            CommandType::Test { upload_args, .. } => {
+                upload_args.summary_output_file = Some(new_value.to_string());
             }
             CommandType::Validate { .. } => {}
         }

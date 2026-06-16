@@ -50,6 +50,7 @@ pub const TRUNK_DRY_RUN_ENV: &str = "TRUNK_DRY_RUN";
 pub const TRUNK_TEST_PROCESS_EXIT_CODE_ENV: &str = "TRUNK_TEST_PROCESS_EXIT_CODE";
 pub const TRUNK_VALIDATION_REPORT_ENV: &str = "TRUNK_VALIDATION_REPORT";
 pub const TRUNK_SHOW_FAILURE_MESSAGES_ENV: &str = "TRUNK_SHOW_FAILURE_MESSAGES";
+pub const TRUNK_SUMMARY_OUTPUT_FILE_ENV: &str = "TRUNK_SUMMARY_OUTPUT_FILE";
 pub const TRUNK_DEBUG_ENV: &str = "TRUNK_DEBUG";
 // RSpec-only: when set to "true", aborts the RSpec run if quarantine lookup fails.
 // Handled in rspec-trunk-flaky-tests/lib/trunk_spec_helper.rb, not the CLI.
@@ -83,6 +84,7 @@ pub const TRUNK_ENVS_TO_CAPTURE: &[&str] = &[
     TRUNK_TEST_PROCESS_EXIT_CODE_ENV,
     TRUNK_VALIDATION_REPORT_ENV,
     TRUNK_SHOW_FAILURE_MESSAGES_ENV,
+    TRUNK_SUMMARY_OUTPUT_FILE_ENV,
     TRUNK_DEBUG_ENV,
 ];
 

@@ -696,6 +696,9 @@ impl MutTestReport {
         upload_args.pr_number = env::var(constants::TRUNK_PR_NUMBER_ENV)
             .ok()
             .and_then(|v| v.parse::<usize>().ok());
+        upload_args.summary_output_file = env::var(constants::TRUNK_SUMMARY_OUTPUT_FILE_ENV)
+            .ok()
+            .map(PathBuf::from);
         let debug_props = BundleMetaDebugProps {
             command_line: self.0.borrow().command.clone(),
             trunk_envs: HashMap::new(),
@@ -709,6 +712,7 @@ impl MutTestReport {
         };
         let result = match gather_initial_test_context(upload_args.clone(), debug_props) {
             Ok(pre_test_context) => {
+                let inner = self.0.borrow();
                 match tokio::runtime::Builder::new_multi_thread()
                     .enable_all()
                     .build()
@@ -718,6 +722,7 @@ impl MutTestReport {
                         RunUploadOptions {
                             pre_test_context: Some(pre_test_context),
                             test_run_result: Some(test_run_result),
+                            test_report_override: Some(&inner.test_report),
                             quarantine_query_result_override: Some(
                                 self.quarantine_query_result_for_telemetry(),
                             ),

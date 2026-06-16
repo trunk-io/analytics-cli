@@ -4,7 +4,7 @@ use url::{ParseError, Url, form_urlencoded};
 
 pub fn url_for_test_case(
     public_api_address: &str,
-    org_url_slug: &String,
+    org_url_slug: &str,
     repo: &RepoUrlParts,
     test_case: &Test,
 ) -> Result<String, ParseError> {
@@ -18,7 +18,7 @@ fn convert_to_app_url(public_api_address: &str) -> String {
     public_api_address.replace("https://api.", "https://app.")
 }
 
-fn test_path(org_url_slug: &String, test_case: &Test) -> String {
+fn test_path(org_url_slug: &str, test_case: &Test) -> String {
     format!("{}/flaky-tests/test/{}", org_url_slug, test_case.id)
 }
 
@@ -50,8 +50,8 @@ fn test_url_generated() {
     };
 
     let actual = url_for_test_case(
-        &String::from("https://api.trunk-staging.io"),
-        &String::from("bad-app-org"),
+        "https://api.trunk-staging.io",
+        "bad-app-org",
         &repo,
         &test,
     );
