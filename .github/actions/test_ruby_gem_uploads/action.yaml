@@ -27,6 +27,9 @@ inputs:
   test-collection-id:
     description: Optional 8 character alphanumeric ID for a test collection
     required: false
+  variant:
+    description: Optional variant label to distinguish uploads within a matrix
+    required: false
   knapsack-pro-test-suite-token-rspec:
     description: Optional Knapsack Pro test suite token for RSpec
     required: true
@@ -87,6 +90,7 @@ runs:
         TRUNK_ORG_URL_SLUG: ${{ inputs.trunk-org-slug }}
         TRUNK_API_TOKEN: ${{ inputs.trunk-token }}
         TRUNK_TEST_COLLECTION_ID: ${{ inputs.test-collection-id }}
+        TRUNK_VARIANT: ${{ inputs.variant }}
 
     - name: Run variant quarantine test without variant (should fail - not quarantined)
       id: run-variant-test-no-variant
@@ -172,6 +176,7 @@ runs:
         TRUNK_ORG_URL_SLUG: ${{ inputs.trunk-org-slug }}
         TRUNK_PUBLIC_API_ADDRESS: ${{ inputs.trunk-public-api-address }}
         TRUNK_TEST_COLLECTION_ID: ${{ inputs.test-collection-id }}
+        TRUNK_VARIANT: ${{ inputs.variant }}
         TRUNK_LOCAL_UPLOAD_DIR: bundles
       run: |
         set -euo pipefail

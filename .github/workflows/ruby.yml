@@ -25,6 +25,9 @@ jobs:
       - name: Setup Ruby
         uses: ./.github/actions/setup_ruby
 
+      - name: Build CLI
+        run: cargo build -p trunk-analytics-cli
+
       - name: Test ruby package
         if: "!cancelled()"
         run: |
@@ -32,10 +35,51 @@ jobs:
           bundle exec rake test
         working-directory: rspec-trunk-flaky-tests
         env:
+          TRUNK_LOCAL_UPLOAD_DIR: ../upload_bundle
+
+      - name: Upload ruby package results → analytics-cli-ruby-gem (staging)
+        if: "!cancelled()"
+        run: |
+          ./target/debug/trunk-analytics-cli upload \
+            --org-url-slug trunk-staging-org \
+            --token ${{ secrets.TRUNK_STAGING_ORG_API_TOKEN }} \
+            --test-reports ./upload_bundle/trunk_output.bin \
+            --test-collection-id T5yKSn9h
+        env:
           TRUNK_PUBLIC_API_ADDRESS: https://api.trunk-staging.io
-          TRUNK_ORG_URL_SLUG: trunk-staging-org
-          TRUNK_API_TOKEN: ${{ secrets.TRUNK_STAGING_ORG_API_TOKEN }}
-          TRUNK_TEST_COLLECTION_ID: T5yKSn9h
+
+      - name: Upload ruby package results → analytics-cli-ruby-gem (prod)
+        if: "!cancelled()"
+        run: |
+          ./target/debug/trunk-analytics-cli upload \
+            --org-url-slug trunk \
+            --token ${{ secrets.TRUNK_PROD_ORG_API_TOKEN }} \
+            --test-reports ./upload_bundle/trunk_output.bin \
+            --test-collection-id BiBP2neA
+        env:
+          TRUNK_PUBLIC_API_ADDRESS: https://api.trunk.io
+
+      - name: Upload ruby package results → analytics-cli-smoke-tests (staging)
+        if: "!cancelled()"
+        run: |
+          ./target/debug/trunk-analytics-cli upload \
+            --org-url-slug trunk-staging-org \
+            --token ${{ secrets.TRUNK_STAGING_ORG_API_TOKEN }} \
+            --test-reports ./upload_bundle/trunk_output.bin \
+            --test-collection-id z2dzjLHm
+        env:
+          TRUNK_PUBLIC_API_ADDRESS: https://api.trunk-staging.io
+
+      - name: Upload ruby package results → analytics-cli-smoke-tests (prod)
+        if: "!cancelled()"
+        run: |
+          ./target/debug/trunk-analytics-cli upload \
+            --org-url-slug trunk \
+            --token ${{ secrets.TRUNK_PROD_ORG_API_TOKEN }} \
+            --test-reports ./upload_bundle/trunk_output.bin \
+            --test-collection-id 4B2wfoEU
+        env:
+          TRUNK_PUBLIC_API_ADDRESS: https://api.trunk.io
 
       - name: Validate ruby platform gem
         if: "!cancelled()"
@@ -113,13 +157,50 @@ jobs:
           name: ruby-gem-pr
           path: .github/actions/test_ruby_gem_uploads/
 
-      - uses: ./.github/actions/test_ruby_gem_uploads
+      - name: Test ruby gem uploads → analytics-cli-ruby-gem (staging)
+        uses: ./.github/actions/test_ruby_gem_uploads
         with:
           ruby-version: "3.4"
           trunk-token: ${{ secrets.TRUNK_STAGING_ORG_API_TOKEN }}
           trunk-public-api-address: https://api.trunk-staging.io
           trunk-org-slug: trunk-staging-org
           test-collection-id: T5yKSn9h
+          platform: x86_64-linux
+          artifact-pattern: ""
+          knapsack-pro-test-suite-token-rspec: ${{ secrets.KNAPSACK_PRO_TEST_SUITE_TOKEN_RSPEC }}
+
+      - name: Test ruby gem uploads → analytics-cli-ruby-gem (prod)
+        uses: ./.github/actions/test_ruby_gem_uploads
+        with:
+          ruby-version: "3.4"
+          trunk-token: ${{ secrets.TRUNK_PROD_ORG_API_TOKEN }}
+          trunk-public-api-address: https://api.trunk.io
+          trunk-org-slug: trunk
+          test-collection-id: BiBP2neA
+          platform: x86_64-linux
+          artifact-pattern: ""
+          knapsack-pro-test-suite-token-rspec: ${{ secrets.KNAPSACK_PRO_TEST_SUITE_TOKEN_RSPEC }}
+
+      - name: Test ruby gem uploads → analytics-cli-smoke-tests (staging)
+        uses: ./.github/actions/test_ruby_gem_uploads
+        with:
+          ruby-version: "3.4"
+          trunk-token: ${{ secrets.TRUNK_STAGING_ORG_API_TOKEN }}
+          trunk-public-api-address: https://api.trunk-staging.io
+          trunk-org-slug: trunk-staging-org
+          test-collection-id: z2dzjLHm
+          platform: x86_64-linux
+          artifact-pattern: ""
+          knapsack-pro-test-suite-token-rspec: ${{ secrets.KNAPSACK_PRO_TEST_SUITE_TOKEN_RSPEC }}
+
+      - name: Test ruby gem uploads → analytics-cli-smoke-tests (prod)
+        uses: ./.github/actions/test_ruby_gem_uploads
+        with:
+          ruby-version: "3.4"
+          trunk-token: ${{ secrets.TRUNK_PROD_ORG_API_TOKEN }}
+          trunk-public-api-address: https://api.trunk.io
+          trunk-org-slug: trunk
+          test-collection-id: 4B2wfoEU
           platform: x86_64-linux
           artifact-pattern: ""
           knapsack-pro-test-suite-token-rspec: ${{ secrets.KNAPSACK_PRO_TEST_SUITE_TOKEN_RSPEC }}
