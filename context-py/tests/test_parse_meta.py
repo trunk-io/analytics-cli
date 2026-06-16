@@ -293,7 +293,7 @@ def test_parse_and_dump_meta_roundtrip():
         },
         "schema": "V0_5_29",
         "tags": [],
-        "test_collection_short_id": None,
+        "test_collection_id": None,
         "test_command": None,
         "upload_time_epoch": 1721095230,
         "use_uncloned_repo": None,
@@ -302,7 +302,7 @@ def test_parse_and_dump_meta_roundtrip():
 
     valid_meta_str = json.dumps(valid_meta, sort_keys=True)
     expected_meta = dict(valid_meta)
-    expected_meta.pop("test_collection_short_id")
+    expected_meta.pop("test_collection_id")
     expected_meta_str = json.dumps(expected_meta, sort_keys=True)
     bundle_meta = parse_meta(valid_meta_str.encode())
     assert (
