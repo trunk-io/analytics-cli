@@ -113,6 +113,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Setup Rust & Cargo
+        uses: ./.github/actions/setup_rust_cargo
+
+      - name: Build CLI
+        run: cargo build -p trunk-analytics-cli
+
       - name: Download wheels
         uses: actions/download-artifact@v4
         with:
@@ -134,25 +140,25 @@ jobs:
 
       - name: Upload x86_64 test results to staging
         if: "!cancelled() && startsWith(matrix.platform.target, 'x86_64')"
-        uses: trunk-io/analytics-uploader@main
-        with:
-          junit-paths: context-py/junit.xml
-          org-url-slug: trunk-staging-org
-          token: ${{ secrets.TRUNK_STAGING_ORG_API_TOKEN }}
-          test-collection-id: 6E6WINjl
-          variant: ${{ matrix.platform.target }}
+        run: |
+          ./target/debug/trunk-analytics-cli upload \
+            --junit-paths context-py/junit.xml \
+            --org-url-slug trunk-staging-org \
+            --token ${{ secrets.TRUNK_STAGING_ORG_API_TOKEN }} \
+            --test-collection-id 6E6WINjl \
+            --variant ${{ matrix.platform.target }}
         env:
           TRUNK_PUBLIC_API_ADDRESS: https://api.trunk-staging.io
 
       - name: Upload x86_64 test results to prod
         if: "!cancelled() && startsWith(matrix.platform.target, 'x86_64') && github.event_name != 'pull_request'"
-        uses: trunk-io/analytics-uploader@main
-        with:
-          junit-paths: context-py/junit.xml
-          org-url-slug: trunk
-          token: ${{ secrets.TRUNK_PROD_ORG_API_TOKEN }}
-          test-collection-id: 68IdP3pq
-          variant: ${{ matrix.platform.target }}
+        run: |
+          ./target/debug/trunk-analytics-cli upload \
+            --junit-paths context-py/junit.xml \
+            --org-url-slug trunk \
+            --token ${{ secrets.TRUNK_PROD_ORG_API_TOKEN }} \
+            --test-collection-id 68IdP3pq \
+            --variant ${{ matrix.platform.target }}
         env:
           TRUNK_PUBLIC_API_ADDRESS: https://api.trunk.io
 
@@ -178,25 +184,25 @@ jobs:
 
       - name: Upload aarch64 test results to staging
         if: "!cancelled() && startsWith(matrix.platform.target, 'aarch64')"
-        uses: trunk-io/analytics-uploader@main
-        with:
-          junit-paths: context-py/junit.xml
-          org-url-slug: trunk-staging-org
-          token: ${{ secrets.TRUNK_STAGING_ORG_API_TOKEN }}
-          test-collection-id: 6E6WINjl
-          variant: ${{ matrix.platform.target }}
+        run: |
+          ./target/debug/trunk-analytics-cli upload \
+            --junit-paths context-py/junit.xml \
+            --org-url-slug trunk-staging-org \
+            --token ${{ secrets.TRUNK_STAGING_ORG_API_TOKEN }} \
+            --test-collection-id 6E6WINjl \
+            --variant ${{ matrix.platform.target }}
         env:
           TRUNK_PUBLIC_API_ADDRESS: https://api.trunk-staging.io
 
       - name: Upload aarch64 test results to prod
         if: "!cancelled() && startsWith(matrix.platform.target, 'aarch64') && github.event_name != 'pull_request'"
-        uses: trunk-io/analytics-uploader@main
-        with:
-          junit-paths: context-py/junit.xml
-          org-url-slug: trunk
-          token: ${{ secrets.TRUNK_PROD_ORG_API_TOKEN }}
-          test-collection-id: 68IdP3pq
-          variant: ${{ matrix.platform.target }}
+        run: |
+          ./target/debug/trunk-analytics-cli upload \
+            --junit-paths context-py/junit.xml \
+            --org-url-slug trunk \
+            --token ${{ secrets.TRUNK_PROD_ORG_API_TOKEN }} \
+            --test-collection-id 68IdP3pq \
+            --variant ${{ matrix.platform.target }}
         env:
           TRUNK_PUBLIC_API_ADDRESS: https://api.trunk.io
 
