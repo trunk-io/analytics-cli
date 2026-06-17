@@ -194,7 +194,14 @@ pub struct FileSetTestRunnerReport {
     #[cfg_attr(feature = "wasm", tsify(type = "number"))]
     #[serde(default, with = "ts_milliseconds")]
     pub resolved_end_time_epoch_ms: DateTime<Utc>,
-    /// Added in v0.10.5. Populated when parsing from BEP, not from junit globs
+    /// Deprecated. Use `bazel_run_information.label` on test case runs and
+    /// `bazel_build_information.label` on test results in `internal.bin` instead.
+    /// Retained for backward-compatible `meta.json` deserialization only; not written on new bundles.
+    #[deprecated(
+        since = "0.13.2",
+        note = "use bazel_run_information.label or bazel_build_information.label from internal.bin"
+    )]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub resolved_label: Option<String>,
 }
 
@@ -208,7 +215,7 @@ impl FileSetTestRunnerReport {
         resolved_status: TestRunnerReportStatus,
         resolved_start_time_epoch_ms: DateTime<Utc>,
         resolved_end_time_epoch_ms: DateTime<Utc>,
-        resolved_label: Option<String>,
+        #[allow(deprecated)] resolved_label: Option<String>,
     ) -> Self {
         Self {
             resolved_status,
@@ -225,7 +232,7 @@ impl From<TestRunnerReport> for FileSetTestRunnerReport {
             resolved_status: test_runner_report.status,
             resolved_start_time_epoch_ms: test_runner_report.start_time,
             resolved_end_time_epoch_ms: test_runner_report.end_time,
-            resolved_label: test_runner_report.label,
+            resolved_label: None,
         }
     }
 }
@@ -236,7 +243,6 @@ impl From<FileSetTestRunnerReport> for TestRunnerReport {
             status: test_runner_report.resolved_status,
             start_time: test_runner_report.resolved_start_time_epoch_ms,
             end_time: test_runner_report.resolved_end_time_epoch_ms,
-            label: test_runner_report.resolved_label,
         }
     }
 }

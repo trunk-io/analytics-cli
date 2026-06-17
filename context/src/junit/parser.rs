@@ -9,7 +9,8 @@ use codeowners::CodeOwners;
 use prost::Message;
 use prost_wkt_types::Timestamp;
 use proto::test_context::test_run::{
-    AttemptNumber, CodeOwner, LineNumber, TestCaseRun, TestCaseRunStatus, TestOutput,
+    AttemptNumber, BazelRunInformation, CodeOwner, LineNumber, TestCaseRun, TestCaseRunStatus,
+    TestOutput, test_case_run::TestRunnerInformation,
 };
 #[cfg(feature = "pyo3")]
 use pyo3::prelude::*;
@@ -141,13 +142,21 @@ enum CurrentReportState {
 }
 
 #[derive(Debug, Clone)]
+pub enum TestRunnerConfig<'a> {
+    Bazel {
+        bazel_run_information: &'a BazelRunInformation,
+        use_bazel_target_for_codeowners: bool,
+    },
+}
+
+#[derive(Debug, Clone)]
 pub struct IntoTestCaseRunsOptions<'a> {
     pub org_slug: &'a str,
     pub repo: &'a RepoUrlParts,
     pub codeowners: Option<&'a CodeOwners>,
     pub quarantined_test_ids: &'a [String],
     pub variant: &'a str,
-    pub bazel_label: Option<&'a str>,
+    pub test_runner_config: Option<TestRunnerConfig<'a>>,
 }
 
 #[derive(Debug, Clone)]
@@ -216,7 +225,7 @@ impl JunitParser {
             repo,
             quarantined_test_ids,
             variant,
-            bazel_label,
+            test_runner_config,
         } = options;
         let mut test_case_runs = Vec::new();
         for report in self.reports {
@@ -360,8 +369,14 @@ impl JunitParser {
                     if codeowners.is_some() {
                         let codeowners_path = if !file.is_empty() {
                             Some(file.clone())
+                        } else if let Some(TestRunnerConfig::Bazel {
+                            bazel_run_information,
+                            use_bazel_target_for_codeowners: true,
+                        }) = test_runner_config
+                        {
+                            bazel_label_to_package_path(&bazel_run_information.label)
                         } else {
-                            bazel_label.and_then(bazel_label_to_package_path)
+                            None
                         };
                         if let Some(path) = codeowners_path {
                             let resolved: Option<Vec<String>> = codeowners
@@ -416,6 +431,17 @@ impl JunitParser {
                     test_case_run.line = line_number.unwrap_or_default();
                     // trunk-ignore(clippy/deprecated)
                     test_case_run.attempt_number = attempt_number.unwrap_or_default();
+
+                    if let Some(TestRunnerConfig::Bazel {
+                        bazel_run_information,
+                        ..
+                    }) = test_runner_config
+                    {
+                        test_case_run.test_runner_information =
+                            Some(TestRunnerInformation::BazelRunInformation(
+                                bazel_run_information.clone(),
+                            ));
+                    }
 
                     test_case_runs.push(test_case_run);
                 }
@@ -1147,7 +1173,7 @@ mod tests {
                 "",
             )],
             variant: "",
-            bazel_label: None,
+            test_runner_config: None,
         });
         assert_eq!(test_case_runs.len(), 2);
         let test_case_run1 = &test_case_runs[0];
@@ -1241,7 +1267,7 @@ mod tests {
             codeowners: None,
             quarantined_test_ids: &[],
             variant: "",
-            bazel_label: None,
+            test_runner_config: None,
         });
         assert_eq!(test_case_runs.len(), 1);
         let test_case_run = &test_case_runs[0];
@@ -1284,7 +1310,7 @@ mod tests {
             codeowners: None,
             quarantined_test_ids: &[],
             variant: "",
-            bazel_label: None,
+            test_runner_config: None,
         });
         assert_eq!(test_case_runs.len(), 2);
 
@@ -1342,7 +1368,7 @@ mod tests {
                 "",
             )],
             variant: "",
-            bazel_label: None,
+            test_runner_config: None,
         });
         assert_eq!(test_case_runs.len(), 2);
         let test_case_run1 = &test_case_runs[0];
@@ -1559,7 +1585,7 @@ mod tests {
             codeowners: None,
             quarantined_test_ids: &[],
             variant: "",
-            bazel_label: None,
+            test_runner_config: None,
         });
 
         assert_eq!(test_case_runs.len(), 1);
@@ -1628,7 +1654,7 @@ mod tests {
                     codeowners: None,
                     quarantined_test_ids: &[],
                     variant,
-                    bazel_label: None,
+                    test_runner_config: None,
                 });
 
         assert_eq!(test_case_runs_with_variant.len(), 1);
@@ -1650,7 +1676,7 @@ mod tests {
                 codeowners: None,
                 quarantined_test_ids: &[],
                 variant: "",
-                bazel_label: None,
+                test_runner_config: None,
             });
 
         assert_eq!(test_case_runs_no_variant.len(), 1);
@@ -1687,7 +1713,7 @@ mod tests {
             codeowners: None,
             quarantined_test_ids: &[],
             variant: "",
-            bazel_label: None,
+            test_runner_config: None,
         });
         assert_eq!(test_case_runs.len(), 2);
 
@@ -1734,7 +1760,7 @@ mod tests {
             codeowners: None,
             quarantined_test_ids: &[],
             variant: "",
-            bazel_label: None,
+            test_runner_config: None,
         });
         assert_eq!(test_case_runs.len(), 1);
 

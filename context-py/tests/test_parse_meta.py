@@ -190,6 +190,8 @@ def test_parse_meta_valid():
         == resolved_time_epoch_ms
     )
     assert bundle_meta.base_props.file_sets[4].test_runner_report is not None
+    # resolved_label is deprecated and not written on new bundles; this verifies
+    # backward-compatible deserialization of historical meta.json.
     assert (
         bundle_meta.base_props.file_sets[4].test_runner_report.resolved_label
         == resolved_label
