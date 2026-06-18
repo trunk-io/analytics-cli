@@ -380,11 +380,11 @@ fn get_build_result_from_bep(bep_result: &BepParseResult, label: &str) -> BuildR
 }
 
 fn bazel_run_information_from_bep_xml(
-    label: &str,
+    label: String,
     xml_file: &context::bazel_bep::common::BepXMLFile,
 ) -> BazelRunInformation {
     BazelRunInformation {
-        label: label.to_string(),
+        label,
         attempt_number: xml_file.attempt,
         started_at: xml_file.start_time.map(|time| prost_wkt_types::Timestamp {
             seconds: time.timestamp(),
@@ -436,7 +436,7 @@ pub fn generate_internal_file_from_bep(
                     };
 
                     let bazel_run_information =
-                        bazel_run_information_from_bep_xml(&label, xml_file);
+                        bazel_run_information_from_bep_xml(label.clone(), xml_file);
 
                     test_case_runs.extend(junit_parser.into_test_case_runs(
                         IntoTestCaseRunsOptions {
@@ -446,7 +446,7 @@ pub fn generate_internal_file_from_bep(
                             quarantined_test_ids,
                             variant: variant.as_deref().unwrap_or(""),
                             test_runner_config: Some(TestRunnerConfig::Bazel {
-                                bazel_run_information: &bazel_run_information,
+                                bazel_run_information,
                                 use_bazel_target_for_codeowners,
                             }),
                         },
@@ -484,7 +484,7 @@ pub fn generate_internal_file_from_bep(
                             quarantined_test_ids,
                             variant: variant.as_deref().unwrap_or(""),
                             test_runner_config: Some(TestRunnerConfig::Bazel {
-                                bazel_run_information: &bazel_run_information,
+                                bazel_run_information,
                                 use_bazel_target_for_codeowners,
                             }),
                         },

@@ -378,25 +378,25 @@ async fn upload_bundle_using_bep() {
     let report = report.test_results.first().unwrap();
     assert_eq!(report.test_case_runs.len(), 500);
     assert!(report.test_build_information.is_some());
-    let test_build_information = match report.test_build_information.as_ref() {
+    let test_build_information = assert_matches!(
+        report.test_build_information.as_ref(),
         Some(
             proto::test_context::test_run::test_result::TestBuildInformation::BazelBuildInformation(
                 bazel_build_information,
             ),
-        ) => bazel_build_information,
-        _ => panic!("Expected BazelBuildInformation"),
-    };
+        ) => bazel_build_information
+    );
     assert_eq!(test_build_information.label, "//path:test");
 
     let test_case_run = &report.test_case_runs[0];
-    let bazel_run_information = match test_case_run.test_runner_information.as_ref() {
+    let bazel_run_information = assert_matches!(
+        test_case_run.test_runner_information.as_ref(),
         Some(
             proto::test_context::test_run::test_case_run::TestRunnerInformation::BazelRunInformation(
                 bazel_run_information,
             ),
-        ) => bazel_run_information,
-        _ => panic!("Expected BazelRunInformation"),
-    };
+        ) => bazel_run_information
+    );
     assert_eq!(bazel_run_information.label, "//path:test");
     assert!(test_case_run.id.is_empty());
     assert!(!test_case_run.name.is_empty());
@@ -773,29 +773,28 @@ async fn upload_bundle_success_status_code() {
     let bin = fs::read(tar_extract_directory.join(&internal_bundled_file.path)).unwrap();
     let report = proto::test_context::test_run::TestReport::decode(&*bin).unwrap();
     let test_result = report.test_results.first().unwrap();
-    let test_build_information = match test_result.test_build_information.as_ref() {
+    let test_build_information = assert_matches!(
+        test_result.test_build_information.as_ref(),
         Some(
             proto::test_context::test_run::test_result::TestBuildInformation::BazelBuildInformation(
                 bazel_build_information,
             ),
-        ) => bazel_build_information,
-        _ => panic!("Expected BazelBuildInformation"),
-    };
+        ) => bazel_build_information
+    );
     assert_eq!(
         test_build_information.label,
         "//trunk/hello_world/cc:hello_test"
     );
-    let bazel_run_information = match test_result.test_case_runs[0]
-        .test_runner_information
-        .as_ref()
-    {
+    let bazel_run_information = assert_matches!(
+        test_result.test_case_runs[0]
+            .test_runner_information
+            .as_ref(),
         Some(
             proto::test_context::test_run::test_case_run::TestRunnerInformation::BazelRunInformation(
                 bazel_run_information,
             ),
-        ) => bazel_run_information,
-        _ => panic!("Expected BazelRunInformation"),
-    };
+        ) => bazel_run_information
+    );
     assert_eq!(
         bazel_run_information.label,
         "//trunk/hello_world/cc:hello_test"
@@ -982,29 +981,28 @@ async fn upload_bundle_success_preceding_failure() {
     let bin = fs::read(tar_extract_directory.join(&internal_bundled_file.path)).unwrap();
     let report = proto::test_context::test_run::TestReport::decode(&*bin).unwrap();
     let test_result = report.test_results.first().unwrap();
-    let test_build_information = match test_result.test_build_information.as_ref() {
+    let test_build_information = assert_matches!(
+        test_result.test_build_information.as_ref(),
         Some(
             proto::test_context::test_run::test_result::TestBuildInformation::BazelBuildInformation(
                 bazel_build_information,
             ),
-        ) => bazel_build_information,
-        _ => panic!("Expected BazelBuildInformation"),
-    };
+        ) => bazel_build_information
+    );
     assert_eq!(
         test_build_information.label,
         "//trunk/hello_world/cc:hello_test"
     );
-    let bazel_run_information = match test_result.test_case_runs[0]
-        .test_runner_information
-        .as_ref()
-    {
+    let bazel_run_information = assert_matches!(
+        test_result.test_case_runs[0]
+            .test_runner_information
+            .as_ref(),
         Some(
             proto::test_context::test_run::test_case_run::TestRunnerInformation::BazelRunInformation(
                 bazel_run_information,
             ),
-        ) => bazel_run_information,
-        _ => panic!("Expected BazelRunInformation"),
-    };
+        ) => bazel_run_information
+    );
     assert_eq!(
         bazel_run_information.label,
         "//trunk/hello_world/cc:hello_test"

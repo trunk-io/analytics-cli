@@ -142,9 +142,9 @@ enum CurrentReportState {
 }
 
 #[derive(Debug, Clone)]
-pub enum TestRunnerConfig<'a> {
+pub enum TestRunnerConfig {
     Bazel {
-        bazel_run_information: &'a BazelRunInformation,
+        bazel_run_information: BazelRunInformation,
         use_bazel_target_for_codeowners: bool,
     },
 }
@@ -156,7 +156,7 @@ pub struct IntoTestCaseRunsOptions<'a> {
     pub codeowners: Option<&'a CodeOwners>,
     pub quarantined_test_ids: &'a [String],
     pub variant: &'a str,
-    pub test_runner_config: Option<TestRunnerConfig<'a>>,
+    pub test_runner_config: Option<TestRunnerConfig>,
 }
 
 #[derive(Debug, Clone)]
@@ -372,7 +372,7 @@ impl JunitParser {
                         } else if let Some(TestRunnerConfig::Bazel {
                             bazel_run_information,
                             use_bazel_target_for_codeowners: true,
-                        }) = test_runner_config
+                        }) = test_runner_config.as_ref()
                         {
                             bazel_label_to_package_path(&bazel_run_information.label)
                         } else {
@@ -435,7 +435,7 @@ impl JunitParser {
                     if let Some(TestRunnerConfig::Bazel {
                         bazel_run_information,
                         ..
-                    }) = test_runner_config
+                    }) = test_runner_config.as_ref()
                     {
                         test_case_run.test_runner_information =
                             Some(TestRunnerInformation::BazelRunInformation(

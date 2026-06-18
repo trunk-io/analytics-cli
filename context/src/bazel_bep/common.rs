@@ -120,7 +120,7 @@ impl BepParseResult {
                                 Some(Id::TestSummary(id)),
                             ) => {
                                 if let Result::Ok(test_runner_report) =
-                                    TestRunnerReport::try_from(test_summary)
+                                    TestRunnerReport::try_from(test_summary.clone())
                                 {
                                     acc.test_runner_reports
                                         .insert(id.label.clone(), test_runner_report);
@@ -281,10 +281,10 @@ impl BepParseResult {
     }
 }
 
-impl TryFrom<&TestSummary> for TestRunnerReport {
+impl TryFrom<TestSummary> for TestRunnerReport {
     type Error = anyhow::Error;
 
-    fn try_from(test_summary: &TestSummary) -> Result<Self> {
+    fn try_from(test_summary: TestSummary) -> Result<Self> {
         Ok(Self {
             status: TestRunnerReportStatus::try_from(test_summary.overall_status())?,
             start_time: test_summary
