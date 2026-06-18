@@ -26,14 +26,13 @@ use context::{
     junit::{
         bindings::BindingsReport,
         junit_path::JunitReportFileWithTestRunnerReport,
-        parser::{IntoTestCaseRunsOptions, JunitParser},
+        parser::{IntoTestCaseRunsOptions, JunitParser, TestRunnerConfig},
         validator::{JunitReportValidation, validate},
     },
     repo::{BundleRepo, RepoUrlParts},
 };
 use github_actions::extract_github_external_id;
 use lazy_static::lazy_static;
-use proto::test_context::test_run::test_case_run::TestRunnerInformation;
 use proto::test_context::test_run::{
     BazelAttemptNumber, BazelBuildInformation, BazelRunInformation, TestBuildResult, TestReport,
     TestResult, UploaderMetadata,
@@ -380,6 +379,24 @@ fn get_build_result_from_bep(bep_result: &BepParseResult, label: &str) -> BuildR
     }
 }
 
+fn bazel_run_information_from_bep_xml(
+    label: String,
+    xml_file: &context::bazel_bep::common::BepXMLFile,
+) -> BazelRunInformation {
+    BazelRunInformation {
+        label,
+        attempt_number: xml_file.attempt,
+        started_at: xml_file.start_time.map(|time| prost_wkt_types::Timestamp {
+            seconds: time.timestamp(),
+            nanos: time.timestamp_subsec_nanos() as i32,
+        }),
+        finished_at: xml_file.end_time.map(|time| prost_wkt_types::Timestamp {
+            seconds: time.timestamp(),
+            nanos: time.timestamp_subsec_nanos() as i32,
+        }),
+    }
+}
+
 pub fn generate_internal_file_from_bep(
     bep_result: &BepParseResult,
     temp_dir: &TempDir,
@@ -418,36 +435,22 @@ pub fn generate_internal_file_from_bep(
                         continue;
                     };
 
-                    let mut xml_test_case_runs =
-                        junit_parser.into_test_case_runs(IntoTestCaseRunsOptions {
+                    let bazel_run_information =
+                        bazel_run_information_from_bep_xml(label.clone(), xml_file);
+
+                    test_case_runs.extend(junit_parser.into_test_case_runs(
+                        IntoTestCaseRunsOptions {
                             org_slug,
                             repo,
                             codeowners,
                             quarantined_test_ids,
                             variant: variant.as_deref().unwrap_or(""),
-                            bazel_label: use_bazel_target_for_codeowners.then_some(label.as_str()),
-                        });
-                    xml_test_case_runs.iter_mut().for_each(|test_case_run| {
-                        test_case_run.test_runner_information = Some(
-                            TestRunnerInformation::BazelRunInformation(BazelRunInformation {
-                                label: label.clone(),
-                                attempt_number: xml_file.attempt,
-                                started_at: xml_file.start_time.map(|time| {
-                                    prost_wkt_types::Timestamp {
-                                        seconds: time.timestamp(),
-                                        nanos: time.timestamp_subsec_nanos() as i32,
-                                    }
-                                }),
-                                finished_at: xml_file.end_time.map(|time| {
-                                    prost_wkt_types::Timestamp {
-                                        seconds: time.timestamp(),
-                                        nanos: time.timestamp_subsec_nanos() as i32,
-                                    }
-                                }),
+                            test_runner_config: Some(TestRunnerConfig::Bazel {
+                                bazel_run_information,
+                                use_bazel_target_for_codeowners,
                             }),
-                        );
-                    });
-                    test_case_runs.extend(xml_test_case_runs);
+                        },
+                    ));
                 }
             }
         } else {
@@ -466,6 +469,13 @@ pub fn generate_internal_file_from_bep(
                         continue;
                     };
 
+                    let bazel_run_information = BazelRunInformation {
+                        label: label.clone(),
+                        attempt_number: 0,
+                        started_at: None,
+                        finished_at: None,
+                    };
+
                     test_case_runs.extend(junit_parser.into_test_case_runs(
                         IntoTestCaseRunsOptions {
                             org_slug,
@@ -473,7 +483,10 @@ pub fn generate_internal_file_from_bep(
                             codeowners,
                             quarantined_test_ids,
                             variant: variant.as_deref().unwrap_or(""),
-                            bazel_label: use_bazel_target_for_codeowners.then_some(label.as_str()),
+                            test_runner_config: Some(TestRunnerConfig::Bazel {
+                                bazel_run_information,
+                                use_bazel_target_for_codeowners,
+                            }),
                         },
                     ));
                 }
@@ -512,7 +525,6 @@ pub fn generate_internal_file(
     org_slug: &String,
     repo: &RepoUrlParts,
     quarantined_test_ids: &[String],
-    use_bazel_target_for_codeowners: bool,
 ) -> anyhow::Result<(
     BundledFile,
     BTreeMap<String, anyhow::Result<JunitReportValidation>>,
@@ -546,23 +558,16 @@ pub fn generate_internal_file(
                         continue;
                     };
 
-                    test_case_runs.extend(
-                        junit_parser.into_test_case_runs(IntoTestCaseRunsOptions {
+                    test_case_runs.extend(junit_parser.into_test_case_runs(
+                        IntoTestCaseRunsOptions {
                             org_slug,
                             repo,
                             codeowners,
                             quarantined_test_ids,
                             variant: variant.as_deref().unwrap_or(""),
-                            bazel_label: use_bazel_target_for_codeowners
-                                .then(|| {
-                                    file_set
-                                        .test_runner_report
-                                        .as_ref()
-                                        .and_then(|r| r.resolved_label.as_deref())
-                                })
-                                .flatten(),
-                        }),
-                    );
+                            test_runner_config: None,
+                        },
+                    ));
                 }
             }
         }

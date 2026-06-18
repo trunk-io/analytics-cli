@@ -279,7 +279,6 @@ fn trace_test_case_validation_issue(
         test_case_classname = ?test_case.classname,
         test_case_file_or_filepath = %file_or_filepath,
         test_case_time = ?test_case.time,
-        test_runner_label = test_runner_report.as_ref().and_then(|report| report.label.as_deref()),
         "junit testcase validation issue"
     );
 }

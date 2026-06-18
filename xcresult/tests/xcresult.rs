@@ -316,7 +316,7 @@ fn test_xcresult_to_bindings_report_with_id_and_timestamps() {
             codeowners: None,
             quarantined_test_ids: &[],
             variant: "",
-            bazel_label: None,
+            test_runner_config: None,
         })
         .into_iter()
         .map(BindingsTestCase::from)
@@ -409,7 +409,7 @@ fn test_xcresult_with_variant_id_generation() {
             codeowners: None,
             quarantined_test_ids: &[],
             variant: "",
-            bazel_label: None,
+            test_runner_config: None,
         })
         .into_iter()
         .map(BindingsTestCase::from)
@@ -429,7 +429,7 @@ fn test_xcresult_with_variant_id_generation() {
             codeowners: None,
             quarantined_test_ids: &[],
             variant,
-            bazel_label: None,
+            test_runner_config: None,
         })
         .into_iter()
         .map(BindingsTestCase::from)

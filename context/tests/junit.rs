@@ -401,7 +401,6 @@ fn validate_test_runner_report_overrides_timestamp() {
             end_time: start_time
                 .checked_add_signed(TimeDelta::minutes(1))
                 .unwrap(),
-            label: None,
         };
         let override_report_validation = junit::validator::validate(
             &BindingsReport::from(generated_report.clone()),
@@ -442,7 +441,6 @@ fn validate_test_runner_report_overrides_timestamp() {
             end_time: start_time
                 .checked_add_signed(TimeDelta::minutes(1))
                 .unwrap(),
-            label: None,
         };
         let bindings_report = BindingsReport::from(generated_report.clone());
         let bindings_validation = junit::validator::validate(
@@ -485,7 +483,6 @@ fn validate_test_runner_report_overrides_timestamp() {
             end_time: start_time
                 .checked_add_signed(TimeDelta::minutes(1))
                 .unwrap(),
-            label: None,
         };
         let bindings_report = BindingsReport::from(generated_report.clone());
         let bindings_validation = junit::validator::validate(
@@ -530,7 +527,6 @@ fn validate_test_runner_report_overrides_timestamp() {
             end_time: start_time
                 .checked_sub_signed(TimeDelta::minutes(1))
                 .unwrap(),
-            label: None,
         };
         let bindings_report = BindingsReport::from(generated_report.clone());
         let bindings_validation = junit::validator::validate(
@@ -561,7 +557,6 @@ fn validate_test_runner_report_overrides_timestamp() {
             end_time: start_time
                 .checked_add_signed(TimeDelta::minutes(1))
                 .unwrap(),
-            label: None,
         };
         let bindings_report = BindingsReport::from(generated_report.clone());
         let bindings_validation = junit::validator::validate(
@@ -606,7 +601,6 @@ fn validate_test_runner_report_overrides_timestamp() {
             status: TestRunnerReportStatus::Passed,
             start_time,
             end_time,
-            label: None,
         };
         let test_case_timestamp = end_time
             .checked_add_signed(TimeDelta::minutes(1))

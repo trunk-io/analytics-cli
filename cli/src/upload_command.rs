@@ -532,7 +532,6 @@ pub async fn run_upload(
             &upload_args.org_url_slug,
             &quarantine_context.repo,
             &quarantined_test_ids,
-            upload_args.use_bazel_target_for_codeowners,
         )
     };
     let validations = if let Ok((internal_bundled_file, junit_validations)) = internal_bundled_file

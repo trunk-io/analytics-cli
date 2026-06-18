@@ -62,7 +62,6 @@ const generateBundleMeta = () =>
           .subtract(5, "minute")
           .valueOf(),
         resolved_end_time_epoch_ms: dayjs.utc().subtract(2, "minute").valueOf(),
-        resolved_label: null,
       },
       {
         file_set_type: "Junit",
@@ -259,11 +258,6 @@ const createExpectedVersionedBundle = (
           ...(typeof fileSet.resolved_end_time_epoch_ms === "undefined"
             ? {
                 resolved_end_time_epoch_ms: 0,
-              }
-            : {}),
-          ...(typeof fileSet.resolved_label === "undefined"
-            ? {
-                resolved_label: null,
               }
             : {}),
         };

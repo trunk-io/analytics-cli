@@ -573,7 +573,7 @@ mod tests {
             codeowners: None,
             quarantined_test_ids: &[],
             variant: "",
-            bazel_label: None,
+            test_runner_config: None,
         });
         assert_eq!(test_case_runs.len(), 2);
 

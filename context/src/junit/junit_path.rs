@@ -38,7 +38,6 @@ pub struct TestRunnerReport {
     pub status: TestRunnerReportStatus,
     pub start_time: DateTime<Utc>,
     pub end_time: DateTime<Utc>,
-    pub label: Option<String>,
 }
 
 /// Encapsulates the glob path for a junit and, if applicable, the flakiness already

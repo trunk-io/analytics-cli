@@ -1010,7 +1010,6 @@ mod tests {
                     end_time: DateTime::parse_from_rfc3339("2025-05-16T19:27:27.605Z")
                         .unwrap()
                         .to_utc(),
-                    label: Some("//trunk/hello_world/bazel_pnpm:test".into()),
                 }),
             },
             JunitReportFileWithTestRunnerReport {
@@ -1025,7 +1024,6 @@ mod tests {
                     end_time: DateTime::parse_from_rfc3339("2025-05-16T19:29:32.853Z")
                         .unwrap()
                         .to_utc(),
-                    label: Some("//trunk/hello_world/cc:hello_test".into()),
                 }),
             },
             JunitReportFileWithTestRunnerReport {
@@ -1040,7 +1038,6 @@ mod tests {
                     end_time: DateTime::parse_from_rfc3339("2025-05-16T19:32:34.697Z")
                         .unwrap()
                         .to_utc(),
-                    label: Some("//trunk/hello_world/ts_proto:test".into()),
                 }),
             },
             JunitReportFileWithTestRunnerReport {
@@ -1055,7 +1052,6 @@ mod tests {
                     end_time: DateTime::parse_from_rfc3339("2025-05-16T19:32:34.797Z")
                         .unwrap()
                         .to_utc(),
-                    label: Some("//trunk/hello_world/ts_grpc:test".into()),
                 }),
             },
             JunitReportFileWithTestRunnerReport {
@@ -1070,7 +1066,6 @@ mod tests {
                     end_time: DateTime::parse_from_rfc3339("2025-05-16T19:33:01.806Z")
                         .unwrap()
                         .to_utc(),
-                    label: Some("//trunk/hello_world/cdk:lib_typecheck_test".into()),
                 }),
             },
             JunitReportFileWithTestRunnerReport {
@@ -1085,7 +1080,6 @@ mod tests {
                     end_time: DateTime::parse_from_rfc3339("2025-05-16T19:33:17.945Z")
                         .unwrap()
                         .to_utc(),
-                    label: Some("//trunk/hello_world/prisma/app:test".into()),
                 }),
             },
             JunitReportFileWithTestRunnerReport {
@@ -1100,7 +1094,6 @@ mod tests {
                     end_time: DateTime::parse_from_rfc3339("2025-05-16T19:35:19.361Z")
                         .unwrap()
                         .to_utc(),
-                    label: Some("//trunk/hello_world/cc_grpc:client_test".into()),
                 }),
             },
             JunitReportFileWithTestRunnerReport {
@@ -1115,7 +1108,6 @@ mod tests {
                     end_time: DateTime::parse_from_rfc3339("2025-05-16T19:35:19.383Z")
                         .unwrap()
                         .to_utc(),
-                    label: Some("//trunk/hello_world/cc_grpc:server_test".into()),
                 }),
             },
         ];
