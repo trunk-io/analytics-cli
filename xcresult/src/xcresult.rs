@@ -233,6 +233,17 @@ impl XCResult {
                     }
                 }
 
+                let skip_messages =
+                    Self::xcresult_skip_messages_to_strings(xcresult_test_case.children.as_slice());
+                if !skip_messages.is_empty() {
+                    if let TestCaseStatus::Skipped {
+                        ref mut message, ..
+                    } = test_case.status
+                    {
+                        *message = Some(skip_messages.join("\n").into())
+                    }
+                }
+
                 let test_reruns = Self::xcresult_repetitions_to_junit_test_reruns(
                     xcresult_test_case.children.as_slice(),
                 );
@@ -315,6 +326,14 @@ impl XCResult {
             .iter()
             .filter(|tn| matches!(tn.node_type, TestNodeType::FailureMessage))
             .map(|failure_message| String::from(&failure_message.name))
+            .collect()
+    }
+
+    fn xcresult_skip_messages_to_strings(test_nodes: &[TestNode]) -> Vec<String> {
+        test_nodes
+            .iter()
+            .filter(|tn| matches!(tn.node_type, TestNodeType::SkipMessage))
+            .map(|skip_message| String::from(&skip_message.name))
             .collect()
     }
 
