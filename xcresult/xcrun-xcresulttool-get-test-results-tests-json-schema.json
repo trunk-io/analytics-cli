@@ -129,6 +129,7 @@
         "Repetition",
         "Test Case Run",
         "Failure Message",
+        "Skip Message",
         "Source Code Reference",
         "Attachment",
         "Expression",
