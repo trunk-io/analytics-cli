@@ -230,6 +230,7 @@ impl JunitParser {
         let mut test_case_runs = Vec::new();
         for report in self.reports {
             for test_suite in report.test_suites {
+                let single_test_case = test_suite.test_cases.len() == 1;
                 for test_case in test_suite.test_cases {
                     let mut test_case_run = TestCaseRun {
                         name: test_case.name.into(),
@@ -337,8 +338,13 @@ impl JunitParser {
                             } else if let Some(message) = message.as_ref() {
                                 test_case_run.status_output_message = message.to_string();
                             }
-                            let (system_out, system_err) =
-                                (test_case.system_out.as_ref(), test_case.system_err.as_ref());
+                            let (system_out, system_err) = resolve_non_success_system_output(
+                                &test_case.system_out,
+                                &test_case.system_err,
+                                &test_suite.system_out,
+                                &test_suite.system_err,
+                                single_test_case,
+                            );
                             if description.is_some()
                                 || message.is_some()
                                 || system_out.is_some()
@@ -894,6 +900,24 @@ impl JunitParser {
             };
         }
     }
+}
+
+fn resolve_non_success_system_output<T: Clone>(
+    test_case_system_out: &Option<T>,
+    test_case_system_err: &Option<T>,
+    suite_system_out: &Option<T>,
+    suite_system_err: &Option<T>,
+    infer_from_suite: bool,
+) -> (Option<T>, Option<T>) {
+    let inherited = |test_case_output: &Option<T>, suite_output: &Option<T>| {
+        test_case_output
+            .clone()
+            .or_else(|| infer_from_suite.then(|| suite_output.clone()).flatten())
+    };
+    (
+        inherited(test_case_system_out, suite_system_out),
+        inherited(test_case_system_err, suite_system_err),
+    )
 }
 
 /// Converts `//pkg/path:target` to `Some("pkg/path")` for codeowners lookup.
@@ -1770,5 +1794,91 @@ mod tests {
             test_case_run.file, "path/to/suite_file.java",
             "Test case should inherit filepath from suite"
         );
+    }
+
+    #[test]
+    fn test_into_test_case_runs_infers_suite_system_out_for_single_failing_test() {
+        let mut junit_parser = JunitParser::new();
+        let file_contents = r#"
+        <?xml version="1.0" encoding="UTF-8"?>
+        <testsuites>
+            <testsuite name="batch_bin_tests" tests="1" failures="0" errors="1">
+                <testcase name="batch_bin_tests" status="run" duration="0" time="0">
+                    <error message="exited with error code 101"></error>
+                </testcase>
+                <system-out>running 2 tests
+test foo ... FAILED
+
+failures:
+    foo</system-out>
+            </testsuite>
+        </testsuites>
+        "#;
+        junit_parser
+            .parse(BufReader::new(file_contents.as_bytes()))
+            .unwrap();
+
+        let test_case_runs = junit_parser.into_test_case_runs(IntoTestCaseRunsOptions {
+            org_slug: "org",
+            repo: &RepoUrlParts {
+                host: "host".into(),
+                owner: "owner".into(),
+                name: "name".into(),
+            },
+            codeowners: None,
+            quarantined_test_ids: &[],
+            variant: "",
+            test_runner_config: None,
+        });
+
+        assert_eq!(test_case_runs.len(), 1);
+        let test_output = test_case_runs[0]
+            .test_output
+            .as_ref()
+            .expect("expected test output for failing test");
+        assert!(test_output.system_out.contains("running 2 tests"));
+        assert!(test_output.system_out.contains("test foo ... FAILED"));
+        assert_eq!(test_output.message, "exited with error code 101");
+    }
+
+    #[test]
+    fn test_into_test_case_runs_does_not_infer_suite_system_out_for_multiple_tests() {
+        let mut junit_parser = JunitParser::new();
+        let file_contents = r#"
+        <?xml version="1.0" encoding="UTF-8"?>
+        <testsuites>
+            <testsuite name="testsuite" tests="2" failures="1" errors="0">
+                <testcase name="passing_test" time="0.001" />
+                <testcase name="failing_test" time="0.001">
+                    <failure message="failed" />
+                </testcase>
+                <system-out>suite level output</system-out>
+            </testsuite>
+        </testsuites>
+        "#;
+        junit_parser
+            .parse(BufReader::new(file_contents.as_bytes()))
+            .unwrap();
+
+        let test_case_runs = junit_parser.into_test_case_runs(IntoTestCaseRunsOptions {
+            org_slug: "org",
+            repo: &RepoUrlParts {
+                host: "host".into(),
+                owner: "owner".into(),
+                name: "name".into(),
+            },
+            codeowners: None,
+            quarantined_test_ids: &[],
+            variant: "",
+            test_runner_config: None,
+        });
+
+        assert_eq!(test_case_runs.len(), 2);
+        let failing = test_case_runs
+            .iter()
+            .find(|run| run.name == "failing_test")
+            .unwrap();
+        let test_output = failing.test_output.as_ref().unwrap();
+        assert!(test_output.system_out.is_empty());
     }
 }
