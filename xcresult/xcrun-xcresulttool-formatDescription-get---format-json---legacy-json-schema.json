@@ -140,7 +140,7 @@
         }
       },
       "additionalProperties": false,
-      "required": ["actionResult", "runDestination", "buildResult"]
+      "required": ["actionResult", "buildResult", "runDestination"]
     },
     "ActionResult": {
       "type": "object",
@@ -177,10 +177,13 @@
         },
         "consoleLogRef": {
           "$ref": "#/$defs/Reference"
+        },
+        "consoleSessionRef": {
+          "$ref": "#/$defs/Reference"
         }
       },
       "additionalProperties": false,
-      "required": ["metrics", "issues", "coverage"]
+      "required": ["metrics", "coverage", "issues"]
     },
     "ActionRunDestinationRecord": {
       "type": "object",
@@ -206,9 +209,9 @@
       },
       "additionalProperties": false,
       "required": [
+        "targetSDKRecord",
         "localComputerRecord",
-        "targetDeviceRecord",
-        "targetSDKRecord"
+        "targetDeviceRecord"
       ]
     },
     "ActionSDKRecord": {
@@ -917,8 +920,68 @@
           },
           "required": ["_values"]
         },
+        "failureSummaries": {
+          "type": "object",
+          "properties": {
+            "_type": {
+              "type": "object"
+            },
+            "_values": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ActionTestFailureSummary"
+              }
+            }
+          },
+          "required": ["_values"]
+        },
+        "warningSummaries": {
+          "type": "object",
+          "properties": {
+            "_type": {
+              "type": "object"
+            },
+            "_values": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ActionTestIssueSummary"
+              }
+            }
+          },
+          "required": ["_values"]
+        },
+        "expectedFailures": {
+          "type": "object",
+          "properties": {
+            "_type": {
+              "type": "object"
+            },
+            "_values": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ActionTestExpectedFailure"
+              }
+            }
+          },
+          "required": ["_values"]
+        },
         "skipNoticeSummary": {
           "$ref": "#/$defs/ActionTestNoticeSummary"
+        },
+        "activitySummaries": {
+          "type": "object",
+          "properties": {
+            "_type": {
+              "type": "object"
+            },
+            "_values": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ActionTestActivitySummary"
+              }
+            }
+          },
+          "required": ["_values"]
         },
         "summary": {
           "$ref": "#/$defs/String"
@@ -1757,6 +1820,60 @@
       },
       "additionalProperties": false
     },
+    "ConsoleSessionSection": {
+      "type": "object",
+      "properties": {
+        "_type": {
+          "type": "object"
+        },
+        "title": {
+          "$ref": "#/$defs/String"
+        },
+        "items": {
+          "type": "object",
+          "properties": {
+            "_type": {
+              "type": "object"
+            },
+            "_values": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/SessionIO"
+              }
+            }
+          },
+          "required": ["_values"]
+        }
+      },
+      "additionalProperties": false
+    },
+    "Content": {
+      "type": "object",
+      "properties": {
+        "_type": {
+          "type": "object"
+        },
+        "kind": {
+          "$ref": "#/$defs/String"
+        },
+        "data": {
+          "$ref": "#/$defs/Data"
+        },
+        "log": {
+          "$ref": "#/$defs/OSLogEntry"
+        },
+        "status": {
+          "$ref": "#/$defs/StatusMessage"
+        },
+        "flushId": {
+          "$ref": "#/$defs/UUID"
+        },
+        "debugger": {
+          "$ref": "#/$defs/DebuggerContent"
+        }
+      },
+      "additionalProperties": false
+    },
     "Data": {
       "type": "object",
       "properties": {
@@ -1780,6 +1897,162 @@
         }
       },
       "required": ["_value"]
+    },
+    "DebuggerContent": {
+      "type": "object",
+      "properties": {
+        "_type": {
+          "type": "object"
+        },
+        "kind": {
+          "$ref": "#/$defs/String"
+        },
+        "commandStarted": {
+          "$ref": "#/$defs/DebuggerContentCommandStarted"
+        },
+        "commandResult": {
+          "$ref": "#/$defs/DebuggerContentCommandResult"
+        },
+        "commandOutput": {
+          "$ref": "#/$defs/DebuggerContentCommandOutput"
+        },
+        "event": {
+          "$ref": "#/$defs/DebuggerContentEvent"
+        },
+        "promptText": {
+          "$ref": "#/$defs/String"
+        }
+      },
+      "additionalProperties": false
+    },
+    "DebuggerContentCommandOutput": {
+      "type": "object",
+      "properties": {
+        "_type": {
+          "type": "object"
+        },
+        "commandId": {
+          "$ref": "#/$defs/Int"
+        },
+        "text": {
+          "$ref": "#/$defs/String"
+        },
+        "isError": {
+          "$ref": "#/$defs/Bool"
+        }
+      },
+      "additionalProperties": false
+    },
+    "DebuggerContentCommandResult": {
+      "type": "object",
+      "properties": {
+        "_type": {
+          "type": "object"
+        },
+        "commandId": {
+          "$ref": "#/$defs/Int"
+        },
+        "succeeded": {
+          "$ref": "#/$defs/Bool"
+        },
+        "output": {
+          "$ref": "#/$defs/String"
+        },
+        "error": {
+          "$ref": "#/$defs/String"
+        }
+      },
+      "additionalProperties": false
+    },
+    "DebuggerContentCommandStarted": {
+      "type": "object",
+      "properties": {
+        "_type": {
+          "type": "object"
+        },
+        "commandId": {
+          "$ref": "#/$defs/Int"
+        },
+        "command": {
+          "$ref": "#/$defs/String"
+        },
+        "prompt": {
+          "$ref": "#/$defs/String"
+        },
+        "resolvedCommand": {
+          "$ref": "#/$defs/String"
+        }
+      },
+      "additionalProperties": false
+    },
+    "DebuggerContentEvent": {
+      "type": "object",
+      "properties": {
+        "_type": {
+          "type": "object"
+        },
+        "kind": {
+          "$ref": "#/$defs/String"
+        },
+        "customKind": {
+          "$ref": "#/$defs/String"
+        },
+        "message": {
+          "$ref": "#/$defs/String"
+        },
+        "attributedCommandId": {
+          "$ref": "#/$defs/Int"
+        },
+        "source": {
+          "$ref": "#/$defs/DebuggerContentSource"
+        },
+        "line": {
+          "$ref": "#/$defs/Int"
+        },
+        "column": {
+          "$ref": "#/$defs/Int"
+        },
+        "progressPhase": {
+          "$ref": "#/$defs/String"
+        },
+        "progressId": {
+          "$ref": "#/$defs/String"
+        },
+        "title": {
+          "$ref": "#/$defs/String"
+        },
+        "cancellable": {
+          "$ref": "#/$defs/Bool"
+        },
+        "percentage": {
+          "$ref": "#/$defs/Double"
+        }
+      },
+      "additionalProperties": false
+    },
+    "DebuggerContentSource": {
+      "type": "object",
+      "properties": {
+        "_type": {
+          "type": "object"
+        },
+        "name": {
+          "$ref": "#/$defs/String"
+        },
+        "path": {
+          "$ref": "#/$defs/String"
+        },
+        "sourceReference": {
+          "$ref": "#/$defs/Int"
+        },
+        "presentationHint": {
+          "$ref": "#/$defs/String"
+        },
+        "origin": {
+          "$ref": "#/$defs/String"
+        }
+      },
+      "additionalProperties": false
     },
     "DocumentLocation": {
       "type": "object",
@@ -1808,6 +2081,34 @@
       },
       "required": ["_value"]
     },
+    "EndpointIO": {
+      "type": "object",
+      "properties": {
+        "_type": {
+          "type": "object"
+        },
+        "sequence": {
+          "$ref": "#/$defs/UInt64"
+        },
+        "endpointType": {
+          "$ref": "#/$defs/String"
+        },
+        "direction": {
+          "$ref": "#/$defs/String"
+        },
+        "content": {
+          "$ref": "#/$defs/Content"
+        },
+        "timestamp": {
+          "$ref": "#/$defs/Date"
+        },
+        "customEndpointName": {
+          "$ref": "#/$defs/String"
+        }
+      },
+      "additionalProperties": false,
+      "required": ["content"]
+    },
     "EntityIdentifier": {
       "type": "object",
       "properties": {
@@ -1828,6 +2129,28 @@
         }
       },
       "additionalProperties": false
+    },
+    "GroupIO": {
+      "type": "object",
+      "properties": {
+        "_type": {
+          "type": "object"
+        },
+        "sequence": {
+          "$ref": "#/$defs/UInt64"
+        },
+        "groupType": {
+          "$ref": "#/$defs/String"
+        },
+        "endpointIO": {
+          "$ref": "#/$defs/EndpointIO"
+        },
+        "customGroupName": {
+          "$ref": "#/$defs/String"
+        }
+      },
+      "additionalProperties": false,
+      "required": ["endpointIO"]
     },
     "Int": {
       "type": "object",
@@ -1910,6 +2233,9 @@
             "message": {
               "$ref": "#/$defs/String"
             },
+            "compactMessage": {
+              "$ref": "#/$defs/String"
+            },
             "producingTarget": {
               "$ref": "#/$defs/String"
             },
@@ -1941,6 +2267,79 @@
         }
       },
       "additionalProperties": false
+    },
+    "OSLogEntry": {
+      "type": "object",
+      "properties": {
+        "_type": {
+          "type": "object"
+        },
+        "message": {
+          "$ref": "#/$defs/String"
+        },
+        "format": {
+          "$ref": "#/$defs/String"
+        },
+        "messageType": {
+          "$ref": "#/$defs/OSLogType"
+        },
+        "pid": {
+          "$ref": "#/$defs/Int32"
+        },
+        "processName": {
+          "$ref": "#/$defs/String"
+        },
+        "processSessionUUID": {
+          "$ref": "#/$defs/UUID"
+        },
+        "tid": {
+          "$ref": "#/$defs/UInt64"
+        },
+        "subsystem": {
+          "$ref": "#/$defs/String"
+        },
+        "category": {
+          "$ref": "#/$defs/String"
+        },
+        "senderMachTime": {
+          "$ref": "#/$defs/UInt64"
+        },
+        "senderWallTime": {
+          "$ref": "#/$defs/Date"
+        },
+        "senderTimeZone": {
+          "$ref": "#/$defs/TimeZone"
+        },
+        "senderImagePath": {
+          "$ref": "#/$defs/String"
+        },
+        "senderImageName": {
+          "$ref": "#/$defs/String"
+        },
+        "senderImageUUID": {
+          "$ref": "#/$defs/UUID"
+        },
+        "senderImageOffset": {
+          "$ref": "#/$defs/UInt64"
+        },
+        "backtrace": {
+          "$ref": "#/$defs/String"
+        }
+      },
+      "additionalProperties": false,
+      "required": ["messageType"]
+    },
+    "OSLogType": {
+      "type": "object",
+      "properties": {
+        "_type": {
+          "type": "object"
+        },
+        "_value": {
+          "type": "string"
+        }
+      },
+      "required": ["_value"]
     },
     "ObjectID": {
       "type": "object",
@@ -2083,6 +2482,22 @@
       },
       "additionalProperties": false
     },
+    "SessionIO": {
+      "type": "object",
+      "properties": {
+        "_type": {
+          "type": "object"
+        },
+        "sequence": {
+          "$ref": "#/$defs/UInt64"
+        },
+        "groupIO": {
+          "$ref": "#/$defs/GroupIO"
+        }
+      },
+      "additionalProperties": false,
+      "required": ["groupIO"]
+    },
     "SortedKeyValueArray": {
       "type": "object",
       "properties": {
@@ -2190,6 +2605,21 @@
         },
         "location": {
           "$ref": "#/$defs/SourceCodeLocation"
+        }
+      },
+      "additionalProperties": false
+    },
+    "StatusMessage": {
+      "type": "object",
+      "properties": {
+        "_type": {
+          "type": "object"
+        },
+        "level": {
+          "$ref": "#/$defs/String"
+        },
+        "message": {
+          "$ref": "#/$defs/String"
         }
       },
       "additionalProperties": false
@@ -2309,6 +2739,9 @@
         "message": {
           "$ref": "#/$defs/String"
         },
+        "compactMessage": {
+          "$ref": "#/$defs/String"
+        },
         "producingTarget": {
           "$ref": "#/$defs/String"
         },
@@ -2331,6 +2764,9 @@
           "$ref": "#/$defs/String"
         },
         "message": {
+          "$ref": "#/$defs/String"
+        },
+        "compactMessage": {
           "$ref": "#/$defs/String"
         },
         "producingTarget": {
@@ -2438,6 +2874,18 @@
       },
       "additionalProperties": false
     },
+    "TimeZone": {
+      "type": "object",
+      "properties": {
+        "_type": {
+          "type": "object"
+        },
+        "_value": {
+          "type": "string"
+        }
+      },
+      "required": ["_value"]
+    },
     "TypeDefinition": {
       "type": "object",
       "properties": {
@@ -2502,6 +2950,18 @@
       "required": ["_value"]
     },
     "URL": {
+      "type": "object",
+      "properties": {
+        "_type": {
+          "type": "object"
+        },
+        "_value": {
+          "type": "string"
+        }
+      },
+      "required": ["_value"]
+    },
+    "UUID": {
       "type": "object",
       "properties": {
         "_type": {
