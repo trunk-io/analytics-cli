@@ -167,17 +167,19 @@ jobs:
         platform:
           - runner: macos-latest
             target: x86_64
+            xcode-version: "26"
           - runner: macos-14
             target: aarch64
+            xcode-version: "16"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: 3.13
-      - name: Setup Xcode 16
+      - name: Setup Xcode ${{ matrix.platform.xcode-version }}
         uses: maxim-lobanov/setup-xcode@v1
         with:
-          xcode-version: 26.5.0
+          xcode-version: ${{ matrix.platform.xcode-version }}
       - name: Setup Rust & Cargo
         uses: ./.github/actions/setup_rust_cargo
       - name: Generate Python stubs
