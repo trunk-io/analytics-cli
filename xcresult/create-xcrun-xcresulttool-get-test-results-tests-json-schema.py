@@ -14,6 +14,11 @@ def main():
     json_schema["$defs"] = json_schema["schemas"]
     del json_schema["schemas"]
 
+    # Xcode 27 beta schema references SourceLocation but defines SourceCodeLocation.
+    defs = json_schema["$defs"]
+    if "SourceCodeLocation" in defs and "SourceLocation" not in defs:
+        defs["SourceLocation"] = defs.pop("SourceCodeLocation")
+
     pathlib.Path(__file__).parent.resolve().joinpath(
         "./xcrun-xcresulttool-get-test-results-tests-json-schema.json"
     ).write_text(json.dumps(json_schema, indent=2))

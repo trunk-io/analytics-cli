@@ -3,3 +3,4 @@ lib/**/*.so
 pkg/**
 tmp
 *.gem
+Gemfile.lock

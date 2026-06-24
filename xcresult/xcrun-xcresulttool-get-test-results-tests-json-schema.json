@@ -75,6 +75,9 @@
         "nodeIdentifier": {
           "type": "string"
         },
+        "nodeIdentifierURL": {
+          "type": "string"
+        },
         "nodeType": {
           "$ref": "#/$defs/TestNodeType"
         },
@@ -101,6 +104,9 @@
           "items": {
             "type": "string"
           }
+        },
+        "sourceLocation": {
+          "$ref": "#/$defs/SourceLocation"
         },
         "children": {
           "type": "array",
@@ -133,8 +139,22 @@
         "Attachment",
         "Expression",
         "Test Value",
-        "Runtime Warning"
+        "Runtime Warning",
+        "Skip Message",
+        "Expected Failure"
       ]
+    },
+    "SourceLocation": {
+      "type": "object",
+      "properties": {
+        "filePath": {
+          "type": "string"
+        },
+        "lineNumber": {
+          "type": "integer"
+        }
+      },
+      "required": ["filePath", "lineNumber"]
     }
   }
 }
