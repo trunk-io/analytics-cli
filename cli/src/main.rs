@@ -1,3 +1,5 @@
+mod shutdown;
+
 use std::{
     env,
     sync::{Arc, mpsc::Sender},
@@ -125,8 +127,22 @@ fn main() -> anyhow::Result<()> {
             );
             let (render_handle, render_sender) = spin_up_renderer();
 
-            match run(cli, render_sender.clone()).await {
-                Ok(RunResult::Upload(run_result)) => {
+            // Race the work against termination signals so a CI cancellation aborts in-flight
+            // operations immediately rather than waiting for slow retries/uploads to finish.
+            let outcome = tokio::select! {
+                biased;
+                result = run(cli, render_sender.clone()) => MainOutcome::Finished(result),
+                exit_code = shutdown::shutdown_signal() => MainOutcome::Interrupted(exit_code),
+            };
+
+            match outcome {
+                MainOutcome::Interrupted(exit_code) => {
+                    tracing::warn!(
+                        "Received termination signal; aborting in-flight work and shutting down."
+                    );
+                    close_out_and_exit(exit_code, guard, render_sender, render_handle)
+                }
+                MainOutcome::Finished(Ok(RunResult::Upload(run_result))) => {
                     let result_ptr = Arc::new(run_result);
                     send_message(
                         DisplayMessage::Final(result_ptr.clone(), String::from("upload display")),
@@ -140,7 +156,7 @@ fn main() -> anyhow::Result<()> {
                         .unwrap_or(result_ptr.quarantine_context.exit_code);
                     close_out_and_exit(exit_code, guard, render_sender, render_handle)
                 }
-                Ok(RunResult::Test(run_result)) => {
+                MainOutcome::Finished(Ok(RunResult::Test(run_result))) => {
                     let result_ptr = Arc::new(run_result);
                     send_message(
                         DisplayMessage::Final(result_ptr.clone(), String::from("test display")),
@@ -153,7 +169,7 @@ fn main() -> anyhow::Result<()> {
                         render_handle,
                     )
                 }
-                Ok(RunResult::Validate(run_result)) => {
+                MainOutcome::Finished(Ok(RunResult::Validate(run_result))) => {
                     let result_ptr = Arc::new(run_result);
                     send_message(
                         DisplayMessage::Final(result_ptr.clone(), String::from("validate display")),
@@ -161,7 +177,7 @@ fn main() -> anyhow::Result<()> {
                     );
                     close_out_and_exit(result_ptr.exit_code(), guard, render_sender, render_handle)
                 }
-                Err(error) => {
+                MainOutcome::Finished(Err(error)) => {
                     let error_report = ErrorReport::new(error, org_url_slug, None);
                     let exit_code = error_report.context.exit_code.unwrap_or(exitcode::OK);
                     send_message(
@@ -175,6 +191,14 @@ fn main() -> anyhow::Result<()> {
                 }
             }
         })
+}
+
+/// Outcome of racing the command against termination signals in `main`.
+enum MainOutcome {
+    /// The command ran to completion (successfully or with an error).
+    Finished(anyhow::Result<RunResult>),
+    /// A termination signal was received first; the payload is the exit code to use.
+    Interrupted(i32),
 }
 
 enum RunResult {

@@ -32,6 +32,7 @@ prost-wkt-types = { version = "0.5.1", features = ["vendored-protox"] }
 tokio = { version = "*", default-features = false, features = [
   "rt-multi-thread",
   "macros",
+  "signal",
 ] }
 tempfile = "3.2.0"
 tracing = "0.1.41"
