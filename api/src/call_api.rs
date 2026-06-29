@@ -1,12 +1,12 @@
-use std::sync::Arc;
 use std::sync::mpsc::Sender;
+use std::sync::{Arc, LazyLock};
 use std::{env, time::Duration};
 
-use constants::TRUNK_API_CLIENT_RETRY_COUNT_ENV;
+use constants::{TRUNK_API_CLIENT_RETRY_COUNT_ENV, TRUNK_API_CLIENT_RETRY_DEADLINE_SECS_ENV};
 use display::message::{DisplayMessage, ProgressMessage, send_message};
 use http::StatusCode;
 use tokio::time::{self, Instant};
-use tokio_retry::{Action, RetryIf, strategy::ExponentialBackoff};
+use tokio_retry::{Action, strategy::ExponentialBackoff};
 
 use crate::client::{NOT_FOUND_CONTEXT, UNAUTHORIZED_CONTEXT};
 
@@ -31,7 +31,10 @@ const fn enforce_increment_check_progress_interval_secs(
     )
 }
 
-fn default_delay() -> std::iter::Take<ExponentialBackoff> {
+/// Exponential backoff schedule for retrying API calls, sized by
+/// `TRUNK_API_CLIENT_RETRY_COUNT` (default `RETRY_COUNT_DEFAULT`). The env var is read once;
+/// `.clone()` this to obtain a fresh, un-advanced iterator for each retry loop.
+static DEFAULT_DELAY: LazyLock<std::iter::Take<ExponentialBackoff>> = LazyLock::new(|| {
     ExponentialBackoff::from_millis(RETRY_BASE_MS)
         .factor(RETRY_FACTOR)
         .take(
@@ -40,6 +43,57 @@ fn default_delay() -> std::iter::Take<ExponentialBackoff> {
                 .and_then(|s| s.parse().ok())
                 .unwrap_or(RETRY_COUNT_DEFAULT),
         )
+});
+
+/// Optional overall wall-clock budget for the retry loop, read once from
+/// `TRUNK_API_CLIENT_RETRY_DEADLINE_SECS`. `None` means no deadline (retry until the count
+/// is exhausted).
+static RETRY_DEADLINE: LazyLock<Option<Duration>> = LazyLock::new(|| {
+    env::var(TRUNK_API_CLIENT_RETRY_DEADLINE_SECS_ENV)
+        .ok()
+        .and_then(|s| s.parse::<u64>().ok())
+        .map(Duration::from_secs)
+});
+
+/// Run `action`, retrying on retryable errors with exponential backoff. Mirrors the previous
+/// `tokio-retry` behavior (initial attempt + up to `DEFAULT_DELAY` retries) but adds an
+/// optional overall deadline: once the elapsed time plus the next backoff would exceed
+/// `deadline`, the loop gives up and returns the most recent error instead of sleeping again.
+async fn retry_with_deadline<A>(
+    action: &mut A,
+    deadline: Option<Duration>,
+) -> Result<A::Item, A::Error>
+where
+    A: Action,
+    A::Error: AbortableRetry,
+{
+    let retry_start = Instant::now();
+    let mut delays = DEFAULT_DELAY.clone();
+    loop {
+        match action.run().await {
+            Ok(item) => return Ok(item),
+            Err(error) => {
+                if !error.should_retry() {
+                    return Err(error);
+                }
+                let Some(delay) = delays.next() else {
+                    return Err(error);
+                };
+                if let Some(deadline) = deadline {
+                    let elapsed = retry_start.elapsed();
+                    if elapsed.saturating_add(delay) >= deadline {
+                        tracing::debug!(
+                            "Retry deadline of {:?} reached after {:?}; giving up.",
+                            deadline,
+                            elapsed
+                        );
+                        return Err(error);
+                    }
+                }
+                time::sleep(delay).await;
+            }
+        }
+    }
 }
 
 pub trait AbortableRetry {
@@ -184,12 +238,7 @@ where
             }
         });
 
-        let result = RetryIf::spawn(
-            default_delay(),
-            || self.action.run(),
-            |error: &A::Error| error.should_retry(),
-        )
-        .await;
+        let result = retry_with_deadline(&mut self.action, *RETRY_DEADLINE).await;
         report_slow_progress_handle.abort();
         check_progress_handle.abort();
 
@@ -214,7 +263,7 @@ mod tests {
 
     use super::{
         CHECK_PROGRESS_INTERVAL_SECS, CallApi, REPORT_SLOW_PROGRESS_TIMEOUT_SECS,
-        RETRY_COUNT_DEFAULT,
+        RETRY_COUNT_DEFAULT, retry_with_deadline,
     };
     use crate::client::{CheckNotFound, CheckUnauthorized, status_code_help};
     #[derive(Debug, Serialize, Clone, Deserialize, PartialEq, Eq)]
@@ -339,6 +388,39 @@ mod tests {
         .call_api()
         .await;
 
+        assert_eq!(retry_count.into_inner(), RETRY_COUNT_DEFAULT + 1);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn stops_retrying_once_deadline_would_be_exceeded() {
+        let retry_count = AtomicUsize::new(0);
+
+        // Backoffs are 2s, 4s, 8s, ... With a 5s deadline: attempt 1 (elapsed 0s, next
+        // backoff 2s -> 2s < 5s, sleep), attempt 2 (elapsed 2s, next backoff 4s -> 6s >= 5s,
+        // give up). So we expect exactly 2 attempts despite the default retry count of 5.
+        let mut action = || async {
+            retry_count.fetch_add(1, Ordering::Relaxed);
+            Result::<(), anyhow::Error>::Err(anyhow::Error::msg("Broken"))
+        };
+
+        let result = retry_with_deadline(&mut action, Some(Duration::from_secs(5))).await;
+
+        assert!(result.is_err());
+        assert_eq!(retry_count.into_inner(), 2);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn retries_full_count_when_no_deadline_set() {
+        let retry_count = AtomicUsize::new(0);
+
+        let mut action = || async {
+            retry_count.fetch_add(1, Ordering::Relaxed);
+            Result::<(), anyhow::Error>::Err(anyhow::Error::msg("Broken"))
+        };
+
+        let result = retry_with_deadline(&mut action, None).await;
+
+        assert!(result.is_err());
         assert_eq!(retry_count.into_inner(), RETRY_COUNT_DEFAULT + 1);
     }
 
