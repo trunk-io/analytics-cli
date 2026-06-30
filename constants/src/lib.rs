@@ -24,6 +24,11 @@ pub const CACHE_DIR: &str = "trunk-flaky-tests";
 pub const TRUNK_QUARANTINE_DISK_CACHE_DIR_ENV: &str = "TRUNK_QUARANTINE_DISK_CACHE_DIR";
 pub const TRUNK_PUBLIC_API_ADDRESS_ENV: &str = "TRUNK_PUBLIC_API_ADDRESS";
 pub const TRUNK_API_CLIENT_RETRY_COUNT_ENV: &str = "TRUNK_API_CLIENT_RETRY_COUNT";
+// Overall wall-clock budget (in seconds) for an API call's retry loop. When set, the loop
+// stops retrying once the elapsed time plus the next backoff would exceed this budget,
+// returning the most recent error. Pairs with TRUNK_API_CLIENT_RETRY_COUNT to tune how
+// fast and how often the CLI gives up.
+pub const TRUNK_API_CLIENT_RETRY_DEADLINE_SECS_ENV: &str = "TRUNK_API_CLIENT_RETRY_DEADLINE_SECS";
 
 // Trunk CLI environment variable names for configuration overrides
 pub const TRUNK_API_TOKEN_ENV: &str = "TRUNK_API_TOKEN";
@@ -61,6 +66,7 @@ pub const TRUNK_ENVS_TO_CAPTURE: &[&str] = &[
     TRUNK_QUARANTINE_DISK_CACHE_DIR_ENV,
     TRUNK_PUBLIC_API_ADDRESS_ENV,
     TRUNK_API_CLIENT_RETRY_COUNT_ENV,
+    TRUNK_API_CLIENT_RETRY_DEADLINE_SECS_ENV,
     TRUNK_PUBLIC_REPO_ID_ENV,
     TRUNK_ORG_URL_SLUG_ENV,
     TRUNK_TEST_COLLECTION_ID_ENV,
