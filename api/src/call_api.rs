@@ -168,6 +168,21 @@ impl AbortableRetry for reqwest::Error {
     }
 }
 
+/// Aborts the wrapped task when dropped. Dropping a bare [`tokio::task::JoinHandle`] only
+/// *detaches* the task — it keeps running. When `call_api`'s future is cancelled mid-flight
+/// (e.g. the losing branch of the `tokio::select!` in the CLI's main loop on SIGINT/SIGTERM),
+/// the explicit `.abort()` calls after the `.await` never execute, so without this guard the
+/// slow-progress reporter tasks leak and keep emitting "taking longer than expected" messages
+/// after the CLI has been interrupted. Binding the handles in this guard aborts them on drop —
+/// covering both normal completion and cancellation.
+struct AbortOnDrop(tokio::task::JoinHandle<()>);
+
+impl Drop for AbortOnDrop {
+    fn drop(&mut self) {
+        self.0.abort();
+    }
+}
+
 pub struct CallApi<A, L, R>
 where
     A: Action,
@@ -191,7 +206,7 @@ where
         let report_slow_progress_start = time::Instant::now();
         let report_slow_progress_message = self.report_slow_progress_message;
         let mut slow_progress_sender = self.render_sender.clone();
-        let report_slow_progress_handle = tokio::spawn(async move {
+        let _report_slow_progress_guard = AbortOnDrop(tokio::spawn(async move {
             let duration = Duration::from_secs(REPORT_SLOW_PROGRESS_TIMEOUT_SECS);
             time::sleep(duration).await;
             let time_elapsed = Instant::now().duration_since(report_slow_progress_start);
@@ -208,12 +223,12 @@ where
                 );
             });
             tracing::debug!("{:?}", message);
-        });
+        }));
 
         let check_progress_start = time::Instant::now();
         let log_progress_message = self.log_progress_message;
         let mut check_progress_sender = self.render_sender.clone();
-        let check_progress_handle = tokio::spawn(async move {
+        let _check_progress_guard = AbortOnDrop(tokio::spawn(async move {
             let mut log_count = 0;
             let duration = Duration::from_secs(CHECK_PROGRESS_INTERVAL_SECS);
             let mut interval = time::interval_at(Instant::now() + duration, duration);
@@ -236,13 +251,11 @@ where
                 tracing::debug!("{}", log_message);
                 log_count += 1;
             }
-        });
+        }));
 
-        let result = retry_with_deadline(&mut self.action, *RETRY_DEADLINE).await;
-        report_slow_progress_handle.abort();
-        check_progress_handle.abort();
-
-        result
+        // The guards abort the reporter tasks when they drop at the end of this scope — on
+        // normal return here *and* if this future is cancelled while awaiting below.
+        retry_with_deadline(&mut self.action, *RETRY_DEADLINE).await
     }
 }
 
@@ -515,5 +528,66 @@ mod tests {
         .await;
 
         assert_eq!(retry_count.into_inner(), RETRY_COUNT_DEFAULT + 1);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn aborts_progress_reporters_when_future_is_dropped() {
+        use std::{
+            future::{Future, poll_fn},
+            pin::pin,
+            task::Poll,
+        };
+
+        lazy_static! {
+            static ref LOG_COUNT: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
+        }
+
+        {
+            // `call_api` borrows `&mut self`, so the `CallApi` needs its own binding to outlive
+            // the future.
+            let mut call = CallApi {
+                // Never resolves on its own, so the future only ends when we drop it below.
+                action: || async {
+                    time::sleep(Duration::from_secs(3600)).await;
+                    Result::<(), anyhow::Error>::Ok(())
+                },
+                log_progress_message: |_, _| {
+                    LOG_COUNT.fetch_add(1, Ordering::SeqCst);
+                    String::new()
+                },
+                report_slow_progress_message: |_| String::new(),
+                render_sender: None,
+            };
+            let mut fut = pin!(call.call_api());
+
+            // Poll once so the reporter tasks are spawned, then suspend at the action's await.
+            poll_fn(|cx| {
+                assert!(fut.as_mut().poll(cx).is_pending());
+                Poll::Ready(())
+            })
+            .await;
+
+            // Let the check-progress interval tick a few times; the reporter is alive here.
+            time::sleep(Duration::from_secs(CHECK_PROGRESS_INTERVAL_SECS * 3)).await;
+            assert!(
+                LOG_COUNT.load(Ordering::SeqCst) > 0,
+                "progress reporter should emit while the future is alive"
+            );
+
+            // Drop the in-flight future, exactly as the `tokio::select!` in the CLI's main loop
+            // does when a SIGINT/SIGTERM wins the race.
+        }
+
+        let count_at_drop = LOG_COUNT.load(Ordering::SeqCst);
+
+        // Advance well past several more intervals. A merely-detached (leaked) task would keep
+        // ticking and bump the count; the `AbortOnDrop` guard must have aborted it instead.
+        time::sleep(Duration::from_secs(CHECK_PROGRESS_INTERVAL_SECS * 5)).await;
+
+        assert_eq!(
+            LOG_COUNT.load(Ordering::SeqCst),
+            count_at_drop,
+            "progress reporter kept running after the call_api future was dropped"
+        );
     }
 }
