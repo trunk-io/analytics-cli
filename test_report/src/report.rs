@@ -2,6 +2,7 @@ use std::{
     cell::RefCell,
     collections::HashMap,
     env, fs,
+    io::Write,
     path::{Path, PathBuf},
     time::{Duration, SystemTime},
 };
@@ -757,18 +758,29 @@ impl MutTestReport {
     // saves to local fs and returns the path
     fn save(&self, path_buf: std::path::PathBuf) -> Result<std::path::PathBuf, std::io::Error> {
         // create parent directory if it doesn't exist
-        if let Some(parent) = path_buf.parent() {
-            if !parent.exists() {
-                fs::create_dir_all(parent)?;
-            }
+        let parent = path_buf
+            .parent()
+            .filter(|parent| !parent.as_os_str().is_empty())
+            .unwrap_or(Path::new("."));
+        if !parent.exists() {
+            fs::create_dir_all(parent)?;
         }
         let buf = self.serialize_test_report();
-        fs::write(&path_buf, buf)?;
+        // write to a unique temp file and atomically rename it into place: a
+        // truncate-then-write of the final path can interleave with another
+        // writer (e.g. a parallel test shard saving to the same path), leaving
+        // the tail of a longer report past the new EOF and corrupting the protobuf.
+        // The temp file must be in the same directory so the rename cannot cross
+        // filesystems.
+        let mut temp_file = tempfile::NamedTempFile::new_in(parent)?;
+        temp_file.write_all(&buf)?;
         // file modification uses filetime which is less precise than systemTime
         // we need to update it to the current time to avoid race conditions later down the line
         // when the start time ends up being after the file modification time
-        let file = fs::File::open(&path_buf).unwrap();
-        file.set_modified(SystemTime::now())?;
+        temp_file.as_file().set_modified(SystemTime::now())?;
+        temp_file
+            .persist(&path_buf)
+            .map_err(|persist| persist.error)?;
         Ok(path_buf)
     }
 

@@ -274,6 +274,59 @@ fn publish_try_save() {
     assert_eq!(test_result.test_case_runs.len(), 0);
 }
 
+#[test]
+fn try_save_leaves_decodable_report_under_concurrent_writers() {
+    cleanup_env_vars();
+    let temp_dir = tempdir().unwrap();
+    setup_quarantine_disk_cache_dir(&temp_dir);
+    let dir = temp_dir.path().to_str().unwrap().to_string();
+
+    // Writers with very different report sizes race on the same path. A
+    // truncate-then-write save can interleave so the tail of a longer report
+    // survives past a shorter one's EOF, corrupting the protobuf; the atomic
+    // temp-file + rename must always leave a complete report.
+    let handles: Vec<_> = (0..8)
+        .map(|writer_index| {
+            let dir = dir.clone();
+            thread::spawn(move || {
+                let report = MutTestReport::new(
+                    "test-origin".into(),
+                    "test-command".into(),
+                    Some("test-variant".into()),
+                );
+                for test_index in 0..(writer_index * 200) {
+                    report.add_test(
+                        Some(format!("{writer_index}-{test_index}")),
+                        format!("test-name-{test_index}"),
+                        "test-classname".into(),
+                        "test-file".into(),
+                        "test-parent-name".into(),
+                        None,
+                        Status::Success,
+                        0,
+                        1000,
+                        1001,
+                        String::new(),
+                        String::new(),
+                        false,
+                    );
+                }
+                for _ in 0..20 {
+                    assert!(report.try_save(dir.clone()));
+                }
+            })
+        })
+        .collect();
+    for handle in handles {
+        handle.join().unwrap();
+    }
+
+    let data =
+        fs::read(temp_dir.path().join("trunk_output.bin")).expect("Failed to read saved file");
+    TestReport::decode(&*data)
+        .expect("concurrently saved report should decode with no trailing bytes");
+}
+
 #[tokio::test(flavor = "multi_thread")]
 #[serial]
 async fn publish_environment_variable_overrides() {
