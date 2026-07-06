@@ -302,24 +302,10 @@ class TrunkAnalyticsListener
 
   def initialize
     @testreport = $test_report
-    remove_preexisting_local_report
   end
 
   def example_finished(notification)
     add_test_case(notification.example)
-  end
-
-  # A previous rspec invocation may have left a report at this path; if it was
-  # longer than the one this run writes, its trailing bytes would survive the
-  # rewrite and corrupt the report. The filename must match what
-  # TestReport#try_save writes (test_report/src/report.rs).
-  def remove_preexisting_local_report
-    return unless ENV['TRUNK_LOCAL_UPLOAD_DIR']
-
-    report_path = File.join(ENV['TRUNK_LOCAL_UPLOAD_DIR'], 'trunk_output.bin')
-    File.delete(report_path) if File.exist?(report_path)
-  rescue StandardError => e
-    puts "Failed to remove pre-existing local report: #{e}".yellow
   end
 
   # trunk-ignore(rubocop/Metrics/MethodLength,rubocop/Metrics/AbcSize)
