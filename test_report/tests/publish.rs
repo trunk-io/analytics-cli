@@ -1,6 +1,15 @@
 mod common;
 
-use std::{env, fs, io::BufReader, path::Path, thread};
+use std::{
+    env, fs,
+    io::BufReader,
+    path::Path,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
+    thread,
+};
 
 use assert_matches::assert_matches;
 use bundle::{BundleMeta, FileSetType};
@@ -280,11 +289,44 @@ fn try_save_leaves_decodable_report_under_concurrent_writers() {
     let temp_dir = tempdir().unwrap();
     setup_quarantine_disk_cache_dir(&temp_dir);
     let dir = temp_dir.path().to_str().unwrap().to_string();
+    let file_path = temp_dir.path().join("trunk_output.bin");
 
     // Writers with very different report sizes race on the same path. A
-    // truncate-then-write save can interleave so the tail of a longer report
-    // survives past a shorter one's EOF, corrupting the protobuf; the atomic
-    // temp-file + rename must always leave a complete report.
+    // truncate-then-write save can interleave with the other writers — or be
+    // observed mid-write by a reader (in production, the uploader is a separate
+    // process reading this path) — exposing an empty, truncated, or
+    // partially-overwritten file. The atomic temp-file + rename must instead
+    // guarantee that the path, whenever it exists, holds one complete report:
+    // it decodes, and carries the test_result + uploader_metadata set at
+    // construction time.
+    let writers_done = Arc::new(AtomicBool::new(false));
+
+    let reader = {
+        let writers_done = writers_done.clone();
+        let file_path = file_path.clone();
+        thread::spawn(move || {
+            let mut observations = 0u64;
+            while !writers_done.load(Ordering::Relaxed) {
+                let Ok(data) = fs::read(&file_path) else {
+                    continue;
+                };
+                let report = TestReport::decode(&*data)
+                    .expect("observed report should decode with no trailing bytes");
+                assert_eq!(
+                    report.test_results.len(),
+                    1,
+                    "observed report should be complete, not empty or truncated"
+                );
+                assert!(
+                    report.uploader_metadata.is_some(),
+                    "observed report should carry its uploader_metadata trailer"
+                );
+                observations += 1;
+            }
+            observations
+        })
+    };
+
     let handles: Vec<_> = (0..8)
         .map(|writer_index| {
             let dir = dir.clone();
@@ -320,9 +362,13 @@ fn try_save_leaves_decodable_report_under_concurrent_writers() {
     for handle in handles {
         handle.join().unwrap();
     }
+    writers_done.store(true, Ordering::Relaxed);
+    let observations = reader
+        .join()
+        .expect("reader should observe only complete reports");
+    more_asserts::assert_gt!(observations, 0);
 
-    let data =
-        fs::read(temp_dir.path().join("trunk_output.bin")).expect("Failed to read saved file");
+    let data = fs::read(&file_path).expect("Failed to read saved file");
     TestReport::decode(&*data)
         .expect("concurrently saved report should decode with no trailing bytes");
 }
