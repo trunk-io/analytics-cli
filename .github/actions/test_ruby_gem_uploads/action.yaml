@@ -30,6 +30,14 @@ inputs:
   variant:
     description: Optional variant label to distinguish uploads within a matrix
     required: false
+  run-gem-unit-suite:
+    description: >-
+      When 'true', also run the gem's portable unit suite
+      (rspec-trunk-flaky-tests/test) against the built gem. Off by default so PR
+      runs do not duplicate the source-level `rake test`; enabled by the periodic
+      main-branch smoke workflow to exercise the suite on the built artifact.
+    required: false
+    default: "false"
   knapsack-pro-test-suite-token-rspec:
     description: Optional Knapsack Pro test suite token for RSpec
     required: true
@@ -91,6 +99,21 @@ runs:
         TRUNK_API_TOKEN: ${{ inputs.trunk-token }}
         TRUNK_TEST_COLLECTION_ID: ${{ inputs.test-collection-id }}
         TRUNK_VARIANT: ${{ inputs.variant }}
+
+    - name: Run gem unit suite against the built gem (rspec-trunk-flaky-tests/test)
+      id: run-gem-unit-suite
+      if: ${{ inputs.run-gem-unit-suite == 'true' }}
+      shell: bash
+      working-directory: ${{ github.action_path }}
+      # Runs the gem's portable unit suite (rspec-trunk-flaky-tests/test) against
+      # the built, packaged gem -- making the periodic main-branch smoke run a
+      # superset of the source-level `rake test` suite. Gated (off by default) so
+      # PR runs of this action do not re-run those specs; enabled only where the
+      # checkout matches the built gem (see smoke_test_main.yml). Backend-free, so
+      # auto-upload is disabled; the backend scenario specs below cover the rest.
+      run: bundle exec rspec "${GITHUB_WORKSPACE}/rspec-trunk-flaky-tests/test" --format documentation
+      env:
+        DISABLE_RSPEC_TRUNK_FLAKY_TESTS: "true"
 
     - name: Run variant quarantine test without variant (should fail - not quarantined)
       id: run-variant-test-no-variant

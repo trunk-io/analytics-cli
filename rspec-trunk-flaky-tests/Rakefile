@@ -54,6 +54,10 @@ begin
   RSpec::Core::RakeTask.new(:test) do |t|
     ENV["RB_SYS_CARGO_PROFILE"] = 'dev'
     Rake::Task['compile'].invoke
+    # Put lib on the load path so specs can `require 'rspec_trunk_flaky_tests'`
+    # (rather than require_relative the source lib). The same specs then load the
+    # installed/built gem when run from the release smoke tests.
+    t.ruby_opts = '-Ilib'
     t.pattern = FileList['test/*_spec.rb']
   end
   task default: :test

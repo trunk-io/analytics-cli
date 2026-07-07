@@ -336,7 +336,7 @@ class TrunkAnalyticsListener
 
   # trunk-ignore(rubocop/Metrics/CyclomaticComplexity,rubocop/Metrics/AbcSize,rubocop/Metrics/MethodLength)
   def add_test_case(example)
-    exception = example.exception || example.metadata[:quarantined_exception]
+    status, exception = status_and_exception(example)
     failure_message = ''
     backtrace = ''
     if exception
@@ -355,21 +355,59 @@ class TrunkAnalyticsListener
     id = example.generate_trunk_id
 
     attempt_number = example.metadata[:retry_attempts] || example.metadata[:attempt_number] || 0
-    status = example.execution_result.status.to_s
     # set the status to failure, but mark it as quarantined
     is_quarantined = example.metadata[:quarantined_exception] ? true : false
-    case example.execution_result.status
-    when :passed
-      status = is_quarantined ? Status.new('failure') : Status.new('success')
-    when :failed
-      status = Status.new('failure')
-    when :pending
-      status = Status.new('skipped')
-    end
     parent_name = example.example_group.metadata[:description]
     parent_name = parent_name.empty? ? 'rspec' : parent_name
     @testreport.add_test(id, name, classname, file, parent_name, line, status, attempt_number,
                          started_at, finished_at, failure_message || '', backtrace || '', is_quarantined)
+  end
+
+  # Determine the Trunk status to report for an example, plus the exception (if
+  # any) whose message/backtrace should be recorded for it.
+  #
+  # `pending` examples need care because RSpec expresses their outcome as the
+  # inverse of the body's pass/fail. A pending example's contract is "this is
+  # expected to fail", so:
+  #   - body still fails  -> expectation met     -> RSpec status :pending, build green
+  #   - body now passes   -> expectation violated -> RSpec status :failed
+  #                          (PendingExampleFixedError), build red
+  # We report the outcome RSpec actually decided, which also matches the build
+  # result:
+  #   - skip / xit (never ran)     -> skipped
+  #   - pending, body still failing -> success (expectation met)
+  #   - pending, body now passing   -> failure (PendingExampleFixedError)
+  # RSpec's own build pass/fail behavior is left untouched (see #set_exception).
+  #
+  # trunk-ignore(rubocop/Metrics/AbcSize,rubocop/Metrics/CyclomaticComplexity,rubocop/Metrics/MethodLength)
+  def status_and_exception(example)
+    result = example.execution_result
+    quarantined_exception = example.metadata[:quarantined_exception]
+
+    # A genuinely skipped example (`skip`/`xit`, or `skip` called from a hook or
+    # body) never runs, so it has no real pass/fail outcome. RSpec still reports
+    # it with status :pending, so detect skips explicitly -- and up front -- via
+    # metadata[:skip] before interpreting any pending pass/fail semantics below.
+    return [Status.new('skipped'), nil] if example.metadata[:skip]
+
+    case result.status
+    when :passed
+      # A quarantined failure is recorded as :passed by RSpec (see #set_exception),
+      # so report it as a failure but carry the original quarantined exception.
+      quarantined_exception ? [Status.new('failure'), quarantined_exception] : [Status.new('success'), nil]
+    when :failed
+      # Includes a pending example whose body unexpectedly passed: RSpec reports it
+      # as :failed with a PendingExampleFixedError (on example.exception) and breaks
+      # the build (the pending expectation was violated), so it is a failure here too.
+      [Status.new('failure'), example.exception || quarantined_exception]
+    when :pending
+      # Not a skip (handled above), so this is a pending example whose body ran and
+      # failed as expected: the pending expectation ("this should fail") was met, so
+      # RSpec keeps the build green -- report it as a success.
+      [Status.new('success'), nil]
+    else
+      [Status.new(result.status.to_s), example.exception || quarantined_exception]
+    end
   end
 end
 
