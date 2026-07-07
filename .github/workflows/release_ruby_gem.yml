@@ -197,11 +197,9 @@ jobs:
           # derives repo metadata just as it does in test-ruby-gem on the host.
           env | grep -E '^GITHUB_' > "${RUNNER_TEMP}/ci.env" || true
 
-          # Run the same specs test-ruby-gem uses, inside Alpine, against the
-          # precompiled musl gem. This dlopens the native extension (where a
-          # glibc-only build dies on musl with __res_init), fetches the
-          # quarantine list over TLS/DNS, serializes results in the extension,
-          # and uploads — exercising the full runtime, not just gem loading.
+          # Run the same specs test-ruby-gem uses, but inside Alpine against the
+          # precompiled musl gem, so the musl build is exercised end to end
+          # (quarantine lookup, result serialization, upload) on a musl host.
           docker run --rm \
             --env-file "${RUNNER_TEMP}/ci.env" \
             -e GEM_FILE="${GEM_FILE}" \
