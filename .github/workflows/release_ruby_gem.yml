@@ -157,11 +157,7 @@ jobs:
           knapsack-pro-test-suite-token-rspec: ${{ secrets.KNAPSACK_PRO_TEST_SUITE_TOKEN_RSPEC }}
 
   # test-ruby-gem covers glibc/darwin via ruby/setup-ruby, which has no Alpine
-  # support. So we validate the musl gems in an official ruby:*-alpine image:
-  # the artifact is downloaded on the host and the smoke specs run inside the
-  # container via docker. One Ruby version per arch is enough — the __res_init
-  # failure is a libc-linkage issue shared by every per-Ruby .so in a gem, and
-  # per-Ruby coverage already lives in test-ruby-gem.
+  # support. So we validate the musl gems in an official ruby:*-alpine image
   test-musl-gem:
     name: Test ${{ matrix.platform.name }} gem on Alpine (ruby ${{ matrix.ruby-version }})
     runs-on: ${{ matrix.platform.os }}
