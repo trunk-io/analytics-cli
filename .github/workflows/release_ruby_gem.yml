@@ -156,12 +156,12 @@ jobs:
           artifact-pattern: cross-gem-${{ matrix.platform.name }}
           knapsack-pro-test-suite-token-rspec: ${{ secrets.KNAPSACK_PRO_TEST_SUITE_TOKEN_RSPEC }}
 
-  # The glibc-linked *-linux gems fail to load on Alpine/musl (e.g.
-  # "Error relocating ... __res_init: symbol not found"). The musl-targeted gems
-  # must therefore be validated inside an Alpine container rather than on the
-  # glibc-based ubuntu runners used by test-ruby-gem. ruby/setup-ruby does not
-  # support Alpine, so we download the artifact on the host and exercise the gem
-  # inside an official ruby:*-alpine image via docker.
+  # test-ruby-gem covers glibc/darwin via ruby/setup-ruby, which has no Alpine
+  # support. So we validate the musl gems in an official ruby:*-alpine image:
+  # the artifact is downloaded on the host and the smoke specs run inside the
+  # container via docker. One Ruby version per arch is enough — the __res_init
+  # failure is a libc-linkage issue shared by every per-Ruby .so in a gem, and
+  # per-Ruby coverage already lives in test-ruby-gem.
   test-musl-gem:
     name: Test ${{ matrix.platform.name }} gem on Alpine (ruby ${{ matrix.ruby-version }})
     runs-on: ${{ matrix.platform.os }}
@@ -169,11 +169,6 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # The __res_init failure is a libc-linkage issue: every per-Ruby .so in
-        # a musl gem is linked the same way, so one Ruby version proves the
-        # linkage for all. Per-Ruby load-path/ABI coverage is already handled by
-        # test-ruby-gem. We do exercise both arches, since each is a separately
-        # built artifact.
         ruby-version: ["3.4"]
         platform:
           - name: x86_64-linux-musl
@@ -181,44 +176,48 @@ jobs:
           - name: aarch64-linux-musl
             os: ubuntu-24.04-arm
     steps:
+      - uses: actions/checkout@v4
+
       - uses: actions/download-artifact@v4
         with:
           pattern: cross-gem-${{ matrix.platform.name }}
           path: pkg
           merge-multiple: true
 
-      - name: Load and exercise musl gem on Alpine
+      - name: Run smoke specs against the musl gem on Alpine
         shell: bash
+        env:
+          TRUNK_PUBLIC_API_ADDRESS: https://api.trunk-staging.io
+          TRUNK_ORG_URL_SLUG: trunk-staging-org
+          TRUNK_API_TOKEN: ${{ secrets.TRUNK_STAGING_ORG_API_TOKEN }}
+          TRUNK_TEST_COLLECTION_ID: T5yKSn9h
+          TRUNK_VARIANT: ${{ matrix.platform.name }}
         run: |
           set -euxo pipefail
           GEM_FILE=$(ls pkg/rspec_trunk_flaky_tests-*.gem | head -n 1)
           echo "Testing gem: ${GEM_FILE}"
 
-          # Runtime check: require dlopens the native extension (this is where a
-          # glibc-only build dies on musl), then call into it to confirm it is
-          # functional and not merely loadable.
-          cat > musl_load_test.rb <<'RUBY'
-          require 'rspec_trunk_flaky_tests'
-          puts 'loaded native extension OK'
-          info = env_parse({
-            'GITHUB_ACTIONS' => 'true',
-            'GITHUB_REF' => 'abc',
-            'GITHUB_RUN_ID' => '12345',
-            'GITHUB_REPOSITORY' => 'analytics-cli'
-          }, [])
-          abort 'env_parse returned nil' if info.nil?
-          abort "unexpected platform: #{info.platform}" unless info.platform.to_s == 'GITHUB_ACTIONS'
-          puts "env_parse OK on musl: #{info.platform}"
-          RUBY
+          # Forward the (non-secret) GitHub CI context so the gem detects CI and
+          # derives repo metadata just as it does in test-ruby-gem on the host.
+          env | grep -E '^GITHUB_' > "${RUNNER_TEMP}/ci.env" || true
 
+          # Run the same specs test-ruby-gem uses, inside Alpine, against the
+          # precompiled musl gem. This dlopens the native extension (where a
+          # glibc-only build dies on musl with __res_init), fetches the
+          # quarantine list over TLS/DNS, serializes results in the extension,
+          # and uploads — exercising the full runtime, not just gem loading.
           docker run --rm \
+            --env-file "${RUNNER_TEMP}/ci.env" \
             -e GEM_FILE="${GEM_FILE}" \
+            -e TRUNK_PUBLIC_API_ADDRESS -e TRUNK_ORG_URL_SLUG -e TRUNK_API_TOKEN \
+            -e TRUNK_TEST_COLLECTION_ID -e TRUNK_VARIANT \
             -v "${PWD}:/work" -w /work \
             "ruby:${{ matrix.ruby-version }}-alpine" \
             sh -euxc '
-              gem install rspec-core --no-document
+              gem install rspec --no-document
               gem install "${GEM_FILE}" --local --no-document
-              ruby musl_load_test.rb
+              cd .github/actions/test_ruby_gem_uploads
+              rspec -Ispec spec/test_spec.rb spec/multiple_exception_spec.rb --format documentation
             '
 
   publish_ruby_gem:
