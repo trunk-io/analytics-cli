@@ -230,6 +230,9 @@ jobs:
           platform: x86_64-linux
           artifact-pattern: ""
           knapsack-pro-test-suite-token-rspec: ${{ secrets.KNAPSACK_PRO_TEST_SUITE_TOKEN_RSPEC }}
+          # main is built from this checkout, so the source test/ suite matches the
+          # built gem -- run it here to smoke-test the suite on the built artifact.
+          run-gem-unit-suite: "true"
 
   test_ruby_gem_production:
     name: Test Ruby gem on production
@@ -256,6 +259,9 @@ jobs:
           platform: x86_64-linux
           artifact-pattern: ""
           knapsack-pro-test-suite-token-rspec: ${{ secrets.KNAPSACK_PRO_TEST_SUITE_TOKEN_RSPEC }}
+          # main is built from this checkout, so the source test/ suite matches the
+          # built gem -- run it here to smoke-test the suite on the built artifact.
+          run-gem-unit-suite: "true"
 
   production-slack-workflow-status:
     if: always() && github.ref == 'refs/heads/main' && (needs.test_cli.result != 'success' || needs.test_ruby_gem_production.result != 'success')
