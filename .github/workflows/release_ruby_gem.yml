@@ -156,9 +156,7 @@ jobs:
           artifact-pattern: cross-gem-${{ matrix.platform.name }}
           knapsack-pro-test-suite-token-rspec: ${{ secrets.KNAPSACK_PRO_TEST_SUITE_TOKEN_RSPEC }}
 
-  # test-ruby-gem covers glibc/darwin via ruby/setup-ruby, which has no Alpine
-  # support. The same action runs the musl gems inside a ruby:*-alpine
-  # container (alpine: true) so they are validated on a musl host.
+  # Validate the musl gems inside Alpine (ruby/setup-ruby has no Alpine support).
   test-musl-gem:
     name: Test ${{ matrix.platform.name }} gem on Alpine (ruby ${{ matrix.ruby-version }})
     runs-on: ${{ matrix.platform.os }}

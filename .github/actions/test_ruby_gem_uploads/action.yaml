@@ -71,8 +71,7 @@ runs:
         GEM_FILE=$(ls rspec_trunk_flaky_tests-*.gem | head -n 1)
         REL="${GITHUB_ACTION_PATH#"${GITHUB_WORKSPACE}"/}"
 
-        # Forward the (non-secret) GitHub CI context so the gem detects CI and
-        # derives repo metadata just as it does on the host.
+        # Forward the (non-secret) GitHub CI context into the container.
         env | grep -E '^GITHUB_' > "${RUNNER_TEMP}/ci.env" || true
 
         docker run --rm \
