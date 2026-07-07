@@ -169,10 +169,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # A representative spread of Ruby ABIs with reliable Alpine images. The
-        # __res_init failure is a libc-linkage issue, so it reproduces
-        # independently of the Ruby version — no need to cover every ABI here.
-        ruby-version: ["3.1", "3.4"]
+        # The __res_init failure is a libc-linkage issue: every per-Ruby .so in
+        # a musl gem is linked the same way, so one Ruby version proves the
+        # linkage for all. Per-Ruby load-path/ABI coverage is already handled by
+        # test-ruby-gem. We do exercise both arches, since each is a separately
+        # built artifact.
+        ruby-version: ["3.4"]
         platform:
           - name: x86_64-linux-musl
             os: ubuntu-latest

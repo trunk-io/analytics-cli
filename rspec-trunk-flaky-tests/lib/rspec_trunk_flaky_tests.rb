@@ -18,9 +18,6 @@ rescue LoadError
         x86_64-linux, x86_64-linux-musl, aarch64-linux, aarch64-linux-musl,
         arm64-darwin, x86_64-darwin
 
-      The *-linux-musl gems support musl-based distributions such as Alpine.
-      Upgrade to a recent bundler/rubygems so the musl variant is selected.
-
       If you are on a supported platform and seeing this error, make sure
       bundler is selecting the native variant for your platform:
 
