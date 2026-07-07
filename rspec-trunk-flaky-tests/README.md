@@ -63,7 +63,9 @@ bundle exec rake native[x86_64-linux]
 Supported platforms:
 
 - `x86_64-linux`
+- `x86_64-linux-musl` (Alpine and other musl-based distros)
 - `aarch64-linux`
+- `aarch64-linux-musl` (Alpine and other musl-based distros)
 - `arm64-darwin`
 - `x86_64-darwin`
 
@@ -249,7 +251,7 @@ To release a new version:
 1. Trigger the workflow manually via GitHub Actions UI or API
 2. Provide the release tag (version number) as input
 3. The workflow will:
-   - Build the gem for all supported platforms (`x86_64-linux`, `aarch64-linux`, `arm64-darwin`, `x86_64-darwin`)
+   - Build the gem for all supported platforms (`x86_64-linux`, `x86_64-linux-musl`, `aarch64-linux`, `aarch64-linux-musl`, `arm64-darwin`, `x86_64-darwin`)
    - Test the gem on all platforms with Ruby versions 3.0, 3.1, 3.2, 3.3, and 3.4
    - Publish the gem to RubyGems if all tests pass
 

@@ -30,11 +30,13 @@ GEM
     rspec-support (3.13.2)
 
 PLATFORMS
+  aarch64-linux-musl
   arm64-darwin
   arm64-linux
   ruby
   x86_64-darwin
   x86_64-linux
+  x86_64-linux-musl
 
 DEPENDENCIES
   rake
