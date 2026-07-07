@@ -48,9 +48,9 @@ jobs:
     strategy:
       matrix:
         platform:
-          - x86_64-linux
+          - x86_64-linux-gnu
           - x86_64-linux-musl
-          - aarch64-linux
+          - aarch64-linux-gnu
           - aarch64-linux-musl
           - arm64-darwin
           - x86_64-darwin
@@ -98,7 +98,7 @@ jobs:
         with:
           platform: ${{ matrix.platform }}
           working-directory: rspec-trunk-flaky-tests
-          ruby-versions: 3.0,3.1,3.2,3.3,3.4,4.0
+          ruby-versions: 3.1,3.2,3.3,3.4,4.0
 
       - name: Validate ruby platform gem
         if: matrix.platform == 'ruby'
@@ -117,11 +117,11 @@ jobs:
     needs: [ci-data, cross-gem]
     strategy:
       matrix:
-        ruby-version: ["3.0", "3.1", "3.2", "3.3", "3.4", "4.0"]
+        ruby-version: ["3.1", "3.2", "3.3", "3.4", "4.0"]
         platform:
-          - name: x86_64-linux
+          - name: x86_64-linux-gnu
             os: ubuntu-latest
-          - name: aarch64-linux
+          - name: aarch64-linux-gnu
             os: ubuntu-24.04-arm
           - name: arm64-darwin
             os: macos-latest

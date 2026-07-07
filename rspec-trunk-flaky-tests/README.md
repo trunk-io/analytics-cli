@@ -15,7 +15,7 @@ The gem includes a native Rust extension (`rspec_trunk_flaky_tests`) that provid
 
 ## Prerequisites
 
-- Ruby 3.0 or later
+- Ruby 3.1 or later
 - Bundler
 - Rust and Cargo (for building the native extension)
 - `rb-sys` gem (installed automatically via dependencies)
@@ -57,14 +57,14 @@ The gem will be built and available in `pkg/`.
 Build the native extension for a specific platform:
 
 ```bash
-bundle exec rake native[x86_64-linux]
+bundle exec rake native[x86_64-linux-gnu]
 ```
 
 Supported platforms:
 
-- `x86_64-linux`
+- `x86_64-linux-gnu`
 - `x86_64-linux-musl` (Alpine and other musl-based distros)
-- `aarch64-linux`
+- `aarch64-linux-gnu`
 - `aarch64-linux-musl` (Alpine and other musl-based distros)
 - `arm64-darwin`
 - `x86_64-darwin`
@@ -251,8 +251,8 @@ To release a new version:
 1. Trigger the workflow manually via GitHub Actions UI or API
 2. Provide the release tag (version number) as input
 3. The workflow will:
-   - Build the gem for all supported platforms (`x86_64-linux`, `x86_64-linux-musl`, `aarch64-linux`, `aarch64-linux-musl`, `arm64-darwin`, `x86_64-darwin`)
-   - Test the gem on all platforms with Ruby versions 3.0, 3.1, 3.2, 3.3, and 3.4
+   - Build the gem for all supported platforms (`x86_64-linux-gnu`, `x86_64-linux-musl`, `aarch64-linux-gnu`, `aarch64-linux-musl`, `arm64-darwin`, `x86_64-darwin`)
+   - Test the gem on all platforms with Ruby versions 3.1, 3.2, 3.3, 3.4, and 4.0
    - Publish the gem to RubyGems if all tests pass
 
 The workflow automatically handles cross-compilation, testing, and publishing for all supported platforms.
