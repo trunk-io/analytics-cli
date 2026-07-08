@@ -41,6 +41,10 @@ inputs:
   knapsack-pro-test-suite-token-rspec:
     description: Optional Knapsack Pro test suite token for RSpec
     required: true
+  alpine:
+    description: Run the smoke specs inside a musl (Alpine) container via docker instead of on the host
+    required: false
+    default: "false"
 
 runs:
   using: composite
@@ -48,6 +52,7 @@ runs:
     - uses: actions/checkout@v4
 
     - uses: ruby/setup-ruby@v1
+      if: inputs.alpine != 'true'
       with:
         ruby-version: ${{ inputs.ruby-version }}
         bundler-cache: true
@@ -59,8 +64,40 @@ runs:
         path: ${{ github.action_path }}
         merge-multiple: true
 
+    - name: Run smoke specs in a musl (Alpine) container
+      if: inputs.alpine == 'true'
+      shell: bash
+      working-directory: ${{ github.action_path }}
+      env:
+        TRUNK_PUBLIC_API_ADDRESS: ${{ inputs.trunk-public-api-address }}
+        TRUNK_ORG_URL_SLUG: ${{ inputs.trunk-org-slug }}
+        TRUNK_API_TOKEN: ${{ inputs.trunk-token }}
+        TRUNK_TEST_COLLECTION_ID: ${{ inputs.test-collection-id }}
+        TRUNK_VARIANT: ${{ inputs.variant }}
+      run: |
+        set -euxo pipefail
+        GEM_FILE=$(ls rspec_trunk_flaky_tests-*.gem | head -n 1)
+        REL="${GITHUB_ACTION_PATH#"${GITHUB_WORKSPACE}"/}"
+
+        # Forward the (non-secret) GitHub CI context into the container.
+        env | grep -E '^GITHUB_' > "${RUNNER_TEMP}/ci.env" || true
+
+        docker run --rm \
+          --env-file "${RUNNER_TEMP}/ci.env" \
+          -e GEM_FILE="${GEM_FILE}" \
+          -e TRUNK_PUBLIC_API_ADDRESS -e TRUNK_ORG_URL_SLUG -e TRUNK_API_TOKEN \
+          -e TRUNK_TEST_COLLECTION_ID -e TRUNK_VARIANT \
+          -v "${GITHUB_WORKSPACE}:/work" -w "/work/${REL}" \
+          "ruby:${{ inputs.ruby-version }}-alpine" \
+          sh -euxc '
+            gem install rspec --no-document
+            gem install "./${GEM_FILE}" --local --no-document
+            rspec -Ispec spec/test_spec.rb spec/multiple_exception_spec.rb --format documentation
+          '
+
     - name: Setup gem
       id: setup-gem
+      if: inputs.alpine != 'true'
       shell: bash
       working-directory: ${{ github.action_path }}
       run: |
@@ -89,6 +126,7 @@ runs:
 
     - name: Run regular tests
       id: run-regular-tests
+      if: inputs.alpine != 'true'
       shell: bash
       working-directory: ${{ github.action_path }}
       run: |
@@ -117,6 +155,7 @@ runs:
 
     - name: Run variant quarantine test without variant (should fail - not quarantined)
       id: run-variant-test-no-variant
+      if: inputs.alpine != 'true'
       shell: bash
       working-directory: ${{ github.action_path }}
       run: |
@@ -138,6 +177,7 @@ runs:
 
     - name: Run variant quarantine test with variant (should pass - quarantined)
       id: run-variant-test-with-variant
+      if: inputs.alpine != 'true'
       shell: bash
       working-directory: ${{ github.action_path }}
       run: |
@@ -159,6 +199,7 @@ runs:
 
     - name: Run quarantine lookup failure abort test (should fail fast, skip slow_test)
       id: run-quarantine-abort-test
+      if: inputs.alpine != 'true'
       shell: bash
       working-directory: ${{ github.action_path }}
       run: |
@@ -184,7 +225,7 @@ runs:
 
     - name: Run knapsack_pro queue and verify a single local bundle
       shell: bash
-      if: inputs.knapsack-pro-test-suite-token-rspec != ''
+      if: inputs.alpine != 'true' && inputs.knapsack-pro-test-suite-token-rspec != ''
       working-directory: ${{ github.action_path }}
       env:
         KNAPSACK_PRO_TEST_DIR: spec
