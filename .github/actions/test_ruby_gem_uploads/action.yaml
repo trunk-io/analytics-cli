@@ -105,9 +105,8 @@ runs:
         GEM_FILE=$(ls rspec_trunk_flaky_tests-*.gem | head -n 1)
         echo "Using gem file: ${GEM_FILE}"
 
-        # Extract version from gem filename (e.g., rspec_trunk_flaky_tests-0.0.0-b75353b-x86_64-linux.gem)
-        PLATFORM="${{ inputs.platform }}"
-        GEM_VERSION=$(echo "${GEM_FILE}" | sed -n "s/rspec_trunk_flaky_tests-\(.*\)-${PLATFORM}\.gem/\1/p")
+        # Read the version from gem metadata (robust to the platform suffix).
+        GEM_VERSION=$(ruby -e "require 'rubygems/package'; puts Gem::Package.new(ARGV[0]).spec.version" "${GEM_FILE}")
         echo "Extracted version: ${GEM_VERSION}"
 
         gem install "${GEM_FILE}" --local
