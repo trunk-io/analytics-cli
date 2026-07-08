@@ -2,7 +2,7 @@
 
 Gem::Specification.new do |s|
   # trunk-ignore(rubocop/Gemspec/RequiredRubyVersion)
-  s.required_ruby_version = '>= 3.0'
+  s.required_ruby_version = '>= 3.1'
   s.name        = 'rspec_trunk_flaky_tests'
   s.version     = '0.0.0'
   # trunk-ignore(rubocop/Layout/LineLength)
