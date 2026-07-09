@@ -113,7 +113,15 @@ module RSpec
         return set_exception_core(exception) if trunk_disabled
         return set_exception_core(exception) if metadata[:retry_attempts]&.positive?
 
+        handle_quarantine_check_safely(exception)
+      end
+
+      # If the quarantine machinery itself blows up, the failure must stand.
+      def handle_quarantine_check_safely(exception)
         handle_quarantine_check(exception)
+      rescue StandardError => e
+        puts "Quarantine check errored (#{e.class}: #{e.message}), treating test as not quarantined".yellow
+        set_exception_core(exception)
       end
 
       def pending_example_fixed?(exception)
