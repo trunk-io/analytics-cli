@@ -108,11 +108,17 @@ module RSpec
       # decide if we want to fail the test or not
       # trunk-ignore(rubocop/Naming/AccessorMethodName)
       def set_exception(exception)
-        return set_exception_core(exception) if metadata[:pending]
+        # Pending stays green, except a fixed pending example is a real failure.
+        return set_exception_core(exception) if metadata[:pending] && !pending_example_fixed?(exception)
         return set_exception_core(exception) if trunk_disabled
         return set_exception_core(exception) if metadata[:retry_attempts]&.positive?
 
         handle_quarantine_check(exception)
+      end
+
+      def pending_example_fixed?(exception)
+        defined?(RSpec::Core::Pending::PendingExampleFixedError) &&
+          exception.is_a?(RSpec::Core::Pending::PendingExampleFixedError)
       end
 
       # trunk-ignore(rubocop/Metrics/AbcSize,rubocop/Metrics/MethodLength,rubocop/Metrics/CyclomaticComplexity)
@@ -401,10 +407,13 @@ class TrunkAnalyticsListener
       # the build (the pending expectation was violated), so it is a failure here too.
       [Status.new('failure'), example.exception || quarantined_exception]
     when :pending
-      # Not a skip (handled above), so this is a pending example whose body ran and
-      # failed as expected: the pending expectation ("this should fail") was met, so
-      # RSpec keeps the build green -- report it as a success.
-      [Status.new('success'), nil]
+      # A quarantined fixed-pending is left :pending but pending_fixed? -- still a
+      # failure. Otherwise the pending "should fail" expectation was met -> success.
+      if result.pending_fixed?
+        [Status.new('failure'), quarantined_exception || example.exception]
+      else
+        [Status.new('success'), nil]
+      end
     else
       [Status.new(result.status.to_s), example.exception || quarantined_exception]
     end
