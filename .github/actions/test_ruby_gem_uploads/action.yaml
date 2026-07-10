@@ -174,20 +174,20 @@ runs:
         TRUNK_TEST_COLLECTION_ID: ${{ inputs.test-collection-id }}
         TRUNK_VARIANT: ""
 
-    - name: Run variant quarantine test with variant (should pass - quarantined)
+    - name: Run variant and pending quarantine tests with variant (should pass - quarantined)
       id: run-variant-test-with-variant
       if: inputs.alpine != 'true'
       shell: bash
       working-directory: ${{ github.action_path }}
       run: |
-        bundle exec rspec spec/variant_quarantine_spec.rb --format documentation
+        bundle exec rspec spec/variant_quarantine_spec.rb spec/pending_spec.rb --format documentation
         EXIT_CODE=$?
         if [ $EXIT_CODE -ne 0 ]; then
-          echo "ERROR: Variant quarantine test with variant should have passed (test should be quarantined)"
-          echo "Note: The variant_quarantine_test must be quarantined with variant 'smoke-test-variant' in the system"
+          echo "ERROR: Quarantine tests with variant should have passed (tests should be quarantined)"
+          echo "Note: variant_quarantine_test and pending_quarantine_test must be quarantined with variant 'smoke-test-variant' in the system"
           exit 1
         else
-          echo "SUCCESS: Variant quarantine test with variant passed (test was quarantined)"
+          echo "SUCCESS: Quarantine tests with variant passed (tests were quarantined)"
         fi
       env:
         TRUNK_PUBLIC_API_ADDRESS: ${{ inputs.trunk-public-api-address }}
@@ -195,6 +195,28 @@ runs:
         TRUNK_API_TOKEN: ${{ inputs.trunk-token }}
         TRUNK_TEST_COLLECTION_ID: ${{ inputs.test-collection-id }}
         TRUNK_VARIANT: smoke-test-variant
+
+    - name: Run pending quarantine test without variant (should fail - not quarantined)
+      id: run-pending-test-no-variant
+      if: inputs.alpine != 'true'
+      shell: bash
+      working-directory: ${{ github.action_path }}
+      run: |
+        set +e
+        bundle exec rspec spec/pending_spec.rb --format documentation
+        EXIT_CODE=$?
+        if [ $EXIT_CODE -eq 0 ]; then
+          echo "ERROR: Pending quarantine test without variant should have failed (fixed-pending is not quarantined)"
+          exit 1
+        else
+          echo "SUCCESS: Pending quarantine test without variant failed as expected (fixed-pending is not quarantined)"
+        fi
+      env:
+        TRUNK_PUBLIC_API_ADDRESS: ${{ inputs.trunk-public-api-address }}
+        TRUNK_ORG_URL_SLUG: ${{ inputs.trunk-org-slug }}
+        TRUNK_API_TOKEN: ${{ inputs.trunk-token }}
+        TRUNK_TEST_COLLECTION_ID: ${{ inputs.test-collection-id }}
+        TRUNK_VARIANT: ""
 
     - name: Run quarantine lookup failure abort test (should fail fast, skip slow_test)
       id: run-quarantine-abort-test
