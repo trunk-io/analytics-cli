@@ -296,7 +296,7 @@ impl JunitParser {
                             });
                         }
                     }
-                    test_case_run.status = match test_case.status {
+                    test_case_run.status = match &test_case.status {
                         TestCaseStatus::Success { .. } => TestCaseRunStatus::Success.into(),
                         TestCaseStatus::Skipped {
                             message,
@@ -316,8 +316,14 @@ impl JunitParser {
                                 || system_err.is_some()
                             {
                                 test_case_run.test_output = Some(TestOutput {
-                                    message: message.map(|m| m.to_string()).unwrap_or_default(),
-                                    text: description.map(|d| d.to_string()).unwrap_or_default(),
+                                    message: message
+                                        .as_ref()
+                                        .map(|m| m.to_string())
+                                        .unwrap_or_default(),
+                                    text: description
+                                        .as_ref()
+                                        .map(|d| d.to_string())
+                                        .unwrap_or_default(),
                                     system_out: system_out
                                         .map(|s| s.to_string())
                                         .unwrap_or_default(),
@@ -351,8 +357,14 @@ impl JunitParser {
                                 || system_err.is_some()
                             {
                                 test_case_run.test_output = Some(TestOutput {
-                                    message: message.map(|m| m.to_string()).unwrap_or_default(),
-                                    text: description.map(|d| d.to_string()).unwrap_or_default(),
+                                    message: message
+                                        .as_ref()
+                                        .map(|m| m.to_string())
+                                        .unwrap_or_default(),
+                                    text: description
+                                        .as_ref()
+                                        .map(|d| d.to_string())
+                                        .unwrap_or_default(),
                                     system_out: system_out
                                         .map(|s| s.to_string())
                                         .unwrap_or_default(),
@@ -449,6 +461,16 @@ impl JunitParser {
                             ));
                     }
 
+                    let reruns = match &test_case.status {
+                        TestCaseStatus::Success { flaky_runs } => Some(flaky_runs.iter()),
+                        TestCaseStatus::NonSuccess { reruns, .. } => Some(reruns.iter()),
+                        TestCaseStatus::Skipped { .. } => None,
+                    };
+                    if let Some(reruns) = reruns {
+                        for rerun in reruns {
+                            test_case_runs.push(test_case_run_for_rerun(&test_case_run, rerun));
+                        }
+                    }
                     test_case_runs.push(test_case_run);
                 }
             }
@@ -920,6 +942,62 @@ fn resolve_non_success_system_output<T: Clone>(
     )
 }
 
+/// Builds a `TestCaseRun` for a prior rerun/flaky attempt, inheriting `base`'s identity (test id,
+/// file, codeowners, quarantine state, ...) but recording the attempt as a failure with its own
+/// output and timing. Emitting these alongside the final attempt is what lets pass-on-retry flakes
+/// surface — otherwise every attempt collapses into the single final run.
+fn test_case_run_for_rerun(base: &TestCaseRun, rerun: &TestRerun) -> TestCaseRun {
+    let mut run = base.clone();
+    run.status = TestCaseRunStatus::Failure.into();
+
+    let message = rerun.message.as_deref();
+    let description = rerun.description.as_deref();
+    let system_out = rerun.system_out.as_deref();
+    let system_err = rerun.system_err.as_deref();
+
+    run.status_output_message = description
+        .or(message)
+        .map(str::to_string)
+        .unwrap_or_default();
+
+    run.test_output = if message.is_some()
+        || description.is_some()
+        || system_out.is_some()
+        || system_err.is_some()
+    {
+        Some(TestOutput {
+            message: message.map(str::to_string).unwrap_or_default(),
+            text: description.map(str::to_string).unwrap_or_default(),
+            system_out: system_out.map(str::to_string).unwrap_or_default(),
+            system_err: system_err.map(str::to_string).unwrap_or_default(),
+        })
+    } else {
+        None
+    };
+
+    if let Some(timestamp) = rerun.timestamp {
+        run.started_at = Some(Timestamp {
+            seconds: timestamp.timestamp(),
+            nanos: timestamp.timestamp_subsec_nanos() as i32,
+        });
+    }
+    if let Some(time) = rerun.time {
+        if run.started_at.is_none() {
+            run.started_at = Some(Timestamp {
+                seconds: 0,
+                nanos: 0,
+            });
+        }
+        run.finished_at = run.started_at.clone().map(|mut v| {
+            v.seconds += time.as_secs() as i64;
+            v.nanos += time.subsec_nanos() as i32;
+            v
+        });
+    }
+
+    run
+}
+
 /// Converts `//pkg/path:target` to `Some("pkg/path")` for codeowners lookup.
 /// Returns `None` if the label has no package component (e.g. `//:target`).
 fn bazel_label_to_package_path(label: &str) -> Option<String> {
@@ -1122,7 +1200,9 @@ mod tests {
     use std::io::BufReader;
 
     use prost_wkt_types::Timestamp;
-    use proto::test_context::test_run::{AttemptNumber, LineNumber, TestCaseRunStatus, TestOutput};
+    use proto::test_context::test_run::{
+        AttemptNumber, LineNumber, TestCaseRun, TestCaseRunStatus, TestOutput,
+    };
 
     use crate::{
         junit::parser::{IntoTestCaseRunsOptions, JunitParser, bazel_label_to_package_path},
@@ -1880,5 +1960,166 @@ failures:
             .unwrap();
         let test_output = failing.test_output.as_ref().unwrap();
         assert!(test_output.system_out.is_empty());
+    }
+
+    #[test]
+    #[allow(deprecated)]
+    fn test_into_test_case_runs_emits_run_per_flaky_rerun() {
+        // Playwright reports a pass-on-retry as a passing <testcase> carrying a <flakyError> for
+        // each failed attempt. Each attempt must surface as its own run so the failed attempt is
+        // not lost and the test can be classified flaky.
+        let mut junit_parser = JunitParser::new();
+        let file_contents = r#"
+        <?xml version="1.0" encoding="UTF-8"?>
+        <testsuites>
+            <testsuite name="team-settings.pwtest.ts" timestamp="2026-07-08T00:45:39Z" tests="1" failures="0" errors="0">
+                <testcase name="should show error toast" classname="team-settings.pwtest.ts" time="1.799">
+                    <flakyError message="Test timeout of 5000ms exceeded." type="Error" time="5.595">
+                        <stackTrace><![CDATA[Test timeout of 5000ms exceeded.]]></stackTrace>
+                        <system-out><![CDATA[attempt output]]></system-out>
+                    </flakyError>
+                </testcase>
+            </testsuite>
+        </testsuites>
+        "#;
+        junit_parser
+            .parse(BufReader::new(file_contents.as_bytes()))
+            .unwrap();
+
+        let test_case_runs = junit_parser.into_test_case_runs(IntoTestCaseRunsOptions {
+            org_slug: "org",
+            repo: &RepoUrlParts {
+                host: "host".into(),
+                owner: "owner".into(),
+                name: "name".into(),
+            },
+            codeowners: None,
+            quarantined_test_ids: &[],
+            variant: "",
+            test_runner_config: None,
+        });
+
+        // The failed attempt is emitted first (as a failure carrying its own output), the final
+        // passing attempt last; both describe the same test.
+        let shared = TestCaseRun {
+            name: "should show error toast".into(),
+            parent_name: "team-settings.pwtest.ts".into(),
+            classname: "team-settings.pwtest.ts".into(),
+            started_at: Some(Timestamp {
+                seconds: 1783471539,
+                nanos: 0,
+            }),
+            ..Default::default()
+        };
+        assert_eq!(
+            test_case_runs,
+            vec![
+                TestCaseRun {
+                    status: TestCaseRunStatus::Failure as i32,
+                    status_output_message: "Test timeout of 5000ms exceeded.".into(),
+                    test_output: Some(TestOutput {
+                        message: "Test timeout of 5000ms exceeded.".into(),
+                        text: String::new(),
+                        system_out: "attempt output".into(),
+                        system_err: String::new(),
+                    }),
+                    finished_at: Some(Timestamp {
+                        seconds: 1783471544,
+                        nanos: 595_000_000,
+                    }),
+                    ..shared.clone()
+                },
+                TestCaseRun {
+                    status: TestCaseRunStatus::Success as i32,
+                    finished_at: Some(Timestamp {
+                        seconds: 1783471540,
+                        nanos: 799_000_000,
+                    }),
+                    ..shared
+                },
+            ]
+        );
+    }
+
+    #[test]
+    #[allow(deprecated)]
+    fn test_into_test_case_runs_emits_run_per_failing_rerun() {
+        // A test that fails every attempt records the earlier <rerunFailure> attempts as their own
+        // runs in addition to the final failure.
+        let mut junit_parser = JunitParser::new();
+        let file_contents = r#"
+        <?xml version="1.0" encoding="UTF-8"?>
+        <testsuites>
+            <testsuite name="suite" timestamp="2026-07-08T00:45:39Z" tests="1" failures="1" errors="0">
+                <testcase name="always_fails" classname="suite" time="1.0">
+                    <failure message="final failure" />
+                    <rerunFailure message="first failure" time="0.5" />
+                </testcase>
+            </testsuite>
+        </testsuites>
+        "#;
+        junit_parser
+            .parse(BufReader::new(file_contents.as_bytes()))
+            .unwrap();
+
+        let test_case_runs = junit_parser.into_test_case_runs(IntoTestCaseRunsOptions {
+            org_slug: "org",
+            repo: &RepoUrlParts {
+                host: "host".into(),
+                owner: "owner".into(),
+                name: "name".into(),
+            },
+            codeowners: None,
+            quarantined_test_ids: &[],
+            variant: "",
+            test_runner_config: None,
+        });
+
+        // The earlier rerun attempt is emitted first, the final failure last; both are recorded as
+        // failures.
+        let shared = TestCaseRun {
+            name: "always_fails".into(),
+            parent_name: "suite".into(),
+            classname: "suite".into(),
+            status: TestCaseRunStatus::Failure as i32,
+            started_at: Some(Timestamp {
+                seconds: 1783471539,
+                nanos: 0,
+            }),
+            ..Default::default()
+        };
+        assert_eq!(
+            test_case_runs,
+            vec![
+                TestCaseRun {
+                    status_output_message: "first failure".into(),
+                    test_output: Some(TestOutput {
+                        message: "first failure".into(),
+                        text: String::new(),
+                        system_out: String::new(),
+                        system_err: String::new(),
+                    }),
+                    finished_at: Some(Timestamp {
+                        seconds: 1783471539,
+                        nanos: 500_000_000,
+                    }),
+                    ..shared.clone()
+                },
+                TestCaseRun {
+                    status_output_message: "final failure".into(),
+                    test_output: Some(TestOutput {
+                        message: "final failure".into(),
+                        text: String::new(),
+                        system_out: String::new(),
+                        system_err: String::new(),
+                    }),
+                    finished_at: Some(Timestamp {
+                        seconds: 1783471540,
+                        nanos: 0,
+                    }),
+                    ..shared
+                },
+            ]
+        );
     }
 }

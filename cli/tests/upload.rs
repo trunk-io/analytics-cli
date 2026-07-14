@@ -44,6 +44,33 @@ use test_utils::{
 };
 use trunk_analytics_cli::upload_command::{DRY_RUN_OUTPUT_DIR, get_bundle_upload_id_message};
 
+// The mock JUnit generator adds a random number of reruns per test, so the number of
+// `TestCaseRun`s equals the test cases plus every parsed rerun/flaky attempt. Mirror
+// `into_test_case_runs` to derive the expected count from the bundled JUnit rather than hardcoding
+// a seed-dependent number.
+fn expected_test_case_run_count(reports: &[quick_junit::Report]) -> usize {
+    reports
+        .iter()
+        .flat_map(|report| report.test_suites.iter())
+        .flat_map(|test_suite| test_suite.test_cases.iter())
+        .map(|test_case| {
+            1 + match &test_case.status {
+                quick_junit::TestCaseStatus::Success { flaky_runs } => flaky_runs.len(),
+                quick_junit::TestCaseStatus::NonSuccess { reruns, .. } => reruns.len(),
+                quick_junit::TestCaseStatus::Skipped { .. } => 0,
+            }
+        })
+        .sum()
+}
+
+fn expected_test_case_run_count_from_junit(path: &std::path::Path) -> usize {
+    let mut junit_parser = JunitParser::new();
+    junit_parser
+        .parse(BufReader::new(fs::File::open(path).unwrap()))
+        .unwrap();
+    expected_test_case_run_count(&junit_parser.into_reports())
+}
+
 // NOTE: must be multi threaded to start a mock server
 #[tokio::test(flavor = "multi_thread")]
 async fn upload_bundle() {
@@ -218,7 +245,10 @@ async fn upload_bundle() {
     assert_eq!(report.test_results.len(), 1);
     let report = report.test_results.first().unwrap();
     assert_eq!(report.test_build_information, None);
-    assert_eq!(report.test_case_runs.len(), 500);
+    assert_eq!(
+        report.test_case_runs.len(),
+        expected_test_case_run_count_from_junit(&tar_extract_directory.join(&bundled_file.path))
+    );
     let test_case_run = &report.test_case_runs[0];
     assert!(test_case_run.id.is_empty());
     assert!(!test_case_run.name.is_empty());
@@ -328,6 +358,7 @@ async fn upload_bundle_using_bep() {
 
     assert!(!bundle_meta.base_props.file_sets.is_empty());
     assert_eq!(bundle_meta.base_props.test_collection, None);
+    let mut expected_runs = 0usize;
     bundle_meta
         .base_props
         .file_sets
@@ -340,7 +371,9 @@ async fn upload_bundle_using_bep() {
                 assert!(junit_parser.parse(BufReader::new(junit_file)).is_ok());
                 assert!(junit_parser.issues().is_empty());
             });
-            let report = junit_parser.into_reports().pop().unwrap();
+            let mut reports = junit_parser.into_reports();
+            expected_runs += expected_test_case_run_count(&reports);
+            let report = reports.pop().unwrap();
             let test_runner_report = file_set.test_runner_report.clone().unwrap();
             assert_eq!(
                 test_runner_report.resolved_status,
@@ -376,7 +409,7 @@ async fn upload_bundle_using_bep() {
 
     assert_eq!(report.test_results.len(), 1);
     let report = report.test_results.first().unwrap();
-    assert_eq!(report.test_case_runs.len(), 500);
+    assert_eq!(report.test_case_runs.len(), expected_runs);
     assert!(report.test_build_information.is_some());
     let test_build_information = assert_matches!(
         report.test_build_information.as_ref(),
