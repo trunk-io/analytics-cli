@@ -782,6 +782,15 @@ impl JunitParser {
             if !matches!(test_case.status, TestCaseStatus::Success { .. }) {
                 return; // Only set status once
             }
+            // Playwright's junit reporter (with includeRetries) emits the <rerunFailure>/
+            // <rerunError> attempts BEFORE the closing <failure>/<error>. Those reruns were
+            // parsed while the status was still Success, so quick-junit filed them under
+            // flaky_runs; move them onto the terminal status so a test that fails every retry
+            // keeps its earlier attempts instead of collapsing to a single run.
+            let prior_reruns = match &mut test_case.status {
+                TestCaseStatus::Success { flaky_runs } => mem::take(flaky_runs),
+                _ => Vec::new(),
+            };
             let tag = e.name();
             let mut test_case_status = if tag.as_ref() == TAG_TEST_CASE_STATUS_SKIPPED {
                 TestCaseStatus::skipped()
@@ -802,6 +811,7 @@ impl JunitParser {
                 test_case_status.set_type(r#type);
             }
 
+            test_case_status.add_reruns(prior_reruns);
             test_case.status = test_case_status;
         } else {
             self.issues.push(JunitParseIssue::Invalid(
@@ -2121,5 +2131,65 @@ failures:
                 },
             ]
         );
+    }
+
+    #[test]
+    #[allow(deprecated)]
+    fn test_into_test_case_runs_emits_run_per_failing_rerun_playwright_order() {
+        // Playwright's junit reporter (with includeRetries) emits, for a test that failed every
+        // attempt, the testcase's <system-out> and the <rerunFailure> attempts BEFORE the closing
+        // <failure>. Each attempt must still surface as its own run; regression test for reruns
+        // being dropped when the trailing <failure> replaced the accumulated status.
+        let mut junit_parser = JunitParser::new();
+        let file_contents = r#"
+        <?xml version="1.0" encoding="UTF-8"?>
+        <testsuites>
+            <testsuite name="suite" timestamp="2026-07-08T00:45:39Z" tests="1" failures="1" errors="0">
+                <testcase name="always_fails" classname="suite" time="1.0">
+                    <system-out><![CDATA[attempt 0 out]]></system-out>
+                    <rerunFailure message="retry 1 failure" type="FAILURE" time="0.5">
+                        <stackTrace><![CDATA[boom 1]]></stackTrace>
+                        <system-out><![CDATA[retry 1 out]]></system-out>
+                    </rerunFailure>
+                    <rerunFailure message="retry 2 failure" type="FAILURE" time="0.75">
+                        <stackTrace><![CDATA[boom 2]]></stackTrace>
+                        <system-out><![CDATA[retry 2 out]]></system-out>
+                    </rerunFailure>
+                    <failure message="initial failure" type="FAILURE" />
+                </testcase>
+            </testsuite>
+        </testsuites>
+        "#;
+        junit_parser
+            .parse(BufReader::new(file_contents.as_bytes()))
+            .unwrap();
+
+        let test_case_runs = junit_parser.into_test_case_runs(IntoTestCaseRunsOptions {
+            org_slug: "org",
+            repo: &RepoUrlParts {
+                host: "host".into(),
+                owner: "owner".into(),
+                name: "name".into(),
+            },
+            codeowners: None,
+            quarantined_test_ids: &[],
+            variant: "",
+            test_runner_config: None,
+        });
+
+        // Both rerun attempts plus the final failure surface as their own runs.
+        assert_eq!(test_case_runs.len(), 3);
+        assert!(
+            test_case_runs
+                .iter()
+                .all(|run| run.status == TestCaseRunStatus::Failure as i32)
+        );
+        // The per-retry output is preserved rather than discarded with the reruns.
+        let messages: Vec<&str> = test_case_runs
+            .iter()
+            .map(|run| run.status_output_message.as_str())
+            .collect();
+        assert!(messages.contains(&"retry 1 failure"));
+        assert!(messages.contains(&"retry 2 failure"));
     }
 }
