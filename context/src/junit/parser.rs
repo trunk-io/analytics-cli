@@ -782,6 +782,15 @@ impl JunitParser {
             if !matches!(test_case.status, TestCaseStatus::Success { .. }) {
                 return; // Only set status once
             }
+            // Playwright's junit reporter (with includeRetries) emits the <rerunFailure>/
+            // <rerunError> attempts BEFORE the closing <failure>/<error>. Those reruns were
+            // parsed while the status was still Success, so quick-junit filed them under
+            // flaky_runs; move them onto the terminal status so a test that fails every retry
+            // keeps its earlier attempts instead of collapsing to a single run.
+            let prior_reruns = match &mut test_case.status {
+                TestCaseStatus::Success { flaky_runs } => mem::take(flaky_runs),
+                _ => Vec::new(),
+            };
             let tag = e.name();
             let mut test_case_status = if tag.as_ref() == TAG_TEST_CASE_STATUS_SKIPPED {
                 TestCaseStatus::skipped()
@@ -802,6 +811,7 @@ impl JunitParser {
                 test_case_status.set_type(r#type);
             }
 
+            test_case_status.add_reruns(prior_reruns);
             test_case.status = test_case_status;
         } else {
             self.issues.push(JunitParseIssue::Invalid(
@@ -2121,5 +2131,81 @@ failures:
                 },
             ]
         );
+    }
+
+    #[test]
+    #[allow(deprecated)]
+    fn test_into_test_case_runs_emits_run_per_failing_rerun_playwright_order() {
+        // Faithful to Playwright's junit reporter (includeRetries) for a test that failed every
+        // attempt: the <rerunFailure>/<rerunError> attempts and the testcase <system-out> are
+        // emitted BEFORE the closing terminal element, the reruns are a MIX of rerunFailure
+        // (assertion) and rerunError (timeout), and the terminal element is <error> (attempt 0
+        // timed out), not <failure>. Regression test for those attempts being dropped when the
+        // trailing terminal element replaced the accumulated status.
+        let mut junit_parser = JunitParser::new();
+        let file_contents = r#"
+        <?xml version="1.0" encoding="UTF-8"?>
+        <testsuites>
+            <testsuite name="timeout-inflation.spec.ts" timestamp="2026-07-15T17:59:39Z" tests="1" failures="0" errors="1">
+                <testcase name="time.gov timeout inflation &#8250; Pacific hour is even" classname="timeout-inflation.spec.ts" time="38.0">
+                    <system-out><![CDATA[[[ATTACHMENT|error-context.md]]]]></system-out>
+                    <rerunFailure message="/^Pacific\b/ hour 11 from &quot;11:00:03 A.M.&quot; should be even" type="expect.toBe" time="8.89">
+                        <stackTrace><![CDATA[hour 11 should be even]]></stackTrace>
+                        <system-out><![CDATA[[[ATTACHMENT|retry1/error-context.md]]]]></system-out>
+                    </rerunFailure>
+                    <rerunError message="Test timeout of 10000ms exceeded." type="Error" time="10.057">
+                        <stackTrace><![CDATA[page.goto: Test timeout of 10000ms exceeded.]]></stackTrace>
+                        <system-out><![CDATA[[[ATTACHMENT|retry2/error-context.md]]]]></system-out>
+                    </rerunError>
+                    <rerunFailure message="/^Pacific\b/ hour 11 from &quot;11:00:23 A.M.&quot; should be even" type="expect.toBe" time="8.667">
+                        <stackTrace><![CDATA[hour 11 should be even]]></stackTrace>
+                        <system-out><![CDATA[[[ATTACHMENT|retry3/error-context.md]]]]></system-out>
+                    </rerunFailure>
+                    <error message="Test timeout of 10000ms exceeded." type="Error">page.waitForTimeout: Test timeout of 10000ms exceeded.</error>
+                </testcase>
+            </testsuite>
+        </testsuites>
+        "#;
+        junit_parser
+            .parse(BufReader::new(file_contents.as_bytes()))
+            .unwrap();
+
+        let test_case_runs = junit_parser.into_test_case_runs(IntoTestCaseRunsOptions {
+            org_slug: "org",
+            repo: &RepoUrlParts {
+                host: "host".into(),
+                owner: "owner".into(),
+                name: "name".into(),
+            },
+            codeowners: None,
+            quarantined_test_ids: &[],
+            variant: "",
+            test_runner_config: None,
+        });
+
+        // All four attempts (3 reruns + the terminal error) surface as their own runs; the proto
+        // has no dedicated error status, so every attempt is recorded as a failure.
+        assert_eq!(test_case_runs.len(), 4);
+        assert!(
+            test_case_runs
+                .iter()
+                .all(|run| run.status == TestCaseRunStatus::Failure as i32)
+        );
+        // Each attempt's own message survives — including the rerunError and the two rerunFailure
+        // assertions that were previously discarded.
+        let messages: Vec<&str> = test_case_runs
+            .iter()
+            .filter_map(|run| run.test_output.as_ref())
+            .map(|out| out.message.as_str())
+            .collect();
+        assert!(
+            messages
+                .contains(&"/^Pacific\\b/ hour 11 from \"11:00:03 A.M.\" should be even")
+        );
+        assert!(
+            messages
+                .contains(&"/^Pacific\\b/ hour 11 from \"11:00:23 A.M.\" should be even")
+        );
+        assert!(messages.contains(&"Test timeout of 10000ms exceeded."));
     }
 }
