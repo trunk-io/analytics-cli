@@ -2136,26 +2136,32 @@ failures:
     #[test]
     #[allow(deprecated)]
     fn test_into_test_case_runs_emits_run_per_failing_rerun_playwright_order() {
-        // Playwright's junit reporter (with includeRetries) emits, for a test that failed every
-        // attempt, the testcase's <system-out> and the <rerunFailure> attempts BEFORE the closing
-        // <failure>. Each attempt must still surface as its own run; regression test for reruns
-        // being dropped when the trailing <failure> replaced the accumulated status.
+        // Faithful to Playwright's junit reporter (includeRetries) for a test that failed every
+        // attempt: the <rerunFailure>/<rerunError> attempts and the testcase <system-out> are
+        // emitted BEFORE the closing terminal element, the reruns are a MIX of rerunFailure
+        // (assertion) and rerunError (timeout), and the terminal element is <error> (attempt 0
+        // timed out), not <failure>. Regression test for those attempts being dropped when the
+        // trailing terminal element replaced the accumulated status.
         let mut junit_parser = JunitParser::new();
         let file_contents = r#"
         <?xml version="1.0" encoding="UTF-8"?>
         <testsuites>
-            <testsuite name="suite" timestamp="2026-07-08T00:45:39Z" tests="1" failures="1" errors="0">
-                <testcase name="always_fails" classname="suite" time="1.0">
-                    <system-out><![CDATA[attempt 0 out]]></system-out>
-                    <rerunFailure message="retry 1 failure" type="FAILURE" time="0.5">
-                        <stackTrace><![CDATA[boom 1]]></stackTrace>
-                        <system-out><![CDATA[retry 1 out]]></system-out>
+            <testsuite name="timeout-inflation.spec.ts" timestamp="2026-07-15T17:59:39Z" tests="1" failures="0" errors="1">
+                <testcase name="time.gov timeout inflation &#8250; Pacific hour is even" classname="timeout-inflation.spec.ts" time="38.0">
+                    <system-out><![CDATA[[[ATTACHMENT|error-context.md]]]]></system-out>
+                    <rerunFailure message="/^Pacific\b/ hour 11 from &quot;11:00:03 A.M.&quot; should be even" type="expect.toBe" time="8.89">
+                        <stackTrace><![CDATA[hour 11 should be even]]></stackTrace>
+                        <system-out><![CDATA[[[ATTACHMENT|retry1/error-context.md]]]]></system-out>
                     </rerunFailure>
-                    <rerunFailure message="retry 2 failure" type="FAILURE" time="0.75">
-                        <stackTrace><![CDATA[boom 2]]></stackTrace>
-                        <system-out><![CDATA[retry 2 out]]></system-out>
+                    <rerunError message="Test timeout of 10000ms exceeded." type="Error" time="10.057">
+                        <stackTrace><![CDATA[page.goto: Test timeout of 10000ms exceeded.]]></stackTrace>
+                        <system-out><![CDATA[[[ATTACHMENT|retry2/error-context.md]]]]></system-out>
+                    </rerunError>
+                    <rerunFailure message="/^Pacific\b/ hour 11 from &quot;11:00:23 A.M.&quot; should be even" type="expect.toBe" time="8.667">
+                        <stackTrace><![CDATA[hour 11 should be even]]></stackTrace>
+                        <system-out><![CDATA[[[ATTACHMENT|retry3/error-context.md]]]]></system-out>
                     </rerunFailure>
-                    <failure message="initial failure" type="FAILURE" />
+                    <error message="Test timeout of 10000ms exceeded." type="Error">page.waitForTimeout: Test timeout of 10000ms exceeded.</error>
                 </testcase>
             </testsuite>
         </testsuites>
@@ -2177,19 +2183,29 @@ failures:
             test_runner_config: None,
         });
 
-        // Both rerun attempts plus the final failure surface as their own runs.
-        assert_eq!(test_case_runs.len(), 3);
+        // All four attempts (3 reruns + the terminal error) surface as their own runs; the proto
+        // has no dedicated error status, so every attempt is recorded as a failure.
+        assert_eq!(test_case_runs.len(), 4);
         assert!(
             test_case_runs
                 .iter()
                 .all(|run| run.status == TestCaseRunStatus::Failure as i32)
         );
-        // The per-retry output is preserved rather than discarded with the reruns.
+        // Each attempt's own message survives — including the rerunError and the two rerunFailure
+        // assertions that were previously discarded.
         let messages: Vec<&str> = test_case_runs
             .iter()
-            .map(|run| run.status_output_message.as_str())
+            .filter_map(|run| run.test_output.as_ref())
+            .map(|out| out.message.as_str())
             .collect();
-        assert!(messages.contains(&"retry 1 failure"));
-        assert!(messages.contains(&"retry 2 failure"));
+        assert!(
+            messages
+                .contains(&"/^Pacific\\b/ hour 11 from \"11:00:03 A.M.\" should be even")
+        );
+        assert!(
+            messages
+                .contains(&"/^Pacific\\b/ hour 11 from \"11:00:23 A.M.\" should be even")
+        );
+        assert!(messages.contains(&"Test timeout of 10000ms exceeded."));
     }
 }
