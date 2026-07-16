@@ -29,6 +29,21 @@ impl ApiErrorEndpoint {
             Self::TelemetryUploadMetrics => "unknown_telemetry_upload_metrics".into(),
         }
     }
+
+    /// Short, stable identifier for the upload hop this endpoint represents.
+    ///
+    /// Used to attribute a status-based telemetry `failure_reason` to the
+    /// endpoint that produced it — e.g. a `503` from `createBundleUpload` (which
+    /// goes through the API/edge) vs. one from the presigned S3 PUT, which the
+    /// bare status code alone can't distinguish.
+    pub fn metric_label(&self) -> &'static str {
+        match self {
+            Self::CreateBundleUpload => "create_bundle_upload",
+            Self::GetQuarantiningConfig => "get_quarantining_config",
+            Self::PutBundleToS3 => "put_bundle_to_s3",
+            Self::TelemetryUploadMetrics => "telemetry_upload_metrics",
+        }
+    }
 }
 
 impl fmt::Display for ApiErrorEndpoint {

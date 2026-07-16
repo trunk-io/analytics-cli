@@ -351,16 +351,32 @@ fn error_reason(error: &anyhow::Error) -> String {
         }
     }
 
+    // The endpoint is attached with `.context(ApiErrorEndpoint::…)`, so it lives on
+    // the anyhow error handle — reachable via `Error::downcast_ref`, not by walking
+    // `chain()`'s `&dyn Error` frames (which never match the context type).
+    let endpoint = error.downcast_ref::<ApiErrorEndpoint>();
+
     if let Some(reqwest_error) = root_cause.downcast_ref::<reqwest::Error>() {
         if let Some(status) = reqwest_error.status() {
-            return status.to_string().replace(' ', "_").to_lowercase();
+            let reason = status.to_string().replace(' ', "_").to_lowercase();
+            // A server error (5xx) on the upload path can come from more than one
+            // hop — createBundleUpload (via the API/edge) or the presigned S3 PUT —
+            // and the bare status can't tell them apart. Attribute it to the failing
+            // endpoint so the telemetry `failure_reason` is diagnosable. 4xx reasons
+            // are left unqualified: the telemetry service derives org/repo-not-found
+            // reasons from them and the upload-failure alerts filter on those exact
+            // strings, so changing their shape would break that filtering.
+            if status.is_server_error() {
+                if let Some(endpoint) = endpoint {
+                    return format!("{reason}/{}", endpoint.metric_label());
+                }
+            }
+            return reason;
         }
     }
 
-    for cause in error.chain() {
-        if let Some(endpoint_context) = cause.downcast_ref::<ApiErrorEndpoint>() {
-            return endpoint_context.unknown_error_reason();
-        }
+    if let Some(endpoint) = endpoint {
+        return endpoint.unknown_error_reason();
     }
     "unknown".into()
 }
@@ -980,5 +996,56 @@ impl EndOutput for UploadRunResult {
             ]));
         }
         Ok(output)
+    }
+}
+
+#[cfg(test)]
+mod error_reason_tests {
+    use super::*;
+
+    fn reqwest_error_with_status(status: u16) -> reqwest::Error {
+        let http_response = http::Response::builder()
+            .status(status)
+            .body("body")
+            .unwrap();
+        reqwest::Response::from(http_response)
+            .error_for_status()
+            .expect_err("status should be an error status")
+    }
+
+    #[test]
+    fn server_error_is_attributed_to_the_failing_endpoint() {
+        let s3_err = anyhow::Error::from(reqwest_error_with_status(503))
+            .context(ApiErrorEndpoint::PutBundleToS3);
+        assert_eq!(error_reason(&s3_err), "503_service_unavailable/put_bundle_to_s3");
+
+        let create_err = anyhow::Error::from(reqwest_error_with_status(503))
+            .context(ApiErrorEndpoint::CreateBundleUpload);
+        assert_eq!(
+            error_reason(&create_err),
+            "503_service_unavailable/create_bundle_upload"
+        );
+    }
+
+    #[test]
+    fn client_error_reason_is_left_unqualified() {
+        // 4xx reasons feed the telemetry service's org/repo-not-found classification
+        // and the upload-failure alert filters, so they must keep their bare shape.
+        let not_found = anyhow::Error::from(reqwest_error_with_status(404))
+            .context(ApiErrorEndpoint::CreateBundleUpload);
+        assert_eq!(error_reason(&not_found), "404_not_found");
+
+        let bad_request = anyhow::Error::from(reqwest_error_with_status(400))
+            .context(ApiErrorEndpoint::CreateBundleUpload);
+        assert_eq!(error_reason(&bad_request), "400_bad_request");
+    }
+
+    #[test]
+    fn statusless_error_falls_back_to_endpoint_specific_reason() {
+        let err = anyhow::anyhow!("timed out").context(ApiErrorEndpoint::PutBundleToS3);
+        assert_eq!(error_reason(&err), "unknown_put_bundle_to_s3");
+
+        let bare = anyhow::anyhow!("timed out");
+        assert_eq!(error_reason(&bare), "unknown");
     }
 }
