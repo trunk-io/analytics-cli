@@ -127,15 +127,7 @@ fn convert_case_to_test<T: AsRef<str> + ToString>(
         if id.is_empty() {
             test.set_id(org_slug, repo, variant);
         } else {
-            // `id` here is a stable identifier supplied by the report source (e.g.
-            // xcresult's per-test-method identifier), which does not itself encode
-            // `variant`. Route it through `generate_custom_uuid` rather than assigning
-            // it as-is, so the id folds in `variant` the same way `gen_info_id` does
-            // for every other test (see `JunitParser::into_test_case_runs`, and
-            // `bundle-ingestion-lib` on the server) -- otherwise this locally computed
-            // id diverges from the variant-scoped id the server tracks, so quarantine
-            // lookups here never match and the printed test link resolves to the
-            // wrong (variant-less) test.
+            // Report-supplied ids (e.g. xcresult's) don't encode `variant` on their own; fold it in like every other id derivation does.
             test.generate_custom_uuid(org_slug.as_ref(), repo, id.as_str(), variant.as_ref());
         }
     } else {
@@ -791,14 +783,8 @@ mod tests {
         assert_eq!(test.file, Some("path/from/file".to_string()));
     }
 
-    /// Regression test: report sources such as xcresult attach a stable, per-test
-    /// identifier via the `"id"` extra attribute (see `XCResult::generate_id`), which
-    /// does not itself encode `variant`. `convert_case_to_test` must fold `variant`
-    /// into that id the same way `gen_info_id` does everywhere else (JUnit parsing,
-    /// bundle ingestion), rather than assigning the report-supplied id as-is. Before
-    /// the fix, this produced a variant-less id here that could never match the
-    /// server's variant-scoped quarantine list, and a test link pointing at the wrong
-    /// (variant-less) test.
+    /// Regression test: a report-supplied id (e.g. xcresult's) must fold in `variant`,
+    /// matching `gen_info_id`'s derivation everywhere else.
     #[test]
     fn test_convert_case_to_test_folds_variant_into_report_supplied_id() {
         use context::meta::id::gen_info_id;
@@ -812,9 +798,7 @@ mod tests {
         let org_slug = "example-org";
         let parent_name = "ExampleSuite".to_string();
 
-        // A v5 UUID shaped exactly like `XCResult::generate_id`'s output
-        // (`Uuid::new_v5(NAMESPACE_URL, "org#repo#node_identifier")`), simulating a
-        // report source that supplies its own stable, variant-less test identifier.
+        // Shaped like `XCResult::generate_id`'s output (a v5 UUID).
         const REPORT_SUPPLIED_ID: &str = "2e7aad90-d222-5e80-848e-4bbc7553708f";
 
         let mut test_case = TestCase::new(
@@ -845,12 +829,7 @@ mod tests {
             variant,
         );
 
-        // The id must no longer be the raw, variant-less report id...
         assert_ne!(test.id, REPORT_SUPPLIED_ID);
-        // ...it must instead match the same variant-folded derivation `gen_info_id`
-        // produces everywhere else a test with this report-supplied id and variant is
-        // identified (JUnit parsing, server-side bundle ingestion), so the local
-        // quarantine check and the printed test link agree with what the server tracks.
         let expected_id = gen_info_id(
             org_slug,
             repo.repo_full_name().as_str(),
@@ -864,10 +843,7 @@ mod tests {
         assert_eq!(test.id, expected_id);
     }
 
-    /// Companion to the above: with no variant set, behavior is unchanged from
-    /// before the fix -- the report-supplied id is used as-is, since there is no
-    /// variant to fold in (`gen_info_id_base` returns a v5-formatted `info_id`
-    /// unchanged when `variant` is empty).
+    /// Companion: with no variant, the report-supplied id is unchanged.
     #[test]
     fn test_convert_case_to_test_keeps_report_supplied_id_without_variant() {
         use quick_junit::{NonSuccessKind, TestCase, TestCaseStatus, TestSuite};
