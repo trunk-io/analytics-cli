@@ -126,8 +126,10 @@ fn convert_case_to_test<T: AsRef<str> + ToString>(
     if let Some(id) = case.extra().get("id") {
         if id.is_empty() {
             test.set_id(org_slug, repo, variant);
+        } else if variant.as_ref().is_empty() {
+            test.id = id.clone();
         } else {
-            // Report-supplied ids (e.g. xcresult's) don't encode `variant` on their own; fold it in like every other id derivation does.
+            // Report-supplied ids (e.g. xcresult's) don't encode `variant` on their own; fold it in, matching `JunitParser`'s own id derivation.
             test.generate_custom_uuid(org_slug.as_ref(), repo, id.as_str(), variant.as_ref());
         }
     } else {
@@ -856,6 +858,47 @@ mod tests {
         let org_slug = "example-org";
         let parent_name = "ExampleSuite".to_string();
         const REPORT_SUPPLIED_ID: &str = "2e7aad90-d222-5e80-848e-4bbc7553708f";
+
+        let mut test_case = TestCase::new(
+            String::from("example_test"),
+            TestCaseStatus::NonSuccess {
+                kind: NonSuccessKind::Failure,
+                message: Some("assertion failed".into()),
+                ty: None,
+                description: None,
+                reruns: vec![],
+            },
+        );
+        test_case.classname = Some("ExampleClass".into());
+        test_case
+            .extra
+            .insert("id".into(), REPORT_SUPPLIED_ID.into());
+
+        let case = BindingsTestCase::from(test_case);
+        let suite = BindingsTestSuite::from(TestSuite::new(parent_name.clone()));
+
+        let test = super::convert_case_to_test(&repo, org_slug, parent_name, &case, &suite, "");
+
+        assert_eq!(test.id, REPORT_SUPPLIED_ID);
+    }
+
+    /// A plain JUnit `id="..."` attribute isn't necessarily a v5 UUID (unlike
+    /// xcresult's). With no variant it must still be used verbatim -- matching
+    /// `JunitParser`'s own `existing_id.is_some() && variant.is_empty()` shortcut --
+    /// rather than falling into `gen_info_id_base`'s non-v5 fallback, which recomputes
+    /// from file/classname/name and silently drops the supplied id.
+    #[test]
+    fn test_convert_case_to_test_keeps_arbitrary_report_supplied_id_without_variant() {
+        use quick_junit::{NonSuccessKind, TestCase, TestCaseStatus, TestSuite};
+
+        let repo = RepoUrlParts {
+            host: "github.com".to_string(),
+            owner: "example-owner".to_string(),
+            name: "example-repo".to_string(),
+        };
+        let org_slug = "example-org";
+        let parent_name = "ExampleSuite".to_string();
+        const REPORT_SUPPLIED_ID: &str = "custom-test-id-001";
 
         let mut test_case = TestCase::new(
             String::from("example_test"),
