@@ -512,7 +512,7 @@ pub async fn run_upload(
             upload_args.xcresult_path.is_none(),
             #[cfg(not(target_os = "macos"))]
             true,
-            upload_args.variant,
+            meta.variant.clone(),
             &upload_args.org_url_slug,
             &quarantine_context.repo,
             &quarantined_test_ids,
@@ -528,7 +528,7 @@ pub async fn run_upload(
             upload_args.xcresult_path.is_none(),
             #[cfg(not(target_os = "macos"))]
             true,
-            upload_args.variant,
+            meta.variant.clone(),
             &upload_args.org_url_slug,
             &quarantine_context.repo,
             &quarantined_test_ids,

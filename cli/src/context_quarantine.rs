@@ -126,8 +126,11 @@ fn convert_case_to_test<T: AsRef<str> + ToString>(
     if let Some(id) = case.extra().get("id") {
         if id.is_empty() {
             test.set_id(org_slug, repo, variant);
-        } else {
+        } else if variant.as_ref().is_empty() {
             test.id = id.clone();
+        } else {
+            // Report-supplied ids (e.g. xcresult's) don't encode `variant` on their own; fold it in, matching `JunitParser`'s own id derivation.
+            test.generate_custom_uuid(org_slug.as_ref(), repo, id.as_str(), variant.as_ref());
         }
     } else {
         test.set_id(org_slug, repo, variant);
@@ -780,5 +783,106 @@ mod tests {
         let case = BindingsTestCase::from(with_both);
         let test = super::convert_case_to_test(&repo, org_slug, parent_name, &case, &suite, "");
         assert_eq!(test.file, Some("path/from/file".to_string()));
+    }
+
+    const PARENT_NAME: &str = "ExampleSuite";
+    const TEST_NAME: &str = "example_test";
+    const CLASSNAME: &str = "ExampleClass";
+    // Shaped like `XCResult::generate_id`'s output (a v5 UUID).
+    const V5_REPORT_SUPPLIED_ID: &str = "2e7aad90-d222-5e80-848e-4bbc7553708f";
+    // Not UUID-shaped, e.g. a hand-written JUnit `id="..."` attribute.
+    const ARBITRARY_REPORT_SUPPLIED_ID: &str = "custom-test-id-001";
+
+    fn test_repo() -> RepoUrlParts {
+        RepoUrlParts {
+            host: "github.com".to_string(),
+            owner: "example-owner".to_string(),
+            name: "example-repo".to_string(),
+        }
+    }
+
+    fn failing_case_with_report_id(report_id: &str) -> (BindingsTestCase, BindingsTestSuite) {
+        use quick_junit::{NonSuccessKind, TestCase, TestCaseStatus, TestSuite};
+
+        let mut test_case = TestCase::new(
+            String::from(TEST_NAME),
+            TestCaseStatus::NonSuccess {
+                kind: NonSuccessKind::Failure,
+                message: Some("assertion failed".into()),
+                ty: None,
+                description: None,
+                reruns: vec![],
+            },
+        );
+        test_case.classname = Some(CLASSNAME.into());
+        test_case.extra.insert("id".into(), report_id.into());
+
+        let case = BindingsTestCase::from(test_case);
+        let suite = BindingsTestSuite::from(TestSuite::new(PARENT_NAME.to_string()));
+        (case, suite)
+    }
+
+    fn convert_and_expected_id(report_id: Option<&str>, variant: &str) -> (String, String) {
+        use context::meta::id::gen_info_id;
+
+        let (case, suite) = failing_case_with_report_id(report_id.unwrap_or(""));
+        let repo = test_repo();
+
+        let test = super::convert_case_to_test(
+            &repo,
+            ORG_SLUG,
+            PARENT_NAME.to_string(),
+            &case,
+            &suite,
+            variant,
+        );
+        let expected_id = gen_info_id(
+            ORG_SLUG,
+            repo.repo_full_name().as_str(),
+            None,
+            Some(CLASSNAME),
+            Some(PARENT_NAME),
+            Some(TEST_NAME),
+            report_id,
+            variant,
+        );
+        (test.id, expected_id)
+    }
+
+    #[test]
+    fn test_convert_case_to_test_folds_variant_into_v5_report_supplied_id() {
+        let (actual_id, expected_id) =
+            convert_and_expected_id(Some(V5_REPORT_SUPPLIED_ID), "example-variant");
+
+        assert_ne!(actual_id, V5_REPORT_SUPPLIED_ID);
+        assert_eq!(actual_id, expected_id);
+    }
+
+    #[test]
+    fn test_convert_case_to_test_keeps_v5_report_supplied_id_without_variant() {
+        let (actual_id, _) = convert_and_expected_id(Some(V5_REPORT_SUPPLIED_ID), "");
+        assert_eq!(actual_id, V5_REPORT_SUPPLIED_ID);
+    }
+
+    // ids from junit.xml files or rspec aren't UUIDs and aren't transformed/normalized.
+    #[test]
+    fn test_convert_case_to_test_keeps_arbitrary_report_supplied_id_without_variant() {
+        let (actual_id, _) = convert_and_expected_id(Some(ARBITRARY_REPORT_SUPPLIED_ID), "");
+        assert_eq!(actual_id, ARBITRARY_REPORT_SUPPLIED_ID);
+    }
+
+    // Non-v5 ids don't preserve the raw id once a variant is folded in -- same
+    // fallback `JunitParser` hits for identical inputs.
+    #[test]
+    fn test_convert_case_to_test_folds_variant_for_arbitrary_report_supplied_id() {
+        let (actual_id, expected_id) =
+            convert_and_expected_id(Some(ARBITRARY_REPORT_SUPPLIED_ID), "example-variant");
+        assert_eq!(actual_id, expected_id);
+    }
+
+    #[test]
+    fn test_convert_case_to_test_falls_back_to_generated_id_when_report_id_empty() {
+        let (actual_id, expected_id) = convert_and_expected_id(None, "example-variant");
+        assert_eq!(actual_id, expected_id);
     }
 }
