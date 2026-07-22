@@ -785,26 +785,37 @@ mod tests {
         assert_eq!(test.file, Some("path/from/file".to_string()));
     }
 
-    /// Regression test: a report-supplied id (e.g. xcresult's) must fold in `variant`,
-    /// matching `gen_info_id`'s derivation everywhere else.
-    #[test]
-    fn test_convert_case_to_test_folds_variant_into_report_supplied_id() {
-        use context::meta::id::gen_info_id;
-        use quick_junit::{NonSuccessKind, TestCase, TestCaseStatus, TestSuite};
+    // -- convert_case_to_test / report-supplied id + variant regression coverage --
+    //
+    // `convert_case_to_test`'s id derivation has 4 cases: {id present or empty} x
+    // {variant set or empty}. `gen_info_id_base` additionally branches on whether a
+    // present id is v5-UUID-shaped (e.g. xcresult's) or an arbitrary string (e.g. a
+    // hand-written JUnit `id="..."` attribute). The tests below cover all of these.
 
-        let repo = RepoUrlParts {
+    const REGRESSION_ORG_SLUG: &str = "example-org";
+    const REGRESSION_PARENT_NAME: &str = "ExampleSuite";
+    const REGRESSION_TEST_NAME: &str = "example_test";
+    const REGRESSION_CLASSNAME: &str = "ExampleClass";
+    // Shaped like `XCResult::generate_id`'s output (a v5 UUID).
+    const V5_REPORT_SUPPLIED_ID: &str = "2e7aad90-d222-5e80-848e-4bbc7553708f";
+    // Not UUID-shaped at all, e.g. a hand-written JUnit `id="..."` attribute.
+    const ARBITRARY_REPORT_SUPPLIED_ID: &str = "custom-test-id-001";
+
+    fn regression_repo() -> RepoUrlParts {
+        RepoUrlParts {
             host: "github.com".to_string(),
             owner: "example-owner".to_string(),
             name: "example-repo".to_string(),
-        };
-        let org_slug = "example-org";
-        let parent_name = "ExampleSuite".to_string();
+        }
+    }
 
-        // Shaped like `XCResult::generate_id`'s output (a v5 UUID).
-        const REPORT_SUPPLIED_ID: &str = "2e7aad90-d222-5e80-848e-4bbc7553708f";
+    /// A single failing test case/suite pair, with the report source's `"id"` extra
+    /// attribute set to `report_id` (pass `""` to simulate no id being supplied).
+    fn failing_case_with_report_id(report_id: &str) -> (BindingsTestCase, BindingsTestSuite) {
+        use quick_junit::{NonSuccessKind, TestCase, TestCaseStatus, TestSuite};
 
         let mut test_case = TestCase::new(
-            String::from("example_test"),
+            String::from(REGRESSION_TEST_NAME),
             TestCaseStatus::NonSuccess {
                 kind: NonSuccessKind::Failure,
                 message: Some("assertion failed".into()),
@@ -813,113 +824,93 @@ mod tests {
                 reruns: vec![],
             },
         );
-        test_case.classname = Some("ExampleClass".into());
-        test_case
-            .extra
-            .insert("id".into(), REPORT_SUPPLIED_ID.into());
+        test_case.classname = Some(REGRESSION_CLASSNAME.into());
+        test_case.extra.insert("id".into(), report_id.into());
 
         let case = BindingsTestCase::from(test_case);
-        let suite = BindingsTestSuite::from(TestSuite::new(parent_name.clone()));
-        let variant = "example-variant";
+        let suite = BindingsTestSuite::from(TestSuite::new(REGRESSION_PARENT_NAME.to_string()));
+        (case, suite)
+    }
+
+    /// `convert_case_to_test`'s id, and independently, what `gen_info_id` derives for
+    /// the same inputs -- the two must agree for the local quarantine check to match
+    /// what the server tracks whenever a variant is folded in.
+    fn convert_and_expected_id(report_id: Option<&str>, variant: &str) -> (String, String) {
+        use context::meta::id::gen_info_id;
+
+        let (case, suite) = failing_case_with_report_id(report_id.unwrap_or(""));
+        let repo = regression_repo();
 
         let test = super::convert_case_to_test(
             &repo,
-            org_slug,
-            parent_name.clone(),
+            REGRESSION_ORG_SLUG,
+            REGRESSION_PARENT_NAME.to_string(),
             &case,
             &suite,
             variant,
         );
-
-        assert_ne!(test.id, REPORT_SUPPLIED_ID);
         let expected_id = gen_info_id(
-            org_slug,
+            REGRESSION_ORG_SLUG,
             repo.repo_full_name().as_str(),
             None,
-            Some("ExampleClass"),
-            Some(parent_name.as_str()),
-            Some("example_test"),
-            Some(REPORT_SUPPLIED_ID),
+            Some(REGRESSION_CLASSNAME),
+            Some(REGRESSION_PARENT_NAME),
+            Some(REGRESSION_TEST_NAME),
+            report_id,
             variant,
         );
-        assert_eq!(test.id, expected_id);
+        (test.id, expected_id)
     }
 
-    /// Companion: with no variant, the report-supplied id is unchanged.
+    /// A v5-shaped report id (e.g. xcresult's) must fold in a non-empty variant,
+    /// matching `gen_info_id`'s derivation everywhere else -- otherwise the local
+    /// quarantine check and printed test link diverge from what the server tracks.
     #[test]
-    fn test_convert_case_to_test_keeps_report_supplied_id_without_variant() {
-        use quick_junit::{NonSuccessKind, TestCase, TestCaseStatus, TestSuite};
+    fn test_convert_case_to_test_folds_variant_into_v5_report_supplied_id() {
+        let (actual_id, expected_id) =
+            convert_and_expected_id(Some(V5_REPORT_SUPPLIED_ID), "example-variant");
 
-        let repo = RepoUrlParts {
-            host: "github.com".to_string(),
-            owner: "example-owner".to_string(),
-            name: "example-repo".to_string(),
-        };
-        let org_slug = "example-org";
-        let parent_name = "ExampleSuite".to_string();
-        const REPORT_SUPPLIED_ID: &str = "2e7aad90-d222-5e80-848e-4bbc7553708f";
-
-        let mut test_case = TestCase::new(
-            String::from("example_test"),
-            TestCaseStatus::NonSuccess {
-                kind: NonSuccessKind::Failure,
-                message: Some("assertion failed".into()),
-                ty: None,
-                description: None,
-                reruns: vec![],
-            },
-        );
-        test_case.classname = Some("ExampleClass".into());
-        test_case
-            .extra
-            .insert("id".into(), REPORT_SUPPLIED_ID.into());
-
-        let case = BindingsTestCase::from(test_case);
-        let suite = BindingsTestSuite::from(TestSuite::new(parent_name.clone()));
-
-        let test = super::convert_case_to_test(&repo, org_slug, parent_name, &case, &suite, "");
-
-        assert_eq!(test.id, REPORT_SUPPLIED_ID);
+        assert_ne!(actual_id, V5_REPORT_SUPPLIED_ID);
+        assert_eq!(actual_id, expected_id);
     }
 
-    /// A plain JUnit `id="..."` attribute isn't necessarily a v5 UUID (unlike
-    /// xcresult's). With no variant it must still be used verbatim -- matching
-    /// `JunitParser`'s own `existing_id.is_some() && variant.is_empty()` shortcut --
-    /// rather than falling into `gen_info_id_base`'s non-v5 fallback, which recomputes
-    /// from file/classname/name and silently drops the supplied id.
+    /// Companion: with no variant, a v5-shaped report id is unchanged (matches
+    /// pre-fix behavior).
+    #[test]
+    fn test_convert_case_to_test_keeps_v5_report_supplied_id_without_variant() {
+        let (actual_id, _) = convert_and_expected_id(Some(V5_REPORT_SUPPLIED_ID), "");
+        assert_eq!(actual_id, V5_REPORT_SUPPLIED_ID);
+    }
+
+    /// A non-v5-shaped report id (e.g. a hand-written JUnit `id="..."` attribute) with
+    /// no variant must also be used verbatim -- matching `JunitParser`'s own
+    /// `existing_id.is_some() && variant.is_empty()` shortcut -- rather than falling
+    /// into `gen_info_id_base`'s non-v5 fallback, which recomputes from
+    /// file/classname/name and silently drops the supplied id.
     #[test]
     fn test_convert_case_to_test_keeps_arbitrary_report_supplied_id_without_variant() {
-        use quick_junit::{NonSuccessKind, TestCase, TestCaseStatus, TestSuite};
+        let (actual_id, _) = convert_and_expected_id(Some(ARBITRARY_REPORT_SUPPLIED_ID), "");
+        assert_eq!(actual_id, ARBITRARY_REPORT_SUPPLIED_ID);
+    }
 
-        let repo = RepoUrlParts {
-            host: "github.com".to_string(),
-            owner: "example-owner".to_string(),
-            name: "example-repo".to_string(),
-        };
-        let org_slug = "example-org";
-        let parent_name = "ExampleSuite".to_string();
-        const REPORT_SUPPLIED_ID: &str = "custom-test-id-001";
+    /// A non-v5-shaped report id with a variant set does NOT preserve the raw id --
+    /// `gen_info_id_base`'s non-v5 fallback recomputes from file/classname/name
+    /// instead. This is not a regression: it's the same fallback `JunitParser` itself
+    /// hits for identical inputs, so this pins the two to stay in agreement rather
+    /// than asserting the (already-fixed) prior behavior.
+    #[test]
+    fn test_convert_case_to_test_folds_variant_for_arbitrary_report_supplied_id() {
+        let (actual_id, expected_id) =
+            convert_and_expected_id(Some(ARBITRARY_REPORT_SUPPLIED_ID), "example-variant");
+        assert_eq!(actual_id, expected_id);
+    }
 
-        let mut test_case = TestCase::new(
-            String::from("example_test"),
-            TestCaseStatus::NonSuccess {
-                kind: NonSuccessKind::Failure,
-                message: Some("assertion failed".into()),
-                ty: None,
-                description: None,
-                reruns: vec![],
-            },
-        );
-        test_case.classname = Some("ExampleClass".into());
-        test_case
-            .extra
-            .insert("id".into(), REPORT_SUPPLIED_ID.into());
-
-        let case = BindingsTestCase::from(test_case);
-        let suite = BindingsTestSuite::from(TestSuite::new(parent_name.clone()));
-
-        let test = super::convert_case_to_test(&repo, org_slug, parent_name, &case, &suite, "");
-
-        assert_eq!(test.id, REPORT_SUPPLIED_ID);
+    /// An empty report-supplied id falls back to the generated id (same as no id at
+    /// all), regardless of variant -- the `id.is_empty()` branch is untouched by the
+    /// variant-folding fix and must keep behaving identically.
+    #[test]
+    fn test_convert_case_to_test_falls_back_to_generated_id_when_report_id_empty() {
+        let (actual_id, expected_id) = convert_and_expected_id(None, "example-variant");
+        assert_eq!(actual_id, expected_id);
     }
 }
