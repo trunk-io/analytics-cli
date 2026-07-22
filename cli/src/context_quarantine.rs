@@ -864,6 +864,7 @@ mod tests {
         assert_eq!(actual_id, V5_REPORT_SUPPLIED_ID);
     }
 
+    // ids from junit.xml files or rspec aren't UUIDs and aren't transformed/normalized.
     #[test]
     fn test_convert_case_to_test_keeps_arbitrary_report_supplied_id_without_variant() {
         let (actual_id, _) = convert_and_expected_id(Some(ARBITRARY_REPORT_SUPPLIED_ID), "");
