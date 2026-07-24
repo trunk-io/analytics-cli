@@ -205,6 +205,7 @@ async fn telemetry_query_result_disabled_on_publish() {
                 Json(GetQuarantineConfigResponse {
                     is_disabled: true,
                     quarantined_tests: vec![],
+                    ..Default::default()
                 })
             },
         );

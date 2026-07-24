@@ -65,6 +65,9 @@ pub struct TestReport {
     started_at: SystemTime,
     quarantine_config: Option<QuarantineConfig>,
     quarantine_lookup_source: Option<QuarantineLookupSource>,
+    /// Which source the server resolved quarantine status from ("repo" or
+    /// "test_collection"), captured from the getQuarantineConfig response.
+    quarantine_resolution_mode: Option<String>,
     quarantined_tests_disk_cache_ttl: Duration,
     codeowners: Option<CodeOwners>,
     variant: Option<String>,
@@ -239,6 +242,7 @@ impl MutTestReport {
             started_at,
             quarantine_config: None,
             quarantine_lookup_source: None,
+            quarantine_resolution_mode: None,
             quarantined_tests_disk_cache_ttl,
             codeowners,
             repo,
@@ -261,6 +265,18 @@ impl MutTestReport {
             Some(QuarantineLookupSource::Failed) => QuarantineQueryResult::Failure,
             Some(QuarantineLookupSource::Disabled) => QuarantineQueryResult::Disabled,
             None => QuarantineQueryResult::Skipped,
+        }
+    }
+
+    fn quarantine_resolution_mode_for_telemetry(
+        &self,
+    ) -> proto::upload_metrics::trunk::QuarantineResolutionMode {
+        use proto::upload_metrics::trunk::QuarantineResolutionMode;
+
+        match self.0.borrow().quarantine_resolution_mode.as_deref() {
+            Some("repo") => QuarantineResolutionMode::Repo,
+            Some("test_collection") => QuarantineResolutionMode::TestCollection,
+            _ => QuarantineResolutionMode::Unspecified,
         }
     }
 
@@ -539,6 +555,7 @@ impl MutTestReport {
             test_identifiers: vec![],
             remote_urls: vec![repo_url.clone()],
             repo: repo.clone(),
+            test_collection_short_id: env::var(constants::TRUNK_TEST_COLLECTION_ID_ENV).ok(),
         };
         let response = tokio::runtime::Builder::new_multi_thread()
             .enable_all()
@@ -551,6 +568,16 @@ impl MutTestReport {
                 for quarantined_test_id in response.quarantined_tests.iter() {
                     quarantined_tests.insert(quarantined_test_id.clone(), true);
                 }
+                // Surface which source the server resolved quarantine status from. Sent to Sentry
+                // only (hidden from the console) to aid debugging without adding CLI noise.
+                tracing::info!(
+                    hidden_in_console = true,
+                    quarantine_resolution_mode =
+                        response.quarantine_resolution_mode.as_deref().unwrap_or("unspecified"),
+                    "Resolved quarantine config"
+                );
+                self.0.borrow_mut().quarantine_resolution_mode =
+                    response.quarantine_resolution_mode.clone();
                 if is_disabled {
                     self.record_quarantine_lookup_source(QuarantineLookupSource::Disabled);
                 } else {
@@ -723,6 +750,9 @@ impl MutTestReport {
                             test_run_result: Some(test_run_result),
                             quarantine_query_result_override: Some(
                                 self.quarantine_query_result_for_telemetry(),
+                            ),
+                            quarantine_resolution_mode_override: Some(
+                                self.quarantine_resolution_mode_for_telemetry(),
                             ),
                             ..Default::default()
                         },

@@ -1294,6 +1294,7 @@ async fn quarantines_tests_regardless_of_upload() {
                 Json(GetQuarantineConfigResponse {
                     is_disabled,
                     quarantined_tests,
+                    ..Default::default()
                 })
             }
         },
@@ -2041,6 +2042,7 @@ async fn do_not_quarantines_tests_when_quarantine_disabled_set() {
                 Json(GetQuarantineConfigResponse {
                     is_disabled,
                     quarantined_tests,
+                    ..Default::default()
                 })
             }
         },
@@ -2149,6 +2151,7 @@ async fn still_quarantines_if_upload_to_s3_fails() {
                 Json(GetQuarantineConfigResponse {
                     is_disabled: false,
                     quarantined_tests: test_ids,
+                    ..Default::default()
                 })
             }
         },
@@ -2189,6 +2192,7 @@ async fn still_quarantines_if_upload_endpoint_fails() {
                 Json(GetQuarantineConfigResponse {
                     is_disabled: false,
                     quarantined_tests: test_ids,
+                    ..Default::default()
                 })
             }
         },
@@ -2229,6 +2233,7 @@ async fn presents_error_message_if_you_dont_have_permission_for_s3_upload() {
                 Json(GetQuarantineConfigResponse {
                     is_disabled: false,
                     quarantined_tests: test_ids,
+                    ..Default::default()
                 })
             }
         },
@@ -2270,6 +2275,7 @@ async fn presents_error_message_if_you_dont_have_permission_for_upload_endpoint(
                 Json(GetQuarantineConfigResponse {
                     is_disabled: false,
                     quarantined_tests: test_ids,
+                    ..Default::default()
                 })
             }
         },

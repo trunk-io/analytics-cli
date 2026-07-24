@@ -21,7 +21,7 @@ use context::{
 };
 use pluralizer::pluralize;
 use prost::Message;
-use proto::upload_metrics::trunk::QuarantineQueryResult;
+use proto::upload_metrics::trunk::{QuarantineQueryResult, QuarantineResolutionMode};
 
 #[derive(Debug)]
 pub enum QuarantineFetchStatus {
@@ -47,6 +47,10 @@ pub struct QuarantineContext {
     pub repo: RepoUrlParts,
     pub org_url_slug: String,
     pub fetch_status: QuarantineFetchStatus,
+    /// Which source the server used to resolve quarantine status ("repo" or
+    /// "test_collection"), from the getQuarantineConfig response. `None` when no
+    /// fetch ran or the server omitted the field.
+    pub quarantine_resolution_mode: Option<String>,
 }
 impl QuarantineContext {
     pub fn skip_fetch(failures: Vec<Test>) -> Self {
@@ -57,6 +61,7 @@ impl QuarantineContext {
             repo: RepoUrlParts::default(),
             org_url_slug: String::default(),
             fetch_status: QuarantineFetchStatus::FetchSkipped,
+            quarantine_resolution_mode: None,
         }
     }
 
@@ -68,6 +73,7 @@ impl QuarantineContext {
             repo: RepoUrlParts::default(),
             org_url_slug: String::default(),
             fetch_status: QuarantineFetchStatus::FetchFailed(error),
+            quarantine_resolution_mode: None,
         }
     }
 }
@@ -84,6 +90,14 @@ pub fn quarantine_query_result(
         QuarantineFetchStatus::FetchFailed(_) => QuarantineQueryResult::Failure,
         QuarantineFetchStatus::FetchSkipped => QuarantineQueryResult::Skipped,
         QuarantineFetchStatus::FetchSucceeded => QuarantineQueryResult::Success,
+    }
+}
+
+pub fn quarantine_resolution_mode(ctx: &QuarantineContext) -> QuarantineResolutionMode {
+    match ctx.quarantine_resolution_mode.as_deref() {
+        Some("repo") => QuarantineResolutionMode::Repo,
+        Some("test_collection") => QuarantineResolutionMode::TestCollection,
+        _ => QuarantineResolutionMode::Unspecified,
     }
 }
 
@@ -322,6 +336,7 @@ pub async fn gather_quarantine_context(
             quarantine_status: QuarantineBulkTestStatus::default(),
             failures: Vec::default(),
             fetch_status: QuarantineFetchStatus::FetchSkipped,
+            quarantine_resolution_mode: None,
         });
     }
 
@@ -336,13 +351,27 @@ pub async fn gather_quarantine_context(
     {
         tracing::info!("Checking if failed tests can be quarantined");
         match api_client.get_quarantining_config(request).await {
-            anyhow::Result::Ok(response) => (Some(response), QuarantineFetchStatus::FetchSucceeded),
+            anyhow::Result::Ok(response) => {
+                // Surface which source the server resolved quarantine status from. Sent to Sentry
+                // only (hidden from the console) to aid debugging without adding CLI noise.
+                tracing::info!(
+                    hidden_in_console = true,
+                    quarantine_resolution_mode =
+                        response.quarantine_resolution_mode.as_deref().unwrap_or("unspecified"),
+                    "Resolved quarantine config"
+                );
+                (Some(response), QuarantineFetchStatus::FetchSucceeded)
+            }
             anyhow::Result::Err(error) => (None, QuarantineFetchStatus::FetchFailed(error)),
         }
     } else {
         tracing::debug!("Skipping quarantine check.");
         (None, QuarantineFetchStatus::FetchSkipped)
     };
+
+    let quarantine_resolution_mode = quarantine_config
+        .as_ref()
+        .and_then(|config| config.quarantine_resolution_mode.clone());
 
     // if quarantining is not enabled, return exit code and empty quarantine status
     if quarantine_config
@@ -361,6 +390,7 @@ pub async fn gather_quarantine_context(
             repo: request.repo.clone(),
             org_url_slug: request.org_url_slug.clone(),
             fetch_status: quarantine_fetch_status,
+            quarantine_resolution_mode,
         });
     } else {
         // quarantining is enabled, continue with quarantine process and update exit code
@@ -447,6 +477,7 @@ pub async fn gather_quarantine_context(
         repo: request.repo.clone(),
         org_url_slug: request.org_url_slug.clone(),
         fetch_status: quarantine_fetch_status,
+        quarantine_resolution_mode,
     })
 }
 

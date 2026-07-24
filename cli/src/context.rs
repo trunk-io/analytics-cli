@@ -801,6 +801,7 @@ pub async fn gather_exit_code_and_quarantined_tests_context(
                 repo: RepoUrlParts::default(),
                 org_url_slug: String::default(),
                 fetch_status: QuarantineFetchStatus::FetchSkipped,
+                quarantine_resolution_mode: None,
             }
         } else {
             // default to success if no test run result (i.e. `upload`)
@@ -814,6 +815,11 @@ pub async fn gather_exit_code_and_quarantined_tests_context(
                 org_url_slug: meta.base_props.org.clone(),
                 test_identifiers: failed_tests_extractor.failed_tests().to_vec(),
                 remote_urls: vec![meta.base_props.repo.repo_url.clone()],
+                test_collection_short_id: meta
+                    .base_props
+                    .test_collection
+                    .as_ref()
+                    .map(|tc| tc.short_id.clone()),
             },
             file_set_builder,
             Some(failed_tests_extractor),
