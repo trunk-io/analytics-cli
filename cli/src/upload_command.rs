@@ -18,9 +18,7 @@ use superconsole::{
 };
 use tempfile::TempDir;
 
-use crate::context_quarantine::{
-    QuarantineContext, quarantine_query_result, quarantine_resolution_mode,
-};
+use crate::context_quarantine::{QuarantineContext, quarantine_query_result};
 use crate::validate_command::JunitReportValidations;
 use crate::{
     context::{
@@ -489,6 +487,10 @@ pub async fn run_upload(
         &api_client,
         &file_set_builder,
         default_exit_code,
+        upload_args
+            .test_collection_short_id
+            .clone()
+            .filter(|id| !id.is_empty()),
     )
     .await
     {
@@ -569,7 +571,7 @@ pub async fn run_upload(
     let quarantine_query_result = quarantine_query_result_override
         .unwrap_or_else(|| quarantine_query_result(disable_quarantining, &quarantine_context));
     let quarantine_resolution_mode = quarantine_resolution_mode_override
-        .unwrap_or_else(|| quarantine_resolution_mode(&quarantine_context));
+        .unwrap_or_else(|| quarantine_context.quarantine_resolution_mode.into());
     let upload_metrics = proto::upload_metrics::trunk::UploadMetrics {
         client_version: Some(proto::upload_metrics::trunk::Semver {
             major: env!("CARGO_PKG_VERSION_MAJOR").parse().unwrap_or_default(),

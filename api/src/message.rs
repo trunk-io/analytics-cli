@@ -42,13 +42,15 @@ impl<'de> Deserialize<'de> for QuarantineResolutionMode {
     where
         D: serde::Deserializer<'de>,
     {
-        Ok(
-            match Option::<String>::deserialize(deserializer)?.as_deref() {
-                Some("repo") => Self::Repo,
-                Some("test_collection") => Self::TestCollection,
-                _ => Self::Unspecified,
-            },
-        )
+        // Tolerant: any unknown/absent value — and any non-string JSON type
+        // (number, bool, object, null) — degrades to Unspecified rather than
+        // failing the whole response parse, so a new server value can't break
+        // older clients.
+        Ok(match serde_json::Value::deserialize(deserializer)?.as_str() {
+            Some("repo") => Self::Repo,
+            Some("test_collection") => Self::TestCollection,
+            _ => Self::Unspecified,
+        })
     }
 }
 
@@ -58,6 +60,29 @@ impl From<QuarantineResolutionMode> for proto::upload_metrics::trunk::Quarantine
             QuarantineResolutionMode::Repo => Self::Repo,
             QuarantineResolutionMode::TestCollection => Self::TestCollection,
             QuarantineResolutionMode::Unspecified => Self::Unspecified,
+        }
+    }
+}
+
+impl QuarantineResolutionMode {
+    /// Human-readable line describing a resolved quarantine lookup, or `None` when
+    /// the mode is unspecified (nothing worth logging). `test_collection_id` is
+    /// used only for `TestCollection`, `repo` only for `Repo`.
+    pub fn resolution_log_line(
+        &self,
+        test_collection_id: Option<&str>,
+        repo: &RepoUrlParts,
+    ) -> Option<String> {
+        match self {
+            Self::TestCollection => Some(format!(
+                "Resolved quarantine status for test collection {}",
+                test_collection_id.unwrap_or("unknown"),
+            )),
+            Self::Repo => Some(format!(
+                "Resolved quarantine status for repo {}",
+                repo.repo_full_name()
+            )),
+            Self::Unspecified => None,
         }
     }
 }
@@ -169,6 +194,19 @@ mod tests {
         // response parse; it degrades to Unspecified.
         let response: GetQuarantineConfigResponse = serde_json::from_str(
             r#"{ "isDisabled": false, "testIds": [], "quarantineResolutionMode": "something_new" }"#,
+        )
+        .unwrap();
+        assert_eq!(
+            response.quarantine_resolution_mode,
+            QuarantineResolutionMode::Unspecified
+        );
+    }
+
+    #[test]
+    fn deserializes_non_string_quarantine_resolution_mode_as_unspecified() {
+        // A non-string JSON type must not fail the whole response parse either.
+        let response: GetQuarantineConfigResponse = serde_json::from_str(
+            r#"{ "isDisabled": false, "testIds": [], "quarantineResolutionMode": 3 }"#,
         )
         .unwrap();
         assert_eq!(

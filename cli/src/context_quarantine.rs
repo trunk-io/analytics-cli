@@ -47,7 +47,7 @@ pub struct QuarantineContext {
     pub repo: RepoUrlParts,
     pub org_url_slug: String,
     pub fetch_status: QuarantineFetchStatus,
-    pub quarantine_resolution_mode: api::message::QuarantineResolutionMode,
+    pub quarantine_resolution_mode: QuarantineResolutionMode,
 }
 impl QuarantineContext {
     pub fn skip_fetch(failures: Vec<Test>) -> Self {
@@ -58,7 +58,7 @@ impl QuarantineContext {
             repo: RepoUrlParts::default(),
             org_url_slug: String::default(),
             fetch_status: QuarantineFetchStatus::FetchSkipped,
-            quarantine_resolution_mode: api::message::QuarantineResolutionMode::Unspecified,
+            quarantine_resolution_mode: QuarantineResolutionMode::Unspecified,
         }
     }
 
@@ -70,7 +70,7 @@ impl QuarantineContext {
             repo: RepoUrlParts::default(),
             org_url_slug: String::default(),
             fetch_status: QuarantineFetchStatus::FetchFailed(error),
-            quarantine_resolution_mode: api::message::QuarantineResolutionMode::Unspecified,
+            quarantine_resolution_mode: QuarantineResolutionMode::Unspecified,
         }
     }
 }
@@ -88,12 +88,6 @@ pub fn quarantine_query_result(
         QuarantineFetchStatus::FetchSkipped => QuarantineQueryResult::Skipped,
         QuarantineFetchStatus::FetchSucceeded => QuarantineQueryResult::Success,
     }
-}
-
-pub fn quarantine_resolution_mode(
-    ctx: &QuarantineContext,
-) -> proto::upload_metrics::trunk::QuarantineResolutionMode {
-    ctx.quarantine_resolution_mode.into()
 }
 
 fn convert_case_to_test<T: AsRef<str> + ToString>(
@@ -331,7 +325,7 @@ pub async fn gather_quarantine_context(
             quarantine_status: QuarantineBulkTestStatus::default(),
             failures: Vec::default(),
             fetch_status: QuarantineFetchStatus::FetchSkipped,
-            quarantine_resolution_mode: api::message::QuarantineResolutionMode::Unspecified,
+            quarantine_resolution_mode: QuarantineResolutionMode::Unspecified,
         });
     }
 
@@ -347,16 +341,11 @@ pub async fn gather_quarantine_context(
         tracing::info!("Checking if failed tests can be quarantined");
         match api_client.get_quarantining_config(request).await {
             anyhow::Result::Ok(response) => {
-                match response.quarantine_resolution_mode {
-                    QuarantineResolutionMode::TestCollection => tracing::info!(
-                        "Resolved quarantine status for test collection {}",
-                        request.test_collection_short_id.as_deref().unwrap_or("unknown"),
-                    ),
-                    QuarantineResolutionMode::Repo => tracing::info!(
-                        "Resolved quarantine status for repo {}",
-                        request.repo.repo_full_name(),
-                    ),
-                    QuarantineResolutionMode::Unspecified => {}
+                if let Some(line) = response.quarantine_resolution_mode.resolution_log_line(
+                    request.test_collection_short_id.as_deref(),
+                    &request.repo,
+                ) {
+                    tracing::info!("{line}");
                 }
                 (Some(response), QuarantineFetchStatus::FetchSucceeded)
             }
@@ -690,7 +679,7 @@ mod tests {
             repo: RepoUrlParts::default(),
             org_url_slug: String::new(),
             fetch_status: QuarantineFetchStatus::FetchSucceeded,
-            quarantine_resolution_mode: api::message::QuarantineResolutionMode::Unspecified,
+            quarantine_resolution_mode: QuarantineResolutionMode::Unspecified,
         };
         assert_eq!(
             quarantine_query_result(false, &success_ctx),
@@ -720,7 +709,7 @@ mod tests {
             failures: vec![],
             repo: RepoUrlParts::default(),
             org_url_slug: String::new(),
-            quarantine_resolution_mode: api::message::QuarantineResolutionMode::Unspecified,
+            quarantine_resolution_mode: QuarantineResolutionMode::Unspecified,
         };
         assert_eq!(
             quarantine_query_result(false, &repo_disabled_ctx),

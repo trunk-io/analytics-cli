@@ -103,6 +103,11 @@ async fn upload_bundle() {
         assert_eq!(req.repo.owner, "trunk-io");
         assert_eq!(req.repo.name, "analytics-cli");
         assert_eq!(req.org_url_slug, "test-org");
+        assert_eq!(
+            req.test_collection_short_id,
+            Some(String::from("tc_123")),
+            "--test-collection-id must reach the getQuarantineConfig request"
+        );
         assert!(
             !req.test_identifiers.is_empty(),
             "test_identifiers should not be empty"
