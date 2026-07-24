@@ -7,7 +7,10 @@ use std::{
     time::{Duration, SystemTime},
 };
 
-use api::{client::ApiClient, message};
+use api::{
+    client::ApiClient,
+    message::{self, QuarantineResolutionMode},
+};
 use bundle::BundleMetaDebugProps;
 use bundle::Test;
 use chrono::prelude::*;
@@ -42,6 +45,8 @@ struct QuarantineConfig {
     quarantining_disabled_for_repo: bool,
     quarantine_lookup_failed: bool,
     quarantined_tests: HashMap<String, bool>,
+    #[serde(default)]
+    quarantine_resolution_mode: QuarantineResolutionMode,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -65,9 +70,6 @@ pub struct TestReport {
     started_at: SystemTime,
     quarantine_config: Option<QuarantineConfig>,
     quarantine_lookup_source: Option<QuarantineLookupSource>,
-    /// Which source the server resolved quarantine status from ("repo" or
-    /// "test_collection"), captured from the getQuarantineConfig response.
-    quarantine_resolution_mode: Option<String>,
     quarantined_tests_disk_cache_ttl: Duration,
     codeowners: Option<CodeOwners>,
     variant: Option<String>,
@@ -242,7 +244,6 @@ impl MutTestReport {
             started_at,
             quarantine_config: None,
             quarantine_lookup_source: None,
-            quarantine_resolution_mode: None,
             quarantined_tests_disk_cache_ttl,
             codeowners,
             repo,
@@ -271,13 +272,13 @@ impl MutTestReport {
     fn quarantine_resolution_mode_for_telemetry(
         &self,
     ) -> proto::upload_metrics::trunk::QuarantineResolutionMode {
-        use proto::upload_metrics::trunk::QuarantineResolutionMode;
-
-        match self.0.borrow().quarantine_resolution_mode.as_deref() {
-            Some("repo") => QuarantineResolutionMode::Repo,
-            Some("test_collection") => QuarantineResolutionMode::TestCollection,
-            _ => QuarantineResolutionMode::Unspecified,
-        }
+        self.0
+            .borrow()
+            .quarantine_config
+            .as_ref()
+            .map(|config| config.quarantine_resolution_mode)
+            .unwrap_or_default()
+            .into()
     }
 
     fn serialize_test_report(&self) -> Vec<u8> {
@@ -530,6 +531,29 @@ impl MutTestReport {
         }
     }
 
+    /// Log which source the server resolved quarantine status from. Callers invoke
+    /// this only on the first (memoized) lookup, so it fires at most once per report.
+    fn log_quarantine_resolution_mode(
+        &self,
+        resolution_mode: QuarantineResolutionMode,
+        repo: &RepoUrlParts,
+    ) {
+        match resolution_mode {
+            QuarantineResolutionMode::TestCollection => tracing::info!(
+                "Resolved quarantine status for test collection {}",
+                env::var(constants::TRUNK_TEST_COLLECTION_ID_ENV)
+                    .ok()
+                    .as_deref()
+                    .unwrap_or("unknown"),
+            ),
+            QuarantineResolutionMode::Repo => tracing::info!(
+                "Resolved quarantine status for repo {}",
+                repo.repo_full_name(),
+            ),
+            QuarantineResolutionMode::Unspecified => {}
+        }
+    }
+
     fn populate_quarantined_tests(
         &self,
         api_client: &ApiClient,
@@ -544,7 +568,9 @@ impl MutTestReport {
         if let Some(cache_entry) =
             self.load_quarantine_config_from_disk_cache(&org_url_slug, &repo_url)
         {
-            self.0.borrow_mut().quarantine_config = Some(cache_entry.quarantine_config);
+            let quarantine_config = cache_entry.quarantine_config;
+            self.log_quarantine_resolution_mode(quarantine_config.quarantine_resolution_mode, repo);
+            self.0.borrow_mut().quarantine_config = Some(quarantine_config);
             self.record_quarantine_lookup_source(QuarantineLookupSource::DiskCache);
             return;
         }
@@ -562,22 +588,15 @@ impl MutTestReport {
             .build()
             .unwrap()
             .block_on(api_client.get_quarantining_config(&request));
+        let mut resolution_mode = QuarantineResolutionMode::Unspecified;
         let (quarantining_disabled, quarantine_lookup_failed) = match response {
             Ok(response) => {
                 let is_disabled = response.is_disabled;
                 for quarantined_test_id in response.quarantined_tests.iter() {
                     quarantined_tests.insert(quarantined_test_id.clone(), true);
                 }
-                // Surface which source the server resolved quarantine status from. Sent to Sentry
-                // only (hidden from the console) to aid debugging without adding CLI noise.
-                tracing::info!(
-                    hidden_in_console = true,
-                    quarantine_resolution_mode =
-                        response.quarantine_resolution_mode.as_deref().unwrap_or("unspecified"),
-                    "Resolved quarantine config"
-                );
-                self.0.borrow_mut().quarantine_resolution_mode =
-                    response.quarantine_resolution_mode.clone();
+                resolution_mode = response.quarantine_resolution_mode;
+                self.log_quarantine_resolution_mode(resolution_mode, repo);
                 if is_disabled {
                     self.record_quarantine_lookup_source(QuarantineLookupSource::Disabled);
                 } else {
@@ -601,6 +620,7 @@ impl MutTestReport {
             quarantining_disabled_for_repo: quarantining_disabled,
             quarantine_lookup_failed,
             quarantined_tests: quarantined_tests.clone(),
+            quarantine_resolution_mode: resolution_mode,
         };
         self.0.borrow_mut().quarantine_config = Some(quarantine_config.clone());
         if !quarantine_lookup_failed {

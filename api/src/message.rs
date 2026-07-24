@@ -24,16 +24,52 @@ pub struct CreateBundleUploadResponse {
     pub test_collection_bundle_meta_created_at: Option<String>,
 }
 
+/// Which source the server resolved quarantine status from, mapped from the
+/// getQuarantineConfig response's `quarantineResolutionMode` string. Unknown or
+/// absent values deserialize to `Unspecified` so a new server-side value never
+/// breaks deserialization on older clients.
+#[derive(Debug, Serialize, Clone, Copy, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum QuarantineResolutionMode {
+    Repo,
+    TestCollection,
+    #[default]
+    Unspecified,
+}
+
+impl<'de> Deserialize<'de> for QuarantineResolutionMode {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        Ok(
+            match Option::<String>::deserialize(deserializer)?.as_deref() {
+                Some("repo") => Self::Repo,
+                Some("test_collection") => Self::TestCollection,
+                _ => Self::Unspecified,
+            },
+        )
+    }
+}
+
+impl From<QuarantineResolutionMode> for proto::upload_metrics::trunk::QuarantineResolutionMode {
+    fn from(mode: QuarantineResolutionMode) -> Self {
+        match mode {
+            QuarantineResolutionMode::Repo => Self::Repo,
+            QuarantineResolutionMode::TestCollection => Self::TestCollection,
+            QuarantineResolutionMode::Unspecified => Self::Unspecified,
+        }
+    }
+}
+
 #[derive(Debug, Serialize, Clone, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct GetQuarantineConfigResponse {
     pub is_disabled: bool,
     #[serde(rename = "testIds")]
     pub quarantined_tests: Vec<String>,
-    /// Which source the server used to resolve quarantine status: "repo" or
-    /// "test_collection". Absent on older servers, hence `Option` + `default`.
     #[serde(default)]
-    pub quarantine_resolution_mode: Option<String>,
+    pub quarantine_resolution_mode: QuarantineResolutionMode,
 }
 
 #[derive(Debug, Serialize, Clone, Deserialize, PartialEq, Eq)]
@@ -111,8 +147,8 @@ mod tests {
         )
         .unwrap();
         assert_eq!(
-            response.quarantine_resolution_mode.as_deref(),
-            Some("test_collection")
+            response.quarantine_resolution_mode,
+            QuarantineResolutionMode::TestCollection
         );
     }
 
@@ -121,6 +157,23 @@ mod tests {
         // Older servers omit the field; deserialization must still succeed.
         let response: GetQuarantineConfigResponse =
             serde_json::from_str(r#"{ "isDisabled": false, "testIds": [] }"#).unwrap();
-        assert_eq!(response.quarantine_resolution_mode, None);
+        assert_eq!(
+            response.quarantine_resolution_mode,
+            QuarantineResolutionMode::Unspecified
+        );
+    }
+
+    #[test]
+    fn deserializes_unknown_quarantine_resolution_mode_as_unspecified() {
+        // A resolution mode the client doesn't recognize must not fail the whole
+        // response parse; it degrades to Unspecified.
+        let response: GetQuarantineConfigResponse = serde_json::from_str(
+            r#"{ "isDisabled": false, "testIds": [], "quarantineResolutionMode": "something_new" }"#,
+        )
+        .unwrap();
+        assert_eq!(
+            response.quarantine_resolution_mode,
+            QuarantineResolutionMode::Unspecified
+        );
     }
 }
