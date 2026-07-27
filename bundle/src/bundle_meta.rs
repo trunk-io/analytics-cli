@@ -20,7 +20,7 @@ use tsify_next::Tsify;
 use wasm_bindgen::prelude::*;
 
 use crate::{
-    CustomTag, Test,
+    CustomTag, QuarantineResolutionMode, Test,
     files::{BundledFile, FileSet},
 };
 
@@ -58,6 +58,8 @@ pub struct BundleMetaBaseProps {
     pub quarantined_tests: Vec<Test>,
     pub codeowners: Option<CodeOwners>,
     pub use_uncloned_repo: Option<bool>,
+    #[serde(default)]
+    pub quarantine_resolution_mode: QuarantineResolutionMode,
 }
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "pyo3", gen_stub_pyclass, pyclass(get_all))]

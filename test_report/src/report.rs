@@ -269,16 +269,13 @@ impl MutTestReport {
         }
     }
 
-    fn quarantine_resolution_mode_for_telemetry(
-        &self,
-    ) -> proto::upload_metrics::trunk::QuarantineResolutionMode {
+    fn quarantine_resolution_mode(&self) -> QuarantineResolutionMode {
         self.0
             .borrow()
             .quarantine_config
             .as_ref()
             .map(|config| config.quarantine_resolution_mode)
             .unwrap_or_default()
-            .into()
     }
 
     fn serialize_test_report(&self) -> Vec<u8> {
@@ -791,7 +788,7 @@ impl MutTestReport {
                                 self.quarantine_query_result_for_telemetry(),
                             ),
                             quarantine_resolution_mode_override: Some(
-                                self.quarantine_resolution_mode_for_telemetry(),
+                                self.quarantine_resolution_mode(),
                             ),
                             ..Default::default()
                         },

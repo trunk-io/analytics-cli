@@ -337,7 +337,7 @@ mod tests {
 
     use super::{archive_entries, parse_internal_bin_entry};
     use crate::{
-        BundledFile, Test, VersionedBundle,
+        BundledFile, QuarantineResolutionMode, Test, VersionedBundle,
         bundle_meta::{
             BundleMeta, BundleMetaBaseProps, BundleMetaDebugProps, BundleMetaJunitProps,
             META_VERSION,
@@ -428,6 +428,7 @@ mod tests {
                 codeowners: None,
                 envs,
                 use_uncloned_repo: None,
+                quarantine_resolution_mode: QuarantineResolutionMode::TestCollection,
             },
             internal_bundled_file,
             failed_tests: vec![Test::new(

@@ -305,6 +305,8 @@ def test_parse_and_dump_meta_roundtrip():
     valid_meta_str = json.dumps(valid_meta, sort_keys=True)
     expected_meta = dict(valid_meta)
     expected_meta.pop("test_collection_id")
+    # Absent from the input, so it round-trips as the default rather than being dropped.
+    expected_meta["quarantine_resolution_mode"] = "unspecified"
     expected_meta_str = json.dumps(expected_meta, sort_keys=True)
     bundle_meta = parse_meta(valid_meta_str.encode())
     assert (

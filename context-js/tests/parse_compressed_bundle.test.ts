@@ -109,6 +109,7 @@ const generateBundleMeta = () =>
     org: faker.company.name(),
     os_info: process.platform,
     quarantined_tests: [],
+    quarantine_resolution_mode: "unspecified",
     codeowners: {
       path: faker.system.filePath(),
     },

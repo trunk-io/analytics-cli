@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use bundle::{BundleMetaBaseProps, TestCollectionProps};
+use bundle::{BundleMetaBaseProps, QuarantineResolutionMode, TestCollectionProps};
 use context::repo::BundleRepo;
 use serde_json::json;
 
@@ -21,6 +21,7 @@ fn build_base_props(test_collection: Option<TestCollectionProps>) -> BundleMetaB
         quarantined_tests: vec![],
         codeowners: None,
         use_uncloned_repo: None,
+        quarantine_resolution_mode: QuarantineResolutionMode::Unspecified,
     }
 }
 
