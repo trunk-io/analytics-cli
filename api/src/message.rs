@@ -94,8 +94,6 @@ pub struct GetQuarantineConfigRequest {
     pub remote_urls: Vec<String>,
     pub org_url_slug: String,
     pub test_identifiers: Vec<Test>,
-    /// Optional test collection short id (from `--test-collection-id`). When set and the org is
-    /// migrated to test collections, the server resolves quarantine status from the collection.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub test_collection_short_id: Option<String>,
 }
