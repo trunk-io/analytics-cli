@@ -20,14 +20,10 @@ enum QuarantineQueryResult {
   QUARANTINE_QUERY_RESULT_CACHED = 5;
 }
 
-// Which source the server used to resolve quarantine status, from the
-// getQuarantineConfig response's `quarantineResolutionMode` field.
+// Which source the server used to resolve quarantine status
 enum QuarantineResolutionMode {
-  // Default; the response omitted the field (older server) or no lookup ran.
   QUARANTINE_RESOLUTION_MODE_UNSPECIFIED = 0;
-  // Quarantine status was resolved from the repo.
   QUARANTINE_RESOLUTION_MODE_REPO = 1;
-  // Quarantine status was resolved from the test collection.
   QUARANTINE_RESOLUTION_MODE_TEST_COLLECTION = 2;
 }
 

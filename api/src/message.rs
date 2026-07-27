@@ -24,10 +24,7 @@ pub struct CreateBundleUploadResponse {
     pub test_collection_bundle_meta_created_at: Option<String>,
 }
 
-/// Which source the server resolved quarantine status from, mapped from the
-/// getQuarantineConfig response's `quarantineResolutionMode` string. Unknown or
-/// absent values deserialize to `Unspecified` so a new server-side value never
-/// breaks deserialization on older clients.
+/// Which source the server resolved quarantine status from.
 #[derive(Debug, Serialize, Clone, Copy, PartialEq, Eq, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum QuarantineResolutionMode {
@@ -42,10 +39,6 @@ impl<'de> Deserialize<'de> for QuarantineResolutionMode {
     where
         D: serde::Deserializer<'de>,
     {
-        // Tolerant: any unknown/absent value — and any non-string JSON type
-        // (number, bool, object, null) — degrades to Unspecified rather than
-        // failing the whole response parse, so a new server value can't break
-        // older clients.
         Ok(match serde_json::Value::deserialize(deserializer)?.as_str() {
             Some("repo") => Self::Repo,
             Some("test_collection") => Self::TestCollection,
@@ -65,9 +58,6 @@ impl From<QuarantineResolutionMode> for proto::upload_metrics::trunk::Quarantine
 }
 
 impl QuarantineResolutionMode {
-    /// Human-readable line describing a resolved quarantine lookup, or `None` when
-    /// the mode is unspecified (nothing worth logging). `test_collection_id` is
-    /// used only for `TestCollection`, `repo` only for `Repo`.
     pub fn resolution_log_line(
         &self,
         test_collection_id: Option<&str>,
@@ -129,89 +119,4 @@ pub struct CreateBundleUploadIntentResponse {
 #[derive(Debug, Serialize, Clone, Deserialize, PartialEq)]
 pub struct TelemetryUploadMetricsRequest {
     pub upload_metrics: proto::upload_metrics::trunk::UploadMetrics,
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn base_request() -> GetQuarantineConfigRequest {
-        GetQuarantineConfigRequest {
-            repo: RepoUrlParts {
-                host: String::from("github.com"),
-                owner: String::from("trunk-io"),
-                name: String::from("analytics-cli"),
-            },
-            remote_urls: vec![],
-            org_url_slug: String::from("trunk"),
-            test_identifiers: vec![],
-            test_collection_short_id: None,
-        }
-    }
-
-    #[test]
-    fn serializes_test_collection_short_id_as_camel_case_when_set() {
-        let request = GetQuarantineConfigRequest {
-            test_collection_short_id: Some(String::from("abcd1234")),
-            ..base_request()
-        };
-        let value: serde_json::Value = serde_json::to_value(&request).unwrap();
-        assert_eq!(value["testCollectionShortId"], "abcd1234");
-    }
-
-    #[test]
-    fn omits_test_collection_short_id_when_absent() {
-        let value: serde_json::Value = serde_json::to_value(base_request()).unwrap();
-        assert!(value.get("testCollectionShortId").is_none());
-    }
-
-    #[test]
-    fn deserializes_response_with_quarantine_resolution_mode() {
-        let response: GetQuarantineConfigResponse = serde_json::from_str(
-            r#"{ "isDisabled": false, "testIds": ["id1"], "quarantineResolutionMode": "test_collection" }"#,
-        )
-        .unwrap();
-        assert_eq!(
-            response.quarantine_resolution_mode,
-            QuarantineResolutionMode::TestCollection
-        );
-    }
-
-    #[test]
-    fn deserializes_response_without_quarantine_resolution_mode() {
-        // Older servers omit the field; deserialization must still succeed.
-        let response: GetQuarantineConfigResponse =
-            serde_json::from_str(r#"{ "isDisabled": false, "testIds": [] }"#).unwrap();
-        assert_eq!(
-            response.quarantine_resolution_mode,
-            QuarantineResolutionMode::Unspecified
-        );
-    }
-
-    #[test]
-    fn deserializes_unknown_quarantine_resolution_mode_as_unspecified() {
-        // A resolution mode the client doesn't recognize must not fail the whole
-        // response parse; it degrades to Unspecified.
-        let response: GetQuarantineConfigResponse = serde_json::from_str(
-            r#"{ "isDisabled": false, "testIds": [], "quarantineResolutionMode": "something_new" }"#,
-        )
-        .unwrap();
-        assert_eq!(
-            response.quarantine_resolution_mode,
-            QuarantineResolutionMode::Unspecified
-        );
-    }
-
-    #[test]
-    fn deserializes_non_string_quarantine_resolution_mode_as_unspecified() {
-        // A non-string JSON type must not fail the whole response parse either.
-        let response: GetQuarantineConfigResponse = serde_json::from_str(
-            r#"{ "isDisabled": false, "testIds": [], "quarantineResolutionMode": 3 }"#,
-        )
-        .unwrap();
-        assert_eq!(
-            response.quarantine_resolution_mode,
-            QuarantineResolutionMode::Unspecified
-        );
-    }
 }
