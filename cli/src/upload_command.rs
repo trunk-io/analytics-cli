@@ -380,6 +380,8 @@ pub struct RunUploadOptions {
     pub render_sender: Option<Sender<DisplayMessage>>,
     pub quarantine_query_result_override:
         Option<proto::upload_metrics::trunk::QuarantineQueryResult>,
+    pub quarantine_resolution_mode_override:
+        Option<proto::upload_metrics::trunk::QuarantineResolutionMode>,
 }
 
 impl Default for RunUploadOptions {
@@ -389,6 +391,7 @@ impl Default for RunUploadOptions {
             test_run_result: None,
             render_sender: None,
             quarantine_query_result_override: None,
+            quarantine_resolution_mode_override: None,
         }
     }
 }
@@ -402,6 +405,7 @@ pub async fn run_upload(
         test_run_result,
         render_sender,
         quarantine_query_result_override,
+        quarantine_resolution_mode_override,
     } = options;
     // grab the exec start if provided (`test` subcommand) or use the current time
     let cli_started_at = if let Some(test_run_result) = test_run_result.as_ref() {
@@ -483,6 +487,10 @@ pub async fn run_upload(
         &api_client,
         &file_set_builder,
         default_exit_code,
+        upload_args
+            .test_collection_short_id
+            .clone()
+            .filter(|id| !id.is_empty()),
     )
     .await
     {
@@ -562,6 +570,8 @@ pub async fn run_upload(
     .await;
     let quarantine_query_result = quarantine_query_result_override
         .unwrap_or_else(|| quarantine_query_result(disable_quarantining, &quarantine_context));
+    let quarantine_resolution_mode = quarantine_resolution_mode_override
+        .unwrap_or_else(|| quarantine_context.quarantine_resolution_mode.into());
     let upload_metrics = proto::upload_metrics::trunk::UploadMetrics {
         client_version: Some(proto::upload_metrics::trunk::Semver {
             major: env!("CARGO_PKG_VERSION_MAJOR").parse().unwrap_or_default(),
@@ -580,6 +590,7 @@ pub async fn run_upload(
         failed: false,
         failure_reason: "".into(),
         quarantine_query_result: quarantine_query_result.into(),
+        quarantine_resolution_mode: quarantine_resolution_mode.into(),
     };
     let mut request = api::message::TelemetryUploadMetricsRequest { upload_metrics };
     if !upload_args.dry_run {

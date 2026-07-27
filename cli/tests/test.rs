@@ -287,6 +287,7 @@ async fn quarantining_resets_fail_code() {
                 Json(GetQuarantineConfigResponse {
                     is_disabled: false,
                     quarantined_tests: test_ids,
+                    ..Default::default()
                 })
             }
         },
@@ -347,6 +348,7 @@ async fn quarantining_not_active_when_disable_quarantining_set() {
                 Json(GetQuarantineConfigResponse {
                     is_disabled: false,
                     quarantined_tests: test_ids,
+                    ..Default::default()
                 })
             }
         },
@@ -408,6 +410,7 @@ async fn quarantining_not_active_when_disable_true_but_use_true() {
                 Json(GetQuarantineConfigResponse {
                     is_disabled: false,
                     quarantined_tests: test_ids,
+                    ..Default::default()
                 })
             }
         },

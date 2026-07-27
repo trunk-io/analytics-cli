@@ -3,7 +3,7 @@ use std::{
     io::{BufReader, Read},
 };
 
-use api::{client::ApiClient, urls::url_for_test_case};
+use api::{client::ApiClient, message::QuarantineResolutionMode, urls::url_for_test_case};
 use bundle::{
     FileSet, FileSetBuilder, FileSetTestRunnerReport, FileSetType, QuarantineBulkTestStatus, Test,
 };
@@ -47,6 +47,7 @@ pub struct QuarantineContext {
     pub repo: RepoUrlParts,
     pub org_url_slug: String,
     pub fetch_status: QuarantineFetchStatus,
+    pub quarantine_resolution_mode: QuarantineResolutionMode,
 }
 impl QuarantineContext {
     pub fn skip_fetch(failures: Vec<Test>) -> Self {
@@ -57,6 +58,7 @@ impl QuarantineContext {
             repo: RepoUrlParts::default(),
             org_url_slug: String::default(),
             fetch_status: QuarantineFetchStatus::FetchSkipped,
+            quarantine_resolution_mode: QuarantineResolutionMode::Unspecified,
         }
     }
 
@@ -68,6 +70,7 @@ impl QuarantineContext {
             repo: RepoUrlParts::default(),
             org_url_slug: String::default(),
             fetch_status: QuarantineFetchStatus::FetchFailed(error),
+            quarantine_resolution_mode: QuarantineResolutionMode::Unspecified,
         }
     }
 }
@@ -322,6 +325,7 @@ pub async fn gather_quarantine_context(
             quarantine_status: QuarantineBulkTestStatus::default(),
             failures: Vec::default(),
             fetch_status: QuarantineFetchStatus::FetchSkipped,
+            quarantine_resolution_mode: QuarantineResolutionMode::Unspecified,
         });
     }
 
@@ -336,13 +340,26 @@ pub async fn gather_quarantine_context(
     {
         tracing::info!("Checking if failed tests can be quarantined");
         match api_client.get_quarantining_config(request).await {
-            anyhow::Result::Ok(response) => (Some(response), QuarantineFetchStatus::FetchSucceeded),
+            anyhow::Result::Ok(response) => {
+                if let Some(line) = response.quarantine_resolution_mode.resolution_log_line(
+                    request.test_collection_short_id.as_deref(),
+                    &request.repo,
+                ) {
+                    tracing::info!("{line}");
+                }
+                (Some(response), QuarantineFetchStatus::FetchSucceeded)
+            }
             anyhow::Result::Err(error) => (None, QuarantineFetchStatus::FetchFailed(error)),
         }
     } else {
         tracing::debug!("Skipping quarantine check.");
         (None, QuarantineFetchStatus::FetchSkipped)
     };
+
+    let quarantine_resolution_mode = quarantine_config
+        .as_ref()
+        .map(|config| config.quarantine_resolution_mode)
+        .unwrap_or_default();
 
     // if quarantining is not enabled, return exit code and empty quarantine status
     if quarantine_config
@@ -361,6 +378,7 @@ pub async fn gather_quarantine_context(
             repo: request.repo.clone(),
             org_url_slug: request.org_url_slug.clone(),
             fetch_status: quarantine_fetch_status,
+            quarantine_resolution_mode,
         });
     } else {
         // quarantining is enabled, continue with quarantine process and update exit code
@@ -447,6 +465,7 @@ pub async fn gather_quarantine_context(
         repo: request.repo.clone(),
         org_url_slug: request.org_url_slug.clone(),
         fetch_status: quarantine_fetch_status,
+        quarantine_resolution_mode,
     })
 }
 
@@ -660,6 +679,7 @@ mod tests {
             repo: RepoUrlParts::default(),
             org_url_slug: String::new(),
             fetch_status: QuarantineFetchStatus::FetchSucceeded,
+            quarantine_resolution_mode: QuarantineResolutionMode::Unspecified,
         };
         assert_eq!(
             quarantine_query_result(false, &success_ctx),
@@ -689,6 +709,7 @@ mod tests {
             failures: vec![],
             repo: RepoUrlParts::default(),
             org_url_slug: String::new(),
+            quarantine_resolution_mode: QuarantineResolutionMode::Unspecified,
         };
         assert_eq!(
             quarantine_query_result(false, &repo_disabled_ctx),

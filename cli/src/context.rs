@@ -770,6 +770,7 @@ pub async fn gather_exit_code_and_quarantined_tests_context(
     api_client: &ApiClient,
     file_set_builder: &FileSetBuilder,
     default_exit_code: Option<i32>,
+    test_collection_short_id: Option<String>,
 ) -> anyhow::Result<QuarantineContext> {
     // Run the quarantine step and update the exit code.
     let failed_tests_extractor = FailedTestsExtractor::new(
@@ -801,6 +802,7 @@ pub async fn gather_exit_code_and_quarantined_tests_context(
                 repo: RepoUrlParts::default(),
                 org_url_slug: String::default(),
                 fetch_status: QuarantineFetchStatus::FetchSkipped,
+                quarantine_resolution_mode: api::message::QuarantineResolutionMode::Unspecified,
             }
         } else {
             // default to success if no test run result (i.e. `upload`)
@@ -814,6 +816,7 @@ pub async fn gather_exit_code_and_quarantined_tests_context(
                 org_url_slug: meta.base_props.org.clone(),
                 test_identifiers: failed_tests_extractor.failed_tests().to_vec(),
                 remote_urls: vec![meta.base_props.repo.repo_url.clone()],
+                test_collection_short_id,
             },
             file_set_builder,
             Some(failed_tests_extractor),

@@ -537,6 +537,7 @@ mod tests {
                         org_url_slug: String::from("org_url_slug"),
                         test_identifiers: vec![],
                         remote_urls: vec![],
+                        test_collection_short_id: None,
                     })
                     .await
                     .unwrap_err()
@@ -585,6 +586,7 @@ mod tests {
                         remote_urls: vec![],
                         org_url_slug: String::from("org_url_slug"),
                         test_identifiers: vec![],
+                        test_collection_short_id: None,
                     })
                     .await
                     .unwrap_err()
@@ -628,6 +630,7 @@ mod tests {
                         remote_urls: vec![],
                         org_url_slug: String::from("org_url_slug"),
                         test_identifiers: vec![],
+                        test_collection_short_id: None,
                     })
                     .await
                     .unwrap_err()
@@ -709,6 +712,7 @@ mod tests {
                 org_url_slug: String::from("org_url_slug"),
                 test_identifiers: vec![],
                 remote_urls: vec![],
+                test_collection_short_id: None,
             })
             .await;
 

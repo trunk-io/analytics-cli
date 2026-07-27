@@ -204,6 +204,7 @@ pub async fn get_quarantining_config_handler(
     Json(GetQuarantineConfigResponse {
         is_disabled: false,
         quarantined_tests: Vec::new(),
+        ..Default::default()
     })
 }
 

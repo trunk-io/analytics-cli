@@ -7,7 +7,10 @@ use std::{
     time::{Duration, SystemTime},
 };
 
-use api::{client::ApiClient, message};
+use api::{
+    client::ApiClient,
+    message::{self, QuarantineResolutionMode},
+};
 use bundle::BundleMetaDebugProps;
 use bundle::Test;
 use chrono::prelude::*;
@@ -42,6 +45,8 @@ struct QuarantineConfig {
     quarantining_disabled_for_repo: bool,
     quarantine_lookup_failed: bool,
     quarantined_tests: HashMap<String, bool>,
+    #[serde(default)]
+    quarantine_resolution_mode: QuarantineResolutionMode,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -264,6 +269,18 @@ impl MutTestReport {
         }
     }
 
+    fn quarantine_resolution_mode_for_telemetry(
+        &self,
+    ) -> proto::upload_metrics::trunk::QuarantineResolutionMode {
+        self.0
+            .borrow()
+            .quarantine_config
+            .as_ref()
+            .map(|config| config.quarantine_resolution_mode)
+            .unwrap_or_default()
+            .into()
+    }
+
     fn serialize_test_report(&self) -> Vec<u8> {
         prost::Message::encode_to_vec(&self.0.borrow().test_report)
     }
@@ -421,10 +438,22 @@ impl MutTestReport {
         }
     }
 
-    fn get_quarantine_config_cache_file_path(&self, org_url_slug: &str, repo_url: &str) -> PathBuf {
+    fn get_quarantine_config_cache_file_path(
+        &self,
+        org_url_slug: &str,
+        repo_url: &str,
+        test_collection_short_id: Option<&str>,
+    ) -> PathBuf {
+        // The collection id is part of the key: quarantine status now resolves
+        // per test collection, so two runs in the same repo with different ids
+        // must not share a cache entry.
         let cache_key = Uuid::new_v5(
             &Uuid::NAMESPACE_URL,
-            format!("{org_url_slug}#{repo_url}").as_bytes(),
+            format!(
+                "{org_url_slug}#{repo_url}#{}",
+                test_collection_short_id.unwrap_or_default()
+            )
+            .as_bytes(),
         )
         .to_string();
         let quarantine_config_cache_file_name = format!("quarantine_config_{cache_key}.json");
@@ -436,8 +465,13 @@ impl MutTestReport {
         &self,
         org_url_slug: &str,
         repo_url: &str,
+        test_collection_short_id: Option<&str>,
     ) -> Option<QuarantineConfigDiskCacheEntry> {
-        let cache_path = self.get_quarantine_config_cache_file_path(org_url_slug, repo_url);
+        let cache_path = self.get_quarantine_config_cache_file_path(
+            org_url_slug,
+            repo_url,
+            test_collection_short_id,
+        );
 
         let cache_file = match fs::File::open(&cache_path) {
             Ok(file) => file,
@@ -477,9 +511,14 @@ impl MutTestReport {
         &self,
         org_url_slug: &str,
         repo_url: &str,
+        test_collection_short_id: Option<&str>,
         quarantine_config: &QuarantineConfig,
     ) {
-        let cache_path = self.get_quarantine_config_cache_file_path(org_url_slug, repo_url);
+        let cache_path = self.get_quarantine_config_cache_file_path(
+            org_url_slug,
+            repo_url,
+            test_collection_short_id,
+        );
 
         let now = match SystemTime::now().duration_since(SystemTime::UNIX_EPOCH) {
             Ok(duration) => duration.as_secs(),
@@ -525,10 +564,23 @@ impl MutTestReport {
             return;
         }
 
-        if let Some(cache_entry) =
-            self.load_quarantine_config_from_disk_cache(&org_url_slug, &repo_url)
-        {
-            self.0.borrow_mut().quarantine_config = Some(cache_entry.quarantine_config);
+        let test_collection_short_id = env::var(constants::TRUNK_TEST_COLLECTION_ID_ENV)
+            .ok()
+            .filter(|id| !id.is_empty());
+
+        if let Some(cache_entry) = self.load_quarantine_config_from_disk_cache(
+            &org_url_slug,
+            &repo_url,
+            test_collection_short_id.as_deref(),
+        ) {
+            let quarantine_config = cache_entry.quarantine_config;
+            if let Some(line) = quarantine_config
+                .quarantine_resolution_mode
+                .resolution_log_line(test_collection_short_id.as_deref(), repo)
+            {
+                tracing::info!("{line} (cached)");
+            }
+            self.0.borrow_mut().quarantine_config = Some(quarantine_config);
             self.record_quarantine_lookup_source(QuarantineLookupSource::DiskCache);
             return;
         }
@@ -539,17 +591,25 @@ impl MutTestReport {
             test_identifiers: vec![],
             remote_urls: vec![repo_url.clone()],
             repo: repo.clone(),
+            test_collection_short_id: test_collection_short_id.clone(),
         };
         let response = tokio::runtime::Builder::new_multi_thread()
             .enable_all()
             .build()
             .unwrap()
             .block_on(api_client.get_quarantining_config(&request));
+        let mut resolution_mode = QuarantineResolutionMode::Unspecified;
         let (quarantining_disabled, quarantine_lookup_failed) = match response {
             Ok(response) => {
                 let is_disabled = response.is_disabled;
                 for quarantined_test_id in response.quarantined_tests.iter() {
                     quarantined_tests.insert(quarantined_test_id.clone(), true);
+                }
+                resolution_mode = response.quarantine_resolution_mode;
+                if let Some(line) =
+                    resolution_mode.resolution_log_line(test_collection_short_id.as_deref(), repo)
+                {
+                    tracing::info!("{line}");
                 }
                 if is_disabled {
                     self.record_quarantine_lookup_source(QuarantineLookupSource::Disabled);
@@ -574,10 +634,16 @@ impl MutTestReport {
             quarantining_disabled_for_repo: quarantining_disabled,
             quarantine_lookup_failed,
             quarantined_tests: quarantined_tests.clone(),
+            quarantine_resolution_mode: resolution_mode,
         };
         self.0.borrow_mut().quarantine_config = Some(quarantine_config.clone());
         if !quarantine_lookup_failed {
-            self.save_quarantine_config_to_disk_cache(&org_url_slug, &repo_url, &quarantine_config);
+            self.save_quarantine_config_to_disk_cache(
+                &org_url_slug,
+                &repo_url,
+                test_collection_short_id.as_deref(),
+                &quarantine_config,
+            );
         }
     }
 
@@ -723,6 +789,9 @@ impl MutTestReport {
                             test_run_result: Some(test_run_result),
                             quarantine_query_result_override: Some(
                                 self.quarantine_query_result_for_telemetry(),
+                            ),
+                            quarantine_resolution_mode_override: Some(
+                                self.quarantine_resolution_mode_for_telemetry(),
                             ),
                             ..Default::default()
                         },

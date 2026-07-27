@@ -118,6 +118,7 @@ async fn quarantine_variant_impacts_quarantining() {
                 Json(GetQuarantineConfigResponse {
                     is_disabled: false,
                     quarantined_tests: vec![expected_id_v1, expected_id_v1_from_base],
+                    ..Default::default()
                 })
             },
         );
@@ -402,6 +403,7 @@ async fn quarantine_disk_cache() {
                         computed_test_id_1_clone.clone(),
                         computed_test_id_2_clone.clone(),
                     ],
+                    ..Default::default()
                 })
             },
         );
@@ -563,6 +565,7 @@ async fn quarantine_disabled_for_repo() {
                 Json(GetQuarantineConfigResponse {
                     is_disabled: true,
                     quarantined_tests: vec![],
+                    ..Default::default()
                 })
             },
         );
