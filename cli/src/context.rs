@@ -13,7 +13,7 @@ use api::{client::ApiClient, message::CreateBundleUploadResponse};
 use bundle::{
     BundleMeta, BundleMetaBaseProps, BundleMetaDebugProps, BundleMetaJunitProps, BundledFile,
     FileSet, FileSetBuilder, FileSetType, INTERNAL_BIN_FILENAME, META_VERSION,
-    QuarantineBulkTestStatus, TestCollectionProps, bin_parse,
+    QuarantineBulkTestStatus, QuarantineResolutionMode, TestCollectionProps, bin_parse,
 };
 use codeowners::{CodeOwners, OwnersSource};
 use constants::{ENVS_TO_GET, TRUNK_API_TOKEN_ENV, TRUNK_ENVS_TO_CAPTURE, TRUNK_PR_NUMBER_ENV};
@@ -194,6 +194,7 @@ pub fn gather_initial_test_context(
             os_info: Some(env::consts::OS.to_string()),
             codeowners: None,
             use_uncloned_repo: Some(upload_args.use_uncloned_repo),
+            quarantine_resolution_mode: QuarantineResolutionMode::Unspecified,
         },
         failed_tests: Vec::with_capacity(0),
         variant: upload_args.variant.as_ref().map(|v| {

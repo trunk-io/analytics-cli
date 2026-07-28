@@ -11,7 +11,9 @@ use assert_matches::assert_matches;
 use axum::body::{Body, Bytes};
 use axum::response::IntoResponse;
 use axum::{Json, extract::State, http::StatusCode, response::Response};
-use bundle::{BundleMeta, FileSetType, INTERNAL_BIN_FILENAME, TestCollectionProps};
+use bundle::{
+    BundleMeta, FileSetType, INTERNAL_BIN_FILENAME, QuarantineResolutionMode, TestCollectionProps,
+};
 use chrono::{DateTime, TimeDelta};
 use clap::Parser;
 mod common;
@@ -211,6 +213,11 @@ async fn upload_bundle() {
     assert_eq!(base_props.test_command, None);
     assert!(base_props.os_info.is_some());
     assert!(base_props.quarantined_tests.is_empty());
+    assert_eq!(
+        base_props.quarantine_resolution_mode,
+        QuarantineResolutionMode::Unspecified,
+        "a server reporting no resolution mode must land as unspecified"
+    );
     assert_eq!(bundle_meta.failed_tests.len(), failure_count);
     assert_eq!(bundle_meta.bundle_upload_id_v2, "test-bundle-upload-id-v2");
     assert_eq!(
@@ -290,6 +297,64 @@ async fn upload_bundle() {
     assert.stderr(predicate::str::contains(
         get_bundle_upload_id_message(&bundle_upload_id).as_str(),
     ));
+}
+
+// NOTE: must be multi threaded to start a mock server
+#[tokio::test(flavor = "multi_thread")]
+async fn upload_bundle_records_quarantine_resolution_mode() {
+    let temp_dir = tempdir().unwrap();
+    generate_mock_git_repo(&temp_dir);
+    generate_mock_valid_junit_xmls(&temp_dir);
+
+    let mut mock_server_builder = MockServerBuilder::new();
+    mock_server_builder.set_get_quarantining_config_handler(
+        |Json(_): Json<GetQuarantineConfigRequest>| async move {
+            Json(GetQuarantineConfigResponse {
+                is_disabled: false,
+                quarantined_tests: Vec::new(),
+                quarantine_resolution_mode: QuarantineResolutionMode::TestCollection,
+            })
+        },
+    );
+    let state = mock_server_builder.spawn_mock_server().await;
+
+    CommandBuilder::upload(temp_dir.path(), state.host.clone())
+        .command()
+        .arg("--test-collection-id")
+        .arg("tc_123")
+        .assert()
+        // the mock JUnit reports contain unquarantined failures, so the upload itself succeeds
+        // while the command exits non-zero
+        .failure();
+
+    let requests = state.requests.lock().unwrap().clone();
+    let tar_extract_directory = requests
+        .iter()
+        .find_map(|request| match request {
+            RequestPayload::S3Upload(directory) => Some(directory),
+            _ => None,
+        })
+        .expect("the bundle must have been uploaded");
+
+    let file = fs::File::open(tar_extract_directory.join("meta.json")).unwrap();
+    let bundle_meta: BundleMeta = serde_json::from_reader(BufReader::new(file)).unwrap();
+    assert_eq!(
+        bundle_meta.base_props.quarantine_resolution_mode,
+        QuarantineResolutionMode::TestCollection,
+        "the resolution mode must be persisted in meta.json"
+    );
+
+    let upload_metrics = requests
+        .iter()
+        .find_map(|request| match request {
+            RequestPayload::TelemetryUploadMetrics(metrics) => Some(metrics),
+            _ => None,
+        })
+        .expect("telemetry must have been sent");
+    assert_eq!(
+        upload_metrics.quarantine_resolution_mode,
+        i32::from(proto::upload_metrics::trunk::QuarantineResolutionMode::TestCollection)
+    );
 }
 
 // NOTE: must be multi threaded to start a mock server

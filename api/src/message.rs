@@ -1,3 +1,4 @@
+pub use bundle::QuarantineResolutionMode;
 use bundle::Test;
 use context::repo::RepoUrlParts;
 use serde::{Deserialize, Serialize};
@@ -22,59 +23,6 @@ pub struct CreateBundleUploadResponse {
     pub key: String,
     pub test_collection_bundle_meta_id: Option<String>,
     pub test_collection_bundle_meta_created_at: Option<String>,
-}
-
-/// Which source the server resolved quarantine status from.
-#[derive(Debug, Serialize, Clone, Copy, PartialEq, Eq, Default)]
-#[serde(rename_all = "snake_case")]
-pub enum QuarantineResolutionMode {
-    Repo,
-    TestCollection,
-    #[default]
-    Unspecified,
-}
-
-impl<'de> Deserialize<'de> for QuarantineResolutionMode {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        Ok(match serde_json::Value::deserialize(deserializer)?.as_str() {
-            Some("repo") => Self::Repo,
-            Some("test_collection") => Self::TestCollection,
-            _ => Self::Unspecified,
-        })
-    }
-}
-
-impl From<QuarantineResolutionMode> for proto::upload_metrics::trunk::QuarantineResolutionMode {
-    fn from(mode: QuarantineResolutionMode) -> Self {
-        match mode {
-            QuarantineResolutionMode::Repo => Self::Repo,
-            QuarantineResolutionMode::TestCollection => Self::TestCollection,
-            QuarantineResolutionMode::Unspecified => Self::Unspecified,
-        }
-    }
-}
-
-impl QuarantineResolutionMode {
-    pub fn resolution_log_line(
-        &self,
-        test_collection_id: Option<&str>,
-        repo: &RepoUrlParts,
-    ) -> Option<String> {
-        match self {
-            Self::TestCollection => Some(format!(
-                "Resolved quarantine status for test collection {}",
-                test_collection_id.unwrap_or("unknown"),
-            )),
-            Self::Repo => Some(format!(
-                "Resolved quarantine status for repo {}",
-                repo.repo_full_name()
-            )),
-            Self::Unspecified => None,
-        }
-    }
 }
 
 #[derive(Debug, Serialize, Clone, Deserialize, Default)]
