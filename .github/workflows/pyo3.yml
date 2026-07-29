@@ -138,6 +138,7 @@ jobs:
           uv pip install context-py --find-links ../dist --force-reinstall
           pytest --cov --junitxml=junit.xml
 
+      # analytics-cli-python-bindings: https://app.trunk-staging.io/trunk-staging-org/flaky-tests/collections/6E6WINjl/monitors
       - name: Upload x86_64 test results to staging
         if: "!cancelled() && startsWith(matrix.platform.target, 'x86_64')"
         run: |
@@ -150,6 +151,7 @@ jobs:
         env:
           TRUNK_PUBLIC_API_ADDRESS: https://api.trunk-staging.io
 
+      # analytics-cli-python-bindings: https://app.trunk.io/trunk/flaky-tests/collections/68IdP3pq/monitors
       - name: Upload x86_64 test results to prod
         if: "!cancelled() && startsWith(matrix.platform.target, 'x86_64') && github.event_name != 'pull_request'"
         run: |
@@ -182,6 +184,7 @@ jobs:
             uv pip install context-py --find-links ../dist --force-reinstall
             pytest --cov --junitxml=junit.xml
 
+      # analytics-cli-python-bindings: https://app.trunk-staging.io/trunk-staging-org/flaky-tests/collections/6E6WINjl/monitors
       - name: Upload aarch64 test results to staging
         if: "!cancelled() && startsWith(matrix.platform.target, 'aarch64')"
         run: |
@@ -194,6 +197,7 @@ jobs:
         env:
           TRUNK_PUBLIC_API_ADDRESS: https://api.trunk-staging.io
 
+      # analytics-cli-python-bindings: https://app.trunk.io/trunk/flaky-tests/collections/68IdP3pq/monitors
       - name: Upload aarch64 test results to prod
         if: "!cancelled() && startsWith(matrix.platform.target, 'aarch64') && github.event_name != 'pull_request'"
         run: |

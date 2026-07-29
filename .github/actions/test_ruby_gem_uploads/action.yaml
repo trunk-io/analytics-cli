@@ -137,6 +137,22 @@ runs:
         TRUNK_TEST_COLLECTION_ID: ${{ inputs.test-collection-id }}
         TRUNK_VARIANT: ${{ inputs.variant }}
 
+    # Gated on trunk-org-slug (not a dedicated input) so the prod caller never writes here.
+    # TC monitors: https://app.trunk-staging.io/trunk-staging-org/flaky-tests/collections/Gtnr7BWl/monitors
+    - name: Run regular tests (repo-wide collection)
+      id: run-regular-tests-repo-wide
+      if: inputs.alpine != 'true' && inputs.trunk-org-slug == 'trunk-staging-org'
+      shell: bash
+      working-directory: ${{ github.action_path }}
+      run: |
+        bundle exec rspec spec/test_spec.rb spec/multiple_exception_spec.rb --format documentation
+      env:
+        TRUNK_PUBLIC_API_ADDRESS: ${{ inputs.trunk-public-api-address }}
+        TRUNK_ORG_URL_SLUG: ${{ inputs.trunk-org-slug }}
+        TRUNK_API_TOKEN: ${{ inputs.trunk-token }}
+        TRUNK_TEST_COLLECTION_ID: Gtnr7BWl # analytics-cli-repo-wide (constant for this repo)
+        TRUNK_VARIANT: ${{ inputs.variant }}
+
     - name: Run gem unit suite against the built gem (rspec-trunk-flaky-tests/test)
       id: run-gem-unit-suite
       if: ${{ inputs.run-gem-unit-suite == 'true' }}
