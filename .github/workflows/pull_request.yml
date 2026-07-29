@@ -208,6 +208,22 @@ jobs:
              --test-collection-id 2tYJWMu7 \
              --variant ${{ matrix.platform.target }}
 
+      - name: Upload results to staging using built CLI (repo-wide collection)
+        env:
+          TRUNK_PUBLIC_API_ADDRESS: https://api.trunk-staging.io
+        shell: bash
+        # Skip Windows builds - can't run Windows binaries on Linux runners
+        # Windows binaries are tested in the release workflow on actual Windows runners
+        if: ${{ !contains(matrix.platform.target, 'illumos') && !contains(matrix.platform.os-name, 'windows') }}
+        run: |
+          target/${{ matrix.platform.target }}/release/trunk-analytics-cli upload \
+             --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
+             --org-url-slug trunk-staging-org \
+             --token ${{ secrets.TRUNK_STAGING_ORG_API_TOKEN }} \
+             --test-process-exit-code ${{ steps.extract.outputs.test-step-outcome }} \
+             --test-collection-id Gtnr7BWl \
+             --variant ${{ matrix.platform.target }}
+
       - name: Upload results to prod using built CLI
         shell: bash
         # Skip Windows builds - can't run Windows binaries on Linux runners

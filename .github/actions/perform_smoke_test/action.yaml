@@ -108,6 +108,19 @@ runs:
         --token ${{ inputs.staging-api-token }} \
         --test-collection-id z2dzjLHm
 
+    - name: Upload to staging (repo-wide collection)
+      id: staging-upload-repo-wide
+      if: always() && steps.staging-test-run.outcome == 'success' && (inputs.environment-type == 'staging' || inputs.environment-type == 'both')
+      env:
+        TRUNK_PUBLIC_API_ADDRESS: https://api.trunk-staging.io
+      shell: bash
+      run: |
+        ./${{ inputs.cli-binary-location }} upload \
+        --org-url-slug trunk-staging-org \
+        --junit-paths "${{ github.workspace }}/target/**/*junit.xml" \
+        --token ${{ inputs.staging-api-token }} \
+        --test-collection-id Gtnr7BWl
+
     - name: Upload to staging with public repo id
       id: staging-upload-public-repo-id
       if: always() && steps.staging-test-run.outcome == 'success' && (inputs.environment-type == 'staging' || inputs.environment-type == 'both')
@@ -155,9 +168,9 @@ runs:
       shell: bash
       run: |
         if [ "${{ inputs.test-variants }}" == "true" ]; then
-          echo "staging-success=${{ (steps.staging-upload.outcome == 'success' && steps.staging-upload-public-repo-id.outcome == 'success' && steps.staging-upload-with-variant.outcome == 'success' && (inputs.environment-type == 'staging' || inputs.environment-type == 'both')) || inputs.environment-type == 'production' }}" >> $GITHUB_OUTPUT
+          echo "staging-success=${{ (steps.staging-upload.outcome == 'success' && steps.staging-upload-repo-wide.outcome == 'success' && steps.staging-upload-public-repo-id.outcome == 'success' && steps.staging-upload-with-variant.outcome == 'success' && (inputs.environment-type == 'staging' || inputs.environment-type == 'both')) || inputs.environment-type == 'production' }}" >> $GITHUB_OUTPUT
         else
-          echo "staging-success=${{ (steps.staging-upload.outcome == 'success' && steps.staging-upload-public-repo-id.outcome == 'success' && (inputs.environment-type == 'staging' || inputs.environment-type == 'both')) || inputs.environment-type == 'production' }}" >> $GITHUB_OUTPUT
+          echo "staging-success=${{ (steps.staging-upload.outcome == 'success' && steps.staging-upload-repo-wide.outcome == 'success' && steps.staging-upload-public-repo-id.outcome == 'success' && (inputs.environment-type == 'staging' || inputs.environment-type == 'both')) || inputs.environment-type == 'production' }}" >> $GITHUB_OUTPUT
         fi
 
     - name: Run tests on production
