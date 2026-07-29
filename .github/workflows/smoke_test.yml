@@ -173,8 +173,8 @@ jobs:
           trunk-token: ${{ secrets.TRUNK_STAGING_ORG_API_TOKEN }}
           trunk-public-api-address: https://api.trunk-staging.io
           trunk-org-slug: trunk-staging-org
+          # analytics-cli-ruby-gem: https://app.trunk-staging.io/trunk-staging-org/flaky-tests/collections/T5yKSn9h/monitors
           test-collection-id: T5yKSn9h
-          repo-wide-collection-id: Gtnr7BWl
           platform: x86_64-linux
           artifact-pattern: ""
           knapsack-pro-test-suite-token-rspec: ${{ secrets.KNAPSACK_PRO_TEST_SUITE_TOKEN_RSPEC }}
@@ -200,6 +200,7 @@ jobs:
           trunk-token: ${{ secrets.TRUNK_PROD_ORG_API_TOKEN }}
           trunk-public-api-address: https://api.trunk.io
           trunk-org-slug: trunk
+          # analytics-cli-ruby-gem: https://app.trunk.io/trunk/flaky-tests/collections/BiBP2neA/monitors
           test-collection-id: BiBP2neA
           platform: x86_64-linux
           artifact-pattern: ""
