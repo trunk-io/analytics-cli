@@ -123,8 +123,6 @@ runs:
         bundle lock --remove-platform ruby || true
         bundle install --gemfile Gemfile --local
 
-    # test-collection-id is caller-supplied (staging vs prod use different collections) — see the
-    # monitor link on the test-collection-id input at each call site (smoke_test.yml/smoke_test_main.yml).
     - name: Run regular tests
       id: run-regular-tests
       if: inputs.alpine != 'true'
@@ -139,9 +137,7 @@ runs:
         TRUNK_TEST_COLLECTION_ID: ${{ inputs.test-collection-id }}
         TRUNK_VARIANT: ${{ inputs.variant }}
 
-    # This action also serves the prod caller (trunk-org-slug: trunk), which must never upload to
-    # a trunk-staging-org collection, so this step is gated on staging specifically rather than a
-    # separate opt-in input.
+    # Gated on trunk-org-slug (not a dedicated input) so the prod caller never writes here.
     # TC monitors: https://app.trunk-staging.io/trunk-staging-org/flaky-tests/collections/Gtnr7BWl/monitors
     - name: Run regular tests (repo-wide collection)
       id: run-regular-tests-repo-wide
