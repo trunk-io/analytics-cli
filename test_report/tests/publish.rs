@@ -11,8 +11,10 @@ use std::{
     thread,
 };
 
+use api::message::{GetQuarantineConfigRequest, GetQuarantineConfigResponse};
 use assert_matches::assert_matches;
-use bundle::{BundleMeta, FileSetType};
+use axum::{Json, extract::State};
+use bundle::{BundleMeta, FileSetType, Test};
 use common::{cleanup_env_vars, setup_quarantine_disk_cache_dir};
 use constants::{
     TRUNK_ALLOW_EMPTY_TEST_RESULTS_ENV, TRUNK_API_TOKEN_ENV, TRUNK_CODEOWNERS_PATH_ENV,
@@ -29,7 +31,7 @@ use serial_test::serial;
 use tempfile::tempdir;
 use test_report::report::{MutTestReport, Status};
 use test_utils::mock_git_repo::setup_repo_with_commit;
-use test_utils::mock_server::{MockServerBuilder, RequestPayload};
+use test_utils::mock_server::{MockServerBuilder, RequestPayload, SharedMockServerState};
 
 fn generate_mock_codeowners<T: AsRef<Path>>(directory: T) {
     const CODEOWNERS: &str = r#"
@@ -257,6 +259,126 @@ async fn publish_uploads_test_report() {
         })
     );
     assert_eq!(test_case_run.codeowners.len(), 2);
+}
+
+// Covers the Ruby gem's dry-run path (`TRUNK_DRY_RUN=true bundle exec rspec`): a failing
+// test marked for quarantine is still quarantined at runtime via `is_quarantined`, and
+// `publish` succeeds without uploading anything, writing the bundle locally instead.
+#[tokio::test(flavor = "multi_thread")]
+#[serial]
+async fn publish_dry_run_quarantines_without_upload() {
+    cleanup_env_vars();
+    let temp_dir = tempdir().unwrap();
+    setup_quarantine_disk_cache_dir(&temp_dir);
+    let repo_setup_res = setup_repo_with_commit(&temp_dir);
+    generate_mock_codeowners(&temp_dir);
+    assert!(repo_setup_res.is_ok());
+    let set_current_dir_res = env::set_current_dir(&temp_dir);
+    assert!(set_current_dir_res.is_ok());
+
+    // The quarantine config endpoint returns hashed test IDs, so precompute the ID that
+    // `is_quarantined` will derive for our failing test.
+    let repo = RepoUrlParts {
+        host: "github.com".into(),
+        owner: "trunk-io".into(),
+        name: "analytics-cli".into(),
+    };
+    let quarantined_test_id = Test::new(
+        Some("1".to_string()),
+        "test-name".to_string(),
+        "test-parent-name".to_string(),
+        Some("test-classname".to_string()),
+        Some("test-file".to_string()),
+        "test-org".to_string(),
+        &repo,
+        None,
+        "".to_string(),
+    )
+    .id;
+
+    let mut mock_server_builder = MockServerBuilder::new();
+    mock_server_builder.set_get_quarantining_config_handler(
+        move |State(state): State<SharedMockServerState>,
+              Json(request): Json<GetQuarantineConfigRequest>| {
+            let quarantined_test_id = quarantined_test_id.clone();
+            async move {
+                state
+                    .requests
+                    .lock()
+                    .unwrap()
+                    .push(RequestPayload::GetQuarantineConfig(request));
+                Json(GetQuarantineConfigResponse {
+                    is_disabled: false,
+                    quarantined_tests: vec![quarantined_test_id],
+                    ..Default::default()
+                })
+            }
+        },
+    );
+    let state = mock_server_builder.spawn_mock_server().await;
+
+    unsafe {
+        env::set_var(TRUNK_PUBLIC_API_ADDRESS_ENV, &state.host);
+        env::set_var("CI", "1");
+        env::set_var("GITHUB_JOB", "test-job");
+        env::set_var(TRUNK_API_TOKEN_ENV, "test-token");
+        env::set_var(TRUNK_ORG_URL_SLUG_ENV, "test-org");
+        env::set_var(TRUNK_QUARANTINED_TESTS_DISK_CACHE_TTL_SECS_ENV, "0");
+        env::set_var(TRUNK_DRY_RUN_ENV, "true");
+    }
+
+    let thread_join_handle = thread::spawn(|| {
+        let test_report = MutTestReport::new("test".into(), "test-command 123".into(), None);
+        // Mirrors the RSpec plugin: a failing example is checked for quarantine at
+        // runtime, then recorded in the report with the result.
+        let is_quarantined_result = test_report.is_quarantined(
+            Some("1".into()),
+            Some("test-name".into()),
+            Some("test-parent-name".into()),
+            Some("test-classname".into()),
+            Some("test-file".into()),
+        );
+        assert!(
+            !is_quarantined_result.quarantine_lookup_failed,
+            "quarantine lookup should succeed in dry-run mode"
+        );
+        assert!(
+            is_quarantined_result.test_is_quarantined,
+            "failing test marked for quarantine should be quarantined in dry-run mode"
+        );
+        test_report.add_test(
+            Some("1".into()),
+            "test-name".into(),
+            "test-classname".into(),
+            "test-file".into(),
+            "test-parent-name".into(),
+            None,
+            Status::Failure,
+            0,
+            1000,
+            1001,
+            "test-message".into(),
+            "test-backtrace".into(),
+            true,
+        );
+        let result = test_report.publish();
+        assert!(result, "publish should succeed in dry-run mode");
+    });
+    thread_join_handle.join().unwrap();
+
+    // The quarantine query is the only request made — no bundle upload, no S3 upload,
+    // and no telemetry.
+    let requests = state.requests.lock().unwrap().clone();
+    assert_eq!(requests.len(), 1);
+    assert_matches!(&requests[0], RequestPayload::GetQuarantineConfig(..));
+
+    // The bundle is written locally instead of uploaded, with the quarantined test recorded.
+    let meta_json =
+        fs::File::open(temp_dir.path().join("bundle_upload").join("meta.json")).unwrap();
+    let bundle_meta: BundleMeta = serde_json::from_reader(BufReader::new(meta_json)).unwrap();
+    let base_props = bundle_meta.base_props;
+    assert_eq!(base_props.quarantined_tests.len(), 1);
+    assert_eq!(base_props.quarantined_tests[0].id, "1");
 }
 
 #[test]
