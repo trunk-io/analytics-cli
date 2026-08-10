@@ -792,6 +792,78 @@ async fn upload_bundle_using_dry_run() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn dry_run_quarantines_failing_test_without_uploading() {
+    let temp_dir = tempdir().unwrap();
+    generate_mock_git_repo(&temp_dir);
+
+    let junit_location = temp_dir.path().join("junit.xml");
+    let mut junit_file = fs::File::create(junit_location).unwrap();
+    write!(junit_file, r#"
+        <?xml version="1.0" encoding="UTF-8" ?>
+        <testsuites name="vitest tests" tests="1" failures="1" errors="0" time="1.128069555">
+            <testsuite name="src/constants/products-parser-server.test.ts" timestamp="2025-05-27T15:31:07.510Z" hostname="christian-cloudtop" tests="1" failures="1" errors="0" skipped="0" time="0.007118101">
+                <testcase classname="src/constants/products-parser-server.test.ts" name="Product Parsers &gt; Server-side parsers &gt; has parsers for all products" time="0.001408508">
+                    <failure>
+                        Test failed
+                    </failure>
+                </testcase>
+            </testsuite>
+        </testsuites>
+    "#).unwrap();
+
+    let mut mock_server_builder = MockServerBuilder::new();
+    #[axum::debug_handler]
+    async fn quarantine_all_handler(
+        State(state): State<SharedMockServerState>,
+        Json(request): Json<GetQuarantineConfigRequest>,
+    ) -> Json<GetQuarantineConfigResponse> {
+        let quarantined_tests = request
+            .test_identifiers
+            .iter()
+            .map(|t| t.id.clone())
+            .collect();
+        state
+            .requests
+            .lock()
+            .unwrap()
+            .push(RequestPayload::GetQuarantineConfig(request));
+        Json(GetQuarantineConfigResponse {
+            is_disabled: false,
+            quarantined_tests,
+            ..Default::default()
+        })
+    }
+    mock_server_builder.set_get_quarantining_config_handler(quarantine_all_handler);
+    let state = mock_server_builder.spawn_mock_server().await;
+
+    let assert = CommandBuilder::upload(temp_dir.path(), state.host.clone())
+        .junit_paths("junit.xml")
+        .dry_run(true)
+        .disable_quarantining(false)
+        .command()
+        .assert()
+        .success();
+
+    // The quarantine check still runs under dry run — the failing test is quarantined,
+    // overriding the exit code to 0 — but no upload or telemetry requests are made.
+    let requests = state.requests.lock().unwrap().clone();
+    assert_eq!(requests.len(), 1);
+    assert_matches!(requests[0], RequestPayload::GetQuarantineConfig(..));
+
+    let output_dir = temp_dir.path().join(DRY_RUN_OUTPUT_DIR);
+    let meta_json = fs::File::open(output_dir.join("meta.json")).unwrap();
+    let bundle_meta: BundleMeta = serde_json::from_reader(meta_json).unwrap();
+    assert_eq!(bundle_meta.base_props.quarantined_tests.len(), 1);
+    assert_eq!(
+        bundle_meta.base_props.quarantined_tests[0].name,
+        "Product Parsers > Server-side parsers > has parsers for all products"
+    );
+
+    // HINT: View CLI output with `cargo test -- --nocapture`
+    println!("{assert}");
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn upload_bundle_success_status_code() {
     let temp_dir = tempdir().unwrap();
     generate_mock_git_repo(&temp_dir);
