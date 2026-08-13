@@ -5,7 +5,7 @@ use std::{fs, io::BufReader};
 
 use api::message::{
     CreateBundleUploadRequest, CreateBundleUploadResponse, GetQuarantineConfigRequest,
-    GetQuarantineConfigResponse,
+    GetQuarantineConfigResponse, TestCollectionMigrationState,
 };
 use assert_matches::assert_matches;
 use axum::body::{Body, Bytes};
@@ -14,7 +14,7 @@ use axum::{Json, extract::State, http::StatusCode, response::Response};
 use bundle::{
     BundleMeta, FileSetType, INTERNAL_BIN_FILENAME, QuarantineResolutionMode, TestCollectionProps,
 };
-use chrono::{DateTime, TimeDelta};
+use chrono::{DateTime, TimeDelta, Utc};
 use clap::Parser;
 mod common;
 
@@ -23,7 +23,7 @@ use common::command_builder::CommandBuilder;
 use common::utils::{
     generate_mock_bazel_bep, generate_mock_bazel_bep_no_file_attrs, generate_mock_codeowners,
     generate_mock_git_repo, generate_mock_invalid_junit_xmls, generate_mock_valid_junit_xmls,
-    generate_mock_valid_junit_xmls_with_failures,
+    generate_mock_valid_junit_xmls_with_failures, write_junit_xml_to_dir,
 };
 use constants::EXIT_FAILURE;
 use context::{
@@ -299,12 +299,32 @@ async fn upload_bundle() {
     ));
 }
 
+/// The v5 UUID the CLI derives for `failing-test` in [`write_fixed_failing_junit_xml`]'s report.
+const FIXED_FAILING_TEST_ID: &str = "327b018d-d7bb-51f9-9f85-bdca020cc810";
+
+fn write_fixed_failing_junit_xml<T: AsRef<std::path::Path>>(directory: T) {
+    let timestamp = (Utc::now() - TimeDelta::minutes(1)).to_rfc3339();
+    write_junit_xml_to_dir(
+        &format!(
+            r#"<?xml version="1.0" encoding="UTF-8"?>
+<testsuites>
+  <testsuite name="basic-suite" tests="1" failures="1" errors="0" timestamp="{timestamp}">
+    <testcase name="failing-test" classname="MyClass" file="src/lib.rs" time="1.0">
+      <failure message="assertion failed"/>
+    </testcase>
+  </testsuite>
+</testsuites>"#
+        ),
+        directory,
+    );
+}
+
 // NOTE: must be multi threaded to start a mock server
 #[tokio::test(flavor = "multi_thread")]
 async fn upload_bundle_records_quarantine_resolution_mode() {
     let temp_dir = tempdir().unwrap();
     generate_mock_git_repo(&temp_dir);
-    generate_mock_valid_junit_xmls(&temp_dir);
+    write_fixed_failing_junit_xml(&temp_dir);
 
     let mut mock_server_builder = MockServerBuilder::new();
     mock_server_builder.set_get_quarantining_config_handler(
@@ -313,6 +333,7 @@ async fn upload_bundle_records_quarantine_resolution_mode() {
                 is_disabled: false,
                 quarantined_tests: Vec::new(),
                 quarantine_resolution_mode: QuarantineResolutionMode::TestCollection,
+                repo_id: Some(String::from("6b7e8c9d-1a2b-4c3d-8e5f-9a0b1c2d3e4f")),
             })
         },
     );
@@ -323,9 +344,13 @@ async fn upload_bundle_records_quarantine_resolution_mode() {
         .arg("--test-collection-id")
         .arg("tc_123")
         .assert()
-        // the mock JUnit reports contain unquarantined failures, so the upload itself succeeds
+        // the JUnit report contains an unquarantined failure, so the upload itself succeeds
         // while the command exits non-zero
-        .failure();
+        .failure()
+        .stderr(predicate::str::contains(format!(
+            "{}/test-org/flaky-tests/collections/tc_123/tests/6b7e8c9d-1a2b-4c3d-8e5f-9a0b1c2d3e4f_{FIXED_FAILING_TEST_ID}",
+            state.host
+        )));
 
     let requests = state.requests.lock().unwrap().clone();
     let tar_extract_directory = requests
@@ -355,6 +380,54 @@ async fn upload_bundle_records_quarantine_resolution_mode() {
         upload_metrics.quarantine_resolution_mode,
         i32::from(proto::upload_metrics::trunk::QuarantineResolutionMode::TestCollection)
     );
+    assert_eq!(
+        upload_metrics.test_collection_migration_state,
+        i32::from(proto::upload_metrics::trunk::TestCollectionMigrationState::TestCollection)
+    );
+}
+
+// NOTE: must be multi threaded to start a mock server
+#[tokio::test(flavor = "multi_thread")]
+async fn upload_falls_back_to_legacy_test_links_without_repo_id() {
+    let temp_dir = tempdir().unwrap();
+    generate_mock_git_repo(&temp_dir);
+    write_fixed_failing_junit_xml(&temp_dir);
+
+    let mut mock_server_builder = MockServerBuilder::new();
+    mock_server_builder.set_create_bundle_handler(
+        |State(state): State<SharedMockServerState>,
+         Json(_): Json<CreateBundleUploadRequest>| async move {
+            let host = &state.host;
+            Ok::<Json<CreateBundleUploadResponse>, String>(Json(CreateBundleUploadResponse {
+                id: String::from("test-bundle-upload-id"),
+                id_v2: String::from("test-bundle-upload-id-v2"),
+                url: format!("{host}/s3upload"),
+                key: String::from("unused"),
+                test_collection_bundle_meta_id: Some(String::from(
+                    "82c6a6e5-f8ea-4d93-9a26-b8ab6ff8f6bc",
+                )),
+                test_collection_bundle_meta_created_at: Some(String::from(
+                    "2026-05-10T12:34:56.000Z",
+                )),
+                repo_id: None,
+                test_collection_migration_state: TestCollectionMigrationState::TestCollection,
+            }))
+        },
+    );
+    let state = mock_server_builder.spawn_mock_server().await;
+
+    CommandBuilder::upload(temp_dir.path(), state.host.clone())
+        .command()
+        .arg("--test-collection-id")
+        .arg("tc_123")
+        .assert()
+        .failure()
+        // collection mode without a repo UUID must fall back to the legacy repo-name link
+        .stderr(predicate::str::contains(format!(
+            "{}/test-org/flaky-tests/test/{FIXED_FAILING_TEST_ID}?repo=trunk-io%2Fanalytics-cli",
+            state.host
+        )))
+        .stderr(predicate::str::contains("/flaky-tests/collections/").not());
 }
 
 // NOTE: must be multi threaded to start a mock server
@@ -628,6 +701,8 @@ async fn upload_bundle_without_canonical_test_collection_metadata_keeps_bundle_g
                 key: String::from("unused"),
                 test_collection_bundle_meta_id: None,
                 test_collection_bundle_meta_created_at: None,
+                repo_id: None,
+                test_collection_migration_state: TestCollectionMigrationState::Repo,
             }))
         },
     );
@@ -1472,6 +1547,8 @@ async fn quarantines_tests_regardless_of_upload() {
                     test_collection_bundle_meta_created_at: Some(String::from(
                         "2026-05-10T12:34:56.000Z",
                     )),
+                    repo_id: Some(String::from("6b7e8c9d-1a2b-4c3d-8e5f-9a0b1c2d3e4f")),
+                    test_collection_migration_state: TestCollectionMigrationState::TestCollection,
                 })
                 .into_response()
             }
@@ -2211,6 +2288,9 @@ async fn do_not_quarantines_tests_when_quarantine_disabled_set() {
                         test_collection_bundle_meta_created_at: Some(String::from(
                             "2026-05-10T12:34:56.000Z",
                         )),
+                        repo_id: Some(String::from("6b7e8c9d-1a2b-4c3d-8e5f-9a0b1c2d3e4f")),
+                        test_collection_migration_state:
+                            TestCollectionMigrationState::TestCollection,
                     }))
                 }
             };

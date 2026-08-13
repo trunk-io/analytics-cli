@@ -804,6 +804,7 @@ pub async fn gather_exit_code_and_quarantined_tests_context(
                 org_url_slug: String::default(),
                 fetch_status: QuarantineFetchStatus::FetchSkipped,
                 quarantine_resolution_mode: api::message::QuarantineResolutionMode::Unspecified,
+                collection_url_parts: None,
             }
         } else {
             // default to success if no test run result (i.e. `upload`)

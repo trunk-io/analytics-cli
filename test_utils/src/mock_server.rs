@@ -8,7 +8,7 @@ use std::{
 
 use api::message::{
     CreateBundleUploadRequest, CreateBundleUploadResponse, GetQuarantineConfigRequest,
-    GetQuarantineConfigResponse,
+    GetQuarantineConfigResponse, TestCollectionMigrationState,
 };
 use axum::{
     Json, Router,
@@ -180,6 +180,8 @@ pub async fn create_bundle_handler(
         key: String::from("unused"),
         test_collection_bundle_meta_id: Some(String::from("82c6a6e5-f8ea-4d93-9a26-b8ab6ff8f6bc")),
         test_collection_bundle_meta_created_at: Some(String::from("2026-05-10T12:34:56.000Z")),
+        repo_id: Some(String::from("6b7e8c9d-1a2b-4c3d-8e5f-9a0b1c2d3e4f")),
+        test_collection_migration_state: TestCollectionMigrationState::TestCollection,
     })
 }
 

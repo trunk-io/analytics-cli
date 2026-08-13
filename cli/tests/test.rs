@@ -5,7 +5,7 @@ use std::{
 
 use api::message::{
     CreateBundleUploadRequest, CreateBundleUploadResponse, GetQuarantineConfigRequest,
-    GetQuarantineConfigResponse,
+    GetQuarantineConfigResponse, TestCollectionMigrationState,
 };
 use assert_matches::assert_matches;
 use axum::{Json, extract::State};
@@ -308,6 +308,9 @@ async fn quarantining_resets_fail_code() {
                     test_collection_bundle_meta_created_at: Some(String::from(
                         "2026-05-10T12:34:56.000Z",
                     )),
+                    repo_id: Some(String::from("6b7e8c9d-1a2b-4c3d-8e5f-9a0b1c2d3e4f")),
+                    test_collection_migration_state:
+                        TestCollectionMigrationState::TestCollection,
                 }))
             }
         },
@@ -369,6 +372,9 @@ async fn quarantining_not_active_when_disable_quarantining_set() {
                     test_collection_bundle_meta_created_at: Some(String::from(
                         "2026-05-10T12:34:56.000Z",
                     )),
+                    repo_id: Some(String::from("6b7e8c9d-1a2b-4c3d-8e5f-9a0b1c2d3e4f")),
+                    test_collection_migration_state:
+                        TestCollectionMigrationState::TestCollection,
                 }))
             }
         },
@@ -431,6 +437,9 @@ async fn quarantining_not_active_when_disable_true_but_use_true() {
                     test_collection_bundle_meta_created_at: Some(String::from(
                         "2026-05-10T12:34:56.000Z",
                     )),
+                    repo_id: Some(String::from("6b7e8c9d-1a2b-4c3d-8e5f-9a0b1c2d3e4f")),
+                    test_collection_migration_state:
+                        TestCollectionMigrationState::TestCollection,
                 }))
             }
         },

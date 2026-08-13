@@ -4,7 +4,11 @@ use std::path::PathBuf;
 use std::sync::mpsc::Sender;
 
 use api::client::{ApiClient, ApiErrorEndpoint};
-use api::{client::get_api_host, urls::url_for_test_case};
+use api::{
+    client::get_api_host,
+    message::TestCollectionMigrationState,
+    urls::{CollectionUrlParts, url_for_test_case},
+};
 use bundle::{BundleMeta, BundlerUtil, QuarantineResolutionMode, Test, unzip_tarball};
 use clap::{ArgAction, Args};
 use codeowners::OwnersSource;
@@ -372,6 +376,8 @@ pub struct UploadRunResult {
     pub validations: JunitReportValidations,
     pub validation_report: ValidationReport,
     pub show_failure_messages: bool,
+    /// Present when the upload's `test_collection_migration_state` is `test_collection` and the repo UUID is known.
+    pub collection_url_parts: Option<CollectionUrlParts>,
 }
 
 pub struct RunUploadOptions {
@@ -573,6 +579,11 @@ pub async fn run_upload(
     .await;
     let quarantine_query_result = quarantine_query_result_override
         .unwrap_or_else(|| quarantine_query_result(disable_quarantining, &quarantine_context));
+    let test_collection_migration_state = upload_bundle_result
+        .as_ref()
+        .ok()
+        .map(|output| output.test_collection_migration_state)
+        .unwrap_or_default();
     let upload_metrics = proto::upload_metrics::trunk::UploadMetrics {
         client_version: Some(proto::upload_metrics::trunk::Semver {
             major: env!("CARGO_PKG_VERSION_MAJOR").parse().unwrap_or_default(),
@@ -595,6 +606,11 @@ pub async fn run_upload(
             quarantine_resolution_mode,
         )
         .into(),
+        test_collection_migration_state:
+            proto::upload_metrics::trunk::TestCollectionMigrationState::from(
+                test_collection_migration_state,
+            )
+            .into(),
     };
     let mut request = api::message::TelemetryUploadMetricsRequest { upload_metrics };
     if !upload_args.dry_run {
@@ -619,12 +635,16 @@ pub async fn run_upload(
     if upload_bundle_result.is_err() {
         tracing::error!("Failed to upload bundle");
     }
+    let collection_url_parts = upload_bundle_result
+        .as_ref()
+        .ok()
+        .and_then(|output| output.collection_url_parts.clone());
     let error_report = match upload_bundle_result {
-        Ok(upload_bundle_result) => {
+        Ok(upload_bundle_output) => {
             if upload_args.dry_run {
                 let curr_dir = env::current_dir()?;
                 let bundle_file = curr_dir.join(DRY_RUN_OUTPUT_DIR);
-                unzip_tarball(&upload_bundle_result.0, &bundle_file)?;
+                unzip_tarball(&upload_bundle_output.bundle_temp_file, &bundle_file)?;
             }
             None
         }
@@ -641,7 +661,17 @@ pub async fn run_upload(
         validations,
         validation_report: upload_args.validation_report,
         show_failure_messages: upload_args.show_failure_messages,
+        collection_url_parts,
     })
+}
+
+#[derive(Debug)]
+struct UploadBundleOutput {
+    bundle_temp_file: PathBuf,
+    /// Held so the temp dir isn't removed until the bundle is no longer needed.
+    _bundle_temp_dir: TempDir,
+    collection_url_parts: Option<CollectionUrlParts>,
+    test_collection_migration_state: TestCollectionMigrationState,
 }
 
 async fn upload_bundle(
@@ -651,25 +681,27 @@ async fn upload_bundle(
     bep_result: Option<BepParseResult>,
     exit_code: i32,
     dry_run: bool,
-) -> anyhow::Result<(PathBuf, TempDir)> {
+) -> anyhow::Result<UploadBundleOutput> {
     let upload_result = gather_upload_id_context(
         meta,
-        requested_test_collection_short_id,
+        requested_test_collection_short_id.clone(),
         api_client,
         dry_run,
     )
     .await;
 
-    let (
-        bundle_temp_file,
-        // directory is removed on drop
-        bundle_temp_dir,
-    ) = BundlerUtil::new(meta, bep_result).make_tarball_in_temp_dir()?;
+    let (bundle_temp_file, bundle_temp_dir) =
+        BundlerUtil::new(meta, bep_result).make_tarball_in_temp_dir()?;
     tracing::info!("Flushed temporary tarball to {:?}", bundle_temp_file);
 
     if dry_run {
         tracing::info!("Dry run enabled, not uploading bundle to S3");
-        return Ok((bundle_temp_file, bundle_temp_dir));
+        return Ok(UploadBundleOutput {
+            bundle_temp_file,
+            _bundle_temp_dir: bundle_temp_dir,
+            collection_url_parts: None,
+            test_collection_migration_state: TestCollectionMigrationState::Unspecified,
+        });
     }
 
     match upload_result {
@@ -686,7 +718,23 @@ async fn upload_bundle(
                 );
             }
 
-            Ok((bundle_temp_file, bundle_temp_dir))
+            // `test_collection_migration_state ?? repo` picks the link format; without `repo_id` stay legacy.
+            let collection_url_parts = if upload.test_collection_migration_state
+                == TestCollectionMigrationState::TestCollection
+            {
+                requested_test_collection_short_id
+                    .zip(upload.repo_id)
+                    .map(|(short_id, repo_id)| CollectionUrlParts { short_id, repo_id })
+            } else {
+                None
+            };
+
+            Ok(UploadBundleOutput {
+                bundle_temp_file,
+                _bundle_temp_dir: bundle_temp_dir,
+                collection_url_parts,
+                test_collection_migration_state: upload.test_collection_migration_state,
+            })
         }
         Err(e) => {
             tracing::error!("Failed to gather upload ID: {}", e);
@@ -818,6 +866,7 @@ impl EndOutput for UploadRunResult {
                         &self.quarantine_context.org_url_slug,
                         &self.quarantine_context.repo,
                         test,
+                        self.collection_url_parts.as_ref(),
                     )?;
                     let mut link_output = Line::from_iter([
                         Span::new_unstyled("⤷ ")?,

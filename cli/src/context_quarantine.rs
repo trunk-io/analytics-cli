@@ -3,7 +3,11 @@ use std::{
     io::{BufReader, Read},
 };
 
-use api::{client::ApiClient, message::QuarantineResolutionMode, urls::url_for_test_case};
+use api::{
+    client::ApiClient,
+    message::QuarantineResolutionMode,
+    urls::{CollectionUrlParts, url_for_test_case},
+};
 use bundle::{
     FileSet, FileSetBuilder, FileSetTestRunnerReport, FileSetType, QuarantineBulkTestStatus, Test,
 };
@@ -48,6 +52,8 @@ pub struct QuarantineContext {
     pub org_url_slug: String,
     pub fetch_status: QuarantineFetchStatus,
     pub quarantine_resolution_mode: QuarantineResolutionMode,
+    /// Present when the server resolved quarantining via a test collection and returned the repo UUID.
+    pub collection_url_parts: Option<CollectionUrlParts>,
 }
 impl QuarantineContext {
     pub fn skip_fetch(failures: Vec<Test>) -> Self {
@@ -59,6 +65,7 @@ impl QuarantineContext {
             org_url_slug: String::default(),
             fetch_status: QuarantineFetchStatus::FetchSkipped,
             quarantine_resolution_mode: QuarantineResolutionMode::Unspecified,
+            collection_url_parts: None,
         }
     }
 
@@ -71,6 +78,7 @@ impl QuarantineContext {
             org_url_slug: String::default(),
             fetch_status: QuarantineFetchStatus::FetchFailed(error),
             quarantine_resolution_mode: QuarantineResolutionMode::Unspecified,
+            collection_url_parts: None,
         }
     }
 }
@@ -326,40 +334,56 @@ pub async fn gather_quarantine_context(
             failures: Vec::default(),
             fetch_status: QuarantineFetchStatus::FetchSkipped,
             quarantine_resolution_mode: QuarantineResolutionMode::Unspecified,
+            collection_url_parts: None,
         });
     }
 
-    let (quarantine_config, quarantine_fetch_status) = if !failed_tests_extractor
-        .failed_tests()
-        .is_empty()
-        && file_set_builder
-            .file_sets()
-            .iter()
-            // internal files track quarantine status directly, so we don't need to check them
-            .any(|file_set| file_set.file_set_type == FileSetType::Junit)
-    {
-        tracing::info!("Checking if failed tests can be quarantined");
-        match api_client.get_quarantining_config(request).await {
-            anyhow::Result::Ok(response) => {
-                if let Some(line) = response.quarantine_resolution_mode.resolution_log_line(
-                    request.test_collection_short_id.as_deref(),
-                    &request.repo,
-                ) {
-                    tracing::info!("{line}");
+    let (quarantine_config, quarantine_fetch_status) =
+        if !failed_tests_extractor.failed_tests().is_empty()
+            && file_set_builder
+                .file_sets()
+                .iter()
+                // internal files track quarantine status directly, so we don't need to check them
+                .any(|file_set| file_set.file_set_type == FileSetType::Junit)
+        {
+            tracing::info!("Checking if failed tests can be quarantined");
+            match api_client.get_quarantining_config(request).await {
+                anyhow::Result::Ok(response) => {
+                    if let Some(line) = response.quarantine_resolution_mode.resolution_log_line(
+                        request.test_collection_short_id.as_deref(),
+                        &request.repo,
+                    ) {
+                        tracing::info!("{line}");
+                    }
+                    (Some(response), QuarantineFetchStatus::FetchSucceeded)
                 }
-                (Some(response), QuarantineFetchStatus::FetchSucceeded)
+                anyhow::Result::Err(error) => (None, QuarantineFetchStatus::FetchFailed(error)),
             }
-            anyhow::Result::Err(error) => (None, QuarantineFetchStatus::FetchFailed(error)),
-        }
-    } else {
-        tracing::debug!("Skipping quarantine check.");
-        (None, QuarantineFetchStatus::FetchSkipped)
-    };
+        } else {
+            tracing::debug!("Skipping quarantine check.");
+            (None, QuarantineFetchStatus::FetchSkipped)
+        };
 
     let quarantine_resolution_mode = quarantine_config
         .as_ref()
         .map(|config| config.quarantine_resolution_mode)
         .unwrap_or_default();
+
+    // Collection links need both server confirmation and the repo UUID; otherwise stay legacy.
+    let collection_url_parts =
+        if quarantine_resolution_mode == QuarantineResolutionMode::TestCollection {
+            request
+                .test_collection_short_id
+                .clone()
+                .zip(
+                    quarantine_config
+                        .as_ref()
+                        .and_then(|config| config.repo_id.clone()),
+                )
+                .map(|(short_id, repo_id)| CollectionUrlParts { short_id, repo_id })
+        } else {
+            None
+        };
 
     // if quarantining is not enabled, return exit code and empty quarantine status
     if quarantine_config
@@ -379,6 +403,7 @@ pub async fn gather_quarantine_context(
             org_url_slug: request.org_url_slug.clone(),
             fetch_status: quarantine_fetch_status,
             quarantine_resolution_mode,
+            collection_url_parts,
         });
     } else {
         // quarantining is enabled, continue with quarantine process and update exit code
@@ -413,9 +438,14 @@ pub async fn gather_quarantine_context(
             quarantined_failures.len(),
             pluralize("failure", quarantined_failures.len() as isize, false),
         );
-        quarantined_failures
-            .iter()
-            .for_each(|quarantined_failure| log_failure(quarantined_failure, request, api_client));
+        quarantined_failures.iter().for_each(|quarantined_failure| {
+            log_failure(
+                quarantined_failure,
+                request,
+                api_client,
+                collection_url_parts.as_ref(),
+            )
+        });
     }
 
     if !failures.is_empty() {
@@ -424,9 +454,9 @@ pub async fn gather_quarantine_context(
             failures.len(),
             pluralize("failure", quarantined_failures.len() as isize, false),
         );
-        failures
-            .iter()
-            .for_each(|failure| log_failure(failure, request, api_client));
+        failures.iter().for_each(|failure| {
+            log_failure(failure, request, api_client, collection_url_parts.as_ref())
+        });
     }
     let quarantined_failure_count = quarantined_failures.len();
     quarantine_results.quarantine_results = quarantined_failures;
@@ -466,6 +496,7 @@ pub async fn gather_quarantine_context(
         org_url_slug: request.org_url_slug.clone(),
         fetch_status: quarantine_fetch_status,
         quarantine_resolution_mode,
+        collection_url_parts,
     })
 }
 
@@ -473,12 +504,14 @@ fn log_failure(
     failure: &Test,
     request: &api::message::GetQuarantineConfigRequest,
     api_client: &ApiClient,
+    collection_url_parts: Option<&CollectionUrlParts>,
 ) {
     let url = match url_for_test_case(
         &api_client.api_host,
         &request.org_url_slug,
         &request.repo,
         failure,
+        collection_url_parts,
     ) {
         Ok(url) => format!("Learn more > {}", url),
         Err(_) => String::from(""),
@@ -680,6 +713,7 @@ mod tests {
             org_url_slug: String::new(),
             fetch_status: QuarantineFetchStatus::FetchSucceeded,
             quarantine_resolution_mode: QuarantineResolutionMode::Unspecified,
+            collection_url_parts: None,
         };
         assert_eq!(
             quarantine_query_result(false, &success_ctx),
@@ -710,6 +744,7 @@ mod tests {
             repo: RepoUrlParts::default(),
             org_url_slug: String::new(),
             quarantine_resolution_mode: QuarantineResolutionMode::Unspecified,
+            collection_url_parts: None,
         };
         assert_eq!(
             quarantine_query_result(false, &repo_disabled_ctx),
