@@ -23,8 +23,20 @@ pub struct XCResultTestLegacy {
     pub file: Option<String>,
 }
 
+// Directory segments that mark vendored dependency sources rather than the repo's
+// own code: SPM's build dir (Tuist vendors into `<repo>/Tuist/.build/checkouts`),
+// SPM checkouts under Xcode's `DerivedData/SourcePackages/checkouts`, and anything
+// else Xcode generates under DerivedData. A failure raised inside one of these is
+// attributed to the dependency, not to the test that called it.
+const DEPENDENCY_PATH_SEGMENTS: [&str; 3] = ["/.build/", "/checkouts/", "/DerivedData/"];
+
 impl XCResultTestLegacy {
-    fn find_file_in_test_summary(failure_summary_id: &str, path: &OsStr) -> Option<String> {
+    fn find_file_in_test_summary(
+        failure_summary_id: &str,
+        path: &OsStr,
+        test_suite_name: Option<&str>,
+        test_case_name: &str,
+    ) -> Option<String> {
         let summary = xcresulttool_get_object_id(path, failure_summary_id);
         summary.ok().and_then(|summary| {
             summary
@@ -34,14 +46,37 @@ impl XCResultTestLegacy {
                     // grab the first failure summary if there are multiple
                     failure_summaries.values.first()
                 })
-                .and_then(Self::find_file_in_failure_summary)
+                .and_then(|failure_summary| {
+                    Self::find_file_in_failure_summary(
+                        failure_summary,
+                        test_suite_name,
+                        test_case_name,
+                    )
+                })
         })
     }
 
     fn find_file_in_failure_summary(
         failure_summary: &legacy_schema::ActionTestFailureSummary,
+        test_suite_name: Option<&str>,
+        test_case_name: &str,
     ) -> Option<String> {
-        Self::normalize_file_path(failure_summary.file_name.as_ref().map(|file| &file.value))
+        // The test's own frame is the only positive identification of its file. The
+        // remaining sources are the site the failure was *raised* from, which for a
+        // snapshot/mock/page-object helper is inside the dependency, so they are
+        // taken only after the dependency paths are excluded.
+        failure_summary
+            .source_code_context
+            .as_ref()
+            .and_then(|source_code_context| {
+                Self::find_file_in_test_frame(source_code_context, test_suite_name, test_case_name)
+            })
+            .or_else(|| {
+                Self::normalize_file_path(
+                    failure_summary.file_name.as_ref().map(|file| &file.value),
+                )
+                .filter(|file_path| !Self::is_dependency_path(file_path))
+            })
             .or_else(|| {
                 Self::normalize_file_path(
                     failure_summary
@@ -51,6 +86,7 @@ impl XCResultTestLegacy {
                         .and_then(|location| location.file_path.as_ref())
                         .map(|file_path| &file_path.value),
                 )
+                .filter(|file_path| !Self::is_dependency_path(file_path))
             })
             .or_else(|| {
                 failure_summary
@@ -58,6 +94,66 @@ impl XCResultTestLegacy {
                     .as_ref()
                     .and_then(Self::find_file_in_source_code_context_call_stack)
             })
+    }
+
+    // Call-stack frames run innermost first, so the test's own frame sits in the
+    // middle of the stack — helpers it called below it, the framework that invoked
+    // it above. It is found by symbol, not position.
+    fn find_file_in_test_frame(
+        source_code_context: &legacy_schema::SourceCodeContext,
+        test_suite_name: Option<&str>,
+        test_case_name: &str,
+    ) -> Option<String> {
+        source_code_context
+            .call_stack
+            .as_ref()
+            .and_then(|call_stack| {
+                call_stack.values.iter().find_map(|call_stack| {
+                    let symbol_info = call_stack.symbol_info.as_ref()?;
+                    let symbol_name = symbol_info.symbol_name.as_ref()?;
+                    if !Self::symbol_names_test(&symbol_name.value, test_suite_name, test_case_name)
+                    {
+                        return None;
+                    }
+                    let file_path = symbol_info
+                        .location
+                        .as_ref()
+                        .and_then(|location| location.file_path.as_ref())?;
+                    Self::normalize_file_path(Some(&file_path.value))
+                })
+            })
+    }
+
+    // Swift symbolizes a test method as `Suite.testCase()` and Objective-C as
+    // `-[Suite testCase]`; a closure declared inside the test is prefixed
+    // (`closure #1 in Suite.testCase()`) but is still defined in the test's file.
+    // A swift-testing test declared at the top level has no suite, and symbolizes
+    // as the bare function.
+    fn symbol_names_test(
+        symbol_name: &str,
+        test_suite_name: Option<&str>,
+        test_case_name: &str,
+    ) -> bool {
+        let expected = match test_suite_name {
+            Some(test_suite_name) => vec![
+                format!("{}.{}", test_suite_name, test_case_name),
+                format!(
+                    "-[{} {}]",
+                    test_suite_name,
+                    test_case_name.trim_end_matches("()")
+                ),
+            ],
+            None => vec![test_case_name.to_string()],
+        };
+        expected.iter().any(|expected| {
+            symbol_name == expected || symbol_name.ends_with(&format!(" in {}", expected))
+        })
+    }
+
+    fn is_dependency_path(file_path: &str) -> bool {
+        DEPENDENCY_PATH_SEGMENTS
+            .iter()
+            .any(|segment| file_path.contains(segment))
     }
 
     fn find_file_in_source_code_context_call_stack(
@@ -87,6 +183,7 @@ impl XCResultTestLegacy {
                             .extension()
                             .map(|ext| ext == "swift" || ext == "m")
                             .unwrap_or(false)
+                            && !Self::is_dependency_path(file_path)
                     })
                     // use the last valid swift / obj-c file-path in the stack
                     .last()
@@ -106,26 +203,29 @@ impl XCResultTestLegacy {
             .and_then(|document_location_in_creating_workspace| {
                 document_location_in_creating_workspace.url.as_ref()
             })
-            .map(|file| {
-                let file = file
+            .and_then(|file| {
+                let file: String = file
                     .value
                     .replace("file://", "")
                     .split('#')
                     .next()
                     .unwrap_or_default()
                     .into();
+                if Self::is_dependency_path(&file) {
+                    return None;
+                }
                 let producing_target = failure_summary
                     .producing_target
                     .as_ref()
                     .map(|x| x.value.as_ref());
                 if producing_target.is_some() {
-                    return (producing_target, file);
+                    return Some((producing_target, file));
                 }
                 let test_case_name = failure_summary
                     .test_case_name
                     .as_ref()
                     .map(|x| x.value.as_ref());
-                (test_case_name, file)
+                Some((test_case_name, file))
             })
     }
 
@@ -343,6 +443,8 @@ impl XCResultTestLegacy {
                                 Self::find_file_in_test_summary(
                                     failure_summary_id.unwrap_or_default(),
                                     path.as_ref(),
+                                    test_suite_name,
+                                    test_case_name,
                                 )
                             } else {
                                 None
@@ -556,7 +658,28 @@ mod tests {
         json!({ "_value": value })
     }
 
+    const TEST_SUITE: &str = "SnapshotReproTests";
+    const TEST_CASE: &str = "failingSnapshot()";
+
     #[rstest]
+    #[case::test_frame_wins_over_raised_from_file(
+        Some("/repo/Tests/Assertion.swift"),
+        Some("/repo/Tests/Assertion.swift"),
+        &[
+            ("assertSnapshot<A, B>(of:as:)", "/repo/Tuist/.build/checkouts/swift-snapshot-testing/Assert.swift"),
+            ("SnapshotReproTests.failingSnapshot()", "/repo/Tests/SnapshotReproTests.swift"),
+            ("closure #1 in _SnapshotsTestTrait.provideScope(for:)", "/repo/Tuist/.build/checkouts/swift-snapshot-testing/Trait.swift"),
+        ],
+        Some("/repo/Tests/SnapshotReproTests.swift")
+    )]
+    #[case::objc_symbol_and_closure_frames_name_the_test(
+        None,
+        None,
+        &[
+            ("closure #1 in -[SnapshotReproTests failingSnapshot]", "/repo/Tests/SnapshotReproTests.m"),
+        ],
+        Some("/repo/Tests/SnapshotReproTests.m")
+    )]
     #[case::file_name_wins(
         Some("/repo/Tests/My Test.swift"),
         Some("/repo/Tests/Other.swift"),
@@ -566,39 +689,64 @@ mod tests {
     #[case::location_before_call_stack(
         None,
         Some("/repo/Tests/Assertion.swift"),
-        &["/repo/Packages/SnapshotTesting/SnapshotsTestTrait.swift"],
+        &[("provideScope(for:)", "/repo/Packages/SnapshotTesting/SnapshotsTestTrait.swift")],
+        Some("/repo/Tests/Assertion.swift")
+    )]
+    #[case::dependency_file_name_falls_through_to_location(
+        Some("/repo/Tuist/.build/checkouts/ZUITesting/PageObject.swift"),
+        Some("/repo/Tests/Assertion.swift"),
+        &[],
         Some("/repo/Tests/Assertion.swift")
     )]
     #[case::last_swift_or_objc_stack_frame(
         None,
         None,
         &[
-            "/repo/Tests/Generated.cc",
-            "/repo/Tests/First.swift",
-            "/repo/Tests/Second.m",
-            "/repo/Tests/Readme.md",
+            ("first", "/repo/Tests/Generated.cc"),
+            ("second", "/repo/Tests/First.swift"),
+            ("third", "/repo/Tests/Second.m"),
+            ("fourth", "/repo/Tests/Readme.md"),
         ],
         Some("/repo/Tests/Second.m")
+    )]
+    #[case::dependency_frames_skipped_in_stack_fallback(
+        None,
+        None,
+        &[
+            ("first", "/repo/Tests/First.swift"),
+            ("second", "/repo/Tuist/.build/checkouts/ZUITesting/Launching.swift"),
+        ],
+        Some("/repo/Tests/First.swift")
+    )]
+    // A launch failure or crash never reaches the test's own frame, so every
+    // remaining source points into the dependency: report no file rather than one
+    // that would re-own the test.
+    #[case::only_dependency_sources_yields_nothing(
+        None,
+        Some("/repo/DerivedData/SourcePackages/checkouts/ZUITesting/Launching.swift"),
+        &[("launch", "/repo/Tuist/.build/checkouts/ZUITesting/Launching.swift")],
+        None
     )]
     #[case::no_usable_file(
         None,
         None,
-        &["/repo/Tests/Generated.cc", "/repo/Tests/Readme.md"],
+        &[("first", "/repo/Tests/Generated.cc"), ("second", "/repo/Tests/Readme.md")],
         None
     )]
     fn failure_summary_file_sources(
         #[case] file_name: Option<&str>,
         #[case] location: Option<&str>,
-        #[case] stack: &[&str],
+        #[case] stack: &[(&str, &str)],
         #[case] expected: Option<&str>,
     ) {
         let summary = serde_json::from_value(json!({
             "fileName": file_name.map(xc_string),
             "sourceCodeContext": {
                 "location": { "filePath": location.map(xc_string) },
-                "callStack": { "_values": stack.iter().map(|path| {
+                "callStack": { "_values": stack.iter().map(|(symbol, path)| {
                     let stack_frame = json!({
                         "symbolInfo": {
+                            "symbolName": xc_string(symbol),
                             "location": {
                                 "filePath": xc_string(path)
                             }
@@ -609,8 +757,43 @@ mod tests {
             }
         }))
         .unwrap();
-        let file = XCResultTestLegacy::find_file_in_failure_summary(&summary);
+        let file =
+            XCResultTestLegacy::find_file_in_failure_summary(&summary, Some(TEST_SUITE), TEST_CASE);
         assert_eq!(file, expected.map(String::from));
+    }
+
+    #[rstest]
+    #[case::swift_symbol("SnapshotReproTests.failingSnapshot()", true)]
+    #[case::objc_symbol("-[SnapshotReproTests failingSnapshot]", true)]
+    #[case::closure_inside_test("closure #1 in SnapshotReproTests.failingSnapshot()", true)]
+    #[case::helper_the_test_called("assertSnapshot<A, B>(of:as:)", false)]
+    #[case::same_case_name_in_another_suite("OtherTests.failingSnapshot()", false)]
+    #[case::trait_that_invoked_the_test(
+        "closure #1 in _SnapshotsTestTrait.provideScope(for:testCase:performing:)",
+        false
+    )]
+    fn symbol_names_test_identifies_only_the_tests_own_frame(
+        #[case] symbol_name: &str,
+        #[case] expected: bool,
+    ) {
+        assert_eq!(
+            XCResultTestLegacy::symbol_names_test(symbol_name, Some(TEST_SUITE), TEST_CASE),
+            expected
+        );
+    }
+
+    #[rstest]
+    #[case::top_level_swift_testing_function("failingSnapshot()", true)]
+    #[case::closure_inside_it("closure #1 in failingSnapshot()", true)]
+    #[case::suite_scoped_symbol("SnapshotReproTests.failingSnapshot()", false)]
+    fn symbol_names_test_matches_a_suiteless_test_by_function(
+        #[case] symbol_name: &str,
+        #[case] expected: bool,
+    ) {
+        assert_eq!(
+            XCResultTestLegacy::symbol_names_test(symbol_name, None, TEST_CASE),
+            expected
+        );
     }
 
     #[rstest]
@@ -629,6 +812,14 @@ mod tests {
     #[case::missing_document_location(
         None,
         None,
+        Some("SnapshotReproTests.failingSnapshot()"),
+        None
+    )]
+    #[case::dependency_document_location(
+        Some(
+            "file:///repo/Tuist/.build/checkouts/ZUITesting/PageObject.swift#EndingLineNumber=377"
+        ),
+        Some("SnapshotReproTests"),
         Some("SnapshotReproTests.failingSnapshot()"),
         None
     )]
