@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites name="xcresult: ObjcXCTest-Package" tests="1" failures="1" errors="0">
+    <testsuite name="ObjcXCTestTests.ObjcXCTestTests" tests="1" disabled="0" errors="0" failures="1">
+        <testcase name="testFailsInsideSharedHelper" classname="ObjcXCTestTests" timestamp="2026-08-17T21:33:52.107+00:00" time="0.900" id="25b434ab-e5a5-50d0-81d6-5850d251427a">
+            <failure message="FailureHelper.m:8: failed - raised from the shared Objective-C helper"/>
+        </testcase>
+    </testsuite>
+</testsuites>
