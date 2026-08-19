@@ -1346,7 +1346,7 @@
           "$ref": "#/$defs/Int"
         }
       },
-      "additionalProperties": false
+      "additionalProperties": true
     },
     "ActivityLogMajorSection": {
       "type": "object",
@@ -1584,7 +1584,7 @@
           "$ref": "#/$defs/String"
         }
       },
-      "additionalProperties": false
+      "additionalProperties": true
     },
     "ActivityLogUnitTestSection": {
       "type": "object",
@@ -1668,7 +1668,7 @@
           "$ref": "#/$defs/String"
         }
       },
-      "additionalProperties": false
+      "additionalProperties": true
     },
     "ArchiveInfo": {
       "type": "object",
@@ -2532,7 +2532,7 @@
           "$ref": "#/$defs/String"
         }
       },
-      "additionalProperties": false
+      "additionalProperties": true
     },
     "SourceCodeContext": {
       "type": "object",
