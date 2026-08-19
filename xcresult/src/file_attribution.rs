@@ -412,6 +412,35 @@ mod tests {
         );
     }
 
+    // Apple declares `SortedKeyValueArrayPair.value` as `SchemaSerializable`, a type
+    // the format description never defines, so the generator cannot model it and drops
+    // the property. The data still carries it, and an object that is both missing the
+    // property and declared exhaustive fails to deserialize — which silently disabled
+    // the whole experimental path for any bundle with test attachments.
+    #[test]
+    fn a_summary_parses_despite_properties_the_schema_cannot_model() {
+        let summary: legacy_schema::ActionTestPlanRunSummaries = serde_json::from_value(json!({
+            "failureSummaries": { "_values": [{
+                "fileName": xc_string("/repo/Tests/SnapshotReproTests.swift"),
+                "attachments": { "_values": [{
+                    "userInfo": { "storage": { "_values": [{
+                        "_type": { "_name": "SortedKeyValueArrayPair" },
+                        "key": xc_string("Encoding"),
+                        "value": xc_string("{ XCTImageEncodingCompressionQualityKey = 0.7; }")
+                    }] } }
+                }] }
+            }] }
+        }))
+        .expect("a summary carrying attachment metadata must still deserialize");
+        let failure_summary = &summary.failure_summaries.unwrap().values[0];
+        assert_eq!(
+            FileCandidate::from_failure_summary(failure_summary, &identity())
+                .first()
+                .map(|candidate| candidate.path.as_str().to_string()),
+            Some(String::from("/repo/Tests/SnapshotReproTests.swift"))
+        );
+    }
+
     #[rstest]
     #[case::scheme_and_fragment_stripped(
         Some("file:///repo/Tests/Test.swift#EndingLineNumber=8"),
