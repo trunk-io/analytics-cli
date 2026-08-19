@@ -9,7 +9,7 @@ use petgraph::{
     graph::{DiGraph, NodeIndex},
 };
 
-use crate::file_attribution::FileCandidate;
+use crate::file_attribution::{FileCandidate, TestIdentity};
 use crate::types::{SWIFT_DEFAULT_TEST_SUITE_NAME, legacy_schema};
 use crate::xcrun::{xcresulttool_get_object, xcresulttool_get_object_id};
 
@@ -25,7 +25,11 @@ pub struct XCResultTestLegacy {
 }
 
 impl XCResultTestLegacy {
-    fn find_file_in_test_summary(failure_summary_id: &str, path: &OsStr) -> Option<String> {
+    fn find_file_in_test_summary(
+        failure_summary_id: &str,
+        path: &OsStr,
+        identity: &TestIdentity,
+    ) -> Option<String> {
         let summary = xcresulttool_get_object_id(path, failure_summary_id);
         summary.ok().and_then(|summary| {
             summary
@@ -35,19 +39,35 @@ impl XCResultTestLegacy {
                     // grab the first failure summary if there are multiple
                     failure_summaries.values.first()
                 })
-                .and_then(Self::find_file_in_failure_summary)
+                .and_then(|failure_summary| {
+                    Self::find_file_in_failure_summary(failure_summary, identity)
+                })
         })
     }
 
-    /// The file to report for a failure, taken from the first source that offers
-    /// one. See [`crate::file_attribution`] for what each source actually means.
+    /// The file to report for a failure: the first candidate we are willing to
+    /// stand behind.
+    ///
+    /// Only the test's own frame identifies the test; every other source says where
+    /// the failure surfaced, which for a snapshot trait, a mocking framework or a
+    /// page object is inside the dependency. Those are vetted here — in one place,
+    /// so a source added later cannot quietly skip the check — and a test that
+    /// crashes or fails to launch never reaches its own frame, leaving nothing
+    /// reportable. We then report no file at all rather than one that would hand the
+    /// test to whoever owns the vendored directory. Consumers treat a missing file
+    /// as "unchanged" rather than "cleared", so it keeps the path and owners it had.
     fn find_file_in_failure_summary(
         failure_summary: &legacy_schema::ActionTestFailureSummary,
+        identity: &TestIdentity,
     ) -> Option<String> {
-        FileCandidate::from_failure_summary(failure_summary)
+        FileCandidate::from_failure_summary(failure_summary, identity)
             .into_iter()
-            .next()
+            .find(Self::is_reportable)
             .map(|candidate| candidate.path.into_string())
+    }
+
+    fn is_reportable(candidate: &FileCandidate) -> bool {
+        candidate.source.is_positive_identification() || !candidate.path.is_vendored_dependency()
     }
 
     /// The action-level issue summaries keyed by whatever names the test they
@@ -56,7 +76,8 @@ impl XCResultTestLegacy {
     fn fallback_file_from_failure_issue_summary(
         failure_summary: &legacy_schema::TestFailureIssueSummary,
     ) -> Option<(Option<&str>, String)> {
-        let candidate = FileCandidate::from_issue_summary(failure_summary)?;
+        let candidate =
+            FileCandidate::from_issue_summary(failure_summary).filter(Self::is_reportable)?;
         let producing_target = failure_summary
             .producing_target
             .as_ref()
@@ -271,12 +292,11 @@ impl XCResultTestLegacy {
 
                             let test_suite_name = parent_node.map(|node| node.weight.name);
                             let test_case_name = node.weight.name;
-                            let formatted_test_case_name =
-                                if let Some(test_suite_name) = test_suite_name {
-                                    format!("{}.{}", test_suite_name, test_case_name)
-                                } else {
-                                    test_case_name.to_string()
-                                };
+                            let identity = TestIdentity {
+                                suite: test_suite_name,
+                                case: test_case_name,
+                            };
+                            let formatted_test_case_name = identity.fallback_key();
                             let failure_summary_id = node.weight.failure_summary_id;
                             let mut file = if use_experimental_failure_summary
                                 && failure_summary_id.is_some()
@@ -284,6 +304,7 @@ impl XCResultTestLegacy {
                                 Self::find_file_in_test_summary(
                                     failure_summary_id.unwrap_or_default(),
                                     path.as_ref(),
+                                    &identity,
                                 )
                             } else {
                                 None
@@ -497,8 +518,29 @@ mod tests {
         json!({ "_value": value })
     }
 
+    const TEST_SUITE: &str = "SnapshotReproTests";
+    const TEST_CASE: &str = "failingSnapshot()";
+
     #[rstest]
-    #[case::file_name_wins(
+    // The test's own frame beats the file the failure was raised from, which here is
+    // the assertion helper inside the dependency.
+    #[case::test_frame_wins_over_raised_from_file(
+        Some("/repo/Tests/Assertion.swift"),
+        Some("/repo/Tests/Assertion.swift"),
+        &[
+            ("assertSnapshot<A, B>(of:as:)", "/repo/Tuist/.build/checkouts/swift-snapshot-testing/Assert.swift"),
+            ("SnapshotReproTests.failingSnapshot()", "/repo/Tests/SnapshotReproTests.swift"),
+            ("closure #1 in _SnapshotsTestTrait.provideScope(for:)", "/repo/Tuist/.build/checkouts/swift-snapshot-testing/Trait.swift"),
+        ],
+        Some("/repo/Tests/SnapshotReproTests.swift")
+    )]
+    #[case::objc_symbol_and_closure_frames_name_the_test(
+        None,
+        None,
+        &[("closure #1 in -[SnapshotReproTests failingSnapshot]", "/repo/Tests/SnapshotReproTests.m")],
+        Some("/repo/Tests/SnapshotReproTests.m")
+    )]
+    #[case::file_name_wins_when_no_frame_names_the_test(
         Some("/repo/Tests/My Test.swift"),
         Some("/repo/Tests/Other.swift"),
         &[],
@@ -507,51 +549,78 @@ mod tests {
     #[case::location_before_call_stack(
         None,
         Some("/repo/Tests/Assertion.swift"),
-        &["/repo/Packages/SnapshotTesting/SnapshotsTestTrait.swift"],
+        &[("provideScope(for:)", "/repo/Packages/SnapshotTesting/SnapshotsTestTrait.swift")],
+        Some("/repo/Tests/Assertion.swift")
+    )]
+    #[case::dependency_file_name_falls_through_to_location(
+        Some("/repo/Tuist/.build/checkouts/UITestSupport/PageObject.swift"),
+        Some("/repo/Tests/Assertion.swift"),
+        &[],
         Some("/repo/Tests/Assertion.swift")
     )]
     #[case::last_swift_or_objc_stack_frame(
         None,
         None,
         &[
-            "/repo/Tests/Generated.cc",
-            "/repo/Tests/First.swift",
-            "/repo/Tests/Second.m",
-            "/repo/Tests/Readme.md",
+            ("first", "/repo/Tests/Generated.cc"),
+            ("second", "/repo/Tests/First.swift"),
+            ("third", "/repo/Tests/Second.m"),
+            ("fourth", "/repo/Tests/Readme.md"),
         ],
         Some("/repo/Tests/Second.m")
+    )]
+    // The outermost frame is a dependency, so the next one out is taken instead.
+    #[case::dependency_frames_skipped_in_stack_fallback(
+        None,
+        None,
+        &[
+            ("first", "/repo/Tests/First.swift"),
+            ("second", "/repo/Tuist/.build/checkouts/UITestSupport/Launching.swift"),
+        ],
+        Some("/repo/Tests/First.swift")
+    )]
+    // A launch failure or crash never reaches the test's own frame, so every
+    // remaining source points into the dependency: report no file rather than one
+    // that would re-own the test.
+    #[case::only_dependency_sources_yields_nothing(
+        None,
+        Some("/repo/DerivedData/SourcePackages/checkouts/UITestSupport/Launching.swift"),
+        &[("launch", "/repo/Tuist/.build/checkouts/UITestSupport/Launching.swift")],
+        None
     )]
     #[case::no_usable_file(
         None,
         None,
-        &["/repo/Tests/Generated.cc", "/repo/Tests/Readme.md"],
+        &[("first", "/repo/Tests/Generated.cc"), ("second", "/repo/Tests/Readme.md")],
         None
     )]
     fn failure_summary_file_sources(
         #[case] file_name: Option<&str>,
         #[case] location: Option<&str>,
-        #[case] stack: &[&str],
+        #[case] stack: &[(&str, &str)],
         #[case] expected: Option<&str>,
     ) {
         let summary = serde_json::from_value(json!({
             "fileName": file_name.map(xc_string),
             "sourceCodeContext": {
                 "location": { "filePath": location.map(xc_string) },
-                "callStack": { "_values": stack.iter().map(|path| {
-                    let stack_frame = json!({
-                        "symbolInfo": {
-                            "location": {
-                                "filePath": xc_string(path)
-                            }
-                        }
-                    });
-                    stack_frame
-                }).collect::<Vec<_>>() }
+                "callStack": { "_values": stack.iter().map(|(symbol, path)| json!({
+                    "symbolInfo": {
+                        "symbolName": xc_string(symbol),
+                        "location": { "filePath": xc_string(path) }
+                    }
+                })).collect::<Vec<_>>() }
             }
         }))
         .unwrap();
-        let file = XCResultTestLegacy::find_file_in_failure_summary(&summary);
-        assert_eq!(file, expected.map(String::from));
+        let identity = TestIdentity {
+            suite: Some(TEST_SUITE),
+            case: TEST_CASE,
+        };
+        assert_eq!(
+            XCResultTestLegacy::find_file_in_failure_summary(&summary, &identity),
+            expected.map(String::from)
+        );
     }
 
     #[rstest]
@@ -566,6 +635,14 @@ mod tests {
         None,
         Some("SnapshotReproTests.failingSnapshot()"),
         Some((Some("SnapshotReproTests.failingSnapshot()"), "/repo/Tests/Test.swift"))
+    )]
+    #[case::dependency_document_location(
+        Some(
+            "file:///repo/Tuist/.build/checkouts/UITestSupport/PageObject.swift#EndingLineNumber=377"
+        ),
+        Some("SnapshotReproTests"),
+        Some("SnapshotReproTests.failingSnapshot()"),
+        None
     )]
     #[case::missing_document_location(
         None,
