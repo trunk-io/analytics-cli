@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites name="xcresult: CrashInDependency-Package" tests="2" failures="2" errors="0">
+    <testsuite name="CrashInDependencyTests.CrashInDependencyTests" tests="1" disabled="0" errors="0" failures="1">
+        <testcase name="testCrashesInsideDependency()" classname="CrashInDependencyTests" timestamp="2026-08-17T21:32:22.255+00:00" id="c905c0b7-41b1-5b8d-9d0a-e822c9fa1a10">
+            <failure message="Crash: xctest at crashInsideDependency()"/>
+        </testcase>
+    </testsuite>
+    <testsuite name="CrashInDependencyTests.TeardownFailureTests" tests="1" disabled="0" errors="0" failures="1">
+        <testcase name="failsAfterItsOwnFrameIsGone()" classname="TeardownFailureTests" timestamp="2026-08-17T21:32:22.255+00:00" id="fbe8da22-5c10-5739-a04b-180a7f1bf271">
+            <failure message="TeardownFailureTrait.swift:19: Issue recorded: the dependency&apos;s trait failed the test after its body returned"/>
+        </testcase>
+    </testsuite>
+</testsuites>

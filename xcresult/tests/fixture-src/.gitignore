@@ -1,0 +1,7 @@
+# SwiftPM and SourceKit build in place if the packages are opened in an editor;
+# regeneration always builds in a copy under /tmp, so nothing here is ever needed.
+.build/
+Package.resolved
+DerivedData/
+*.xcresult/
+__pycache__/

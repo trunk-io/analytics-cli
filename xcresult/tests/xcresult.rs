@@ -34,6 +34,16 @@ lazy_static! {
         unpack_archive_to_temp_dir("tests/data/test-swift-mix.xcresult.tar.gz");
     static ref TEMP_DIR_TEST_SWIFT_SNAPSHOT_TESTING: TempDir =
         unpack_archive_to_temp_dir("tests/data/test-swift-snapshot-testing.xcresult.tar.gz");
+    static ref TEMP_DIR_TEST_DEPENDENCY_RAISES_FAILURE: TempDir =
+        unpack_archive_to_temp_dir("tests/data/test-dependency-raises-failure.xcresult.tar.gz");
+    static ref TEMP_DIR_TEST_IN_REPO_HELPER_RAISES_FAILURE: TempDir =
+        unpack_archive_to_temp_dir("tests/data/test-in-repo-helper-raises-failure.xcresult.tar.gz");
+    static ref TEMP_DIR_TEST_CRASH_IN_DEPENDENCY: TempDir =
+        unpack_archive_to_temp_dir("tests/data/test-crash-in-dependency.xcresult.tar.gz");
+    static ref TEMP_DIR_TEST_OBJC_XCTEST: TempDir =
+        unpack_archive_to_temp_dir("tests/data/test-objc-xctest.xcresult.tar.gz");
+    static ref TEMP_DIR_TEST_TOPLEVEL_SWIFT_TESTING: TempDir =
+        unpack_archive_to_temp_dir("tests/data/test-toplevel-swift-testing.xcresult.tar.gz");
     static ref TEMP_DIR_TEST_TIMESTAMP: TempDir =
         unpack_archive_to_temp_dir("tests/data/test-timestamp.xcresult.tar.gz");
     static ref TEMP_DIR_TEST_VARIANT: TempDir =
@@ -242,6 +252,162 @@ fn test_swift_snapshot_testing_trait_failure_uses_assertion_file(
     pretty_assertions::assert_eq!(
         String::from_utf8(junit_writer).unwrap(),
         include_str!("data/test-swift-snapshot-testing.junit.xml")
+    );
+}
+
+// Real bundles for the file sources in `xcresult::file_attribution`, one per shape
+// that used to attribute a failed test to a vendored dependency. Each test below
+// names the source it exercises; `tests/fixture-src/README.md` covers what each
+// bundle must exhibit and how to regenerate it.
+//
+// The two cases expect different JUnit because they have different sources
+// available: only the experimental path reads the per-test failure summary, and so
+// the call stack, so it is the only one that can produce a `FileSource::TestFrame`.
+// The legacy path sees `FileSource::DocumentLocation` alone.
+#[cfg(target_os = "macos")]
+fn assert_junit<T: AsRef<Path>>(
+    bundle_path: T,
+    use_experimental_failure_summary: bool,
+    expected_junit_xml: &str,
+) {
+    let path_str = bundle_path.as_ref().to_str().unwrap();
+    let xcresult = XCResult::new(
+        path_str,
+        ORG_URL_SLUG.clone(),
+        REPO_FULL_NAME.clone(),
+        use_experimental_failure_summary,
+    );
+    assert!(xcresult.is_ok());
+
+    let mut junits = xcresult.unwrap().generate_junits();
+    assert_eq!(junits.len(), 1);
+    let junit = junits.pop().unwrap();
+    let mut junit_writer: Vec<u8> = Vec::new();
+    junit.serialize(&mut junit_writer).unwrap();
+    pretty_assertions::assert_eq!(String::from_utf8(junit_writer).unwrap(), expected_junit_xml);
+}
+
+// `FileSource::TestFrame` is the only usable source. The failure is recorded inside
+// the dependency, so `RaisedFrom`, `SourceCodeLocation` and the innermost
+// `LastStackFrame` all point into `DerivedData/SourcePackages/checkouts/` and are
+// rejected as vendored. The legacy path has only `DocumentLocation`, which points
+// there too, so it reports nothing at all.
+#[cfg(target_os = "macos")]
+#[rstest]
+#[case::experimental_failure_summary(
+    true,
+    include_str!("data/test-dependency-raises-failure.junit.xml")
+)]
+#[case::legacy_fallback(
+    false,
+    include_str!("data/test-dependency-raises-failure.legacy.junit.xml")
+)]
+fn test_dependency_raised_failure_uses_the_tests_own_file(
+    #[case] use_experimental_failure_summary: bool,
+    #[case] expected_junit_xml: &str,
+) {
+    assert_junit(
+        TEMP_DIR_TEST_DEPENDENCY_RAISES_FAILURE
+            .as_ref()
+            .join("DependencyRaisesFailure.xcresult"),
+        use_experimental_failure_summary,
+        expected_junit_xml,
+    );
+}
+
+// `FileSource::TestFrame` versus `RaisedFrom` with nothing to separate them by path.
+// The helper is in the test target, so `is_vendored_dependency` says nothing useful
+// and the ordering of the sources is what decides. The legacy path, having only
+// `DocumentLocation`, still lands on the helper.
+#[cfg(target_os = "macos")]
+#[rstest]
+#[case::experimental_failure_summary(
+    true,
+    include_str!("data/test-in-repo-helper-raises-failure.junit.xml")
+)]
+#[case::legacy_fallback(
+    false,
+    include_str!("data/test-in-repo-helper-raises-failure.legacy.junit.xml")
+)]
+fn test_in_repo_helper_raised_failure_uses_the_tests_own_file(
+    #[case] use_experimental_failure_summary: bool,
+    #[case] expected_junit_xml: &str,
+) {
+    assert_junit(
+        TEMP_DIR_TEST_IN_REPO_HELPER_RAISES_FAILURE
+            .as_ref()
+            .join("InRepoHelperRaisesFailure.xcresult"),
+        use_experimental_failure_summary,
+        expected_junit_xml,
+    );
+}
+
+// No source survives vetting. Neither test reaches its own frame — one crashes
+// inside the dependency, the other is failed by the dependency's trait after its
+// body returned — so there is no `TestFrame`, and every remaining candidate is
+// either absent or vendored. Both cases must come out with no `file` attribute at
+// all rather than the dependency's.
+#[cfg(target_os = "macos")]
+#[rstest]
+#[case::experimental_failure_summary(true, include_str!("data/test-crash-in-dependency.junit.xml"))]
+#[case::legacy_fallback(false, include_str!("data/test-crash-in-dependency.junit.xml"))]
+fn test_crash_in_dependency_reports_no_file(
+    #[case] use_experimental_failure_summary: bool,
+    #[case] expected_junit_xml: &str,
+) {
+    assert_junit(
+        TEMP_DIR_TEST_CRASH_IN_DEPENDENCY
+            .as_ref()
+            .join("CrashInDependency.xcresult"),
+        use_experimental_failure_summary,
+        expected_junit_xml,
+    );
+}
+
+// `TestIdentity::is_named_by` against real symbolication: Xcode spells the frame
+// `-[ObjcXCTestTests testFailsInsideSharedHelper]`, not `Suite.testCase()`. The
+// legacy path reports nothing here for an unrelated reason — the `DocumentLocation`
+// candidates are keyed by test case name, and Xcode's Objective-C spelling never
+// matches the `Suite.testCase` key the lookup builds.
+#[cfg(target_os = "macos")]
+#[rstest]
+#[case::experimental_failure_summary(true, include_str!("data/test-objc-xctest.junit.xml"))]
+#[case::legacy_fallback(false, include_str!("data/test-objc-xctest.legacy.junit.xml"))]
+fn test_objc_xctest_helper_failure_uses_the_tests_own_file(
+    #[case] use_experimental_failure_summary: bool,
+    #[case] expected_junit_xml: &str,
+) {
+    assert_junit(
+        TEMP_DIR_TEST_OBJC_XCTEST
+            .as_ref()
+            .join("ObjcXCTest.xcresult"),
+        use_experimental_failure_summary,
+        expected_junit_xml,
+    );
+}
+
+// `TestIdentity` with no suite: a top-level swift-testing `@Test func` symbolicates
+// as the bare function, so there is nothing to qualify the match with.
+#[cfg(target_os = "macos")]
+#[rstest]
+#[case::experimental_failure_summary(
+    true,
+    include_str!("data/test-toplevel-swift-testing.junit.xml")
+)]
+#[case::legacy_fallback(
+    false,
+    include_str!("data/test-toplevel-swift-testing.legacy.junit.xml")
+)]
+fn test_toplevel_swift_testing_helper_failure_uses_the_tests_own_file(
+    #[case] use_experimental_failure_summary: bool,
+    #[case] expected_junit_xml: &str,
+) {
+    assert_junit(
+        TEMP_DIR_TEST_TOPLEVEL_SWIFT_TESTING
+            .as_ref()
+            .join("ToplevelSwiftTesting.xcresult"),
+        use_experimental_failure_summary,
+        expected_junit_xml,
     );
 }
 
