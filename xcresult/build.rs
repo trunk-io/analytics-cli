@@ -16,7 +16,11 @@ fn main() {
     ];
 
     for (schema_name, top_level_type_refs) in schema_names_and_top_level_types {
-        let content = fs::read_to_string(format!("./{schema_name}.json")).unwrap();
+        let schema_path = format!("{schema_name}.json");
+        // Without this the generated types are not rebuilt when a schema changes, so
+        // an edit appears to have no effect until something else forces a rerun.
+        println!("cargo:rerun-if-changed={schema_path}");
+        let content = fs::read_to_string(format!("./{schema_path}")).unwrap();
         let schema = serde_json::from_str::<RootSchema>(&content).unwrap();
 
         let mut type_space = TypeSpace::new(TypeSpaceSettings::default().with_struct_builder(true));

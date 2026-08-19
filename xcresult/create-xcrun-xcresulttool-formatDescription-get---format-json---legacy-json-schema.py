@@ -87,6 +87,9 @@ def convert_fd_object_to_json_schema_format(
         "_type": {"type": "object"},
     }
     json_schema_object_required_properties: Set[str] = set()
+    # Whether a property was dropped because its type cannot be modelled. Such an
+    # object must not also be declared exhaustive; see `additionalProperties` below.
+    has_unmodellable_property = False
 
     if "supertype" in fd_type["type"]:
         fd_type_supertype_name = fd_type["type"]["supertype"]
@@ -96,14 +99,18 @@ def convert_fd_object_to_json_schema_format(
         supertype_json_schema_object = convert_fd_object_to_json_schema_format(
             supertype_fd_type, fd_types, fd_types_inheritance_hierarchy
         )
-        if "properties" in supertype_json_schema_object:
-            json_schema_object_properties |= supertype_json_schema_object["properties"]
-        else:
-            json_schema_object_properties |= supertype_json_schema_object["oneOf"][-1][
-                "properties"
-            ]
+        supertype_json_schema_def = (
+            supertype_json_schema_object
+            if "properties" in supertype_json_schema_object
+            else supertype_json_schema_object["oneOf"][-1]
+        )
+        json_schema_object_properties |= supertype_json_schema_def["properties"]
         for required_property in supertype_json_schema_object.get("required", []):
             json_schema_object_required_properties.add(required_property)
+        # A supertype that had to drop a property passes that on: the sub-type's
+        # payload contains it too.
+        if supertype_json_schema_def.get("additionalProperties"):
+            has_unmodellable_property = True
 
     for fd_property in fd_type["properties"]:
         fd_property_name = fd_property["name"]
@@ -122,6 +129,7 @@ def convert_fd_object_to_json_schema_format(
             fd_property_type = fd_property["wrappedType"]
         # NOTE: This check must be after updating the `fd_property_type` variable.
         if fd_property_type in BAD_FD_TYPES:
+            has_unmodellable_property = True
             continue
 
         if fd_property_type in FdValue:
@@ -156,7 +164,16 @@ def convert_fd_object_to_json_schema_format(
     json_schema_def: Dict[str, Any] = {
         "type": "object",
         "properties": json_schema_object_properties,
-        "additionalProperties": fd_type_name == "ActionTestPlanRunSummaries",
+        # NOTE: `additionalProperties: false` becomes `deny_unknown_fields`, which is
+        # what keeps the untagged `oneOf` sub-type unions apart — so it has to stay on
+        # by default. But a property skipped above is still present in the data Apple
+        # emits, and rejecting the whole object over it loses far more than the one
+        # field: `SortedKeyValueArrayPair.value` is `SchemaSerializable`, which is not
+        # defined anywhere in the format description, and dropping it while staying
+        # exhaustive made every test summary carrying attachment metadata unparseable.
+        "additionalProperties": (
+            fd_type_name == "ActionTestPlanRunSummaries" or has_unmodellable_property
+        ),
     }
     if len(json_schema_object_required_properties) > 0:
         json_schema_def["required"] = list(json_schema_object_required_properties)

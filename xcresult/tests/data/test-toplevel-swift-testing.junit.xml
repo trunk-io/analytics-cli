@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites name="xcresult: ToplevelSwiftTesting-Package" tests="1" failures="1" errors="0">
+    <testsuite name="ToplevelSwiftTestingTests" tests="1" disabled="0" errors="0" failures="1">
+        <testcase name="failsInsideHelperWithoutASuite()" classname="failsInsideHelperWithoutASuite()" timestamp="2026-08-17T21:34:21.783+00:00" id="30730010-eab3-52d6-8f55-56aa6e3f7eb8" file="/tmp/xcresult-fixtures/toplevel-swift-testing/Tests/ToplevelSwiftTestingTests/ToplevelSwiftTestingTests.swift">
+            <failure message="FailureHelper.swift:9: Issue recorded: raised from the in-repo helper"/>
+        </testcase>
+    </testsuite>
+</testsuites>
