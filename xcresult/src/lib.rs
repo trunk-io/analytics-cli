@@ -1,3 +1,4 @@
+pub mod file_attribution;
 pub mod types;
 pub mod xcresult;
 pub mod xcresult_legacy;

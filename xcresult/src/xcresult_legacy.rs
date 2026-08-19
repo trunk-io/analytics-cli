@@ -9,6 +9,7 @@ use petgraph::{
     graph::{DiGraph, NodeIndex},
 };
 
+use crate::file_attribution::FileCandidate;
 use crate::types::{SWIFT_DEFAULT_TEST_SUITE_NAME, legacy_schema};
 use crate::xcrun::{xcresulttool_get_object, xcresulttool_get_object_id};
 
@@ -38,95 +39,35 @@ impl XCResultTestLegacy {
         })
     }
 
+    /// The file to report for a failure, taken from the first source that offers
+    /// one. See [`crate::file_attribution`] for what each source actually means.
     fn find_file_in_failure_summary(
         failure_summary: &legacy_schema::ActionTestFailureSummary,
     ) -> Option<String> {
-        Self::normalize_file_path(failure_summary.file_name.as_ref().map(|file| &file.value))
-            .or_else(|| {
-                Self::normalize_file_path(
-                    failure_summary
-                        .source_code_context
-                        .as_ref()
-                        .and_then(|source_code_context| source_code_context.location.as_ref())
-                        .and_then(|location| location.file_path.as_ref())
-                        .map(|file_path| &file_path.value),
-                )
-            })
-            .or_else(|| {
-                failure_summary
-                    .source_code_context
-                    .as_ref()
-                    .and_then(Self::find_file_in_source_code_context_call_stack)
-            })
+        FileCandidate::from_failure_summary(failure_summary)
+            .into_iter()
+            .next()
+            .map(|candidate| candidate.path.into_string())
     }
 
-    fn find_file_in_source_code_context_call_stack(
-        source_code_context: &legacy_schema::SourceCodeContext,
-    ) -> Option<String> {
-        source_code_context
-            .call_stack
-            .as_ref()
-            .and_then(|call_stack| {
-                call_stack
-                    .values
-                    .iter()
-                    .filter_map(|call_stack| {
-                        call_stack
-                            .symbol_info
-                            .as_ref()
-                            .and_then(|symbol_info| {
-                                symbol_info
-                                    .location
-                                    .as_ref()
-                                    .and_then(|location| location.file_path.as_ref())
-                            })
-                            .and_then(|file_path| Self::normalize_file_path(Some(&file_path.value)))
-                    })
-                    .filter(|file_path| {
-                        std::path::Path::new(&file_path)
-                            .extension()
-                            .map(|ext| ext == "swift" || ext == "m")
-                            .unwrap_or(false)
-                    })
-                    // use the last valid swift / obj-c file-path in the stack
-                    .last()
-            })
-    }
-
-    fn normalize_file_path(file_path: Option<&String>) -> Option<String> {
-        file_path.map(|file_path| file_path.replace(' ', "%20"))
-    }
-
+    /// The action-level issue summaries keyed by whatever names the test they
+    /// belong to, which is the producing target when Xcode records one and the test
+    /// case name otherwise.
     fn fallback_file_from_failure_issue_summary(
         failure_summary: &legacy_schema::TestFailureIssueSummary,
     ) -> Option<(Option<&str>, String)> {
-        failure_summary
-            .document_location_in_creating_workspace
+        let candidate = FileCandidate::from_issue_summary(failure_summary)?;
+        let producing_target = failure_summary
+            .producing_target
             .as_ref()
-            .and_then(|document_location_in_creating_workspace| {
-                document_location_in_creating_workspace.url.as_ref()
-            })
-            .map(|file| {
-                let file = file
-                    .value
-                    .replace("file://", "")
-                    .split('#')
-                    .next()
-                    .unwrap_or_default()
-                    .into();
-                let producing_target = failure_summary
-                    .producing_target
-                    .as_ref()
-                    .map(|x| x.value.as_ref());
-                if producing_target.is_some() {
-                    return (producing_target, file);
-                }
-                let test_case_name = failure_summary
-                    .test_case_name
-                    .as_ref()
-                    .map(|x| x.value.as_ref());
-                (test_case_name, file)
-            })
+            .map(|x| x.value.as_ref());
+        let key = producing_target.or_else(|| {
+            failure_summary
+                .test_case_name
+                .as_ref()
+                .map(|x| x.value.as_ref())
+        });
+        Some((key, candidate.path.into_string()))
     }
 
     fn find_fallback_file<'a>(
