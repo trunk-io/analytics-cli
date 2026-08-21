@@ -304,6 +304,7 @@ pub async fn gather_quarantine_context(
     failed_tests_extractor: Option<FailedTestsExtractor>,
     test_run_exit_code: Option<i32>,
     variant: &String,
+    hide_test_collection_links: bool,
 ) -> anyhow::Result<QuarantineContext> {
     let failed_tests_extractor = failed_tests_extractor.unwrap_or_else(|| {
         FailedTestsExtractor::new(
@@ -329,32 +330,31 @@ pub async fn gather_quarantine_context(
         });
     }
 
-    let (quarantine_config, quarantine_fetch_status) = if !failed_tests_extractor
-        .failed_tests()
-        .is_empty()
-        && file_set_builder
-            .file_sets()
-            .iter()
-            // internal files track quarantine status directly, so we don't need to check them
-            .any(|file_set| file_set.file_set_type == FileSetType::Junit)
-    {
-        tracing::info!("Checking if failed tests can be quarantined");
-        match api_client.get_quarantining_config(request).await {
-            anyhow::Result::Ok(response) => {
-                if let Some(line) = response.quarantine_resolution_mode.resolution_log_line(
-                    request.test_collection_short_id.as_deref(),
-                    &request.repo,
-                ) {
-                    tracing::info!("{line}");
+    let (quarantine_config, quarantine_fetch_status) =
+        if !failed_tests_extractor.failed_tests().is_empty()
+            && file_set_builder
+                .file_sets()
+                .iter()
+                // internal files track quarantine status directly, so we don't need to check them
+                .any(|file_set| file_set.file_set_type == FileSetType::Junit)
+        {
+            tracing::info!("Checking if failed tests can be quarantined");
+            match api_client.get_quarantining_config(request).await {
+                anyhow::Result::Ok(response) => {
+                    if let Some(line) = response.quarantine_resolution_mode.resolution_log_line(
+                        request.test_collection_short_id.as_deref(),
+                        &request.repo,
+                    ) {
+                        tracing::info!("{line}");
+                    }
+                    (Some(response), QuarantineFetchStatus::FetchSucceeded)
                 }
-                (Some(response), QuarantineFetchStatus::FetchSucceeded)
+                anyhow::Result::Err(error) => (None, QuarantineFetchStatus::FetchFailed(error)),
             }
-            anyhow::Result::Err(error) => (None, QuarantineFetchStatus::FetchFailed(error)),
-        }
-    } else {
-        tracing::debug!("Skipping quarantine check.");
-        (None, QuarantineFetchStatus::FetchSkipped)
-    };
+        } else {
+            tracing::debug!("Skipping quarantine check.");
+            (None, QuarantineFetchStatus::FetchSkipped)
+        };
 
     let quarantine_resolution_mode = quarantine_config
         .as_ref()
@@ -413,9 +413,14 @@ pub async fn gather_quarantine_context(
             quarantined_failures.len(),
             pluralize("failure", quarantined_failures.len() as isize, false),
         );
-        quarantined_failures
-            .iter()
-            .for_each(|quarantined_failure| log_failure(quarantined_failure, request, api_client));
+        quarantined_failures.iter().for_each(|quarantined_failure| {
+            log_failure(
+                quarantined_failure,
+                request,
+                api_client,
+                hide_test_collection_links,
+            )
+        });
     }
 
     if !failures.is_empty() {
@@ -424,9 +429,9 @@ pub async fn gather_quarantine_context(
             failures.len(),
             pluralize("failure", quarantined_failures.len() as isize, false),
         );
-        failures
-            .iter()
-            .for_each(|failure| log_failure(failure, request, api_client));
+        failures.iter().for_each(|failure| {
+            log_failure(failure, request, api_client, hide_test_collection_links)
+        });
     }
     let quarantined_failure_count = quarantined_failures.len();
     quarantine_results.quarantine_results = quarantined_failures;
@@ -473,12 +478,18 @@ fn log_failure(
     failure: &Test,
     request: &api::message::GetQuarantineConfigRequest,
     api_client: &ApiClient,
+    hide_test_collection_links: bool,
 ) {
+    let test_collection_short_id = request
+        .test_collection_short_id
+        .as_deref()
+        .filter(|_| !hide_test_collection_links);
     let url = match url_for_test_case(
         &api_client.api_host,
         &request.org_url_slug,
         &request.repo,
         failure,
+        test_collection_short_id,
     ) {
         Ok(url) => format!("Learn more > {}", url),
         Err(_) => String::from(""),

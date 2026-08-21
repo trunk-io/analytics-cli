@@ -292,6 +292,16 @@ pub struct UploadArgs {
         default_missing_value = "true"
     )]
     pub show_failure_messages: bool,
+    #[arg(
+        long,
+        env = constants::TRUNK_HIDE_TEST_COLLECTION_LINKS_ENV,
+        help = "Show repo-scoped links in the CLI output instead of test collection links when a test collection ID is passed.",
+        required = false,
+        num_args = 0,
+        default_value = "false",
+        default_missing_value = "true"
+    )]
+    pub hide_test_collection_links: bool,
 }
 
 #[derive(clap::ValueEnum, Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -372,6 +382,8 @@ pub struct UploadRunResult {
     pub validations: JunitReportValidations,
     pub validation_report: ValidationReport,
     pub show_failure_messages: bool,
+    pub test_collection_short_id: Option<String>,
+    pub hide_test_collection_links: bool,
 }
 
 pub struct RunUploadOptions {
@@ -490,6 +502,7 @@ pub async fn run_upload(
             .test_collection_short_id
             .clone()
             .filter(|id| !id.is_empty()),
+        upload_args.hide_test_collection_links,
     )
     .await
     {
@@ -641,6 +654,10 @@ pub async fn run_upload(
         validations,
         validation_report: upload_args.validation_report,
         show_failure_messages: upload_args.show_failure_messages,
+        test_collection_short_id: upload_args
+            .test_collection_short_id
+            .filter(|id| !id.is_empty()),
+        hide_test_collection_links: upload_args.hide_test_collection_links,
     })
 }
 
@@ -771,6 +788,11 @@ impl EndOutput for UploadRunResult {
         let non_quarantined_count = failures.len();
         let all_quarantined = non_quarantined_count == 0 && quarantined_count > 0;
 
+        let test_collection_short_id = self
+            .test_collection_short_id
+            .as_deref()
+            .filter(|_| !self.hide_test_collection_links);
+
         // Helper closure to render the test table
         let render_test_table = |tests: &[Test]| -> anyhow::Result<Lines> {
             use std::collections::BTreeMap;
@@ -818,6 +840,7 @@ impl EndOutput for UploadRunResult {
                         &self.quarantine_context.org_url_slug,
                         &self.quarantine_context.repo,
                         test,
+                        test_collection_short_id,
                     )?;
                     let mut link_output = Line::from_iter([
                         Span::new_unstyled("⤷ ")?,
