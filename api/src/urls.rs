@@ -87,12 +87,6 @@ mod tests {
         );
     }
 
-    // DONOTLAND: intentional failure so CI's self-upload prints the new collection link — revert before merge
-    #[test]
-    fn donotland_intentional_failure_to_preview_collection_link() {
-        panic!("DONOTLAND: intentional failure to preview the test collection link in CI output");
-    }
-
     #[test]
     fn test_collection_url_generated() {
         let actual = url_for_test_case(
