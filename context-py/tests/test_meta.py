@@ -1,4 +1,3 @@
-# trunk-ignore(pyright/reportUnknownVariableType): context_py's stub is generated, not committed
 from context_py import gen_info_id, gen_info_id_base, gen_test_case_guid
 
 
@@ -202,7 +201,6 @@ NIL_UUID = "00000000-0000-0000-0000-000000000000"
 
 
 def test_gen_test_case_guid_golden_with_repo():
-    # trunk-ignore(pyright/reportUnknownVariableType)
     result = gen_test_case_guid(COLLECTION_ID, REPO_ID, TEST_CASE_ID)
     assert result == "bfeebcf4-72d1-887d-8bcd-788d0dec7f97"
 
@@ -226,7 +224,6 @@ def test_gen_test_case_guid_normalizes_uppercase_input():
 
 
 def test_gen_test_case_guid_is_stamped_v8():
-    # trunk-ignore(pyright/reportUnknownVariableType)
     result = gen_test_case_guid(COLLECTION_ID, REPO_ID, TEST_CASE_ID)
 
     # Version nibble, then the variant nibble consumers validate on.
