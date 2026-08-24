@@ -267,12 +267,11 @@ pub fn gen_info_id_base(
     )
 }
 
-/// Deterministic public id for a test case in a test collection -- the hash of the
-/// `(test_collection_id, repo_id, test_case_id)` tuple. The hash contract is frozen.
+/// Deterministic public id for a test case in a test collection: the frozen hash of the
+/// `(test_collection_id, repo_id, test_case_id)` tuple.
 ///
-/// Takes and returns canonical UUID text. A malformed input is an error rather than a hash of
-/// the raw bytes: silently minting a valid-looking guid from garbage would plant an id that
-/// resolves to nothing. Pass the nil UUID for `repo_id` to match `--no-repo` storage.
+/// Takes and returns canonical UUID text. A malformed input errors rather than being hashed, which
+/// would mint a valid-looking id that resolves to nothing. Nil `repo_id` matches `--no-repo`.
 #[wasm_bindgen]
 pub fn gen_test_case_guid(
     test_collection_id: String,

@@ -194,8 +194,7 @@ def test_variant_wrapper_does_change_variant_case():
     assert base_result != expected
 
 
-# These vectors are the FROZEN gen_test_case_guid contract, pinned identically in
-# context/src/meta/id.rs. Proving the binding and the Rust code agree is the point of these tests.
+# The frozen gen_test_case_guid contract, pinned identically in context/src/meta/id.rs.
 COLLECTION_ID = "018f6d3a-6f2e-4c4a-9b1e-2f3a4b5c6d7e"
 REPO_ID = "7a1f0e3d-2b4c-4d5e-8f90-123456789abc"
 TEST_CASE_ID = "88e5353c-190c-5dce-9d06-0e66c3e062b1"
@@ -211,8 +210,7 @@ def test_gen_test_case_guid_golden_with_repo():
 
 
 def test_gen_test_case_guid_golden_no_repo():
-    # --no-repo uploads store the nil repo UUID, so one guid covers the test across the
-    # collection's repos. The guid inherits that collapse from the tuple.
+    # --no-repo stores the nil repo UUID, collapsing to one guid per collection.
     assert (
         gen_test_case_guid(COLLECTION_ID, NIL_UUID, TEST_CASE_ID)
         == "943a80af-66b0-84bb-ad01-56b3b72fe363"
@@ -229,12 +227,12 @@ def test_gen_test_case_guid_normalizes_uppercase_input():
 def test_gen_test_case_guid_is_stamped_v8():
     result = gen_test_case_guid(COLLECTION_ID, REPO_ID, TEST_CASE_ID)
 
-    # Version nibble, then the RFC 9562 variant nibble consumers validate on.
+    # Version nibble, then the variant nibble consumers validate on.
     assert result[14] == "8"
     assert result[19] in ("8", "9", "a", "b")
 
 
 def test_gen_test_case_guid_rejects_malformed_uuid():
-    # Hashing a malformed id would mint a valid-looking guid that resolves to nothing.
+    # Hashing a malformed id would mint an id that resolves to nothing.
     with pytest.raises(TypeError):
         gen_test_case_guid(COLLECTION_ID, "not-a-uuid", TEST_CASE_ID)

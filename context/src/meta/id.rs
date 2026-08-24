@@ -8,23 +8,15 @@ fn generate_checksum_uuid(values: Vec<&str>) -> String {
 
 /// Deterministic, globally-unique public id for a test case in a test collection.
 ///
-/// A collection test case is only unique by the `(test_collection_id, repo_id, test_case_id)`
-/// tuple: `test_case_id` is opaque to the server and `--no-repo` deliberately shares one id
-/// across a collection's repos (nil `repo_id`). This hashes that whole tuple into one id, so it
-/// inherits the tuple's semantics wholesale -- including the `--no-repo` collapse.
+/// A test case is unique only by the `(test_collection_id, repo_id, test_case_id)` tuple:
+/// `test_case_id` is built from framework-internal values, and `--no-repo` deliberately shares it
+/// across a collection's repos. Hashing the whole tuple inherits those semantics rather than
+/// re-deciding them.
 ///
-/// The contract is FROZEN and enforced by the pinned golden values in this file's tests. The
-/// server computes the same id from the same inputs, so changing any step here changes which ids
-/// exist for every test case already reported.
-///
-///   1. the three UUIDs as canonical lowercase hyphenated text (`Display`),
-///   2. joined `"{test_collection_id}#{repo_id}#{test_case_id}"` (`#` mirrors `gen_info_id`),
-///   3. SHA-256, first 16 bytes,
-///   4. stamped RFC 9562 UUIDv8 (exactly what `Uuid::new_v8` does).
-///
-/// Step 4 is load-bearing, not cosmetic: consumers validate this id with a UUID matcher that
-/// enforces version 1-8 plus variant `[89ab]`, which an unstamped truncated hash fails ~87.5% of
-/// the time. v8 also visibly distinguishes this id from the v4/v5 ids alongside it.
+/// The contract is FROZEN -- lowercase canonical text, `#`-joined, SHA-256, first 16 bytes, stamped
+/// UUIDv8 -- and the pinned golden values in this file's tests are what hold it. The v8 stamp is
+/// required, not cosmetic: consumers validate this with a UUID matcher that enforces the version
+/// and variant nibbles. A change here changes which ids exist for every test case already reported.
 pub fn gen_test_case_guid(test_collection_id: Uuid, repo_id: Uuid, test_case_id: Uuid) -> Uuid {
     let msg = format!("{test_collection_id}#{repo_id}#{test_case_id}");
     let digest = Sha256::digest(msg.as_bytes());
@@ -376,21 +368,15 @@ mod tests {
         assert_eq!(result_v4, result_again);
     }
 
-    // ----------------------------------------------------------------------------------
-    // gen_test_case_guid -- FROZEN contract.
-    //
-    // These two vectors ARE the contract. They are pinned in every binding's test suite, and
-    // server-side consumers pin them too; the golden values are what keep those copies honest.
-    // A change here is a change to which ids exist for every test case already reported.
-    // ----------------------------------------------------------------------------------
+    // These two vectors ARE the frozen gen_test_case_guid contract, and are pinned in the binding
+    // suites and by server-side consumers too.
 
     const GOLDEN_COLLECTION_ID: &str = "018f6d3a-6f2e-4c4a-9b1e-2f3a4b5c6d7e";
     const GOLDEN_REPO_ID: &str = "7a1f0e3d-2b4c-4d5e-8f90-123456789abc";
     const GOLDEN_TEST_CASE_ID: &str = "88e5353c-190c-5dce-9d06-0e66c3e062b1";
 
-    /// `--repo` (the ordinary case): a real repo UUID participates in the hash.
     const GOLDEN_GUID_WITH_REPO: &str = "bfeebcf4-72d1-887d-8bcd-788d0dec7f97";
-    /// `--no-repo`: the nil repo UUID, so one guid per collection across repos.
+    /// `--no-repo`: nil repo UUID, so one guid per collection across repos.
     const GOLDEN_GUID_NO_REPO: &str = "943a80af-66b0-84bb-ad01-56b3b72fe363";
 
     fn golden_guid(repo_id: Uuid) -> Uuid {
@@ -423,8 +409,7 @@ mod tests {
         assert_eq!(result_again, result);
     }
 
-    /// The contract hashes the *canonical lowercase* rendering, so uppercase input text must
-    /// normalize to the same guid. `Uuid`'s `Display` is what guarantees this.
+    /// The contract hashes the canonical lowercase rendering, so case must not matter.
     #[cfg(feature = "bindings")]
     #[test]
     fn test_gen_test_case_guid_normalizes_uppercase_inputs() {
@@ -436,9 +421,7 @@ mod tests {
         assert_eq!(result.to_string(), GOLDEN_GUID_WITH_REPO);
     }
 
-    /// Consumers validate this id with a UUID matcher enforcing version 1-8 and variant `[89ab]`,
-    /// so an unstamped hash would be rejected ~87.5% of the time. Assert the stamp directly --
-    /// far cheaper to catch here than at the API edge.
+    /// Consumers validate this with a UUID matcher enforcing version and variant.
     #[cfg(feature = "bindings")]
     #[test]
     fn test_gen_test_case_guid_is_stamped_v8() {
@@ -450,8 +433,7 @@ mod tests {
         }
     }
 
-    /// The two collision vectors the tuple encodes must stay distinct: a real repo and the nil
-    /// repo are different tuples, so they are different guids.
+    /// A real repo and the nil repo are different tuples, so different guids.
     #[cfg(feature = "bindings")]
     #[test]
     fn test_gen_test_case_guid_repo_id_changes_the_guid() {

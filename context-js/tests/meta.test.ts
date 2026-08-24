@@ -218,8 +218,7 @@ describe("context-js", () => {
     });
   });
 
-  // These vectors are the FROZEN gen_test_case_guid contract, pinned identically in
-  // context/src/meta/id.rs. Proving the binding and the Rust code agree is the point of this file.
+  // The frozen gen_test_case_guid contract, pinned identically in context/src/meta/id.rs.
   describe("gen_test_case_guid", () => {
     const COLLECTION_ID = "018f6d3a-6f2e-4c4a-9b1e-2f3a4b5c6d7e";
     const REPO_ID = "7a1f0e3d-2b4c-4d5e-8f90-123456789abc";
@@ -239,8 +238,7 @@ describe("context-js", () => {
       );
     });
 
-    // --no-repo uploads store the nil repo UUID, so one guid covers the test across the
-    // collection's repos. The guid inherits that collapse from the tuple.
+    // --no-repo stores the nil repo UUID, collapsing to one guid per collection.
     it("matches the golden vector with the nil repo id", () => {
       expect.hasAssertions();
 
@@ -266,12 +264,12 @@ describe("context-js", () => {
 
       const result = gen_test_case_guid(COLLECTION_ID, REPO_ID, TEST_CASE_ID);
 
-      // Version nibble, then the RFC 9562 variant nibble consumers validate on.
+      // Version nibble, then the variant nibble consumers validate on.
       expect(result[14]).toBe("8");
       expect(["8", "9", "a", "b"]).toContain(result[19]);
     });
 
-    // Hashing a malformed id would mint a valid-looking guid that resolves to nothing.
+    // Hashing a malformed id would mint an id that resolves to nothing.
     it("throws on a malformed uuid instead of hashing it", () => {
       expect.hasAssertions();
 
