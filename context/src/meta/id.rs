@@ -1,8 +1,36 @@
+use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
 fn generate_checksum_uuid(values: Vec<&str>) -> String {
     let info_id_input: String = values.join("#");
     Uuid::new_v5(&Uuid::NAMESPACE_URL, info_id_input.as_bytes()).to_string()
+}
+
+/// Deterministic, globally-unique public id for a test case in a test collection.
+///
+/// A collection test case is only unique by the `(test_collection_id, repo_id, test_case_id)`
+/// tuple: `test_case_id` is opaque to the server and `--no-repo` deliberately shares one id
+/// across a collection's repos (nil `repo_id`). This hashes that whole tuple into one id, so it
+/// inherits the tuple's semantics wholesale -- including the `--no-repo` collapse.
+///
+/// The contract is FROZEN and enforced by the pinned golden values in this file's tests. The
+/// server computes the same id from the same inputs, so changing any step here changes which ids
+/// exist for every test case already reported.
+///
+///   1. the three UUIDs as canonical lowercase hyphenated text (`Display`),
+///   2. joined `"{test_collection_id}#{repo_id}#{test_case_id}"` (`#` mirrors `gen_info_id`),
+///   3. SHA-256, first 16 bytes,
+///   4. stamped RFC 9562 UUIDv8 (exactly what `Uuid::new_v8` does).
+///
+/// Step 4 is load-bearing, not cosmetic: consumers validate this id with a UUID matcher that
+/// enforces version 1-8 plus variant `[89ab]`, which an unstamped truncated hash fails ~87.5% of
+/// the time. v8 also visibly distinguishes this id from the v4/v5 ids alongside it.
+pub fn gen_test_case_guid(test_collection_id: Uuid, repo_id: Uuid, test_case_id: Uuid) -> Uuid {
+    let msg = format!("{test_collection_id}#{repo_id}#{test_case_id}");
+    let digest = Sha256::digest(msg.as_bytes());
+    let mut bytes = [0u8; 16];
+    bytes.copy_from_slice(&digest[..16]);
+    Uuid::new_v8(bytes)
 }
 
 // trunk-ignore(clippy/too_many_arguments)
@@ -93,7 +121,9 @@ pub fn gen_info_id(
 #[cfg(test)]
 #[cfg(feature = "bindings")]
 mod tests {
-    use crate::meta::id::{gen_info_id, gen_info_id_base};
+    use uuid::Uuid;
+
+    use crate::meta::id::{gen_info_id, gen_info_id_base, gen_test_case_guid};
 
     #[cfg(feature = "bindings")]
     #[test]
@@ -344,5 +374,90 @@ mod tests {
             info_id_v4.map_or(String::new(), |id| id.to_string())
         );
         assert_eq!(result_v4, result_again);
+    }
+
+    // ----------------------------------------------------------------------------------
+    // gen_test_case_guid -- FROZEN contract.
+    //
+    // These two vectors ARE the contract. They are pinned in every binding's test suite, and
+    // server-side consumers pin them too; the golden values are what keep those copies honest.
+    // A change here is a change to which ids exist for every test case already reported.
+    // ----------------------------------------------------------------------------------
+
+    const GOLDEN_COLLECTION_ID: &str = "018f6d3a-6f2e-4c4a-9b1e-2f3a4b5c6d7e";
+    const GOLDEN_REPO_ID: &str = "7a1f0e3d-2b4c-4d5e-8f90-123456789abc";
+    const GOLDEN_TEST_CASE_ID: &str = "88e5353c-190c-5dce-9d06-0e66c3e062b1";
+
+    /// `--repo` (the ordinary case): a real repo UUID participates in the hash.
+    const GOLDEN_GUID_WITH_REPO: &str = "bfeebcf4-72d1-887d-8bcd-788d0dec7f97";
+    /// `--no-repo`: the nil repo UUID, so one guid per collection across repos.
+    const GOLDEN_GUID_NO_REPO: &str = "943a80af-66b0-84bb-ad01-56b3b72fe363";
+
+    fn golden_guid(repo_id: Uuid) -> Uuid {
+        gen_test_case_guid(
+            Uuid::parse_str(GOLDEN_COLLECTION_ID).unwrap(),
+            repo_id,
+            Uuid::parse_str(GOLDEN_TEST_CASE_ID).unwrap(),
+        )
+    }
+
+    #[cfg(feature = "bindings")]
+    #[test]
+    fn test_gen_test_case_guid_golden_with_repo() {
+        let result = golden_guid(Uuid::parse_str(GOLDEN_REPO_ID).unwrap());
+        assert_eq!(result.to_string(), GOLDEN_GUID_WITH_REPO);
+
+        // Run again to ensure deterministic output
+        let result_again = golden_guid(Uuid::parse_str(GOLDEN_REPO_ID).unwrap());
+        assert_eq!(result_again, result);
+    }
+
+    #[cfg(feature = "bindings")]
+    #[test]
+    fn test_gen_test_case_guid_golden_no_repo() {
+        let result = golden_guid(Uuid::nil());
+        assert_eq!(result.to_string(), GOLDEN_GUID_NO_REPO);
+
+        // Run again to ensure deterministic output
+        let result_again = golden_guid(Uuid::nil());
+        assert_eq!(result_again, result);
+    }
+
+    /// The contract hashes the *canonical lowercase* rendering, so uppercase input text must
+    /// normalize to the same guid. `Uuid`'s `Display` is what guarantees this.
+    #[cfg(feature = "bindings")]
+    #[test]
+    fn test_gen_test_case_guid_normalizes_uppercase_inputs() {
+        let result = gen_test_case_guid(
+            Uuid::parse_str(&GOLDEN_COLLECTION_ID.to_uppercase()).unwrap(),
+            Uuid::parse_str(&GOLDEN_REPO_ID.to_uppercase()).unwrap(),
+            Uuid::parse_str(&GOLDEN_TEST_CASE_ID.to_uppercase()).unwrap(),
+        );
+        assert_eq!(result.to_string(), GOLDEN_GUID_WITH_REPO);
+    }
+
+    /// Consumers validate this id with a UUID matcher enforcing version 1-8 and variant `[89ab]`,
+    /// so an unstamped hash would be rejected ~87.5% of the time. Assert the stamp directly --
+    /// far cheaper to catch here than at the API edge.
+    #[cfg(feature = "bindings")]
+    #[test]
+    fn test_gen_test_case_guid_is_stamped_v8() {
+        for repo_id in [Uuid::parse_str(GOLDEN_REPO_ID).unwrap(), Uuid::nil()] {
+            let guid = golden_guid(repo_id);
+            assert_eq!(guid.get_version_num(), 8);
+            // RFC 9562 variant: the high two bits of byte 8 are 0b10.
+            assert_eq!(guid.as_bytes()[8] & 0xC0, 0x80);
+        }
+    }
+
+    /// The two collision vectors the tuple encodes must stay distinct: a real repo and the nil
+    /// repo are different tuples, so they are different guids.
+    #[cfg(feature = "bindings")]
+    #[test]
+    fn test_gen_test_case_guid_repo_id_changes_the_guid() {
+        assert_ne!(
+            golden_guid(Uuid::parse_str(GOLDEN_REPO_ID).unwrap()),
+            golden_guid(Uuid::nil())
+        );
     }
 }

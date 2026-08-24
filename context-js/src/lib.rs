@@ -10,11 +10,13 @@ use bundle::{
 use chrono::{DateTime, FixedOffset};
 use context::{
     env, junit, meta::id::gen_info_id as gen_info_id_impl,
-    meta::id::gen_info_id_base as gen_info_id_base_impl, repo,
+    meta::id::gen_info_id_base as gen_info_id_base_impl,
+    meta::id::gen_test_case_guid as gen_test_case_guid_impl, repo,
 };
 use futures::{future::Either, io::BufReader as BufReaderAsync, stream::TryStreamExt};
 use js_sys::Uint8Array;
 use prost::Message;
+use uuid::Uuid;
 use wasm_bindgen::prelude::*;
 use wasm_streams::{readable::ReadableStream, readable::sys};
 
@@ -263,4 +265,27 @@ pub fn gen_info_id_base(
         info_id.as_deref(),
         &variant,
     )
+}
+
+/// Deterministic public id for a test case in a test collection -- the hash of the
+/// `(test_collection_id, repo_id, test_case_id)` tuple. The hash contract is frozen.
+///
+/// Takes and returns canonical UUID text. A malformed input is an error rather than a hash of
+/// the raw bytes: silently minting a valid-looking guid from garbage would plant an id that
+/// resolves to nothing. Pass the nil UUID for `repo_id` to match `--no-repo` storage.
+#[wasm_bindgen]
+pub fn gen_test_case_guid(
+    test_collection_id: String,
+    repo_id: String,
+    test_case_id: String,
+) -> Result<String, JsError> {
+    let parse = |label: &str, raw: &str| {
+        Uuid::parse_str(raw).map_err(|e| JsError::new(&format!("invalid {label}: {e}")))
+    };
+    Ok(gen_test_case_guid_impl(
+        parse("test_collection_id", &test_collection_id)?,
+        parse("repo_id", &repo_id)?,
+        parse("test_case_id", &test_case_id)?,
+    )
+    .to_string())
 }
