@@ -9,7 +9,7 @@ describe("context-js", () => {
   // These tests match the tests in context/src/meta/id.rs.
   // While they don't need to match, it proves both the bindings and
   // rust code are generating the same IDs.
-  describe("gen_info_id", () => {
+  describe("gen_info_id()", () => {
     it("generates ID properly for trunk", () => {
       expect.hasAssertions();
 
@@ -219,7 +219,7 @@ describe("context-js", () => {
   });
 
   // The frozen gen_test_case_guid contract, pinned identically in context/src/meta/id.rs.
-  describe("gen_test_case_guid", () => {
+  describe("gen_test_case_guid()", () => {
     const COLLECTION_ID = "018f6d3a-6f2e-4c4a-9b1e-2f3a4b5c6d7e";
     const REPO_ID = "7a1f0e3d-2b4c-4d5e-8f90-123456789abc";
     const TEST_CASE_ID = "88e5353c-190c-5dce-9d06-0e66c3e062b1";
@@ -275,7 +275,7 @@ describe("context-js", () => {
 
       expect(() =>
         gen_test_case_guid(COLLECTION_ID, "not-a-uuid", TEST_CASE_ID),
-      ).toThrow();
+      ).toThrowError(/invalid repo_id/);
     });
   });
 });
