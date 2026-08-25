@@ -552,6 +552,29 @@ pub fn gen_info_id_base(
     )
 }
 
+/// Deterministic public id for a test case in a test collection: the frozen hash of the
+/// `(test_collection_id, repo_id, test_case_id)` tuple.
+///
+/// Takes and returns canonical UUID text. A malformed input raises rather than being hashed, which
+/// would mint a valid-looking id that resolves to nothing. Nil `repo_id` matches `--no-repo`.
+#[gen_stub_pyfunction]
+#[pyfunction]
+pub fn gen_test_case_guid(
+    test_collection_id: String,
+    repo_id: String,
+    test_case_id: String,
+) -> PyResult<String> {
+    let parse = |label: &str, raw: &str| {
+        Uuid::parse_str(raw).map_err(|e| PyTypeError::new_err(format!("invalid {label}: {e}")))
+    };
+    Ok(id::gen_test_case_guid(
+        parse("test_collection_id", &test_collection_id)?,
+        parse("repo_id", &repo_id)?,
+        parse("test_case_id", &test_case_id)?,
+    )
+    .to_string())
+}
+
 #[pymodule]
 fn context_py(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<env::parser::CIInfo>()?;
@@ -609,6 +632,7 @@ fn context_py(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(parse_internal_bin_from_tarball, m)?)?;
     m.add_function(wrap_pyfunction!(gen_info_id, m)?)?;
     m.add_function(wrap_pyfunction!(gen_info_id_base, m)?)?;
+    m.add_function(wrap_pyfunction!(gen_test_case_guid, m)?)?;
 
     m.add_class::<codeowners::BindingsOwners>()?;
     m.add_function(wrap_pyfunction!(codeowners_parse, m)?)?;
