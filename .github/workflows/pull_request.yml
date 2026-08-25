@@ -264,6 +264,13 @@ jobs:
       - name: Setup and build wasm
         uses: ./.github/actions/setup_build_wasm
 
+      # pyright type-checks context-py against context_py.pyi, which is generated rather than
+      # committed. Without this, every symbol imported from context_py is `Unknown` and each new
+      # import is a fresh pyright finding. The wasm step above exists for the same reason on the
+      # JS side -- eslint needs the generated pkg/ to resolve.
+      - name: Generate Python stubs
+        run: cargo run --bin stub_gen --manifest-path context-py/Cargo.toml --no-default-features
+
       - name: Trunk Check
         uses: trunk-io/trunk-action@v1
         with:
