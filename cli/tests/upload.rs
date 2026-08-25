@@ -301,6 +301,73 @@ async fn upload_bundle() {
 
 // NOTE: must be multi threaded to start a mock server
 #[tokio::test(flavor = "multi_thread")]
+async fn upload_bundle_prints_test_collection_links() {
+    let temp_dir = tempdir().unwrap();
+    generate_mock_git_repo(&temp_dir);
+    generate_mock_valid_junit_xmls(&temp_dir);
+
+    let state = MockServerBuilder::new().spawn_mock_server().await;
+
+    let assert = CommandBuilder::upload(temp_dir.path(), state.host.clone())
+        .command()
+        .arg("--test-collection-id")
+        .arg("tc_123")
+        .assert()
+        .failure();
+
+    assert
+        .stderr(predicate::str::contains(
+            "/test-org/flaky-tests/collections/tc_123/t/",
+        ))
+        .stderr(predicate::str::contains("?repo=trunk-io%2Fanalytics-cli"));
+}
+
+// NOTE: must be multi threaded to start a mock server
+#[tokio::test(flavor = "multi_thread")]
+async fn upload_bundle_hides_test_collection_links_when_env_set() {
+    let temp_dir = tempdir().unwrap();
+    generate_mock_git_repo(&temp_dir);
+    generate_mock_valid_junit_xmls(&temp_dir);
+
+    let state = MockServerBuilder::new().spawn_mock_server().await;
+
+    let assert = CommandBuilder::upload(temp_dir.path(), state.host.clone())
+        .command()
+        .env("TRUNK_HIDE_TEST_COLLECTION_LINKS", "true")
+        .arg("--test-collection-id")
+        .arg("tc_123")
+        .assert()
+        .failure();
+
+    assert
+        .stderr(predicate::str::contains("/test-org/flaky-tests/test/"))
+        .stderr(predicate::str::contains("/flaky-tests/collections/").not());
+}
+
+// NOTE: must be multi threaded to start a mock server
+#[tokio::test(flavor = "multi_thread")]
+async fn upload_bundle_without_test_collection_id_prints_repo_links() {
+    let temp_dir = tempdir().unwrap();
+    generate_mock_git_repo(&temp_dir);
+    generate_mock_valid_junit_xmls(&temp_dir);
+
+    let state = MockServerBuilder::new().spawn_mock_server().await;
+
+    let assert = CommandBuilder::upload(temp_dir.path(), state.host.clone())
+        .command()
+        // an exported-but-blank env var (common in CI) must not produce a
+        // malformed /collections//t/ link
+        .env("TRUNK_TEST_COLLECTION_ID", "")
+        .assert()
+        .failure();
+
+    assert
+        .stderr(predicate::str::contains("/test-org/flaky-tests/test/"))
+        .stderr(predicate::str::contains("/flaky-tests/collections/").not());
+}
+
+// NOTE: must be multi threaded to start a mock server
+#[tokio::test(flavor = "multi_thread")]
 async fn upload_bundle_records_quarantine_resolution_mode() {
     let temp_dir = tempdir().unwrap();
     generate_mock_git_repo(&temp_dir);

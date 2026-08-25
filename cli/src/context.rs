@@ -772,6 +772,7 @@ pub async fn gather_exit_code_and_quarantined_tests_context(
     file_set_builder: &FileSetBuilder,
     default_exit_code: Option<i32>,
     test_collection_short_id: Option<String>,
+    hide_test_collection_links: bool,
 ) -> anyhow::Result<QuarantineContext> {
     // Run the quarantine step and update the exit code.
     let failed_tests_extractor = FailedTestsExtractor::new(
@@ -823,6 +824,7 @@ pub async fn gather_exit_code_and_quarantined_tests_context(
             Some(failed_tests_extractor),
             default_exit_code,
             &meta.variant.clone().unwrap_or(String::from("")),
+            hide_test_collection_links,
         )
         .await?
     };
