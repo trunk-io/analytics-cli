@@ -722,7 +722,7 @@ pub fn get_bundle_upload_id_message(bundle_upload_id: &str) -> String {
 }
 
 pub fn get_bundle_upload_url_message(url: &str) -> String {
-    format!("🏷️  Bundle Upload: {}", url)
+    format!("🏷️  Upload: {}", url)
 }
 
 impl UploadRunResult {
