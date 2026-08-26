@@ -23,12 +23,8 @@ pub fn url_for_test_case(
     Ok(url.to_string())
 }
 
-/// The `{ id, createdAt }` pair the webapp's canonical upload route is keyed on.
-///
-/// Field order and the absence of whitespace exist to match `encodeBundleMetaKey` byte for
-/// byte (trunk2 `ts/apps/frontend/src/lib/utils.ts`), which is what the golden test below
-/// pins. The webapp's decoder parses JSON, so it is order-insensitive — a drift here would
-/// still resolve, it would just stop being the same string the webapp itself emits.
+/// Serialized to match trunk2's `encodeBundleMetaKey` byte for byte — hence the field order
+/// and a `Serialize` struct rather than a `format!`.
 #[derive(Serialize)]
 struct BundleMetaKey<'a> {
     id: &'a str,
@@ -36,16 +32,12 @@ struct BundleMetaKey<'a> {
     created_at: i64,
 }
 
-/// Link to a single upload, in the webapp's canonical `uploads/{bundleMetaKey}` form.
+/// Link to a single upload, in the webapp's canonical `uploads/{bundleMetaKey}` form. Needs
+/// no `repo` query param — the collection short id fully scopes the upload.
 ///
-/// Needs no `repo` query param — unlike [`url_for_test_case`], the collection short id
-/// fully scopes the upload.
-///
-/// The key carries the upload's timestamp because every query behind that page is keyed on
-/// it (it is `test_collection_upload`'s partition key), and the server has no cheap way to
-/// recover it from the id alone: that table's primary key leads with
-/// `(test_collection_id, repo_id, …)` and a link carries no repo, so an id-only lookup
-/// cannot use the index. Emitting the pair we already have avoids the lookup entirely.
+/// The key carries the timestamp because the server cannot cheaply recover it from the id:
+/// `test_collection_upload`'s primary key leads with `(test_collection_id, repo_id, …)`, and
+/// a link carries no repo, so an id-only lookup cannot use the index.
 pub fn url_for_upload(
     public_api_address: &str,
     org_url_slug: &str,
@@ -62,7 +54,6 @@ pub fn url_for_upload(
     })?);
 
     let mut url = Url::parse(convert_to_app_url(public_api_address).as_str())?;
-    // base64url's alphabet is already path-safe, so `set_path` leaves the key alone.
     url.set_path(
         format!("{org_url_slug}/flaky-tests/collections/{test_collection_short_id}/uploads/{key}")
             .as_str(),
@@ -138,63 +129,46 @@ mod tests {
         );
     }
 
-    // Golden vector: this key is what `encodeBundleMetaKey` in trunk2
-    // (`ts/apps/frontend/src/lib/utils.ts`) produces for the same id and instant, and it is
-    // the string the webapp's `decodeBundleMetaKey` reads back. A change here silently
-    // stops the CLI from emitting a URL the webapp can route.
-    const UPLOAD_KEY: &str = "eyJpZCI6IjgyYzZhNmU1LWY4ZWEtNGQ5My05YTI2LWI4YWI2ZmY4ZjZiYyIsImNyZWF0ZWRBdCI6MTc4Nzc2ODIwODg3M30";
+    const UPLOAD_ID: &str = "c8034184-a9c2-5c53-be91-ef38ffb90df9";
+    // 1787777896873
+    const UPLOAD_CREATED_AT: &str = "2026-08-26T20:58:16.873Z";
+    // base64url of {"id":"c8034184-a9c2-5c53-be91-ef38ffb90df9","createdAt":1787777896873},
+    // cross-checked against trunk2's `encodeBundleMetaKey`. A change here stops the webapp
+    // from routing the URL we print.
+    const UPLOAD_KEY: &str = "eyJpZCI6ImM4MDM0MTg0LWE5YzItNWM1My1iZTkxLWVmMzhmZmI5MGRmOSIsImNyZWF0ZWRBdCI6MTc4Nzc3Nzg5Njg3M30";
 
-    #[test]
-    fn test_upload_url_generated() {
-        let actual = url_for_upload(
+    fn upload_url(created_at: &str) -> anyhow::Result<String> {
+        url_for_upload(
             "https://api.trunk-staging.io",
             "bad-app-org",
             "tc_123",
-            "82c6a6e5-f8ea-4d93-9a26-b8ab6ff8f6bc",
-            "2026-08-26T18:16:48.873Z",
-        );
+            UPLOAD_ID,
+            created_at,
+        )
+    }
 
+    #[test]
+    fn test_upload_url_generated() {
         assert_eq!(
-            actual.unwrap(),
+            upload_url(UPLOAD_CREATED_AT).unwrap(),
             format!(
                 "https://app.trunk-staging.io/bad-app-org/flaky-tests/collections/tc_123/uploads/{UPLOAD_KEY}"
             ),
         );
     }
 
-    // The bundle's timestamp is whatever offset the server sent; the key is keyed on the
-    // instant, so an equivalent non-UTC spelling has to produce the same string.
+    // The key is keyed on the instant, and the server picks the offset it sends.
     #[test]
     fn test_upload_url_is_offset_independent() {
-        let utc = url_for_upload(
-            "https://api.trunk-staging.io",
-            "bad-app-org",
-            "tc_123",
-            "82c6a6e5-f8ea-4d93-9a26-b8ab6ff8f6bc",
-            "2026-08-26T18:16:48.873Z",
+        assert_eq!(
+            upload_url("2026-08-26T13:58:16.873-07:00").unwrap(),
+            upload_url(UPLOAD_CREATED_AT).unwrap(),
         );
-        let offset = url_for_upload(
-            "https://api.trunk-staging.io",
-            "bad-app-org",
-            "tc_123",
-            "82c6a6e5-f8ea-4d93-9a26-b8ab6ff8f6bc",
-            "2026-08-26T11:16:48.873-07:00",
-        );
-
-        assert_eq!(utc.unwrap(), offset.unwrap());
     }
 
     #[test]
     fn test_upload_url_rejects_an_unparseable_timestamp() {
-        let actual = url_for_upload(
-            "https://api.trunk-staging.io",
-            "bad-app-org",
-            "tc_123",
-            "82c6a6e5-f8ea-4d93-9a26-b8ab6ff8f6bc",
-            "not-a-timestamp",
-        );
-
-        assert!(actual.is_err());
+        assert!(upload_url("not-a-timestamp").is_err());
     }
 
     #[test]
