@@ -4,7 +4,10 @@ use std::path::PathBuf;
 use std::sync::mpsc::Sender;
 
 use api::client::{ApiClient, ApiErrorEndpoint};
-use api::{client::get_api_host, urls::url_for_test_case};
+use api::{
+    client::get_api_host,
+    urls::{url_for_test_case, url_for_upload},
+};
 use bundle::{BundleMeta, BundlerUtil, QuarantineResolutionMode, Test, unzip_tarball};
 use clap::{ArgAction, Args};
 use codeowners::OwnersSource;
@@ -384,6 +387,7 @@ pub struct UploadRunResult {
     pub show_failure_messages: bool,
     pub test_collection_short_id: Option<String>,
     pub hide_test_collection_links: bool,
+    pub api_address: String,
 }
 
 pub struct RunUploadOptions {
@@ -658,6 +662,7 @@ pub async fn run_upload(
             .test_collection_short_id
             .filter(|id| !id.is_empty()),
         hide_test_collection_links: upload_args.hide_test_collection_links,
+        api_address: api_client.api_host.clone(),
     })
 }
 
@@ -716,6 +721,31 @@ pub fn get_bundle_upload_id_message(bundle_upload_id: &str) -> String {
     format!("🏷️  Bundle Upload ID: {}", bundle_upload_id)
 }
 
+pub fn get_bundle_upload_url_message(url: &str) -> String {
+    format!("🏷️  Bundle Upload: {}", url)
+}
+
+impl UploadRunResult {
+    /// Short link to this upload's page, when the run is in test-collection link mode.
+    /// Gated on `test_collection_short_id` rather than `base_props.test_collection.short_id`
+    /// so an exported-but-blank collection id can't yield a malformed `/collections//u/`
+    /// link; the payload supplies the bundle_meta id the link is keyed on.
+    fn collection_upload_url(&self) -> Option<String> {
+        if self.hide_test_collection_links {
+            return None;
+        }
+        let short_id = self.test_collection_short_id.as_deref()?;
+        let test_collection = self.meta.base_props.test_collection.as_ref()?;
+        url_for_upload(
+            &self.api_address,
+            &self.meta.base_props.org,
+            short_id,
+            &test_collection.bundle_meta_id,
+        )
+        .ok()
+    }
+}
+
 impl EndOutput for UploadRunResult {
     fn output(&self) -> anyhow::Result<Vec<Line>> {
         let mut output: Vec<Line> = Vec::new();
@@ -733,15 +763,20 @@ impl EndOutput for UploadRunResult {
             }
         }
 
-        // Add the bundle upload ID message
+        // Add the bundle upload message: the short link when the run is in
+        // test-collection link mode, otherwise the bare id as before.
         {
-            let bundle_upload_id = self.meta.base_props.bundle_upload_id.clone();
-            if !bundle_upload_id.is_empty() {
+            let bundle_upload_id = &self.meta.base_props.bundle_upload_id;
+            let message = match self.collection_upload_url() {
+                Some(url) => Some(get_bundle_upload_url_message(&url)),
+                None if !bundle_upload_id.is_empty() => {
+                    Some(get_bundle_upload_id_message(bundle_upload_id))
+                }
+                None => None,
+            };
+            if let Some(message) = message {
                 output.push(Line::from_iter([Span::new_styled(
-                    style(get_bundle_upload_id_message(
-                        &self.meta.base_props.bundle_upload_id,
-                    ))
-                    .attribute(Attribute::Bold),
+                    style(message).attribute(Attribute::Bold),
                 )?]));
                 output.push(Line::default());
             }
