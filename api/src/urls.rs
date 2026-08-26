@@ -19,6 +19,26 @@ pub fn url_for_test_case(
     Ok(url.to_string())
 }
 
+/// Short link to a single upload. Unlike [`url_for_test_case`] this needs no `repo` query
+/// param: the collection short id fully scopes the webapp's lookup of the upload's
+/// timestamp, which is the half of the canonical URL's key that cannot fit in a short link.
+pub fn url_for_upload(
+    public_api_address: &str,
+    org_url_slug: &str,
+    test_collection_short_id: &str,
+    bundle_meta_id: &str,
+) -> Result<String, ParseError> {
+    let mut url = Url::parse(convert_to_app_url(public_api_address).as_str())?;
+    url.set_path(
+        format!(
+            "{}/flaky-tests/collections/{}/u/{}",
+            org_url_slug, test_collection_short_id, bundle_meta_id
+        )
+        .as_str(),
+    );
+    Ok(url.to_string())
+}
+
 fn convert_to_app_url(public_api_address: &str) -> String {
     public_api_address.replace("https://api.", "https://app.")
 }
@@ -83,6 +103,23 @@ mod tests {
             actual,
             Ok(String::from(
                 "https://app.trunk-staging.io/bad-app-org/flaky-tests/test/c33a7f64-8f3e-5db9-b37b-2ea870d2441b?repo=bad-app%2Fios-app"
+            )),
+        );
+    }
+
+    #[test]
+    fn test_upload_url_generated() {
+        let actual = url_for_upload(
+            "https://api.trunk-staging.io",
+            "bad-app-org",
+            "tc_123",
+            "82c6a6e5-f8ea-4d93-9a26-b8ab6ff8f6bc",
+        );
+
+        assert_eq!(
+            actual,
+            Ok(String::from(
+                "https://app.trunk-staging.io/bad-app-org/flaky-tests/collections/tc_123/u/82c6a6e5-f8ea-4d93-9a26-b8ab6ff8f6bc"
             )),
         );
     }
