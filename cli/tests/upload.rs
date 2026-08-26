@@ -292,10 +292,10 @@ async fn upload_bundle() {
 
     // HINT: View CLI output with `cargo test -- --nocapture`
     println!("{assert}");
-    // This run passes a collection id, so the upload surfaces as a short link rather
-    // than the bare id (the bare-id form is covered by the links-hidden test below).
+    // This run passes a collection id, so the upload surfaces as a link rather than the
+    // bare id (the bare-id form is covered by the links-hidden test below).
     assert.stderr(predicate::str::contains(
-        "/test-org/flaky-tests/collections/tc_123/u/82c6a6e5-f8ea-4d93-9a26-b8ab6ff8f6bc",
+        "/test-org/flaky-tests/collections/tc_123/uploads/eyJpZCI6IjgyYzZhNmU1LWY4ZWEtNGQ5My05YTI2LWI4YWI2ZmY4ZjZiYyIsImNyZWF0ZWRBdCI6MTc3ODQxNjQ5NjAwMH0",
     ));
 }
 
@@ -338,11 +338,12 @@ async fn upload_bundle_prints_test_collection_upload_link() {
         .assert()
         .failure();
 
-    // the upload link is keyed on the bundle_meta id the server returned, not the
-    // bundle upload id, and needs no ?repo= — the short id scopes the lookup
+    // The link is the webapp's canonical form: a base64url `{id, createdAt}` key built
+    // from both halves the server returned, not the bundle upload id. Needs no ?repo= —
+    // the short id scopes the upload.
     assert
         .stderr(predicate::str::contains(
-            "/test-org/flaky-tests/collections/tc_123/u/82c6a6e5-f8ea-4d93-9a26-b8ab6ff8f6bc",
+            "/test-org/flaky-tests/collections/tc_123/uploads/eyJpZCI6IjgyYzZhNmU1LWY4ZWEtNGQ5My05YTI2LWI4YWI2ZmY4ZjZiYyIsImNyZWF0ZWRBdCI6MTc3ODQxNjQ5NjAwMH0",
         ))
         .stderr(predicate::str::contains("Bundle Upload ID:").not());
 }
@@ -368,7 +369,7 @@ async fn upload_bundle_prints_bare_upload_id_when_links_hidden() {
         .stderr(predicate::str::contains(
             get_bundle_upload_id_message("test-bundle-upload-id").as_str(),
         ))
-        .stderr(predicate::str::contains("/flaky-tests/collections/tc_123/u/").not());
+        .stderr(predicate::str::contains("/flaky-tests/collections/tc_123/uploads/").not());
 }
 
 // NOTE: must be multi threaded to start a mock server
