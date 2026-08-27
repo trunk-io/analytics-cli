@@ -64,3 +64,32 @@ jobs:
         if: "!cancelled() && github.event_name != 'pull_request'"
         run: |
           echo "::notice title=Published bindings::context-js bindings published to S3 at ${{ steps.get-date-sha.outputs.reference }}"
+
+  gate:
+    name: context-js Gate
+    runs-on: ubuntu-latest
+    # Branch-protection fan-in: one stable required context for this whole workflow.
+    # A matrix job skipped by its job-level `if:` reports a single check run under the
+    # *unexpanded* name (`Test for ${{ matrix.platform.target }}`) because the matrix is
+    # never evaluated -- so per-leg contexts never report and required checks hang on
+    # "Expected". This job always runs, so its name always reports.
+    if: always()
+    needs: [build]
+    steps:
+      - name: Check fan-in results
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        shell: bash
+        run: |
+          read -ra results <<<"${RESULTS}"
+          for result in "${results[@]}"; do
+            case "${result}" in
+            # A skipped job is a pass: it was deliberately not run for this change.
+            success | skipped) ;;
+            *)
+              echo "::error::a needed job reported '${result}'"
+              exit 1
+              ;;
+            esac
+          done
+          echo "needed jobs all passed or were skipped: ${RESULTS}"
