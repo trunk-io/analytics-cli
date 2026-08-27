@@ -19,6 +19,28 @@ permissions:
   id-token: write
 
 jobs:
+  # Trunk decides which jobs this PR needs. Fails open: no verdict means no
+  # output, so every gate below tests `!= 'false'`. Gating is scoped to
+  # pull_request -- push (main), tags and dispatch run everything outright.
+  dynamic-ci-filter:
+    name: Dynamic CI Filter
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    if: github.event_name == 'pull_request'
+    # Per-job outputs are set at runtime, so they are re-exported here by name.
+    outputs:
+      linux: ${{ steps.ci-filter.outputs.linux }}
+      linux-pytest: ${{ steps.ci-filter.outputs.linux-pytest }}
+      macos: ${{ steps.ci-filter.outputs.macos }}
+      sdist: ${{ steps.ci-filter.outputs.sdist }}
+    steps:
+      - name: Run Dynamic CI Filter
+        id: ci-filter
+        uses: trunk-io/dynamic-ci@v1
+        with:
+          # Prod, not staging: this repo's merge queue lives in prod.
+          token: ${{ secrets.TRUNK_PROD_ORG_API_TOKEN }}
+
   get-date-sha:
     runs-on: ubuntu-latest
     outputs:
@@ -37,7 +59,14 @@ jobs:
           echo "sha=${GIT_SHA}" >> $GITHUB_OUTPUT
           echo "reference=${DATE}/${GIT_SHA}" >> $GITHUB_OUTPUT
   linux:
-    needs: [get-date-sha]
+    needs: [get-date-sha, dynamic-ci-filter]
+    # Also runs when `linux-pytest` is wanted: it consumes this job's wheels.
+    if: >-
+      !cancelled() &&
+      needs.get-date-sha.result == 'success' &&
+      (github.event_name != 'pull_request' ||
+      needs.dynamic-ci-filter.outputs.linux != 'false' ||
+      needs.dynamic-ci-filter.outputs.linux-pytest != 'false')
     runs-on: ${{ matrix.platform.runner }}
     strategy:
       fail-fast: false
@@ -100,7 +129,12 @@ jobs:
           sha: ${{ needs.get-date-sha.outputs.sha }}
 
   linux-pytest:
-    needs: [linux]
+    needs: [linux, dynamic-ci-filter]
+    if: >-
+      !cancelled() &&
+      needs.linux.result == 'success' &&
+      (github.event_name != 'pull_request' ||
+      needs.dynamic-ci-filter.outputs.linux-pytest != 'false')
     runs-on: ${{ matrix.platform.runner }}
     strategy:
       fail-fast: false
@@ -218,7 +252,12 @@ jobs:
           directory: ./context-py
 
   macos:
-    needs: [get-date-sha]
+    needs: [get-date-sha, dynamic-ci-filter]
+    if: >-
+      !cancelled() &&
+      needs.get-date-sha.result == 'success' &&
+      (github.event_name != 'pull_request' ||
+      needs.dynamic-ci-filter.outputs.macos != 'false')
     runs-on: ${{ matrix.platform.runner }}
     strategy:
       matrix:
@@ -264,7 +303,12 @@ jobs:
           date: ${{ needs.get-date-sha.outputs.date }}
           sha: ${{ needs.get-date-sha.outputs.sha }}
   sdist:
-    needs: [get-date-sha]
+    needs: [get-date-sha, dynamic-ci-filter]
+    if: >-
+      !cancelled() &&
+      needs.get-date-sha.result == 'success' &&
+      (github.event_name != 'pull_request' ||
+      needs.dynamic-ci-filter.outputs.sdist != 'false')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -300,3 +344,35 @@ jobs:
       - name: Annotate workflow with S3 reference
         run: |
           echo "::notice title=Published bindings::context-py bindings published to S3 at ${{ needs.get-date-sha.outputs.reference }}"
+
+  gate:
+    name: context-py Gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # Branch-protection fan-in: one stable required context for this whole workflow.
+    # A matrix job skipped by its job-level `if:` reports a single check run under the
+    # *unexpanded* name (`Test for ${{ matrix.platform.target }}`) because the matrix is
+    # never evaluated -- so per-leg contexts never report and required checks hang on
+    # "Expected". This job always runs, so its name always reports.
+    # linux-pytest is omitted: it is not a required check today, and this job
+    # preserves that set rather than widening it.
+    if: always()
+    needs: [linux, macos, sdist]
+    steps:
+      - name: Check fan-in results
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        shell: bash
+        run: |
+          read -ra results <<<"${RESULTS}"
+          for result in "${results[@]}"; do
+            case "${result}" in
+            # A skipped job is a pass: it was deliberately not run for this change.
+            success | skipped) ;;
+            *)
+              echo "::error::a needed job reported '${result}'"
+              exit 1
+              ;;
+            esac
+          done
+          echo "needed jobs all passed or were skipped: ${RESULTS}"
