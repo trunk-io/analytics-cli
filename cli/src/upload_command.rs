@@ -726,10 +726,10 @@ pub fn get_bundle_upload_url_message(url: &str) -> String {
 }
 
 impl UploadRunResult {
-    /// Short link to this upload's page, when the run is in test-collection link mode.
-    /// Gated on `test_collection_short_id` rather than `base_props.test_collection.short_id`
-    /// so an exported-but-blank collection id can't yield a malformed `/collections//u/`
-    /// link; the payload supplies the bundle_meta id the link is keyed on.
+    /// Link to this upload's page, when the run is in test-collection link mode. Gated on
+    /// `test_collection_short_id` rather than `base_props.test_collection.short_id` so an
+    /// exported-but-blank collection id can't yield a malformed `/collections//uploads/`
+    /// link. The payload supplies both halves of the key the canonical route is keyed on.
     fn collection_upload_url(&self) -> Option<String> {
         if self.hide_test_collection_links {
             return None;
@@ -741,6 +741,7 @@ impl UploadRunResult {
             &self.meta.base_props.org,
             short_id,
             &test_collection.bundle_meta_id,
+            &test_collection.bundle_meta_created_at,
         )
         .ok()
     }
