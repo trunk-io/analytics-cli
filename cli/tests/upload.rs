@@ -292,10 +292,10 @@ async fn upload_bundle() {
 
     // HINT: View CLI output with `cargo test -- --nocapture`
     println!("{assert}");
-    // Verify that the bundle upload ID message is printed
-    let bundle_upload_id = base_props.bundle_upload_id.clone();
+    // A collection id was passed, so the upload surfaces as a link rather than the bare id
+    // (the bare-id form is covered by the links-hidden test below).
     assert.stderr(predicate::str::contains(
-        get_bundle_upload_id_message(&bundle_upload_id).as_str(),
+        "/test-org/flaky-tests/collections/tc_123/uploads/eyJpZCI6IjgyYzZhNmU1LWY4ZWEtNGQ5My05YTI2LWI4YWI2ZmY4ZjZiYyIsImNyZWF0ZWRBdCI6MTc3ODQxNjQ5NjAwMH0",
     ));
 }
 
@@ -320,6 +320,55 @@ async fn upload_bundle_prints_test_collection_links() {
             "/test-org/flaky-tests/collections/tc_123/t/",
         ))
         .stderr(predicate::str::contains("?repo=trunk-io%2Fanalytics-cli"));
+}
+
+// NOTE: must be multi threaded to start a mock server
+#[tokio::test(flavor = "multi_thread")]
+async fn upload_bundle_prints_test_collection_upload_link() {
+    let temp_dir = tempdir().unwrap();
+    generate_mock_git_repo(&temp_dir);
+    generate_mock_valid_junit_xmls(&temp_dir);
+
+    let state = MockServerBuilder::new().spawn_mock_server().await;
+
+    let assert = CommandBuilder::upload(temp_dir.path(), state.host.clone())
+        .command()
+        .arg("--test-collection-id")
+        .arg("tc_123")
+        .assert()
+        .failure();
+
+    // The canonical form: a base64url `{id, createdAt}` key from both halves the server
+    // returned, not the bundle upload id. Needs no ?repo= — the short id scopes the upload.
+    assert
+        .stderr(predicate::str::contains(
+            "/test-org/flaky-tests/collections/tc_123/uploads/eyJpZCI6IjgyYzZhNmU1LWY4ZWEtNGQ5My05YTI2LWI4YWI2ZmY4ZjZiYyIsImNyZWF0ZWRBdCI6MTc3ODQxNjQ5NjAwMH0",
+        ))
+        .stderr(predicate::str::contains("Bundle Upload ID:").not());
+}
+
+// NOTE: must be multi threaded to start a mock server
+#[tokio::test(flavor = "multi_thread")]
+async fn upload_bundle_prints_bare_upload_id_when_links_hidden() {
+    let temp_dir = tempdir().unwrap();
+    generate_mock_git_repo(&temp_dir);
+    generate_mock_valid_junit_xmls(&temp_dir);
+
+    let state = MockServerBuilder::new().spawn_mock_server().await;
+
+    let assert = CommandBuilder::upload(temp_dir.path(), state.host.clone())
+        .command()
+        .env("TRUNK_HIDE_TEST_COLLECTION_LINKS", "true")
+        .arg("--test-collection-id")
+        .arg("tc_123")
+        .assert()
+        .failure();
+
+    assert
+        .stderr(predicate::str::contains(
+            get_bundle_upload_id_message("test-bundle-upload-id").as_str(),
+        ))
+        .stderr(predicate::str::contains("/flaky-tests/collections/tc_123/uploads/").not());
 }
 
 // NOTE: must be multi threaded to start a mock server
