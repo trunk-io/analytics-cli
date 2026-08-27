@@ -204,3 +204,34 @@ jobs:
           platform: x86_64-linux
           artifact-pattern: ""
           knapsack-pro-test-suite-token-rspec: ${{ secrets.KNAPSACK_PRO_TEST_SUITE_TOKEN_RSPEC }}
+
+  gate:
+    name: rspec Gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # Branch-protection fan-in: one stable required context for this whole workflow.
+    # A matrix job skipped by its job-level `if:` reports a single check run under the
+    # *unexpanded* name (`Test for ${{ matrix.platform.target }}`) because the matrix is
+    # never evaluated -- so per-leg contexts never report and required checks hang on
+    # "Expected". This job always runs, so its name always reports.
+    # build-ruby-gem / test-ruby-gem-uploads are omitted: not required checks today.
+    if: always()
+    needs: [build]
+    steps:
+      - name: Check fan-in results
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        shell: bash
+        run: |
+          read -ra results <<<"${RESULTS}"
+          for result in "${results[@]}"; do
+            case "${result}" in
+            # A skipped job is a pass: it was deliberately not run for this change.
+            success | skipped) ;;
+            *)
+              echo "::error::a needed job reported '${result}'"
+              exit 1
+              ;;
+            esac
+          done
+          echo "needed jobs all passed or were skipped: ${RESULTS}"
