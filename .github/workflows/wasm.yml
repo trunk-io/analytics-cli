@@ -68,6 +68,7 @@ jobs:
   gate:
     name: context-js Gate
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     # Branch-protection fan-in: one stable required context for this whole workflow.
     # A matrix job skipped by its job-level `if:` reports a single check run under the
     # *unexpanded* name (`Test for ${{ matrix.platform.target }}`) because the matrix is
