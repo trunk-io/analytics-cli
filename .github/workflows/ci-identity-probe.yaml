@@ -1,0 +1,118 @@
+# TEMPORARY PROBE — delete with its branch.
+#
+# Answers, in one run, the questions blocking the upload -> CI-job join in
+# trunk2 (see trunk-io/trunk2#5587, #5588):
+#
+#  1. Is the runner-internal `jobId` that `extract_github_external_id()` scrapes
+#     (shipped today as GITHUB_EXTERNAL_ID) equal to the `external_id` GitHub
+#     puts on the job's check run? If yes, an exact per-job join already exists
+#     client-side and only needs a server-side counterpart.
+#  2. Does the `job` context actually expose `check_run_id`?
+#  3. Do all legs of a matrix report the same GITHUB_JOB? (expected: yes)
+#  4. Are RUNNER_NAME / GITHUB_WORKFLOW_REF / GITHUB_WORKFLOW_SHA present in the
+#     runner env? (they are NOT in the CLI's upload allowlist today)
+#  5. Timing containment: job window vs the moment an upload would happen.
+name: ci-identity-probe
+
+on:
+  push:
+    branches: [tyler/ci-identity-probe]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  checks: read
+  actions: read
+
+jobs:
+  probe:
+    # Same-OS legs on purpose: this is the hard ambiguity case, the one
+    # RUNNER_OS/RUNNER_ARCH provably cannot separate.
+    strategy:
+      fail-fast: false
+      matrix:
+        leg: [alpha, beta, gamma]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Job context, in full
+        env:
+          JOB_CONTEXT: ${{ toJSON(job) }}
+          MATRIX_CONTEXT: ${{ toJSON(matrix) }}
+          DIRECT_CHECK_RUN_ID: ${{ job.check_run_id }}
+        run: |
+          echo "::group::job context (toJSON)"
+          printf '%s\n' "$JOB_CONTEXT"
+          echo "::endgroup::"
+          echo "::group::matrix context (toJSON)"
+          printf '%s\n' "$MATRIX_CONTEXT"
+          echo "::endgroup::"
+          echo "direct job.check_run_id = '${DIRECT_CHECK_RUN_ID}'"
+          if [ -z "${DIRECT_CHECK_RUN_ID}" ]; then
+            echo "RESULT: job.check_run_id is EMPTY -> not a real context property"
+          else
+            echo "RESULT: job.check_run_id = ${DIRECT_CHECK_RUN_ID}"
+          fi
+
+      - name: Identity env vars, and what the CLI allowlist misses
+        run: |
+          echo "::group::GITHUB_* / RUNNER_*"
+          env | grep -E '^(GITHUB|RUNNER)_' | sort
+          echo "::endgroup::"
+          for v in RUNNER_NAME GITHUB_WORKFLOW_REF GITHUB_WORKFLOW_SHA GITHUB_JOB GITHUB_RUN_ID GITHUB_RUN_ATTEMPT; do
+            printf 'PRESENCE %-22s = %s\n' "$v" "${!v:-<UNSET>}"
+          done
+          echo "TIMING upload_would_happen_at=$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)"
+
+      - name: Scrape the runner-internal jobId (what the CLI ships today)
+        id: scrape
+        run: |
+          # Mirrors github-actions/src/lib.rs: find Runner.Worker, walk up to the
+          # runner dir, glob _diag/Worker_*.log, apply the same regex.
+          worker_cmd="$(ps -eo args= | grep -m1 '[R]unner.Worker' || true)"
+          echo "worker_cmd=${worker_cmd:-<none>}"
+          runner_dir=""
+          if [ -n "$worker_cmd" ]; then
+            bin_path="${worker_cmd%%Runner.Worker*}"
+            runner_dir="$(dirname "${bin_path%/}")"
+          fi
+          echo "runner_dir=${runner_dir:-<none>}"
+          job_id=""
+          for d in "$runner_dir/_diag" /home/runner/runners/*/_diag; do
+            [ -d "$d" ] || continue
+            echo "searching $d"
+            for f in $(ls -t "$d"/Worker_*.log 2>/dev/null); do
+              job_id="$(grep -ohE '(INFO JobRunner\] Job ID [^ ]+|"jobId"[[:space:]]*:[[:space:]]*"[^"]+")' "$f" 2>/dev/null \
+                        | head -1 \
+                        | grep -oE '[0-9a-fA-F-]{36}|[^ "]+$' | tail -1 || true)"
+              [ -n "$job_id" ] && { echo "found in $f"; break; }
+            done
+            [ -n "$job_id" ] && break
+          done
+          echo "SCRAPED_INTERNAL_JOB_ID=${job_id:-<NOT FOUND>}"
+          echo "internal_job_id=${job_id}" >> "$GITHUB_OUTPUT"
+
+      - name: Compare against check-run external_id and workflow_job.id
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SCRAPED: ${{ steps.scrape.outputs.internal_job_id }}
+        run: |
+          echo "scraped internal jobId = '${SCRAPED}'"
+          echo "::group::check-runs for this sha (id / external_id / name)"
+          gh api "/repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/check-runs?per_page=100" \
+            --jq '.check_runs[] | "check_run.id=\(.id)\texternal_id=\(.external_id)\tname=\(.name)"' || echo "check-runs read failed"
+          echo "::endgroup::"
+          echo "::group::workflow_job rows for this run/attempt (id / name / runner / times)"
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/attempts/${GITHUB_RUN_ATTEMPT}/jobs?per_page=100" \
+            --jq '.jobs[] | "workflow_job.id=\(.id)\tname=\(.name)\trunner_name=\(.runner_name)\tstarted=\(.started_at)\tcompleted=\(.completed_at)"' || echo "jobs read failed"
+          echo "::endgroup::"
+          # The decisive comparison.
+          if [ -n "${SCRAPED}" ]; then
+            if gh api "/repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/check-runs?per_page=100" \
+                 --jq '.check_runs[].external_id' | grep -qx "${SCRAPED}"; then
+              echo "RESULT: MATCH — scraped jobId appears as a check_run.external_id"
+            else
+              echo "RESULT: NO MATCH — scraped jobId is not any check_run.external_id"
+            fi
+          else
+            echo "RESULT: INCONCLUSIVE — nothing scraped"
+          fi
