@@ -1,11 +1,54 @@
-use std::{ffi::OsStr, process::Command};
+use std::{ffi::OsStr, path::PathBuf, process::Command};
 
 use lazy_static::lazy_static;
+use serde::Deserialize;
 
 use crate::{
     types::legacy_schema::{ActionTestPlanRunSummaries, ActionsInvocationRecord},
     types::schema::Tests,
 };
+
+#[derive(Debug, Deserialize)]
+pub struct TestResultsSummary {
+    /// Seconds since the Unix epoch.
+    #[serde(rename = "startTime")]
+    pub start_time: Option<f64>,
+}
+
+pub fn xcresulttool_get_test_results_summary<T: AsRef<OsStr>>(
+    path: T,
+) -> anyhow::Result<TestResultsSummary> {
+    xcresulttool_min_version_check()?;
+
+    let output = xcrun(&[
+        "xcresulttool".as_ref(),
+        "get".as_ref(),
+        "test-results".as_ref(),
+        "summary".as_ref(),
+        "--path".as_ref(),
+        path.as_ref(),
+    ])?;
+
+    serde_json::from_str::<TestResultsSummary>(&output)
+        .map_err(|e| anyhow::anyhow!("failed to parse json from xcresulttool output: {}", e))
+}
+
+/// `None` when `name` ships in neither Xcode nor the Command Line Tools.
+pub fn xcrun_find(name: &str) -> Option<PathBuf> {
+    if !cfg!(target_os = "macos") {
+        return None;
+    }
+    let output = Command::new("xcrun").args(["--find", name]).output().ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let path = PathBuf::from(String::from_utf8(output.stdout).ok()?.trim());
+    if path.as_os_str().is_empty() {
+        None
+    } else {
+        Some(path)
+    }
+}
 
 pub fn xcresulttool_get_test_results_tests<T: AsRef<OsStr>>(path: T) -> anyhow::Result<Tests> {
     xcresulttool_min_version_check()?;

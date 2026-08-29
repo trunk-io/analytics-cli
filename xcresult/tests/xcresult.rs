@@ -6,6 +6,8 @@ use lazy_static::lazy_static;
 use rstest::rstest;
 use tar::Archive;
 use temp_testdir::TempDir;
+#[cfg(target_os = "macos")]
+use xcresult::test_locations::Limits;
 use xcresult::xcresult::XCResult;
 
 fn unpack_archive_to_temp_dir<T: AsRef<Path>>(archive_file_path: T) -> TempDir {
@@ -638,4 +640,223 @@ fn test_xcresult_with_variant_id_generation() {
             "ID with variant should not be empty"
         );
     }
+}
+
+// The declaration path (`--use-experimental-xcresult-test-locations`) resolves each test
+// against the checkout rather than a failure, so its expectation is the file the test is
+// *written in* — which for these two fixtures is exactly the file the failure-summary
+// paths cannot name, because the failure is raised in a helper.
+#[cfg(target_os = "macos")]
+fn declaration_files<T: AsRef<Path>, U: AsRef<Path>>(
+    bundle_path: T,
+    repo_root: U,
+) -> std::collections::HashMap<String, String> {
+    let xcresult = XCResult::new_with_declaration_locations(
+        bundle_path.as_ref().to_str().unwrap(),
+        ORG_URL_SLUG.clone(),
+        REPO_FULL_NAME.clone(),
+        repo_root.as_ref(),
+        Limits::default(),
+    )
+    .expect("the declaration path reads the bundle");
+
+    let mut junits = xcresult.generate_junits();
+    assert_eq!(junits.len(), 1);
+    junits
+        .pop()
+        .unwrap()
+        .test_suites
+        .iter()
+        .flat_map(|test_suite| test_suite.test_cases.iter())
+        .map(|test_case| {
+            let file = test_case
+                .extra
+                .iter()
+                .find(|(key, _)| key.as_str() == "file")
+                .map(|(_, value)| value.as_str().to_owned())
+                .unwrap_or_default();
+            (test_case.name.as_str().to_owned(), file)
+        })
+        .collect()
+}
+
+// Every file this bundle's failure summary offers is under `SourcePackages/checkouts/`.
+#[cfg(target_os = "macos")]
+#[test]
+fn test_declaration_locations_prefer_the_tests_own_file_over_a_vendored_dependency() {
+    let files = declaration_files(
+        TEMP_DIR_TEST_DEPENDENCY_RAISES_FAILURE
+            .as_ref()
+            .join("DependencyRaisesFailure.xcresult"),
+        "tests/fixture-src/dependency-raises-failure",
+    );
+    let file = files
+        .get("failsInsideDependency()")
+        .expect("the fixture's only test");
+    assert!(
+        file.ends_with("DependencyRaisesFailureTests.swift"),
+        "expected the test's own file, got {file}"
+    );
+}
+
+#[cfg(target_os = "macos")]
+#[test]
+fn test_declaration_locations_prefer_the_tests_own_file_over_an_in_repo_helper() {
+    let files = declaration_files(
+        TEMP_DIR_TEST_IN_REPO_HELPER_RAISES_FAILURE
+            .as_ref()
+            .join("InRepoHelperRaisesFailure.xcresult"),
+        "tests/fixture-src/in-repo-helper-raises-failure",
+    );
+    let file = files
+        .get("failsInsideHelper()")
+        .expect("the fixture's only test");
+    assert!(
+        file.ends_with("InRepoHelperRaisesFailureTests.swift"),
+        "expected the test's own file, got {file}"
+    );
+}
+
+// The case no failure summary can serve: one test crashes with zero call-stack frames and
+// the other is failed by a trait after its own frame is gone, so both failure-summary paths
+// report no file at all — `data/test-crash-in-dependency.junit.xml` has none.
+#[cfg(target_os = "macos")]
+#[test]
+fn test_declaration_locations_attribute_tests_no_failure_summary_can() {
+    let files = declaration_files(
+        TEMP_DIR_TEST_CRASH_IN_DEPENDENCY
+            .as_ref()
+            .join("CrashInDependency.xcresult"),
+        "tests/fixture-src/crash-in-dependency",
+    );
+    for (name, expected) in [
+        (
+            "testCrashesInsideDependency()",
+            "CrashInDependencyTests.swift",
+        ),
+        (
+            "failsAfterItsOwnFrameIsGone()",
+            "TeardownFailureTests.swift",
+        ),
+    ] {
+        let file = files
+            .get(name)
+            .unwrap_or_else(|| panic!("{name} is missing from the report"));
+        assert!(
+            file.ends_with(expected),
+            "expected {name} to resolve to {expected}, got {file}"
+        );
+    }
+}
+
+#[cfg(target_os = "macos")]
+#[test]
+fn test_declaration_locations_resolve_an_objc_test_through_clangd() {
+    let files = declaration_files(
+        TEMP_DIR_TEST_OBJC_XCTEST
+            .as_ref()
+            .join("ObjcXCTest.xcresult"),
+        "tests/fixture-src/objc-xctest",
+    );
+    let file = files
+        .get("testFailsInsideSharedHelper")
+        .expect("the fixture's only test");
+    assert!(
+        file.ends_with("ObjcXCTestTests.m"),
+        "expected the test's own file, got {file}"
+    );
+}
+
+#[cfg(target_os = "macos")]
+#[test]
+fn test_declaration_locations_find_a_top_level_swift_testing_function() {
+    let files = declaration_files(
+        TEMP_DIR_TEST_TOPLEVEL_SWIFT_TESTING
+            .as_ref()
+            .join("ToplevelSwiftTesting.xcresult"),
+        "tests/fixture-src/toplevel-swift-testing",
+    );
+    let file = files
+        .get("failsInsideHelperWithoutASuite()")
+        .expect("the fixture's only test");
+    assert!(
+        file.ends_with("ToplevelSwiftTestingTests.swift"),
+        "expected the test's own file, got {file}"
+    );
+}
+
+// Two things the declaration path reads that only a real bundle can confirm, both of which
+// fail silently rather than loudly if the assumption is wrong.
+//
+// `nodeIdentifierURL` is meant to be the legacy record's `identifierURL` under another name,
+// and ids are derived from it — if it is absent from the modern API, ids fall back to
+// `nodeIdentifier` and every xcresult test case in the product gets a new identity.
+// `get test-results summary`'s `startTime` is read as seconds since the Unix epoch; if it is
+// an Apple reference-date offset instead, every timestamp lands three decades off.
+//
+// Both are checked as equivalence against the path already in production, on a bundle whose
+// repo root is empty so no language server runs and nothing else can move.
+#[cfg(target_os = "macos")]
+#[test]
+fn test_declaration_locations_keep_ids_and_timestamps_identical_to_the_legacy_path() {
+    fn ids_and_timestamps(xcresult: &XCResult) -> Vec<(String, String, String)> {
+        let mut junits = xcresult.generate_junits();
+        assert_eq!(junits.len(), 1);
+        junits
+            .pop()
+            .unwrap()
+            .test_suites
+            .iter()
+            .flat_map(|test_suite| test_suite.test_cases.iter())
+            .map(|test_case| {
+                let id = test_case
+                    .extra
+                    .iter()
+                    .find(|(key, _)| key.as_str() == "id")
+                    .map(|(_, value)| value.as_str().to_owned())
+                    .unwrap_or_default();
+                (
+                    test_case.name.as_str().to_owned(),
+                    id,
+                    test_case
+                        .timestamp
+                        .map(|timestamp| timestamp.to_string())
+                        .unwrap_or_default(),
+                )
+            })
+            .collect()
+    }
+
+    let path = TEMP_DIR_TEST_TIMESTAMP.as_ref().join("test1.xcresult");
+    let path_str = path.to_str().unwrap();
+    let empty_checkout = TempDir::default();
+
+    let legacy = XCResult::new(
+        path_str,
+        ORG_URL_SLUG.clone(),
+        REPO_FULL_NAME.clone(),
+        false,
+    )
+    .unwrap();
+    let declarations = XCResult::new_with_declaration_locations(
+        path_str,
+        ORG_URL_SLUG.clone(),
+        REPO_FULL_NAME.clone(),
+        empty_checkout.as_ref(),
+        Limits::default(),
+    )
+    .unwrap();
+
+    let expected = ids_and_timestamps(&legacy);
+    assert!(
+        !expected.is_empty(),
+        "the fixture must have test cases for this to prove anything"
+    );
+    assert!(
+        expected
+            .iter()
+            .all(|(_, id, timestamp)| !id.is_empty() && !timestamp.is_empty()),
+        "the fixture must carry ids and timestamps on the legacy path"
+    );
+    pretty_assertions::assert_eq!(ids_and_timestamps(&declarations), expected);
 }

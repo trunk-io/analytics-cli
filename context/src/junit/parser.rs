@@ -2198,14 +2198,8 @@ failures:
             .filter_map(|run| run.test_output.as_ref())
             .map(|out| out.message.as_str())
             .collect();
-        assert!(
-            messages
-                .contains(&"/^Pacific\\b/ hour 11 from \"11:00:03 A.M.\" should be even")
-        );
-        assert!(
-            messages
-                .contains(&"/^Pacific\\b/ hour 11 from \"11:00:23 A.M.\" should be even")
-        );
+        assert!(messages.contains(&"/^Pacific\\b/ hour 11 from \"11:00:03 A.M.\" should be even"));
+        assert!(messages.contains(&"/^Pacific\\b/ hour 11 from \"11:00:23 A.M.\" should be even"));
         assert!(messages.contains(&"Test timeout of 10000ms exceeded."));
     }
 }
