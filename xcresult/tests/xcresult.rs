@@ -937,8 +937,7 @@ fn test_declaration_locations_give_a_passing_test_its_file() {
 
 // The flag is meant to move the `file` attribute and leave everything else alone, so every
 // bundle the suite reads is run both ways and compared on all of it but that. Each case
-// unpacks its own copy: `xcresulttool` migrates a bundle in place on first read, and two
-// concurrent readers of one freshly unpacked bundle race to create its `database.sqlite3`.
+// unpacks its own copy so another test cannot perturb the comparison.
 #[cfg(target_os = "macos")]
 #[rstest]
 #[case::simple("tests/data/test1.xcresult.tar.gz", "test1.xcresult", None)]
@@ -1064,4 +1063,80 @@ fn test_the_declaration_flag_moves_the_file_and_nothing_else(
             "the declaration path reported a vendored file: {file}"
         );
     }
+}
+
+// Reading used to migrate the bundle in place, which failed when it was not writable.
+#[cfg(target_os = "macos")]
+#[test]
+fn test_reading_a_bundle_neither_writes_to_it_nor_needs_it_writable() {
+    fn entries(dir: &Path) -> Vec<String> {
+        let mut found = Vec::new();
+        let mut stack = vec![dir.to_path_buf()];
+        while let Some(current) = stack.pop() {
+            for entry in std::fs::read_dir(&current).unwrap() {
+                let path = entry.unwrap().path();
+                found.push(path.strip_prefix(dir).unwrap().display().to_string());
+                if path.is_dir() {
+                    stack.push(path);
+                }
+            }
+        }
+        found.sort();
+        found
+    }
+
+    fn set_writable(dir: &Path, writable: bool) {
+        let mut stack = vec![dir.to_path_buf()];
+        let mut all = vec![dir.to_path_buf()];
+        while let Some(current) = stack.pop() {
+            for entry in std::fs::read_dir(&current).unwrap() {
+                let path = entry.unwrap().path();
+                if path.is_dir() {
+                    stack.push(path.clone());
+                }
+                all.push(path);
+            }
+        }
+        // Directories have to come last on the way down and first on the way back up.
+        all.sort();
+        if !writable {
+            all.reverse();
+        }
+        for path in all {
+            let mode = if writable { 0o755 } else { 0o555 };
+            std::fs::set_permissions(&path, std::os::unix::fs::PermissionsExt::from_mode(mode))
+                .unwrap();
+        }
+    }
+
+    let temp_dir = unpack_archive_to_temp_dir("tests/data/test4.xcresult.tar.gz");
+    let bundle = temp_dir.as_ref().join("test4.xcresult");
+    let before = entries(&bundle);
+    assert!(
+        !before
+            .iter()
+            .any(|entry| entry.contains("database.sqlite3")),
+        "the fixture must start un-migrated for this to prove anything"
+    );
+
+    set_writable(&bundle, false);
+    let xcresult = XCResult::new(
+        bundle.to_str().unwrap(),
+        ORG_URL_SLUG.clone(),
+        REPO_FULL_NAME.clone(),
+        false,
+    );
+    let read_only_result = xcresult.map(|xcresult| xcresult.generate_junits().len());
+    set_writable(&bundle, true);
+
+    assert_eq!(
+        read_only_result.map_err(|e| e.to_string()),
+        Ok(1),
+        "a read-only bundle must still be readable"
+    );
+    pretty_assertions::assert_eq!(
+        entries(&bundle),
+        before,
+        "reading the bundle changed it on disk"
+    );
 }

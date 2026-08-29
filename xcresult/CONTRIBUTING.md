@@ -71,10 +71,26 @@ gets a file for the first time.
 per-test summary fetch — measured at 6 GB of JSON and a 48 GB peak footprint for a single
 timed-out test — is not reachable from it.
 
-**Where it is worse.** Tests registered at runtime (Quick's `class_addMethod`,
-`+testInvocations`) have no declaration to find; the two approaches fail in disjoint
-situations. Such a test falls back to the modern API's own `sourceLocation`, vetted against
-the same vendored-path rules as everything in `src/file_attribution.rs`.
+**Where it is worse, and it is not a superset.** Tests registered at runtime (Quick's
+`class_addMethod`, `+testInvocations`) have no declaration to find; the two approaches fail
+in disjoint situations. Such a test falls back to the modern API's own `sourceLocation`,
+vetted against the same vendored-path rules as everything in `src/file_attribution.rs`.
+
+That fallback is thinner than it looks: `sourceLocation` is in the modern schema
+(`TestNode.sourceLocation`) but is emitted in **none** of the bundles in `tests/data/`, so
+in practice it never fires and such a test gets no file at all — where the failure-summary
+path, which reads the call stack this path never fetches, would name one. `generate_junits`
+logs the split (`N from a declaration, N from the fallback, N unresolved`) so it is visible
+whether the fallback ever fires against real bundles.
+
+The other way it can be worse is being confidently wrong rather than silent: the index is
+built from a checkout scan, not the build log, so two same-named suites in different modules
+collide. `declarations` is a `HashMap<TestKey, DeclarationSite>`, so the loser is simply
+overwritten and nothing records that there was a choice. For codeowners a wrong file is
+worse than no file, and the failure-summary path cannot make that mistake because it reads
+the frame that actually ran. `nodeIdentifierURL` carries the target name
+(`test://com.apple.xcode/<scheme>/<target>/<suite>/<case>`) and is already parsed for ids,
+so ranking candidates by target is the obvious way to close this if it starts to matter.
 
 **Incompatible with `--use-experimental-failure-summary`,** which tunes a code path this
 one does not run, so clap rejects the pair rather than letting one silently win. One wart
@@ -82,6 +98,13 @@ comes with that: clap treats an env-supplied value as present regardless of what
 so `TRUNK_USE_EXPERIMENTAL_XCRESULT_TEST_LOCATIONS=false` **and**
 `--use-experimental-failure-summary` is a hard conflict error. Unset the variable to roll
 back rather than setting it to `false`.
+
+**Every read goes through a copy.** `xcresulttool` migrates a pre-`database.sqlite3` bundle
+in place the first time it is read, which writes into a directory the uploader was only
+asked to read, fails outright with `exit 64` when that directory is not writable, and makes
+two concurrent readers of one bundle race. Both constructors copy the bundle into a
+`TempDir` first and read that, so the caller's bundle is never touched. This is on the
+shared path, so it applies to the default one too.
 
 **Ids.** `generate_id` prefers `nodeIdentifierURL` here, which is the legacy record's
 `identifierURL` under another name, so ids do not move between the two paths.

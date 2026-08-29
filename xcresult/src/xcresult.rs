@@ -1,9 +1,11 @@
 use std::collections::HashMap;
 use std::str;
-use std::{fs, path::Path, time::Duration};
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::{fs, path::Path, path::PathBuf, time::Duration};
 
 use chrono::{DateTime, Utc};
 use quick_junit::{NonSuccessKind, Report, TestCase, TestCaseStatus, TestRerun, TestSuite};
+use tempfile::TempDir;
 
 use crate::file_attribution::ReportedPath;
 use crate::test_locations::{Limits, TestKey, TestLocationIndex};
@@ -25,6 +27,41 @@ pub enum FileAttribution {
     Declarations(TestLocationIndex),
 }
 
+/// `xcresulttool` migrates an older bundle in place on first read, writing into a directory
+/// we were only asked to read and failing outright when it is not writable.
+fn copy_bundle(path: &Path) -> anyhow::Result<(TempDir, PathBuf)> {
+    fn copy_dir(from: &Path, to: &Path) -> std::io::Result<()> {
+        fs::create_dir_all(to)?;
+        for entry in fs::read_dir(from)? {
+            let entry = entry?;
+            let destination = to.join(entry.file_name());
+            if entry.file_type()?.is_dir() {
+                copy_dir(&entry.path(), &destination)?;
+            } else {
+                fs::copy(entry.path(), destination)?;
+            }
+        }
+        Ok(())
+    }
+
+    let temp_dir = TempDir::new()?;
+    let destination = temp_dir.path().join(
+        path.file_name()
+            .unwrap_or_else(|| std::ffi::OsStr::new("bundle.xcresult")),
+    );
+    copy_dir(path, &destination)
+        .map_err(|e| anyhow::anyhow!("failed to copy {} for reading: {}", path.display(), e))?;
+    Ok((temp_dir, destination))
+}
+
+/// Makes it visible whether the fallback ever fires; no bundle checked so far has one.
+#[derive(Debug, Default)]
+struct AttributionCounts {
+    declared: AtomicUsize,
+    fell_back: AtomicUsize,
+    unresolved: AtomicUsize,
+}
+
 #[derive(Debug)]
 pub struct XCResult {
     tests: Tests,
@@ -32,6 +69,8 @@ pub struct XCResult {
     repo_full_name: String,
     attribution: FileAttribution,
     test_run_started_at: Option<DateTime<Utc>>,
+    counts: AttributionCounts,
+    _bundle_copy: TempDir,
 }
 
 impl XCResult {
@@ -48,6 +87,7 @@ impl XCResult {
                 e
             )
         })?;
+        let (bundle_copy, absolute_path) = copy_bundle(&absolute_path)?;
 
         // Call xcresulttool_get_object once and use it for both timestamp extraction and legacy tests
         let actions_invocation_record = xcresulttool_get_object(&absolute_path);
@@ -112,6 +152,8 @@ impl XCResult {
             org_url_slug,
             repo_full_name,
             test_run_started_at,
+            counts: AttributionCounts::default(),
+            _bundle_copy: bundle_copy,
         })
     }
 
@@ -133,6 +175,7 @@ impl XCResult {
                 e
             )
         })?;
+        let (bundle_copy, absolute_path) = copy_bundle(&absolute_path)?;
         let tests = xcresulttool_get_test_results_tests(&absolute_path)?;
 
         let test_run_started_at = match xcresulttool_get_test_results_summary(&absolute_path) {
@@ -163,11 +206,14 @@ impl XCResult {
             org_url_slug,
             repo_full_name,
             test_run_started_at,
+            counts: AttributionCounts::default(),
+            _bundle_copy: bundle_copy,
         })
     }
 
     pub fn generate_junits(&self) -> Vec<Report> {
-        self.tests
+        let reports: Vec<Report> = self
+            .tests
             .test_nodes
             .iter()
             .filter(|tn| matches!(tn.node_type, TestNodeType::TestPlan))
@@ -178,7 +224,16 @@ impl XCResult {
                 ));
                 report
             })
-            .collect()
+            .collect();
+        if matches!(self.attribution, FileAttribution::Declarations(_)) {
+            tracing::info!(
+                "xcresult test files: {} from a declaration, {} from the fallback, {} unresolved",
+                self.counts.declared.load(Ordering::Relaxed),
+                self.counts.fell_back.load(Ordering::Relaxed),
+                self.counts.unresolved.load(Ordering::Relaxed),
+            );
+        }
+        reports
     }
 
     fn xcresult_test_bundles_and_suites_to_junit_test_suites(
@@ -433,14 +488,22 @@ impl XCResult {
                         site.file.as_str(),
                         site.line.unwrap_or_default()
                     );
+                    self.counts.declared.fetch_add(1, Ordering::Relaxed);
                     return Some(site.file.as_str().to_owned());
                 }
                 // A runtime-registered test (Quick, `+testInvocations`) has no declaration
                 // to find, so fall back to where the failure surfaced.
-                first_source_location(test_case)
+                let fallback = first_source_location(test_case)
                     .map(|path| ReportedPath::new(&path))
                     .filter(|path| !path.is_vendored_dependency())
-                    .map(ReportedPath::into_string)
+                    .map(ReportedPath::into_string);
+                if fallback.is_some() {
+                    self.counts.fell_back.fetch_add(1, Ordering::Relaxed);
+                } else {
+                    self.counts.unresolved.fetch_add(1, Ordering::Relaxed);
+                    tracing::debug!("no declaration and no source location for {node_identifier}");
+                }
+                fallback
             }
         }
     }
@@ -518,6 +581,8 @@ mod tests {
             repo_full_name: String::from("github.com/trunk-io/analytics-cli"),
             attribution,
             test_run_started_at: None,
+            counts: AttributionCounts::default(),
+            _bundle_copy: TempDir::new().unwrap(),
         };
         let mut reports = xcresult.generate_junits();
         assert_eq!(reports.len(), 1);
