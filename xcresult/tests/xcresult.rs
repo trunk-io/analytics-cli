@@ -934,3 +934,134 @@ fn test_declaration_locations_give_a_passing_test_its_file() {
         );
     }
 }
+
+// The flag is meant to move the `file` attribute and leave everything else alone, so every
+// bundle the suite reads is run both ways and compared on all of it but that. Each case
+// unpacks its own copy: `xcresulttool` migrates a bundle in place on first read, and two
+// concurrent readers of one freshly unpacked bundle race to create its `database.sqlite3`.
+#[cfg(target_os = "macos")]
+#[rstest]
+#[case::simple("tests/data/test1.xcresult.tar.gz", "test1.xcresult", None)]
+#[case::complex("tests/data/test4.xcresult.tar.gz", "test4.xcresult", None)]
+#[case::expected_failures(
+    "tests/data/test-ExpectedFailures.xcresult.tar.gz",
+    "test-ExpectedFailures.xcresult",
+    None
+)]
+#[case::swift_mix(
+    "tests/data/test-swift-mix.xcresult.tar.gz",
+    "test-swift-mix.xcresult",
+    None
+)]
+#[case::swift_without_test_suites(
+    "tests/data/test-swift-without-test-suites.xcresult.tar.gz",
+    "test-swift-without-test-suites.xcresult",
+    None
+)]
+#[case::swift_snapshot_testing(
+    "tests/data/test-swift-snapshot-testing.xcresult.tar.gz",
+    "SnapshotRepro.xcresult",
+    None
+)]
+#[case::dependency_raises_failure(
+    "tests/data/test-dependency-raises-failure.xcresult.tar.gz",
+    "DependencyRaisesFailure.xcresult",
+    Some("tests/fixture-src/dependency-raises-failure")
+)]
+#[case::in_repo_helper_raises_failure(
+    "tests/data/test-in-repo-helper-raises-failure.xcresult.tar.gz",
+    "InRepoHelperRaisesFailure.xcresult",
+    Some("tests/fixture-src/in-repo-helper-raises-failure")
+)]
+#[case::crash_in_dependency(
+    "tests/data/test-crash-in-dependency.xcresult.tar.gz",
+    "CrashInDependency.xcresult",
+    Some("tests/fixture-src/crash-in-dependency")
+)]
+#[case::objc_xctest(
+    "tests/data/test-objc-xctest.xcresult.tar.gz",
+    "ObjcXCTest.xcresult",
+    Some("tests/fixture-src/objc-xctest")
+)]
+#[case::toplevel_swift_testing(
+    "tests/data/test-toplevel-swift-testing.xcresult.tar.gz",
+    "ToplevelSwiftTesting.xcresult",
+    Some("tests/fixture-src/toplevel-swift-testing")
+)]
+#[case::nested_and_passing(
+    "tests/data/test-nested-and-passing.xcresult.tar.gz",
+    "NestedAndPassing.xcresult",
+    Some("tests/fixture-src/nested-and-passing")
+)]
+fn test_the_declaration_flag_moves_the_file_and_nothing_else(
+    #[case] archive: &str,
+    #[case] bundle: &str,
+    #[case] repo_root: Option<&str>,
+) {
+    fn shape(xcresult: &XCResult) -> Vec<String> {
+        let mut junits = xcresult.generate_junits();
+        assert_eq!(junits.len(), 1);
+        let junit = junits.pop().unwrap();
+        let mut rows = Vec::new();
+        for test_suite in &junit.test_suites {
+            for test_case in &test_suite.test_cases {
+                let id = test_case
+                    .extra
+                    .iter()
+                    .find(|(key, _)| key.as_str() == "id")
+                    .map(|(_, value)| value.as_str().to_owned())
+                    .unwrap_or_default();
+                rows.push(format!(
+                    "{} | {} | {} | {:?} | {}",
+                    test_suite.name.as_str(),
+                    test_case.name.as_str(),
+                    id,
+                    test_case.status,
+                    test_case
+                        .timestamp
+                        .map(|timestamp| timestamp.to_string())
+                        .unwrap_or_default(),
+                ));
+            }
+        }
+        rows
+    }
+
+    let temp_dir = unpack_archive_to_temp_dir(archive);
+    let bundle_path = temp_dir.as_ref().join(bundle);
+    let path_str = bundle_path.to_str().unwrap();
+    let empty_checkout = TempDir::default();
+    let root: &Path = match repo_root {
+        Some(repo_root) => Path::new(repo_root),
+        None => empty_checkout.as_ref(),
+    };
+
+    let default = XCResult::new(
+        path_str,
+        ORG_URL_SLUG.clone(),
+        REPO_FULL_NAME.clone(),
+        false,
+    )
+    .expect("the default path reads the bundle");
+    let declarations = XCResult::new_with_declaration_locations(
+        path_str,
+        ORG_URL_SLUG.clone(),
+        REPO_FULL_NAME.clone(),
+        root,
+        Limits::default(),
+    )
+    .expect("the declaration path reads the bundle");
+
+    let expected = shape(&default);
+    assert!(!expected.is_empty(), "the bundle must have test cases");
+    pretty_assertions::assert_eq!(shape(&declarations), expected);
+
+    for file in declaration_files(&bundle_path, root).values() {
+        assert!(
+            !["/.build/", "/checkouts/", "/DerivedData/"]
+                .iter()
+                .any(|segment| file.contains(segment)),
+            "the declaration path reported a vendored file: {file}"
+        );
+    }
+}

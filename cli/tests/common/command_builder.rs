@@ -452,6 +452,7 @@ pub struct CommandBuilder<'a> {
     command_type: CommandType,
     current_dir: &'a Path,
     paths_state: Option<PathsState>,
+    extra_args: Vec<String>,
 }
 
 impl<'b> CommandBuilder<'b> {
@@ -463,6 +464,7 @@ impl<'b> CommandBuilder<'b> {
             },
             current_dir,
             paths_state: None,
+            extra_args: Vec::new(),
         }
     }
 
@@ -475,6 +477,7 @@ impl<'b> CommandBuilder<'b> {
             },
             current_dir,
             paths_state: None,
+            extra_args: Vec::new(),
         }
     }
 
@@ -486,11 +489,17 @@ impl<'b> CommandBuilder<'b> {
             },
             current_dir,
             paths_state: None,
+            extra_args: Vec::new(),
         }
     }
 
     pub fn junit_paths(&mut self, new_paths: &str) -> &mut Self {
         self.paths_state = Some(PathsState::JunitPaths(String::from(new_paths)));
+        self
+    }
+
+    pub fn extra_args(&mut self, args: &[&str]) -> &mut Self {
+        self.extra_args = args.iter().map(|arg| String::from(*arg)).collect();
         self
     }
 
@@ -634,6 +643,7 @@ impl<'b> CommandBuilder<'b> {
             .into_iter()
             .chain(paths_args)
             .chain(self.command_type.build_args())
+            .chain(self.extra_args.clone())
             .collect()
     }
 
