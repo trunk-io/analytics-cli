@@ -171,16 +171,17 @@ The split is deliberate, because the parts that need macOS are narrower than the
   This is where "a **passing** test gets a file", "a failure raised in a helper or a
   dependency is still attributed to the test's file", and "no nested suite is dropped" are
   proven — none of which needs `xcrun`.
-- `tests/xcresult.rs` holds the five macOS tests that actually drive `sourcekit-lsp` and
+- `tests/xcresult.rs` holds the macOS tests that actually drive `sourcekit-lsp` and
   `clangd` over the checked-in packages in `tests/fixture-src/`. They pass a scenario's
   package directory as the repo root, which is why they assert the file a test is _written
   in_ rather than the absolute path baked into the bundle at capture time.
 
-Two gaps in the fixtures, both needing macOS + Xcode to close:
+Both shapes that once had no fixture — a passing test and a nested suite — are covered by
+`nested-and-passing`, captured from a package whose inner `@Suite` lives in a different
+file from the suite containing it. It is the only scenario whose shape is structural
+rather than a failure, so `regenerate.sh` verifies it with `verify-test-structure.py`.
 
-- **No scenario has a passing test**, so the end-to-end evidence for attributing one is the
-  unit test above rather than a real bundle. Adding a passing test to a package means
-  regenerating its bundle (`regenerate.sh`) and re-reviewing its expected JUnit.
-- **No scenario has a nested suite**, so the flattening fix is unit-tested only. If running
-  the macOS suite after this change produces a snapshot diff, that is a fixture that _did_
-  have the bug — the new testcases are the fix working, not a regression.
+Against that bundle the pre-fix traversal emits `tests="2" failures="0"`: the inner suite
+is never visited, so its two tests are dropped and the run reports no failures despite
+having one. Its three passing tests get a file only on the declaration path, since a test
+that did not fail has no failure summary to name one.

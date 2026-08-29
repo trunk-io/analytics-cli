@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites name="xcresult: NestedAndPassing-Package" tests="4" failures="1" errors="0">
+    <testsuite name="NestedAndPassingTests.OuterSuite" tests="1" disabled="0" errors="0" failures="0">
+        <testcase name="outerPasses()" classname="OuterSuite" timestamp="2026-08-29T01:08:43.631+00:00" id="e24e5d0d-2779-5a3f-a648-4a3897477f0c">
+        </testcase>
+    </testsuite>
+    <testsuite name="NestedAndPassingTests.OuterSuite.InnerSuite" tests="2" disabled="0" errors="0" failures="1">
+        <testcase name="innerFails()" classname="OuterSuite" timestamp="2026-08-29T01:08:43.631+00:00" id="403260fe-8620-55f8-8a3d-5f5c92f65447" file="/tmp/xcresult-fixtures/nested-and-passing/Tests/NestedAndPassingTests/InnerSuite.swift">
+            <failure message="InnerSuite.swift:15: Expectation failed: Bool(false): deliberate failure inside a nested suite"/>
+        </testcase>
+        <testcase name="innerPasses()" classname="OuterSuite" timestamp="2026-08-29T01:08:43.631+00:00" id="a90a3737-e0c7-5864-9ef9-15ab45f54542">
+        </testcase>
+    </testsuite>
+    <testsuite name="NestedAndPassingTests" tests="1" disabled="0" errors="0" failures="0">
+        <testcase name="topLevelPasses()" classname="topLevelPasses()" timestamp="2026-08-29T01:08:43.631+00:00" id="b8be3267-1710-53ab-9c85-35252daa81c7">
+        </testcase>
+    </testsuite>
+</testsuites>

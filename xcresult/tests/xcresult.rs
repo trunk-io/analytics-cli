@@ -46,6 +46,8 @@ lazy_static! {
         unpack_archive_to_temp_dir("tests/data/test-objc-xctest.xcresult.tar.gz");
     static ref TEMP_DIR_TEST_TOPLEVEL_SWIFT_TESTING: TempDir =
         unpack_archive_to_temp_dir("tests/data/test-toplevel-swift-testing.xcresult.tar.gz");
+    static ref TEMP_DIR_TEST_NESTED_AND_PASSING: TempDir =
+        unpack_archive_to_temp_dir("tests/data/test-nested-and-passing.xcresult.tar.gz");
     static ref TEMP_DIR_TEST_TIMESTAMP: TempDir =
         unpack_archive_to_temp_dir("tests/data/test-timestamp.xcresult.tar.gz");
     static ref TEMP_DIR_TEST_VARIANT: TempDir =
@@ -647,10 +649,10 @@ fn test_xcresult_with_variant_id_generation() {
 // *written in* — which for these two fixtures is exactly the file the failure-summary
 // paths cannot name, because the failure is raised in a helper.
 #[cfg(target_os = "macos")]
-fn declaration_files<T: AsRef<Path>, U: AsRef<Path>>(
+fn declaration_report<T: AsRef<Path>, U: AsRef<Path>>(
     bundle_path: T,
     repo_root: U,
-) -> std::collections::HashMap<String, String> {
+) -> quick_junit::Report {
     let xcresult = XCResult::new_with_declaration_locations(
         bundle_path.as_ref().to_str().unwrap(),
         ORG_URL_SLUG.clone(),
@@ -662,9 +664,15 @@ fn declaration_files<T: AsRef<Path>, U: AsRef<Path>>(
 
     let mut junits = xcresult.generate_junits();
     assert_eq!(junits.len(), 1);
-    junits
-        .pop()
-        .unwrap()
+    junits.pop().unwrap()
+}
+
+#[cfg(target_os = "macos")]
+fn declaration_files<T: AsRef<Path>, U: AsRef<Path>>(
+    bundle_path: T,
+    repo_root: U,
+) -> std::collections::HashMap<String, String> {
+    declaration_report(bundle_path, repo_root)
         .test_suites
         .iter()
         .flat_map(|test_suite| test_suite.test_cases.iter())
@@ -717,12 +725,12 @@ fn test_declaration_locations_prefer_the_tests_own_file_over_an_in_repo_helper()
     );
 }
 
-// The case no failure summary can serve: one test crashes with zero call-stack frames and
-// the other is failed by a trait after its own frame is gone, so both failure-summary paths
-// report no file at all — `data/test-crash-in-dependency.junit.xml` has none.
+// The case no failure summary can serve: one test crashes inside a dependency with zero
+// call-stack frames, the other is failed by a trait after its own frame is gone, so both
+// failure-summary paths report no file — `data/test-crash-in-dependency.junit.xml` has none.
 #[cfg(target_os = "macos")]
 #[test]
-fn test_declaration_locations_attribute_tests_no_failure_summary_can() {
+fn test_declaration_locations_give_a_crashed_test_its_file() {
     let files = declaration_files(
         TEMP_DIR_TEST_CRASH_IN_DEPENDENCY
             .as_ref()
@@ -859,4 +867,70 @@ fn test_declaration_locations_keep_ids_and_timestamps_identical_to_the_legacy_pa
         "the fixture must carry ids and timestamps on the legacy path"
     );
     pretty_assertions::assert_eq!(ids_and_timestamps(&declarations), expected);
+}
+
+// Before the fix this bundle emitted tests="2" failures="0" — the inner suite's two tests
+// and its failure all vanished.
+#[cfg(target_os = "macos")]
+#[rstest]
+#[case::experimental_failure_summary(true)]
+#[case::legacy_fallback(false)]
+fn test_a_nested_suite_is_flattened_rather_than_dropped(
+    #[case] use_experimental_failure_summary: bool,
+) {
+    assert_junit(
+        TEMP_DIR_TEST_NESTED_AND_PASSING
+            .as_ref()
+            .join("NestedAndPassing.xcresult"),
+        use_experimental_failure_summary,
+        include_str!("data/test-nested-and-passing.junit.xml"),
+    );
+}
+
+// Three of these four passed, so no failure summary names a file for any of them. The
+// status is asserted too, or the fixture could drift to all-failing and still pass here.
+#[cfg(target_os = "macos")]
+#[test]
+fn test_declaration_locations_give_a_passing_test_its_file() {
+    let report = declaration_report(
+        TEMP_DIR_TEST_NESTED_AND_PASSING
+            .as_ref()
+            .join("NestedAndPassing.xcresult"),
+        "tests/fixture-src/nested-and-passing",
+    );
+    let cases: std::collections::HashMap<String, &quick_junit::TestCase> = report
+        .test_suites
+        .iter()
+        .flat_map(|test_suite| test_suite.test_cases.iter())
+        .map(|test_case| (test_case.name.as_str().to_owned(), test_case))
+        .collect();
+
+    for (name, passed, expected) in [
+        ("outerPasses()", true, "NestedAndPassingTests.swift"),
+        ("topLevelPasses()", true, "NestedAndPassingTests.swift"),
+        ("innerPasses()", true, "InnerSuite.swift"),
+        ("innerFails()", false, "InnerSuite.swift"),
+    ] {
+        let test_case = cases
+            .get(name)
+            .unwrap_or_else(|| panic!("{name} is missing from the report"));
+        assert_eq!(
+            matches!(
+                test_case.status,
+                quick_junit::TestCaseStatus::Success { .. }
+            ),
+            passed,
+            "{name} did not have the status the fixture was captured for"
+        );
+        let file = test_case
+            .extra
+            .iter()
+            .find(|(key, _)| key.as_str() == "file")
+            .map(|(_, value)| value.as_str())
+            .unwrap_or_else(|| panic!("{name} got no file from its declaration"));
+        assert!(
+            file.ends_with(expected),
+            "expected {name} to be declared in {expected}, got {file}"
+        );
+    }
 }
