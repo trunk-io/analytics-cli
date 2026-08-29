@@ -199,12 +199,7 @@ impl XCResult {
                     )
                 } else if matches!(test_bundle_or_test_suite.node_type, TestNodeType::TestSuite) {
                     let test_suite = test_bundle_or_test_suite;
-                    vec![
-                        self.xcresult_test_suite_to_junit_test_suite(
-                            test_suite,
-                            Option::<&str>::None,
-                        ),
-                    ]
+                    self.xcresult_test_suite_to_junit_test_suites(test_suite, None)
                 } else {
                     vec![]
                 }
@@ -217,11 +212,12 @@ impl XCResult {
         test_nodes: &[TestNode],
         bundle_name: Option<T>,
     ) -> Vec<TestSuite> {
+        let qualifier = bundle_name.as_ref().map(|bn| bn.as_ref());
         let mut test_suites = test_nodes
             .iter()
             .filter(|tn| matches!(tn.node_type, TestNodeType::TestSuite))
-            .map(|test_suite| {
-                self.xcresult_test_suite_to_junit_test_suite(test_suite, bundle_name.as_ref())
+            .flat_map(|test_suite| {
+                self.xcresult_test_suite_to_junit_test_suites(test_suite, qualifier)
             })
             .collect::<Vec<_>>();
         // test cases can be at the top level
@@ -242,20 +238,31 @@ impl XCResult {
         test_suites
     }
 
-    fn xcresult_test_suite_to_junit_test_suite<T: AsRef<str>>(
+    /// A suite and, flattened after it, every suite nested inside it — JUnit has no nested
+    /// `<testsuite>`, and emitting only the outer one drops the tests the inner ones declare.
+    fn xcresult_test_suite_to_junit_test_suites(
         &self,
         xcresult_test_suite: &TestNode,
-        bundle_name: Option<T>,
-    ) -> TestSuite {
-        let name = bundle_name
-            .as_ref()
-            .map(|bn| format!("{}.{}", bn.as_ref(), xcresult_test_suite.name))
+        qualifier: Option<&str>,
+    ) -> Vec<TestSuite> {
+        let name = qualifier
+            .map(|qualifier| format!("{}.{}", qualifier, xcresult_test_suite.name))
             .unwrap_or_else(|| String::from(&xcresult_test_suite.name));
-        let mut test_suite = TestSuite::new(name);
+        let mut test_suite = TestSuite::new(name.clone());
         test_suite.add_test_cases(
             self.xcresult_test_cases_to_junit_test_cases(xcresult_test_suite.children.as_slice()),
         );
-        test_suite
+        let mut test_suites = vec![test_suite];
+        test_suites.extend(
+            xcresult_test_suite
+                .children
+                .iter()
+                .filter(|tn| matches!(tn.node_type, TestNodeType::TestSuite))
+                .flat_map(|nested| {
+                    self.xcresult_test_suite_to_junit_test_suites(nested, Some(&name))
+                }),
+        );
+        test_suites
     }
 
     fn xcresult_test_cases_to_junit_test_cases(&self, test_nodes: &[TestNode]) -> Vec<TestCase> {
@@ -555,6 +562,126 @@ mod tests {
         FileAttribution::Declarations(
             TestLocationIndex::default().declaring("SnapshotReproTests/testExample()", TEST_FILE),
         )
+    }
+
+    // The shape that used to lose tests: an outer suite whose children are suites rather
+    // than cases. Every one of the six cases below has to survive, at a name that says
+    // where it came from.
+    #[test]
+    fn nested_suites_are_flattened_rather_than_dropped() {
+        let tests = bundle(
+            "ExampleTests",
+            vec![
+                suite(
+                    "OuterSuite",
+                    vec![
+                        suite(
+                            "InnerSuite",
+                            vec![
+                                case(
+                                    "innerOne()",
+                                    "OuterSuite/InnerSuite/innerOne()",
+                                    "Passed",
+                                    vec![],
+                                ),
+                                case(
+                                    "innerTwo()",
+                                    "OuterSuite/InnerSuite/innerTwo()",
+                                    "Failed",
+                                    vec![],
+                                ),
+                                suite(
+                                    "DeeperSuite",
+                                    vec![case(
+                                        "deepOne()",
+                                        "OuterSuite/InnerSuite/DeeperSuite/deepOne()",
+                                        "Passed",
+                                        vec![],
+                                    )],
+                                ),
+                            ],
+                        ),
+                        suite(
+                            "OtherInner",
+                            vec![case(
+                                "otherOne()",
+                                "OuterSuite/OtherInner/otherOne()",
+                                "Passed",
+                                vec![],
+                            )],
+                        ),
+                    ],
+                ),
+                suite(
+                    "SiblingSuite",
+                    vec![case(
+                        "siblingOne()",
+                        "SiblingSuite/siblingOne()",
+                        "Passed",
+                        vec![],
+                    )],
+                ),
+                case("danglingOne()", "danglingOne()", "Passed", vec![]),
+            ],
+        );
+
+        assert_eq!(
+            suites_and_cases(&report(
+                tests,
+                FileAttribution::FailureSummaries(HashMap::new())
+            )),
+            vec![
+                (String::from("ExampleTests.OuterSuite"), vec![]),
+                (
+                    String::from("ExampleTests.OuterSuite.InnerSuite"),
+                    vec![String::from("innerOne()"), String::from("innerTwo()")]
+                ),
+                (
+                    String::from("ExampleTests.OuterSuite.InnerSuite.DeeperSuite"),
+                    vec![String::from("deepOne()")]
+                ),
+                (
+                    String::from("ExampleTests.OuterSuite.OtherInner"),
+                    vec![String::from("otherOne()")]
+                ),
+                (
+                    String::from("ExampleTests.SiblingSuite"),
+                    vec![String::from("siblingOne()")]
+                ),
+                (
+                    String::from("ExampleTests"),
+                    vec![String::from("danglingOne()")]
+                ),
+            ]
+        );
+    }
+
+    #[test]
+    fn a_nested_test_case_is_attributed_and_identified_like_any_other() {
+        let tests = bundle(
+            "ExampleTests",
+            vec![suite(
+                "OuterSuite",
+                vec![suite(
+                    "SnapshotReproTests",
+                    vec![case(
+                        "testExample()",
+                        "OuterSuite/SnapshotReproTests/testExample()",
+                        "Passed",
+                        vec![],
+                    )],
+                )],
+            )],
+        );
+        let report = report(tests, declarations());
+        let test_case = report
+            .test_suites
+            .iter()
+            .flat_map(|test_suite| test_suite.test_cases.iter())
+            .find(|test_case| test_case.name.as_str() == "testExample()")
+            .expect("the nested case is emitted");
+        assert_eq!(extra(test_case, "file").as_deref(), Some(TEST_FILE));
+        assert!(extra(test_case, "id").is_some());
     }
 
     // The capability the failure-summary paths cannot have at all: a test that never failed
