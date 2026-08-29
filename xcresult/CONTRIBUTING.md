@@ -4,11 +4,16 @@ The `xcresult` crate exists to handle converting between xcresult and JUnit form
 
 ## Purpose
 
-This crate serves two main purposes:
+This crate serves three main purposes:
 
 1. **Format Conversion**: Converts xcresult bundles (produced by Xcode test runs) into JUnit XML format for compatibility with various CI/CD systems and test reporting tools.
 
-2. **Conditional File Path Specification**: While there are other xcresult parses, this crate handles specifying file paths in the JUnit output, which are conditionally present based on whether a failure (not error) has occurred. File paths are only included in the JUnit output when a test case has failed, as they are extracted from failure summaries in the xcresult bundle. This also handles generating stable identfiers because, by default, one of the values we generate IDs from is the file path. Without this crate, we wouldn't be able to safely map files to tests nor have codeowners support for xcresult.
+2. **Suite flattening**: JUnit has no nested `<testsuite>`, so a suite nested inside another
+   becomes its own with a dot-qualified name (`Bundle.Outer.Inner`). This is not cosmetic —
+   emitting only the outer suite silently drops every test the inner ones declare, which is
+   what used to happen to nested swift-testing suites.
+
+3. **Conditional File Path Specification**: While there are other xcresult parses, this crate handles specifying file paths in the JUnit output, which are conditionally present based on whether a failure (not error) has occurred. File paths are only included in the JUnit output when a test case has failed, as they are extracted from failure summaries in the xcresult bundle. This also handles generating stable identfiers because, by default, one of the values we generate IDs from is the file path. Without this crate, we wouldn't be able to safely map files to tests nor have codeowners support for xcresult.
 
 ## Running the Binary
 
@@ -161,16 +166,21 @@ The split is deliberate, because the parts that need macOS are narrower than the
 
 - `src/test_locations.rs` unit-tests the symbol mapping, inheritance walk and source scan
   against canned `documentSymbol` responses.
-- `src/xcresult.rs` unit-tests the attribution join against a canned `Tests` value and a
-  seeded `TestLocationIndex` (`TestLocationIndex::declaring`, test-only). This is where "a
-  **passing** test gets a file" and "a failure raised in a helper or a dependency is still
-  attributed to the test's file" are proven — neither of which needs `xcrun`.
+- `src/xcresult.rs` unit-tests suite flattening and the attribution join against a canned
+  `Tests` value and a seeded `TestLocationIndex` (`TestLocationIndex::declaring`, test-only).
+  This is where "a **passing** test gets a file", "a failure raised in a helper or a
+  dependency is still attributed to the test's file", and "no nested suite is dropped" are
+  proven — none of which needs `xcrun`.
 - `tests/xcresult.rs` holds the five macOS tests that actually drive `sourcekit-lsp` and
   `clangd` over the checked-in packages in `tests/fixture-src/`. They pass a scenario's
   package directory as the repo root, which is why they assert the file a test is _written
   in_ rather than the absolute path baked into the bundle at capture time.
 
-One gap in the fixtures: **no scenario has a passing test**, so the end-to-end evidence for
-attributing one is the unit test above rather than a real bundle. Adding a passing test to a
-package means regenerating its bundle (`regenerate.sh`) and re-reviewing its expected JUnit,
-both of which need macOS + Xcode.
+Two gaps in the fixtures, both needing macOS + Xcode to close:
+
+- **No scenario has a passing test**, so the end-to-end evidence for attributing one is the
+  unit test above rather than a real bundle. Adding a passing test to a package means
+  regenerating its bundle (`regenerate.sh`) and re-reviewing its expected JUnit.
+- **No scenario has a nested suite**, so the flattening fix is unit-tested only. If running
+  the macOS suite after this change produces a snapshot diff, that is a fixture that _did_
+  have the bug — the new testcases are the fix working, not a regression.
