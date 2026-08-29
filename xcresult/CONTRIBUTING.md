@@ -41,6 +41,50 @@ cargo run --bin xcresult-to-junit -- \
 - `--repo-url`: Repository URL, e.g. `https://github.com/trunk-io/analytics-cli` (optional)
 - `--output-file-path`: JUnit XML output file path (optional, defaults to stdout)
 - `--use-experimental-failure-summary`: Use experimental failure summary parsing (optional boolean flag)
+- `--use-experimental-xcresult-test-locations`: Take each test's file from where it is declared rather than from a failure (optional boolean flag, also settable via `TRUNK_USE_EXPERIMENTAL_XCRESULT_TEST_LOCATIONS`)
+- `--repo-root`: Checkout to resolve declarations in, defaults to the working directory (clap `requires` the flag above)
+
+## Experimental: test locations from declarations
+
+`--use-experimental-xcresult-test-locations` replaces the file-attribution half of this
+crate, and is the same flag on `trunk-analytics-cli upload` (hidden, and equally
+xcresult-only — it does nothing for JUnit or Bazel BEP uploads).
+
+**What it changes.** Everything else here answers "where was this failure raised", because
+that is all an `.xcresult` records: there is no per-test declaration site anywhere in the
+bundle, and a passing test's summary carries no path at all. This flag asks a language
+server instead — `sourcekit-lsp` for Swift, `clangd` for Objective-C, both of which ship
+in the Command Line Tools as well as Xcode — for `textDocument/documentSymbol` over the
+checkout's own sources, and joins the `(suite, case)` it gets back to the xcresult
+identifier. So a failure raised inside a helper is attributed to the test's file rather
+than the helper's, a crash with no call stack is attributed at all, and a **passing** test
+gets a file for the first time.
+
+**What it also changes, and is easy to miss.** The declaration path makes exactly one
+`xcresulttool` call for results (`get test-results tests`) plus one for the run start time
+(`get test-results summary`). It never issues `get object --legacy`, so the unbounded
+per-test summary fetch — measured at 6 GB of JSON and a 48 GB peak footprint for a single
+timed-out test — is not reachable from it.
+
+**Where it is worse.** Tests registered at runtime (Quick's `class_addMethod`,
+`+testInvocations`) have no declaration to find; the two approaches fail in disjoint
+situations. Such a test falls back to the modern API's own `sourceLocation`, vetted against
+the same vendored-path rules as everything in `src/file_attribution.rs`.
+
+**Incompatible with `--use-experimental-failure-summary`,** which tunes a code path this
+one does not run, so clap rejects the pair rather than letting one silently win. One wart
+comes with that: clap treats an env-supplied value as present regardless of what it says,
+so `TRUNK_USE_EXPERIMENTAL_XCRESULT_TEST_LOCATIONS=false` **and**
+`--use-experimental-failure-summary` is a hard conflict error. Unset the variable to roll
+back rather than setting it to `false`.
+
+**Ids.** `generate_id` prefers `nodeIdentifierURL` here, which is the legacy record's
+`identifierURL` under another name, so ids do not move between the two paths.
+
+**Cost.** Roughly 13 ms per file parsed. The scan is ranked so files named after a suite go
+first and stops as soon as every test resolves; `Limits` caps files parsed, total wall
+clock, and per-request time, and a server that stops answering is killed rather than waited
+on.
 
 ## JSON Schema Generation
 
@@ -95,6 +139,10 @@ The generated types are used in:
 - `src/xcresult.rs` - Main conversion logic
 - `src/xcresult_legacy.rs` - Legacy format handling
 
+The declaration path adds `src/lsp.rs` (a minimal JSON-RPC client) and
+`src/test_locations.rs` (the `(suite, case) -> file:line` index), neither of which reads a
+generated schema.
+
 ## Testing
 
 Tests are located in `tests/xcresult.rs` and use sample xcresult bundles from `tests/data/`. To run tests:
@@ -108,3 +156,21 @@ cargo test -p xcresult
 ```
 
 Note: Almost all tests are macOS-specific (marked with `#[cfg(target_os = "macos")]`) as they require `xcrun` to be available.
+
+The split is deliberate, because the parts that need macOS are narrower than they look:
+
+- `src/test_locations.rs` unit-tests the symbol mapping, inheritance walk and source scan
+  against canned `documentSymbol` responses.
+- `src/xcresult.rs` unit-tests the attribution join against a canned `Tests` value and a
+  seeded `TestLocationIndex` (`TestLocationIndex::declaring`, test-only). This is where "a
+  **passing** test gets a file" and "a failure raised in a helper or a dependency is still
+  attributed to the test's file" are proven — neither of which needs `xcrun`.
+- `tests/xcresult.rs` holds the five macOS tests that actually drive `sourcekit-lsp` and
+  `clangd` over the checked-in packages in `tests/fixture-src/`. They pass a scenario's
+  package directory as the repo root, which is why they assert the file a test is _written
+  in_ rather than the absolute path baked into the bundle at capture time.
+
+One gap in the fixtures: **no scenario has a passing test**, so the end-to-end evidence for
+attributing one is the unit test above rather than a real bundle. Adding a passing test to a
+package means regenerating its bundle (`regenerate.sh`) and re-reviewing its expected JUnit,
+both of which need macOS + Xcode.
