@@ -275,6 +275,21 @@ pub struct UploadArgs {
         hide = true
     )]
     pub use_experimental_failure_summary: bool,
+    #[cfg(target_os = "macos")]
+    #[arg(
+        long,
+        env = constants::TRUNK_USE_EXPERIMENTAL_XCRESULT_TEST_LOCATIONS_ENV,
+        help = "Flag to take an xcresult test's file from where a language server says it is declared, rather than from the failure that surfaced it. Reads the bundle with no legacy `xcresulttool get object` calls.",
+        action = ArgAction::Set,
+        required = false,
+        require_equals = true,
+        num_args = 0..=1,
+        default_value = "false",
+        default_missing_value = "true",
+        hide = true,
+        conflicts_with = "use_experimental_failure_summary"
+    )]
+    pub use_experimental_xcresult_test_locations: bool,
     #[arg(
         long,
         env = constants::TRUNK_VALIDATION_REPORT_ENV,

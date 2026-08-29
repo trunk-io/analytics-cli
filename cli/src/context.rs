@@ -40,7 +40,7 @@ use proto::test_context::test_run::{
 use regex::Regex;
 use tempfile::TempDir;
 #[cfg(target_os = "macos")]
-use xcresult::xcresult::XCResult;
+use xcresult::{test_locations::Limits, xcresult::XCResult};
 
 use crate::error_report::InterruptingError;
 use crate::{
@@ -137,6 +137,8 @@ pub fn gather_initial_test_context(
         pr_number,
         #[cfg(target_os = "macos")]
         use_experimental_failure_summary,
+        #[cfg(target_os = "macos")]
+        use_experimental_xcresult_test_locations,
         ..
     } = upload_args;
 
@@ -151,6 +153,15 @@ pub fn gather_initial_test_context(
     )?;
     tracing::debug!("Found repo state: {:?}", repo);
 
+    #[cfg(target_os = "macos")]
+    let xcresult_options = XCResultOptions {
+        repo: &repo.repo,
+        org_url_slug: &org_url_slug,
+        repo_root: &repo.repo_root,
+        use_experimental_failure_summary,
+        use_experimental_test_locations: use_experimental_xcresult_test_locations,
+    };
+
     let (junit_path_wrappers, bep_result, junit_path_wrappers_temp_dir) =
         coalesce_junit_path_wrappers(
             junit_paths,
@@ -158,11 +169,7 @@ pub fn gather_initial_test_context(
             #[cfg(target_os = "macos")]
             xcresult_path,
             #[cfg(target_os = "macos")]
-            &repo.repo,
-            #[cfg(target_os = "macos")]
-            org_url_slug.clone(),
-            #[cfg(target_os = "macos")]
-            use_experimental_failure_summary,
+            &xcresult_options,
             test_reports,
             allow_empty_test_results,
         )?;
@@ -620,13 +627,22 @@ fn parse_as_bep(dir: String) -> anyhow::Result<BepParseResult> {
     result
 }
 
+/// What the xcresult conversion needs beyond the bundle, kept together so an option added
+/// later does not thread another `#[cfg]`-gated parameter through three signatures.
+#[cfg(target_os = "macos")]
+struct XCResultOptions<'a> {
+    repo: &'a RepoUrlParts,
+    org_url_slug: &'a str,
+    repo_root: &'a str,
+    use_experimental_failure_summary: bool,
+    use_experimental_test_locations: bool,
+}
+
 fn coalesce_junit_path_wrappers(
     junit_paths: Vec<String>,
     bazel_bep_path: Option<String>,
     #[cfg(target_os = "macos")] xcresult_path: Option<String>,
-    #[cfg(target_os = "macos")] repo: &RepoUrlParts,
-    #[cfg(target_os = "macos")] org_url_slug: String,
-    #[cfg(target_os = "macos")] use_experimental_failure_summary: bool,
+    #[cfg(target_os = "macos")] xcresult_options: &XCResultOptions,
     test_reports: Vec<String>,
     allow_empty_test_results: bool,
 ) -> anyhow::Result<(
@@ -673,13 +689,7 @@ fn coalesce_junit_path_wrappers(
     #[cfg(target_os = "macos")]
     if xcresult_path.is_some() {
         let temp_dir = tempfile::tempdir()?;
-        let temp_paths = handle_xcresult(
-            &temp_dir,
-            xcresult_path,
-            repo,
-            &org_url_slug,
-            use_experimental_failure_summary,
-        )?;
+        let temp_paths = handle_xcresult(&temp_dir, xcresult_path, xcresult_options)?;
         _junit_path_wrappers_temp_dir = Some(temp_dir);
         junit_path_wrappers = [junit_path_wrappers.as_slice(), temp_paths.as_slice()].concat();
         if junit_path_wrappers.is_empty() {
@@ -711,11 +721,7 @@ fn coalesce_junit_path_wrappers(
                 #[cfg(target_os = "macos")]
                 &test_report,
                 #[cfg(target_os = "macos")]
-                repo,
-                #[cfg(target_os = "macos")]
-                &org_url_slug,
-                #[cfg(target_os = "macos")]
-                use_experimental_failure_summary,
+                xcresult_options,
             ) {
                 #[cfg(target_os = "macos")]
                 {
@@ -741,20 +747,12 @@ fn coalesce_junit_path_wrappers(
 
 fn parse_as_xcresult(
     #[cfg(target_os = "macos")] test_report: &String,
-    #[cfg(target_os = "macos")] repo: &RepoUrlParts,
-    #[cfg(target_os = "macos")] org_url_slug: &String,
-    #[cfg(target_os = "macos")] use_experimental_failure_summary: bool,
+    #[cfg(target_os = "macos")] xcresult_options: &XCResultOptions,
 ) -> Option<tempfile::TempDir> {
     #[cfg(target_os = "macos")]
     {
         let temp_dir = tempfile::tempdir().ok()?;
-        let temp_paths = handle_xcresult(
-            &temp_dir,
-            Some(test_report.clone()),
-            repo,
-            &org_url_slug,
-            use_experimental_failure_summary,
-        );
+        let temp_paths = handle_xcresult(&temp_dir, Some(test_report.clone()), xcresult_options);
         if temp_paths.is_ok() {
             return Some(temp_dir);
         } else {
@@ -874,18 +872,28 @@ pub async fn gather_upload_id_context(
 fn handle_xcresult(
     junit_temp_dir: &tempfile::TempDir,
     xcresult_path: Option<String>,
-    repo: &RepoUrlParts,
-    org_url_slug: &String,
-    use_experimental_failure_summary: bool,
+    options: &XCResultOptions,
 ) -> Result<Vec<JunitReportFileWithTestRunnerReport>, anyhow::Error> {
     let mut temp_paths = Vec::new();
     if let Some(xcresult_path) = xcresult_path {
-        let xcresult = XCResult::new(
-            xcresult_path,
-            org_url_slug.clone(),
-            repo.repo_full_name(),
-            use_experimental_failure_summary,
-        )?;
+        let org_url_slug = options.org_url_slug.to_string();
+        let repo_full_name = options.repo.repo_full_name();
+        let xcresult = if options.use_experimental_test_locations {
+            XCResult::new_with_declaration_locations(
+                xcresult_path,
+                org_url_slug,
+                repo_full_name,
+                options.repo_root,
+                Limits::default(),
+            )?
+        } else {
+            XCResult::new(
+                xcresult_path,
+                org_url_slug,
+                repo_full_name,
+                options.use_experimental_failure_summary,
+            )?
+        };
         let junits = xcresult.generate_junits();
         if junits.is_empty() {
             return Err(anyhow::anyhow!(
@@ -997,6 +1005,8 @@ mod tests {
     #[cfg(target_os = "macos")]
     use context::repo::RepoUrlParts;
 
+    #[cfg(target_os = "macos")]
+    use crate::context::XCResultOptions;
     use crate::context::{coalesce_junit_path_wrappers, gather_initial_test_context};
     use crate::upload_command::UploadArgs;
 
@@ -1060,17 +1070,21 @@ mod tests {
             owner: "trunk-io".to_string(),
             name: "analytics-cli".to_string(),
         };
+        #[cfg(target_os = "macos")]
+        let xcresult_options = XCResultOptions {
+            repo: &repo,
+            org_url_slug: "test",
+            repo_root: "test",
+            use_experimental_failure_summary: false,
+            use_experimental_test_locations: false,
+        };
         let result_err = coalesce_junit_path_wrappers(
             vec!["test".into()],
             Some("test".into()),
             #[cfg(target_os = "macos")]
             Some("test".into()),
             #[cfg(target_os = "macos")]
-            &repo,
-            #[cfg(target_os = "macos")]
-            "test".into(),
-            #[cfg(target_os = "macos")]
-            false,
+            &xcresult_options,
             Vec::new(),
             false,
         );
@@ -1081,11 +1095,7 @@ mod tests {
             #[cfg(target_os = "macos")]
             Some("test".into()),
             #[cfg(target_os = "macos")]
-            &repo,
-            #[cfg(target_os = "macos")]
-            "test".into(),
-            #[cfg(target_os = "macos")]
-            false,
+            &xcresult_options,
             Vec::new(),
             true,
         );
@@ -1106,17 +1116,21 @@ mod tests {
             owner: "trunk-io".to_string(),
             name: "analytics-cli".to_string(),
         };
+        #[cfg(target_os = "macos")]
+        let xcresult_options = XCResultOptions {
+            repo: &repo,
+            org_url_slug: "test",
+            repo_root: "test",
+            use_experimental_failure_summary: false,
+            use_experimental_test_locations: false,
+        };
         let result_ok = coalesce_junit_path_wrappers(
             Vec::new(),
             None,
             #[cfg(target_os = "macos")]
             None,
             #[cfg(target_os = "macos")]
-            &repo,
-            #[cfg(target_os = "macos")]
-            "test".into(),
-            #[cfg(target_os = "macos")]
-            false,
+            &xcresult_options,
             vec!["test".into()],
             true,
         );
