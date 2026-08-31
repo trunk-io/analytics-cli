@@ -74,6 +74,44 @@ impl TestKey {
     }
 }
 
+impl TestKey {
+    /// `test://com.apple.xcode/<scheme>/<target>/<suite>/<case>` — the second component is
+    /// the test bundle, which is the only thing distinguishing two same-named suites.
+    pub fn target_from_identifier_url(identifier_url: &str) -> Option<String> {
+        let path = identifier_url.split("://").nth(1)?;
+        let target = path.split('/').nth(2)?;
+        (!target.is_empty()).then(|| percent_decoded(target))
+    }
+}
+
+fn percent_decoded(value: &str) -> String {
+    let bytes = value.as_bytes();
+    let mut decoded = Vec::with_capacity(bytes.len());
+    let mut index = 0;
+    while index < bytes.len() {
+        if bytes[index] == b'%'
+            && let Some(byte) = value
+                .get(index + 1..index + 3)
+                .and_then(|hex| u8::from_str_radix(hex, 16).ok())
+        {
+            decoded.push(byte);
+            index += 3;
+        } else {
+            decoded.push(bytes[index]);
+            index += 1;
+        }
+    }
+    String::from_utf8(decoded).unwrap_or_else(|_| value.to_string())
+}
+
+/// Whether a path lies under a directory named for the target, which is how a candidate is
+/// tied to the module that actually ran it.
+fn is_in_target(file: &ReportedPath, target: &str) -> bool {
+    Path::new(file.as_str())
+        .components()
+        .any(|component| component.as_os_str().to_string_lossy() == target)
+}
+
 #[derive(Debug, Clone)]
 pub struct DeclarationSite {
     pub file: ReportedPath,
@@ -84,10 +122,16 @@ pub struct DeclarationSite {
 pub struct TestLocationIndex {
     declarations: HashMap<TestKey, DeclarationSite>,
     supertypes: HashMap<String, String>,
+    targets: HashMap<TestKey, String>,
 }
 
 impl TestLocationIndex {
-    pub fn resolve(repo_root: &Path, keys: &[TestKey], limits: Limits) -> Self {
+    pub fn resolve(repo_root: &Path, keys: &[(TestKey, Option<String>)], limits: Limits) -> Self {
+        let targets = keys
+            .iter()
+            .filter_map(|(key, target)| target.clone().map(|target| (key.clone(), target)))
+            .collect::<HashMap<_, _>>();
+        let keys = keys.iter().map(|(key, _)| key.clone()).collect::<Vec<_>>();
         let suites = keys
             .iter()
             .filter_map(|key| key.suite.as_deref())
@@ -98,8 +142,11 @@ impl TestLocationIndex {
             .partition::<Vec<_>, _>(|path| has_extension(path, &SWIFT_EXTENSIONS));
 
         let mut resolver = Resolver {
-            index: Self::default(),
-            unresolved: keys.to_vec(),
+            index: Self {
+                targets,
+                ..Self::default()
+            },
+            unresolved: keys.clone(),
             deadline: Instant::now() + limits.budget,
             limits,
         };
@@ -156,6 +203,28 @@ impl TestLocationIndex {
         self
     }
 
+    fn record(&mut self, key: TestKey, candidate: DeclarationSite) {
+        match self.declarations.get(&key) {
+            None => {
+                self.declarations.insert(key, candidate);
+            }
+            Some(existing) => {
+                if let Some(target) = self.targets.get(&key)
+                    && is_in_target(&candidate.file, target)
+                    && !is_in_target(&existing.file, target)
+                {
+                    tracing::debug!(
+                        "preferring {} over {} for target {}",
+                        candidate.file.as_str(),
+                        existing.file.as_str(),
+                        target
+                    );
+                    self.declarations.insert(key, candidate);
+                }
+            }
+        }
+    }
+
     fn collect(
         &mut self,
         symbols: &[DocumentSymbol],
@@ -177,12 +246,11 @@ impl TestLocationIndex {
                     suite: container.map(|name| container_name(name).to_string()),
                     case: normalized_case(&symbol.name),
                 };
-                self.declarations
-                    .entry(key)
-                    .or_insert_with(|| DeclarationSite {
-                        file: ReportedPath::new(&file.to_string_lossy()),
-                        line: symbol.declaration_line(),
-                    });
+                let candidate = DeclarationSite {
+                    file: ReportedPath::new(&file.to_string_lossy()),
+                    line: symbol.declaration_line(),
+                };
+                self.record(key, candidate);
             }
             self.collect(&symbol.children, file, text, Some(&symbol.name));
         }
@@ -650,5 +718,62 @@ mod tests {
             fs::write(root.join(name), "").unwrap();
         }
         assert_eq!(scan_sources(root.as_ref(), &HashSet::new(), 2).len(), 2);
+    }
+
+    #[rstest]
+    #[case::plain(
+        "test://com.apple.xcode/InRepoHelper/InRepoHelperTests/Suite/case()",
+        Some("InRepoHelperTests")
+    )]
+    #[case::percent_encoded(
+        "test://com.apple.xcode/swift%20testing/swift%20testing%20exampleTests/helloWorld()",
+        Some("swift testing exampleTests")
+    )]
+    #[case::too_short("test://com.apple.xcode/OnlyAScheme", None)]
+    #[case::not_a_url("Suite/case()", None)]
+    fn an_identifier_url_names_the_target(#[case] url: &str, #[case] expected: Option<&str>) {
+        assert_eq!(
+            TestKey::target_from_identifier_url(url).as_deref(),
+            expected
+        );
+    }
+
+    fn site(file: &str) -> DeclarationSite {
+        DeclarationSite {
+            file: ReportedPath::new(file),
+            line: None,
+        }
+    }
+
+    fn recorded(target: Option<&str>, files: [&str; 2]) -> String {
+        let test_key = key(Some("FooTests"), "testThing");
+        let mut index = TestLocationIndex {
+            targets: target
+                .map(|target| HashMap::from([(test_key.clone(), String::from(target))]))
+                .unwrap_or_default(),
+            ..Default::default()
+        };
+        for file in files {
+            index.record(test_key.clone(), site(file));
+        }
+        index.lookup(&test_key).unwrap().file.as_str().to_owned()
+    }
+
+    const IN_TARGET: &str = "/repo/Tests/AppTests/FooTests.swift";
+    const OTHER_TARGET: &str = "/repo/Tests/LibTests/FooTests.swift";
+
+    // Two modules can declare the same `(suite, case)`, and the scan order that decides it is
+    // arbitrary, so the target the test actually ran under has to break the tie.
+    #[rstest]
+    #[case::target_scanned_second(Some("AppTests"), [OTHER_TARGET, IN_TARGET], IN_TARGET)]
+    #[case::target_scanned_first(Some("AppTests"), [IN_TARGET, OTHER_TARGET], IN_TARGET)]
+    #[case::no_target_keeps_the_first(None, [OTHER_TARGET, IN_TARGET], OTHER_TARGET)]
+    #[case::no_candidate_matches(Some("TestsNobodyHas"), [OTHER_TARGET, IN_TARGET], OTHER_TARGET)]
+    fn a_collision_resolves_to_the_target_that_ran_the_test(
+        #[case] target: Option<&str>,
+        #[case] files: [&str; 2],
+        #[case] expected: &str,
+    ) {
+        assert_eq!(recorded(target, files), expected);
     }
 }

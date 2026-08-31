@@ -509,12 +509,16 @@ impl XCResult {
     }
 }
 
-fn collect_test_keys(test_nodes: &[TestNode], keys: &mut Vec<TestKey>) {
+fn collect_test_keys(test_nodes: &[TestNode], keys: &mut Vec<(TestKey, Option<String>)>) {
     for test_node in test_nodes {
         if matches!(test_node.node_type, TestNodeType::TestCase)
             && let Some(node_identifier) = &test_node.node_identifier
         {
-            keys.push(TestKey::from_node_identifier(node_identifier));
+            let target = test_node
+                .node_identifier_url
+                .as_deref()
+                .and_then(TestKey::target_from_identifier_url);
+            keys.push((TestKey::from_node_identifier(node_identifier), target));
         }
         collect_test_keys(&test_node.children, keys);
     }
