@@ -834,4 +834,53 @@ mod tests {
             expected
         );
     }
+
+    // The two build `suite` from different places — an identifier's second-to-last component
+    // versus a classname's innermost — so nothing else catches them drifting apart.
+    #[rstest]
+    #[case::top_level("helloworld()", "MyCLITests", "helloworld()")]
+    #[case::in_a_suite("AlphaSuite/shared()", "MyCLITests.AlphaSuite", "shared()")]
+    #[case::nested_suite(
+        "OuterSuite/InnerSuite/deep()",
+        "MyCLITests.OuterSuite.InnerSuite",
+        "deep()"
+    )]
+    #[case::parameterized("ParamSuite/squares(n:)", "MyCLITests.ParamSuite", "squares(n:)")]
+    #[case::swift_xctest_method(
+        "LegacyXCTests/testOldStyle()",
+        "MyCLITests.LegacyXCTests",
+        "testOldStyle"
+    )]
+    #[case::objc_xctest_method(
+        "ObjcXCTestTests/testFailsInsideSharedHelper",
+        "ObjcXCTestTests.ObjcXCTestTests",
+        "testFailsInsideSharedHelper"
+    )]
+    fn an_xcresult_identifier_and_a_junit_classname_key_alike(
+        #[case] node_identifier: &str,
+        #[case] classname: &str,
+        #[case] name: &str,
+    ) {
+        assert_eq!(
+            TestKey::from_node_identifier(node_identifier),
+            TestKey::from_junit_classname(classname, name)
+        );
+    }
+
+    // Different fields, and the collision tie-break depends on them agreeing.
+    #[rstest]
+    #[case::in_a_suite(
+        "test://com.apple.xcode/MyCLI/MyCLITests/AlphaSuite/shared()",
+        "MyCLITests.AlphaSuite"
+    )]
+    #[case::top_level("test://com.apple.xcode/MyCLI/MyCLITests/helloworld()", "MyCLITests")]
+    fn an_xcresult_url_and_a_junit_classname_name_the_same_target(
+        #[case] identifier_url: &str,
+        #[case] classname: &str,
+    ) {
+        assert_eq!(
+            TestKey::target_from_identifier_url(identifier_url),
+            TestKey::target_from_junit_classname(classname)
+        );
+    }
 }
