@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
 <testsuites>
-<testsuite name="TestResults" errors="0" tests="1" failures="0" time="0.04602925">
-<testcase classname="MyCLITests.LegacyXCTests" name="testOldStyle" time="0.04602925">
+<testsuite name="TestResults" errors="0" tests="1" failures="0" time="0.049869458">
+<testcase classname="MyCLITests.LegacyXCTests" name="testOldStyle" time="0.049869458">
 </testcase>
 </testsuite>
 </testsuites>

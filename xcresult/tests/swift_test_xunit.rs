@@ -91,6 +91,21 @@ fn every_swift_testing_case_resolves_to_the_file_it_is_declared_in() {
     }
 }
 
+#[test]
+fn overloads_differing_only_by_argument_label_resolve_separately() {
+    let resolved = resolve();
+    let file = |name: &str| {
+        resolved
+            .get(&(String::from("MyCLITests.OverloadSuite"), String::from(name)))
+            .unwrap_or_else(|| panic!("{name} resolved to nothing"))
+            .clone()
+    };
+    let (a, b, none) = (file("check(a:)"), file("check(b:)"), file("check()"));
+    assert_ne!(a, b, "both labelled overloads resolved to {a}");
+    assert!(a.ends_with("OverloadA.swift") && none.ends_with("OverloadA.swift"));
+    assert!(b.ends_with("OverloadB.swift"));
+}
+
 // Collapsing the classname to its target would make one `shared()` borrow the other's file.
 #[test]
 fn two_suites_declaring_the_same_case_resolve_separately() {

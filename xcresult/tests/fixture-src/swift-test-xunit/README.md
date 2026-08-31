@@ -36,14 +36,17 @@ A project with both frameworks has to upload both.
 
 ## What each shape proves
 
-| `classname`                   | `name`           | declared in           | why it is here                                                                                                                          |
-| ----------------------------- | ---------------- | --------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| `MyCLITests`                  | `helloworld()`   | `TopLevel.swift`      | a top-level `@Test func` has no suite, so classname collapses to the bare target and only the suiteless lookup can find it              |
-| `MyCLITests.AlphaSuite`       | `shared()`       | `Suites.swift`        | the ordinary case: innermost classname component is the declaring type                                                                  |
-| `MyCLITests.AlphaSuite.Inner` | `deep()`         | `Suites.swift`        | a nested suite is fully qualified, and only the innermost component declares the method                                                 |
-| `MyCLITests.BetaSuite`        | `shared()`       | `BetaSuite.swift`     | same case name as `AlphaSuite`'s in a **different file**, so collapsing the classname would make one borrow the other's file            |
-| `MyCLITests.ParamSuite`       | `squares(n:)`    | `Parameterized.swift` | a parameterised test keeps its argument labels and appears **once**, not once per argument, so the single entry is the declaration site |
-| `MyCLITests.ParamSuite`       | `pairs(s:flag:)` | `Parameterized.swift` | two labels, same shape                                                                                                                  |
+| `classname`                   | `name`           | declared in           | why it is here                                                                                                                                        |
+| ----------------------------- | ---------------- | --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `MyCLITests`                  | `helloworld()`   | `TopLevel.swift`      | a top-level `@Test func` has no suite, so classname collapses to the bare target and only the suiteless lookup can find it                            |
+| `MyCLITests.AlphaSuite`       | `shared()`       | `Suites.swift`        | the ordinary case: innermost classname component is the declaring type                                                                                |
+| `MyCLITests.AlphaSuite.Inner` | `deep()`         | `Suites.swift`        | a nested suite is fully qualified, and only the innermost component declares the method                                                               |
+| `MyCLITests.BetaSuite`        | `shared()`       | `BetaSuite.swift`     | same case name as `AlphaSuite`'s in a **different file**, so collapsing the classname would make one borrow the other's file                          |
+| `MyCLITests.ParamSuite`       | `squares(n:)`    | `Parameterized.swift` | a parameterised test keeps its argument labels and appears **once**, not once per argument, so the single entry is the declaration site               |
+| `MyCLITests.ParamSuite`       | `pairs(s:flag:)` | `Parameterized.swift` | two labels, same shape                                                                                                                                |
+| `MyCLITests.OverloadSuite`    | `check()`        | `OverloadA.swift`     | the no-argument member of an overload set                                                                                                             |
+| `MyCLITests.OverloadSuite`    | `check(a:)`      | `OverloadA.swift`     | differs from `check(b:)` **only by argument label**                                                                                                   |
+| `MyCLITests.OverloadSuite`    | `check(b:)`      | `OverloadB.swift`     | declared in another file via an extension, so a normalisation that dropped labels would silently merge two distinct tests and give one the wrong file |
 
 ## XCTest needs `--parallel`, and needs no special handling
 
@@ -61,3 +64,24 @@ that against this package.
 Worth knowing: **without `--parallel` this file is not written at all**. The XCTest case runs
 either way (the console reports `-[MyCLITests.LegacyXCTests testOldStyle] passed`), so a
 project that omits `--parallel` silently uploads only its swift-testing results.
+
+## Parens and argument labels are part of a test's identity
+
+Both inputs report the same three overloads, and agree on how they spell them:
+
+|                           | `check()`               | `check(a:)`               | `check(b:)`               |
+| ------------------------- | ----------------------- | ------------------------- | ------------------------- |
+| xcresult `nodeIdentifier` | `OverloadSuite/check()` | `OverloadSuite/check(a:)` | `OverloadSuite/check(b:)` |
+| xunit `name`              | `check()`               | `check(a:)`               | `check(b:)`               |
+
+`normalized_case` trims only _trailing_ parens, so `check()` becomes `check` while
+`check(a:)` becomes the unbalanced `check(a:`. Ugly but correct: the same function is applied
+to the language server's symbol name and to the test identifier, so what matters is that it
+is _identical on both sides_, not that it is tidy. Because labels survive it, the three
+overloads key distinctly and resolve to their own declarations — including across files,
+which `overloads_differing_only_by_argument_label_resolve_separately` pins.
+
+The one place the inputs genuinely disagree is an XCTest method: `xcodebuild` reports
+`testOldStyle()` and `swift test` reports `testOldStyle`. Keying normalises that away so both
+resolve to the same file, but the names differ in the uploaded JUnit — see
+`the_two_inputs_spell_an_xctest_method_differently`.

@@ -846,6 +846,8 @@ mod tests {
         "deep()"
     )]
     #[case::parameterized("ParamSuite/squares(n:)", "MyCLITests.ParamSuite", "squares(n:)")]
+    #[case::no_argument_overload("OverloadSuite/check()", "MyCLITests.OverloadSuite", "check()")]
+    #[case::labelled_overload("OverloadSuite/check(a:)", "MyCLITests.OverloadSuite", "check(a:)")]
     #[case::swift_xctest_method(
         "LegacyXCTests/testOldStyle()",
         "MyCLITests.LegacyXCTests",
