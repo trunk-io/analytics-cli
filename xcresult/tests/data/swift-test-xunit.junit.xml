@@ -1,14 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <testsuites>
-  <testsuite name="TestResults" errors="0" tests="9" failures="0" skipped="0" time="0.001547125">
-    <testcase classname="MyCLITests.AlphaSuite" name="shared()" time="0.000721083" />
-    <testcase classname="MyCLITests.AlphaSuite.Inner" name="deep()" time="0.000723458" />
-    <testcase classname="MyCLITests.ParamSuite" name="pairs(s:flag:)" time="0.000917583" />
-    <testcase classname="MyCLITests.ParamSuite" name="squares(n:)" time="0.000824042" />
-    <testcase classname="MyCLITests" name="helloworld()" time="0.000866458" />
-    <testcase classname="MyCLITests.BetaSuite" name="shared()" time="0.000503" />
-    <testcase classname="MyCLITests.OverloadSuite" name="check(a:)" time="0.000663084" />
-    <testcase classname="MyCLITests.OverloadSuite" name="check(b:)" time="0.000621291" />
-    <testcase classname="MyCLITests.OverloadSuite" name="check()" time="0.000601959" />
+  <testsuite name="TestResults" errors="0" tests="9" failures="0" skipped="0" time="0.001223417">
+    <testcase classname="MyCLITests.AlphaSuite.Inner" name="deep()" time="0.000609833" />
+    <testcase classname="MyCLITests.AlphaSuite" name="shared()" time="0.000663375" />
+    <testcase classname="MyCLITests.ParamSuite" name="squares(n:)" time="0.00069175" />
+    <testcase classname="MyCLITests.ParamSuite" name="pairs(s:flag:)" time="0.000711375" />
+    <testcase classname="MyCLITests.BetaSuite" name="shared()" time="0.000742042" />
+    <testcase classname="MyCLITests" name="helloworld()" time="0.000865667" />
+    <testcase classname="MyCLITests.OverloadSuite" name="check(a:)" time="0.000674875" />
+    <testcase classname="MyCLITests.OverloadSuite" name="check()" time="0.000672042" />
+    <testcase classname="MyCLITests.OverloadSuite" name="check(b:)" time="0.000733667" />
   </testsuite>
 </testsuites>

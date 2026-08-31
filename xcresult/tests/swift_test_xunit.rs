@@ -3,6 +3,7 @@
 
 use std::{collections::HashMap, path::Path};
 
+use rstest::rstest;
 use xcresult::test_locations::{Limits, TestKey, TestLocationIndex};
 
 const FIXTURE_ROOT: &str = "tests/fixture-src/swift-test-xunit";
@@ -127,6 +128,34 @@ fn two_suites_declaring_the_same_case_resolve_separately() {
 
 // XCTest goes to its own file and names a case `Module.Class` + a bare method, so it needs no
 // separate handling — the innermost component is still the declaring type.
+//
+// `ChildATests` is the case that cannot be answered. It declares no `testInherited` of its
+// own, so the method it ran is written elsewhere — but `testInherited` is declared twice in
+// this target, by `BaseTests` (which it inherits from) and by `ChildBTests` (which merely
+// overrides it). An override is a declaration of the same name, so by name alone the ancestor
+// and the sibling are the same fact, and telling them apart needs an inheritance hierarchy,
+// which is semantic and would cost a build to resolve. Reporting `BaseTests.swift` here would
+// be a guess that happens to be right; reporting the suite's own file is the honest answer,
+// and `inherited_declaration` warns when it declines.
+//
+// Where only one class declares the case there is nothing to guess between, and the base
+// class's file is reported — `test_an_inherited_test_is_attributed_to_the_class_that_declares_it`
+// covers that shape.
+#[rstest]
+#[case::declared("MyCLITests.BaseTests", "BaseTests.swift")]
+#[case::inherited_but_ambiguous("MyCLITests.ChildATests", "ChildATests.swift")]
+#[case::overridden("MyCLITests.ChildBTests", "ChildBTests.swift")]
+fn an_xctest_method_resolves_to_its_declaration_unless_two_classes_declare_it(
+    #[case] classname: &str,
+    #[case] expected: &str,
+) {
+    let resolved = resolve_from(XUNIT_XCTEST);
+    let file = resolved
+        .get(&(String::from(classname), String::from("testInherited")))
+        .unwrap_or_else(|| panic!("{classname} resolved to nothing"));
+    assert!(file.ends_with(expected), "expected {expected}, got {file}");
+}
+
 #[test]
 fn an_xctest_case_resolves_to_the_class_that_declares_it() {
     let resolved = resolve_from(XUNIT_XCTEST);
@@ -239,12 +268,11 @@ mod parity {
     // the two inputs does not land on one identity. Pinned so it cannot change unnoticed.
     #[test]
     fn the_two_inputs_spell_an_xctest_method_differently() {
-        assert_eq!(
+        assert!(
             testcases(XUNIT_XCTEST)
-                .into_iter()
-                .map(|(_, name)| name)
-                .collect::<Vec<_>>(),
-            vec![String::from("testOldStyle")]
+                .iter()
+                .any(|(_, name)| name == "testOldStyle"),
+            "the xunit spells it with parens"
         );
         assert!(
             xcresult_raw_names().contains(&String::from("testOldStyle()")),
