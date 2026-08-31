@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites>
+  <testsuite name="TestResults" errors="0" tests="6" failures="0" skipped="0" time="0.001604458">
+    <testcase classname="MyCLITests" name="helloworld()" time="0.00104475" />
+    <testcase classname="MyCLITests.ParamSuite" name="squares(n:)" time="0.000918208" />
+    <testcase classname="MyCLITests.ParamSuite" name="pairs(s:flag:)" time="0.000940667" />
+    <testcase classname="MyCLITests.AlphaSuite.Inner" name="deep()" time="0.000806375" />
+    <testcase classname="MyCLITests.AlphaSuite" name="shared()" time="0.000832375" />
+    <testcase classname="MyCLITests.BetaSuite" name="shared()" time="0.000806125" />
+  </testsuite>
+</testsuites>

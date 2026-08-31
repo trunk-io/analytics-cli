@@ -75,6 +75,24 @@ impl TestKey {
 }
 
 impl TestKey {
+    /// `classname` is the target plus the dot-qualified suite path (`MyCLITests.Outer.Inner`),
+    /// collapsing to the bare target for a top-level `@Test func`, which declares no suite.
+    pub fn from_junit_classname(classname: &str, name: &str) -> Self {
+        let mut components = classname.rsplit('.');
+        let innermost = components.next().unwrap_or_default();
+        let has_suite = components.next().is_some();
+        Self {
+            suite: has_suite.then(|| container_name(innermost).to_string()),
+            case: normalized_case(name),
+        }
+    }
+
+    /// The first component, which tells same-named suites in different modules apart.
+    pub fn target_from_junit_classname(classname: &str) -> Option<String> {
+        let target = classname.split('.').next()?;
+        (!target.is_empty()).then(|| target.to_string())
+    }
+
     /// `test://com.apple.xcode/<scheme>/<target>/<suite>/<case>` — the second component is
     /// the test bundle, which is the only thing distinguishing two same-named suites.
     pub fn target_from_identifier_url(identifier_url: &str) -> Option<String> {
@@ -775,5 +793,45 @@ mod tests {
         #[case] expected: &str,
     ) {
         assert_eq!(recorded(target, files), expected);
+    }
+
+    #[rstest]
+    #[case::top_level_function("MyCLITests", "helloworld()", None, "helloworld")]
+    #[case::in_a_suite("MyCLITests.AlphaSuite", "shared()", Some("AlphaSuite"), "shared")]
+    #[case::nested_suite("MyCLITests.AlphaSuite.Inner", "deep()", Some("Inner"), "deep")]
+    #[case::other_suite_same_case("MyCLITests.BetaSuite", "shared()", Some("BetaSuite"), "shared")]
+    #[case::parameterized(
+        "MyCLITests.ParamSuite",
+        "squares(n:)",
+        Some("ParamSuite"),
+        "squares(n:"
+    )]
+    #[case::objc_style(
+        "MyCLITests.LegacyXCTests",
+        "testOldStyle",
+        Some("LegacyXCTests"),
+        "testOldStyle"
+    )]
+    fn a_junit_classname_names_a_suite_and_a_case(
+        #[case] classname: &str,
+        #[case] name: &str,
+        #[case] suite: Option<&str>,
+        #[case] case: &str,
+    ) {
+        assert_eq!(
+            TestKey::from_junit_classname(classname, name),
+            key(suite, case)
+        );
+    }
+
+    #[rstest]
+    #[case::with_suite("MyCLITests.AlphaSuite", Some("MyCLITests"))]
+    #[case::bare_target("MyCLITests", Some("MyCLITests"))]
+    #[case::empty("", None)]
+    fn a_junit_classname_names_the_target(#[case] classname: &str, #[case] expected: Option<&str>) {
+        assert_eq!(
+            TestKey::target_from_junit_classname(classname).as_deref(),
+            expected
+        );
     }
 }
