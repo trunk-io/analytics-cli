@@ -12,7 +12,7 @@ use std::{
 use lazy_static::lazy_static;
 use serde::Deserialize;
 
-use crate::{file_attribution::ReportedPath, lsp::LanguageServer, xcrun::xcrun_find};
+use crate::{file_attribution::ReportedPath, lsp::LanguageServer, xcrun::find_program};
 
 /// LSP `SymbolKind`s that can declare a test: Method, Constructor, Function.
 const METHOD_KINDS: [u64; 3] = [6, 9, 12];
@@ -288,7 +288,7 @@ impl Resolver {
         if files.is_empty() || self.unresolved.is_empty() {
             return;
         }
-        let Some(program) = xcrun_find(kind.program) else {
+        let Some(program) = find_program(kind.program) else {
             tracing::warn!(
                 "{} not found; {} source file(s) left unparsed",
                 kind.program,
