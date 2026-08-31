@@ -123,3 +123,118 @@ fn an_xctest_case_resolves_to_the_class_that_declares_it() {
         .expect("the XCTest case resolved");
     assert!(file.ends_with("Legacy.swift"), "got {file}");
 }
+
+/// One package captured both ways, which must land every test on the same file.
+#[cfg(target_os = "macos")]
+mod parity {
+    use std::{fs::File, path::PathBuf};
+
+    use flate2::read::GzDecoder;
+    use tar::Archive;
+    use temp_testdir::TempDir;
+    use xcresult::xcresult::XCResult;
+
+    use super::*;
+
+    fn xcresult_report() -> Vec<quick_junit::Report> {
+        let temp_dir = TempDir::default();
+        Archive::new(GzDecoder::new(
+            File::open("tests/data/swift-test-parity.xcresult.tar.gz").unwrap(),
+        ))
+        .unpack(temp_dir.as_ref())
+        .unwrap();
+        let bundle: PathBuf = temp_dir.as_ref().join("MyCLI.xcresult");
+
+        let xcresult = XCResult::new_with_declaration_locations(
+            bundle.to_str().unwrap(),
+            String::from("trunk"),
+            String::from("github.com/trunk-io/analytics-cli"),
+            Path::new(FIXTURE_ROOT),
+            Limits::default(),
+        )
+        .expect("the declaration path reads the bundle");
+
+        xcresult.generate_junits()
+    }
+
+    fn without_parens(name: &str) -> String {
+        name.trim_end_matches(['(', ')']).to_owned()
+    }
+
+    fn xcresult_raw_names() -> Vec<String> {
+        xcresult_report()
+            .iter()
+            .flat_map(|report| report.test_suites.iter())
+            .flat_map(|test_suite| test_suite.test_cases.iter())
+            .map(|test_case| test_case.name.as_str().to_owned())
+            .collect()
+    }
+
+    /// Pairs rather than a map keyed by name: two suites here both declare `shared()`.
+    fn xcresult_pairs() -> Vec<(String, String)> {
+        let mut pairs = xcresult_report()
+            .iter()
+            .flat_map(|report| report.test_suites.iter())
+            .flat_map(|test_suite| test_suite.test_cases.iter())
+            .filter_map(|test_case| {
+                test_case
+                    .extra
+                    .iter()
+                    .find(|(key, _)| key.as_str() == "file")
+                    .map(|(_, value)| {
+                        (
+                            without_parens(test_case.name.as_str()),
+                            file_name(value.as_str()),
+                        )
+                    })
+            })
+            .collect::<Vec<_>>();
+        pairs.sort();
+        pairs
+    }
+
+    fn xunit_pairs() -> Vec<(String, String)> {
+        let mut pairs = [XUNIT, XUNIT_XCTEST]
+            .into_iter()
+            .flat_map(|xunit| resolve_from(xunit).into_iter())
+            .map(|((_, name), file)| (without_parens(&name), file_name(&file)))
+            .collect::<Vec<_>>();
+        pairs.sort();
+        pairs
+    }
+
+    fn file_name(path: &str) -> String {
+        Path::new(path)
+            .file_name()
+            .map(|name| name.to_string_lossy().into_owned())
+            .unwrap_or_else(|| String::from(path))
+    }
+
+    #[test]
+    fn both_inputs_resolve_every_test_to_the_same_file() {
+        let from_xcresult = xcresult_pairs();
+        assert!(
+            from_xcresult.len() >= 6,
+            "the bundle should carry every test, got {from_xcresult:?}"
+        );
+        pretty_assertions::assert_eq!(xunit_pairs(), from_xcresult);
+    }
+
+    // Upstream, not ours: `name` feeds `gen_info_id_base`, so the same test arriving through
+    // the two inputs does not land on one identity. Pinned so it cannot change unnoticed.
+    #[test]
+    fn the_two_inputs_spell_an_xctest_method_differently() {
+        assert_eq!(
+            testcases(XUNIT_XCTEST)
+                .into_iter()
+                .map(|(_, name)| name)
+                .collect::<Vec<_>>(),
+            vec![String::from("testOldStyle")]
+        );
+        assert!(
+            xcresult_raw_names().contains(&String::from("testOldStyle()")),
+            "the bundle spells it {:?}",
+            xcresult_raw_names()
+        );
+    }
+}
