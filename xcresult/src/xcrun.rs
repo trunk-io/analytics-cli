@@ -1,4 +1,4 @@
-use std::{ffi::OsStr, path::PathBuf, process::Command};
+use std::{ffi::OsStr, fs, path::Path, path::PathBuf, process::Command};
 
 use lazy_static::lazy_static;
 use serde::Deserialize;
@@ -34,6 +34,45 @@ pub fn xcresulttool_get_test_results_summary<T: AsRef<OsStr>>(
 }
 
 /// `None` when `name` ships in neither Xcode nor the Command Line Tools.
+/// Locate a developer tool. `xcrun` is the only way to find one inside an Xcode toolchain,
+/// but on Linux the Swift toolchain puts `sourcekit-lsp` on `PATH` and there is no `xcrun`.
+pub fn find_program(name: &str) -> Option<PathBuf> {
+    if cfg!(target_os = "macos")
+        && let Some(path) = xcrun_find(name)
+    {
+        return Some(path);
+    }
+    which_program(name)
+}
+
+fn which_program(name: &str) -> Option<PathBuf> {
+    which_program_in(name, &std::env::var_os("PATH")?)
+}
+
+fn which_program_in(name: &str, path_var: &OsStr) -> Option<PathBuf> {
+    std::env::split_paths(path_var)
+        .map(|directory| directory.join(name))
+        .find(|candidate| is_executable_file(candidate))
+}
+
+/// A non-executable file of the right name is not the program, and spawning it would fail
+/// later with something far less obvious than "not found".
+fn is_executable_file(path: &Path) -> bool {
+    let Ok(metadata) = fs::metadata(path) else {
+        return false;
+    };
+    if !metadata.is_file() {
+        return false;
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        metadata.permissions().mode() & 0o111 != 0
+    }
+    #[cfg(not(unix))]
+    true
+}
+
 pub fn xcrun_find(name: &str) -> Option<PathBuf> {
     if !cfg!(target_os = "macos") {
         return None;
@@ -159,4 +198,44 @@ fn xcrun<T: AsRef<OsStr>>(args: &[T]) -> anyhow::Result<String> {
     };
     let result = String::from_utf8(data)?;
     Ok(result)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // The Linux Swift toolchain puts `sourcekit-lsp` on `PATH` with no `xcrun` to ask, so the
+    // fallback is the only way the declaration path can find a server there.
+    #[test]
+    fn a_program_on_path_is_found_without_xcrun() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let elsewhere = tempfile::tempdir().unwrap();
+        let program = temp_dir.path().join("pretend-lsp");
+        fs::write(&program, b"#!/bin/sh\n").unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            fs::set_permissions(&program, fs::Permissions::from_mode(0o755)).unwrap();
+        }
+        let path_var = std::env::join_paths([elsewhere.path(), temp_dir.path()]).unwrap();
+
+        assert_eq!(
+            which_program_in("pretend-lsp", &path_var),
+            Some(program.clone())
+        );
+        assert_eq!(which_program_in("not-installed", &path_var), None);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_file_without_the_executable_bit_is_not_the_program() {
+        use std::os::unix::fs::PermissionsExt;
+        let temp_dir = tempfile::tempdir().unwrap();
+        let program = temp_dir.path().join("pretend-lsp");
+        fs::write(&program, b"not executable").unwrap();
+        fs::set_permissions(&program, fs::Permissions::from_mode(0o644)).unwrap();
+        let path_var = std::env::join_paths([temp_dir.path()]).unwrap();
+
+        assert_eq!(which_program_in("pretend-lsp", &path_var), None);
+    }
 }
