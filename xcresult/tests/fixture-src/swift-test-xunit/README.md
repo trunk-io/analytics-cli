@@ -48,6 +48,22 @@ A project with both frameworks has to upload both.
 | `MyCLITests.OverloadSuite`    | `check(a:)`      | `OverloadA.swift`     | differs from `check(b:)` **only by argument label**                                                                                                   |
 | `MyCLITests.OverloadSuite`    | `check(b:)`      | `OverloadB.swift`     | declared in another file via an extension, so a normalisation that dropped labels would silently merge two distinct tests and give one the wrong file |
 
+## XCTest has no labels, so the class name carries the whole load
+
+XCTest test methods take no arguments, so there is nothing like `check(a:)` to separate two
+of them — every one normalises to a bare method name. `BaseTests`, `ChildATests` and
+`ChildBTests` all report a test called `testInherited`, and only the class name tells them
+apart:
+
+| `classname`              | `name`          | declared in         | why                                                                                                 |
+| ------------------------ | --------------- | ------------------- | --------------------------------------------------------------------------------------------------- |
+| `MyCLITests.BaseTests`   | `testInherited` | `BaseTests.swift`   | declares it                                                                                         |
+| `MyCLITests.ChildATests` | `testInherited` | `BaseTests.swift`   | inherits it — resolved by walking `supertypes`, which the language server's superclass parse builds |
+| `MyCLITests.ChildBTests` | `testInherited` | `ChildBTests.swift` | overrides it, so it is declared here and no chain walk is needed                                    |
+
+That is the shape most XCTest suites actually have, and it is why `supertypes` exists.
+Disabling the chain walk fails only the `inherited` case, which is the point.
+
 ## XCTest needs `--parallel`, and needs no special handling
 
 `Legacy.swift` holds an `XCTestCase`, and it lands in `<name>` rather than

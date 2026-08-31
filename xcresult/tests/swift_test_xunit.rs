@@ -3,6 +3,7 @@
 
 use std::{collections::HashMap, path::Path};
 
+use rstest::rstest;
 use xcresult::test_locations::{Limits, TestKey, TestLocationIndex};
 
 const FIXTURE_ROOT: &str = "tests/fixture-src/swift-test-xunit";
@@ -127,6 +128,21 @@ fn two_suites_declaring_the_same_case_resolve_separately() {
 
 // XCTest goes to its own file and names a case `Module.Class` + a bare method, so it needs no
 // separate handling — the innermost component is still the declaring type.
+#[rstest]
+#[case::declared("MyCLITests.BaseTests", "BaseTests.swift")]
+#[case::inherited("MyCLITests.ChildATests", "BaseTests.swift")]
+#[case::overridden("MyCLITests.ChildBTests", "ChildBTests.swift")]
+fn an_inherited_xctest_method_resolves_to_whichever_class_declares_it(
+    #[case] classname: &str,
+    #[case] expected: &str,
+) {
+    let resolved = resolve_from(XUNIT_XCTEST);
+    let file = resolved
+        .get(&(String::from(classname), String::from("testInherited")))
+        .unwrap_or_else(|| panic!("{classname} resolved to nothing"));
+    assert!(file.ends_with(expected), "expected {expected}, got {file}");
+}
+
 #[test]
 fn an_xctest_case_resolves_to_the_class_that_declares_it() {
     let resolved = resolve_from(XUNIT_XCTEST);
@@ -239,12 +255,11 @@ mod parity {
     // the two inputs does not land on one identity. Pinned so it cannot change unnoticed.
     #[test]
     fn the_two_inputs_spell_an_xctest_method_differently() {
-        assert_eq!(
+        assert!(
             testcases(XUNIT_XCTEST)
-                .into_iter()
-                .map(|(_, name)| name)
-                .collect::<Vec<_>>(),
-            vec![String::from("testOldStyle")]
+                .iter()
+                .any(|(_, name)| name == "testOldStyle"),
+            "the xunit spells it with parens"
         );
         assert!(
             xcresult_raw_names().contains(&String::from("testOldStyle()")),
