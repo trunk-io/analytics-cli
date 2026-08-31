@@ -83,14 +83,17 @@ path, which reads the call stack this path never fetches, would name one. `gener
 logs the split (`N from a declaration, N from the fallback, N unresolved`) so it is visible
 whether the fallback ever fires against real bundles.
 
-The other way it can be worse is being confidently wrong rather than silent: the index is
-built from a checkout scan, not the build log, so two same-named suites in different modules
-collide. `declarations` is a `HashMap<TestKey, DeclarationSite>`, so the loser is simply
-overwritten and nothing records that there was a choice. For codeowners a wrong file is
-worse than no file, and the failure-summary path cannot make that mistake because it reads
-the frame that actually ran. `nodeIdentifierURL` carries the target name
-(`test://com.apple.xcode/<scheme>/<target>/<suite>/<case>`) and is already parsed for ids,
-so ranking candidates by target is the obvious way to close this if it starts to matter.
+**Collisions are broken by target.** The index is built from a checkout scan, not the build
+log, so two same-named suites in different modules can both declare the same
+`(suite, case)`. Scan order decides which is seen first and that order is arbitrary, so
+`record` prefers a candidate lying under a directory named for the target that actually ran
+the test — `nodeIdentifierURL` is
+`test://com.apple.xcode/<scheme>/<target>/<suite>/<case>`, so the target is already in hand
+from the field the ids come from, and no extra `xcresulttool` call is needed to get it.
+Where no candidate is under the target, or the test has no target, the first file scanned
+still wins. This matters because being confidently wrong is worse for codeowners than
+reporting nothing, and it is the one way this path can be wrong where the failure-summary
+path cannot, since that one reads the frame that actually ran.
 
 **Incompatible with `--use-experimental-failure-summary`,** which tunes a code path this
 one does not run, so clap rejects the pair rather than letting one silently win. One wart
