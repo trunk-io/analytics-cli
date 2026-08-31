@@ -72,6 +72,19 @@ pub struct UploadArgs {
         help = "Comma-separated list of glob patterns to test report files. Supports JUnit XML, Bazel BEP, and XCResult formats."
     )]
     pub test_reports: Vec<String>,
+    #[arg(
+        long,
+        env = constants::TRUNK_SWIFT_TEST_XUNIT_PATHS_ENV,
+        value_delimiter = ',',
+        help = "Comma-separated list of JUnit files written by `swift test --xunit-output`. \
+                These carry no file path, so each test's file is taken from where a language \
+                server says it is declared in the repository. One run writes two files: \
+                swift-testing to `<name>-swift-testing.xml` and XCTest to `<name>`, the \
+                latter only when `--parallel` is also passed. Upload both if the project \
+                uses both frameworks.",
+        required = false
+    )]
+    pub swift_test_xunit_paths: Vec<String>,
     #[arg(long, env = constants::TRUNK_ORG_URL_SLUG_ENV, help = "Organization url slug.")]
     pub org_url_slug: String,
     #[arg(
