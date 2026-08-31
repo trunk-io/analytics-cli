@@ -7050,6 +7050,7 @@ dependencies = [
  "syn 2.0.110",
  "tar",
  "temp_testdir",
+ "tempfile",
  "tracing",
  "tracing-subscriber",
  "typify",

@@ -1,9 +1,10 @@
 use std::collections::HashMap;
 use std::str;
-use std::{fs, path::Path, time::Duration};
+use std::{fs, path::Path, path::PathBuf, sync::Arc, time::Duration};
 
 use chrono::{DateTime, Utc};
 use quick_junit::{NonSuccessKind, Report, TestCase, TestCaseStatus, TestRerun, TestSuite};
+use tempfile::TempDir;
 
 use crate::types::{
     SWIFT_DEFAULT_TEST_SUITE_NAME,
@@ -12,6 +13,33 @@ use crate::types::{
 use crate::xcresult_legacy::XCResultTestLegacy;
 use crate::xcrun::{xcresulttool_get_object, xcresulttool_get_test_results_tests};
 
+/// `xcresulttool` migrates an older bundle in place on first read, writing into a directory
+/// we were only asked to read and failing outright when it is not writable.
+fn copy_bundle(path: &Path) -> anyhow::Result<(TempDir, PathBuf)> {
+    fn copy_dir(from: &Path, to: &Path) -> std::io::Result<()> {
+        fs::create_dir_all(to)?;
+        for entry in fs::read_dir(from)? {
+            let entry = entry?;
+            let destination = to.join(entry.file_name());
+            if entry.file_type()?.is_dir() {
+                copy_dir(&entry.path(), &destination)?;
+            } else {
+                fs::copy(entry.path(), destination)?;
+            }
+        }
+        Ok(())
+    }
+
+    let temp_dir = TempDir::new()?;
+    let destination = temp_dir.path().join(
+        path.file_name()
+            .unwrap_or_else(|| std::ffi::OsStr::new("bundle.xcresult")),
+    );
+    copy_dir(path, &destination)
+        .map_err(|e| anyhow::anyhow!("failed to copy {} for reading: {}", path.display(), e))?;
+    Ok((temp_dir, destination))
+}
+
 #[derive(Debug, Clone)]
 pub struct XCResult {
     tests: Tests,
@@ -19,6 +47,7 @@ pub struct XCResult {
     repo_full_name: String,
     legacy_xcresult_tests: HashMap<String, XCResultTestLegacy>,
     test_run_started_at: Option<DateTime<Utc>>,
+    _bundle_copy: Arc<TempDir>,
 }
 
 impl XCResult {
@@ -35,6 +64,7 @@ impl XCResult {
                 e
             )
         })?;
+        let (bundle_copy, absolute_path) = copy_bundle(&absolute_path)?;
 
         // Call xcresulttool_get_object once and use it for both timestamp extraction and legacy tests
         let actions_invocation_record = xcresulttool_get_object(&absolute_path);
@@ -99,6 +129,7 @@ impl XCResult {
             org_url_slug,
             repo_full_name,
             test_run_started_at,
+            _bundle_copy: Arc::new(bundle_copy),
         })
     }
 

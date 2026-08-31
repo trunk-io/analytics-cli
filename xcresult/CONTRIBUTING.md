@@ -10,6 +10,15 @@ This crate serves two main purposes:
 
 2. **Conditional File Path Specification**: While there are other xcresult parses, this crate handles specifying file paths in the JUnit output, which are conditionally present based on whether a failure (not error) has occurred. File paths are only included in the JUnit output when a test case has failed, as they are extracted from failure summaries in the xcresult bundle. This also handles generating stable identfiers because, by default, one of the values we generate IDs from is the file path. Without this crate, we wouldn't be able to safely map files to tests nor have codeowners support for xcresult.
 
+## Every read goes through a copy
+
+`xcresulttool` migrates a pre-`database.sqlite3` bundle **in place** the first time it is
+read. That writes into a directory the uploader was only asked to read, fails outright with
+`exit 64` when the directory is not writable — read-only artifact mounts are ordinary in CI —
+and makes two concurrent readers of one bundle race to create the same file. `XCResult::new`
+copies the bundle into a `TempDir` and reads that instead, so the caller's bundle is never
+touched and never needs to be writable.
+
 ## Running the Binary
 
 The crate provides a binary called `xcresult-to-junit` that can be used to convert xcresult bundles to JUnit XML.
