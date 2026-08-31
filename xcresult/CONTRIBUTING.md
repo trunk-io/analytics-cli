@@ -112,6 +112,33 @@ shared path, so it applies to the default one too.
 **Ids.** `generate_id` prefers `nodeIdentifierURL` here, which is the legacy record's
 `identifierURL` under another name, so ids do not move between the two paths.
 
+**An xcresult and a `swift test` xunit give the same test different ids, deliberately for
+now.** The two take different branches in `context/src/junit/parser.rs`: an xcresult test
+case carries an `id` extra, a v5 UUID over `org#repo#identifierURL`, which is used verbatim;
+a `swift test` xunit carries none, so identity falls to `gen_info_id` over
+`(org, repo, file, classname, parent_name, name)` — the same scheme every other JUnit
+uploader uses. Measured on one package captured both ways:
+
+    shared()   xcresult e40658ab-…  xunit 73301b89-…
+
+So a repository uploading both formats sees every test twice, and moving a repository from
+one format to the other resets its history.
+
+They are not unified yet because neither half is free. `identifierURL` leads with the
+**xcodebuild scheme name**, which appears nowhere in xunit output, so the xunit path cannot
+reproduce an xcresult id; and rederiving the xcresult id from normalised components would
+reset history for every repository uploading `.xcresult` today. Giving the xunit path its own
+third scheme in the meantime would cost those users two resets rather than one. The intent is
+a single migration that moves both onto one format.
+
+Two consequences worth knowing while that is outstanding. `file` is a `gen_info_id` input, so
+turning `--swift-test-xunit-paths` on for a repository that previously uploaded the same file
+via `--junit-paths` changes every id once, and a test whose declaration later moves to
+another file changes id again — the xcresult scheme is immune to both, since its id ignores
+`file`. And `name` is an input too, which is why
+`the_two_inputs_spell_an_xctest_method_differently` pins `testOldStyle` against
+`testOldStyle()`: that difference feeds the checksum.
+
 **Cost.** Roughly 13 ms per file parsed. The scan is ranked so files named after a suite go
 first and stops as soon as every test resolves; `Limits` caps files parsed, total wall
 clock, and per-request time, and a server that stops answering is killed rather than waited
