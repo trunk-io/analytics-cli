@@ -135,12 +135,7 @@ impl XCResult {
                     )
                 } else if matches!(test_bundle_or_test_suite.node_type, TestNodeType::TestSuite) {
                     let test_suite = test_bundle_or_test_suite;
-                    vec![
-                        self.xcresult_test_suite_to_junit_test_suite(
-                            test_suite,
-                            Option::<&str>::None,
-                        ),
-                    ]
+                    self.xcresult_test_suite_to_junit_test_suites(test_suite, None)
                 } else {
                     vec![]
                 }
@@ -153,11 +148,12 @@ impl XCResult {
         test_nodes: &[TestNode],
         bundle_name: Option<T>,
     ) -> Vec<TestSuite> {
+        let qualifier = bundle_name.as_ref().map(|bn| bn.as_ref());
         let mut test_suites = test_nodes
             .iter()
             .filter(|tn| matches!(tn.node_type, TestNodeType::TestSuite))
-            .map(|test_suite| {
-                self.xcresult_test_suite_to_junit_test_suite(test_suite, bundle_name.as_ref())
+            .flat_map(|test_suite| {
+                self.xcresult_test_suite_to_junit_test_suites(test_suite, qualifier)
             })
             .collect::<Vec<_>>();
         // test cases can be at the top level
@@ -178,20 +174,33 @@ impl XCResult {
         test_suites
     }
 
-    fn xcresult_test_suite_to_junit_test_suite<T: AsRef<str>>(
+    /// JUnit has no nested `<testsuite>`, so a suite nested inside another becomes one of its
+    /// own under a dot-qualified name. Returning a `Vec` is the fix: taking only the direct
+    /// `Test Case` children silently dropped every test an inner suite declared.
+    fn xcresult_test_suite_to_junit_test_suites(
         &self,
         xcresult_test_suite: &TestNode,
-        bundle_name: Option<T>,
-    ) -> TestSuite {
-        let name = bundle_name
-            .as_ref()
-            .map(|bn| format!("{}.{}", bn.as_ref(), xcresult_test_suite.name))
+        qualifier: Option<&str>,
+    ) -> Vec<TestSuite> {
+        let name = qualifier
+            .map(|qualifier| format!("{}.{}", qualifier, xcresult_test_suite.name))
             .unwrap_or_else(|| String::from(&xcresult_test_suite.name));
-        let mut test_suite = TestSuite::new(name);
+        let mut test_suite = TestSuite::new(name.clone());
         test_suite.add_test_cases(
             self.xcresult_test_cases_to_junit_test_cases(xcresult_test_suite.children.as_slice()),
         );
-        test_suite
+
+        let mut test_suites = vec![test_suite];
+        test_suites.extend(
+            xcresult_test_suite
+                .children
+                .iter()
+                .filter(|tn| matches!(tn.node_type, TestNodeType::TestSuite))
+                .flat_map(|nested| {
+                    self.xcresult_test_suite_to_junit_test_suites(nested, Some(name.as_str()))
+                }),
+        );
+        test_suites
     }
 
     fn xcresult_test_cases_to_junit_test_cases(&self, test_nodes: &[TestNode]) -> Vec<TestCase> {
@@ -356,5 +365,100 @@ impl XCResult {
             return Some(file.to_owned());
         }
         None
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_json::{Value, json};
+
+    use super::*;
+
+    fn suite(name: &str, children: Vec<Value>) -> Value {
+        json!({ "nodeType": "Test Suite", "name": name, "children": children })
+    }
+
+    fn case(name: &str) -> Value {
+        json!({
+            "nodeType": "Test Case",
+            "name": name,
+            "nodeIdentifier": name,
+            "result": "Passed",
+            "children": []
+        })
+    }
+
+    fn bundle(name: &str, children: Vec<Value>) -> Tests {
+        serde_json::from_value(json!({
+            "testPlanConfigurations": [],
+            "devices": [],
+            "testNodes": [{
+                "nodeType": "Test Plan",
+                "name": "ExamplePlan",
+                "children": [{
+                    "nodeType": "Unit test bundle",
+                    "name": name,
+                    "children": children
+                }]
+            }]
+        }))
+        .unwrap()
+    }
+
+    fn suites_and_cases(tests: Tests) -> Vec<(String, Vec<String>)> {
+        let xcresult = XCResult {
+            tests,
+            org_url_slug: String::from("trunk"),
+            repo_full_name: String::from("github.com/trunk-io/analytics-cli"),
+            legacy_xcresult_tests: HashMap::new(),
+            test_run_started_at: None,
+        };
+        let mut reports = xcresult.generate_junits();
+        assert_eq!(reports.len(), 1);
+        reports
+            .pop()
+            .unwrap()
+            .test_suites
+            .iter()
+            .map(|test_suite| {
+                (
+                    test_suite.name.as_str().to_owned(),
+                    test_suite
+                        .test_cases
+                        .iter()
+                        .map(|test_case| test_case.name.as_str().to_owned())
+                        .collect(),
+                )
+            })
+            .collect()
+    }
+
+    // A `Test Suite` nested in a `Test Suite` was never visited, so every test it declared
+    // vanished from the upload — and any failure among them with it.
+    #[test]
+    fn nested_suites_are_flattened_rather_than_dropped() {
+        let tests = bundle(
+            "ExampleTests",
+            vec![suite(
+                "OuterSuite",
+                vec![
+                    case("outerCase()"),
+                    suite("InnerSuite", vec![case("innerCase()")]),
+                ],
+            )],
+        );
+        assert_eq!(
+            suites_and_cases(tests),
+            vec![
+                (
+                    String::from("ExampleTests.OuterSuite"),
+                    vec![String::from("outerCase()")]
+                ),
+                (
+                    String::from("ExampleTests.OuterSuite.InnerSuite"),
+                    vec![String::from("innerCase()")]
+                ),
+            ]
+        );
     }
 }

@@ -4,11 +4,16 @@ The `xcresult` crate exists to handle converting between xcresult and JUnit form
 
 ## Purpose
 
-This crate serves two main purposes:
+This crate serves three main purposes:
 
 1. **Format Conversion**: Converts xcresult bundles (produced by Xcode test runs) into JUnit XML format for compatibility with various CI/CD systems and test reporting tools.
 
-2. **Conditional File Path Specification**: While there are other xcresult parses, this crate handles specifying file paths in the JUnit output, which are conditionally present based on whether a failure (not error) has occurred. File paths are only included in the JUnit output when a test case has failed, as they are extracted from failure summaries in the xcresult bundle. This also handles generating stable identfiers because, by default, one of the values we generate IDs from is the file path. Without this crate, we wouldn't be able to safely map files to tests nor have codeowners support for xcresult.
+2. **Suite flattening**: JUnit has no nested `<testsuite>`, so a suite nested inside another
+   becomes its own with a dot-qualified name (`Bundle.Outer.Inner`). This is not cosmetic —
+   emitting only the outer suite silently drops every test the inner ones declare, and their
+   failures with them, which is what used to happen to nested swift-testing suites.
+
+3. **Conditional File Path Specification**: While there are other xcresult parses, this crate handles specifying file paths in the JUnit output, which are conditionally present based on whether a failure (not error) has occurred. File paths are only included in the JUnit output when a test case has failed, as they are extracted from failure summaries in the xcresult bundle. This also handles generating stable identfiers because, by default, one of the values we generate IDs from is the file path. Without this crate, we wouldn't be able to safely map files to tests nor have codeowners support for xcresult.
 
 ## Running the Binary
 
