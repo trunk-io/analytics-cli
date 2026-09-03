@@ -1,25 +1,17 @@
-use std::{fs::File, path::Path};
+use std::path::Path;
 
-use context::repo::RepoUrlParts;
-use flate2::read::GzDecoder;
 use lazy_static::lazy_static;
 use rstest::rstest;
-use tar::Archive;
 use temp_testdir::TempDir;
 #[cfg(target_os = "macos")]
 use xcresult::test_locations::Limits;
 use xcresult::xcresult::XCResult;
 
-fn unpack_archive_to_temp_dir<T: AsRef<Path>>(archive_file_path: T) -> TempDir {
-    let file = File::open(archive_file_path).unwrap();
-    let decoder = GzDecoder::new(file);
-    let mut archive = Archive::new(decoder);
-    let temp_dir = TempDir::default();
-    if let Err(e) = archive.unpack(temp_dir.as_ref()) {
-        panic!("failed to unpack data.tar.gz: {}", e);
-    }
-    temp_dir
-}
+mod common;
+
+use common::{ORG_URL_SLUG, REPO_FULL_NAME, unpack_archive_to_temp_dir};
+#[cfg(target_os = "macos")]
+use common::{declaration_files, declaration_report};
 
 lazy_static! {
     static ref TEMP_DIR_TEST_1: TempDir =
@@ -52,13 +44,6 @@ lazy_static! {
         unpack_archive_to_temp_dir("tests/data/test-timestamp.xcresult.tar.gz");
     static ref TEMP_DIR_TEST_VARIANT: TempDir =
         unpack_archive_to_temp_dir("tests/data/test-variant.xcresult.tar.gz");
-    static ref ORG_URL_SLUG: String = String::from("trunk");
-    static ref REPO_FULL_NAME: String = RepoUrlParts {
-        host: "github.com".to_string(),
-        owner: "trunk-io".to_string(),
-        name: "analytics-cli".to_string()
-    }
-    .repo_full_name();
 }
 
 #[cfg(target_os = "macos")]
@@ -644,50 +629,6 @@ fn test_xcresult_with_variant_id_generation() {
     }
 }
 
-// The declaration path (`--use-experimental-xcresult-test-locations`) resolves each test
-// against the checkout rather than a failure, so its expectation is the file the test is
-// *written in* — which for these two fixtures is exactly the file the failure-summary
-// paths cannot name, because the failure is raised in a helper.
-#[cfg(target_os = "macos")]
-fn declaration_report<T: AsRef<Path>, U: AsRef<Path>>(
-    bundle_path: T,
-    repo_root: U,
-) -> quick_junit::Report {
-    let xcresult = XCResult::new_with_declaration_locations(
-        bundle_path.as_ref().to_str().unwrap(),
-        ORG_URL_SLUG.clone(),
-        REPO_FULL_NAME.clone(),
-        repo_root.as_ref(),
-        Limits::default(),
-    )
-    .expect("the declaration path reads the bundle");
-
-    let mut junits = xcresult.generate_junits();
-    assert_eq!(junits.len(), 1);
-    junits.pop().unwrap()
-}
-
-#[cfg(target_os = "macos")]
-fn declaration_files<T: AsRef<Path>, U: AsRef<Path>>(
-    bundle_path: T,
-    repo_root: U,
-) -> std::collections::HashMap<String, String> {
-    declaration_report(bundle_path, repo_root)
-        .test_suites
-        .iter()
-        .flat_map(|test_suite| test_suite.test_cases.iter())
-        .map(|test_case| {
-            let file = test_case
-                .extra
-                .iter()
-                .find(|(key, _)| key.as_str() == "file")
-                .map(|(_, value)| value.as_str().to_owned())
-                .unwrap_or_default();
-            (test_case.name.as_str().to_owned(), file)
-        })
-        .collect()
-}
-
 // Every file this bundle's failure summary offers is under `SourcePackages/checkouts/`.
 #[cfg(target_os = "macos")]
 #[test]
@@ -991,6 +932,16 @@ fn test_declaration_locations_give_a_passing_test_its_file() {
     "tests/data/test-nested-and-passing.xcresult.tar.gz",
     "NestedAndPassing.xcresult",
     Some("tests/fixture-src/nested-and-passing")
+)]
+#[case::inherited_test(
+    "tests/data/test-inherited-test.xcresult.tar.gz",
+    "InheritedTest.xcresult",
+    Some("tests/fixture-src/inherited-test")
+)]
+#[case::objc_category(
+    "tests/data/test-objc-category.xcresult.tar.gz",
+    "ObjcCategory.xcresult",
+    Some("tests/fixture-src/objc-category")
 )]
 fn test_the_declaration_flag_moves_the_file_and_nothing_else(
     #[case] archive: &str,
