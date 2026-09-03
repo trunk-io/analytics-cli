@@ -20,11 +20,24 @@ mod common;
 
 use codeowners::CodeOwners;
 use common::command_builder::CommandBuilder;
+#[cfg(unix)]
+use common::utils::{
+    LINKED_WORKSPACE_CASES_PER_PACKAGE, generate_mock_linked_workspace, write_junit_xml_to_dir,
+};
 use common::utils::{
     generate_mock_bazel_bep, generate_mock_bazel_bep_no_file_attrs, generate_mock_codeowners,
     generate_mock_git_repo, generate_mock_invalid_junit_xmls, generate_mock_valid_junit_xmls,
     generate_mock_valid_junit_xmls_with_failures,
 };
+
+#[cfg(unix)]
+const SINGLE_TEST_JUNIT_XML: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
+<testsuites name="vitest tests" tests="1" failures="0" errors="0" time="0.1">
+    <testsuite name="linked" tests="1" failures="0" errors="0" skipped="0" time="0.1">
+        <testcase classname="src/linked.test.ts" name="linked &gt; renders" time="0.1"></testcase>
+    </testsuite>
+</testsuites>
+"#;
 use constants::EXIT_FAILURE;
 use context::{
     bazel_bep::{common::BepTestStatus, parser::BazelBepParser},
@@ -2907,6 +2920,212 @@ async fn test_user_supplied_repo_params_precede_github_actions_env_vars() {
     assert_matches!(
         requests_iter.next().unwrap(),
         RequestPayload::TelemetryUploadMetrics(_)
+    );
+
+    // HINT: View CLI output with `cargo test -- --nocapture`
+    println!("{assert}");
+}
+
+/// A glob's `**` resolves symlinked directories, so a workspace that links its
+/// packages into each other's `node_modules` reaches each report by one path per
+/// route through the dependency graph. Only one copy belongs in the bundle.
+#[cfg(unix)]
+#[tokio::test(flavor = "multi_thread")]
+async fn upload_bundle_collects_symlinked_reports_once() {
+    let temp_dir = tempdir().unwrap();
+    generate_mock_git_repo(&temp_dir);
+    let packages = generate_mock_linked_workspace(&temp_dir);
+
+    let state = MockServerBuilder::new().spawn_mock_server().await;
+
+    let assert = CommandBuilder::upload(temp_dir.path(), state.host.clone())
+        .junit_paths("libs/workbench/**/tmp/ci-artifacts/*.xml")
+        .dry_run(true)
+        .disable_quarantining(true)
+        .command()
+        .assert()
+        .success();
+
+    let output_dir = temp_dir.path().join(DRY_RUN_OUTPUT_DIR);
+    let meta_json = fs::File::open(output_dir.join("meta.json")).unwrap();
+    let bundle_meta: BundleMeta = serde_json::from_reader(meta_json).unwrap();
+
+    let bundled_files: Vec<_> = bundle_meta
+        .base_props
+        .file_sets
+        .iter()
+        .flat_map(|file_set| &file_set.files)
+        .collect();
+
+    // One report per package, not one per route to it.
+    assert_eq!(bundled_files.len(), packages.len());
+    assert_eq!(bundle_meta.junit_props.num_files, packages.len());
+
+    // Every report is attributed to the package that owns it, never to an alias
+    // under some other package's `node_modules`.
+    let mut reported: Vec<&str> = bundled_files
+        .iter()
+        .map(|file| file.original_path_rel.as_deref().unwrap())
+        .collect();
+    reported.sort_unstable();
+    let expected: Vec<String> = {
+        let mut paths: Vec<String> = packages
+            .iter()
+            .map(|package| format!("libs/workbench/{package}/tmp/ci-artifacts/junit.xml"))
+            .collect();
+        paths.sort();
+        paths
+    };
+    assert_eq!(reported, expected);
+
+    let internal_bundled_file = bundle_meta.internal_bundled_file.as_ref().unwrap();
+    let bin = fs::read(output_dir.join(&internal_bundled_file.path)).unwrap();
+    let report = proto::test_context::test_run::TestReport::decode(&*bin).unwrap();
+    let test_result = report.test_results.first().unwrap();
+
+    // The duplicate routes would otherwise land as tens of extra runs per test,
+    // which the services side reads as retries.
+    assert_eq!(
+        test_result.test_case_runs.len(),
+        packages.len() * LINKED_WORKSPACE_CASES_PER_PACKAGE,
+    );
+    assert!(
+        test_result
+            .test_case_runs
+            .iter()
+            .all(|run| run.attempt_number == 0 && run.attempt_index.is_none()),
+    );
+
+    // HINT: View CLI output with `cargo test -- --nocapture`
+    println!("{assert}");
+}
+
+/// Two globs that both match a report must not each contribute a copy of it.
+#[cfg(unix)]
+#[tokio::test(flavor = "multi_thread")]
+async fn upload_bundle_does_not_double_count_overlapping_globs() {
+    let temp_dir = tempdir().unwrap();
+    generate_mock_git_repo(&temp_dir);
+    let packages = generate_mock_linked_workspace(&temp_dir);
+
+    let state = MockServerBuilder::new().spawn_mock_server().await;
+
+    let assert = CommandBuilder::upload(temp_dir.path(), state.host.clone())
+        .junit_paths(
+            "libs/workbench/*/tmp/ci-artifacts/junit.xml,libs/workbench/**/tmp/ci-artifacts/*.xml",
+        )
+        .dry_run(true)
+        .disable_quarantining(true)
+        .command()
+        .assert()
+        .success();
+
+    let output_dir = temp_dir.path().join(DRY_RUN_OUTPUT_DIR);
+    let meta_json = fs::File::open(output_dir.join("meta.json")).unwrap();
+    let bundle_meta: BundleMeta = serde_json::from_reader(meta_json).unwrap();
+
+    let file_sets = &bundle_meta.base_props.file_sets;
+    assert_eq!(file_sets.len(), 2);
+
+    // The narrow glob was listed first, so it keeps every report; the broad glob
+    // stays in the meta as a record that it was specified, owning nothing.
+    assert_eq!(file_sets[0].files.len(), packages.len());
+    assert!(file_sets[1].files.is_empty());
+    assert_eq!(bundle_meta.junit_props.num_files, packages.len());
+
+    // HINT: View CLI output with `cargo test -- --nocapture`
+    println!("{assert}");
+}
+
+/// An artifacts directory that is itself a symlink is still collected -- the hop is
+/// a literal component of the glob rather than part of a `**` -- and is reported
+/// where the reports actually live.
+#[cfg(unix)]
+#[tokio::test(flavor = "multi_thread")]
+async fn upload_bundle_reports_the_real_location_of_a_symlinked_artifacts_dir() {
+    use std::os::unix::fs as unix_fs;
+
+    let temp_dir = tempdir().unwrap();
+    generate_mock_git_repo(&temp_dir);
+
+    let real = temp_dir.path().join("elsewhere/ci-artifacts");
+    fs::create_dir_all(&real).unwrap();
+    write_junit_xml_to_dir(SINGLE_TEST_JUNIT_XML, &real);
+    fs::create_dir_all(temp_dir.path().join("libs")).unwrap();
+    unix_fs::symlink(&real, temp_dir.path().join("libs/artifacts-link")).unwrap();
+
+    let state = MockServerBuilder::new().spawn_mock_server().await;
+
+    let assert = CommandBuilder::upload(temp_dir.path(), state.host.clone())
+        .junit_paths("libs/artifacts-link/*.xml")
+        .dry_run(true)
+        .disable_quarantining(true)
+        .command()
+        .assert()
+        .success();
+
+    let output_dir = temp_dir.path().join(DRY_RUN_OUTPUT_DIR);
+    let meta_json = fs::File::open(output_dir.join("meta.json")).unwrap();
+    let bundle_meta: BundleMeta = serde_json::from_reader(meta_json).unwrap();
+
+    let files: Vec<_> = bundle_meta
+        .base_props
+        .file_sets
+        .iter()
+        .flat_map(|file_set| &file_set.files)
+        .collect();
+    assert_eq!(files.len(), 1);
+    assert_eq!(
+        files[0].original_path_rel.as_deref(),
+        Some("elsewhere/ci-artifacts/junit-0.xml"),
+    );
+
+    // HINT: View CLI output with `cargo test -- --nocapture`
+    println!("{assert}");
+}
+
+/// When the symlink leaves the repo entirely, resolving it would yield an absolute
+/// path outside the tree that codeowners could not match, so the repo-relative
+/// route is kept instead.
+#[cfg(unix)]
+#[tokio::test(flavor = "multi_thread")]
+async fn upload_bundle_keeps_the_repo_relative_path_when_a_symlink_leaves_the_repo() {
+    use std::os::unix::fs as unix_fs;
+
+    let outside = tempdir().unwrap();
+    let artifacts = outside.path().join("ci-artifacts");
+    fs::create_dir_all(&artifacts).unwrap();
+    write_junit_xml_to_dir(SINGLE_TEST_JUNIT_XML, &artifacts);
+
+    let temp_dir = tempdir().unwrap();
+    generate_mock_git_repo(&temp_dir);
+    fs::create_dir_all(temp_dir.path().join("libs")).unwrap();
+    unix_fs::symlink(&artifacts, temp_dir.path().join("libs/artifacts-link")).unwrap();
+
+    let state = MockServerBuilder::new().spawn_mock_server().await;
+
+    let assert = CommandBuilder::upload(temp_dir.path(), state.host.clone())
+        .junit_paths("libs/artifacts-link/*.xml")
+        .dry_run(true)
+        .disable_quarantining(true)
+        .command()
+        .assert()
+        .success();
+
+    let output_dir = temp_dir.path().join(DRY_RUN_OUTPUT_DIR);
+    let meta_json = fs::File::open(output_dir.join("meta.json")).unwrap();
+    let bundle_meta: BundleMeta = serde_json::from_reader(meta_json).unwrap();
+
+    let files: Vec<_> = bundle_meta
+        .base_props
+        .file_sets
+        .iter()
+        .flat_map(|file_set| &file_set.files)
+        .collect();
+    assert_eq!(files.len(), 1);
+    assert_eq!(
+        files[0].original_path_rel.as_deref(),
+        Some("libs/artifacts-link/junit-0.xml"),
     );
 
     // HINT: View CLI output with `cargo test -- --nocapture`
