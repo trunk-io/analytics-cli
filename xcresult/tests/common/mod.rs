@@ -80,3 +80,82 @@ pub fn declaration_files<T: AsRef<Path>, U: AsRef<Path>>(
         })
         .collect()
 }
+
+/// Assert the declaration flag changes a bundle's reported `file` and nothing else.
+///
+/// Everything except `file` — suite and case names, ids, statuses, timestamps — has to
+/// come out identical on both paths, because the flag is only meant to move the file.
+/// `repo_root` of `None` means an empty checkout, where nothing resolves.
+#[cfg(target_os = "macos")]
+pub fn assert_the_declaration_flag_moves_only_the_file(
+    archive: &str,
+    bundle: &str,
+    repo_root: Option<&str>,
+) {
+    fn shape(xcresult: &xcresult::xcresult::XCResult) -> Vec<String> {
+        let mut junits = xcresult.generate_junits();
+        assert_eq!(junits.len(), 1);
+        let junit = junits.pop().unwrap();
+        let mut rows = Vec::new();
+        for test_suite in &junit.test_suites {
+            for test_case in &test_suite.test_cases {
+                let id = test_case
+                    .extra
+                    .iter()
+                    .find(|(key, _)| key.as_str() == "id")
+                    .map(|(_, value)| value.as_str().to_owned())
+                    .unwrap_or_default();
+                rows.push(format!(
+                    "{} | {} | {} | {:?} | {}",
+                    test_suite.name.as_str(),
+                    test_case.name.as_str(),
+                    id,
+                    test_case.status,
+                    test_case
+                        .timestamp
+                        .map(|timestamp| timestamp.to_string())
+                        .unwrap_or_default(),
+                ));
+            }
+        }
+        rows
+    }
+
+    let temp_dir = unpack_archive_to_temp_dir(archive);
+    let bundle_path = temp_dir.as_ref().join(bundle);
+    let path_str = bundle_path.to_str().unwrap();
+    let empty_checkout = TempDir::default();
+    let root: &Path = match repo_root {
+        Some(repo_root) => Path::new(repo_root),
+        None => empty_checkout.as_ref(),
+    };
+
+    let default = XCResult::new(
+        path_str,
+        ORG_URL_SLUG.clone(),
+        REPO_FULL_NAME.clone(),
+        false,
+    )
+    .expect("the default path reads the bundle");
+    let declarations = XCResult::new_with_declaration_locations(
+        path_str,
+        ORG_URL_SLUG.clone(),
+        REPO_FULL_NAME.clone(),
+        root,
+        Limits::default(),
+    )
+    .expect("the declaration path reads the bundle");
+
+    let expected = shape(&default);
+    assert!(!expected.is_empty(), "the bundle must have test cases");
+    pretty_assertions::assert_eq!(shape(&declarations), expected);
+
+    for file in declaration_files(&bundle_path, root).values() {
+        assert!(
+            !["/.build/", "/checkouts/", "/DerivedData/"]
+                .iter()
+                .any(|segment| file.contains(segment)),
+            "the declaration path reported a vendored file: {file}"
+        );
+    }
+}
