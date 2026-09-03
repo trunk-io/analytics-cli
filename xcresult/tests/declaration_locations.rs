@@ -9,7 +9,9 @@ mod common;
 
 use common::unpack_archive_to_temp_dir;
 use lazy_static::lazy_static;
+use rstest::rstest;
 use temp_testdir::TempDir;
+use xcresult::test_locations::TestKey;
 
 lazy_static! {
     static ref TEMP_DIR_TEST_INHERITED_TEST: TempDir =
@@ -87,4 +89,58 @@ fn test_declaration_locations_resolve_a_test_declared_in_an_objc_category() {
         file.ends_with("ObjcCategoryTests+Extra.m"),
         "expected the category's file, got {file}"
     );
+}
+
+#[rstest]
+#[case::plain(
+    "test://com.apple.xcode/InRepoHelper/InRepoHelperTests/Suite/case()",
+    Some("InRepoHelperTests")
+)]
+#[case::percent_encoded(
+    "test://com.apple.xcode/swift%20testing/swift%20testing%20exampleTests/helloWorld()",
+    Some("swift testing exampleTests")
+)]
+#[case::too_short("test://com.apple.xcode/OnlyAScheme", None)]
+#[case::not_a_url("Suite/case()", None)]
+fn an_identifier_url_names_the_target(#[case] url: &str, #[case] expected: Option<&str>) {
+    assert_eq!(
+        TestKey::target_from_identifier_url(url).as_deref(),
+        expected
+    );
+}
+
+// A checkout that declares none of the tests. Where a failure surfaced is not where the
+// test is written, so with nothing to resolve the reported file is absent rather than the
+// helper the failure came from — that path resolves the wrong codeowners.
+#[cfg(target_os = "macos")]
+#[test]
+fn test_a_test_with_no_declaration_in_the_checkout_gets_no_file() {
+    let empty_checkout = TempDir::default();
+    let report = common::declaration_report(
+        TEMP_DIR_TEST_INHERITED_TEST
+            .as_ref()
+            .join("InheritedTest.xcresult"),
+        empty_checkout.as_ref(),
+    );
+    let cases = report
+        .test_suites
+        .iter()
+        .flat_map(|test_suite| test_suite.test_cases.iter())
+        .collect::<Vec<_>>();
+    assert!(
+        !cases.is_empty(),
+        "the bundle must still emit its test cases"
+    );
+    for test_case in cases {
+        assert_eq!(
+            test_case
+                .extra
+                .iter()
+                .find(|(key, _)| key.as_str() == "file")
+                .map(|(_, value)| value.as_str()),
+            None,
+            "{} was given a file with nothing declaring it",
+            test_case.name.as_str()
+        );
+    }
 }
