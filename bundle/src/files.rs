@@ -1,5 +1,5 @@
 use std::{
-    collections::{HashMap, HashSet},
+    collections::HashSet,
     fmt::Debug,
     format,
     path::{Path, PathBuf},
@@ -84,108 +84,136 @@ impl FileSetBuilder {
         codeowners: Option<CodeOwners>,
         exec_start: Option<SystemTime>,
     ) -> anyhow::Result<Self> {
-        let routes = Self::discover_routes(repo_root, junit_paths)?;
+        // Reported paths are canonical, so the root they are made relative to must be
+        // canonical too -- otherwise `strip_prefix` misses (`/var` vs `/private/var`)
+        // and every path falls back to an absolute one that codeowners cannot match.
+        let canonical_repo_root =
+            std::fs::canonicalize(repo_root).unwrap_or_else(|_| PathBuf::from(repo_root));
+        let repo_root = canonical_repo_root.to_string_lossy();
+        let repo_root = repo_root.as_ref();
 
-        let mut claimed: Vec<Vec<&Route>> = vec![Vec::new(); junit_paths.len()];
-        for route in routes.values() {
-            claimed[route.glob_index].push(route);
-        }
+        let files_per_glob = Self::collect_files_per_glob(repo_root, junit_paths)?;
 
-        let mut builder = Self {
-            codeowners,
-            ..Self::default()
-        };
-
-        for (glob_index, junit_wrapper) in junit_paths.iter().enumerate() {
-            let mut group = std::mem::take(&mut claimed[glob_index]);
-            group.sort_by(|left, right| left.path.cmp(&right.path));
-
-            let mut bundled_files = Vec::with_capacity(group.len());
-            for route in group {
-                if let Some(bundled_file) = BundledFile::from_path(
-                    route.path.as_path(),
-                    builder.count,
+        let (count, file_sets) = junit_paths.iter().zip(files_per_glob).try_fold(
+            (0, Vec::with_capacity(junit_paths.len())),
+            |(index, mut file_sets), (junit_wrapper, paths)| -> anyhow::Result<_> {
+                let (index, files) = Self::bundle_files(
+                    &paths,
+                    index,
                     repo_root,
-                    &junit_wrapper.junit_path,
-                    &builder.codeowners,
+                    junit_wrapper,
+                    &codeowners,
                     exec_start,
-                )? {
-                    builder.count += 1;
-                    bundled_files.push(bundled_file);
-                }
-            }
+                )?;
+                file_sets.push(FileSet::new(
+                    Self::file_set_type(&files),
+                    files,
+                    junit_wrapper.junit_path.clone(),
+                    junit_wrapper.test_runner_report.clone(),
+                ));
+                Ok((index, file_sets))
+            },
+        )?;
 
-            let file_set_type = bundled_files
-                .iter()
-                .find_map(|file| {
-                    if file.original_path.ends_with(".bin") {
-                        Some(FileSetType::Internal)
-                    } else {
-                        None
-                    }
-                })
-                .unwrap_or(FileSetType::Junit);
-            builder.file_sets.push(FileSet::new(
-                file_set_type,
-                bundled_files,
-                junit_wrapper.junit_path.clone(),
-                junit_wrapper.test_runner_report.clone(),
-            ));
-        }
-
-        Ok(builder)
+        Ok(Self {
+            count,
+            file_sets,
+            codeowners,
+        })
     }
 
-    /// Expands every glob and reduces the matches to one [`Route`] per physical
-    /// file, so a file reachable by several globs -- or by several paths through
-    /// symlinked directories -- is bundled exactly once.
-    fn discover_routes(
+    /// Expands every glob and returns the files each one owns, keyed by canonical
+    /// path so a file is bundled once no matter how many globs reach it or how many
+    /// routes through symlinked directories lead to it. A glob whose every match was
+    /// already claimed owns nothing, which keeps its (now empty) file set in place.
+    fn collect_files_per_glob(
         repo_root: &str,
         junit_paths: &[JunitReportFileWithTestRunnerReport],
-    ) -> anyhow::Result<HashMap<FileId, Route>> {
-        let mut symlink_cache = HashMap::new();
-        let mut routes: HashMap<FileId, Route> = HashMap::new();
+    ) -> anyhow::Result<Vec<Vec<PathBuf>>> {
+        let mut claimed: HashSet<PathBuf> = HashSet::new();
 
-        for (glob_index, junit_wrapper) in junit_paths.iter().enumerate() {
-            let matches = Self::scan_from_glob(&junit_wrapper.junit_path, repo_root)?;
-            let matched = matches.len();
+        junit_paths
+            .iter()
+            .map(|junit_wrapper| {
+                let matches = Self::scan_from_glob(&junit_wrapper.junit_path, repo_root)?;
+                let matched = matches.len();
 
-            let mut distinct = HashSet::new();
-            for path in matches {
-                let symlink_depth = symlink_depth(&path, &mut symlink_cache);
-                let id = file_id(&path);
-                distinct.insert(id.clone());
-                routes
-                    .entry(id)
-                    .and_modify(|route| {
-                        // A more direct route replaces the path we report, but never
-                        // reassigns ownership: the first glob to match still owns the
-                        // file, so the file set a caller listed first keeps it.
-                        if (symlink_depth, &path) < (route.symlink_depth, &route.path) {
-                            route.symlink_depth = symlink_depth;
-                            route.path = path.clone();
+                let mut owned: Vec<PathBuf> = matches
+                    .into_iter()
+                    .filter_map(|path| {
+                        let canonical =
+                            std::fs::canonicalize(&path).unwrap_or_else(|_| path.clone());
+                        if !claimed.insert(canonical.clone()) {
+                            return None;
                         }
+                        // Canonicalizing resolves a workspace's `node_modules` aliases
+                        // back to the package's own directory. It can also leave the
+                        // repo, when an artifacts directory is a symlink to somewhere
+                        // outside the tree; keep the globbed route there so the path we
+                        // report stays repo-relative for codeowners matching.
+                        Some(if canonical.starts_with(repo_root) {
+                            canonical
+                        } else {
+                            path
+                        })
                     })
-                    .or_insert_with(|| Route {
-                        path,
-                        symlink_depth,
-                        glob_index,
-                    });
-            }
+                    .collect();
+                owned.sort();
 
-            if distinct.len() < matched {
-                tracing::warn!(
-                    "glob {:?} matched {} paths resolving to {} distinct files; \
-                     {} duplicate routes through symlinked directories were dropped",
-                    junit_wrapper.junit_path,
-                    matched,
-                    distinct.len(),
-                    matched - distinct.len(),
-                );
-            }
-        }
+                if owned.len() < matched {
+                    tracing::warn!(
+                        "glob {:?} matched {} paths resolving to {} files not already \
+                         collected; {} duplicate routes were dropped",
+                        junit_wrapper.junit_path,
+                        matched,
+                        owned.len(),
+                        matched - owned.len(),
+                    );
+                }
 
-        Ok(routes)
+                Ok(owned)
+            })
+            .collect()
+    }
+
+    fn bundle_files(
+        paths: &[PathBuf],
+        start_index: usize,
+        repo_root: &str,
+        junit_wrapper: &JunitReportFileWithTestRunnerReport,
+        codeowners: &Option<CodeOwners>,
+        exec_start: Option<SystemTime>,
+    ) -> anyhow::Result<(usize, Vec<BundledFile>)> {
+        paths.iter().try_fold(
+            (start_index, Vec::with_capacity(paths.len())),
+            |(mut index, mut files), path| -> anyhow::Result<_> {
+                if let Some(bundled_file) = BundledFile::from_path(
+                    path.as_path(),
+                    index,
+                    repo_root,
+                    &junit_wrapper.junit_path,
+                    codeowners,
+                    exec_start,
+                )? {
+                    index += 1;
+                    files.push(bundled_file);
+                }
+                Ok((index, files))
+            },
+        )
+    }
+
+    fn file_set_type(files: &[BundledFile]) -> FileSetType {
+        files
+            .iter()
+            .find_map(|file| {
+                if file.original_path.ends_with(".bin") {
+                    Some(FileSetType::Internal)
+                } else {
+                    None
+                }
+            })
+            .unwrap_or(FileSetType::Junit)
     }
 
     pub fn count(&self) -> usize {
@@ -225,56 +253,6 @@ impl FileSetBuilder {
 
         Ok(paths)
     }
-}
-
-/// Identity of a file on disk, independent of the path used to reach it.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-enum FileId {
-    /// `(dev, ino)`, which also collapses hardlinks to a single entry.
-    #[cfg(unix)]
-    Inode(u64, u64),
-    /// Resolved path. Used off unix, where `std`'s `file_index()` is still
-    /// unstable, and for any file we could not stat.
-    Path(PathBuf),
-}
-
-/// One physical file, plus the route by which it was collected.
-struct Route {
-    path: PathBuf,
-    symlink_depth: usize,
-    glob_index: usize,
-}
-
-fn file_id(path: &Path) -> FileId {
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::MetadataExt;
-
-        // `metadata` follows symlinks and, unlike `same_file::Handle`, retains no
-        // descriptor -- a set of handles over a large glob exhausts `RLIMIT_NOFILE`.
-        if let Ok(metadata) = std::fs::metadata(path) {
-            return FileId::Inode(metadata.dev(), metadata.ino());
-        }
-    }
-    // Paths we cannot resolve stay distinct from one another, so an unreadable
-    // file is still bundled rather than silently deduped away.
-    FileId::Path(std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf()))
-}
-
-/// How many components of `path` are themselves symlinks. Routes that cross fewer
-/// symlinks are preferred, which resolves a workspace that links its packages into
-/// each other's `node_modules` back to the package's own directory.
-fn symlink_depth(path: &Path, cache: &mut HashMap<PathBuf, bool>) -> usize {
-    path.ancestors()
-        .filter(|ancestor| !ancestor.as_os_str().is_empty())
-        .filter(|ancestor| {
-            *cache.entry(ancestor.to_path_buf()).or_insert_with(|| {
-                std::fs::symlink_metadata(ancestor)
-                    .map(|metadata| metadata.file_type().is_symlink())
-                    .unwrap_or(false)
-            })
-        })
-        .count()
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -598,7 +576,7 @@ mod tests {
     }
 
     #[test]
-    fn reports_the_route_crossing_fewest_symlinks() {
+    fn reports_the_canonical_path_not_a_node_modules_alias() {
         let workspace = linked_workspace(&[("tools", &[]), ("tokens", &["tools"])]);
 
         let builder = build(
@@ -665,7 +643,7 @@ mod tests {
     }
 
     #[test]
-    fn collects_a_file_reachable_only_through_a_symlink() {
+    fn resolves_a_symlinked_directory_inside_the_repo() {
         let temp = tempfile::tempdir().unwrap();
         let real = temp.path().join("elsewhere/ci-artifacts");
         fs::create_dir_all(&real).unwrap();
@@ -677,25 +655,34 @@ mod tests {
 
         let builder = build(temp.path(), &["libs/artifacts-link/*.xml"]);
 
-        // The symlinked route is the only route, so it is kept and reported as-is.
-        assert_eq!(builder.count(), 1);
-        assert_eq!(collected(&builder), vec!["libs/artifacts-link/junit.xml"],);
-    }
-
-    #[test]
-    fn hardlinks_collapse_to_one_file() {
-        let temp = tempfile::tempdir().unwrap();
-        let artifacts = temp.path().join("libs/pkg/tmp/ci-artifacts");
-        fs::create_dir_all(&artifacts).unwrap();
-        fs::write(artifacts.join("junit.xml"), "<testsuite name=\"pkg\"/>").unwrap();
-        fs::hard_link(artifacts.join("junit.xml"), artifacts.join("copy.xml")).unwrap();
-
-        let builder = build(temp.path(), &["libs/**/tmp/ci-artifacts/*.xml"]);
-
+        // Still collected -- and reported where the file actually lives.
         assert_eq!(builder.count(), 1);
         assert_eq!(
             collected(&builder),
-            vec!["libs/pkg/tmp/ci-artifacts/copy.xml"],
+            vec!["elsewhere/ci-artifacts/junit.xml"]
         );
+    }
+
+    #[test]
+    fn keeps_the_globbed_path_when_canonical_escapes_the_repo() {
+        let outside = tempfile::tempdir().unwrap();
+        let artifacts = outside.path().join("ci-artifacts");
+        fs::create_dir_all(&artifacts).unwrap();
+        fs::write(
+            artifacts.join("junit.xml"),
+            "<testsuite name=\"external\"/>",
+        )
+        .unwrap();
+
+        let temp = tempfile::tempdir().unwrap();
+        fs::create_dir_all(temp.path().join("libs")).unwrap();
+        unix_fs::symlink(&artifacts, temp.path().join("libs/artifacts-link")).unwrap();
+
+        let builder = build(temp.path(), &["libs/artifacts-link/*.xml"]);
+
+        // Canonicalizing would leave the repo, so the repo-relative route is kept
+        // rather than reporting an absolute path codeowners could not match.
+        assert_eq!(builder.count(), 1);
+        assert_eq!(collected(&builder), vec!["libs/artifacts-link/junit.xml"]);
     }
 }
