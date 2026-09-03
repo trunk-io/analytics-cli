@@ -25,6 +25,8 @@ ALL_SCENARIOS=(
 	objc-xctest
 	toplevel-swift-testing
 	nested-and-passing
+	inherited-test
+	objc-category
 )
 
 # scenario -> the package name, which is both the xcodebuild scheme prefix and the
@@ -37,6 +39,8 @@ package_name() {
 	objc-xctest) echo ObjcXCTest ;;
 	toplevel-swift-testing) echo ToplevelSwiftTesting ;;
 	nested-and-passing) echo NestedAndPassing ;;
+	inherited-test) echo InheritedTest ;;
+	objc-category) echo ObjcCategory ;;
 	*)
 		echo "unknown scenario: $1" >&2
 		exit 1
@@ -115,7 +119,8 @@ regenerate() {
 			return 1
 		}
 
-	if [[ ${scenario} == nested-and-passing ]]; then
+	if [[ ${scenario} == nested-and-passing || ${scenario} == inherited-test ||
+		${scenario} == objc-category ]]; then
 		"${FIXTURE_SRC_DIR}/verify-test-structure.py" "${scenario}" "${bundle}"
 	else
 		"${FIXTURE_SRC_DIR}/verify-failure-summaries.py" "${scenario}" "${dump}"
