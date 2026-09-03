@@ -11,7 +11,9 @@ mod common;
 
 use common::{ORG_URL_SLUG, REPO_FULL_NAME, unpack_archive_to_temp_dir};
 #[cfg(target_os = "macos")]
-use common::{declaration_files, declaration_report};
+use common::{
+    assert_the_declaration_flag_moves_only_the_file, declaration_files, declaration_report,
+};
 
 lazy_static! {
     static ref TEMP_DIR_TEST_1: TempDir =
@@ -933,87 +935,12 @@ fn test_declaration_locations_give_a_passing_test_its_file() {
     "NestedAndPassing.xcresult",
     Some("tests/fixture-src/nested-and-passing")
 )]
-#[case::inherited_test(
-    "tests/data/test-inherited-test.xcresult.tar.gz",
-    "InheritedTest.xcresult",
-    Some("tests/fixture-src/inherited-test")
-)]
-#[case::objc_category(
-    "tests/data/test-objc-category.xcresult.tar.gz",
-    "ObjcCategory.xcresult",
-    Some("tests/fixture-src/objc-category")
-)]
 fn test_the_declaration_flag_moves_the_file_and_nothing_else(
     #[case] archive: &str,
     #[case] bundle: &str,
     #[case] repo_root: Option<&str>,
 ) {
-    fn shape(xcresult: &XCResult) -> Vec<String> {
-        let mut junits = xcresult.generate_junits();
-        assert_eq!(junits.len(), 1);
-        let junit = junits.pop().unwrap();
-        let mut rows = Vec::new();
-        for test_suite in &junit.test_suites {
-            for test_case in &test_suite.test_cases {
-                let id = test_case
-                    .extra
-                    .iter()
-                    .find(|(key, _)| key.as_str() == "id")
-                    .map(|(_, value)| value.as_str().to_owned())
-                    .unwrap_or_default();
-                rows.push(format!(
-                    "{} | {} | {} | {:?} | {}",
-                    test_suite.name.as_str(),
-                    test_case.name.as_str(),
-                    id,
-                    test_case.status,
-                    test_case
-                        .timestamp
-                        .map(|timestamp| timestamp.to_string())
-                        .unwrap_or_default(),
-                ));
-            }
-        }
-        rows
-    }
-
-    let temp_dir = unpack_archive_to_temp_dir(archive);
-    let bundle_path = temp_dir.as_ref().join(bundle);
-    let path_str = bundle_path.to_str().unwrap();
-    let empty_checkout = TempDir::default();
-    let root: &Path = match repo_root {
-        Some(repo_root) => Path::new(repo_root),
-        None => empty_checkout.as_ref(),
-    };
-
-    let default = XCResult::new(
-        path_str,
-        ORG_URL_SLUG.clone(),
-        REPO_FULL_NAME.clone(),
-        false,
-    )
-    .expect("the default path reads the bundle");
-    let declarations = XCResult::new_with_declaration_locations(
-        path_str,
-        ORG_URL_SLUG.clone(),
-        REPO_FULL_NAME.clone(),
-        root,
-        Limits::default(),
-    )
-    .expect("the declaration path reads the bundle");
-
-    let expected = shape(&default);
-    assert!(!expected.is_empty(), "the bundle must have test cases");
-    pretty_assertions::assert_eq!(shape(&declarations), expected);
-
-    for file in declaration_files(&bundle_path, root).values() {
-        assert!(
-            !["/.build/", "/checkouts/", "/DerivedData/"]
-                .iter()
-                .any(|segment| file.contains(segment)),
-            "the declaration path reported a vendored file: {file}"
-        );
-    }
+    assert_the_declaration_flag_moves_only_the_file(archive, bundle, repo_root);
 }
 
 // Reading used to migrate the bundle in place, which failed when it was not writable.
