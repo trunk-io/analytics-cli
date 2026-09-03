@@ -144,3 +144,26 @@ fn test_a_test_with_no_declaration_in_the_checkout_gets_no_file() {
         );
     }
 }
+
+// The flag is only meant to move the `file` attribute, so both new fixtures are run
+// through each path and compared on everything else. Shares its assertion with the
+// same check over the older bundles in `xcresult.rs`.
+#[cfg(target_os = "macos")]
+#[rstest]
+#[case::inherited_test(
+    "tests/data/test-inherited-test.xcresult.tar.gz",
+    "InheritedTest.xcresult",
+    Some("tests/fixture-src/inherited-test")
+)]
+#[case::objc_category(
+    "tests/data/test-objc-category.xcresult.tar.gz",
+    "ObjcCategory.xcresult",
+    Some("tests/fixture-src/objc-category")
+)]
+fn test_the_declaration_flag_moves_the_file_and_nothing_else(
+    #[case] archive: &str,
+    #[case] bundle: &str,
+    #[case] repo_root: Option<&str>,
+) {
+    common::assert_the_declaration_flag_moves_only_the_file(archive, bundle, repo_root);
+}
