@@ -7,7 +7,6 @@ use chrono::{DateTime, Utc};
 use quick_junit::{NonSuccessKind, Report, TestCase, TestCaseStatus, TestRerun, TestSuite};
 use tempfile::TempDir;
 
-use crate::file_attribution::ReportedPath;
 use crate::test_locations::{Limits, TestKey, TestLocationIndex};
 use crate::types::{
     SWIFT_DEFAULT_TEST_SUITE_NAME,
@@ -54,11 +53,10 @@ fn copy_bundle(path: &Path) -> anyhow::Result<(TempDir, PathBuf)> {
     Ok((temp_dir, destination))
 }
 
-/// Makes it visible whether the fallback ever fires; no bundle checked so far has one.
+/// Makes it visible how many tests the checkout could not account for.
 #[derive(Debug, Default)]
 struct AttributionCounts {
     declared: AtomicUsize,
-    fell_back: AtomicUsize,
     unresolved: AtomicUsize,
 }
 
@@ -227,9 +225,8 @@ impl XCResult {
             .collect();
         if matches!(self.attribution, FileAttribution::Declarations(_)) {
             tracing::info!(
-                "xcresult test files: {} from a declaration, {} from the fallback, {} unresolved",
+                "xcresult test files: {} from a declaration, {} with no declaration found",
                 self.counts.declared.load(Ordering::Relaxed),
-                self.counts.fell_back.load(Ordering::Relaxed),
                 self.counts.unresolved.load(Ordering::Relaxed),
             );
         }
@@ -491,19 +488,13 @@ impl XCResult {
                     self.counts.declared.fetch_add(1, Ordering::Relaxed);
                     return Some(site.file.as_str().to_owned());
                 }
-                // A runtime-registered test (Quick, `+testInvocations`) has no declaration
-                // to find, so fall back to where the failure surfaced.
-                let fallback = first_source_location(test_case)
-                    .map(|path| ReportedPath::new(&path))
-                    .filter(|path| !path.is_vendored_dependency())
-                    .map(ReportedPath::into_string);
-                if fallback.is_some() {
-                    self.counts.fell_back.fetch_add(1, Ordering::Relaxed);
-                } else {
-                    self.counts.unresolved.fetch_add(1, Ordering::Relaxed);
-                    tracing::debug!("no declaration and no source location for {node_identifier}");
-                }
-                fallback
+                // Where a failure surfaced is not where the test is written, and reporting
+                // it hands the test to whoever owns that file. No file at all resolves no
+                // codeowners, which is recoverable; the wrong file is not. A test with no
+                // declaration to find is runtime-registered (Quick, `+testInvocations`).
+                self.counts.unresolved.fetch_add(1, Ordering::Relaxed);
+                tracing::debug!("no declaration in the checkout for {node_identifier}");
+                None
             }
         }
     }
@@ -522,13 +513,6 @@ fn collect_test_keys(test_nodes: &[TestNode], keys: &mut Vec<(TestKey, Option<St
         }
         collect_test_keys(&test_node.children, keys);
     }
-}
-
-fn first_source_location(test_node: &TestNode) -> Option<String> {
-    if let Some(source_location) = &test_node.source_location {
-        return Some(source_location.file_path.clone());
-    }
-    test_node.children.iter().find_map(first_source_location)
 }
 
 #[cfg(test)]
@@ -824,15 +808,13 @@ mod tests {
         );
     }
 
-    // With no declaration to find — a runtime-registered test — the raised-at location is
-    // all there is, and a vendored one must still be refused rather than reported.
+    // A runtime-registered test (Quick, `+testInvocations`) has no declaration anywhere
+    // in the checkout. Where its failure surfaced is not where it is written, and the
+    // reported file is what codeowners resolve from, so nothing is reported at all.
     #[rstest]
-    #[case::in_repo_helper_is_better_than_nothing(HELPER_FILE, Some(HELPER_FILE))]
-    #[case::vendored_dependency_is_refused(DEPENDENCY_FILE, None)]
-    fn an_unresolved_test_falls_back_to_the_raised_at_location(
-        #[case] raised_in: &str,
-        #[case] expected: Option<&str>,
-    ) {
+    #[case::in_repo_helper(HELPER_FILE)]
+    #[case::vendored_dependency(DEPENDENCY_FILE)]
+    fn an_unresolved_test_is_reported_with_no_file(#[case] raised_in: &str) {
         let tests = bundle(
             "ExampleTests",
             vec![suite(
@@ -852,9 +834,8 @@ mod tests {
                     FileAttribution::Declarations(TestLocationIndex::default())
                 ),
                 "a calculator, fails on purpose()"
-            )
-            .as_deref(),
-            expected
+            ),
+            None
         );
     }
 }

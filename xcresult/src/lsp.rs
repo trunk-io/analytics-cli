@@ -1,11 +1,15 @@
 //! Just enough of the Language Server Protocol to ask a server what a file declares.
 //!
-//! Once a request times out the stream cannot be resynchronised — a late reply would be
-//! read as the answer to the *next* request — so the process is killed and later calls
-//! refused, rather than an upload waiting on a server that stopped answering.
+//! Framing and JSON-RPC come from [`lsp_server`], and every method name and payload shape
+//! from [`lsp_types`], so a request is named by its type rather than by a string literal.
+//!
+//! A request that times out leaves a reply in flight that would arrive after the next
+//! request was sent. Replies are matched by id, so a late one is discarded rather than
+//! misread — but the server has also shown it cannot keep up, so it is killed and the
+//! caller restarts it instead of waiting on it again.
 
 use std::{
-    io::{BufRead, BufReader, Read, Write},
+    io::{BufReader, Write},
     path::Path,
     process::{Child, ChildStdin, Command, Stdio},
     sync::mpsc::{Receiver, RecvTimeoutError, Sender, channel},
@@ -13,13 +17,21 @@ use std::{
     time::{Duration, Instant},
 };
 
-use serde_json::{Value, json};
+use lsp_server::{Message, Notification, Request, RequestId, Response};
+use lsp_types::{
+    ClientCapabilities, DidCloseTextDocumentParams, DidOpenTextDocumentParams, DocumentSymbol,
+    DocumentSymbolClientCapabilities, DocumentSymbolParams, DocumentSymbolResponse,
+    InitializeParams, PartialResultParams, TextDocumentClientCapabilities, TextDocumentIdentifier,
+    TextDocumentItem, Uri, WorkDoneProgressParams,
+    notification::{DidCloseTextDocument, DidOpenTextDocument, Initialized},
+    request::{DocumentSymbolRequest, Initialize},
+};
 
 pub struct LanguageServer {
     process: Child,
     stdin: ChildStdin,
-    incoming: Receiver<Value>,
-    next_id: i64,
+    incoming: Receiver<Message>,
+    next_id: i32,
     broken: bool,
 }
 
@@ -47,7 +59,7 @@ impl LanguageServer {
             .ok_or_else(|| anyhow::anyhow!("language server has no stdout"))?;
 
         let (sender, incoming) = channel();
-        thread::spawn(move || read_messages(stdout, &sender));
+        thread::spawn(move || read_messages(BufReader::new(stdout), &sender));
 
         let mut server = Self {
             process,
@@ -56,20 +68,27 @@ impl LanguageServer {
             next_id: 1,
             broken: false,
         };
-        server.request(
-            "initialize",
-            json!({
-                "processId": std::process::id(),
-                "rootUri": file_uri(root),
-                "capabilities": {
-                    "textDocument": {
-                        "documentSymbol": { "hierarchicalDocumentSymbolSupport": true }
-                    }
-                }
-            }),
+        let root_uri = file_uri(root)?;
+        server.request::<Initialize>(
+            #[allow(deprecated)] // `root_uri` is how sourcekit-lsp still finds the workspace.
+            InitializeParams {
+                process_id: Some(std::process::id()),
+                root_uri: Some(root_uri),
+                capabilities: ClientCapabilities {
+                    text_document: Some(TextDocumentClientCapabilities {
+                        document_symbol: Some(DocumentSymbolClientCapabilities {
+                            hierarchical_document_symbol_support: Some(true),
+                            ..Default::default()
+                        }),
+                        ..Default::default()
+                    }),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
             timeout,
         );
-        server.notify("initialized", json!({}));
+        server.notify::<Initialized>(lsp_types::InitializedParams {});
         if server.broken {
             return Err(anyhow::anyhow!(
                 "language server did not complete initialize"
@@ -86,85 +105,116 @@ impl LanguageServer {
         language_id: &str,
         text: &str,
         timeout: Duration,
-    ) -> Option<Value> {
-        let uri = file_uri(file_path);
-        self.notify(
-            "textDocument/didOpen",
-            json!({
-                "textDocument": {
-                    "uri": uri,
-                    "languageId": language_id,
-                    "version": 1,
-                    "text": text
-                }
-            }),
-        );
-        let symbols = self.request(
-            "textDocument/documentSymbol",
-            json!({ "textDocument": { "uri": uri } }),
-            timeout,
-        );
-        self.notify(
-            "textDocument/didClose",
-            json!({ "textDocument": { "uri": uri } }),
-        );
-        symbols
+    ) -> Option<Vec<DocumentSymbol>> {
+        let uri = file_uri(file_path).ok()?;
+        self.notify::<DidOpenTextDocument>(DidOpenTextDocumentParams {
+            text_document: TextDocumentItem {
+                uri: uri.clone(),
+                language_id: language_id.to_owned(),
+                version: 1,
+                text: text.to_owned(),
+            },
+        });
+        let response = self
+            .request::<DocumentSymbolRequest>(
+                DocumentSymbolParams {
+                    text_document: TextDocumentIdentifier { uri: uri.clone() },
+                    work_done_progress_params: WorkDoneProgressParams::default(),
+                    partial_result_params: PartialResultParams::default(),
+                },
+                timeout,
+            )
+            .flatten();
+        self.notify::<DidCloseTextDocument>(DidCloseTextDocumentParams {
+            text_document: TextDocumentIdentifier { uri },
+        });
+        match response {
+            Some(DocumentSymbolResponse::Nested(symbols)) => Some(symbols),
+            // Only a server that ignored `hierarchicalDocumentSymbolSupport` answers flat,
+            // and without nesting there is nothing to tie a method to its type.
+            Some(DocumentSymbolResponse::Flat(_)) => {
+                tracing::debug!("{} answered without hierarchy", file_path.display());
+                None
+            }
+            None => None,
+        }
     }
 
     pub fn is_broken(&self) -> bool {
         self.broken
     }
 
-    fn request(&mut self, method: &str, params: Value, timeout: Duration) -> Option<Value> {
+    fn request<R: lsp_types::request::Request>(
+        &mut self,
+        params: R::Params,
+        timeout: Duration,
+    ) -> Option<R::Result> {
         if self.broken {
             return None;
         }
-        let id = self.next_id;
+        let id = RequestId::from(self.next_id);
         self.next_id += 1;
-        self.send(json!({ "jsonrpc": "2.0", "id": id, "method": method, "params": params }));
+        let params = serde_json::to_value(params).ok()?;
+        self.send(Message::Request(Request {
+            id: id.clone(),
+            method: R::METHOD.to_owned(),
+            params,
+        }));
 
         let deadline = Instant::now() + timeout;
         loop {
             let Some(remaining) = deadline.checked_duration_since(Instant::now()) else {
-                return self.abandon(method, "timed out");
+                return self.abandon(R::METHOD, "timed out");
             };
             let message = match self.incoming.recv_timeout(remaining) {
                 Ok(message) => message,
-                Err(RecvTimeoutError::Timeout) => return self.abandon(method, "timed out"),
-                Err(RecvTimeoutError::Disconnected) => return self.abandon(method, "exited"),
+                Err(RecvTimeoutError::Timeout) => return self.abandon(R::METHOD, "timed out"),
+                Err(RecvTimeoutError::Disconnected) => return self.abandon(R::METHOD, "exited"),
             };
-            if message.get("id").and_then(Value::as_i64) == Some(id) {
-                if let Some(error) = message.get("error") {
-                    tracing::debug!("language server refused {}: {}", method, error);
-                    return None;
+            match message {
+                Message::Response(response) if response.id == id => {
+                    return match response.response_result {
+                        Ok(result) => serde_json::from_value(result).ok(),
+                        Err(error) => {
+                            tracing::debug!("language server refused {}: {:?}", R::METHOD, error);
+                            None
+                        }
+                    };
                 }
-                return message.get("result").cloned();
-            }
-            // sourcekit-lsp registers capabilities and asks for configuration during
-            // startup; a peer that never replies leaves those pending for its lifetime.
-            if let (Some(id), Some(_)) = (message.get("id"), message.get("method")) {
-                let id = id.clone();
-                self.send(json!({ "jsonrpc": "2.0", "id": id, "result": Value::Null }));
+                // sourcekit-lsp registers capabilities and asks for configuration during
+                // startup; a peer that never replies leaves those pending for its lifetime.
+                Message::Request(request) => {
+                    self.send(Message::Response(Response::new_ok(
+                        request.id,
+                        serde_json::Value::Null,
+                    )));
+                }
+                // A reply to a request we already gave up on, or a diagnostic we ignore.
+                Message::Response(_) | Message::Notification(_) => {}
             }
         }
     }
 
-    fn notify(&mut self, method: &str, params: Value) {
+    fn notify<N: lsp_types::notification::Notification>(&mut self, params: N::Params) {
         if self.broken {
             return;
         }
-        self.send(json!({ "jsonrpc": "2.0", "method": method, "params": params }));
+        let Ok(params) = serde_json::to_value(params) else {
+            return;
+        };
+        self.send(Message::Notification(Notification {
+            method: N::METHOD.to_owned(),
+            params,
+        }));
     }
 
-    fn send(&mut self, message: Value) {
-        let body = message.to_string();
-        let framed = format!("Content-Length: {}\r\n\r\n{}", body.len(), body);
-        if self.stdin.write_all(framed.as_bytes()).is_err() || self.stdin.flush().is_err() {
-            self.abandon("write", "closed its input");
+    fn send(&mut self, message: Message) {
+        if message.write(&mut self.stdin).is_err() || self.stdin.flush().is_err() {
+            self.abandon::<()>("write", "closed its input");
         }
     }
 
-    fn abandon(&mut self, method: &str, reason: &str) -> Option<Value> {
+    fn abandon<T>(&mut self, method: &str, reason: &str) -> Option<T> {
         if !self.broken {
             tracing::warn!(
                 "language server {} during {}; abandoning it",
@@ -185,36 +235,8 @@ impl Drop for LanguageServer {
     }
 }
 
-fn read_messages<R: Read>(stdout: R, sender: &Sender<Value>) {
-    let mut reader = BufReader::new(stdout);
-    loop {
-        let mut content_length = None;
-        loop {
-            let mut line = String::new();
-            match reader.read_line(&mut line) {
-                Ok(0) | Err(_) => return,
-                Ok(_) => {}
-            }
-            let line = line.trim_end();
-            if line.is_empty() {
-                break;
-            }
-            if let Some((name, value)) = line.split_once(':')
-                && name.trim().eq_ignore_ascii_case("content-length")
-            {
-                content_length = value.trim().parse::<usize>().ok();
-            }
-        }
-        let Some(content_length) = content_length else {
-            return;
-        };
-        let mut body = vec![0_u8; content_length];
-        if reader.read_exact(&mut body).is_err() {
-            return;
-        }
-        let Ok(message) = serde_json::from_slice::<Value>(&body) else {
-            return;
-        };
+fn read_messages<R: std::io::BufRead>(mut reader: R, sender: &Sender<Message>) {
+    while let Ok(Some(message)) = Message::read(&mut reader) {
         if sender.send(message).is_err() {
             return;
         }
@@ -222,95 +244,57 @@ fn read_messages<R: Read>(stdout: R, sender: &Sender<Value>) {
 }
 
 /// A `file://` URI. A server that cannot parse the URI answers with no symbols rather
-/// than an error, so a path with a space fails silently unless it is encoded here.
-fn file_uri(path: &Path) -> String {
-    let mut uri = String::from("file://");
-    for byte in path.to_string_lossy().bytes() {
-        match byte {
-            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'.' | b'_' | b'~' | b'/' => {
-                uri.push(char::from(byte));
-            }
-            _ => uri.push_str(&format!("%{byte:02X}")),
-        }
-    }
-    uri
+/// than an error, so a path with a space fails silently unless it is encoded — and
+/// `lsp_types::Uri` is a bare RFC 3986 parser that will not encode one for us.
+///
+/// The path is made absolute first, because `file://` takes an authority: a relative
+/// `file://Tests/Foo.swift` parses with `Tests` as the *host* and loses a path component.
+/// Only the URI is absolute — the caller keeps reporting the path it was given, which is
+/// what codeowners are resolved against.
+fn file_uri(path: &Path) -> anyhow::Result<Uri> {
+    // Lexical, so a symlinked checkout is not rewritten to somewhere the caller never named.
+    let absolute = std::path::absolute(path)
+        .map_err(|e| anyhow::anyhow!("cannot resolve {}: {e}", path.display()))?;
+    let url = url::Url::from_file_path(&absolute)
+        .map_err(|_| anyhow::anyhow!("not a usable file path: {}", absolute.display()))?;
+    url.as_str()
+        .parse::<Uri>()
+        .map_err(|e| anyhow::anyhow!("{} is not a usable URI: {e}", url.as_str()))
 }
 
 #[cfg(test)]
 mod tests {
-    use std::io::Cursor;
-
-    use rstest::rstest;
-
     use super::*;
 
-    #[rstest]
-    #[case::plain("/repo/Tests/Test.swift", "file:///repo/Tests/Test.swift")]
-    #[case::space("/repo/Tests/My Test.swift", "file:///repo/Tests/My%20Test.swift")]
-    #[case::hash_is_a_uri_fragment("/repo/a#b.swift", "file:///repo/a%23b.swift")]
-    fn a_path_becomes_a_percent_encoded_uri(#[case] path: &str, #[case] expected: &str) {
-        assert_eq!(file_uri(Path::new(path)), expected);
-    }
-
-    fn framed(bodies: &[&str]) -> String {
-        bodies
-            .iter()
-            .map(|body| format!("Content-Length: {}\r\n\r\n{}", body.len(), body))
-            .collect()
+    // A server that cannot parse the URI answers with no symbols rather than an error, so
+    // both of these fail silently in production if they regress. `lsp_types::Uri` will not
+    // encode for us and `file://` takes an authority, so neither is free.
+    #[test]
+    fn a_path_with_a_space_is_percent_encoded() {
+        let uri = file_uri(Path::new("/repo/Tests/My Test.swift")).unwrap();
+        assert_eq!(uri.as_str(), "file:///repo/Tests/My%20Test.swift");
     }
 
     #[test]
-    fn framed_messages_are_read_back_in_order() {
-        let (sender, receiver) = channel();
-        read_messages(
-            Cursor::new(framed(&[
-                r#"{"id":1,"result":[]}"#,
-                r#"{"id":2,"result":7}"#,
-            ])),
-            &sender,
-        );
-        drop(sender);
-        let received = receiver.iter().collect::<Vec<_>>();
-        assert_eq!(received.len(), 2);
-        assert_eq!(received[1]["result"], json!(7));
+    fn a_hash_is_encoded_rather_than_starting_a_fragment() {
+        let uri = file_uri(Path::new("/repo/Tests/a#b.swift")).unwrap();
+        assert_eq!(uri.as_str(), "file:///repo/Tests/a%23b.swift");
     }
 
-    // The frame carries a byte count, so a non-ASCII body split by character count
-    // drifts one message at a time and then hangs on the next read.
+    // A relative path would otherwise parse with its first component as the *host*,
+    // silently dropping it: `file://Tests/Foo.swift` is host `Tests`, path `/Foo.swift`.
     #[test]
-    fn a_multibyte_body_is_framed_by_bytes() {
-        let (sender, receiver) = channel();
-        read_messages(
-            Cursor::new(framed(&[r#"{"id":1,"result":"café"}"#])),
-            &sender,
+    fn a_relative_path_becomes_an_absolute_uri() {
+        let uri = file_uri(Path::new("Tests/Foo.swift")).unwrap();
+        assert!(
+            uri.as_str().starts_with("file:///"),
+            "expected an absolute file URI, got {}",
+            uri.as_str()
         );
-        drop(sender);
-        assert_eq!(
-            receiver
-                .iter()
-                .next()
-                .map(|message| message["result"].clone()),
-            Some(json!("café"))
+        assert!(
+            uri.as_str().ends_with("/Tests/Foo.swift"),
+            "expected the path to survive, got {}",
+            uri.as_str()
         );
-    }
-
-    #[test]
-    fn a_lowercased_header_is_still_a_content_length() {
-        let (sender, receiver) = channel();
-        let body = r#"{"id":1,"result":[]}"#;
-        read_messages(
-            Cursor::new(format!("content-length: {}\r\n\r\n{}", body.len(), body)),
-            &sender,
-        );
-        drop(sender);
-        assert_eq!(receiver.iter().count(), 1);
-    }
-
-    #[test]
-    fn a_truncated_message_ends_the_stream_instead_of_blocking() {
-        let (sender, receiver) = channel();
-        read_messages(Cursor::new("Content-Length: 40\r\n\r\n{\"id\":1}"), &sender);
-        drop(sender);
-        assert_eq!(receiver.iter().count(), 0);
     }
 }

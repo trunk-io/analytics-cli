@@ -9,15 +9,20 @@ use std::{
     time::{Duration, Instant},
 };
 
-use lazy_static::lazy_static;
-use serde::Deserialize;
+use ignore::{WalkBuilder, types::TypesBuilder};
+use lsp_types::{DocumentSymbol, SymbolKind};
 
 use crate::{file_attribution::ReportedPath, lsp::LanguageServer, xcrun::xcrun_find};
 
-/// LSP `SymbolKind`s that can declare a test: Method, Constructor, Function.
-const METHOD_KINDS: [u64; 3] = [6, 9, 12];
-/// Kinds that can contain one: Class, Interface (an Objective-C category), Struct.
-const CONTAINER_KINDS: [u64; 3] = [5, 11, 23];
+/// Kinds that can declare a test.
+const METHOD_KINDS: [SymbolKind; 3] = [
+    SymbolKind::METHOD,
+    SymbolKind::CONSTRUCTOR,
+    SymbolKind::FUNCTION,
+];
+/// Kinds that can contain one. `INTERFACE` is how an Objective-C category arrives.
+const CONTAINER_KINDS: [SymbolKind; 3] =
+    [SymbolKind::CLASS, SymbolKind::INTERFACE, SymbolKind::STRUCT];
 
 const SWIFT_EXTENSIONS: [&str; 1] = ["swift"];
 const CLANG_EXTENSIONS: [&str; 5] = ["m", "mm", "c", "cc", "cpp"];
@@ -36,11 +41,18 @@ const SKIPPED_DIRECTORIES: [&str; 9] = [
     "Pods",
 ];
 
+/// Every field is settable from the CLI, because the right value depends on the repo: the
+/// clang server answers roughly an order of magnitude slower per file than the Swift one,
+/// so an Objective-C heavy checkout needs more of all of them than these defaults give.
 #[derive(Debug, Clone, Copy)]
 pub struct Limits {
     pub max_files: usize,
+    /// Spent per server kind rather than across both, so a large Swift tree cannot leave
+    /// the clang server with nothing left to parse Objective-C in.
     pub budget: Duration,
     pub request_timeout: Duration,
+    /// How many times a server that stops answering is replaced with a fresh one.
+    pub retries: usize,
 }
 
 impl Default for Limits {
@@ -49,6 +61,7 @@ impl Default for Limits {
             max_files: 2_000,
             budget: Duration::from_secs(60),
             request_timeout: Duration::from_secs(30),
+            retries: 1,
         }
     }
 }
@@ -121,7 +134,8 @@ pub struct DeclarationSite {
 #[derive(Debug, Default)]
 pub struct TestLocationIndex {
     declarations: HashMap<TestKey, DeclarationSite>,
-    supertypes: HashMap<String, String>,
+    /// Where each suite is declared, for a test that its own suite does not declare.
+    suites: HashMap<String, DeclarationSite>,
     targets: HashMap<TestKey, String>,
 }
 
@@ -147,7 +161,6 @@ impl TestLocationIndex {
                 ..Self::default()
             },
             unresolved: keys.clone(),
-            deadline: Instant::now() + limits.budget,
             limits,
         };
         resolver.parse(&swift, &SOURCEKIT_LSP, repo_root);
@@ -162,27 +175,32 @@ impl TestLocationIndex {
         resolver.index
     }
 
-    /// A test can be declared on a base class and run under a subclass.
+    /// The file the test is written in, preferring the declaration of the method itself —
+    /// a suite split across extensions declares each test in its own file.
+    ///
+    /// A test run under a suite that does not declare it is inherited from a base class,
+    /// and reporting the base class would hand the test to whoever owns *that* file. The
+    /// concrete suite is the one that chose to run it, so it is the one reported.
     pub fn lookup(&self, key: &TestKey) -> Option<&DeclarationSite> {
-        let mut suite = key.suite.clone();
-        let mut seen = HashSet::new();
-        while let Some(current) = suite {
-            if !seen.insert(current.clone()) {
-                break;
-            }
-            let inherited = TestKey {
-                suite: Some(current.clone()),
-                case: key.case.clone(),
-            };
-            if let Some(site) = self.declarations.get(&inherited) {
-                return Some(site);
-            }
-            suite = self.supertypes.get(&current).cloned();
+        if let Some(site) = self.method_declaration(key) {
+            return Some(site);
         }
-        self.declarations.get(&TestKey {
-            suite: None,
-            case: key.case.clone(),
-        })
+        match key.suite.as_ref() {
+            Some(suite) => self.suites.get(suite),
+            // A top-level swift-testing test has no suite, so the function is all there is.
+            None => None,
+        }
+    }
+
+    /// Only the method's own declaration, which is what decides whether there is still
+    /// something worth parsing for.
+    ///
+    /// Resolution stops once nothing is left to find, so it cannot be driven by
+    /// [`Self::lookup`]: a suite is usually declared in the first file ranked for it, and
+    /// counting that as an answer would end the scan before the file the *method* is
+    /// declared in was ever read — collapsing every test to its suite's file.
+    fn method_declaration(&self, key: &TestKey) -> Option<&DeclarationSite> {
+        self.declarations.get(key)
     }
 
     pub fn is_empty(&self) -> bool {
@@ -225,34 +243,29 @@ impl TestLocationIndex {
         }
     }
 
-    fn collect(
-        &mut self,
-        symbols: &[DocumentSymbol],
-        file: &Path,
-        text: &str,
-        container: Option<&str>,
-    ) {
+    fn collect(&mut self, symbols: &[DocumentSymbol], file: &Path, container: Option<&str>) {
         for symbol in symbols {
+            let site = || DeclarationSite {
+                file: ReportedPath::new(&file.to_string_lossy()),
+                line: declaration_line(symbol),
+            };
             if CONTAINER_KINDS.contains(&symbol.kind) {
-                let name = container_name(&symbol.name);
-                if let Some(supertype) = superclass(text, &symbol.range)
-                    && supertype != name
-                {
-                    self.supertypes.entry(name.to_string()).or_insert(supertype);
-                }
+                // An Objective-C category is reported against the class it extends, which
+                // is already declared elsewhere, so the first declaration seen wins.
+                self.suites
+                    .entry(container_name(&symbol.name).to_string())
+                    .or_insert_with(site);
             }
             if METHOD_KINDS.contains(&symbol.kind) {
                 let key = TestKey {
                     suite: container.map(|name| container_name(name).to_string()),
                     case: normalized_case(&symbol.name),
                 };
-                let candidate = DeclarationSite {
-                    file: ReportedPath::new(&file.to_string_lossy()),
-                    line: symbol.declaration_line(),
-                };
-                self.record(key, candidate);
+                self.record(key, site());
             }
-            self.collect(&symbol.children, file, text, Some(&symbol.name));
+            if let Some(children) = symbol.children.as_deref() {
+                self.collect(children, file, Some(&symbol.name));
+            }
         }
     }
 }
@@ -279,11 +292,16 @@ const CLANGD: ServerKind = ServerKind {
 struct Resolver {
     index: TestLocationIndex,
     unresolved: Vec<TestKey>,
-    deadline: Instant,
     limits: Limits,
 }
 
 impl Resolver {
+    /// Parse `files` with one `kind` of server, replacing it when it stops answering.
+    ///
+    /// A server that times out is killed rather than resynchronised, so the only way to
+    /// carry on is a fresh one. The file that broke it is skipped instead of retried: it
+    /// is the reason the last server died, and retrying it would spend the whole budget
+    /// re-earning the same timeout.
     fn parse(&mut self, files: &[PathBuf], kind: &ServerKind, root: &Path) {
         if files.is_empty() || self.unresolved.is_empty() {
             return;
@@ -296,44 +314,78 @@ impl Resolver {
             );
             return;
         };
-        let mut server =
-            match LanguageServer::start(&program, kind.args, root, self.limits.request_timeout) {
-                Ok(server) => server,
-                Err(e) => {
-                    tracing::warn!("failed to start {}: {}", kind.program, e);
+
+        let deadline = Instant::now() + self.limits.budget;
+        let mut remaining = files;
+        let mut parsed = 0;
+        for attempt in 0..=self.limits.retries {
+            if remaining.is_empty() || self.unresolved.is_empty() || Instant::now() >= deadline {
+                break;
+            }
+            if attempt > 0 {
+                tracing::warn!(
+                    "{}: restarting it, {} file(s) left to parse",
+                    kind.program,
+                    remaining.len()
+                );
+            }
+            let mut server =
+                match LanguageServer::start(&program, kind.args, root, self.limits.request_timeout)
+                {
+                    Ok(server) => server,
+                    Err(e) => {
+                        tracing::warn!("failed to start {}: {}", kind.program, e);
+                        return;
+                    }
+                };
+
+            let mut consumed = 0;
+            for file in remaining {
+                consumed += 1;
+                if self.unresolved.is_empty() {
+                    break;
+                }
+                if Instant::now() >= deadline {
+                    tracing::warn!(
+                        "{}: out of time after {} file(s), {} left unparsed",
+                        kind.program,
+                        parsed,
+                        files.len() - parsed
+                    );
                     return;
                 }
-            };
-
-        let mut parsed = 0;
-        for file in files {
-            if self.unresolved.is_empty() || server.is_broken() {
-                break;
-            }
-            if Instant::now() >= self.deadline {
-                tracing::warn!(
-                    "{}: out of time after {} file(s), {} left unparsed",
-                    kind.program,
-                    parsed,
-                    files.len() - parsed
+                let Ok(text) = fs::read_to_string(file) else {
+                    continue;
+                };
+                let symbols = server.document_symbols(
+                    file,
+                    kind.language_id,
+                    &text,
+                    self.limits.request_timeout,
                 );
+                if server.is_broken() {
+                    break;
+                }
+                let Some(symbols) = symbols else {
+                    continue;
+                };
+                parsed += 1;
+                self.index.collect(&symbols, file, None);
+                let index = &self.index;
+                self.unresolved
+                    .retain(|key| index.method_declaration(key).is_none());
+            }
+            remaining = &remaining[consumed.min(remaining.len())..];
+            if !server.is_broken() {
                 break;
             }
-            let Ok(text) = fs::read_to_string(file) else {
-                continue;
-            };
-            let Some(response) =
-                server.document_symbols(file, kind.language_id, &text, self.limits.request_timeout)
-            else {
-                continue;
-            };
-            parsed += 1;
-            match serde_json::from_value::<Vec<DocumentSymbol>>(response) {
-                Ok(symbols) => self.index.collect(&symbols, file, &text, None),
-                Err(e) => tracing::debug!("unusable symbols for {}: {}", file.display(), e),
-            }
-            let index = &self.index;
-            self.unresolved.retain(|key| index.lookup(key).is_none());
+        }
+        if !remaining.is_empty() && !self.unresolved.is_empty() {
+            tracing::warn!(
+                "{}: gave up with {} file(s) unparsed",
+                kind.program,
+                remaining.len()
+            );
         }
         tracing::debug!(
             "{}: parsed {} of {} file(s)",
@@ -344,60 +396,10 @@ impl Resolver {
     }
 }
 
-#[derive(Debug, Deserialize)]
-struct DocumentSymbol {
-    name: String,
-    kind: u64,
-    range: Range,
-    #[serde(rename = "selectionRange")]
-    selection_range: Option<Range>,
-    #[serde(default)]
-    children: Vec<DocumentSymbol>,
-}
-
-impl DocumentSymbol {
-    /// LSP counts lines from zero; everything downstream counts from one.
-    fn declaration_line(&self) -> Option<u32> {
-        let range = self.selection_range.as_ref().unwrap_or(&self.range);
-        u32::try_from(range.start.line)
-            .ok()
-            .map(|line| line.saturating_add(1))
-    }
-}
-
-#[derive(Debug, Deserialize)]
-struct Range {
-    start: Position,
-    end: Position,
-}
-
-#[derive(Debug, Deserialize)]
-struct Position {
-    line: u64,
-}
-
-lazy_static! {
-    // `\b` sits inside the alternation: before `@interface` it would demand a word
-    // character ahead of the `@` and never match a declaration starting a line.
-    static ref SUPERCLASS: regex::Regex =
-        regex::Regex::new(r"(?:\bclass|@interface)\s+\w+\s*:\s*([A-Za-z_]\w*)").unwrap();
-}
-
-/// Enough to carry an inheritance clause, so a large class body is never searched.
-const DECLARATION_HEAD_LINES: usize = 5;
-
-fn superclass(text: &str, range: &Range) -> Option<String> {
-    let span = (range.end.line.saturating_sub(range.start.line) as usize).saturating_add(1);
-    let head = text
-        .lines()
-        .skip(range.start.line as usize)
-        .take(span.min(DECLARATION_HEAD_LINES))
-        .collect::<Vec<_>>()
-        .join("\n");
-    SUPERCLASS
-        .captures(&head)
-        .and_then(|captures| captures.get(1))
-        .map(|name| name.as_str().to_string())
+/// LSP counts lines from zero; everything downstream counts from one.
+fn declaration_line(symbol: &DocumentSymbol) -> Option<u32> {
+    let range = symbol.selection_range;
+    range.start.line.checked_add(1)
 }
 
 /// Applied to identifier and symbol alike: Swift spells it `testExample()`, Objective-C
@@ -422,31 +424,43 @@ fn has_extension(path: &Path, extensions: &[&str]) -> bool {
 
 /// Files most likely to pay off first: a suite is overwhelmingly declared in a file named
 /// after it, and parsing stops once every test resolves. Symlinked directories are skipped.
+///
+/// The extensions are registered explicitly rather than taken from `ignore`'s built-in
+/// definitions, because those map `.h` to Objective-C and a header is not something the
+/// clang server can answer `documentSymbol` for on its own.
+///
+/// `.gitignore` already excludes most of [`SKIPPED_DIRECTORIES`] in a normal checkout, but
+/// nothing guarantees it, so the list stays as an override on top.
 fn scan_sources(repo_root: &Path, suites: &HashSet<&str>, max_files: usize) -> Vec<PathBuf> {
-    let mut found = Vec::new();
-    let mut stack = vec![repo_root.to_path_buf()];
-    while let Some(directory) = stack.pop() {
-        let Ok(entries) = fs::read_dir(&directory) else {
-            continue;
-        };
-        for entry in entries.flatten() {
-            let Ok(file_type) = entry.file_type() else {
-                continue;
-            };
-            if file_type.is_dir() {
-                if !SKIPPED_DIRECTORIES.contains(&entry.file_name().to_string_lossy().as_ref()) {
-                    stack.push(entry.path());
-                }
-            } else if file_type.is_file() {
-                let path = entry.path();
-                if has_extension(&path, &SWIFT_EXTENSIONS)
-                    || has_extension(&path, &CLANG_EXTENSIONS)
-                {
-                    found.push(path);
-                }
-            }
-        }
+    let mut types = TypesBuilder::new();
+    for extension in SWIFT_EXTENSIONS.iter().chain(CLANG_EXTENSIONS.iter()) {
+        // `add` only fails on a malformed glob, and these are built from literals.
+        let _ = types.add("sources", &format!("*.{extension}"));
     }
+    types.select("sources");
+    let Ok(types) = types.build() else {
+        return Vec::new();
+    };
+
+    let walker = WalkBuilder::new(repo_root)
+        .types(types)
+        .hidden(false)
+        .follow_links(false)
+        .filter_entry(|entry| {
+            entry.depth() == 0
+                || !SKIPPED_DIRECTORIES.contains(&entry.file_name().to_string_lossy().as_ref())
+        })
+        .build();
+
+    let mut found = walker
+        .flatten()
+        .filter(|entry| {
+            entry
+                .file_type()
+                .is_some_and(|file_type| file_type.is_file())
+        })
+        .map(|entry| entry.into_path())
+        .collect::<Vec<_>>();
     found.sort_by_cached_key(|path| (rank(path, suites), path.clone()));
     found.truncate(max_files);
     found
@@ -489,27 +503,35 @@ mod tests {
         serde_json::from_value(value).unwrap()
     }
 
-    fn method(name: &str, line: u64) -> Value {
+    fn span(from: u64, to: u64) -> Value {
         json!({
-            "name": name,
-            "kind": 6,
-            "range": { "start": { "line": line }, "end": { "line": line } },
-            "selectionRange": { "start": { "line": line }, "end": { "line": line } }
+            "start": { "line": from, "character": 0 },
+            "end": { "line": to, "character": 0 }
         })
     }
 
-    fn container(name: &str, kind: u64, lines: (u64, u64), children: Vec<Value>) -> Value {
+    fn method(name: &str, line: u64) -> Value {
+        json!({
+            "name": name,
+            "kind": SymbolKind::METHOD,
+            "range": span(line, line),
+            "selectionRange": span(line, line)
+        })
+    }
+
+    fn container(name: &str, kind: SymbolKind, lines: (u64, u64), children: Vec<Value>) -> Value {
         json!({
             "name": name,
             "kind": kind,
-            "range": { "start": { "line": lines.0 }, "end": { "line": lines.1 } },
+            "range": span(lines.0, lines.1),
+            "selectionRange": span(lines.0, lines.0),
             "children": children
         })
     }
 
-    fn indexed(file: &str, text: &str, value: Value) -> TestLocationIndex {
+    fn indexed(file: &str, value: Value) -> TestLocationIndex {
         let mut index = TestLocationIndex::default();
-        index.collect(&symbols(value), Path::new(file), text, None);
+        index.collect(&symbols(value), Path::new(file), None);
         index
     }
 
@@ -564,32 +586,12 @@ mod tests {
     }
 
     #[test]
-    fn a_method_is_recorded_against_the_type_declaring_it() {
-        let index = indexed(
-            SWIFT_FILE,
-            "final class SnapshotReproTests: XCTestCase {\n    func testExample() {}\n}",
-            json!([container(
-                "SnapshotReproTests",
-                5,
-                (0, 2),
-                vec![method("testExample()", 1)]
-            )]),
-        );
-        let site = index
-            .lookup(&key(Some("SnapshotReproTests"), "testExample"))
-            .expect("the test's own declaration");
-        assert_eq!(site.file.as_str(), SWIFT_FILE);
-        assert_eq!(site.line, Some(2));
-    }
-
-    #[test]
     fn a_category_records_against_the_class_it_extends() {
         let index = indexed(
             "/repo/Tests/ObjcXCTestTests+Extra.m",
-            "@interface ObjcXCTestTests (ExtraTests)\n- (void)testExample;\n@end",
             json!([container(
                 "ObjcXCTestTests(ExtraTests)",
-                11,
+                SymbolKind::INTERFACE,
                 (0, 2),
                 vec![method("-testExample", 1)]
             )]),
@@ -601,40 +603,60 @@ mod tests {
         );
     }
 
+    // The run reports the subclass, but only the base class declares the method. The
+    // reported file is what codeowners resolve from, so the test belongs to the concrete
+    // suite that chose to run it, not to whoever owns the base class.
     #[test]
-    fn a_top_level_test_is_found_without_a_suite() {
-        let index = indexed(
-            "/repo/Tests/TopLevel.swift",
-            "@Test func failingSnapshot() {}",
-            json!([method("failingSnapshot()", 0)]),
-        );
-        assert!(index.lookup(&key(None, "failingSnapshot")).is_some());
-    }
-
-    // The run reports the subclass, but only the base class file declares the method.
-    #[test]
-    fn a_test_inherited_from_a_base_class_resolves_to_the_base_class_file() {
+    fn an_inherited_test_resolves_to_the_concrete_suites_file() {
         let mut index = indexed(
             "/repo/Tests/BaseTests.swift",
-            "class BaseTests: XCTestCase {\n    func testInherited() {}\n}",
             json!([container(
                 "BaseTests",
-                5,
+                SymbolKind::CLASS,
                 (0, 2),
                 vec![method("testInherited()", 1)]
             )]),
         );
         index.collect(
-            &symbols(json!([container("SubclassTests", 5, (0, 0), vec![])])),
+            &symbols(json!([container(
+                "SubclassTests",
+                SymbolKind::CLASS,
+                (0, 0),
+                vec![]
+            )])),
             Path::new("/repo/Tests/SubclassTests.swift"),
-            "final class SubclassTests: BaseTests {}",
             None,
         );
         assert_eq!(
             index
                 .lookup(&key(Some("SubclassTests"), "testInherited"))
                 .map(|site| site.file.as_str().to_owned()),
-            Some(String::from("/repo/Tests/BaseTests.swift"))
+            Some(String::from("/repo/Tests/SubclassTests.swift"))
+        );
+    }
+
+    // Resolution stops when nothing is left to find, so if the suite fallback counted as
+    // an answer the scan would end at the first file naming the suite and never read the
+    // one declaring the method. The two lookups have to disagree here.
+    #[test]
+    fn the_suite_fallback_does_not_count_as_a_resolved_declaration() {
+        let index = indexed(
+            SWIFT_FILE,
+            json!([container(
+                "SnapshotReproTests",
+                SymbolKind::CLASS,
+                (0, 2),
+                vec![]
+            )]),
+        );
+        let key = key(Some("SnapshotReproTests"), "testExample");
+        assert!(
+            index.method_declaration(&key).is_none(),
+            "the method is declared nowhere yet, so there is still work to do"
+        );
+        assert!(
+            index.lookup(&key).is_some(),
+            "but the suite is known, so a file can still be reported for it"
         );
     }
 
@@ -642,10 +664,9 @@ mod tests {
     fn an_unrelated_suite_does_not_borrow_another_suites_case() {
         let index = indexed(
             SWIFT_FILE,
-            "final class SnapshotReproTests: XCTestCase {\n    func testExample() {}\n}",
             json!([container(
                 "SnapshotReproTests",
-                5,
+                SymbolKind::CLASS,
                 (0, 2),
                 vec![method("testExample()", 1)]
             )]),
@@ -655,31 +676,6 @@ mod tests {
                 .lookup(&key(Some("OtherTests"), "testExample"))
                 .is_none()
         );
-    }
-
-    // A cycle would otherwise be walked forever; `typealias`ed bases produce one.
-    #[test]
-    fn a_cyclic_superclass_chain_terminates() {
-        let mut index = TestLocationIndex::default();
-        index
-            .supertypes
-            .insert(String::from("A"), String::from("B"));
-        index
-            .supertypes
-            .insert(String::from("B"), String::from("A"));
-        assert!(index.lookup(&key(Some("A"), "testExample")).is_none());
-    }
-
-    #[rstest]
-    #[case::swift("final class SubclassTests: BaseTests {", Some("BaseTests"))]
-    #[case::objc("@interface SubclassTests : BaseTests", Some("BaseTests"))]
-    #[case::no_inheritance_clause("struct PlainTests {", None)]
-    fn a_declaration_head_yields_its_supertype(#[case] text: &str, #[case] expected: Option<&str>) {
-        let range = Range {
-            start: Position { line: 0 },
-            end: Position { line: 0 },
-        };
-        assert_eq!(superclass(text, &range).as_deref(), expected);
     }
 
     #[test]

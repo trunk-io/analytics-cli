@@ -2,8 +2,9 @@
 """Assert that a captured .xcresult exhibits the *structure* it was captured for.
 
 The sibling `verify-failure-summaries.py` covers scenarios whose shape is a failure
-raised somewhere other than the test. Neither a suite nested in a suite nor a test
-that simply passed is visible in a failure summary at all.
+raised somewhere other than the test. What these scenarios are captured for is the
+result tree itself — a suite nested in a suite, a test that simply passed, or which
+suite ran a test it does not declare — and no failure summary describes any of that.
 
     ./verify-test-structure.py <scenario> <bundle.xcresult>
 """
@@ -22,6 +23,20 @@ SCENARIOS = {
             "topLevelPasses()",
         ],
         "failing": ["OuterSuite/InnerSuite/innerFails()"],
+    },
+    # The same method has to arrive twice, under both suites, or there is no inherited
+    # test to attribute and the fixture proves nothing.
+    "inherited-test": {
+        "passing": [],
+        "failing": [
+            "BaseTests/testInheritedFails()",
+            "ConcreteTests/testInheritedFails()",
+        ],
+    },
+    # Declared in a category, so the run names a suite whose own file declares nothing.
+    "objc-category": {
+        "passing": [],
+        "failing": ["ObjcCategoryTests/testDeclaredInACategory"],
     },
 }
 
@@ -55,7 +70,7 @@ def main():
     by_identifier = {case.get("nodeIdentifier"): case for case in cases}
 
     failures = []
-    if expected["nested_suite"] not in suites:
+    if "nested_suite" in expected and expected["nested_suite"] not in suites:
         failures.append(
             f"expected a nested suite {expected['nested_suite']}, found {suites}"
         )
@@ -83,8 +98,9 @@ def main():
         sys.exit(1)
 
     print(
-        f"{scenario}: verified a nested suite and "
+        f"{scenario}: verified {len(expected['failing'])} failing and "
         f"{len(expected['passing'])} passing test(s)"
+        + (" plus a nested suite" if "nested_suite" in expected else "")
     )
 
 

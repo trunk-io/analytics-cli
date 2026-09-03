@@ -6,7 +6,7 @@ use std::{
     env,
     io::BufReader,
     path::Path,
-    time::{SystemTime, UNIX_EPOCH},
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
 use api::{client::ApiClient, message::CreateBundleUploadResponse};
@@ -139,6 +139,14 @@ pub fn gather_initial_test_context(
         use_experimental_failure_summary,
         #[cfg(target_os = "macos")]
         use_experimental_xcresult_test_locations,
+        #[cfg(target_os = "macos")]
+        xcresult_test_locations_max_files,
+        #[cfg(target_os = "macos")]
+        xcresult_test_locations_budget_secs,
+        #[cfg(target_os = "macos")]
+        xcresult_test_locations_request_timeout_secs,
+        #[cfg(target_os = "macos")]
+        xcresult_test_locations_retries,
         ..
     } = upload_args;
 
@@ -160,6 +168,12 @@ pub fn gather_initial_test_context(
         repo_root: &repo.repo_root,
         use_experimental_failure_summary,
         use_experimental_test_locations: use_experimental_xcresult_test_locations,
+        limits: Limits {
+            max_files: xcresult_test_locations_max_files,
+            budget: Duration::from_secs(xcresult_test_locations_budget_secs),
+            request_timeout: Duration::from_secs(xcresult_test_locations_request_timeout_secs),
+            retries: xcresult_test_locations_retries,
+        },
     };
 
     let (junit_path_wrappers, bep_result, junit_path_wrappers_temp_dir) =
@@ -636,6 +650,7 @@ struct XCResultOptions<'a> {
     repo_root: &'a str,
     use_experimental_failure_summary: bool,
     use_experimental_test_locations: bool,
+    limits: Limits,
 }
 
 fn coalesce_junit_path_wrappers(
@@ -884,7 +899,7 @@ fn handle_xcresult(
                 org_url_slug,
                 repo_full_name,
                 options.repo_root,
-                Limits::default(),
+                options.limits,
             )?
         } else {
             XCResult::new(
@@ -1077,6 +1092,7 @@ mod tests {
             repo_root: "test",
             use_experimental_failure_summary: false,
             use_experimental_test_locations: false,
+            limits: xcresult::test_locations::Limits::default(),
         };
         let result_err = coalesce_junit_path_wrappers(
             vec!["test".into()],
@@ -1123,6 +1139,7 @@ mod tests {
             repo_root: "test",
             use_experimental_failure_summary: false,
             use_experimental_test_locations: false,
+            limits: xcresult::test_locations::Limits::default(),
         };
         let result_ok = coalesce_junit_path_wrappers(
             Vec::new(),
