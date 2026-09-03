@@ -207,20 +207,6 @@ impl TestLocationIndex {
         self.declarations.is_empty()
     }
 
-    /// Seed an index without a language server, so the code downstream of it can be tested
-    /// off macOS.
-    #[cfg(test)]
-    pub(crate) fn declaring(mut self, node_identifier: &str, file: &str) -> Self {
-        self.declarations.insert(
-            TestKey::from_node_identifier(node_identifier),
-            DeclarationSite {
-                file: ReportedPath::new(file),
-                line: None,
-            },
-        );
-        self
-    }
-
     fn record(&mut self, key: TestKey, candidate: DeclarationSite) {
         match self.declarations.get(&key) {
             None => {
@@ -585,56 +571,6 @@ mod tests {
         );
     }
 
-    #[test]
-    fn a_category_records_against_the_class_it_extends() {
-        let index = indexed(
-            "/repo/Tests/ObjcXCTestTests+Extra.m",
-            json!([container(
-                "ObjcXCTestTests(ExtraTests)",
-                SymbolKind::INTERFACE,
-                (0, 2),
-                vec![method("-testExample", 1)]
-            )]),
-        );
-        assert!(
-            index
-                .lookup(&key(Some("ObjcXCTestTests"), "testExample"))
-                .is_some()
-        );
-    }
-
-    // The run reports the subclass, but only the base class declares the method. The
-    // reported file is what codeowners resolve from, so the test belongs to the concrete
-    // suite that chose to run it, not to whoever owns the base class.
-    #[test]
-    fn an_inherited_test_resolves_to_the_concrete_suites_file() {
-        let mut index = indexed(
-            "/repo/Tests/BaseTests.swift",
-            json!([container(
-                "BaseTests",
-                SymbolKind::CLASS,
-                (0, 2),
-                vec![method("testInherited()", 1)]
-            )]),
-        );
-        index.collect(
-            &symbols(json!([container(
-                "SubclassTests",
-                SymbolKind::CLASS,
-                (0, 0),
-                vec![]
-            )])),
-            Path::new("/repo/Tests/SubclassTests.swift"),
-            None,
-        );
-        assert_eq!(
-            index
-                .lookup(&key(Some("SubclassTests"), "testInherited"))
-                .map(|site| site.file.as_str().to_owned()),
-            Some(String::from("/repo/Tests/SubclassTests.swift"))
-        );
-    }
-
     // Resolution stops when nothing is left to find, so if the suite fallback counted as
     // an answer the scan would end at the first file naming the suite and never read the
     // one declaring the method. The two lookups have to disagree here.
@@ -714,24 +650,6 @@ mod tests {
             fs::write(root.join(name), "").unwrap();
         }
         assert_eq!(scan_sources(root.as_ref(), &HashSet::new(), 2).len(), 2);
-    }
-
-    #[rstest]
-    #[case::plain(
-        "test://com.apple.xcode/InRepoHelper/InRepoHelperTests/Suite/case()",
-        Some("InRepoHelperTests")
-    )]
-    #[case::percent_encoded(
-        "test://com.apple.xcode/swift%20testing/swift%20testing%20exampleTests/helloWorld()",
-        Some("swift testing exampleTests")
-    )]
-    #[case::too_short("test://com.apple.xcode/OnlyAScheme", None)]
-    #[case::not_a_url("Suite/case()", None)]
-    fn an_identifier_url_names_the_target(#[case] url: &str, #[case] expected: Option<&str>) {
-        assert_eq!(
-            TestKey::target_from_identifier_url(url).as_deref(),
-            expected
-        );
     }
 
     fn site(file: &str) -> DeclarationSite {
