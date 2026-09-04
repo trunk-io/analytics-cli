@@ -789,9 +789,14 @@ async fn upload_bundle_without_canonical_test_collection_metadata_keeps_bundle_g
     assert_eq!(bundle_meta.bundle_upload_id_v2, "test-bundle-upload-id-v2");
 }
 
-#[tokio::test(flavor = "multi_thread")]
+// The declaration path is exercised end-to-end here too, so a bundle that uploads cleanly
+// today cannot start failing behind the flag without this noticing.
 #[cfg(target_os = "macos")]
-async fn upload_bundle_using_xcresult() {
+#[rstest::rstest]
+#[case::default_path(&[])]
+#[case::declaration_locations(&["--use-experimental-xcresult-test-locations=true"])]
+#[tokio::test(flavor = "multi_thread")]
+async fn upload_bundle_using_xcresult(#[case] extra_args: &[&str]) {
     let temp_dir = tempdir().unwrap();
     generate_mock_git_repo(&temp_dir);
     unpack_archive_to_dir(
@@ -803,6 +808,7 @@ async fn upload_bundle_using_xcresult() {
 
     let assert = CommandBuilder::upload(temp_dir.path(), state.host.clone())
         .xcresult_path("test1.xcresult")
+        .extra_args(extra_args)
         .command()
         .assert()
         .success()

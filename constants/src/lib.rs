@@ -57,6 +57,19 @@ pub const TRUNK_VALIDATION_REPORT_ENV: &str = "TRUNK_VALIDATION_REPORT";
 pub const TRUNK_SHOW_FAILURE_MESSAGES_ENV: &str = "TRUNK_SHOW_FAILURE_MESSAGES";
 pub const TRUNK_HIDE_TEST_COLLECTION_LINKS_ENV: &str = "TRUNK_HIDE_TEST_COLLECTION_LINKS";
 pub const TRUNK_DEBUG_ENV: &str = "TRUNK_DEBUG";
+pub const TRUNK_USE_EXPERIMENTAL_XCRESULT_TEST_LOCATIONS_ENV: &str =
+    "TRUNK_USE_EXPERIMENTAL_XCRESULT_TEST_LOCATIONS";
+// Tuning for the xcresult declaration path. The clang server answers roughly an order of
+// magnitude slower per file than the Swift one, so an Objective-C heavy repo may need the
+// budget and the file cap raised well above their defaults.
+pub const TRUNK_XCRESULT_TEST_LOCATIONS_MAX_FILES_ENV: &str =
+    "TRUNK_XCRESULT_TEST_LOCATIONS_MAX_FILES";
+pub const TRUNK_XCRESULT_TEST_LOCATIONS_BUDGET_SECS_ENV: &str =
+    "TRUNK_XCRESULT_TEST_LOCATIONS_BUDGET_SECS";
+pub const TRUNK_XCRESULT_TEST_LOCATIONS_REQUEST_TIMEOUT_SECS_ENV: &str =
+    "TRUNK_XCRESULT_TEST_LOCATIONS_REQUEST_TIMEOUT_SECS";
+pub const TRUNK_XCRESULT_TEST_LOCATIONS_RETRIES_ENV: &str = "TRUNK_XCRESULT_TEST_LOCATIONS_RETRIES";
+
 // RSpec-only: when set to "true", aborts the RSpec run if quarantine lookup fails.
 // Handled in rspec-trunk-flaky-tests/lib/trunk_spec_helper.rb, not the CLI.
 pub const TRUNK_QUARANTINE_QUERY_FAILURE_EXIT_ENV: &str = "TRUNK_QUARANTINE_QUERY_FAILURE_EXIT";
@@ -92,6 +105,7 @@ pub const TRUNK_ENVS_TO_CAPTURE: &[&str] = &[
     TRUNK_SHOW_FAILURE_MESSAGES_ENV,
     TRUNK_HIDE_TEST_COLLECTION_LINKS_ENV,
     TRUNK_DEBUG_ENV,
+    TRUNK_USE_EXPERIMENTAL_XCRESULT_TEST_LOCATIONS_ENV,
 ];
 
 pub const ENVS_TO_GET: &[&str] = &[

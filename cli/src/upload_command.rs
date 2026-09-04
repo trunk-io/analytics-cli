@@ -275,6 +275,61 @@ pub struct UploadArgs {
         hide = true
     )]
     pub use_experimental_failure_summary: bool,
+    #[cfg(target_os = "macos")]
+    #[arg(
+        long,
+        env = constants::TRUNK_USE_EXPERIMENTAL_XCRESULT_TEST_LOCATIONS_ENV,
+        help = "Flag to take an xcresult test's file from where a language server says it is declared, rather than from the failure that surfaced it. Reads the bundle with no legacy `xcresulttool get object` calls.",
+        action = ArgAction::Set,
+        required = false,
+        require_equals = true,
+        num_args = 0..=1,
+        default_value = "false",
+        default_missing_value = "true",
+        hide = true,
+        conflicts_with = "use_experimental_failure_summary"
+    )]
+    pub use_experimental_xcresult_test_locations: bool,
+    #[cfg(target_os = "macos")]
+    #[arg(
+        long,
+        env = constants::TRUNK_XCRESULT_TEST_LOCATIONS_MAX_FILES_ENV,
+        help = "Most source files to parse when resolving xcresult test declarations.",
+        required = false,
+        default_value_t = xcresult::test_locations::Limits::default().max_files,
+        hide = true
+    )]
+    pub xcresult_test_locations_max_files: usize,
+    #[cfg(target_os = "macos")]
+    #[arg(
+        long,
+        env = constants::TRUNK_XCRESULT_TEST_LOCATIONS_BUDGET_SECS_ENV,
+        help = "Seconds to spend per language server when resolving xcresult test declarations. The clang server answers far slower per file than the Swift one, so an Objective-C heavy repo wants this raised.",
+        required = false,
+        default_value_t = xcresult::test_locations::Limits::default().budget.as_secs(),
+        hide = true
+    )]
+    pub xcresult_test_locations_budget_secs: u64,
+    #[cfg(target_os = "macos")]
+    #[arg(
+        long,
+        env = constants::TRUNK_XCRESULT_TEST_LOCATIONS_REQUEST_TIMEOUT_SECS_ENV,
+        help = "Seconds to wait for a single language server reply before giving up on it.",
+        required = false,
+        default_value_t = xcresult::test_locations::Limits::default().request_timeout.as_secs(),
+        hide = true
+    )]
+    pub xcresult_test_locations_request_timeout_secs: u64,
+    #[cfg(target_os = "macos")]
+    #[arg(
+        long,
+        env = constants::TRUNK_XCRESULT_TEST_LOCATIONS_RETRIES_ENV,
+        help = "How many times to replace a language server that stops answering with a fresh one.",
+        required = false,
+        default_value_t = xcresult::test_locations::Limits::default().retries,
+        hide = true
+    )]
+    pub xcresult_test_locations_retries: usize,
     #[arg(
         long,
         env = constants::TRUNK_VALIDATION_REPORT_ENV,
