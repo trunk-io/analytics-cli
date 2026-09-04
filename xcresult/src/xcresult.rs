@@ -1,11 +1,10 @@
 use std::collections::HashMap;
 use std::str;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::{fs, path::Path, path::PathBuf, time::Duration};
+use std::{fs, path::Path, time::Duration};
 
 use chrono::{DateTime, Utc};
 use quick_junit::{NonSuccessKind, Report, TestCase, TestCaseStatus, TestRerun, TestSuite};
-use tempfile::TempDir;
 
 use crate::test_locations::{Limits, TestKey, TestLocationIndex};
 use crate::types::{
@@ -18,39 +17,18 @@ use crate::xcrun::{
     xcresulttool_get_test_results_tests,
 };
 
+// `xcresulttool` migrates a bundle that predates `database.sqlite3` in place the first time
+// it is read, so reading one writes into a directory we were only asked to read — and fails
+// where it is not writable. Every bundle Xcode writes today already carries the file and is
+// unaffected; copying every bundle to avoid the older case costs more than the case is worth.
+// `tests/bundle_reading.rs` pins both halves of that.
+
 /// Where a test's file comes from — where a failure surfaced, or where the test is
 /// declared — which also decides which `xcresulttool` calls the bundle is read with.
 #[derive(Debug)]
 pub enum FileAttribution {
     FailureSummaries(HashMap<String, XCResultTestLegacy>),
     Declarations(TestLocationIndex),
-}
-
-/// `xcresulttool` migrates an older bundle in place on first read, writing into a directory
-/// we were only asked to read and failing outright when it is not writable.
-fn copy_bundle(path: &Path) -> anyhow::Result<(TempDir, PathBuf)> {
-    fn copy_dir(from: &Path, to: &Path) -> std::io::Result<()> {
-        fs::create_dir_all(to)?;
-        for entry in fs::read_dir(from)? {
-            let entry = entry?;
-            let destination = to.join(entry.file_name());
-            if entry.file_type()?.is_dir() {
-                copy_dir(&entry.path(), &destination)?;
-            } else {
-                fs::copy(entry.path(), destination)?;
-            }
-        }
-        Ok(())
-    }
-
-    let temp_dir = TempDir::new()?;
-    let destination = temp_dir.path().join(
-        path.file_name()
-            .unwrap_or_else(|| std::ffi::OsStr::new("bundle.xcresult")),
-    );
-    copy_dir(path, &destination)
-        .map_err(|e| anyhow::anyhow!("failed to copy {} for reading: {}", path.display(), e))?;
-    Ok((temp_dir, destination))
 }
 
 /// Makes it visible how many tests the checkout could not account for.
@@ -68,7 +46,6 @@ pub struct XCResult {
     attribution: FileAttribution,
     test_run_started_at: Option<DateTime<Utc>>,
     counts: AttributionCounts,
-    _bundle_copy: TempDir,
 }
 
 impl XCResult {
@@ -85,7 +62,6 @@ impl XCResult {
                 e
             )
         })?;
-        let (bundle_copy, absolute_path) = copy_bundle(&absolute_path)?;
 
         // Call xcresulttool_get_object once and use it for both timestamp extraction and legacy tests
         let actions_invocation_record = xcresulttool_get_object(&absolute_path);
@@ -151,7 +127,6 @@ impl XCResult {
             repo_full_name,
             test_run_started_at,
             counts: AttributionCounts::default(),
-            _bundle_copy: bundle_copy,
         })
     }
 
@@ -173,7 +148,6 @@ impl XCResult {
                 e
             )
         })?;
-        let (bundle_copy, absolute_path) = copy_bundle(&absolute_path)?;
         let tests = xcresulttool_get_test_results_tests(&absolute_path)?;
 
         let test_run_started_at = match xcresulttool_get_test_results_summary(&absolute_path) {
@@ -205,7 +179,6 @@ impl XCResult {
             repo_full_name,
             test_run_started_at,
             counts: AttributionCounts::default(),
-            _bundle_copy: bundle_copy,
         })
     }
 

@@ -159,3 +159,47 @@ pub fn assert_the_declaration_flag_moves_only_the_file(
         );
     }
 }
+
+/// Every path under `dir`, relative to it, sorted — so two listings can be compared to
+/// prove a read left the directory alone.
+pub fn entries(dir: &Path) -> Vec<String> {
+    let mut found = Vec::new();
+    let mut stack = vec![dir.to_path_buf()];
+    while let Some(current) = stack.pop() {
+        for entry in std::fs::read_dir(&current).unwrap() {
+            let path = entry.unwrap().path();
+            found.push(path.strip_prefix(dir).unwrap().display().to_string());
+            if path.is_dir() {
+                stack.push(path);
+            }
+        }
+    }
+    found.sort();
+    found
+}
+
+/// Make `dir` and everything under it writable or not, for proving a read does not need
+/// write access — CI hands out artifact mounts that do not have it.
+pub fn set_writable(dir: &Path, writable: bool) {
+    let mut stack = vec![dir.to_path_buf()];
+    let mut all = vec![dir.to_path_buf()];
+    while let Some(current) = stack.pop() {
+        for entry in std::fs::read_dir(&current).unwrap() {
+            let path = entry.unwrap().path();
+            if path.is_dir() {
+                stack.push(path.clone());
+            }
+            all.push(path);
+        }
+    }
+    // Directories have to come last on the way down and first on the way back up.
+    all.sort();
+    if !writable {
+        all.reverse();
+    }
+    for path in all {
+        let mode = if writable { 0o755 } else { 0o555 };
+        std::fs::set_permissions(&path, std::os::unix::fs::PermissionsExt::from_mode(mode))
+            .unwrap();
+    }
+}
