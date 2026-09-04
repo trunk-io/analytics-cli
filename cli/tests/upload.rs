@@ -2918,3 +2918,109 @@ async fn test_user_supplied_repo_params_precede_github_actions_env_vars() {
     // HINT: View CLI output with `cargo test -- --nocapture`
     println!("{assert}");
 }
+
+// `swift test --xunit-output` reports no file for any test, so the uploaded JUnit only gets
+// one if a language server found where each test is declared in the checkout.
+#[cfg(any(target_os = "macos", target_os = "linux"))]
+#[tokio::test(flavor = "multi_thread")]
+async fn upload_bundle_using_swift_test_xunit() {
+    let temp_dir = tempdir().unwrap();
+    generate_mock_git_repo(&temp_dir);
+
+    let tests_dir = temp_dir.path().join("Tests/MyCLITests");
+    fs::create_dir_all(&tests_dir).unwrap();
+    fs::write(
+        temp_dir.path().join("Package.swift"),
+        "// swift-tools-version: 6.0\n",
+    )
+    .unwrap();
+    fs::write(
+        tests_dir.join("TopLevel.swift"),
+        "import Testing\n\n@Test func helloworld() {}\n",
+    )
+    .unwrap();
+    fs::write(
+        tests_dir.join("Suites.swift"),
+        "import Testing\n\n@Suite struct AlphaSuite {\n    @Test func shared() {}\n}\n",
+    )
+    .unwrap();
+    fs::write(
+        tests_dir.join("Legacy.swift"),
+        "import XCTest\n\nfinal class LegacyXCTests: XCTestCase {\n    func testOldStyle() {}\n}\n",
+    )
+    .unwrap();
+    fs::write(
+        temp_dir.path().join("xunit-swift-testing.xml"),
+        concat!(
+            r#"<?xml version="1.0" encoding="UTF-8"?>"#,
+            r#"<testsuites><testsuite name="TestResults" errors="0" tests="2" failures="0">"#,
+            r#"<testcase classname="MyCLITests" name="helloworld()" time="0.001" />"#,
+            r#"<testcase classname="MyCLITests.AlphaSuite" name="shared()" time="0.001" />"#,
+            r#"</testsuite></testsuites>"#,
+        ),
+    )
+    .unwrap();
+    fs::write(
+        temp_dir.path().join("xunit.xml"),
+        concat!(
+            r#"<?xml version="1.0" encoding="UTF-8"?>"#,
+            r#"<testsuites><testsuite name="TestResults" errors="0" tests="1" failures="0">"#,
+            r#"<testcase classname="MyCLITests.LegacyXCTests" name="testOldStyle" time="0.001" />"#,
+            r#"</testsuite></testsuites>"#,
+        ),
+    )
+    .unwrap();
+
+    let state = MockServerBuilder::new().spawn_mock_server().await;
+    CommandBuilder::upload(temp_dir.path(), state.host.clone())
+        .extra_args(&[
+            "--swift-test-xunit-paths",
+            "xunit-swift-testing.xml,xunit.xml",
+        ])
+        .command()
+        .assert()
+        .success();
+
+    let requests = state.requests.lock().unwrap().clone();
+    let tar_extract_directory = assert_matches!(&requests[1], RequestPayload::S3Upload(d) => d);
+    let bundle_meta: BundleMeta =
+        serde_json::from_reader(fs::File::open(tar_extract_directory.join("meta.json")).unwrap())
+            .unwrap();
+
+    let mut files = std::collections::HashMap::new();
+    for file_set in &bundle_meta.base_props.file_sets {
+        for file in &file_set.files {
+            let mut parser = JunitParser::new();
+            let junit = fs::File::open(tar_extract_directory.join(&file.path)).unwrap();
+            parser.parse(BufReader::new(junit)).unwrap();
+            for report in parser.into_reports() {
+                for suite in &report.test_suites {
+                    for case in &suite.test_cases {
+                        let file = case
+                            .extra
+                            .iter()
+                            .find(|(key, _)| key.as_str() == "file")
+                            .map(|(_, value)| value.as_str().to_owned());
+                        files.insert(case.name.as_str().to_owned(), file);
+                    }
+                }
+            }
+        }
+    }
+
+    for (name, expected) in [
+        ("helloworld()", "Tests/MyCLITests/TopLevel.swift"),
+        ("shared()", "Tests/MyCLITests/Suites.swift"),
+        ("testOldStyle", "Tests/MyCLITests/Legacy.swift"),
+    ] {
+        let file = files
+            .get(name)
+            .unwrap_or_else(|| panic!("{name} is missing from the bundle"))
+            .as_deref()
+            .unwrap_or_else(|| panic!("{name} got no file from its declaration"));
+        assert!(
+            file.ends_with(expected),
+            "expected {name} in {expected}, got {file}"
+        );
+    }
+}
