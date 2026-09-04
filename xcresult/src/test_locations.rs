@@ -12,7 +12,7 @@ use std::{
 use ignore::{WalkBuilder, types::TypesBuilder};
 use lsp_types::{DocumentSymbol, SymbolKind};
 
-use crate::{file_attribution::ReportedPath, lsp::LanguageServer, xcrun::xcrun_find};
+use crate::{file_attribution::ReportedPath, lsp::LanguageServer, xcrun::find_program};
 
 /// Kinds that can declare a test.
 const METHOD_KINDS: [SymbolKind; 3] = [
@@ -292,7 +292,7 @@ impl Resolver {
         if files.is_empty() || self.unresolved.is_empty() {
             return;
         }
-        let Some(program) = xcrun_find(kind.program) else {
+        let Some(program) = find_program(kind.program) else {
             tracing::warn!(
                 "{} not found; {} source file(s) left unparsed",
                 kind.program,
