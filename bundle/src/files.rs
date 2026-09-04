@@ -1,4 +1,5 @@
 use std::{
+    collections::{HashMap, HashSet},
     fmt::Debug,
     format,
     path::{Path, PathBuf},
@@ -83,51 +84,108 @@ impl FileSetBuilder {
         codeowners: Option<CodeOwners>,
         exec_start: Option<SystemTime>,
     ) -> anyhow::Result<Self> {
-        junit_paths.iter().try_fold(
-            Self {
-                codeowners,
-                ..Self::default()
-            },
-            |mut acc, junit_wrapper| -> anyhow::Result<Self> {
-                let files = Self::scan_from_glob(&junit_wrapper.junit_path, repo_root)?;
-                let codeowners = &acc.codeowners;
-                let (count, bundled_files) = files.iter().try_fold(
-                    (acc.count, Vec::new()),
-                    |mut acc, file| -> anyhow::Result<(usize, Vec<BundledFile>)> {
-                        if let Some(bundled_file) = BundledFile::from_path(
-                            file.as_path(),
-                            acc.0,
-                            repo_root,
-                            &junit_wrapper.junit_path,
-                            codeowners,
-                            exec_start,
-                        )? {
-                            acc.0 += 1;
-                            acc.1.push(bundled_file);
-                        }
-                        Ok(acc)
-                    },
-                )?;
-                let file_set_type = bundled_files
-                    .iter()
-                    .find_map(|file| {
-                        if file.original_path.ends_with(".bin") {
-                            Some(FileSetType::Internal)
-                        } else {
-                            None
+        let routes = Self::discover_routes(repo_root, junit_paths)?;
+
+        let mut claimed: Vec<Vec<&Route>> = vec![Vec::new(); junit_paths.len()];
+        for route in routes.values() {
+            claimed[route.glob_index].push(route);
+        }
+
+        let mut builder = Self {
+            codeowners,
+            ..Self::default()
+        };
+
+        for (glob_index, junit_wrapper) in junit_paths.iter().enumerate() {
+            let mut group = std::mem::take(&mut claimed[glob_index]);
+            group.sort_by(|left, right| left.path.cmp(&right.path));
+
+            let mut bundled_files = Vec::with_capacity(group.len());
+            for route in group {
+                if let Some(bundled_file) = BundledFile::from_path(
+                    route.path.as_path(),
+                    builder.count,
+                    repo_root,
+                    &junit_wrapper.junit_path,
+                    &builder.codeowners,
+                    exec_start,
+                )? {
+                    builder.count += 1;
+                    bundled_files.push(bundled_file);
+                }
+            }
+
+            let file_set_type = bundled_files
+                .iter()
+                .find_map(|file| {
+                    if file.original_path.ends_with(".bin") {
+                        Some(FileSetType::Internal)
+                    } else {
+                        None
+                    }
+                })
+                .unwrap_or(FileSetType::Junit);
+            builder.file_sets.push(FileSet::new(
+                file_set_type,
+                bundled_files,
+                junit_wrapper.junit_path.clone(),
+                junit_wrapper.test_runner_report.clone(),
+            ));
+        }
+
+        Ok(builder)
+    }
+
+    /// Expands every glob and reduces the matches to one [`Route`] per physical
+    /// file, so a file reachable by several globs -- or by several paths through
+    /// symlinked directories -- is bundled exactly once.
+    fn discover_routes(
+        repo_root: &str,
+        junit_paths: &[JunitReportFileWithTestRunnerReport],
+    ) -> anyhow::Result<HashMap<FileId, Route>> {
+        let mut symlink_cache = HashMap::new();
+        let mut routes: HashMap<FileId, Route> = HashMap::new();
+
+        for (glob_index, junit_wrapper) in junit_paths.iter().enumerate() {
+            let matches = Self::scan_from_glob(&junit_wrapper.junit_path, repo_root)?;
+            let matched = matches.len();
+
+            let mut distinct = HashSet::new();
+            for path in matches {
+                let symlink_depth = symlink_depth(&path, &mut symlink_cache);
+                let id = file_id(&path);
+                distinct.insert(id.clone());
+                routes
+                    .entry(id)
+                    .and_modify(|route| {
+                        // A more direct route replaces the path we report, but never
+                        // reassigns ownership: the first glob to match still owns the
+                        // file, so the file set a caller listed first keeps it.
+                        if (symlink_depth, &path) < (route.symlink_depth, &route.path) {
+                            route.symlink_depth = symlink_depth;
+                            route.path = path.clone();
                         }
                     })
-                    .unwrap_or(FileSetType::Junit);
-                acc.count = count;
-                acc.file_sets.push(FileSet::new(
-                    file_set_type,
-                    bundled_files,
-                    junit_wrapper.junit_path.clone(),
-                    junit_wrapper.test_runner_report.clone(),
-                ));
-                Ok(acc)
-            },
-        )
+                    .or_insert_with(|| Route {
+                        path,
+                        symlink_depth,
+                        glob_index,
+                    });
+            }
+
+            if distinct.len() < matched {
+                tracing::warn!(
+                    "glob {:?} matched {} paths resolving to {} distinct files; \
+                     {} duplicate routes through symlinked directories were dropped",
+                    junit_wrapper.junit_path,
+                    matched,
+                    distinct.len(),
+                    matched - distinct.len(),
+                );
+            }
+        }
+
+        Ok(routes)
     }
 
     pub fn count(&self) -> usize {
@@ -167,6 +225,56 @@ impl FileSetBuilder {
 
         Ok(paths)
     }
+}
+
+/// Identity of a file on disk, independent of the path used to reach it.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+enum FileId {
+    /// `(dev, ino)`, which also collapses hardlinks to a single entry.
+    #[cfg(unix)]
+    Inode(u64, u64),
+    /// Resolved path. Used off unix, where `std`'s `file_index()` is still
+    /// unstable, and for any file we could not stat.
+    Path(PathBuf),
+}
+
+/// One physical file, plus the route by which it was collected.
+struct Route {
+    path: PathBuf,
+    symlink_depth: usize,
+    glob_index: usize,
+}
+
+fn file_id(path: &Path) -> FileId {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+
+        // `metadata` follows symlinks and, unlike `same_file::Handle`, retains no
+        // descriptor -- a set of handles over a large glob exhausts `RLIMIT_NOFILE`.
+        if let Ok(metadata) = std::fs::metadata(path) {
+            return FileId::Inode(metadata.dev(), metadata.ino());
+        }
+    }
+    // Paths we cannot resolve stay distinct from one another, so an unreadable
+    // file is still bundled rather than silently deduped away.
+    FileId::Path(std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf()))
+}
+
+/// How many components of `path` are themselves symlinks. Routes that cross fewer
+/// symlinks are preferred, which resolves a workspace that links its packages into
+/// each other's `node_modules` back to the package's own directory.
+fn symlink_depth(path: &Path, cache: &mut HashMap<PathBuf, bool>) -> usize {
+    path.ancestors()
+        .filter(|ancestor| !ancestor.as_os_str().is_empty())
+        .filter(|ancestor| {
+            *cache.entry(ancestor.to_path_buf()).or_insert_with(|| {
+                std::fs::symlink_metadata(ancestor)
+                    .map(|metadata| metadata.file_type().is_symlink())
+                    .unwrap_or(false)
+            })
+        })
+        .count()
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -393,5 +501,201 @@ impl BundledFile {
         self.original_path_rel
             .as_ref()
             .unwrap_or(&self.original_path)
+    }
+}
+
+#[cfg(all(test, unix))]
+mod tests {
+    use std::{fs, os::unix::fs as unix_fs, path::Path};
+
+    use context::junit::junit_path::JunitReportFileWithTestRunnerReport;
+    use tempfile::TempDir;
+
+    use super::*;
+
+    /// A workspace whose packages link each other into their own `node_modules`,
+    /// the layout that turns one report per package into one report per route
+    /// through the dependency graph.
+    fn linked_workspace(packages: &[(&str, &[&str])]) -> TempDir {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path().join("libs/workbench");
+
+        for (package, _) in packages {
+            let artifacts = root.join(package).join("tmp/ci-artifacts");
+            fs::create_dir_all(&artifacts).unwrap();
+            fs::write(
+                artifacts.join("junit.xml"),
+                format!("<testsuite name=\"{package}\"/>"),
+            )
+            .unwrap();
+        }
+
+        for (package, dependencies) in packages {
+            let node_modules = root.join(package).join("node_modules/@scope");
+            fs::create_dir_all(&node_modules).unwrap();
+            for dependency in *dependencies {
+                unix_fs::symlink(root.join(dependency), node_modules.join(dependency)).unwrap();
+            }
+        }
+
+        temp
+    }
+
+    fn build(repo_root: &Path, globs: &[&str]) -> FileSetBuilder {
+        let junit_paths: Vec<JunitReportFileWithTestRunnerReport> = globs
+            .iter()
+            .map(|glob| JunitReportFileWithTestRunnerReport::from((*glob).to_string()))
+            .collect();
+
+        FileSetBuilder::build_file_sets(
+            repo_root.to_string_lossy(),
+            &junit_paths,
+            &None::<PathBuf>,
+            None,
+            None,
+        )
+        .unwrap()
+    }
+
+    fn collected(builder: &FileSetBuilder) -> Vec<String> {
+        let mut paths: Vec<String> = builder
+            .file_sets()
+            .iter()
+            .flat_map(|file_set| &file_set.files)
+            .map(|file| file.original_path_rel.clone().unwrap())
+            .collect();
+        paths.sort();
+        paths
+    }
+
+    #[test]
+    fn collapses_routes_through_symlinked_node_modules() {
+        let workspace = linked_workspace(&[
+            ("tools", &[]),
+            ("tokens", &["tools"]),
+            ("scss", &["tokens", "tools"]),
+            ("core", &["scss", "tokens", "tools"]),
+            ("icons", &["core", "scss", "tokens", "tools"]),
+        ]);
+
+        let builder = build(
+            workspace.path(),
+            &["libs/workbench/**/tmp/ci-artifacts/*.xml"],
+        );
+
+        // One report per package, not one per route to it.
+        assert_eq!(builder.count(), 5);
+        assert_eq!(
+            collected(&builder),
+            vec![
+                "libs/workbench/core/tmp/ci-artifacts/junit.xml",
+                "libs/workbench/icons/tmp/ci-artifacts/junit.xml",
+                "libs/workbench/scss/tmp/ci-artifacts/junit.xml",
+                "libs/workbench/tokens/tmp/ci-artifacts/junit.xml",
+                "libs/workbench/tools/tmp/ci-artifacts/junit.xml",
+            ],
+        );
+    }
+
+    #[test]
+    fn reports_the_route_crossing_fewest_symlinks() {
+        let workspace = linked_workspace(&[("tools", &[]), ("tokens", &["tools"])]);
+
+        let builder = build(
+            workspace.path(),
+            &["libs/workbench/**/tmp/ci-artifacts/*.xml"],
+        );
+
+        // `tools` is reachable directly and via `tokens/node_modules/@scope/tools`;
+        // the direct route is the one recorded.
+        assert!(
+            collected(&builder).contains(&"libs/workbench/tools/tmp/ci-artifacts/junit.xml".into()),
+        );
+        assert_eq!(builder.count(), 2);
+    }
+
+    #[test]
+    fn overlapping_globs_do_not_double_count() {
+        let workspace = linked_workspace(&[("tools", &[]), ("tokens", &["tools"])]);
+
+        let builder = build(
+            workspace.path(),
+            &[
+                "libs/workbench/**/tmp/ci-artifacts/*.xml",
+                "libs/workbench/*/tmp/ci-artifacts/junit.xml",
+            ],
+        );
+
+        assert_eq!(builder.count(), 2);
+        assert_eq!(collected(&builder).len(), 2);
+    }
+
+    #[test]
+    fn first_glob_to_match_owns_the_file() {
+        let workspace = linked_workspace(&[("tools", &[]), ("tokens", &[])]);
+
+        let builder = build(
+            workspace.path(),
+            &[
+                "libs/workbench/tools/tmp/ci-artifacts/*.xml",
+                "libs/workbench/**/tmp/ci-artifacts/*.xml",
+            ],
+        );
+
+        let file_sets = builder.file_sets();
+        assert_eq!(file_sets.len(), 2);
+        // The narrow glob was listed first, so it keeps `tools`; the broad glob is
+        // left with only what the narrow one did not claim.
+        assert_eq!(
+            file_sets[0]
+                .files
+                .iter()
+                .map(|file| file.original_path_rel.clone().unwrap())
+                .collect::<Vec<_>>(),
+            vec!["libs/workbench/tools/tmp/ci-artifacts/junit.xml"],
+        );
+        assert_eq!(
+            file_sets[1]
+                .files
+                .iter()
+                .map(|file| file.original_path_rel.clone().unwrap())
+                .collect::<Vec<_>>(),
+            vec!["libs/workbench/tokens/tmp/ci-artifacts/junit.xml"],
+        );
+    }
+
+    #[test]
+    fn collects_a_file_reachable_only_through_a_symlink() {
+        let temp = tempfile::tempdir().unwrap();
+        let real = temp.path().join("elsewhere/ci-artifacts");
+        fs::create_dir_all(&real).unwrap();
+        fs::write(real.join("junit.xml"), "<testsuite name=\"linked\"/>").unwrap();
+
+        // A single symlink hop that is a literal component of the glob, not part of `**`.
+        fs::create_dir_all(temp.path().join("libs")).unwrap();
+        unix_fs::symlink(&real, temp.path().join("libs/artifacts-link")).unwrap();
+
+        let builder = build(temp.path(), &["libs/artifacts-link/*.xml"]);
+
+        // The symlinked route is the only route, so it is kept and reported as-is.
+        assert_eq!(builder.count(), 1);
+        assert_eq!(collected(&builder), vec!["libs/artifacts-link/junit.xml"],);
+    }
+
+    #[test]
+    fn hardlinks_collapse_to_one_file() {
+        let temp = tempfile::tempdir().unwrap();
+        let artifacts = temp.path().join("libs/pkg/tmp/ci-artifacts");
+        fs::create_dir_all(&artifacts).unwrap();
+        fs::write(artifacts.join("junit.xml"), "<testsuite name=\"pkg\"/>").unwrap();
+        fs::hard_link(artifacts.join("junit.xml"), artifacts.join("copy.xml")).unwrap();
+
+        let builder = build(temp.path(), &["libs/**/tmp/ci-artifacts/*.xml"]);
+
+        assert_eq!(builder.count(), 1);
+        assert_eq!(
+            collected(&builder),
+            vec!["libs/pkg/tmp/ci-artifacts/copy.xml"],
+        );
     }
 }
