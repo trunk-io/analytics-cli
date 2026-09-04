@@ -97,7 +97,12 @@ pub fn assert_the_declaration_flag_moves_only_the_file(
     bundle: &str,
     repo_root: Option<&str>,
 ) {
-    fn shape(xcresult: &xcresult::xcresult::XCResult) -> Vec<String> {
+    /// Everything the flag must not change: which suites and cases exist, their ids,
+    /// statuses and timestamps. Returned field-wise so the guard below can look at the id
+    /// and timestamp themselves rather than at their rendering.
+    fn shape(
+        xcresult: &xcresult::xcresult::XCResult,
+    ) -> Vec<(String, String, String, String, String)> {
         let mut junits = xcresult.generate_junits();
         assert_eq!(junits.len(), 1);
         let junit = junits.pop().unwrap();
@@ -110,12 +115,11 @@ pub fn assert_the_declaration_flag_moves_only_the_file(
                     .find(|(key, _)| key.as_str() == "id")
                     .map(|(_, value)| value.as_str().to_owned())
                     .unwrap_or_default();
-                rows.push(format!(
-                    "{} | {} | {} | {:?} | {}",
-                    test_suite.name.as_str(),
-                    test_case.name.as_str(),
+                rows.push((
+                    test_suite.name.as_str().to_owned(),
+                    test_case.name.as_str().to_owned(),
                     id,
-                    test_case.status,
+                    format!("{:?}", test_case.status),
                     test_case
                         .timestamp
                         .map(|timestamp| timestamp.to_string())
@@ -153,6 +157,16 @@ pub fn assert_the_declaration_flag_moves_only_the_file(
 
     let expected = shape(&default);
     assert!(!expected.is_empty(), "the bundle must have test cases");
+    // Without this the comparison passes vacuously: two paths that both emit an empty id
+    // or timestamp are equal. `nodeIdentifierURL` going missing would silently re-identify
+    // every xcresult test case in the product, and a `startTime` read against the wrong
+    // epoch would land every timestamp three decades off — both are quiet failures.
+    assert!(
+        expected
+            .iter()
+            .all(|(_, _, id, _, timestamp)| !id.is_empty() && !timestamp.is_empty()),
+        "the bundle must carry an id and a timestamp on every case for this to prove anything"
+    );
     pretty_assertions::assert_eq!(shape(&declarations), expected);
 
     for file in declaration_files(&bundle_path, root).values() {
