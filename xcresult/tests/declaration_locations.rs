@@ -8,34 +8,19 @@
 mod common;
 
 use common::{
-    ORG_URL_SLUG, REPO_FULL_NAME, assert_junit, assert_the_declaration_flag_moves_only_the_file,
-    declaration_files, declaration_report, unpack_archive_to_temp_dir,
+    assert_junit, assert_the_declaration_flag_moves_only_the_file, declaration_files,
+    declaration_report, unpack_archive_to_temp_dir,
 };
 use lazy_static::lazy_static;
 use rstest::rstest;
 use temp_testdir::TempDir;
-use xcresult::test_locations::{Limits, TestKey};
-use xcresult::xcresult::XCResult;
+use xcresult::test_locations::TestKey;
 
 lazy_static! {
-    static ref TEMP_DIR_TEST_DEPENDENCY_RAISES_FAILURE: TempDir =
-        unpack_archive_to_temp_dir("tests/data/test-dependency-raises-failure.xcresult.tar.gz");
-    static ref TEMP_DIR_TEST_IN_REPO_HELPER_RAISES_FAILURE: TempDir =
-        unpack_archive_to_temp_dir("tests/data/test-in-repo-helper-raises-failure.xcresult.tar.gz");
-    static ref TEMP_DIR_TEST_CRASH_IN_DEPENDENCY: TempDir =
-        unpack_archive_to_temp_dir("tests/data/test-crash-in-dependency.xcresult.tar.gz");
-    static ref TEMP_DIR_TEST_OBJC_XCTEST: TempDir =
-        unpack_archive_to_temp_dir("tests/data/test-objc-xctest.xcresult.tar.gz");
-    static ref TEMP_DIR_TEST_TOPLEVEL_SWIFT_TESTING: TempDir =
-        unpack_archive_to_temp_dir("tests/data/test-toplevel-swift-testing.xcresult.tar.gz");
     static ref TEMP_DIR_TEST_NESTED_AND_PASSING: TempDir =
         unpack_archive_to_temp_dir("tests/data/test-nested-and-passing.xcresult.tar.gz");
-    static ref TEMP_DIR_TEST_TIMESTAMP: TempDir =
-        unpack_archive_to_temp_dir("tests/data/test-timestamp.xcresult.tar.gz");
     static ref TEMP_DIR_TEST_INHERITED_TEST: TempDir =
         unpack_archive_to_temp_dir("tests/data/test-inherited-test.xcresult.tar.gz");
-    static ref TEMP_DIR_TEST_OBJC_CATEGORY: TempDir =
-        unpack_archive_to_temp_dir("tests/data/test-objc-category.xcresult.tar.gz");
 }
 
 // XCTest runs a base class's `test*` method again under every concrete subclass, so the
@@ -88,27 +73,6 @@ fn test_an_inherited_test_is_attributed_to_the_suite_that_ran_it() {
     }
 }
 
-// A category's `documentSymbol` container is `ObjcCategoryTests(Extra)`, and the class's
-// own file declares no tests at all — so if that name is not read back as the class it
-// extends, the declaration is never matched and the file falls to the class's file.
-#[cfg(target_os = "macos")]
-#[test]
-fn test_declaration_locations_resolve_a_test_declared_in_an_objc_category() {
-    let files = common::declaration_files(
-        TEMP_DIR_TEST_OBJC_CATEGORY
-            .as_ref()
-            .join("ObjcCategory.xcresult"),
-        "tests/fixture-src/objc-category",
-    );
-    let file = files
-        .get("testDeclaredInACategory")
-        .unwrap_or_else(|| panic!("the test is missing from the report (found {files:?})"));
-    assert!(
-        file.ends_with("ObjcCategoryTests+Extra.m"),
-        "expected the category's file, got {file}"
-    );
-}
-
 #[rstest]
 #[case::plain(
     "test://com.apple.xcode/InRepoHelper/InRepoHelperTests/Suite/case()",
@@ -125,6 +89,75 @@ fn an_identifier_url_names_the_target(#[case] url: &str, #[case] expected: Optio
         TestKey::target_from_identifier_url(url).as_deref(),
         expected
     );
+}
+
+// Every one of these bundles names some other file in its failure summary — a vendored
+// checkout, an in-repo helper, or nothing at all — so each case is a shape where the
+// declaration is the only source that can name the file the test is written in.
+#[cfg(target_os = "macos")]
+#[rstest]
+#[case::vendored_dependency(
+    "tests/data/test-dependency-raises-failure.xcresult.tar.gz",
+    "DependencyRaisesFailure.xcresult",
+    "tests/fixture-src/dependency-raises-failure",
+    &[("failsInsideDependency()", "DependencyRaisesFailureTests.swift")]
+)]
+#[case::in_repo_helper(
+    "tests/data/test-in-repo-helper-raises-failure.xcresult.tar.gz",
+    "InRepoHelperRaisesFailure.xcresult",
+    "tests/fixture-src/in-repo-helper-raises-failure",
+    &[("failsInsideHelper()", "InRepoHelperRaisesFailureTests.swift")]
+)]
+// Neither test reaches its own frame, so no failure summary can serve either of them:
+// one crashes inside the dependency, the other is failed by a trait after its frame is
+// gone. `data/test-crash-in-dependency.junit.xml` reports no file for both.
+#[case::crashed_and_torn_down(
+    "tests/data/test-crash-in-dependency.xcresult.tar.gz",
+    "CrashInDependency.xcresult",
+    "tests/fixture-src/crash-in-dependency",
+    &[
+        ("testCrashesInsideDependency()", "CrashInDependencyTests.swift"),
+        ("failsAfterItsOwnFrameIsGone()", "TeardownFailureTests.swift"),
+    ]
+)]
+#[case::objc_through_clangd(
+    "tests/data/test-objc-xctest.xcresult.tar.gz",
+    "ObjcXCTest.xcresult",
+    "tests/fixture-src/objc-xctest",
+    &[("testFailsInsideSharedHelper", "ObjcXCTestTests.m")]
+)]
+#[case::top_level_swift_testing_function(
+    "tests/data/test-toplevel-swift-testing.xcresult.tar.gz",
+    "ToplevelSwiftTesting.xcresult",
+    "tests/fixture-src/toplevel-swift-testing",
+    &[("failsInsideHelperWithoutASuite()", "ToplevelSwiftTestingTests.swift")]
+)]
+// A category's `documentSymbol` container is `ObjcCategoryTests(Extra)`, and the class's
+// own file declares no tests at all — so unless that name is read back as the class it
+// extends, the declaration is never matched and the file falls to the class's file.
+#[case::declared_in_an_objc_category(
+    "tests/data/test-objc-category.xcresult.tar.gz",
+    "ObjcCategory.xcresult",
+    "tests/fixture-src/objc-category",
+    &[("testDeclaredInACategory", "ObjcCategoryTests+Extra.m")]
+)]
+fn test_a_declaration_names_the_file_the_test_is_written_in(
+    #[case] archive: &str,
+    #[case] bundle: &str,
+    #[case] repo_root: &str,
+    #[case] expected: &[(&str, &str)],
+) {
+    let temp_dir = unpack_archive_to_temp_dir(archive);
+    let files = declaration_files(temp_dir.as_ref().join(bundle), repo_root);
+    for (name, suffix) in expected {
+        let file = files
+            .get(*name)
+            .unwrap_or_else(|| panic!("{name} is missing from the report (found {files:?})"));
+        assert!(
+            file.ends_with(suffix),
+            "expected {name} to resolve to {suffix}, got {file}"
+        );
+    }
 }
 
 // A checkout that declares none of the tests. Where a failure surfaced is not where the
@@ -161,187 +194,6 @@ fn test_a_test_with_no_declaration_in_the_checkout_gets_no_file() {
             test_case.name.as_str()
         );
     }
-}
-
-// Every file this bundle's failure summary offers is under `SourcePackages/checkouts/`.
-#[cfg(target_os = "macos")]
-#[test]
-fn test_declaration_locations_prefer_the_tests_own_file_over_a_vendored_dependency() {
-    let files = declaration_files(
-        TEMP_DIR_TEST_DEPENDENCY_RAISES_FAILURE
-            .as_ref()
-            .join("DependencyRaisesFailure.xcresult"),
-        "tests/fixture-src/dependency-raises-failure",
-    );
-    let file = files
-        .get("failsInsideDependency()")
-        .expect("the fixture's only test");
-    assert!(
-        file.ends_with("DependencyRaisesFailureTests.swift"),
-        "expected the test's own file, got {file}"
-    );
-}
-
-#[cfg(target_os = "macos")]
-#[test]
-fn test_declaration_locations_prefer_the_tests_own_file_over_an_in_repo_helper() {
-    let files = declaration_files(
-        TEMP_DIR_TEST_IN_REPO_HELPER_RAISES_FAILURE
-            .as_ref()
-            .join("InRepoHelperRaisesFailure.xcresult"),
-        "tests/fixture-src/in-repo-helper-raises-failure",
-    );
-    let file = files
-        .get("failsInsideHelper()")
-        .expect("the fixture's only test");
-    assert!(
-        file.ends_with("InRepoHelperRaisesFailureTests.swift"),
-        "expected the test's own file, got {file}"
-    );
-}
-
-// The case no failure summary can serve: one test crashes inside a dependency with zero
-// call-stack frames, the other is failed by a trait after its own frame is gone, so both
-// failure-summary paths report no file — `data/test-crash-in-dependency.junit.xml` has none.
-#[cfg(target_os = "macos")]
-#[test]
-fn test_declaration_locations_give_a_crashed_test_its_file() {
-    let files = declaration_files(
-        TEMP_DIR_TEST_CRASH_IN_DEPENDENCY
-            .as_ref()
-            .join("CrashInDependency.xcresult"),
-        "tests/fixture-src/crash-in-dependency",
-    );
-    for (name, expected) in [
-        (
-            "testCrashesInsideDependency()",
-            "CrashInDependencyTests.swift",
-        ),
-        (
-            "failsAfterItsOwnFrameIsGone()",
-            "TeardownFailureTests.swift",
-        ),
-    ] {
-        let file = files
-            .get(name)
-            .unwrap_or_else(|| panic!("{name} is missing from the report"));
-        assert!(
-            file.ends_with(expected),
-            "expected {name} to resolve to {expected}, got {file}"
-        );
-    }
-}
-
-#[cfg(target_os = "macos")]
-#[test]
-fn test_declaration_locations_resolve_an_objc_test_through_clangd() {
-    let files = declaration_files(
-        TEMP_DIR_TEST_OBJC_XCTEST
-            .as_ref()
-            .join("ObjcXCTest.xcresult"),
-        "tests/fixture-src/objc-xctest",
-    );
-    let file = files
-        .get("testFailsInsideSharedHelper")
-        .expect("the fixture's only test");
-    assert!(
-        file.ends_with("ObjcXCTestTests.m"),
-        "expected the test's own file, got {file}"
-    );
-}
-
-#[cfg(target_os = "macos")]
-#[test]
-fn test_declaration_locations_find_a_top_level_swift_testing_function() {
-    let files = declaration_files(
-        TEMP_DIR_TEST_TOPLEVEL_SWIFT_TESTING
-            .as_ref()
-            .join("ToplevelSwiftTesting.xcresult"),
-        "tests/fixture-src/toplevel-swift-testing",
-    );
-    let file = files
-        .get("failsInsideHelperWithoutASuite()")
-        .expect("the fixture's only test");
-    assert!(
-        file.ends_with("ToplevelSwiftTestingTests.swift"),
-        "expected the test's own file, got {file}"
-    );
-}
-
-// Two things the declaration path reads that only a real bundle can confirm, both of which
-// fail silently rather than loudly if the assumption is wrong.
-//
-// `nodeIdentifierURL` is meant to be the legacy record's `identifierURL` under another name,
-// and ids are derived from it — if it is absent from the modern API, ids fall back to
-// `nodeIdentifier` and every xcresult test case in the product gets a new identity.
-// `get test-results summary`'s `startTime` is read as seconds since the Unix epoch; if it is
-// an Apple reference-date offset instead, every timestamp lands three decades off.
-//
-// Both are checked as equivalence against the path already in production, on a bundle whose
-// repo root is empty so no language server runs and nothing else can move.
-#[cfg(target_os = "macos")]
-#[test]
-fn test_declaration_locations_keep_ids_and_timestamps_identical_to_the_legacy_path() {
-    fn ids_and_timestamps(xcresult: &XCResult) -> Vec<(String, String, String)> {
-        let mut junits = xcresult.generate_junits();
-        assert_eq!(junits.len(), 1);
-        junits
-            .pop()
-            .unwrap()
-            .test_suites
-            .iter()
-            .flat_map(|test_suite| test_suite.test_cases.iter())
-            .map(|test_case| {
-                let id = test_case
-                    .extra
-                    .iter()
-                    .find(|(key, _)| key.as_str() == "id")
-                    .map(|(_, value)| value.as_str().to_owned())
-                    .unwrap_or_default();
-                (
-                    test_case.name.as_str().to_owned(),
-                    id,
-                    test_case
-                        .timestamp
-                        .map(|timestamp| timestamp.to_string())
-                        .unwrap_or_default(),
-                )
-            })
-            .collect()
-    }
-
-    let path = TEMP_DIR_TEST_TIMESTAMP.as_ref().join("test1.xcresult");
-    let path_str = path.to_str().unwrap();
-    let empty_checkout = TempDir::default();
-
-    let legacy = XCResult::new(
-        path_str,
-        ORG_URL_SLUG.clone(),
-        REPO_FULL_NAME.clone(),
-        false,
-    )
-    .unwrap();
-    let declarations = XCResult::new_with_declaration_locations(
-        path_str,
-        ORG_URL_SLUG.clone(),
-        REPO_FULL_NAME.clone(),
-        empty_checkout.as_ref(),
-        Limits::default(),
-    )
-    .unwrap();
-
-    let expected = ids_and_timestamps(&legacy);
-    assert!(
-        !expected.is_empty(),
-        "the fixture must have test cases for this to prove anything"
-    );
-    assert!(
-        expected
-            .iter()
-            .all(|(_, id, timestamp)| !id.is_empty() && !timestamp.is_empty()),
-        "the fixture must carry ids and timestamps on the legacy path"
-    );
-    pretty_assertions::assert_eq!(ids_and_timestamps(&declarations), expected);
 }
 
 // Before the fix this bundle emitted tests="2" failures="0" — the inner suite's two tests
@@ -467,6 +319,7 @@ fn test_declaration_locations_give_a_passing_test_its_file() {
     "NestedAndPassing.xcresult",
     Some("tests/fixture-src/nested-and-passing")
 )]
+#[case::timestamps("tests/data/test-timestamp.xcresult.tar.gz", "test1.xcresult", None)]
 #[case::inherited_test(
     "tests/data/test-inherited-test.xcresult.tar.gz",
     "InheritedTest.xcresult",
