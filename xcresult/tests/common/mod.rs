@@ -1,8 +1,13 @@
 //! Harness shared by the integration test binaries in this directory.
 //!
+//! This module is compiled into each of them separately, so anything one binary does not
+//! call is dead code from that binary's point of view — hence the blanket allow.
+//!
 //! Each file under `tests/` is its own crate, so anything two of them need lives here
 //! rather than being written twice. `tests/common/mod.rs` is a module rather than
 //! `tests/common.rs`, which cargo would build and run as a third test binary.
+
+#![allow(dead_code)]
 
 use std::{fs::File, path::Path};
 
@@ -202,4 +207,30 @@ pub fn set_writable(dir: &Path, writable: bool) {
         std::fs::set_permissions(&path, std::os::unix::fs::PermissionsExt::from_mode(mode))
             .unwrap();
     }
+}
+
+// available: only the experimental path reads the per-test failure summary, and so
+// the call stack, so it is the only one that can produce a `FileSource::TestFrame`.
+// The legacy path sees `FileSource::DocumentLocation` alone.
+#[cfg(target_os = "macos")]
+pub fn assert_junit<T: AsRef<Path>>(
+    bundle_path: T,
+    use_experimental_failure_summary: bool,
+    expected_junit_xml: &str,
+) {
+    let path_str = bundle_path.as_ref().to_str().unwrap();
+    let xcresult = XCResult::new(
+        path_str,
+        ORG_URL_SLUG.clone(),
+        REPO_FULL_NAME.clone(),
+        use_experimental_failure_summary,
+    );
+    assert!(xcresult.is_ok());
+
+    let mut junits = xcresult.unwrap().generate_junits();
+    assert_eq!(junits.len(), 1);
+    let junit = junits.pop().unwrap();
+    let mut junit_writer: Vec<u8> = Vec::new();
+    junit.serialize(&mut junit_writer).unwrap();
+    pretty_assertions::assert_eq!(String::from_utf8(junit_writer).unwrap(), expected_junit_xml);
 }
