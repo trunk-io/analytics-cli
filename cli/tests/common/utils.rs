@@ -209,3 +209,57 @@ pub fn write_junit_xml_to_dir<T: AsRef<Path>>(xml: &str, directory: T) {
     let mut file = fs::File::create(path).unwrap();
     file.write_all(xml.as_bytes()).unwrap();
 }
+
+/// The number of test cases `generate_mock_linked_workspace` writes per package.
+#[cfg(unix)]
+pub const LINKED_WORKSPACE_CASES_PER_PACKAGE: usize = 2;
+
+/// Builds a workspace whose packages are symlinked into each other's dependency
+/// directories, the layout that makes one report per package reachable by one path
+/// per route through the dependency graph. Returns the package names.
+///
+/// Each package holds its own report under `test-results/`, so a glob such as
+/// `packages/**/test-results/*.xml` reaches every package through every dependency
+/// edge as well as directly.
+#[cfg(unix)]
+pub fn generate_mock_linked_workspace<T: AsRef<Path>>(directory: T) -> Vec<&'static str> {
+    use std::os::unix::fs as unix_fs;
+
+    // A dependency graph dense enough that the route count clearly exceeds the file
+    // count, without depending on any particular package manager's layout.
+    const PACKAGES: &[(&str, &[&str])] = &[
+        ("utils", &[]),
+        ("logger", &["utils"]),
+        ("config", &["logger", "utils"]),
+        ("ui", &["config", "logger", "utils"]),
+        ("app", &["ui", "config", "logger", "utils"]),
+    ];
+
+    let root = directory.as_ref().join("packages");
+
+    for (package, _) in PACKAGES {
+        let artifacts = root.join(package).join("test-results");
+        fs::create_dir_all(&artifacts).unwrap();
+        let xml = format!(
+            r#"<?xml version="1.0" encoding="UTF-8"?>
+<testsuites name="vitest tests" tests="2" failures="0" errors="0" time="0.2">
+    <testsuite name="{package}" tests="2" failures="0" errors="0" skipped="0" time="0.2">
+        <testcase classname="src/{package}.test.ts" name="{package} &gt; renders" time="0.1"></testcase>
+        <testcase classname="src/{package}.test.ts" name="{package} &gt; matches snapshot" time="0.1"></testcase>
+    </testsuite>
+</testsuites>
+"#
+        );
+        fs::write(artifacts.join("junit.xml"), xml).unwrap();
+    }
+
+    for (package, dependencies) in PACKAGES {
+        let node_modules = root.join(package).join("node_modules/@example");
+        fs::create_dir_all(&node_modules).unwrap();
+        for dependency in *dependencies {
+            unix_fs::symlink(root.join(dependency), node_modules.join(dependency)).unwrap();
+        }
+    }
+
+    PACKAGES.iter().map(|(package, _)| *package).collect()
+}

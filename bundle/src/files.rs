@@ -1,4 +1,5 @@
 use std::{
+    collections::HashSet,
     fmt::Debug,
     format,
     path::{Path, PathBuf},
@@ -22,6 +23,41 @@ use serde::{Deserialize, Serialize};
 use tsify_next::Tsify;
 #[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::*;
+
+/// A repo root and the file paths resolved against it, kept canonical so that both
+/// sides of a `starts_with` or `strip_prefix` share a prefix.
+#[derive(Debug, Clone)]
+struct RepoRoot(PathBuf);
+
+impl RepoRoot {
+    fn canonical<T: AsRef<str>>(repo_root: T) -> Self {
+        let repo_root = repo_root.as_ref();
+        Self(std::fs::canonicalize(repo_root).unwrap_or_else(|_| PathBuf::from(repo_root)))
+    }
+
+    fn as_str(&self) -> std::borrow::Cow<'_, str> {
+        self.0.to_string_lossy()
+    }
+
+    fn canonicalize<T: AsRef<Path>>(&self, path: T) -> PathBuf {
+        let path = path.as_ref();
+        std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf())
+    }
+
+    fn path(&self) -> &Path {
+        &self.0
+    }
+
+    fn contains<T: AsRef<Path>>(&self, path: T) -> bool {
+        path.as_ref().starts_with(&self.0)
+    }
+
+    /// The first path lying within the repo, so a file linked in from outside keeps
+    /// the route that reached it and stays repo-relative.
+    fn within_or(&self, path: PathBuf, fallback: PathBuf) -> PathBuf {
+        if self.contains(&path) { path } else { fallback }
+    }
+}
 
 #[derive(Debug, Default, Clone)]
 pub struct FileSetBuilder {
@@ -83,51 +119,119 @@ impl FileSetBuilder {
         codeowners: Option<CodeOwners>,
         exec_start: Option<SystemTime>,
     ) -> anyhow::Result<Self> {
-        junit_paths.iter().try_fold(
-            Self {
-                codeowners,
-                ..Self::default()
-            },
-            |mut acc, junit_wrapper| -> anyhow::Result<Self> {
-                let files = Self::scan_from_glob(&junit_wrapper.junit_path, repo_root)?;
-                let codeowners = &acc.codeowners;
-                let (count, bundled_files) = files.iter().try_fold(
-                    (acc.count, Vec::new()),
-                    |mut acc, file| -> anyhow::Result<(usize, Vec<BundledFile>)> {
-                        if let Some(bundled_file) = BundledFile::from_path(
-                            file.as_path(),
-                            acc.0,
-                            repo_root,
-                            &junit_wrapper.junit_path,
-                            codeowners,
-                            exec_start,
-                        )? {
-                            acc.0 += 1;
-                            acc.1.push(bundled_file);
-                        }
-                        Ok(acc)
-                    },
+        let repo_root = RepoRoot::canonical(repo_root);
+        let files_per_glob = Self::collect_files_per_glob(&repo_root, junit_paths)?;
+
+        let (count, file_sets) = junit_paths.iter().zip(files_per_glob).try_fold(
+            (0, Vec::with_capacity(junit_paths.len())),
+            |(index, mut file_sets), (junit_wrapper, paths)| -> anyhow::Result<_> {
+                let (index, files) = Self::bundle_files(
+                    &paths,
+                    index,
+                    &repo_root,
+                    junit_wrapper,
+                    &codeowners,
+                    exec_start,
                 )?;
-                let file_set_type = bundled_files
-                    .iter()
-                    .find_map(|file| {
-                        if file.original_path.ends_with(".bin") {
-                            Some(FileSetType::Internal)
-                        } else {
-                            None
-                        }
-                    })
-                    .unwrap_or(FileSetType::Junit);
-                acc.count = count;
-                acc.file_sets.push(FileSet::new(
-                    file_set_type,
-                    bundled_files,
+                file_sets.push(FileSet::new(
+                    Self::file_set_type(&files),
+                    files,
                     junit_wrapper.junit_path.clone(),
                     junit_wrapper.test_runner_report.clone(),
                 ));
-                Ok(acc)
+                Ok((index, file_sets))
+            },
+        )?;
+
+        Ok(Self {
+            count,
+            file_sets,
+            codeowners,
+        })
+    }
+
+    /// Expands every glob and returns the files each one owns, keyed by canonical
+    /// path so a file is bundled once no matter how many globs reach it or how many
+    /// routes through symlinked directories lead to it. A glob whose every match was
+    /// already claimed owns nothing, which keeps its (now empty) file set in place.
+    fn collect_files_per_glob(
+        repo_root: &RepoRoot,
+        junit_paths: &[JunitReportFileWithTestRunnerReport],
+    ) -> anyhow::Result<Vec<Vec<PathBuf>>> {
+        let mut claimed: HashSet<PathBuf> = HashSet::new();
+
+        junit_paths
+            .iter()
+            .map(|junit_wrapper| {
+                let matches = Self::scan_from_glob(&junit_wrapper.junit_path, repo_root.as_str())?;
+                let matched = matches.len();
+
+                let mut owned: Vec<PathBuf> = matches
+                    .into_iter()
+                    .filter_map(|path| {
+                        let canonical = repo_root.canonicalize(&path);
+                        if !claimed.insert(canonical.clone()) {
+                            return None;
+                        }
+                        Some(repo_root.within_or(canonical, path))
+                    })
+                    .collect();
+                owned.sort();
+
+                if owned.len() < matched {
+                    tracing::warn!(
+                        "glob {:?} matched {} paths resolving to {} files not already \
+                         collected; {} duplicate routes were dropped",
+                        junit_wrapper.junit_path,
+                        matched,
+                        owned.len(),
+                        matched - owned.len(),
+                    );
+                }
+
+                Ok(owned)
+            })
+            .collect()
+    }
+
+    fn bundle_files(
+        paths: &[PathBuf],
+        start_index: usize,
+        repo_root: &RepoRoot,
+        junit_wrapper: &JunitReportFileWithTestRunnerReport,
+        codeowners: &Option<CodeOwners>,
+        exec_start: Option<SystemTime>,
+    ) -> anyhow::Result<(usize, Vec<BundledFile>)> {
+        paths.iter().try_fold(
+            (start_index, Vec::with_capacity(paths.len())),
+            |(mut index, mut files), path| -> anyhow::Result<_> {
+                if let Some(bundled_file) = BundledFile::from_path(
+                    path.as_path(),
+                    index,
+                    repo_root.path(),
+                    &junit_wrapper.junit_path,
+                    codeowners,
+                    exec_start,
+                )? {
+                    index += 1;
+                    files.push(bundled_file);
+                }
+                Ok((index, files))
             },
         )
+    }
+
+    fn file_set_type(files: &[BundledFile]) -> FileSetType {
+        files
+            .iter()
+            .find_map(|file| {
+                if file.original_path.ends_with(".bin") {
+                    Some(FileSetType::Internal)
+                } else {
+                    None
+                }
+            })
+            .unwrap_or(FileSetType::Junit)
     }
 
     pub fn count(&self) -> usize {
