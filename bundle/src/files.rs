@@ -24,6 +24,41 @@ use tsify_next::Tsify;
 #[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::*;
 
+/// A repo root and the file paths resolved against it, kept canonical so that both
+/// sides of a `starts_with` or `strip_prefix` share a prefix.
+#[derive(Debug, Clone)]
+struct RepoRoot(PathBuf);
+
+impl RepoRoot {
+    fn canonical<T: AsRef<str>>(repo_root: T) -> Self {
+        let repo_root = repo_root.as_ref();
+        Self(std::fs::canonicalize(repo_root).unwrap_or_else(|_| PathBuf::from(repo_root)))
+    }
+
+    fn as_str(&self) -> std::borrow::Cow<'_, str> {
+        self.0.to_string_lossy()
+    }
+
+    fn canonicalize<T: AsRef<Path>>(&self, path: T) -> PathBuf {
+        let path = path.as_ref();
+        std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf())
+    }
+
+    fn path(&self) -> &Path {
+        &self.0
+    }
+
+    fn contains<T: AsRef<Path>>(&self, path: T) -> bool {
+        path.as_ref().starts_with(&self.0)
+    }
+
+    /// The first path lying within the repo, so a file linked in from outside keeps
+    /// the route that reached it and stays repo-relative.
+    fn within_or(&self, path: PathBuf, fallback: PathBuf) -> PathBuf {
+        if self.contains(&path) { path } else { fallback }
+    }
+}
+
 #[derive(Debug, Default, Clone)]
 pub struct FileSetBuilder {
     count: usize,
@@ -84,15 +119,8 @@ impl FileSetBuilder {
         codeowners: Option<CodeOwners>,
         exec_start: Option<SystemTime>,
     ) -> anyhow::Result<Self> {
-        // Reported paths are canonical, so the root they are made relative to must be
-        // canonical too -- otherwise `strip_prefix` misses (`/var` vs `/private/var`)
-        // and every path falls back to an absolute one that codeowners cannot match.
-        let canonical_repo_root =
-            std::fs::canonicalize(repo_root).unwrap_or_else(|_| PathBuf::from(repo_root));
-        let repo_root = canonical_repo_root.to_string_lossy();
-        let repo_root = repo_root.as_ref();
-
-        let files_per_glob = Self::collect_files_per_glob(repo_root, junit_paths)?;
+        let repo_root = RepoRoot::canonical(repo_root);
+        let files_per_glob = Self::collect_files_per_glob(&repo_root, junit_paths)?;
 
         let (count, file_sets) = junit_paths.iter().zip(files_per_glob).try_fold(
             (0, Vec::with_capacity(junit_paths.len())),
@@ -100,7 +128,7 @@ impl FileSetBuilder {
                 let (index, files) = Self::bundle_files(
                     &paths,
                     index,
-                    repo_root,
+                    &repo_root,
                     junit_wrapper,
                     &codeowners,
                     exec_start,
@@ -127,7 +155,7 @@ impl FileSetBuilder {
     /// routes through symlinked directories lead to it. A glob whose every match was
     /// already claimed owns nothing, which keeps its (now empty) file set in place.
     fn collect_files_per_glob(
-        repo_root: &str,
+        repo_root: &RepoRoot,
         junit_paths: &[JunitReportFileWithTestRunnerReport],
     ) -> anyhow::Result<Vec<Vec<PathBuf>>> {
         let mut claimed: HashSet<PathBuf> = HashSet::new();
@@ -135,27 +163,17 @@ impl FileSetBuilder {
         junit_paths
             .iter()
             .map(|junit_wrapper| {
-                let matches = Self::scan_from_glob(&junit_wrapper.junit_path, repo_root)?;
+                let matches = Self::scan_from_glob(&junit_wrapper.junit_path, repo_root.as_str())?;
                 let matched = matches.len();
 
                 let mut owned: Vec<PathBuf> = matches
                     .into_iter()
                     .filter_map(|path| {
-                        let canonical =
-                            std::fs::canonicalize(&path).unwrap_or_else(|_| path.clone());
+                        let canonical = repo_root.canonicalize(&path);
                         if !claimed.insert(canonical.clone()) {
                             return None;
                         }
-                        // Canonicalizing resolves a workspace's `node_modules` aliases
-                        // back to the package's own directory. It can also leave the
-                        // repo, when an artifacts directory is a symlink to somewhere
-                        // outside the tree; keep the globbed route there so the path we
-                        // report stays repo-relative for codeowners matching.
-                        Some(if canonical.starts_with(repo_root) {
-                            canonical
-                        } else {
-                            path
-                        })
+                        Some(repo_root.within_or(canonical, path))
                     })
                     .collect();
                 owned.sort();
@@ -179,7 +197,7 @@ impl FileSetBuilder {
     fn bundle_files(
         paths: &[PathBuf],
         start_index: usize,
-        repo_root: &str,
+        repo_root: &RepoRoot,
         junit_wrapper: &JunitReportFileWithTestRunnerReport,
         codeowners: &Option<CodeOwners>,
         exec_start: Option<SystemTime>,
@@ -190,7 +208,7 @@ impl FileSetBuilder {
                 if let Some(bundled_file) = BundledFile::from_path(
                     path.as_path(),
                     index,
-                    repo_root,
+                    repo_root.path(),
                     &junit_wrapper.junit_path,
                     codeowners,
                     exec_start,

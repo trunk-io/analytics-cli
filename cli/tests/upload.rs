@@ -2939,7 +2939,7 @@ async fn upload_bundle_collects_symlinked_reports_once() {
     let state = MockServerBuilder::new().spawn_mock_server().await;
 
     let assert = CommandBuilder::upload(temp_dir.path(), state.host.clone())
-        .junit_paths("libs/workbench/**/tmp/ci-artifacts/*.xml")
+        .junit_paths("packages/**/test-results/*.xml")
         .dry_run(true)
         .disable_quarantining(true)
         .command()
@@ -2971,7 +2971,7 @@ async fn upload_bundle_collects_symlinked_reports_once() {
     let expected: Vec<String> = {
         let mut paths: Vec<String> = packages
             .iter()
-            .map(|package| format!("libs/workbench/{package}/tmp/ci-artifacts/junit.xml"))
+            .map(|package| format!("packages/{package}/test-results/junit.xml"))
             .collect();
         paths.sort();
         paths
@@ -3011,9 +3011,7 @@ async fn upload_bundle_does_not_double_count_overlapping_globs() {
     let state = MockServerBuilder::new().spawn_mock_server().await;
 
     let assert = CommandBuilder::upload(temp_dir.path(), state.host.clone())
-        .junit_paths(
-            "libs/workbench/*/tmp/ci-artifacts/junit.xml,libs/workbench/**/tmp/ci-artifacts/*.xml",
-        )
+        .junit_paths("packages/*/test-results/junit.xml,packages/**/test-results/*.xml")
         .dry_run(true)
         .disable_quarantining(true)
         .command()
@@ -3048,16 +3046,16 @@ async fn upload_bundle_reports_the_real_location_of_a_symlinked_artifacts_dir() 
     let temp_dir = tempdir().unwrap();
     generate_mock_git_repo(&temp_dir);
 
-    let real = temp_dir.path().join("elsewhere/ci-artifacts");
+    let real = temp_dir.path().join("shared/test-results");
     fs::create_dir_all(&real).unwrap();
     write_junit_xml_to_dir(SINGLE_TEST_JUNIT_XML, &real);
-    fs::create_dir_all(temp_dir.path().join("libs")).unwrap();
-    unix_fs::symlink(&real, temp_dir.path().join("libs/artifacts-link")).unwrap();
+    fs::create_dir_all(temp_dir.path().join("packages/app")).unwrap();
+    unix_fs::symlink(&real, temp_dir.path().join("packages/app/reports-link")).unwrap();
 
     let state = MockServerBuilder::new().spawn_mock_server().await;
 
     let assert = CommandBuilder::upload(temp_dir.path(), state.host.clone())
-        .junit_paths("libs/artifacts-link/*.xml")
+        .junit_paths("packages/app/reports-link/*.xml")
         .dry_run(true)
         .disable_quarantining(true)
         .command()
@@ -3077,7 +3075,7 @@ async fn upload_bundle_reports_the_real_location_of_a_symlinked_artifacts_dir() 
     assert_eq!(files.len(), 1);
     assert_eq!(
         files[0].original_path_rel.as_deref(),
-        Some("elsewhere/ci-artifacts/junit-0.xml"),
+        Some("shared/test-results/junit-0.xml"),
     );
 
     // HINT: View CLI output with `cargo test -- --nocapture`
@@ -3093,19 +3091,23 @@ async fn upload_bundle_keeps_the_repo_relative_path_when_a_symlink_leaves_the_re
     use std::os::unix::fs as unix_fs;
 
     let outside = tempdir().unwrap();
-    let artifacts = outside.path().join("ci-artifacts");
+    let artifacts = outside.path().join("test-results");
     fs::create_dir_all(&artifacts).unwrap();
     write_junit_xml_to_dir(SINGLE_TEST_JUNIT_XML, &artifacts);
 
     let temp_dir = tempdir().unwrap();
     generate_mock_git_repo(&temp_dir);
-    fs::create_dir_all(temp_dir.path().join("libs")).unwrap();
-    unix_fs::symlink(&artifacts, temp_dir.path().join("libs/artifacts-link")).unwrap();
+    fs::create_dir_all(temp_dir.path().join("packages/app")).unwrap();
+    unix_fs::symlink(
+        &artifacts,
+        temp_dir.path().join("packages/app/reports-link"),
+    )
+    .unwrap();
 
     let state = MockServerBuilder::new().spawn_mock_server().await;
 
     let assert = CommandBuilder::upload(temp_dir.path(), state.host.clone())
-        .junit_paths("libs/artifacts-link/*.xml")
+        .junit_paths("packages/app/reports-link/*.xml")
         .dry_run(true)
         .disable_quarantining(true)
         .command()
@@ -3125,7 +3127,7 @@ async fn upload_bundle_keeps_the_repo_relative_path_when_a_symlink_leaves_the_re
     assert_eq!(files.len(), 1);
     assert_eq!(
         files[0].original_path_rel.as_deref(),
-        Some("libs/artifacts-link/junit-0.xml"),
+        Some("packages/app/reports-link/junit-0.xml"),
     );
 
     // HINT: View CLI output with `cargo test -- --nocapture`

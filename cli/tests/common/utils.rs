@@ -214,13 +214,13 @@ pub fn write_junit_xml_to_dir<T: AsRef<Path>>(xml: &str, directory: T) {
 #[cfg(unix)]
 pub const LINKED_WORKSPACE_CASES_PER_PACKAGE: usize = 2;
 
-/// Builds a JS-monorepo-shaped workspace whose packages are linked into each
-/// other's `node_modules`, the layout that makes one report per package reachable
-/// by one path per route through the dependency graph. Returns the package names.
+/// Builds a workspace whose packages are symlinked into each other's dependency
+/// directories, the layout that makes one report per package reachable by one path
+/// per route through the dependency graph. Returns the package names.
 ///
-/// Each package holds its own report under `tmp/ci-artifacts/`, so a glob such as
-/// `libs/workbench/**/tmp/ci-artifacts/*.xml` reaches every package through every
-/// dependency edge as well as directly.
+/// Each package holds its own report under `test-results/`, so a glob such as
+/// `packages/**/test-results/*.xml` reaches every package through every dependency
+/// edge as well as directly.
 #[cfg(unix)]
 pub fn generate_mock_linked_workspace<T: AsRef<Path>>(directory: T) -> Vec<&'static str> {
     use std::os::unix::fs as unix_fs;
@@ -228,17 +228,17 @@ pub fn generate_mock_linked_workspace<T: AsRef<Path>>(directory: T) -> Vec<&'sta
     // A dependency graph dense enough that the route count clearly exceeds the file
     // count, without depending on any particular package manager's layout.
     const PACKAGES: &[(&str, &[&str])] = &[
-        ("tools", &[]),
-        ("tokens", &["tools"]),
-        ("scss", &["tokens", "tools"]),
-        ("core", &["scss", "tokens", "tools"]),
-        ("icons", &["core", "scss", "tokens", "tools"]),
+        ("utils", &[]),
+        ("logger", &["utils"]),
+        ("config", &["logger", "utils"]),
+        ("ui", &["config", "logger", "utils"]),
+        ("app", &["ui", "config", "logger", "utils"]),
     ];
 
-    let root = directory.as_ref().join("libs/workbench");
+    let root = directory.as_ref().join("packages");
 
     for (package, _) in PACKAGES {
-        let artifacts = root.join(package).join("tmp/ci-artifacts");
+        let artifacts = root.join(package).join("test-results");
         fs::create_dir_all(&artifacts).unwrap();
         let xml = format!(
             r#"<?xml version="1.0" encoding="UTF-8"?>
@@ -254,7 +254,7 @@ pub fn generate_mock_linked_workspace<T: AsRef<Path>>(directory: T) -> Vec<&'sta
     }
 
     for (package, dependencies) in PACKAGES {
-        let node_modules = root.join(package).join("node_modules/@scope");
+        let node_modules = root.join(package).join("node_modules/@example");
         fs::create_dir_all(&node_modules).unwrap();
         for dependency in *dependencies {
             unix_fs::symlink(root.join(dependency), node_modules.join(dependency)).unwrap();
