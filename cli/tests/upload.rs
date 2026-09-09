@@ -114,6 +114,31 @@ async fn upload_bundle() {
     assert_eq!(requests.len(), 4);
     let mut requests_iter = requests.into_iter();
 
+    // createBundleUpload precedes the quarantine call: the ids it returns are what let
+    // the quarantine step address each failure it logs by GUID.
+    let upload_request = assert_matches!(requests_iter.next().unwrap(), RequestPayload::CreateBundleUpload(ur) => ur);
+    assert_eq!(
+        upload_request.repo,
+        Repo {
+            host: String::from("github.com"),
+            owner: String::from("trunk-io"),
+            name: String::from("analytics-cli"),
+        }
+    );
+    assert_eq!(upload_request.org_url_slug, "test-org");
+    assert!(
+        upload_request
+            .client_version
+            .starts_with("trunk-analytics-cli cargo=")
+    );
+    assert!(upload_request.client_version.contains(" git="));
+    assert!(upload_request.client_version.contains(" rustc="));
+    assert!(upload_request.external_id.is_some());
+    assert_eq!(
+        upload_request.test_collection_short_id,
+        Some(String::from("tc_123"))
+    );
+
     let quarantine_request = requests_iter.next().unwrap();
     let mut failure_count = 0;
     assert_matches!(quarantine_request, RequestPayload::GetQuarantineConfig(req) => {
@@ -142,29 +167,6 @@ async fn upload_bundle() {
             }
         }
     });
-
-    let upload_request = assert_matches!(requests_iter.next().unwrap(), RequestPayload::CreateBundleUpload(ur) => ur);
-    assert_eq!(
-        upload_request.repo,
-        Repo {
-            host: String::from("github.com"),
-            owner: String::from("trunk-io"),
-            name: String::from("analytics-cli"),
-        }
-    );
-    assert_eq!(upload_request.org_url_slug, "test-org");
-    assert!(
-        upload_request
-            .client_version
-            .starts_with("trunk-analytics-cli cargo=")
-    );
-    assert!(upload_request.client_version.contains(" git="));
-    assert!(upload_request.client_version.contains(" rustc="));
-    assert!(upload_request.external_id.is_some());
-    assert_eq!(
-        upload_request.test_collection_short_id,
-        Some(String::from("tc_123"))
-    );
 
     let tar_extract_directory =
         assert_matches!(requests_iter.next().unwrap(), RequestPayload::S3Upload(d) => d);
@@ -337,6 +339,32 @@ async fn upload_bundle_prints_test_collection_links() {
         ))
         .stderr(predicate::str::contains("/collections/tc_123/t/").not())
         .stderr(predicate::str::contains("?repo=trunk-io%2Fanalytics-cli").not());
+}
+
+// NOTE: must be multi threaded to start a mock server
+#[tokio::test(flavor = "multi_thread")]
+async fn upload_bundle_prints_guid_links_in_per_failure_logs() {
+    let temp_dir = tempdir().unwrap();
+    generate_mock_git_repo(&temp_dir);
+    generate_mock_valid_junit_xmls(&temp_dir);
+
+    let state = MockServerBuilder::new().spawn_mock_server().await;
+
+    // These lines are tracing, so they reach stdout only above info level -- the report table
+    // on stderr is what a default run shows.
+    let assert = CommandBuilder::upload(temp_dir.path(), state.host.clone())
+        .verbose(true)
+        .command()
+        .arg("--test-collection-id")
+        .arg("tc_123")
+        .assert()
+        .failure();
+
+    assert
+        .stdout(predicate::str::contains(
+            "/test-org/flaky-tests/collections/tc_123/tests/",
+        ))
+        .stdout(predicate::str::contains("/collections/tc_123/t/").not());
 }
 
 // NOTE: must be multi threaded to start a mock server
@@ -2019,12 +2047,12 @@ async fn test_variant_propagation() {
 
     assert_matches!(
         requests_iter.next().unwrap(),
-        RequestPayload::GetQuarantineConfig(_)
+        RequestPayload::CreateBundleUpload(_)
     );
 
     assert_matches!(
         requests_iter.next().unwrap(),
-        RequestPayload::CreateBundleUpload(_)
+        RequestPayload::GetQuarantineConfig(_)
     );
 
     let tar_extract_directory =

@@ -4,6 +4,7 @@ use std::path::PathBuf;
 use std::sync::mpsc::Sender;
 
 use api::client::{ApiClient, ApiErrorEndpoint};
+use api::message::CreateBundleUploadResponse;
 use api::urls::{TestCaseGuidScope, url_for_test_case, url_for_upload};
 use bundle::{BundleMeta, BundlerUtil, QuarantineResolutionMode, Test, unzip_tarball};
 use clap::{ArgAction, Args};
@@ -494,6 +495,33 @@ pub async fn run_upload(
         .or_else(|| test_run_result.as_ref().map(|r| r.exit_code));
     let disable_quarantining =
         upload_args.disable_quarantining || !upload_args.use_quarantining.unwrap_or(true);
+
+    // Ahead of the quarantine step so the failures it logs can be addressed by GUID. Its error
+    // is deliberately held until the upload below, where it has always surfaced -- failing here
+    // would skip quarantine resolution and change the exit code.
+    let upload_id_context = gather_upload_id_context(
+        &mut meta,
+        upload_args.test_collection_short_id.clone(),
+        &api_client,
+        upload_args.dry_run,
+    )
+    .await;
+    let guid_scope = upload_id_context.as_ref().ok().and_then(|upload| {
+        upload
+            .test_collection_id
+            .clone()
+            .zip(upload.repo_id.clone())
+            .map(|(test_collection_id, repo_id)| TestCaseGuidScope {
+                test_collection_id,
+                repo_id,
+            })
+    });
+    if guid_scope.is_none() && upload_args.test_collection_short_id.is_some() {
+        tracing::debug!(
+            "No test collection ids returned for this upload; test links will use the short-link form"
+        );
+    }
+
     let quarantine_context = match gather_exit_code_and_quarantined_tests_context(
         &mut meta,
         disable_quarantining,
@@ -505,6 +533,7 @@ pub async fn run_upload(
             .clone()
             .filter(|id| !id.is_empty()),
         upload_args.hide_test_collection_links,
+        guid_scope.as_ref(),
     )
     .await
     {
@@ -578,8 +607,8 @@ pub async fn run_upload(
     let upload_started_at = chrono::Utc::now();
     tracing::info!("Uploading test results...");
     let upload_bundle_result = upload_bundle(
-        &mut meta,
-        upload_args.test_collection_short_id.clone(),
+        &meta,
+        upload_id_context,
         &api_client,
         bep_result,
         quarantine_context.exit_code,
@@ -634,32 +663,21 @@ pub async fn run_upload(
     if upload_bundle_result.is_err() {
         tracing::error!("Failed to upload bundle");
     }
-    let (guid_scope, error_report) = match upload_bundle_result {
+    let error_report = match upload_bundle_result {
         Ok(uploaded) => {
             if upload_args.dry_run {
                 let curr_dir = env::current_dir()?;
                 let bundle_file = curr_dir.join(DRY_RUN_OUTPUT_DIR);
                 unzip_tarball(&uploaded.tarball, &bundle_file)?;
             }
-            (uploaded.guid_scope, None)
+            None
         }
-        Err(e) => (
-            None,
-            Some(ErrorReport::new(
-                e,
-                upload_args.org_url_slug.clone(),
-                Some(
-                    "There was an unexpected error that occurred while uploading test results"
-                        .into(),
-                ),
-            )),
-        ),
+        Err(e) => Some(ErrorReport::new(
+            e,
+            upload_args.org_url_slug.clone(),
+            Some("There was an unexpected error that occurred while uploading test results".into()),
+        )),
     };
-    if guid_scope.is_none() && upload_args.test_collection_short_id.is_some() {
-        tracing::debug!(
-            "No test collection ids returned for this upload; test links will use the short-link form"
-        );
-    }
     Ok(UploadRunResult {
         quarantine_context,
         error_report,
@@ -680,25 +698,16 @@ struct UploadedBundle {
     tarball: PathBuf,
     // directory is removed on drop
     _temp_dir: TempDir,
-    guid_scope: Option<TestCaseGuidScope>,
 }
 
 async fn upload_bundle(
-    meta: &mut BundleMeta,
-    requested_test_collection_short_id: Option<String>,
+    meta: &BundleMeta,
+    upload_result: anyhow::Result<CreateBundleUploadResponse>,
     api_client: &ApiClient,
     bep_result: Option<BepParseResult>,
     exit_code: i32,
     dry_run: bool,
 ) -> anyhow::Result<UploadedBundle> {
-    let upload_result = gather_upload_id_context(
-        meta,
-        requested_test_collection_short_id,
-        api_client,
-        dry_run,
-    )
-    .await;
-
     let (
         bundle_temp_file,
         // directory is removed on drop
@@ -711,7 +720,6 @@ async fn upload_bundle(
         return Ok(UploadedBundle {
             tarball: bundle_temp_file,
             _temp_dir: bundle_temp_dir,
-            guid_scope: None,
         });
     }
 
@@ -732,12 +740,6 @@ async fn upload_bundle(
             Ok(UploadedBundle {
                 tarball: bundle_temp_file,
                 _temp_dir: bundle_temp_dir,
-                guid_scope: upload.test_collection_id.zip(upload.repo_id).map(
-                    |(test_collection_id, repo_id)| TestCaseGuidScope {
-                        test_collection_id,
-                        repo_id,
-                    },
-                ),
             })
         }
         Err(e) => {

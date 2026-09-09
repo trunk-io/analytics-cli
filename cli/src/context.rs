@@ -9,7 +9,7 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-use api::{client::ApiClient, message::CreateBundleUploadResponse};
+use api::{client::ApiClient, message::CreateBundleUploadResponse, urls::TestCaseGuidScope};
 use bundle::{
     BundleMeta, BundleMetaBaseProps, BundleMetaDebugProps, BundleMetaJunitProps, BundledFile,
     FileSet, FileSetBuilder, FileSetType, INTERNAL_BIN_FILENAME, META_VERSION,
@@ -773,6 +773,7 @@ pub async fn gather_exit_code_and_quarantined_tests_context(
     default_exit_code: Option<i32>,
     test_collection_short_id: Option<String>,
     hide_test_collection_links: bool,
+    guid_scope: Option<&TestCaseGuidScope>,
 ) -> anyhow::Result<QuarantineContext> {
     // Run the quarantine step and update the exit code.
     let failed_tests_extractor = FailedTestsExtractor::new(
@@ -825,6 +826,7 @@ pub async fn gather_exit_code_and_quarantined_tests_context(
             default_exit_code,
             &meta.variant.clone().unwrap_or(String::from("")),
             hide_test_collection_links,
+            guid_scope,
         )
         .await?
     };

@@ -3,7 +3,11 @@ use std::{
     io::{BufReader, Read},
 };
 
-use api::{client::ApiClient, message::QuarantineResolutionMode, urls::url_for_test_case};
+use api::{
+    client::ApiClient,
+    message::QuarantineResolutionMode,
+    urls::{TestCaseGuidScope, url_for_test_case},
+};
 use bundle::{
     FileSet, FileSetBuilder, FileSetTestRunnerReport, FileSetType, QuarantineBulkTestStatus, Test,
 };
@@ -305,6 +309,7 @@ pub async fn gather_quarantine_context(
     test_run_exit_code: Option<i32>,
     variant: &String,
     hide_test_collection_links: bool,
+    guid_scope: Option<&TestCaseGuidScope>,
 ) -> anyhow::Result<QuarantineContext> {
     let failed_tests_extractor = failed_tests_extractor.unwrap_or_else(|| {
         FailedTestsExtractor::new(
@@ -419,6 +424,7 @@ pub async fn gather_quarantine_context(
                 request,
                 api_client,
                 hide_test_collection_links,
+                guid_scope,
             )
         });
     }
@@ -430,7 +436,13 @@ pub async fn gather_quarantine_context(
             pluralize("failure", quarantined_failures.len() as isize, false),
         );
         failures.iter().for_each(|failure| {
-            log_failure(failure, request, api_client, hide_test_collection_links)
+            log_failure(
+                failure,
+                request,
+                api_client,
+                hide_test_collection_links,
+                guid_scope,
+            )
         });
     }
     let quarantined_failure_count = quarantined_failures.len();
@@ -479,19 +491,20 @@ fn log_failure(
     request: &api::message::GetQuarantineConfigRequest,
     api_client: &ApiClient,
     hide_test_collection_links: bool,
+    guid_scope: Option<&TestCaseGuidScope>,
 ) {
     let test_collection_short_id = request
         .test_collection_short_id
         .as_deref()
         .filter(|_| !hide_test_collection_links);
-    // createBundleUpload has not run yet, so there are no ids to mint a GUID from.
+    let guid_scope = guid_scope.filter(|_| !hide_test_collection_links);
     let url = match url_for_test_case(
         &api_client.api_host,
         &request.org_url_slug,
         &request.repo,
         failure,
         test_collection_short_id,
-        None,
+        guid_scope,
     ) {
         Ok(url) => format!("Learn more > {}", url),
         Err(_) => String::from(""),
