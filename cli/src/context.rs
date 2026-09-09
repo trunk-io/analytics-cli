@@ -1,12 +1,12 @@
 #[cfg(target_os = "macos")]
-use std::io::Write;
+use std::time::Duration;
 use std::{collections::BTreeMap, io::Read};
 use std::{
     collections::HashMap,
     env,
-    io::BufReader,
+    io::{BufReader, Write},
     path::Path,
-    time::{Duration, SystemTime, UNIX_EPOCH},
+    time::{SystemTime, UNIX_EPOCH},
 };
 
 use api::{client::ApiClient, message::CreateBundleUploadResponse};
@@ -911,7 +911,6 @@ pub async fn gather_upload_id_context(
     Ok(upload)
 }
 
-#[cfg(target_os = "macos")]
 /// `swift test --xunit-output` writes no file for any test, so each one's file is taken from
 /// where a language server says it is declared. Needs no Xcode, unlike the `.xcresult` path.
 fn handle_swift_test_xunit(
@@ -1002,6 +1001,7 @@ fn handle_swift_test_xunit(
     Ok(temp_paths)
 }
 
+#[cfg(target_os = "macos")]
 fn handle_xcresult(
     junit_temp_dir: &tempfile::TempDir,
     xcresult_path: Option<String>,
