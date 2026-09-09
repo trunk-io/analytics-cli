@@ -56,6 +56,11 @@ impl Cli {
         }
     }
 
+    /// The org slug is required on `upload` and `test` because it is what attributes a run to an
+    /// organization in our telemetry: it tags every error forwarded to Sentry, is recorded on the
+    /// bundle as `base_props.org`, and scopes the upload metrics we report for the run. Without it
+    /// a run can't be tied back to a customer. `validate` runs locally, uploads nothing, and never
+    /// accepts the flag, hence the placeholder.
     pub fn org_url_slug(&self) -> String {
         match &self.command {
             Commands::Test(args) => args.org_url_slug(),

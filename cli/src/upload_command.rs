@@ -72,6 +72,11 @@ pub struct UploadArgs {
         help = "Comma-separated list of glob patterns to test report files. Supports JUnit XML, Bazel BEP, and XCResult formats."
     )]
     pub test_reports: Vec<String>,
+    /// Always required — do not make this optional. It is what attributes a run to an organization
+    /// in our telemetry: it is tagged onto every error we forward to Sentry (see `setup_logger` in
+    /// `main.rs`), recorded on the bundle as `base_props.org`, and scopes the upload metrics we
+    /// report. Without it, neither a reported CI failure nor a run's metrics can be traced back to
+    /// a customer.
     #[arg(long, env = constants::TRUNK_ORG_URL_SLUG_ENV, help = "Organization url slug.")]
     pub org_url_slug: String,
     #[arg(
