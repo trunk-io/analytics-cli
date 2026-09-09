@@ -55,7 +55,10 @@ use tempfile::tempdir;
 use test_utils::inputs::unpack_archive_to_dir;
 use test_utils::{
     inputs::get_test_file_path,
-    mock_server::{MockServerBuilder, RequestPayload, SharedMockServerState},
+    mock_server::{
+        MOCK_REPO_ID, MOCK_TEST_COLLECTION_ID, MockServerBuilder, RequestPayload,
+        SharedMockServerState,
+    },
 };
 use trunk_analytics_cli::upload_command::{DRY_RUN_OUTPUT_DIR, get_bundle_upload_id_message};
 
@@ -330,9 +333,54 @@ async fn upload_bundle_prints_test_collection_links() {
 
     assert
         .stderr(predicate::str::contains(
+            "/test-org/flaky-tests/collections/tc_123/tests/",
+        ))
+        .stderr(predicate::str::contains("/collections/tc_123/t/").not())
+        .stderr(predicate::str::contains("?repo=trunk-io%2Fanalytics-cli").not());
+}
+
+// NOTE: must be multi threaded to start a mock server
+#[tokio::test(flavor = "multi_thread")]
+async fn upload_bundle_falls_back_to_short_links_without_collection_ids() {
+    let temp_dir = tempdir().unwrap();
+    generate_mock_git_repo(&temp_dir);
+    generate_mock_valid_junit_xmls(&temp_dir);
+
+    async fn create_bundle_without_collection_ids(
+        State(state): State<SharedMockServerState>,
+    ) -> Json<CreateBundleUploadResponse> {
+        let host = &state.host;
+        Json(CreateBundleUploadResponse {
+            id: String::from("test-bundle-upload-id"),
+            id_v2: String::from("test-bundle-upload-id-v2"),
+            url: format!("{host}/s3upload"),
+            key: String::from("unused"),
+            test_collection_bundle_meta_id: Some(String::from(
+                "82c6a6e5-f8ea-4d93-9a26-b8ab6ff8f6bc",
+            )),
+            test_collection_bundle_meta_created_at: Some(String::from("2026-05-10T12:34:56.000Z")),
+            repo_id: None,
+            test_collection_id: None,
+        })
+    }
+
+    let mut builder = MockServerBuilder::new();
+    builder.set_create_bundle_handler(create_bundle_without_collection_ids);
+    let state = builder.spawn_mock_server().await;
+
+    let assert = CommandBuilder::upload(temp_dir.path(), state.host.clone())
+        .command()
+        .arg("--test-collection-id")
+        .arg("tc_123")
+        .assert()
+        .failure();
+
+    assert
+        .stderr(predicate::str::contains(
             "/test-org/flaky-tests/collections/tc_123/t/",
         ))
-        .stderr(predicate::str::contains("?repo=trunk-io%2Fanalytics-cli"));
+        .stderr(predicate::str::contains("?repo=trunk-io%2Fanalytics-cli"))
+        .stderr(predicate::str::contains("/collections/tc_123/tests/").not());
 }
 
 // NOTE: must be multi threaded to start a mock server
@@ -757,6 +805,8 @@ async fn upload_bundle_without_canonical_test_collection_metadata_keeps_bundle_g
                 key: String::from("unused"),
                 test_collection_bundle_meta_id: None,
                 test_collection_bundle_meta_created_at: None,
+                repo_id: None,
+                test_collection_id: None,
             }))
         },
     );
@@ -1601,6 +1651,8 @@ async fn quarantines_tests_regardless_of_upload() {
                     test_collection_bundle_meta_created_at: Some(String::from(
                         "2026-05-10T12:34:56.000Z",
                     )),
+                    repo_id: Some(String::from(MOCK_REPO_ID)),
+                    test_collection_id: Some(String::from(MOCK_TEST_COLLECTION_ID)),
                 })
                 .into_response()
             }
@@ -2340,6 +2392,8 @@ async fn do_not_quarantines_tests_when_quarantine_disabled_set() {
                         test_collection_bundle_meta_created_at: Some(String::from(
                             "2026-05-10T12:34:56.000Z",
                         )),
+                        repo_id: Some(String::from(MOCK_REPO_ID)),
+                        test_collection_id: Some(String::from(MOCK_TEST_COLLECTION_ID)),
                     }))
                 }
             };

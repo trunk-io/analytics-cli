@@ -4,10 +4,7 @@ use std::path::PathBuf;
 use std::sync::mpsc::Sender;
 
 use api::client::{ApiClient, ApiErrorEndpoint};
-use api::{
-    client::get_api_host,
-    urls::{url_for_test_case, url_for_upload},
-};
+use api::urls::{TestCaseGuidScope, url_for_test_case, url_for_upload};
 use bundle::{BundleMeta, BundlerUtil, QuarantineResolutionMode, Test, unzip_tarball};
 use clap::{ArgAction, Args};
 use codeowners::OwnersSource;
@@ -388,6 +385,7 @@ pub struct UploadRunResult {
     pub test_collection_short_id: Option<String>,
     pub hide_test_collection_links: bool,
     pub api_address: String,
+    pub guid_scope: Option<TestCaseGuidScope>,
 }
 
 pub struct RunUploadOptions {
@@ -636,21 +634,32 @@ pub async fn run_upload(
     if upload_bundle_result.is_err() {
         tracing::error!("Failed to upload bundle");
     }
-    let error_report = match upload_bundle_result {
-        Ok(upload_bundle_result) => {
+    let (guid_scope, error_report) = match upload_bundle_result {
+        Ok(uploaded) => {
             if upload_args.dry_run {
                 let curr_dir = env::current_dir()?;
                 let bundle_file = curr_dir.join(DRY_RUN_OUTPUT_DIR);
-                unzip_tarball(&upload_bundle_result.0, &bundle_file)?;
+                unzip_tarball(&uploaded.tarball, &bundle_file)?;
             }
-            None
+            (uploaded.guid_scope, None)
         }
-        Err(e) => Some(ErrorReport::new(
-            e,
-            upload_args.org_url_slug.clone(),
-            Some("There was an unexpected error that occurred while uploading test results".into()),
-        )),
+        Err(e) => (
+            None,
+            Some(ErrorReport::new(
+                e,
+                upload_args.org_url_slug.clone(),
+                Some(
+                    "There was an unexpected error that occurred while uploading test results"
+                        .into(),
+                ),
+            )),
+        ),
     };
+    if guid_scope.is_none() && upload_args.test_collection_short_id.is_some() {
+        tracing::debug!(
+            "No test collection ids returned for this upload; test links will use the short-link form"
+        );
+    }
     Ok(UploadRunResult {
         quarantine_context,
         error_report,
@@ -663,7 +672,15 @@ pub async fn run_upload(
             .filter(|id| !id.is_empty()),
         hide_test_collection_links: upload_args.hide_test_collection_links,
         api_address: api_client.api_host.clone(),
+        guid_scope,
     })
+}
+
+struct UploadedBundle {
+    tarball: PathBuf,
+    // directory is removed on drop
+    _temp_dir: TempDir,
+    guid_scope: Option<TestCaseGuidScope>,
 }
 
 async fn upload_bundle(
@@ -673,7 +690,7 @@ async fn upload_bundle(
     bep_result: Option<BepParseResult>,
     exit_code: i32,
     dry_run: bool,
-) -> anyhow::Result<(PathBuf, TempDir)> {
+) -> anyhow::Result<UploadedBundle> {
     let upload_result = gather_upload_id_context(
         meta,
         requested_test_collection_short_id,
@@ -691,7 +708,11 @@ async fn upload_bundle(
 
     if dry_run {
         tracing::info!("Dry run enabled, not uploading bundle to S3");
-        return Ok((bundle_temp_file, bundle_temp_dir));
+        return Ok(UploadedBundle {
+            tarball: bundle_temp_file,
+            _temp_dir: bundle_temp_dir,
+            guid_scope: None,
+        });
     }
 
     match upload_result {
@@ -708,7 +729,16 @@ async fn upload_bundle(
                 );
             }
 
-            Ok((bundle_temp_file, bundle_temp_dir))
+            Ok(UploadedBundle {
+                tarball: bundle_temp_file,
+                _temp_dir: bundle_temp_dir,
+                guid_scope: upload.test_collection_id.zip(upload.repo_id).map(
+                    |(test_collection_id, repo_id)| TestCaseGuidScope {
+                        test_collection_id,
+                        repo_id,
+                    },
+                ),
+            })
         }
         Err(e) => {
             tracing::error!("Failed to gather upload ID: {}", e);
@@ -828,6 +858,10 @@ impl EndOutput for UploadRunResult {
             .test_collection_short_id
             .as_deref()
             .filter(|_| !self.hide_test_collection_links);
+        let guid_scope = self
+            .guid_scope
+            .as_ref()
+            .filter(|_| !self.hide_test_collection_links);
 
         // Helper closure to render the test table
         let render_test_table = |tests: &[Test]| -> anyhow::Result<Lines> {
@@ -872,11 +906,12 @@ impl EndOutput for UploadRunResult {
                     test_line.pad_left(2);
                     output.push(test_line);
                     let link = url_for_test_case(
-                        &get_api_host(),
+                        &self.api_address,
                         &self.quarantine_context.org_url_slug,
                         &self.quarantine_context.repo,
                         test,
                         test_collection_short_id,
+                        guid_scope,
                     )?;
                     let mut link_output = Line::from_iter([
                         Span::new_unstyled("⤷ ")?,

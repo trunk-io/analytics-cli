@@ -24,6 +24,9 @@ use proto::upload_metrics::trunk::UploadMetrics;
 use tempfile::tempdir;
 use tokio::{net::TcpListener, spawn};
 
+pub const MOCK_REPO_ID: &str = "7a1f0e3d-2b4c-4d5e-8f90-123456789abc";
+pub const MOCK_TEST_COLLECTION_ID: &str = "018f6d3a-6f2e-4c4a-9b1e-2f3a4b5c6d7e";
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum RequestPayload {
     CreateBundleUpload(CreateBundleUploadRequest),
@@ -180,6 +183,8 @@ pub async fn create_bundle_handler(
         key: String::from("unused"),
         test_collection_bundle_meta_id: Some(String::from("82c6a6e5-f8ea-4d93-9a26-b8ab6ff8f6bc")),
         test_collection_bundle_meta_created_at: Some(String::from("2026-05-10T12:34:56.000Z")),
+        repo_id: Some(String::from(MOCK_REPO_ID)),
+        test_collection_id: Some(String::from(MOCK_TEST_COLLECTION_ID)),
     })
 }
 
