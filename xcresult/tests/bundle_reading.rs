@@ -7,7 +7,9 @@
 
 mod common;
 
+#[cfg(target_os = "macos")]
 use common::{ORG_URL_SLUG, REPO_FULL_NAME, entries, set_writable, unpack_archive_to_temp_dir};
+#[cfg(target_os = "macos")]
 use xcresult::xcresult::XCResult;
 
 // The case that matters now: a current bundle already carries `database.sqlite3`, so there

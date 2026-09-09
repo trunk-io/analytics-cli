@@ -1,4 +1,5 @@
 use lazy_static::lazy_static;
+#[cfg(target_os = "macos")]
 use rstest::rstest;
 use temp_testdir::TempDir;
 use xcresult::xcresult::XCResult;

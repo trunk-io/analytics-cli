@@ -7,9 +7,11 @@
 
 mod common;
 
+use common::unpack_archive_to_temp_dir;
+#[cfg(target_os = "macos")]
 use common::{
     assert_junit, assert_the_declaration_flag_moves_only_the_file, declaration_files,
-    declaration_report, unpack_archive_to_temp_dir,
+    declaration_report,
 };
 use lazy_static::lazy_static;
 use rstest::rstest;
