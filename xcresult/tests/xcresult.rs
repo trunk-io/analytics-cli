@@ -1,23 +1,13 @@
-use std::{fs::File, path::Path};
-
-use context::repo::RepoUrlParts;
-use flate2::read::GzDecoder;
 use lazy_static::lazy_static;
 use rstest::rstest;
-use tar::Archive;
 use temp_testdir::TempDir;
 use xcresult::xcresult::XCResult;
 
-fn unpack_archive_to_temp_dir<T: AsRef<Path>>(archive_file_path: T) -> TempDir {
-    let file = File::open(archive_file_path).unwrap();
-    let decoder = GzDecoder::new(file);
-    let mut archive = Archive::new(decoder);
-    let temp_dir = TempDir::default();
-    if let Err(e) = archive.unpack(temp_dir.as_ref()) {
-        panic!("failed to unpack data.tar.gz: {}", e);
-    }
-    temp_dir
-}
+mod common;
+
+#[cfg(target_os = "macos")]
+use common::assert_junit;
+use common::{ORG_URL_SLUG, REPO_FULL_NAME, unpack_archive_to_temp_dir};
 
 lazy_static! {
     static ref TEMP_DIR_TEST_1: TempDir =
@@ -44,17 +34,12 @@ lazy_static! {
         unpack_archive_to_temp_dir("tests/data/test-objc-xctest.xcresult.tar.gz");
     static ref TEMP_DIR_TEST_TOPLEVEL_SWIFT_TESTING: TempDir =
         unpack_archive_to_temp_dir("tests/data/test-toplevel-swift-testing.xcresult.tar.gz");
+    static ref TEMP_DIR_TEST_NESTED_AND_PASSING: TempDir =
+        unpack_archive_to_temp_dir("tests/data/test-nested-and-passing.xcresult.tar.gz");
     static ref TEMP_DIR_TEST_TIMESTAMP: TempDir =
         unpack_archive_to_temp_dir("tests/data/test-timestamp.xcresult.tar.gz");
     static ref TEMP_DIR_TEST_VARIANT: TempDir =
         unpack_archive_to_temp_dir("tests/data/test-variant.xcresult.tar.gz");
-    static ref ORG_URL_SLUG: String = String::from("trunk");
-    static ref REPO_FULL_NAME: String = RepoUrlParts {
-        host: "github.com".to_string(),
-        owner: "trunk-io".to_string(),
-        name: "analytics-cli".to_string()
-    }
-    .repo_full_name();
 }
 
 #[cfg(target_os = "macos")]
@@ -261,31 +246,6 @@ fn test_swift_snapshot_testing_trait_failure_uses_assertion_file(
 // bundle must exhibit and how to regenerate it.
 //
 // The two cases expect different JUnit because they have different sources
-// available: only the experimental path reads the per-test failure summary, and so
-// the call stack, so it is the only one that can produce a `FileSource::TestFrame`.
-// The legacy path sees `FileSource::DocumentLocation` alone.
-#[cfg(target_os = "macos")]
-fn assert_junit<T: AsRef<Path>>(
-    bundle_path: T,
-    use_experimental_failure_summary: bool,
-    expected_junit_xml: &str,
-) {
-    let path_str = bundle_path.as_ref().to_str().unwrap();
-    let xcresult = XCResult::new(
-        path_str,
-        ORG_URL_SLUG.clone(),
-        REPO_FULL_NAME.clone(),
-        use_experimental_failure_summary,
-    );
-    assert!(xcresult.is_ok());
-
-    let mut junits = xcresult.unwrap().generate_junits();
-    assert_eq!(junits.len(), 1);
-    let junit = junits.pop().unwrap();
-    let mut junit_writer: Vec<u8> = Vec::new();
-    junit.serialize(&mut junit_writer).unwrap();
-    pretty_assertions::assert_eq!(String::from_utf8(junit_writer).unwrap(), expected_junit_xml);
-}
 
 // `FileSource::TestFrame` is the only usable source. The failure is recorded inside
 // the dependency, so `RaisedFrom`, `SourceCodeLocation` and the innermost

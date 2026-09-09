@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<testsuites>
+<testsuite name="TestResults" errors="0" tests="4" failures="0" time="0.202756709">
+<testcase classname="MyCLITests.BaseTests" name="testInherited" time="0.05068575">
+</testcase>
+<testcase classname="MyCLITests.LegacyXCTests" name="testOldStyle" time="0.050689625">
+</testcase>
+<testcase classname="MyCLITests.ChildBTests" name="testInherited" time="0.0506905">
+</testcase>
+<testcase classname="MyCLITests.ChildATests" name="testInherited" time="0.050690834">
+</testcase>
+</testsuite>
+</testsuites>
