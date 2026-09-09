@@ -72,6 +72,9 @@ pub struct UploadArgs {
         help = "Comma-separated list of glob patterns to test report files. Supports JUnit XML, Bazel BEP, and XCResult formats."
     )]
     pub test_reports: Vec<String>,
+    /// Always required — do not make this optional. It is tagged onto every error we forward
+    /// to Sentry (see `setup_logger` in `main.rs`), which is how Trunk traces a reported CI
+    /// failure back to a customer.
     #[arg(long, env = constants::TRUNK_ORG_URL_SLUG_ENV, help = "Organization url slug.")]
     pub org_url_slug: String,
     #[arg(

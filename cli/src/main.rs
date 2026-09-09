@@ -56,6 +56,9 @@ impl Cli {
         }
     }
 
+    /// The org slug is required on `upload` and `test` so that every error reaching Sentry
+    /// carries an `org_url_slug` tag, letting Trunk find a customer's CI failures on request.
+    /// `validate` runs locally and never accepts the flag, hence the placeholder.
     pub fn org_url_slug(&self) -> String {
         match &self.command {
             Commands::Test(args) => args.org_url_slug(),
