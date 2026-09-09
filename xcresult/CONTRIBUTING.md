@@ -119,7 +119,9 @@ a `swift test` xunit carries none, so identity falls to `gen_info_id` over
 `(org, repo, file, classname, parent_name, name)` — the same scheme every other JUnit
 uploader uses. Measured on one package captured both ways:
 
-    shared()   xcresult e40658ab-…  xunit 73301b89-…
+```text
+shared()   xcresult e40658ab-…  xunit 73301b89-…
+```
 
 So a repository uploading both formats sees every test twice, and moving a repository from
 one format to the other resets its history.
