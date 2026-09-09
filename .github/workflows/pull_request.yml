@@ -198,10 +198,29 @@ jobs:
             exit 1
           fi
 
+      # The declaration path finds `sourcekit-lsp` on `PATH`, which is where every documented
+      # Linux install puts it. The Ubuntu runner image is the exception: it symlinks only
+      # `swift` and `swiftc` into /usr/local/bin and leaves the rest of the toolchain reachable
+      # only through $SWIFT_PATH. Without this the swift-test-xunit tests find no server.
+      - name: Put the Swift toolchain on PATH
+        if: ${{ startsWith(matrix.platform.os-name, 'linux-') }}
+        shell: bash
+        run: |
+          if [[ -z "${SWIFT_PATH:-}" ]]; then
+            echo "SWIFT_PATH is unset - the runner image no longer ships Swift where expected" >&2
+            exit 1
+          fi
+          echo "$SWIFT_PATH" >> "$GITHUB_PATH"
+
       - name: Run tests
         uses: ./.github/actions/run_tests
         id: tests
         continue-on-error: true
+        env:
+          # macOS finds the server through `xcrun`, and the step above puts it on `PATH` for
+          # Linux -- so anywhere but the self-hosted Windows runner, which has no Swift at all,
+          # a missing server means the environment broke rather than that these should skip.
+          REQUIRE_LANGUAGE_SERVER: ${{ matrix.platform.os-name != 'windows-x86_64' && '1' || '' }}
         with:
           target: ${{ matrix.platform.target }}
           codecov-token: ${{ secrets.CODECOV_TOKEN }}
