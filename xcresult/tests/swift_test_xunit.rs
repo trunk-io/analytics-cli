@@ -5,12 +5,36 @@ use std::{collections::HashMap, path::Path};
 
 use rstest::rstest;
 use xcresult::test_locations::{Limits, TestKey, TestLocationIndex};
+use xcresult::xcrun::find_program;
 
 const FIXTURE_ROOT: &str = "tests/fixture-src/swift-test-xunit";
 const XUNIT: &str = include_str!("data/swift-test-xunit.junit.xml");
 /// `--xunit-output` needs `--parallel` to emit XCTest results, and writes them to a separate
 /// file from swift-testing's — which goes to `<name>-swift-testing.xml`.
 const XUNIT_XCTEST: &str = include_str!("data/swift-test-xunit-xctest.junit.xml");
+
+/// Every case below resolves through a real `sourcekit-lsp` -- the fixture is all Swift, so
+/// no `clangd` is involved. A missing server leaves the index empty rather than failing, so
+/// without this the whole file fails on a machine that simply has no Swift toolchain.
+///
+/// Skipping is only safe while something still runs these, so `REQUIRE_LANGUAGE_SERVER` turns
+/// the skip back into a failure. CI sets it wherever it has just put the toolchain on `PATH`,
+/// which is what stops the coverage from lapsing there unnoticed.
+fn language_server_is_available() -> bool {
+    if find_program("sourcekit-lsp").is_some() {
+        return true;
+    }
+    // Empty counts as unset: a workflow computing this per-runner writes `""` for the ones it
+    // does not apply to, and `var_os` would otherwise read that as "required".
+    let required = std::env::var("REQUIRE_LANGUAGE_SERVER").is_ok_and(|value| !value.is_empty());
+    assert!(
+        !required,
+        "sourcekit-lsp is not on PATH and REQUIRE_LANGUAGE_SERVER is set -- the toolchain this \
+         job is supposed to provide is missing, so these tests would have silently skipped"
+    );
+    eprintln!("skipping: sourcekit-lsp is not on PATH, so no declaration can be resolved");
+    false
+}
 
 fn testcases(xunit: &str) -> Vec<(String, String)> {
     xunit
@@ -64,6 +88,9 @@ fn resolve_from(xunit: &str) -> HashMap<(String, String), String> {
 
 #[test]
 fn every_swift_testing_case_resolves_to_the_file_it_is_declared_in() {
+    if !language_server_is_available() {
+        return;
+    }
     let resolved = resolve();
     for (classname, name, expected) in [
         ("MyCLITests", "helloworld()", "TopLevel.swift"),
@@ -94,6 +121,9 @@ fn every_swift_testing_case_resolves_to_the_file_it_is_declared_in() {
 
 #[test]
 fn overloads_differing_only_by_argument_label_resolve_separately() {
+    if !language_server_is_available() {
+        return;
+    }
     let resolved = resolve();
     let file = |name: &str| {
         resolved
@@ -110,6 +140,9 @@ fn overloads_differing_only_by_argument_label_resolve_separately() {
 // Collapsing the classname to its target would make one `shared()` borrow the other's file.
 #[test]
 fn two_suites_declaring_the_same_case_resolve_separately() {
+    if !language_server_is_available() {
+        return;
+    }
     let resolved = resolve();
     let alpha = resolved
         .get(&(
@@ -136,6 +169,9 @@ fn an_inherited_xctest_method_resolves_to_whichever_class_declares_it(
     #[case] classname: &str,
     #[case] expected: &str,
 ) {
+    if !language_server_is_available() {
+        return;
+    }
     let resolved = resolve_from(XUNIT_XCTEST);
     let file = resolved
         .get(&(String::from(classname), String::from("testInherited")))
@@ -145,6 +181,9 @@ fn an_inherited_xctest_method_resolves_to_whichever_class_declares_it(
 
 #[test]
 fn an_xctest_case_resolves_to_the_class_that_declares_it() {
+    if !language_server_is_available() {
+        return;
+    }
     let resolved = resolve_from(XUNIT_XCTEST);
     let file = resolved
         .get(&(
