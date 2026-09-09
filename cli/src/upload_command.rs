@@ -72,6 +72,19 @@ pub struct UploadArgs {
         help = "Comma-separated list of glob patterns to test report files. Supports JUnit XML, Bazel BEP, and XCResult formats."
     )]
     pub test_reports: Vec<String>,
+    #[arg(
+        long,
+        env = constants::TRUNK_SWIFT_TEST_XUNIT_PATHS_ENV,
+        value_delimiter = ',',
+        help = "Comma-separated list of JUnit files written by `swift test --xunit-output`. \
+                These carry no file path, so each test's file is taken from where a language \
+                server says it is declared in the repository. One run writes two files: \
+                swift-testing to `<name>-swift-testing.xml` and XCTest to `<name>`, the \
+                latter only when `--parallel` is also passed. Upload both if the project \
+                uses both frameworks.",
+        required = false
+    )]
+    pub swift_test_xunit_paths: Vec<String>,
     /// Always required — do not make this optional. It is what attributes a run to an organization
     /// in our telemetry: it is tagged onto every error we forward to Sentry (see `setup_logger` in
     /// `main.rs`), recorded on the bundle as `base_props.org`, and scopes the upload metrics we
@@ -280,6 +293,61 @@ pub struct UploadArgs {
         hide = true
     )]
     pub use_experimental_failure_summary: bool,
+    #[cfg(target_os = "macos")]
+    #[arg(
+        long,
+        env = constants::TRUNK_USE_EXPERIMENTAL_XCRESULT_TEST_LOCATIONS_ENV,
+        help = "Flag to take an xcresult test's file from where a language server says it is declared, rather than from the failure that surfaced it. Reads the bundle with no legacy `xcresulttool get object` calls.",
+        action = ArgAction::Set,
+        required = false,
+        require_equals = true,
+        num_args = 0..=1,
+        default_value = "false",
+        default_missing_value = "true",
+        hide = true,
+        conflicts_with = "use_experimental_failure_summary"
+    )]
+    pub use_experimental_xcresult_test_locations: bool,
+    #[cfg(target_os = "macos")]
+    #[arg(
+        long,
+        env = constants::TRUNK_XCRESULT_TEST_LOCATIONS_MAX_FILES_ENV,
+        help = "Most source files to parse when resolving xcresult test declarations.",
+        required = false,
+        default_value_t = xcresult::test_locations::Limits::default().max_files,
+        hide = true
+    )]
+    pub xcresult_test_locations_max_files: usize,
+    #[cfg(target_os = "macos")]
+    #[arg(
+        long,
+        env = constants::TRUNK_XCRESULT_TEST_LOCATIONS_BUDGET_SECS_ENV,
+        help = "Seconds to spend per language server when resolving xcresult test declarations. The clang server answers far slower per file than the Swift one, so an Objective-C heavy repo wants this raised.",
+        required = false,
+        default_value_t = xcresult::test_locations::Limits::default().budget.as_secs(),
+        hide = true
+    )]
+    pub xcresult_test_locations_budget_secs: u64,
+    #[cfg(target_os = "macos")]
+    #[arg(
+        long,
+        env = constants::TRUNK_XCRESULT_TEST_LOCATIONS_REQUEST_TIMEOUT_SECS_ENV,
+        help = "Seconds to wait for a single language server reply before giving up on it.",
+        required = false,
+        default_value_t = xcresult::test_locations::Limits::default().request_timeout.as_secs(),
+        hide = true
+    )]
+    pub xcresult_test_locations_request_timeout_secs: u64,
+    #[cfg(target_os = "macos")]
+    #[arg(
+        long,
+        env = constants::TRUNK_XCRESULT_TEST_LOCATIONS_RETRIES_ENV,
+        help = "How many times to replace a language server that stops answering with a fresh one.",
+        required = false,
+        default_value_t = xcresult::test_locations::Limits::default().retries,
+        hide = true
+    )]
+    pub xcresult_test_locations_retries: usize,
     #[arg(
         long,
         env = constants::TRUNK_VALIDATION_REPORT_ENV,
