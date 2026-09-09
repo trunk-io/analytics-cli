@@ -86,9 +86,12 @@ The `tracing` library is used for:
 
 ### Organization Slug Is Required for Telemetry
 
-`--org-url-slug` (env `TRUNK_ORG_URL_SLUG`) is declared as a non-optional `String` on `UploadArgs`, which makes it a hard requirement for both `upload` and `test`. Keep it that way: `setup_logger` in `cli/src/main.rs` attaches it as an `org_url_slug` tag on every `tracing::error!()` event forwarded to Sentry, alongside `command_name` and `repo_root`. Those tags are how Trunk narrows Sentry to a single customer's CI runs when someone reports a failing upload — without the slug, an error report can't be tied back to an organization and we have to ask the user to reproduce.
+`--org-url-slug` (env `TRUNK_ORG_URL_SLUG`) is declared as a non-optional `String` on `UploadArgs`, which makes it a hard requirement for both `upload` and `test`. Keep it that way: the slug is what attributes a run to an organization across every kind of telemetry we collect.
 
-The slug also travels with the upload requests, is stored on the bundle as `base_props.org`, and backs the settings-page hint shown on unauthorized errors (`cli/src/error_report.rs`).
+- **Sentry**: `setup_logger` in `cli/src/main.rs` attaches it as an `org_url_slug` tag on every `tracing::error!()` event forwarded to Sentry, alongside `command_name` and `repo_root`. Those tags are how Trunk narrows Sentry to a single customer's CI runs when someone reports a failing upload — without the slug, an error report can't be tied back to an organization and we have to ask the user to reproduce.
+- **Our own upload telemetry**: the slug is stored on the bundle as `base_props.org` and scopes the `UploadMetrics` we report to the telemetry endpoint at the end of a run (`cli/src/upload_command.rs`, `ApiClient::telemetry_upload_metrics`). Timing, quarantine outcome, and failure-reason metrics are only useful if we know which org they came from.
+
+The slug also travels with the upload requests, builds the org-scoped links we print for uploads and tests (`api/src/urls.rs`), and backs the settings-page hint shown on unauthorized errors (`cli/src/error_report.rs`).
 
 `validate` is the one exception. It runs entirely locally and does not accept the flag, so `Cli::org_url_slug()` returns the placeholder `"not used"` for that subcommand — errors from `validate` land in Sentry with that placeholder tag rather than a real org.
 
