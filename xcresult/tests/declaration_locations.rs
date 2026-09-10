@@ -26,14 +26,16 @@ lazy_static! {
 }
 
 // XCTest runs a base class's `test*` method again under every concrete subclass, so the
-// same method arrives twice under two different suites. Both raise the failure at the same
-// line of `BaseTests.swift`, and `ConcreteTests.swift` is named nowhere in the bundle — so
-// this only passes if the file comes from the suite that ran the test. Reporting the base
-// class would hand `ConcreteTests`' failures to whoever owns `BaseTests.swift`, which is
-// the misattribution the declaration path exists to prevent.
+// same method arrives twice under two different suites. Neither arrival is written in
+// `ConcreteTests.swift` — that file declares no test at all — so both report the base
+// class's file, which is where the method they ran is actually written.
+//
+// A suite cannot run a method it does not have, so `ConcreteTests` having no declaration of
+// its own is itself the proof that it inherited one, and the single declaration of that name
+// in the checkout is where it came from.
 #[cfg(target_os = "macos")]
 #[test]
-fn test_an_inherited_test_is_attributed_to_the_suite_that_ran_it() {
+fn test_an_inherited_test_is_attributed_to_the_class_that_declares_it() {
     let report = common::declaration_report(
         TEMP_DIR_TEST_INHERITED_TEST
             .as_ref()
@@ -58,9 +60,11 @@ fn test_an_inherited_test_is_attributed_to_the_suite_that_ran_it() {
         })
         .collect::<std::collections::HashMap<_, _>>();
 
+    // Both arrivals of the one method, so both name the file it is declared in. That the
+    // suite differs and the file does not is the whole point.
     for (suite, expected) in [
         ("BaseTests", "BaseTests.swift"),
-        ("ConcreteTests", "ConcreteTests.swift"),
+        ("ConcreteTests", "BaseTests.swift"),
     ] {
         let key = format!("InheritedTestTests.{suite}/testInheritedFails()");
         let file = files

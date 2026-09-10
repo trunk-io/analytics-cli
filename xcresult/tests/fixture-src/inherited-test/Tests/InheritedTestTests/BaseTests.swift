@@ -5,6 +5,6 @@ import XCTest
 // `BaseTests/testInheritedFails`, and once as `ConcreteTests/testInheritedFails`.
 class BaseTests: XCTestCase {
     func testInheritedFails() {
-        XCTFail("declared on the base class, run under whichever suite reported it")
+        XCTFail("declared on the base class, and reported against this file under either suite")
     }
 }

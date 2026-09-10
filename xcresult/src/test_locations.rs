@@ -178,11 +178,19 @@ impl TestLocationIndex {
     /// The file the test is written in, preferring the declaration of the method itself —
     /// a suite split across extensions declares each test in its own file.
     ///
-    /// A test run under a suite that does not declare it is inherited from a base class,
-    /// and reporting the base class would hand the test to whoever owns *that* file. The
-    /// concrete suite is the one that chose to run it, so it is the one reported.
+    /// A test run under a suite that does not declare it was inherited: a suite cannot run a
+    /// method it does not have, so the declaration is in some base class and that is the file
+    /// the test is written in. No inheritance graph is needed to reach that conclusion — the
+    /// test having run is the proof.
+    ///
+    /// One is needed to act on it whenever more than one class declares the case, though,
+    /// because an override is a declaration too: see [`Self::inherited_declaration`]. Where
+    /// nothing declares it, or several things do, the suite's own file stands in.
     pub fn lookup(&self, key: &TestKey) -> Option<&DeclarationSite> {
         if let Some(site) = self.method_declaration(key) {
+            return Some(site);
+        }
+        if let Some(site) = self.inherited_declaration(key) {
             return Some(site);
         }
         match key.suite.as_ref() {
@@ -190,6 +198,57 @@ impl TestLocationIndex {
             // A top-level swift-testing test has no suite, so the function is all there is.
             None => None,
         }
+    }
+
+    /// The one declaration of `key`'s case under some other suite, which for a test that ran
+    /// is the base class it was inherited from.
+    ///
+    /// Only answers when there is exactly one candidate. Nothing here can tell an *ancestor*
+    /// that declares the method from an unrelated *sibling* that overrides it — an override
+    /// is a declaration of the same name, so by name alone the two are the same fact, and
+    /// separating them would need the inheritance graph, which is semantic and would cost a
+    /// build. So more than one candidate reports nothing and lets the suite's own file stand
+    /// in, rather than picking a file the test may well not be written in.
+    ///
+    /// Scoped to the target that ran it, since two modules can each declare a case of the
+    /// same name and those are never the same method.
+    fn inherited_declaration(&self, key: &TestKey) -> Option<&DeclarationSite> {
+        let target = self.targets.get(key);
+        let mut candidates: Vec<&DeclarationSite> = Vec::new();
+        for (candidate, site) in &self.declarations {
+            if candidate.case != key.case || candidate.suite == key.suite {
+                continue;
+            }
+            if let Some(target) = target
+                && !is_in_target(&site.file, target)
+            {
+                continue;
+            }
+            // Two suites declaring it in one file is still one answer.
+            if !candidates.iter().any(|found| found.file == site.file) {
+                candidates.push(site);
+            }
+        }
+
+        if candidates.len() > 1 {
+            // Sorted because the candidates come out of a `HashMap`, and a warning that
+            // names the same files in a different order every run is hard to trust.
+            let mut files = candidates
+                .iter()
+                .map(|site| site.file.as_str())
+                .collect::<Vec<_>>();
+            files.sort_unstable();
+            tracing::warn!(
+                "{} declares no {}, and {} places declare one -- any of them could be what it \
+                 inherited, so its own file is reported instead of guessing between {}",
+                key.suite.as_deref().unwrap_or("a top-level test"),
+                key.case,
+                files.len(),
+                files.join(", ")
+            );
+            return None;
+        }
+        candidates.first().copied()
     }
 
     /// Only the method's own declaration, which is what decides whether there is still
@@ -596,21 +655,161 @@ mod tests {
         );
     }
 
+    // A suite cannot run a method it does not have, so a case arriving under a suite that
+    // declares no such method was inherited, and the one declaration of that name is the base
+    // class it came from. Nothing else in the checkout can be the answer.
     #[test]
-    fn an_unrelated_suite_does_not_borrow_another_suites_case() {
+    fn a_suite_that_does_not_declare_its_case_inherited_it() {
         let index = indexed(
             SWIFT_FILE,
             json!([container(
-                "SnapshotReproTests",
+                "BaseTests",
                 SymbolKind::CLASS,
                 (0, 2),
                 vec![method("testExample()", 1)]
             )]),
         );
-        assert!(
+        assert_eq!(
             index
-                .lookup(&key(Some("OtherTests"), "testExample"))
-                .is_none()
+                .lookup(&key(Some("ChildTests"), "testExample"))
+                .map(|site| site.line),
+            Some(Some(2)),
+            "the inherited method resolves to the line it is written on"
+        );
+    }
+
+    // An override is its own declaration, so it answers before anything is inherited.
+    #[test]
+    fn an_override_keeps_its_own_declaration() {
+        let index = indexed(
+            SWIFT_FILE,
+            json!([
+                container(
+                    "BaseTests",
+                    SymbolKind::CLASS,
+                    (0, 2),
+                    vec![method("testExample()", 1)]
+                ),
+                container(
+                    "ChildTests",
+                    SymbolKind::CLASS,
+                    (3, 5),
+                    vec![method("testExample()", 4)]
+                )
+            ]),
+        );
+        assert_eq!(
+            index
+                .lookup(&key(Some("ChildTests"), "testExample"))
+                .map(|site| site.line),
+            Some(Some(5))
+        );
+    }
+
+    // The shape that matters in practice, and the reason this cannot be done by name: a
+    // sibling overriding the method declares it too. `ChildA` inherits from `Base` and
+    // `ChildB` overrides, so `testInherited` is declared in two files and neither the
+    // ancestor nor the sibling can be told apart from the case name -- which is what the
+    // `swift-test-xunit` fixture captures.
+    #[test]
+    fn a_sibling_override_makes_the_inherited_declaration_ambiguous() {
+        let mut index = indexed(
+            "/repo/Tests/MyCLITests/BaseTests.swift",
+            json!([container(
+                "BaseTests",
+                SymbolKind::CLASS,
+                (0, 2),
+                vec![method("testInherited()", 1)]
+            )]),
+        );
+        index.collect(
+            &symbols(json!([container(
+                "ChildBTests",
+                SymbolKind::CLASS,
+                (0, 2),
+                vec![method("testInherited()", 1)]
+            )])),
+            Path::new("/repo/Tests/MyCLITests/ChildBTests.swift"),
+            None,
+        );
+        index.suites.insert(
+            String::from("ChildATests"),
+            site("/repo/Tests/MyCLITests/ChildATests.swift"),
+        );
+        let key = key(Some("ChildATests"), "testInherited");
+        index
+            .targets
+            .insert(key.clone(), String::from("MyCLITests"));
+
+        assert!(
+            index.inherited_declaration(&key).is_none(),
+            "the ancestor and the override are indistinguishable by name"
+        );
+        assert_eq!(
+            index.lookup(&key).map(|site| site.file.as_str().to_owned()),
+            Some(String::from("/repo/Tests/MyCLITests/ChildATests.swift")),
+            "so the suite's own file stands in"
+        );
+    }
+
+    // Two unrelated suites declare the case in different files, so which one a third
+    // inherited it from is unknowable here. Guessing would report a file the test is not
+    // written in, so the suite's own file stands in instead.
+    #[test]
+    fn an_ambiguous_inheritance_declines_rather_than_guessing() {
+        let mut index = indexed(
+            SWIFT_FILE,
+            json!([container(
+                "OneTests",
+                SymbolKind::CLASS,
+                (0, 2),
+                vec![method("testExample()", 1)]
+            )]),
+        );
+        index.collect(
+            &symbols(json!([container(
+                "TwoTests",
+                SymbolKind::CLASS,
+                (0, 2),
+                vec![method("testExample()", 1)]
+            )])),
+            Path::new("/repo/Tests/TwoTests.swift"),
+            None,
+        );
+        index.suites.insert(
+            String::from("ThirdTests"),
+            site("/repo/Tests/ThirdTests.swift"),
+        );
+
+        assert_eq!(
+            index
+                .lookup(&key(Some("ThirdTests"), "testExample"))
+                .map(|site| site.file.as_str().to_owned()),
+            Some(String::from("/repo/Tests/ThirdTests.swift"))
+        );
+    }
+
+    // The same-named case in another module is not what this one inherited, so the target
+    // has to bound the search even when only one candidate exists.
+    #[test]
+    fn a_case_of_the_same_name_in_another_target_is_not_inherited() {
+        let mut index = indexed(
+            "/repo/Tests/OtherFeatureTests/OtherTests.swift",
+            json!([container(
+                "OtherTests",
+                SymbolKind::CLASS,
+                (0, 2),
+                vec![method("testExample()", 1)]
+            )]),
+        );
+        let key = key(Some("ChildTests"), "testExample");
+        index
+            .targets
+            .insert(key.clone(), String::from("MyFeatureTests"));
+
+        assert!(
+            index.lookup(&key).is_none(),
+            "no declaration under MyFeatureTests, and no suite either"
         );
     }
 
