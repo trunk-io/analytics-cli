@@ -74,6 +74,7 @@ pub const TRUNK_XCRESULT_TEST_LOCATIONS_MAX_FILE_BYTES_ENV: &str =
 
 // RSpec-only: when set to "true", aborts the RSpec run if quarantine lookup fails.
 // Handled in rspec-trunk-flaky-tests/lib/trunk_spec_helper.rb, not the CLI.
+pub const TRUNK_SWIFT_TEST_XUNIT_PATHS_ENV: &str = "TRUNK_SWIFT_TEST_XUNIT_PATHS";
 pub const TRUNK_QUARANTINE_QUERY_FAILURE_EXIT_ENV: &str = "TRUNK_QUARANTINE_QUERY_FAILURE_EXIT";
 
 // TRUNK_* environment variables to capture in bundle metadata for debugging.
