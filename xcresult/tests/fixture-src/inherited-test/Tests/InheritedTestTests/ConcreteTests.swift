@@ -1,6 +1,6 @@
 import XCTest
 
-// Declares no tests of its own. The file reported for `ConcreteTests/testInheritedFails`
-// has to be this one: it is what codeowners resolve from, and this is the suite that chose
-// to run the test, not whoever owns `BaseTests.swift`.
+// Declares no tests of its own, which is what makes it worth capturing: the method it runs
+// is written nowhere in this file, so `ConcreteTests/testInheritedFails` has to report
+// `BaseTests.swift`. Attributing it here would name a file the test does not appear in.
 final class ConcreteTests: BaseTests {}
