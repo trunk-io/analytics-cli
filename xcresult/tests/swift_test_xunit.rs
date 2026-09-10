@@ -1,10 +1,13 @@
 //! `swift test --xunit-output` reports no file at all, and needs no Xcode to produce — so
 //! this is the shape the declaration path takes on Linux. See the fixture's README.
 
+mod common;
+
 use std::{collections::HashMap, path::Path};
 
+use common::limits;
 use rstest::rstest;
-use xcresult::test_locations::{Limits, TestKey, TestLocationIndex};
+use xcresult::test_locations::{TestKey, TestLocationIndex};
 use xcresult::xcrun::find_program;
 
 const FIXTURE_ROOT: &str = "tests/fixture-src/swift-test-xunit";
@@ -73,7 +76,7 @@ fn resolve_from(xunit: &str) -> HashMap<(String, String), String> {
             )
         })
         .collect::<Vec<_>>();
-    let index = TestLocationIndex::resolve(Path::new(FIXTURE_ROOT), &keys, Limits::default());
+    let index = TestLocationIndex::resolve(Path::new(FIXTURE_ROOT), &keys, limits());
 
     cases
         .into_iter()
@@ -233,7 +236,7 @@ mod parity {
             String::from("trunk"),
             String::from("github.com/trunk-io/analytics-cli"),
             Path::new(FIXTURE_ROOT),
-            Limits::default(),
+            limits(),
         )
         .expect("the declaration path reads the bundle");
 
