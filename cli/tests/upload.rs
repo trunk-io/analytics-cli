@@ -3143,11 +3143,12 @@ async fn upload_bundle_keeps_the_repo_relative_path_when_a_symlink_leaves_the_re
 // `swift test --xunit-output` reports no file for any test, so the uploaded JUnit only gets
 // one if a language server found where each test is declared in the checkout.
 //
-// `no_paths` is load-bearing twice over. It proves `--swift-test-xunit-paths` is accepted on
-// its own, which is the usage its help text documents; and it keeps the default `--junit-paths
-// ./*` from also matching these two files, which would upload every test a second time without
-// a declared file. The case count below is what catches that if it ever regresses — keying by
-// name alone cannot, because the duplicate carries the same name.
+// Passing the paths through `PathsState` rather than `extra_args` is load-bearing twice over. It
+// proves `--swift-test-xunit-paths` is accepted as the only report source, which is the usage its
+// help text documents; and it keeps the harness's default `--junit-paths ./*` from also matching
+// these two files, which would upload every test a second time without a declared file. The case
+// count below is what catches that if it ever regresses — keying by name alone cannot, because the
+// duplicate carries the same name.
 #[cfg(any(target_os = "macos", target_os = "linux"))]
 #[tokio::test(flavor = "multi_thread")]
 async fn upload_bundle_using_swift_test_xunit() {
@@ -3200,11 +3201,7 @@ async fn upload_bundle_using_swift_test_xunit() {
 
     let state = MockServerBuilder::new().spawn_mock_server().await;
     CommandBuilder::upload(temp_dir.path(), state.host.clone())
-        .no_paths()
-        .extra_args(&[
-            "--swift-test-xunit-paths",
-            "xunit-swift-testing.xml,xunit.xml",
-        ])
+        .swift_test_xunit_paths("xunit-swift-testing.xml,xunit.xml")
         .command()
         .assert()
         .success();

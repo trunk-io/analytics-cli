@@ -436,10 +436,7 @@ pub enum PathsState {
     JunitPaths(String),
     BazelBepPath(String),
     XCResultPath(String),
-    /// No paths argument at all, for a test whose report source is passed through
-    /// `extra_args` instead. Distinct from a `None` `paths_state`, which supplies a
-    /// default `--junit-paths` glob.
-    NoPaths,
+    SwiftTestXunitPaths(String),
 }
 
 impl PathsState {
@@ -448,7 +445,9 @@ impl PathsState {
             PathsState::JunitPaths(path) => vec![String::from("--junit-paths"), path.clone()],
             PathsState::BazelBepPath(path) => vec![String::from("--bazel-bep-path"), path.clone()],
             PathsState::XCResultPath(path) => vec![String::from("--xcresult-path"), path.clone()],
-            PathsState::NoPaths => Vec::new(),
+            PathsState::SwiftTestXunitPaths(paths) => {
+                vec![String::from("--swift-test-xunit-paths"), paths.clone()]
+            }
         }
     }
 }
@@ -503,8 +502,8 @@ impl<'b> CommandBuilder<'b> {
         self
     }
 
-    pub fn no_paths(&mut self) -> &mut Self {
-        self.paths_state = Some(PathsState::NoPaths);
+    pub fn swift_test_xunit_paths(&mut self, new_paths: &str) -> &mut Self {
+        self.paths_state = Some(PathsState::SwiftTestXunitPaths(String::from(new_paths)));
         self
     }
 
