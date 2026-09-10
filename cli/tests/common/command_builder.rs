@@ -436,6 +436,7 @@ pub enum PathsState {
     JunitPaths(String),
     BazelBepPath(String),
     XCResultPath(String),
+    SwiftTestXunitPaths(String),
 }
 
 impl PathsState {
@@ -444,6 +445,9 @@ impl PathsState {
             PathsState::JunitPaths(path) => vec![String::from("--junit-paths"), path.clone()],
             PathsState::BazelBepPath(path) => vec![String::from("--bazel-bep-path"), path.clone()],
             PathsState::XCResultPath(path) => vec![String::from("--xcresult-path"), path.clone()],
+            PathsState::SwiftTestXunitPaths(paths) => {
+                vec![String::from("--swift-test-xunit-paths"), paths.clone()]
+            }
         }
     }
 }
@@ -495,6 +499,11 @@ impl<'b> CommandBuilder<'b> {
 
     pub fn junit_paths(&mut self, new_paths: &str) -> &mut Self {
         self.paths_state = Some(PathsState::JunitPaths(String::from(new_paths)));
+        self
+    }
+
+    pub fn swift_test_xunit_paths(&mut self, new_paths: &str) -> &mut Self {
+        self.paths_state = Some(PathsState::SwiftTestXunitPaths(String::from(new_paths)));
         self
     }
 

@@ -9,15 +9,32 @@
 
 #![allow(dead_code)]
 
-use std::{fs::File, path::Path};
+use std::{fs::File, path::Path, time::Duration};
 
 use context::repo::RepoUrlParts;
 use flate2::read::GzDecoder;
 use lazy_static::lazy_static;
 use tar::Archive;
 use temp_testdir::TempDir;
+use xcresult::test_locations::Limits;
 #[cfg(target_os = "macos")]
-use xcresult::{test_locations::Limits, xcresult::XCResult};
+use xcresult::xcresult::XCResult;
+
+/// The limits every test here resolves under.
+///
+/// The shipped defaults size one resolution on a machine doing nothing else. A test binary
+/// starts one language server per test, all of them at once, under coverage instrumentation
+/// and alongside the rest of the workspace's suite — and a `sourcekit-lsp` that has not
+/// answered `initialize` inside `request_timeout` is abandoned rather than waited on, so
+/// every test in that process resolves to nothing. Only the clock is relaxed: what the tests
+/// assert on is still resolved the way the defaults resolve it.
+pub fn limits() -> Limits {
+    Limits {
+        budget: Duration::from_secs(300),
+        request_timeout: Duration::from_secs(120),
+        ..Limits::default()
+    }
+}
 
 /// The bundles are checked in as tarballs, so a test reads one by unpacking it into a
 /// temporary directory that is removed with the `TempDir`.
@@ -54,7 +71,7 @@ pub fn declaration_report<T: AsRef<Path>, U: AsRef<Path>>(
         ORG_URL_SLUG.clone(),
         REPO_FULL_NAME.clone(),
         repo_root.as_ref(),
-        Limits::default(),
+        limits(),
     )
     .expect("the declaration path reads the bundle");
 
@@ -151,7 +168,7 @@ pub fn assert_the_declaration_flag_moves_only_the_file(
         ORG_URL_SLUG.clone(),
         REPO_FULL_NAME.clone(),
         root,
-        Limits::default(),
+        limits(),
     )
     .expect("the declaration path reads the bundle");
 
