@@ -70,6 +70,15 @@ pub struct Cli {
         default_value_t = Limits::default().retries,
     )]
     pub xcresult_test_locations_retries: usize,
+    /// Largest source file to parse. One `didOpen` carries the whole file, so an outsized
+    /// generated one costs memory and usually a timed-out request for symbols it does not
+    /// declare. Skipped without being read.
+    #[arg(
+        long,
+        env = constants::TRUNK_XCRESULT_TEST_LOCATIONS_MAX_FILE_BYTES_ENV,
+        default_value_t = Limits::default().max_file_bytes,
+    )]
+    pub xcresult_test_locations_max_file_bytes: u64,
 }
 
 fn main() -> anyhow::Result<()> {
@@ -89,6 +98,7 @@ fn main() -> anyhow::Result<()> {
         xcresult_test_locations_budget_secs,
         xcresult_test_locations_request_timeout_secs,
         xcresult_test_locations_retries,
+        xcresult_test_locations_max_file_bytes,
     } = Cli::parse();
     let repo_url_parts = repo_url
         .and_then(|repo_url| RepoUrlParts::from_url(&repo_url).ok())
@@ -106,6 +116,7 @@ fn main() -> anyhow::Result<()> {
                 budget: Duration::from_secs(xcresult_test_locations_budget_secs),
                 request_timeout: Duration::from_secs(xcresult_test_locations_request_timeout_secs),
                 retries: xcresult_test_locations_retries,
+                max_file_bytes: xcresult_test_locations_max_file_bytes,
             },
         )?
     } else {

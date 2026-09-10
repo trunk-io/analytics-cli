@@ -147,6 +147,8 @@ pub fn gather_initial_test_context(
         xcresult_test_locations_request_timeout_secs,
         #[cfg(target_os = "macos")]
         xcresult_test_locations_retries,
+        #[cfg(target_os = "macos")]
+        xcresult_test_locations_max_file_bytes,
         ..
     } = upload_args;
 
@@ -173,6 +175,7 @@ pub fn gather_initial_test_context(
             budget: Duration::from_secs(xcresult_test_locations_budget_secs),
             request_timeout: Duration::from_secs(xcresult_test_locations_request_timeout_secs),
             retries: xcresult_test_locations_retries,
+            max_file_bytes: xcresult_test_locations_max_file_bytes,
         },
     };
 

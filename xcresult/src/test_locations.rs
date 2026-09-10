@@ -4,7 +4,6 @@
 
 use std::{
     collections::{HashMap, HashSet},
-    fs,
     path::{Path, PathBuf},
     time::{Duration, Instant},
 };
@@ -53,6 +52,10 @@ pub struct Limits {
     pub request_timeout: Duration,
     /// How many times a server that stops answering is replaced with a fresh one.
     pub retries: usize,
+    /// Skipped above this, unread. `didOpen` carries the whole file, so a generated source
+    /// file costs its own size twice over and will usually exhaust `request_timeout` as
+    /// well — taking a retry and the rest of the budget with it, for one file's symbols.
+    pub max_file_bytes: u64,
 }
 
 impl Default for Limits {
@@ -62,6 +65,9 @@ impl Default for Limits {
             budget: Duration::from_secs(60),
             request_timeout: Duration::from_secs(30),
             retries: 1,
+            // Comfortably above hand-written source, and low enough that the generated files
+            // that reach megabytes -- which declare no tests -- are not read.
+            max_file_bytes: 2 * 1_024 * 1_024,
         }
     }
 }
@@ -150,7 +156,7 @@ impl TestLocationIndex {
             .iter()
             .filter_map(|key| key.suite.as_deref())
             .collect::<HashSet<_>>();
-        let sources = scan_sources(repo_root, &suites, limits.max_files);
+        let sources = scan_sources(repo_root, &suites, limits.max_files, limits.max_file_bytes);
         let (swift, clang) = sources
             .into_iter()
             .partition::<Vec<_>, _>(|path| has_extension(path, &SWIFT_EXTENSIONS));
@@ -376,15 +382,11 @@ impl Resolver {
                     );
                     return;
                 }
-                let Ok(text) = fs::read_to_string(file) else {
-                    continue;
-                };
-                let symbols = server.document_symbols(
-                    file,
-                    kind.language_id,
-                    &text,
-                    self.limits.request_timeout,
-                );
+                // The file is read inside `document_symbols`, in chunks -- an unreadable or
+                // non-UTF-8 one is reported there and answers with no symbols, as it did
+                // when the read happened here.
+                let symbols =
+                    server.document_symbols(file, kind.language_id, self.limits.request_timeout);
                 if server.is_broken() {
                     break;
                 }
@@ -453,7 +455,12 @@ fn has_extension(path: &Path, extensions: &[&str]) -> bool {
 ///
 /// `.gitignore` already excludes most of [`SKIPPED_DIRECTORIES`] in a normal checkout, but
 /// nothing guarantees it, so the list stays as an override on top.
-fn scan_sources(repo_root: &Path, suites: &HashSet<&str>, max_files: usize) -> Vec<PathBuf> {
+fn scan_sources(
+    repo_root: &Path,
+    suites: &HashSet<&str>,
+    max_files: usize,
+    max_file_bytes: u64,
+) -> Vec<PathBuf> {
     let mut types = TypesBuilder::new();
     for extension in SWIFT_EXTENSIONS.iter().chain(CLANG_EXTENSIONS.iter()) {
         // `add` only fails on a malformed glob, and these are built from literals.
@@ -474,6 +481,9 @@ fn scan_sources(repo_root: &Path, suites: &HashSet<&str>, max_files: usize) -> V
         })
         .build();
 
+    // Counted rather than logged per file: a repo with a generated-sources directory would
+    // otherwise emit a warning for every one of them.
+    let mut oversized = 0_usize;
     let mut found = walker
         .flatten()
         .filter(|entry| {
@@ -481,8 +491,22 @@ fn scan_sources(repo_root: &Path, suites: &HashSet<&str>, max_files: usize) -> V
                 .file_type()
                 .is_some_and(|file_type| file_type.is_file())
         })
+        .filter(|entry| {
+            // The walker has already stat'd the entry, so the size costs nothing extra, and
+            // failing to read it here means the read would have failed anyway.
+            match entry.metadata() {
+                Ok(metadata) if metadata.len() > max_file_bytes => {
+                    oversized += 1;
+                    false
+                }
+                _ => true,
+            }
+        })
         .map(|entry| entry.into_path())
         .collect::<Vec<_>>();
+    if oversized > 0 {
+        tracing::warn!("{oversized} source file(s) skipped for exceeding {max_file_bytes} bytes");
+    }
     found.sort_by_cached_key(|path| (rank(path, suites), path.clone()));
     found.truncate(max_files);
     found
@@ -506,6 +530,8 @@ fn rank(path: &Path, suites: &HashSet<&str>) -> u8 {
 
 #[cfg(test)]
 mod tests {
+    use std::fs;
+
     use rstest::rstest;
     use serde_json::{Value, json};
     use temp_testdir::TempDir;
@@ -759,7 +785,7 @@ mod tests {
             fs::write(path, "").unwrap();
         }
         let suites = HashSet::from(["SnapshotReproTests"]);
-        let scanned = scan_sources(root.as_ref(), &suites, 10)
+        let scanned = scan_sources(root.as_ref(), &suites, 10, u64::MAX)
             .iter()
             .map(|path| path.file_name().unwrap().to_string_lossy().to_string())
             .collect::<Vec<_>>();
@@ -779,7 +805,29 @@ mod tests {
         for name in ["A.swift", "B.swift", "C.swift"] {
             fs::write(root.join(name), "").unwrap();
         }
-        assert_eq!(scan_sources(root.as_ref(), &HashSet::new(), 2).len(), 2);
+        assert_eq!(
+            scan_sources(root.as_ref(), &HashSet::new(), 2, u64::MAX).len(),
+            2
+        );
+    }
+
+    // The size cap is on the scan rather than the read, so an outsized file never reaches
+    // `read_to_string` at all -- and the cap is a ceiling, not a rounding.
+    #[test]
+    fn the_scan_skips_a_file_over_the_byte_cap() {
+        let root = TempDir::default();
+        fs::write(root.join("Small.swift"), "ab").unwrap();
+        fs::write(root.join("Big.swift"), "abcd").unwrap();
+
+        let scanned = |max_file_bytes| {
+            scan_sources(root.as_ref(), &HashSet::new(), 10, max_file_bytes)
+                .iter()
+                .map(|path| path.file_name().unwrap().to_string_lossy().to_string())
+                .collect::<Vec<_>>()
+        };
+
+        assert_eq!(scanned(2), vec![String::from("Small.swift")]);
+        assert_eq!(scanned(4).len(), 2, "a file exactly at the cap is parsed");
     }
 
     fn site(file: &str) -> DeclarationSite {
