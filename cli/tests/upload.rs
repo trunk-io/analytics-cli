@@ -3142,6 +3142,12 @@ async fn upload_bundle_keeps_the_repo_relative_path_when_a_symlink_leaves_the_re
 
 // `swift test --xunit-output` reports no file for any test, so the uploaded JUnit only gets
 // one if a language server found where each test is declared in the checkout.
+//
+// `no_paths` is load-bearing twice over. It proves `--swift-test-xunit-paths` is accepted on
+// its own, which is the usage its help text documents; and it keeps the default `--junit-paths
+// ./*` from also matching these two files, which would upload every test a second time without
+// a declared file. The case count below is what catches that if it ever regresses — keying by
+// name alone cannot, because the duplicate carries the same name.
 #[cfg(any(target_os = "macos", target_os = "linux"))]
 #[tokio::test(flavor = "multi_thread")]
 async fn upload_bundle_using_swift_test_xunit() {
@@ -3194,6 +3200,7 @@ async fn upload_bundle_using_swift_test_xunit() {
 
     let state = MockServerBuilder::new().spawn_mock_server().await;
     CommandBuilder::upload(temp_dir.path(), state.host.clone())
+        .no_paths()
         .extra_args(&[
             "--swift-test-xunit-paths",
             "xunit-swift-testing.xml,xunit.xml",
@@ -3208,7 +3215,7 @@ async fn upload_bundle_using_swift_test_xunit() {
         serde_json::from_reader(fs::File::open(tar_extract_directory.join("meta.json")).unwrap())
             .unwrap();
 
-    let mut files = std::collections::HashMap::new();
+    let mut cases: Vec<(String, Option<String>)> = Vec::new();
     for file_set in &bundle_meta.base_props.file_sets {
         for file in &file_set.files {
             let mut parser = JunitParser::new();
@@ -3222,12 +3229,24 @@ async fn upload_bundle_using_swift_test_xunit() {
                             .iter()
                             .find(|(key, _)| key.as_str() == "file")
                             .map(|(_, value)| value.as_str().to_owned());
-                        files.insert(case.name.as_str().to_owned(), file);
+                        cases.push((case.name.as_str().to_owned(), file));
                     }
                 }
             }
         }
     }
+
+    // Three tests across the two files, each bundled exactly once. A count of six is the
+    // signature of the same reports arriving through a junit glob as well.
+    assert_eq!(
+        cases.len(),
+        3,
+        "expected each test bundled once, got {cases:?}"
+    );
+
+    let files = cases
+        .into_iter()
+        .collect::<std::collections::HashMap<String, Option<String>>>();
 
     for (name, expected) in [
         ("helloworld()", "Tests/MyCLITests/TopLevel.swift"),

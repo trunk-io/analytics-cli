@@ -44,7 +44,7 @@ pub const DRY_RUN_OUTPUT_DIR: &str = "bundle_upload";
 pub struct UploadArgs {
     #[arg(
         long,
-        required_unless_present_any = [JUNIT_GLOB_REQUIRED_UNLESS_PRESENT_ARG, "bazel_bep_path", "test_reports"],
+        required_unless_present_any = [JUNIT_GLOB_REQUIRED_UNLESS_PRESENT_ARG, "bazel_bep_path", "test_reports", "swift_test_xunit_paths"],
         conflicts_with = "bazel_bep_path",
         value_delimiter = ',',
         value_parser = clap::builder::NonEmptyStringValueParser::new(),
@@ -53,20 +53,20 @@ pub struct UploadArgs {
     pub junit_paths: Vec<String>,
     #[arg(
         long,
-        required_unless_present_any = [JUNIT_GLOB_REQUIRED_UNLESS_PRESENT_ARG, "junit_paths", "test_reports"],
+        required_unless_present_any = [JUNIT_GLOB_REQUIRED_UNLESS_PRESENT_ARG, "junit_paths", "test_reports", "swift_test_xunit_paths"],
         help = "Path to Bazel Build Event Protocol JSON file. BEP files contain test results and build metadata."
     )]
     pub bazel_bep_path: Option<String>,
     #[cfg(target_os = "macos")]
     #[arg(long,
-        required_unless_present_any = ["junit_paths", "bazel_bep_path", "test_reports"],
+        required_unless_present_any = ["junit_paths", "bazel_bep_path", "test_reports", "swift_test_xunit_paths"],
         conflicts_with_all = ["junit_paths", "bazel_bep_path"],
         required = false, help = "Path to Xcode XCResult bundle directory (macOS only)."
     )]
     pub xcresult_path: Option<String>,
     #[arg(
         long,
-        required_unless_present_any = [JUNIT_GLOB_REQUIRED_UNLESS_PRESENT_ARG, "junit_paths", "bazel_bep_path"],
+        required_unless_present_any = [JUNIT_GLOB_REQUIRED_UNLESS_PRESENT_ARG, "junit_paths", "bazel_bep_path", "swift_test_xunit_paths"],
         value_delimiter = ',',
         value_parser = clap::builder::NonEmptyStringValueParser::new(),
         help = "Comma-separated list of glob patterns to test report files. Supports JUnit XML, Bazel BEP, and XCResult formats."
