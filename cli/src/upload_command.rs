@@ -335,6 +335,16 @@ pub struct UploadArgs {
         hide = true
     )]
     pub xcresult_test_locations_retries: usize,
+    #[cfg(target_os = "macos")]
+    #[arg(
+        long,
+        env = constants::TRUNK_XCRESULT_TEST_LOCATIONS_MAX_FILE_BYTES_ENV,
+        help = "Largest source file to parse for declarations. One request carries the whole file, so an outsized generated one costs memory and usually a timeout for symbols it does not declare. Skipped without being read.",
+        required = false,
+        default_value_t = xcresult::test_locations::Limits::default().max_file_bytes,
+        hide = true
+    )]
+    pub xcresult_test_locations_max_file_bytes: u64,
     #[arg(
         long,
         env = constants::TRUNK_VALIDATION_REPORT_ENV,

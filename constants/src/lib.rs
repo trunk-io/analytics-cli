@@ -69,6 +69,8 @@ pub const TRUNK_XCRESULT_TEST_LOCATIONS_BUDGET_SECS_ENV: &str =
 pub const TRUNK_XCRESULT_TEST_LOCATIONS_REQUEST_TIMEOUT_SECS_ENV: &str =
     "TRUNK_XCRESULT_TEST_LOCATIONS_REQUEST_TIMEOUT_SECS";
 pub const TRUNK_XCRESULT_TEST_LOCATIONS_RETRIES_ENV: &str = "TRUNK_XCRESULT_TEST_LOCATIONS_RETRIES";
+pub const TRUNK_XCRESULT_TEST_LOCATIONS_MAX_FILE_BYTES_ENV: &str =
+    "TRUNK_XCRESULT_TEST_LOCATIONS_MAX_FILE_BYTES";
 
 // RSpec-only: when set to "true", aborts the RSpec run if quarantine lookup fails.
 // Handled in rspec-trunk-flaky-tests/lib/trunk_spec_helper.rb, not the CLI.
