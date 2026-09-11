@@ -23,6 +23,10 @@ pub struct CreateBundleUploadResponse {
     pub key: String,
     pub test_collection_bundle_meta_id: Option<String>,
     pub test_collection_bundle_meta_created_at: Option<String>,
+    #[serde(default)]
+    pub repo_id: Option<String>,
+    #[serde(default)]
+    pub test_collection_id: Option<String>,
 }
 
 #[derive(Debug, Serialize, Clone, Deserialize, Default)]

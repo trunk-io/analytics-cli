@@ -484,12 +484,14 @@ fn log_failure(
         .test_collection_short_id
         .as_deref()
         .filter(|_| !hide_test_collection_links);
+    // createBundleUpload has not run yet, so there are no ids to mint a GUID from.
     let url = match url_for_test_case(
         &api_client.api_host,
         &request.org_url_slug,
         &request.repo,
         failure,
         test_collection_short_id,
+        None,
     ) {
         Ok(url) => format!("Learn more > {}", url),
         Err(_) => String::from(""),
