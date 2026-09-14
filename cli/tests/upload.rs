@@ -3194,14 +3194,11 @@ async fn upload_bundle_keeps_the_repo_relative_path_when_a_symlink_leaves_the_re
     println!("{assert}");
 }
 
-// `swift test --xunit-output` reports no file for any test, so the uploaded JUnit only gets
-// one if a language server found where each test is declared in the checkout.
+/// A package whose three tests are split across the two files one `swift test --xunit-output`
+/// run writes, so a glob reaching both is distinguishable from one reaching only the
+/// swift-testing half, and each test's declaration lives in a file of its own.
 #[cfg(any(target_os = "macos", target_os = "linux"))]
-#[tokio::test(flavor = "multi_thread")]
-async fn upload_bundle_using_swift_test_xunit() {
-    let temp_dir = tempdir().unwrap();
-    generate_mock_git_repo(&temp_dir);
-
+fn write_swift_test_xunit_fixture(temp_dir: &tempfile::TempDir) {
     let tests_dir = temp_dir.path().join("Tests/MyCLITests");
     fs::create_dir_all(&tests_dir).unwrap();
     fs::write(
@@ -3245,16 +3242,15 @@ async fn upload_bundle_using_swift_test_xunit() {
         ),
     )
     .unwrap();
+}
 
-    let state = MockServerBuilder::new().spawn_mock_server().await;
-    CommandBuilder::upload(temp_dir.path(), state.host.clone())
-        .swift_test_xunit_paths("xunit-swift-testing.xml,xunit.xml")
-        .command()
-        .assert()
-        .success();
-
-    let requests = state.requests.lock().unwrap().clone();
-    let tar_extract_directory = assert_matches!(&requests[1], RequestPayload::S3Upload(d) => d);
+/// Every test case in the uploaded bundle, paired with the file it was attributed to. Reads
+/// every file set, so a report bundled twice shows up as a longer list rather than as a
+/// silently overwritten entry.
+#[cfg(any(target_os = "macos", target_os = "linux"))]
+fn bundled_cases_with_files(
+    tar_extract_directory: &std::path::Path,
+) -> Vec<(String, Option<String>)> {
     let bundle_meta: BundleMeta =
         serde_json::from_reader(fs::File::open(tar_extract_directory.join("meta.json")).unwrap())
             .unwrap();
@@ -3279,24 +3275,25 @@ async fn upload_bundle_using_swift_test_xunit() {
             }
         }
     }
+    cases
+}
 
-    // Three tests across the two files, each bundled exactly once. A count of six is the
-    // signature of the same reports arriving through a junit glob as well.
-    assert_eq!(
-        cases.len(),
-        3,
-        "expected each test bundled once, got {cases:?}"
-    );
+/// The file each test is expected to be attributed to, which is the file it is declared in
+/// rather than any the xunit XML mentions -- it mentions none.
+#[cfg(any(target_os = "macos", target_os = "linux"))]
+const SWIFT_TEST_XUNIT_DECLARATIONS: [(&str, &str); 3] = [
+    ("helloworld()", "Tests/MyCLITests/TopLevel.swift"),
+    ("shared()", "Tests/MyCLITests/Suites.swift"),
+    ("testOldStyle", "Tests/MyCLITests/Legacy.swift"),
+];
 
+#[cfg(any(target_os = "macos", target_os = "linux"))]
+fn assert_declarations_resolved(cases: Vec<(String, Option<String>)>) {
     let files = cases
         .into_iter()
         .collect::<std::collections::HashMap<String, Option<String>>>();
 
-    for (name, expected) in [
-        ("helloworld()", "Tests/MyCLITests/TopLevel.swift"),
-        ("shared()", "Tests/MyCLITests/Suites.swift"),
-        ("testOldStyle", "Tests/MyCLITests/Legacy.swift"),
-    ] {
+    for (name, expected) in SWIFT_TEST_XUNIT_DECLARATIONS {
         let file = files
             .get(name)
             .unwrap_or_else(|| panic!("{name} is missing from the bundle"))
@@ -3307,4 +3304,100 @@ async fn upload_bundle_using_swift_test_xunit() {
             "expected {name} in {expected}, got {file}"
         );
     }
+}
+
+// `swift test --xunit-output` reports no file for any test, so the uploaded JUnit only gets
+// one if a language server found where each test is declared in the checkout.
+#[cfg(any(target_os = "macos", target_os = "linux"))]
+#[tokio::test(flavor = "multi_thread")]
+async fn upload_bundle_using_swift_test_xunit() {
+    let temp_dir = tempdir().unwrap();
+    generate_mock_git_repo(&temp_dir);
+    write_swift_test_xunit_fixture(&temp_dir);
+
+    let state = MockServerBuilder::new().spawn_mock_server().await;
+    CommandBuilder::upload(temp_dir.path(), state.host.clone())
+        .swift_test_xunit_paths("xunit-swift-testing.xml,xunit.xml")
+        .command()
+        .assert()
+        .success();
+
+    let requests = state.requests.lock().unwrap().clone();
+    let tar_extract_directory = assert_matches!(&requests[1], RequestPayload::S3Upload(d) => d);
+    let cases = bundled_cases_with_files(tar_extract_directory);
+
+    // Three tests across the two files, each bundled exactly once. A count of six is the
+    // signature of the same reports arriving through a junit glob as well.
+    assert_eq!(
+        cases.len(),
+        3,
+        "expected each test bundled once, got {cases:?}"
+    );
+    assert_declarations_resolved(cases);
+}
+
+// These are globs, expanded exactly as `--junit-paths` expands its own, so the two files one
+// `swift test` run writes can be named by the pattern that produced them.
+#[cfg(any(target_os = "macos", target_os = "linux"))]
+#[tokio::test(flavor = "multi_thread")]
+async fn swift_test_xunit_paths_are_globs() {
+    let temp_dir = tempdir().unwrap();
+    generate_mock_git_repo(&temp_dir);
+    write_swift_test_xunit_fixture(&temp_dir);
+
+    let state = MockServerBuilder::new().spawn_mock_server().await;
+    CommandBuilder::upload(temp_dir.path(), state.host.clone())
+        .swift_test_xunit_paths("xunit*.xml")
+        .command()
+        .assert()
+        .success();
+
+    let requests = state.requests.lock().unwrap().clone();
+    let tar_extract_directory = assert_matches!(&requests[1], RequestPayload::S3Upload(d) => d);
+    let cases = bundled_cases_with_files(tar_extract_directory);
+
+    // One pattern reaching both files, so the XCTest half is not silently left behind.
+    assert_eq!(
+        cases.len(),
+        3,
+        "expected the glob to reach both files once each, got {cases:?}"
+    );
+    assert_declarations_resolved(cases);
+}
+
+// A file reached twice is bundled once. The dedupe is on the canonical path, so a symlink
+// pointing at a file another pattern already claimed resolves to it rather than doubling
+// every test it holds -- which is what an uploaded duplicate would look like downstream.
+#[cfg(any(target_os = "macos", target_os = "linux"))]
+#[tokio::test(flavor = "multi_thread")]
+async fn a_swift_test_xunit_file_reached_twice_is_uploaded_once() {
+    let temp_dir = tempdir().unwrap();
+    generate_mock_git_repo(&temp_dir);
+    write_swift_test_xunit_fixture(&temp_dir);
+
+    std::os::unix::fs::symlink(
+        temp_dir.path().join("xunit.xml"),
+        temp_dir.path().join("xunit-link.xml"),
+    )
+    .unwrap();
+
+    let state = MockServerBuilder::new().spawn_mock_server().await;
+    CommandBuilder::upload(temp_dir.path(), state.host.clone())
+        // Three routes to two files: the glob matches both real files and the symlink, and
+        // the literal path names one of them a second time.
+        .swift_test_xunit_paths("xunit*.xml,xunit.xml")
+        .command()
+        .assert()
+        .success();
+
+    let requests = state.requests.lock().unwrap().clone();
+    let tar_extract_directory = assert_matches!(&requests[1], RequestPayload::S3Upload(d) => d);
+    let cases = bundled_cases_with_files(tar_extract_directory);
+
+    assert_eq!(
+        cases.len(),
+        3,
+        "expected duplicate routes to one file to collapse, got {cases:?}"
+    );
+    assert_declarations_resolved(cases);
 }

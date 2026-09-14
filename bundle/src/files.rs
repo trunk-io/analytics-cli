@@ -113,6 +113,23 @@ impl FileSetBuilder {
         Ok(file_set_builder)
     }
 
+    /// The files `globs` match, in glob order and deduplicated exactly as junit globs are.
+    ///
+    /// For a caller that reads the matched files itself rather than handing them straight to
+    /// [`Self::build_file_sets`] -- the `swift test --xunit-output` path rewrites each report
+    /// before bundling it -- so that one spelling of a path does not expand differently
+    /// depending on which argument carried it.
+    pub fn expand_globs<T: AsRef<str>>(
+        repo_root: T,
+        globs: &[String],
+    ) -> anyhow::Result<Vec<PathBuf>> {
+        let repo_root = RepoRoot::canonical(repo_root.as_ref());
+        Ok(Self::collect_files_per_glob(&repo_root, globs)?
+            .into_iter()
+            .flatten()
+            .collect())
+    }
+
     fn file_sets_from_glob(
         repo_root: &str,
         junit_paths: &[JunitReportFileWithTestRunnerReport],
@@ -120,7 +137,11 @@ impl FileSetBuilder {
         exec_start: Option<SystemTime>,
     ) -> anyhow::Result<Self> {
         let repo_root = RepoRoot::canonical(repo_root);
-        let files_per_glob = Self::collect_files_per_glob(&repo_root, junit_paths)?;
+        let globs = junit_paths
+            .iter()
+            .map(|junit_wrapper| junit_wrapper.junit_path.clone())
+            .collect::<Vec<_>>();
+        let files_per_glob = Self::collect_files_per_glob(&repo_root, &globs)?;
 
         let (count, file_sets) = junit_paths.iter().zip(files_per_glob).try_fold(
             (0, Vec::with_capacity(junit_paths.len())),
@@ -156,14 +177,14 @@ impl FileSetBuilder {
     /// already claimed owns nothing, which keeps its (now empty) file set in place.
     fn collect_files_per_glob(
         repo_root: &RepoRoot,
-        junit_paths: &[JunitReportFileWithTestRunnerReport],
+        globs: &[String],
     ) -> anyhow::Result<Vec<Vec<PathBuf>>> {
         let mut claimed: HashSet<PathBuf> = HashSet::new();
 
-        junit_paths
+        globs
             .iter()
-            .map(|junit_wrapper| {
-                let matches = Self::scan_from_glob(&junit_wrapper.junit_path, repo_root.as_str())?;
+            .map(|glob_path| {
+                let matches = Self::scan_from_glob(glob_path, repo_root.as_str())?;
                 let matched = matches.len();
 
                 let mut owned: Vec<PathBuf> = matches
@@ -182,7 +203,7 @@ impl FileSetBuilder {
                     tracing::warn!(
                         "glob {:?} matched {} paths resolving to {} files not already \
                          collected; {} duplicate routes were dropped",
-                        junit_wrapper.junit_path,
+                        glob_path,
                         matched,
                         owned.len(),
                         matched - owned.len(),
@@ -497,5 +518,84 @@ impl BundledFile {
         self.original_path_rel
             .as_ref()
             .unwrap_or(&self.original_path)
+    }
+}
+
+/// What every argument taking a path shares, so these pin the behaviour once rather than
+/// once per caller. Deliberately free of any language server or test runner: expansion is
+/// the half that can be proven anywhere, and the `swift test` integration tests that cover
+/// the other half need a Swift toolchain to say anything at all.
+#[cfg(test)]
+mod expand_globs_tests {
+    use super::*;
+
+    fn repo_with<const N: usize>(files: [&str; N]) -> (tempfile::TempDir, PathBuf) {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().canonicalize().unwrap();
+        for file in files {
+            let path = root.join(file);
+            if let Some(parent) = path.parent() {
+                std::fs::create_dir_all(parent).unwrap();
+            }
+            std::fs::write(path, "").unwrap();
+        }
+        (dir, root)
+    }
+
+    #[test]
+    fn a_file_two_globs_both_match_is_returned_once() {
+        let (_dir, root) = repo_with(["junit.xml", "junit-swift-testing.xml"]);
+
+        let files = FileSetBuilder::expand_globs(
+            root.to_string_lossy(),
+            &[String::from("junit*.xml"), String::from("junit.xml")],
+        )
+        .unwrap();
+
+        // The second pattern owns nothing: the first already claimed the file it names.
+        assert_eq!(
+            files,
+            vec![root.join("junit-swift-testing.xml"), root.join("junit.xml")]
+        );
+    }
+
+    /// The dedupe is on the canonical path rather than the matched one, which is the only
+    /// way a link and its target are recognised as one file.
+    #[cfg(unix)]
+    #[test]
+    fn a_symlink_to_an_already_matched_file_is_not_returned_again() {
+        let (_dir, root) = repo_with(["real.xml"]);
+        std::os::unix::fs::symlink(root.join("real.xml"), root.join("link.xml")).unwrap();
+
+        let files =
+            FileSetBuilder::expand_globs(root.to_string_lossy(), &[String::from("*.xml")]).unwrap();
+
+        assert_eq!(files, vec![root.join("real.xml")]);
+    }
+
+    /// A relative pattern is resolved against the repo root, not the working directory, so
+    /// where the uploader was invoked from does not change which files it finds.
+    #[test]
+    fn relative_globs_resolve_against_the_repo_root() {
+        let (_dir, root) = repo_with(["reports/junit.xml"]);
+
+        let files =
+            FileSetBuilder::expand_globs(root.to_string_lossy(), &[String::from("reports/*.xml")])
+                .unwrap();
+
+        assert_eq!(files, vec![root.join("reports/junit.xml")]);
+    }
+
+    #[test]
+    fn a_glob_matching_nothing_owns_nothing() {
+        let (_dir, root) = repo_with(["junit.xml"]);
+
+        let files = FileSetBuilder::expand_globs(
+            root.to_string_lossy(),
+            &[String::from("nothing-here/*.xml")],
+        )
+        .unwrap();
+
+        assert!(files.is_empty(), "got {files:?}");
     }
 }

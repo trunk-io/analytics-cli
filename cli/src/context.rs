@@ -915,17 +915,22 @@ pub async fn gather_upload_id_context(
 /// where a language server says it is declared. Needs no Xcode, unlike the `.xcresult` path.
 fn handle_swift_test_xunit(
     junit_temp_dir: &tempfile::TempDir,
-    paths: &[String],
+    globs: &[String],
     repo_root: &str,
 ) -> anyhow::Result<Vec<JunitReportFileWithTestRunnerReport>> {
+    // Expanded the way junit globs are, so the same pattern reaches the same files through
+    // either argument, and a file reached twice -- by two patterns, or by two symlinked
+    // routes to one canonical path -- is parsed once rather than uploading its tests twice.
+    let paths = FileSetBuilder::expand_globs(repo_root, globs)?;
+
     let mut reports = Vec::new();
-    for path in paths {
+    for path in &paths {
         let file = std::fs::File::open(path)
-            .map_err(|e| anyhow::anyhow!("failed to open {}: {}", path, e))?;
+            .map_err(|e| anyhow::anyhow!("failed to open {}: {}", path.display(), e))?;
         let mut parser = JunitParser::new();
-        parser
-            .parse(BufReader::new(file))
-            .map_err(|e| anyhow::anyhow!("failed to parse {} as JUnit XML: {}", path, e))?;
+        parser.parse(BufReader::new(file)).map_err(|e| {
+            anyhow::anyhow!("failed to parse {} as JUnit XML: {}", path.display(), e)
+        })?;
         reports.extend(parser.into_reports());
     }
 
