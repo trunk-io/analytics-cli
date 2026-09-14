@@ -27,6 +27,7 @@ tokio-retry = { version = "0.3", default-features = false }
 constants = { version = "0.0.0", path = "../constants" }
 tracing = "0.1.41"
 url = "2.5.4"
+uuid = "1.10.0"
 proto = { version = "0.0.0", path = "../proto" }
 prost = "0.12.6"
 
