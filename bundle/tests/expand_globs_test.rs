@@ -1,9 +1,3 @@
-//! What every argument taking a path shares, pinned once rather than once per caller.
-//!
-//! Deliberately free of any language server or test runner: expansion is the half that can be
-//! proven anywhere, and the `swift test --xunit-output` integration tests that cover the other
-//! half need a Swift toolchain to say anything at all.
-
 use std::path::PathBuf;
 
 use bundle::FileSetBuilder;

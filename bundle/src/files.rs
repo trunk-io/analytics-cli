@@ -113,12 +113,7 @@ impl FileSetBuilder {
         Ok(file_set_builder)
     }
 
-    /// The files `globs` match, in glob order and deduplicated exactly as junit globs are.
-    ///
-    /// For a caller that reads the matched files itself rather than handing them straight to
-    /// [`Self::build_file_sets`] -- the `swift test --xunit-output` path rewrites each report
-    /// before bundling it -- so that one spelling of a path does not expand differently
-    /// depending on which argument carried it.
+    /// The files `globs` match, in glob order and deduplicated by canonical path.
     pub fn expand_globs<T: AsRef<str>>(
         repo_root: T,
         globs: &[String],

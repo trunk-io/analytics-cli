@@ -3195,8 +3195,7 @@ async fn upload_bundle_keeps_the_repo_relative_path_when_a_symlink_leaves_the_re
 }
 
 /// A package whose three tests are split across the two files one `swift test --xunit-output`
-/// run writes, so a glob reaching both is distinguishable from one reaching only the
-/// swift-testing half, and each test's declaration lives in a file of its own.
+/// run writes, each declared in a file of its own.
 #[cfg(any(target_os = "macos", target_os = "linux"))]
 fn write_swift_test_xunit_fixture(temp_dir: &tempfile::TempDir) {
     let tests_dir = temp_dir.path().join("Tests/MyCLITests");
@@ -3245,8 +3244,8 @@ fn write_swift_test_xunit_fixture(temp_dir: &tempfile::TempDir) {
 }
 
 /// Every test case in the uploaded bundle, paired with the file it was attributed to. Reads
-/// every file set, so a report bundled twice shows up as a longer list rather than as a
-/// silently overwritten entry.
+/// every file set, so a report bundled twice lengthens the list rather than overwriting an
+/// entry in it.
 #[cfg(any(target_os = "macos", target_os = "linux"))]
 fn bundled_cases_with_files(
     tar_extract_directory: &std::path::Path,
@@ -3278,8 +3277,7 @@ fn bundled_cases_with_files(
     cases
 }
 
-/// The file each test is expected to be attributed to, which is the file it is declared in
-/// rather than any the xunit XML mentions -- it mentions none.
+/// The file each test is declared in, which the xunit XML does not name.
 #[cfg(any(target_os = "macos", target_os = "linux"))]
 const SWIFT_TEST_XUNIT_DECLARATIONS: [(&str, &str); 3] = [
     ("helloworld()", "Tests/MyCLITests/TopLevel.swift"),
@@ -3336,8 +3334,6 @@ async fn upload_bundle_using_swift_test_xunit() {
     assert_declarations_resolved(cases);
 }
 
-// These are globs, expanded exactly as `--junit-paths` expands its own, so the two files one
-// `swift test` run writes can be named by the pattern that produced them.
 #[cfg(any(target_os = "macos", target_os = "linux"))]
 #[tokio::test(flavor = "multi_thread")]
 async fn swift_test_xunit_paths_are_globs() {
@@ -3356,7 +3352,6 @@ async fn swift_test_xunit_paths_are_globs() {
     let tar_extract_directory = assert_matches!(&requests[1], RequestPayload::S3Upload(d) => d);
     let cases = bundled_cases_with_files(tar_extract_directory);
 
-    // One pattern reaching both files, so the XCTest half is not silently left behind.
     assert_eq!(
         cases.len(),
         3,
@@ -3365,9 +3360,8 @@ async fn swift_test_xunit_paths_are_globs() {
     assert_declarations_resolved(cases);
 }
 
-// A file reached twice is bundled once. The dedupe is on the canonical path, so a symlink
-// pointing at a file another pattern already claimed resolves to it rather than doubling
-// every test it holds -- which is what an uploaded duplicate would look like downstream.
+// The dedupe is on the canonical path, so a symlink resolves to the file another pattern
+// already claimed rather than doubling every test it holds.
 #[cfg(any(target_os = "macos", target_os = "linux"))]
 #[tokio::test(flavor = "multi_thread")]
 async fn a_swift_test_xunit_file_reached_twice_is_uploaded_once() {

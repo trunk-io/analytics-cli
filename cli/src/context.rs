@@ -918,9 +918,6 @@ fn handle_swift_test_xunit(
     globs: &[String],
     repo_root: &str,
 ) -> anyhow::Result<Vec<JunitReportFileWithTestRunnerReport>> {
-    // Expanded the way junit globs are, so the same pattern reaches the same files through
-    // either argument, and a file reached twice -- by two patterns, or by two symlinked
-    // routes to one canonical path -- is parsed once rather than uploading its tests twice.
     let paths = FileSetBuilder::expand_globs(repo_root, globs)?;
 
     let mut reports = Vec::new();
