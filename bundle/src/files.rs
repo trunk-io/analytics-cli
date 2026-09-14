@@ -113,6 +113,18 @@ impl FileSetBuilder {
         Ok(file_set_builder)
     }
 
+    /// The files `globs` match, in glob order and deduplicated by canonical path.
+    pub fn expand_globs<T: AsRef<str>>(
+        repo_root: T,
+        globs: &[String],
+    ) -> anyhow::Result<Vec<PathBuf>> {
+        let repo_root = RepoRoot::canonical(repo_root.as_ref());
+        Ok(Self::collect_files_per_glob(&repo_root, globs)?
+            .into_iter()
+            .flatten()
+            .collect())
+    }
+
     fn file_sets_from_glob(
         repo_root: &str,
         junit_paths: &[JunitReportFileWithTestRunnerReport],
@@ -120,7 +132,11 @@ impl FileSetBuilder {
         exec_start: Option<SystemTime>,
     ) -> anyhow::Result<Self> {
         let repo_root = RepoRoot::canonical(repo_root);
-        let files_per_glob = Self::collect_files_per_glob(&repo_root, junit_paths)?;
+        let globs = junit_paths
+            .iter()
+            .map(|junit_wrapper| junit_wrapper.junit_path.clone())
+            .collect::<Vec<_>>();
+        let files_per_glob = Self::collect_files_per_glob(&repo_root, &globs)?;
 
         let (count, file_sets) = junit_paths.iter().zip(files_per_glob).try_fold(
             (0, Vec::with_capacity(junit_paths.len())),
@@ -156,14 +172,14 @@ impl FileSetBuilder {
     /// already claimed owns nothing, which keeps its (now empty) file set in place.
     fn collect_files_per_glob(
         repo_root: &RepoRoot,
-        junit_paths: &[JunitReportFileWithTestRunnerReport],
+        globs: &[String],
     ) -> anyhow::Result<Vec<Vec<PathBuf>>> {
         let mut claimed: HashSet<PathBuf> = HashSet::new();
 
-        junit_paths
+        globs
             .iter()
-            .map(|junit_wrapper| {
-                let matches = Self::scan_from_glob(&junit_wrapper.junit_path, repo_root.as_str())?;
+            .map(|glob_path| {
+                let matches = Self::scan_from_glob(glob_path, repo_root.as_str())?;
                 let matched = matches.len();
 
                 let mut owned: Vec<PathBuf> = matches
@@ -182,7 +198,7 @@ impl FileSetBuilder {
                     tracing::warn!(
                         "glob {:?} matched {} paths resolving to {} files not already \
                          collected; {} duplicate routes were dropped",
-                        junit_wrapper.junit_path,
+                        glob_path,
                         matched,
                         owned.len(),
                         matched - owned.len(),
