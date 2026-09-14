@@ -22,7 +22,9 @@ use common::{
 use context::{bazel_bep::parser::BazelBepParser, junit::parser::JunitParser};
 use predicates::prelude::*;
 use tempfile::tempdir;
-use test_utils::mock_server::{MockServerBuilder, RequestPayload, SharedMockServerState};
+use test_utils::mock_server::{
+    MOCK_REPO_ID, MOCK_TEST_COLLECTION_ID, MockServerBuilder, RequestPayload, SharedMockServerState,
+};
 
 // NOTE: must be multi threaded to start a mock server
 #[tokio::test(flavor = "multi_thread")]
@@ -308,6 +310,8 @@ async fn quarantining_resets_fail_code() {
                     test_collection_bundle_meta_created_at: Some(String::from(
                         "2026-05-10T12:34:56.000Z",
                     )),
+                    repo_id: Some(String::from(MOCK_REPO_ID)),
+                    test_collection_id: Some(String::from(MOCK_TEST_COLLECTION_ID)),
                 }))
             }
         },
@@ -369,6 +373,8 @@ async fn quarantining_not_active_when_disable_quarantining_set() {
                     test_collection_bundle_meta_created_at: Some(String::from(
                         "2026-05-10T12:34:56.000Z",
                     )),
+                    repo_id: Some(String::from(MOCK_REPO_ID)),
+                    test_collection_id: Some(String::from(MOCK_TEST_COLLECTION_ID)),
                 }))
             }
         },
@@ -431,6 +437,8 @@ async fn quarantining_not_active_when_disable_true_but_use_true() {
                     test_collection_bundle_meta_created_at: Some(String::from(
                         "2026-05-10T12:34:56.000Z",
                     )),
+                    repo_id: Some(String::from(MOCK_REPO_ID)),
+                    test_collection_id: Some(String::from(MOCK_TEST_COLLECTION_ID)),
                 }))
             }
         },
