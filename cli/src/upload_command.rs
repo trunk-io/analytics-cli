@@ -73,12 +73,13 @@ pub struct UploadArgs {
         long,
         env = constants::TRUNK_SWIFT_TEST_XUNIT_PATHS_ENV,
         value_delimiter = ',',
-        help = "Comma-separated list of JUnit files written by `swift test --xunit-output`. \
-                These carry no file path, so each test's file is taken from where a language \
-                server says it is declared in the repository. One run writes two files: \
-                swift-testing to `<name>-swift-testing.xml` and XCTest to `<name>`, the \
-                latter only when `--parallel` is also passed. Upload both if the project \
-                uses both frameworks.",
+        help = "Comma-separated list of glob patterns to JUnit files written by \
+                `swift test --xunit-output` (e.g. 'junit*.xml'), resolved against the \
+                repository root. These carry no file path, so each test's file is taken from \
+                where a language server says it is declared in the repository. One run writes \
+                two files: swift-testing to `<name>-swift-testing.xml` and XCTest to \
+                `<name>`, the latter only when `--parallel` is also passed. Upload both if \
+                the project uses both frameworks.",
         required = false
     )]
     pub swift_test_xunit_paths: Vec<String>,
