@@ -25,14 +25,17 @@ use tsify_next::Tsify;
 use wasm_bindgen::prelude::*;
 
 /// A repo root and the file paths resolved against it, kept canonical so that both
-/// sides of a `starts_with` or `strip_prefix` share a prefix.
+/// sides of a `starts_with` or `strip_prefix` share a prefix. `dunce::canonicalize`
+/// gives the canonical path without the Windows `\\?\` verbatim prefix, which the
+/// `glob` crate cannot match; `std::fs::canonicalize` adds that prefix and makes the
+/// glob find no files.
 #[derive(Debug, Clone)]
 struct RepoRoot(PathBuf);
 
 impl RepoRoot {
     fn canonical<T: AsRef<str>>(repo_root: T) -> Self {
         let repo_root = repo_root.as_ref();
-        Self(std::fs::canonicalize(repo_root).unwrap_or_else(|_| PathBuf::from(repo_root)))
+        Self(dunce::canonicalize(repo_root).unwrap_or_else(|_| PathBuf::from(repo_root)))
     }
 
     fn as_str(&self) -> std::borrow::Cow<'_, str> {
@@ -41,7 +44,7 @@ impl RepoRoot {
 
     fn canonicalize<T: AsRef<Path>>(&self, path: T) -> PathBuf {
         let path = path.as_ref();
-        std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf())
+        dunce::canonicalize(path).unwrap_or_else(|_| path.to_path_buf())
     }
 
     fn path(&self) -> &Path {

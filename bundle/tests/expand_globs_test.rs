@@ -59,6 +59,27 @@ fn relative_globs_resolve_against_the_repo_root() {
     assert_eq!(files, vec![root.join("reports/junit.xml")]);
 }
 
+/// On Windows, `std::fs::canonicalize` returns a `\\?\` verbatim path that the `glob`
+/// crate cannot match, so the scan found no files. `dunce::canonicalize` drops that
+/// prefix. This test passes the raw (non-canonical) repo root, like a CI runner does.
+#[cfg(windows)]
+#[test]
+fn a_glob_matches_under_a_non_canonical_windows_root() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path().to_path_buf();
+    std::fs::write(root.join("junit.xml"), "").unwrap();
+
+    let files =
+        FileSetBuilder::expand_globs(root.to_string_lossy(), &[String::from("*.xml")]).unwrap();
+
+    assert_eq!(files.len(), 1, "got {files:?}");
+    let matched = files[0].to_string_lossy();
+    assert!(
+        !matched.starts_with(r"\\?\"),
+        "matched path keeps the verbatim prefix: {matched}"
+    );
+}
+
 #[test]
 fn a_glob_matching_nothing_owns_nothing() {
     let (_dir, root) = repo_with(["junit.xml"]);
