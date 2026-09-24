@@ -100,18 +100,27 @@ pub struct UploadArgs {
     pub test_collection_short_id: Option<String>,
     #[arg(
         long,
-        required_unless_present = "public_repo_id",
+        required_unless_present_any = ["public_repo_id", "allow_forked_pr_uploads"],
         env = constants::TRUNK_API_TOKEN_ENV,
         help = "Organization token. Defaults to TRUNK_API_TOKEN env var."
     )]
     pub token: Option<String>,
     #[arg(
         long,
-        required_unless_present = "token",
+        required_unless_present_any = ["token", "allow_forked_pr_uploads"],
         env = constants::TRUNK_PUBLIC_REPO_ID_ENV,
         help = "Non-secret per-repo identifier, usable instead of --token on fork PRs where repo secrets are unavailable."
     )]
     pub public_repo_id: Option<String>,
+    /// Opting in explicitly is what keeps a job whose token secret failed to interpolate failing
+    /// loudly: without this, "no credential" would silently become an anonymous upload, and the
+    /// fail-open behaviour on auth errors would hide it behind a green CI step.
+    #[arg(
+        long,
+        env = constants::TRUNK_ALLOW_FORKED_PR_UPLOADS_ENV,
+        help = "Allow uploading from a forked pull request, which cannot read repository secrets. Requires --test-collection-id; the collection must have forked-PR uploads enabled in Trunk."
+    )]
+    pub allow_forked_pr_uploads: bool,
     #[arg(
         long,
         env = constants::TRUNK_REPO_ROOT_ENV,
@@ -539,9 +548,24 @@ pub async fn run_upload(
         );
     }
 
+    // Caught here rather than server-side: without a collection there is nothing for the forked
+    // lane to authorize against, and a 401 from a fork run is fail-open — a warning and a green
+    // step, which is exactly the silent misconfiguration this flag exists to prevent.
+    if upload_args.allow_forked_pr_uploads
+        && upload_args
+            .test_collection_short_id
+            .as_ref()
+            .is_none_or(|id| id.trim().is_empty())
+    {
+        return Err(anyhow::anyhow!(
+            "--allow-forked-pr-uploads requires --test-collection-id: forked pull request uploads are authorized by the collection's own opt-in."
+        ));
+    }
+
     let api_client = ApiClient::new(
         upload_args.token.clone(),
         upload_args.public_repo_id.clone(),
+        upload_args.allow_forked_pr_uploads,
         &upload_args.org_url_slug,
         render_sender,
     )?;
