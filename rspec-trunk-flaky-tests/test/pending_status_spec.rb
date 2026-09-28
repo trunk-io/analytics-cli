@@ -5,7 +5,7 @@ require_relative '../spec/spec_helper'
 require 'rspec/core/sandbox'
 
 # RSpec inverts pass/fail for `pending` examples, so trunk_spec_helper's
-# TrunkAnalyticsListener#status_and_exception reverses them when deciding what to
+# RSpec::Trunk::AnalyticsListener#status_and_exception reverses them when deciding what to
 # report to Trunk. These tests run real pending/skip examples in an RSpec sandbox
 # (so the "fixed pending" failure does not fail this suite) and assert the mapping:
 #
@@ -15,7 +15,8 @@ require 'rspec/core/sandbox'
 #
 # trunk-ignore(rubocop/Metrics/BlockLength)
 RSpec.describe 'pending/skip status mapping' do
-  let(:listener) { TrunkAnalyticsListener.new }
+  # The status mapping never touches the run's report.
+  let(:listener) { RSpec::Trunk::AnalyticsListener.new(nil) }
 
   # Define and run examples in an isolated RSpec world, returning the executed
   # Example objects (with their execution_result populated) for inspection.

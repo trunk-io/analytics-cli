@@ -77,7 +77,10 @@ pub struct TestReport {
 }
 
 #[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
-#[cfg_attr(feature = "ruby", magnus::wrap(class = "IsQuarantinedResult"))]
+#[cfg_attr(
+    feature = "ruby",
+    magnus::wrap(class = "RSpec::Trunk::IsQuarantinedResult")
+)]
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub struct IsQuarantinedResult {
     pub test_is_quarantined: bool,
@@ -119,7 +122,7 @@ impl std::ops::Not for IsQuarantinedResult {
 }
 
 #[cfg_attr(feature = "wasm", wasm_bindgen)]
-#[cfg_attr(feature = "ruby", magnus::wrap(class = "Status"))]
+#[cfg_attr(feature = "ruby", magnus::wrap(class = "RSpec::Trunk::Status"))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Status {
     Success,
@@ -179,7 +182,7 @@ impl magnus::TryConvert for Status {
 }
 
 #[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
-#[cfg_attr(feature = "ruby", magnus::wrap(class = "TestReport"))]
+#[cfg_attr(feature = "ruby", magnus::wrap(class = "RSpec::Trunk::TestReport"))]
 #[derive(Debug, Clone, PartialEq)]
 pub struct MutTestReport(RefCell<TestReport>);
 
@@ -960,11 +963,14 @@ impl From<MutTestReport> for String {
 }
 
 #[cfg(feature = "ruby")]
-pub fn ruby_init(ruby: &magnus::Ruby) -> Result<(), magnus::Error> {
-    let status = ruby.define_class("Status", ruby.class_object())?;
+/// Defines the Ruby classes under `namespace`, which must be the `RSpec::Trunk`
+/// module named in this file's `magnus::wrap(class = ...)` attributes.
+pub fn ruby_init(ruby: &magnus::Ruby, namespace: magnus::RModule) -> Result<(), magnus::Error> {
+    let status = namespace.define_class("Status", ruby.class_object())?;
     status.define_singleton_method("new", magnus::function!(Status::new, 1))?;
     status.define_method("to_s", magnus::method!(Status::to_string, 0))?;
-    let is_quarantined_result = ruby.define_class("IsQuarantinedResult", ruby.class_object())?;
+    let is_quarantined_result =
+        namespace.define_class("IsQuarantinedResult", ruby.class_object())?;
     is_quarantined_result.define_method(
         "test_is_quarantined",
         magnus::method!(IsQuarantinedResult::test_is_quarantined, 0),
@@ -977,7 +983,7 @@ pub fn ruby_init(ruby: &magnus::Ruby) -> Result<(), magnus::Error> {
         "quarantine_lookup_failed",
         magnus::method!(IsQuarantinedResult::quarantine_lookup_failed, 0),
     )?;
-    let test_report = ruby.define_class("TestReport", ruby.class_object())?;
+    let test_report = namespace.define_class("TestReport", ruby.class_object())?;
     test_report.define_singleton_method("new", magnus::function!(MutTestReport::new, 3))?;
     test_report.define_method("to_s", magnus::method!(MutTestReport::to_string, 0))?;
     test_report.define_method("publish", magnus::method!(MutTestReport::publish, 0))?;

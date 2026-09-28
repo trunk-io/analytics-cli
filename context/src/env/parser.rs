@@ -58,7 +58,7 @@ mod ci_platform_env_key {
 
 #[cfg_attr(feature = "pyo3", gen_stub_pyclass_enum, pyclass(eq, eq_int))]
 #[cfg_attr(feature = "wasm", wasm_bindgen)]
-#[cfg_attr(feature = "ruby", magnus::wrap(class = "CIPlatform"))]
+#[cfg_attr(feature = "ruby", magnus::wrap(class = "RSpec::Trunk::CIPlatform"))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CIPlatform {
     GitHubActions,
@@ -630,7 +630,7 @@ impl<'a> CIInfoParser<'a> {
 #[cfg_attr(feature = "wasm", wasm_bindgen(getter_with_clone))]
 #[cfg_attr(
     feature = "ruby",
-    magnus::wrap(class = "CIInfo", free_immediately, size)
+    magnus::wrap(class = "RSpec::Trunk::CIInfo", free_immediately, size)
 )]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CIInfo {
@@ -652,7 +652,10 @@ pub struct CIInfo {
 
 #[cfg_attr(feature = "pyo3", gen_stub_pyclass_enum, pyclass(eq, eq_int))]
 #[cfg_attr(feature = "wasm", wasm_bindgen)]
-#[cfg_attr(feature = "ruby", magnus::wrap(class = "GitLabMergeRequestEventType"))]
+#[cfg_attr(
+    feature = "ruby",
+    magnus::wrap(class = "RSpec::Trunk::GitLabMergeRequestEventType")
+)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum GitLabMergeRequestEventType {
     Detached,
@@ -675,7 +678,7 @@ impl TryFrom<&str> for GitLabMergeRequestEventType {
 
 #[cfg_attr(feature = "pyo3", gen_stub_pyclass_enum, pyclass(eq, eq_int))]
 #[cfg_attr(feature = "wasm", wasm_bindgen)]
-#[cfg_attr(feature = "ruby", magnus::wrap(class = "BranchClass"))]
+#[cfg_attr(feature = "ruby", magnus::wrap(class = "RSpec::Trunk::BranchClass"))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BranchClass {
     PullRequest,
@@ -888,12 +891,14 @@ impl<'a> EnvParser<'a> {
 }
 
 #[cfg(feature = "ruby")]
-pub fn ruby_init(ruby: &magnus::Ruby) -> Result<(), magnus::Error> {
-    let ci_platform = ruby.define_class("CIPlatform", ruby.class_object())?;
+/// Defines the Ruby classes under `namespace`, which must be the `RSpec::Trunk`
+/// module named in this file's `magnus::wrap(class = ...)` attributes.
+pub fn ruby_init(ruby: &magnus::Ruby, namespace: magnus::RModule) -> Result<(), magnus::Error> {
+    let ci_platform = namespace.define_class("CIPlatform", ruby.class_object())?;
     ci_platform.define_method("to_s", magnus::method!(CIPlatform::to_string, 0))?;
-    let branch_class = ruby.define_class("BranchClass", ruby.class_object())?;
+    let branch_class = namespace.define_class("BranchClass", ruby.class_object())?;
     branch_class.define_method("to_s", magnus::method!(BranchClass::to_string, 0))?;
-    let ci_info = ruby.define_class("CIInfo", ruby.class_object())?;
+    let ci_info = namespace.define_class("CIInfo", ruby.class_object())?;
     ci_info.define_singleton_method("new", magnus::function!(CIInfo::new, 1))?;
     ci_info.define_method("platform", magnus::method!(CIInfo::platform, 0))?;
     ci_info.define_method("job_url", magnus::method!(CIInfo::job_url, 0))?;
