@@ -188,7 +188,7 @@ module RSpec
 
       private
 
-      # trunk-ignore(rubocop/Metrics/AbcSize,rubocop/Metrics/MethodLength)
+      # trunk-ignore(rubocop/Metrics/AbcSize,rubocop/Metrics/MethodLength,rubocop/Metrics/CyclomaticComplexity)
       def check_quarantine(example, exception)
         file, classname = Trunk.file_and_classname(example)
         unless quarantining_disabled?
@@ -392,7 +392,7 @@ module RSpec
         end
       end
 
-      # trunk-ignore(rubocop/Metrics/AbcSize,rubocop/Metrics/MethodLength)
+      # trunk-ignore(rubocop/Metrics/CyclomaticComplexity,rubocop/Metrics/AbcSize,rubocop/Metrics/MethodLength)
       def add_test_case(example)
         status, exception = status_and_exception(example)
         failure_message = ''
