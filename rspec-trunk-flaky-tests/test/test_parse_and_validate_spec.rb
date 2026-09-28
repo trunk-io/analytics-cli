@@ -15,7 +15,7 @@ describe 'rspec_trunk_flaky_tests' do
       'GITHUB_WORKFLOW' => 'test-workflow',
       'GITHUB_JOB' => 'test-job'
     }
-    parsed = env_parse(env_vars, [])
+    parsed = RSpec::Trunk.env_parse(env_vars, [])
     expect(parsed.platform.to_s).to eq('GITHUB_ACTIONS')
     expect(parsed.job_url).to eq('https://github.com/analytics-cli/actions/runs/12345')
     expect(parsed.branch).to eq('abc')
@@ -35,7 +35,7 @@ describe 'rspec_trunk_flaky_tests' do
       'GITHUB_WORKFLOW' => 'test-workflow',
       'GITHUB_JOB' => 'test-job'
     }
-    parsed = env_parse(env_vars, ['abc'])
+    parsed = RSpec::Trunk.env_parse(env_vars, ['abc'])
     expect(parsed.branch).to eq('abc')
     expect(parsed.branch_class.to_s).to eq('PB')
   end
@@ -50,13 +50,13 @@ describe 'rspec_trunk_flaky_tests' do
       'GITHUB_WORKFLOW' => 'test-workflow',
       'GITHUB_JOB' => 'test-job'
     }
-    parsed = env_parse(env_vars, ['master'])
+    parsed = RSpec::Trunk.env_parse(env_vars, ['master'])
     expect(parsed.branch).to eq('master')
     expect(parsed.branch_class.to_s).to eq('PB')
   end
 
   it 'should be able to make a new CIInfo' do
-    ci = CIInfo.new(1)
+    ci = RSpec::Trunk::CIInfo.new(1)
     expect(ci.platform.to_s).to eq('BUILD_ID')
     expect(ci.job_url).to eq(nil)
     expect(ci.branch).to eq(nil)
@@ -66,6 +66,6 @@ describe 'rspec_trunk_flaky_tests' do
   end
 
   it 'should error on invalid CIInfo' do
-    expect { CIInfo.new(100) }.to raise_error(TypeError)
+    expect { RSpec::Trunk::CIInfo.new(100) }.to raise_error(TypeError)
   end
 end

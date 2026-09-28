@@ -152,7 +152,7 @@ Understanding the quarantining flow helps you know what to expect when using thi
 
 1. **Test Command Invocation**
 
-   - When you run `bundle exec rspec`, the gem initializes a global `TestReport` instance that will track all test results throughout the run.
+   - When you run `bundle exec rspec`, the gem creates one test report that tracks all test results throughout the run.
 
 2. **Test Execution with Lazy Quarantine Fetching**
 
@@ -171,12 +171,12 @@ Understanding the quarantining flow helps you know what to expect when using thi
 
 4. **Test Result Tracking**
 
-   - After each test completes (whether it passed, failed, or was quarantined), the `TrunkAnalyticsListener` records the test result in the `TestReport`.
+   - After each test completes (whether it passed, failed, or was quarantined), the gem records the test result in the test report.
    - Quarantined tests are marked with `is_quarantined: true` in the report, preserving the original failure information for analytics purposes.
 
 5. **Upload After All Tests Complete**
 
-   - Once all tests have finished running, RSpec calls the `close` hook on `TrunkAnalyticsListener`.
+   - Once all tests have finished running, the gem finalizes the test report.
    - The gem serializes all test results (including quarantined tests) into an `internal.bin` file (protobuf format).
    - The `internal.bin` file is then uploaded to Trunk servers (unless `TRUNK_LOCAL_UPLOAD_DIR` is set).
 

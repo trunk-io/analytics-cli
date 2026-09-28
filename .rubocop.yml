@@ -1,8 +1,9 @@
 AllCops:
   TargetRubyVersion: 3.1
-GlobalVars:
-  AllowedVariables:
-    - $test_report
-    - $failure_encountered_and_quarantining_disabled
+# The gem runs inside other people's test suites, so nothing may leak into the
+# global namespace. Style/GlobalVars is on by default; keep it without exceptions.
+# rspec-trunk-flaky-tests/test/namespace_spec.rb checks the rest at runtime.
+Style/TopLevelMethodDefinition:
+  Enabled: true
 Metrics/PerceivedComplexity:
   Max: 15
