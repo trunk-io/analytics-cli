@@ -504,34 +504,39 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn explains_a_known_client_error_code() {
-        for (body, context) in [
-            (
-                r#"{"code":"TEST_COLLECTION_REQUIRED"}"#,
-                crate::client::TEST_COLLECTION_REQUIRED_CONTEXT,
-            ),
-            (
-                r#"{"code":"TEST_COLLECTION_NOT_FOUND"}"#,
-                crate::client::TEST_COLLECTION_NOT_FOUND_CONTEXT,
-            ),
-        ] {
-            let error = status_code_help_for(400, body).await;
+    async fn carries_the_api_client_error_message() {
+        let error = status_code_help_for(
+            400,
+            r#"{"code":"SOME_CODE","message":"Pass --test-collection-id."}"#,
+        )
+        .await;
 
-            assert_eq!(error.to_string(), context);
-            assert_eq!(
-                error
-                    .root_cause()
-                    .downcast_ref::<reqwest::Error>()
-                    .and_then(reqwest::Error::status),
-                Some(reqwest::StatusCode::BAD_REQUEST)
-            );
-            assert!(!super::AbortableRetry::should_retry(&error));
-        }
+        assert_eq!(error.to_string(), "Pass --test-collection-id.");
+        assert_eq!(
+            error.downcast_ref::<crate::client::ClientErrorExplanation>(),
+            Some(&crate::client::ClientErrorExplanation {
+                code: String::from("SOME_CODE"),
+                message: String::from("Pass --test-collection-id."),
+            })
+        );
+        assert_eq!(
+            error
+                .root_cause()
+                .downcast_ref::<reqwest::Error>()
+                .and_then(reqwest::Error::status),
+            Some(reqwest::StatusCode::BAD_REQUEST)
+        );
+        assert!(!super::AbortableRetry::should_retry(&error));
     }
 
     #[tokio::test]
-    async fn leaves_an_unknown_or_missing_client_error_code_unexplained() {
-        for body in [r#"{"code":"SOMETHING_NEW"}"#, "Bad Request", ""] {
+    async fn leaves_a_body_without_a_client_error_message_unexplained() {
+        for body in [
+            r#"{"code":"SOME_CODE"}"#,
+            r#"{"code":"SOME_CODE","message":"  "}"#,
+            "Bad Request",
+            "",
+        ] {
             let error = status_code_help_for(400, body).await;
 
             assert_eq!(error.chain().count(), 1, "body {body:?}");

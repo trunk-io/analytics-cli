@@ -403,46 +403,35 @@ pub(crate) const NOT_FOUND_CONTEXT: &str = concat!(
     "(Settings -> Manage Organization -> Organization Slug).",
 );
 
-pub(crate) const TEST_COLLECTION_REQUIRED_CONTEXT: &str = concat!(
-    "Your Trunk organization uses test collections, so uploads must name one: pass ",
-    "--test-collection-id or set TRUNK_TEST_COLLECTION_ID. ",
-    "See https://docs.trunk.io/flaky-tests/test-collections",
-);
-
-pub(crate) const TEST_COLLECTION_NOT_FOUND_CONTEXT: &str = concat!(
-    "Your test collection ID matches no test collection in this Trunk organization: check ",
-    "--test-collection-id (or TRUNK_TEST_COLLECTION_ID) against the collection's settings page.",
-);
-
-/// The CLI's explanation of an API client error code, kept in the error chain so the error
-/// report can print it beneath the endpoint context the callers add.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ClientErrorExplanation(pub &'static str);
+/// The API's explanation of a client error, kept in the error chain so the error report can
+/// print it beneath the endpoint context the callers add.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ClientErrorExplanation {
+    pub code: String,
+    pub message: String,
+}
 
 impl fmt::Display for ClientErrorExplanation {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(self.0)
+        f.write_str(&self.message)
     }
 }
 
 impl std::error::Error for ClientErrorExplanation {}
 
-impl message::ClientErrorCode {
-    fn context(self) -> Option<&'static str> {
-        match self {
-            Self::TestCollectionRequired => Some(TEST_COLLECTION_REQUIRED_CONTEXT),
-            Self::TestCollectionNotFound => Some(TEST_COLLECTION_NOT_FOUND_CONTEXT),
-            Self::Unknown => None,
-        }
-    }
-}
+const MAX_CLIENT_ERROR_MESSAGE_LEN: usize = 2048;
 
-async fn client_error_context(response: Response) -> Option<&'static str> {
+async fn client_error_explanation(response: Response) -> Option<ClientErrorExplanation> {
     let body = response.text().await.ok()?;
-    serde_json::from_str::<message::ClientErrorBody>(&body)
-        .ok()?
-        .code
-        .context()
+    let message::ClientErrorBody { code, message } = serde_json::from_str(&body).ok()?;
+    let message = message.trim();
+    if message.is_empty() || message.len() > MAX_CLIENT_ERROR_MESSAGE_LEN {
+        return None;
+    }
+    Some(ClientErrorExplanation {
+        code,
+        message: message.to_owned(),
+    })
 }
 
 pub(crate) async fn status_code_help<T: FnMut(&Response) -> String>(
@@ -484,8 +473,8 @@ pub(crate) async fn status_code_help<T: FnMut(&Response) -> String>(
             None => Err(anyhow::Error::msg(error_message)),
             Some(error) => {
                 let error = anyhow::Error::from(error);
-                Err(match client_error_context(response).await {
-                    Some(context) => error.context(ClientErrorExplanation(context)),
+                Err(match client_error_explanation(response).await {
+                    Some(explanation) => error.context(explanation),
                     None => error,
                 })
             }

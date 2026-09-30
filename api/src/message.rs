@@ -71,17 +71,9 @@ pub struct TelemetryUploadMetricsRequest {
     pub upload_metrics: proto::upload_metrics::trunk::UploadMetrics,
 }
 
-/// A 4xx body's `code`, set by the API for errors the CLI can explain better than its status.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
-#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
-pub enum ClientErrorCode {
-    TestCollectionRequired,
-    TestCollectionNotFound,
-    #[serde(other)]
-    Unknown,
-}
-
+/// A 4xx body the API sends for an error it explains itself; the CLI prints `message` as given.
 #[derive(Debug, Deserialize)]
 pub struct ClientErrorBody {
-    pub code: ClientErrorCode,
+    pub code: String,
+    pub message: String,
 }
