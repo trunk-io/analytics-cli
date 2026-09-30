@@ -409,6 +409,11 @@ pub(crate) const TEST_COLLECTION_REQUIRED_CONTEXT: &str = concat!(
     "See https://docs.trunk.io/flaky-tests/test-collections",
 );
 
+pub(crate) const TEST_COLLECTION_NOT_FOUND_CONTEXT: &str = concat!(
+    "Your test collection ID matches no test collection in this Trunk organization: check ",
+    "--test-collection-id (or TRUNK_TEST_COLLECTION_ID) against the collection's settings page.",
+);
+
 /// The CLI's explanation of an API client error code, kept in the error chain so the error
 /// report can print it beneath the endpoint context the callers add.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -426,6 +431,7 @@ impl message::ClientErrorCode {
     fn context(self) -> Option<&'static str> {
         match self {
             Self::TestCollectionRequired => Some(TEST_COLLECTION_REQUIRED_CONTEXT),
+            Self::TestCollectionNotFound => Some(TEST_COLLECTION_NOT_FOUND_CONTEXT),
             Self::Unknown => None,
         }
     }

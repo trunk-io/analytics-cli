@@ -76,6 +76,7 @@ pub struct TelemetryUploadMetricsRequest {
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum ClientErrorCode {
     TestCollectionRequired,
+    TestCollectionNotFound,
     #[serde(other)]
     Unknown,
 }

@@ -505,20 +505,28 @@ mod tests {
 
     #[tokio::test]
     async fn explains_a_known_client_error_code() {
-        let error = status_code_help_for(400, r#"{"code":"TEST_COLLECTION_REQUIRED"}"#).await;
+        for (body, context) in [
+            (
+                r#"{"code":"TEST_COLLECTION_REQUIRED"}"#,
+                crate::client::TEST_COLLECTION_REQUIRED_CONTEXT,
+            ),
+            (
+                r#"{"code":"TEST_COLLECTION_NOT_FOUND"}"#,
+                crate::client::TEST_COLLECTION_NOT_FOUND_CONTEXT,
+            ),
+        ] {
+            let error = status_code_help_for(400, body).await;
 
-        assert_eq!(
-            error.to_string(),
-            crate::client::TEST_COLLECTION_REQUIRED_CONTEXT
-        );
-        assert_eq!(
-            error
-                .root_cause()
-                .downcast_ref::<reqwest::Error>()
-                .and_then(reqwest::Error::status),
-            Some(reqwest::StatusCode::BAD_REQUEST)
-        );
-        assert!(!super::AbortableRetry::should_retry(&error));
+            assert_eq!(error.to_string(), context);
+            assert_eq!(
+                error
+                    .root_cause()
+                    .downcast_ref::<reqwest::Error>()
+                    .and_then(reqwest::Error::status),
+                Some(reqwest::StatusCode::BAD_REQUEST)
+            );
+            assert!(!super::AbortableRetry::should_retry(&error));
+        }
     }
 
     #[tokio::test]
