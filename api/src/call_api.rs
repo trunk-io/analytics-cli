@@ -477,6 +477,7 @@ mod tests {
                     &String::from("mock_host"),
                     &String::from("mock_url_slug"),
                 )
+                .await
             },
             log_progress_message: |_, _| String::new(),
             report_slow_progress_message: |_| String::new(),
@@ -486,6 +487,51 @@ mod tests {
         .await;
 
         assert_eq!(retry_count.into_inner(), 1);
+    }
+
+    async fn status_code_help_for(status: u16, body: &'static str) -> anyhow::Error {
+        let http_response = http::Response::builder().status(status).body(body).unwrap();
+        status_code_help(
+            Response::from(http_response),
+            CheckUnauthorized::Check,
+            CheckNotFound::Check,
+            |_e| String::from("Test message"),
+            &String::from("mock_host"),
+            &String::from("mock_url_slug"),
+        )
+        .await
+        .unwrap_err()
+    }
+
+    #[tokio::test]
+    async fn explains_a_known_client_error_code() {
+        let error = status_code_help_for(400, r#"{"code":"TEST_COLLECTION_REQUIRED"}"#).await;
+
+        assert_eq!(
+            error.to_string(),
+            crate::client::TEST_COLLECTION_REQUIRED_CONTEXT
+        );
+        assert_eq!(
+            error
+                .root_cause()
+                .downcast_ref::<reqwest::Error>()
+                .and_then(reqwest::Error::status),
+            Some(reqwest::StatusCode::BAD_REQUEST)
+        );
+        assert!(!super::AbortableRetry::should_retry(&error));
+    }
+
+    #[tokio::test]
+    async fn leaves_an_unknown_or_missing_client_error_code_unexplained() {
+        for body in [r#"{"code":"SOMETHING_NEW"}"#, "Bad Request", ""] {
+            let error = status_code_help_for(400, body).await;
+
+            assert_eq!(error.chain().count(), 1, "body {body:?}");
+            assert!(
+                error.to_string().contains("400 Bad Request"),
+                "body {body:?}"
+            );
+        }
     }
 
     #[tokio::test(start_paused = true)]

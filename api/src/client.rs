@@ -211,7 +211,8 @@ impl ApiClient {
                     |_| String::from("Failed to create bundle upload."),
                     &self.api_host,
                     &self.org_url_slug,
-                )?;
+                )
+                .await?;
 
                 self.deserialize_response::<message::CreateBundleUploadResponse>(response).await
             },
@@ -254,7 +255,8 @@ impl ApiClient {
                     },
                     &self.api_host,
                     &self.org_url_slug,
-                )?;
+                )
+                .await?;
 
                 self.deserialize_response::<message::GetQuarantineConfigResponse>(response).await
             },
@@ -297,6 +299,7 @@ impl ApiClient {
                     &self.api_host,
                     &self.org_url_slug
                 )
+                .await
             },
             log_progress_message: |time_elapsed, _| {
                 format!("Uploading bundle to S3 is taking longer than expected. It has taken {} seconds so far.", time_elapsed.as_secs())
@@ -400,7 +403,43 @@ pub(crate) const NOT_FOUND_CONTEXT: &str = concat!(
     "(Settings -> Manage Organization -> Organization Slug).",
 );
 
-pub(crate) fn status_code_help<T: FnMut(&Response) -> String>(
+pub(crate) const TEST_COLLECTION_REQUIRED_CONTEXT: &str = concat!(
+    "Your Trunk organization uses test collections, so uploads must name one: pass ",
+    "--test-collection-id or set TRUNK_TEST_COLLECTION_ID. ",
+    "See https://docs.trunk.io/flaky-tests/test-collections",
+);
+
+/// The CLI's explanation of an API client error code, kept in the error chain so the error
+/// report can print it beneath the endpoint context the callers add.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ClientErrorExplanation(pub &'static str);
+
+impl fmt::Display for ClientErrorExplanation {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.0)
+    }
+}
+
+impl std::error::Error for ClientErrorExplanation {}
+
+impl message::ClientErrorCode {
+    fn context(self) -> Option<&'static str> {
+        match self {
+            Self::TestCollectionRequired => Some(TEST_COLLECTION_REQUIRED_CONTEXT),
+            Self::Unknown => None,
+        }
+    }
+}
+
+async fn client_error_context(response: Response) -> Option<&'static str> {
+    let body = response.text().await.ok()?;
+    serde_json::from_str::<message::ClientErrorBody>(&body)
+        .ok()?
+        .code
+        .context()
+}
+
+pub(crate) async fn status_code_help<T: FnMut(&Response) -> String>(
     response: Response,
     check_unauthorized: CheckUnauthorized,
     check_not_found: CheckNotFound,
@@ -435,9 +474,15 @@ pub(crate) fn status_code_help<T: FnMut(&Response) -> String>(
             _ => base_error_message,
         };
 
-        match response.error_for_status() {
-            Ok(..) => Err(anyhow::Error::msg(error_message)),
-            Err(error) => Err(anyhow::Error::from(error)),
+        match response.error_for_status_ref().err() {
+            None => Err(anyhow::Error::msg(error_message)),
+            Some(error) => {
+                let error = anyhow::Error::from(error);
+                Err(match client_error_context(response).await {
+                    Some(context) => error.context(ClientErrorExplanation(context)),
+                    None => error,
+                })
+            }
         }
     }
 }

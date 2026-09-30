@@ -70,3 +70,17 @@ pub struct CreateBundleUploadIntentResponse {
 pub struct TelemetryUploadMetricsRequest {
     pub upload_metrics: proto::upload_metrics::trunk::UploadMetrics,
 }
+
+/// A 4xx body's `code`, set by the API for errors the CLI can explain better than its status.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum ClientErrorCode {
+    TestCollectionRequired,
+    #[serde(other)]
+    Unknown,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ClientErrorBody {
+    pub code: ClientErrorCode,
+}
