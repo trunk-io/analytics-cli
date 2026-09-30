@@ -15,6 +15,7 @@ RSpec.describe 'abort hook' do
   def run_example(abort_remaining:)
     run = Object.new
     run.define_singleton_method(:abort_remaining?) { abort_remaining }
+    run.define_singleton_method(:abort_failure) { |_example| nil }
     hooks_ran = []
     example = nil
     RSpec::Core::Sandbox.sandboxed do |config|

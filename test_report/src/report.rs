@@ -876,8 +876,8 @@ impl MutTestReport {
         line: Option<i32>,
         status: Status,
         attempt_number: i32,
-        started_at: i64,
-        finished_at: i64,
+        started_at: f64,
+        finished_at: f64,
         failure_text: String,
         backtrace: String,
         is_quarantined: bool,
@@ -918,18 +918,8 @@ impl MutTestReport {
         test.attempt_index = Some(AttemptNumber {
             number: attempt_number,
         });
-        let started_at_date_time = DateTime::from_timestamp(started_at, 0).unwrap_or_default();
-        let test_started_at = Timestamp {
-            seconds: started_at_date_time.timestamp(),
-            nanos: started_at_date_time.timestamp_subsec_nanos() as i32,
-        };
-        test.started_at = Some(test_started_at);
-        let finished_at_date_time = DateTime::from_timestamp(finished_at, 0).unwrap_or_default();
-        let test_finished_at = Timestamp {
-            seconds: finished_at_date_time.timestamp(),
-            nanos: finished_at_date_time.timestamp_subsec_nanos() as i32,
-        };
-        test.finished_at = Some(test_finished_at);
+        test.started_at = Some(timestamp_from_epoch_secs(started_at));
+        test.finished_at = Some(timestamp_from_epoch_secs(finished_at));
         // trunk-ignore(clippy/deprecated)
         test.status_output_message = failure_text.clone();
         if status != Status::Success {
@@ -953,6 +943,18 @@ impl MutTestReport {
 
     pub fn to_string(&self) -> String {
         self.clone().into()
+    }
+}
+
+/// Converts seconds since the Unix epoch, as Ruby's `Time#to_f` gives them, to a
+/// timestamp. The fraction is kept (to the microsecond, about what an f64 epoch
+/// holds) so a test's duration isn't rounded to whole seconds.
+fn timestamp_from_epoch_secs(secs: f64) -> Timestamp {
+    let date_time =
+        DateTime::from_timestamp_micros((secs * 1_000_000.0).round() as i64).unwrap_or_default();
+    Timestamp {
+        seconds: date_time.timestamp(),
+        nanos: date_time.timestamp_subsec_nanos() as i32,
     }
 }
 
@@ -994,4 +996,22 @@ pub fn ruby_init(ruby: &magnus::Ruby, namespace: magnus::RModule) -> Result<(), 
         magnus::method!(MutTestReport::is_quarantined, 5),
     )?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn timestamp_from_epoch_secs_keeps_the_fraction() {
+        let timestamp = timestamp_from_epoch_secs(1_790_786_491.25);
+        assert_eq!(timestamp.seconds, 1_790_786_491);
+        assert_eq!(timestamp.nanos, 250_000_000);
+    }
+
+    #[test]
+    fn timestamp_from_epoch_secs_defaults_on_nonsense() {
+        assert_eq!(timestamp_from_epoch_secs(f64::NAN).seconds, 0);
+        assert_eq!(timestamp_from_epoch_secs(f64::INFINITY).seconds, 0);
+    }
 }

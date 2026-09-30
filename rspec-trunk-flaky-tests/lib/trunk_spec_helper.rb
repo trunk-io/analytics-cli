@@ -71,6 +71,7 @@ module RSpec
 
         run = @current_run = Run.new
         RSpec::Core::Example.prepend(ExampleExtension)
+        RSpec::Core::ExampleGroup.singleton_class.prepend(ExampleGroupExtension)
         RSpec.configure { |config| install(config, run) }
       end
 
@@ -78,8 +79,16 @@ module RSpec
         # prepend_before so the abort check runs ahead of every other before hook,
         # including ones configured before this file was required; a skipped
         # example shouldn't pay for (or be affected by) the suite's setup.
-        config.prepend_before(:example) do
-          skip('Quarantine lookup failed, skipping test run') if run.abort_remaining?
+        config.prepend_before(:example) do |example|
+          next unless run.abort_remaining?
+
+          # RSpec starts no new examples once the run wants to quit, so this is
+          # an example being re-run in place, e.g. by rspec-retry. If it already
+          # failed, fail it again: a skip would stand in for the failure.
+          failure = run.abort_failure(example)
+          raise failure if failure
+
+          skip('Quarantine lookup failed, skipping test run')
         end
         config.around(:each) { |example| Trunk.run_counting_attempts(example) }
         config.reporter.register_listener AnalyticsListener.new(run), :example_finished, :close
@@ -159,8 +168,8 @@ module RSpec
 
     # Run is the state shared by every example in this RSpec process: the test
     # report (cached in memory so we can add to it as we go and reduce the number
-    # of API calls), and whether quarantining turned out to be unavailable, so
-    # that's only announced once.
+    # of API calls), whether quarantining turned out to be unavailable, so that's
+    # only announced once, and the failures that aborted the run.
     class Run
       attr_reader :report
 
@@ -168,6 +177,7 @@ module RSpec
         @report = report
         @quarantining_disabled = false
         @lookup_failed = false
+        @abort_failures = {}.compare_by_identity
       end
 
       def quarantining_disabled?
@@ -180,6 +190,12 @@ module RSpec
 
       def abort_remaining?
         lookup_failed? && Trunk.quarantine_query_failure_exit?
+      end
+
+      # The failure `example` had when its quarantine lookup failed and aborted
+      # the run, if it had one.
+      def abort_failure(example)
+        @abort_failures[example]
       end
 
       # Whether a failure of `example` with `exception` is quarantined. If the
@@ -207,10 +223,7 @@ module RSpec
             puts Colors.yellow('Failed to check quarantining status, no failures will be quarantined')
             @lookup_failed = true
           end
-          if Trunk.quarantine_query_failure_exit?
-            puts Colors.red('Quarantine lookup failed, exiting early')
-            RSpec.world.wants_to_quit = true
-          end
+          abort_run(example, exception) if Trunk.quarantine_query_failure_exit?
           false
         elsif result.quarantining_disabled_for_repo
           unless quarantining_disabled?
@@ -219,14 +232,32 @@ module RSpec
           end
           false
         elsif result.test_is_quarantined
-          # monitor the override in the metadata
-          Trunk.write_metadata(example.metadata, :trunk_quarantined_exception, exception)
+          record_quarantined(example, exception)
           puts Colors.green("Test is quarantined, overriding exception: #{exception}")
           true
         else
           puts Colors.red('Test is not quarantined, continuing')
           false
         end
+      end
+
+      def abort_run(example, exception)
+        puts Colors.red('Quarantine lookup failed, exiting early')
+        @abort_failures[example] = exception
+        RSpec.world.wants_to_quit = true
+      end
+
+      # Monitors the override in the metadata. An example can fail more than once
+      # (its body, then an after hook); keep every failure, as RSpec does.
+      def record_quarantined(example, exception)
+        previous = example.metadata[:trunk_quarantined_exception]
+        if previous.is_a?(RSpec::Core::MultipleExceptionError)
+          previous.add(exception)
+          exception = previous
+        elsif previous
+          exception = RSpec::Core::MultipleExceptionError.new(previous, exception)
+        end
+        Trunk.write_metadata(example.metadata, :trunk_quarantined_exception, exception)
       end
     end
 
@@ -270,6 +301,21 @@ module RSpec
       def pending_example_fixed?(exception)
         defined?(RSpec::Core::Pending::PendingExampleFixedError) &&
           exception.is_a?(RSpec::Core::Pending::PendingExampleFixedError)
+      end
+    end
+
+    # Prepended to RSpec::Core::ExampleGroup's singleton class. When a
+    # before(:context) hook raises, RSpec fails each example with that error
+    # through #set_exception, where quarantining applies, but the group still
+    # returns false, and that alone fails the run. So when every example in the
+    # group came out passed or pending, report the group as passed too.
+    module ExampleGroupExtension
+      def run(reporter = RSpec::Core::NullReporter)
+        passed = super
+        return passed unless passed == false
+
+        examples = descendant_filtered_examples
+        examples.any? && examples.all? { |example| %i[passed pending].include?(example.execution_result.status) }
       end
     end
 
@@ -367,12 +413,16 @@ module RSpec
         @run = run
       end
 
+      # --dry-run reports every example as passed without running it, so there
+      # are no results to record or upload.
       def example_finished(notification)
-        add_test_case(notification.example)
+        add_test_case(notification.example) unless RSpec.configuration.dry_run?
       end
 
       # trunk-ignore(rubocop/Metrics/MethodLength,rubocop/Metrics/AbcSize)
       def close(_notification)
+        return if RSpec.configuration.dry_run?
+
         if @run.quarantining_disabled?
           puts Colors.yellow('Note: Quarantining is disabled for this repo. Test failures were not quarantined.')
         end
@@ -412,8 +462,8 @@ module RSpec
         name = example.full_description
         file, classname = Trunk.file_and_classname(example)
         line = example.metadata[:line_number]
-        started_at = example.execution_result.started_at.to_i
-        finished_at = example.execution_result.finished_at.to_i
+        started_at = example.execution_result.started_at.to_f
+        finished_at = example.execution_result.finished_at.to_f
 
         attempt_number = example.metadata[:retry_attempts] || example.metadata[:trunk_attempt_number] || 0
         # set the status to failure, but mark it as quarantined
