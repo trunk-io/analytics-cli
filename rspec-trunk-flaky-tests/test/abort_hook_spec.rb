@@ -11,11 +11,12 @@ require 'rspec/core/sandbox'
 #
 # trunk-ignore(rubocop/Metrics/BlockLength)
 RSpec.describe 'abort hook' do
-  # trunk-ignore(rubocop/Metrics/MethodLength)
+  # trunk-ignore(rubocop/Metrics/MethodLength,rubocop/Metrics/AbcSize)
   def run_example(abort_remaining:)
     run = Object.new
     run.define_singleton_method(:abort_remaining?) { abort_remaining }
     run.define_singleton_method(:abort_failure) { |_example| nil }
+    run.define_singleton_method(:start_attempt) { |_example| nil }
     hooks_ran = []
     example = nil
     RSpec::Core::Sandbox.sandboxed do |config|

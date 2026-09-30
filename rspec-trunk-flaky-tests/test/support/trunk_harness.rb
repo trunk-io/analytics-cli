@@ -5,24 +5,28 @@ require 'stringio'
 
 # Runs sandboxed examples with Trunk active against a fake report, so specs can
 # drive quarantine outcomes without the API. The unit suite runs with Trunk
-# disabled, so RSpec::Trunk.setup never applied the gem's patches; they do
-# nothing while no run is current, so applying them here is safe.
+# disabled, so RSpec::Trunk.setup never applied the gem's patches. They change
+# no outcome unless RSpec::Trunk.current_run is set, so applying them here
+# leaves the rest of the suite alone.
 module TrunkHarness
   LookupResult = Struct.new(:quarantine_lookup_failed, :quarantining_disabled_for_repo, :test_is_quarantined)
 
-  # Stands in for the native TestReport: answers every lookup with `result` and
-  # records what the listener would upload.
+  # Stands in for the native TestReport: answers every lookup with `result`,
+  # counting them, and records what the listener would upload. `submitted` is
+  # whether the report was uploaded or, with TRUNK_LOCAL_UPLOAD_DIR, saved.
   class FakeReport
-    attr_reader :added, :published
+    attr_reader :added, :submitted, :lookups
 
     def initialize(result)
       @result = result
       @added = []
-      @published = false
+      @submitted = false
+      @lookups = 0
     end
 
     # trunk-ignore(rubocop/Naming/PredicatePrefix)
     def is_quarantined(*)
+      @lookups += 1
       @result
     end
 
@@ -31,8 +35,20 @@ module TrunkHarness
     end
 
     def publish
-      @published = true
+      @submitted = true
     end
+
+    def try_save(_dir)
+      @submitted = true
+    end
+  end
+
+  # An around hook that runs the example twice in place, clearing the failure in
+  # between, the way rspec-retry does but without its :retry_attempts metadata.
+  RERUN_IN_PLACE = proc do |ex|
+    ex.run
+    ex.example.instance_variable_set(:@exception, nil) # what rspec-retry's clear_exception does
+    ex.run
   end
 
   module_function

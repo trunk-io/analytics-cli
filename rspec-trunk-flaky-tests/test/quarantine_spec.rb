@@ -26,6 +26,7 @@ RSpec.describe 'quarantine outcomes' do
     listener.close(nil)
   end
 
+  # trunk-ignore(rubocop/Metrics/BlockLength)
   context 'when a lookup failure aborts the run' do
     around do |example|
       previous = ENV.fetch('TRUNK_QUARANTINE_QUERY_FAILURE_EXIT', nil)
@@ -39,12 +40,8 @@ RSpec.describe 'quarantine outcomes' do
     # place; the abort must not turn the retry into a skip that hides the failure.
     it 'keeps failing an example that is re-run in place' do
       body_runs = 0
-      passed, examples, = run_group(:failed) do
-        around do |ex|
-          ex.run
-          ex.example.instance_variable_set(:@exception, nil) # what rspec-retry's clear_exception does
-          ex.run
-        end
+      passed, examples, run = run_group(:failed) do
+        around(&TrunkHarness::RERUN_IN_PLACE)
         it('fails') do
           body_runs += 1
           raise 'the real failure'
@@ -55,6 +52,19 @@ RSpec.describe 'quarantine outcomes' do
       expect(examples.first.execution_result.status).to eq(:failed)
       expect(examples.first.exception.message).to eq('the real failure')
       expect(body_runs).to eq(1)
+      # The replayed failure isn't looked up again.
+      expect(run.report.lookups).to eq(1)
+    end
+
+    it 'replays the failure that aborted the run, not a later after-hook error' do
+      _, examples, = run_group(:failed) do
+        around(&TrunkHarness::RERUN_IN_PLACE)
+        after { raise 'cleanup error' }
+        it('fails') { raise 'the real failure' }
+      end
+
+      # The re-run's own after hook fails again, as it would have anyway.
+      expect(examples.first.exception.all_exceptions.map(&:message)).to eq(['the real failure', 'cleanup error'])
     end
   end
 
@@ -71,6 +81,17 @@ RSpec.describe 'quarantine outcomes' do
       passed, examples, = run_group(:quarantined, &group_body)
       expect(examples.map { |example| example.execution_result.status }).to eq(%i[passed passed])
       expect(passed).to be(true)
+    end
+
+    it 'still fails the group when a pending example hides the error' do
+      # RSpec files the error under the pending example's pending_exception and
+      # records it :passed; plain RSpec still fails the group.
+      passed, examples, = run_group(:quarantined) do
+        before(:context) { raise 'db down' }
+        it('p', :pending) { expect(1).to eq(2) }
+      end
+      expect(examples.first.execution_result.status).to eq(:passed)
+      expect(passed).to be(false)
     end
 
     it 'still fails the group when the examples are not quarantined' do
@@ -92,7 +113,16 @@ RSpec.describe 'quarantine outcomes' do
     expect(recorded.all_exceptions.map(&:message)).to eq(['the real failure', 'cleanup error'])
   end
 
-  it 'records and uploads nothing for --dry-run' do
+  it 'records only the latest attempt when an example is re-run in place' do
+    attempt = 0
+    _, examples, = run_group(:quarantined) do
+      around { |ex| 2.times { ex.run } }
+      it('fails') { raise "attempt #{attempt += 1}" }
+    end
+    expect(examples.first.metadata[:trunk_quarantined_exception].message).to eq('attempt 2')
+  end
+
+  it 'records and submits nothing for --dry-run' do
     run = nil
     TrunkHarness.with_trunk(:not_quarantined) do |config, trunk_run|
       config.dry_run = true
@@ -102,7 +132,7 @@ RSpec.describe 'quarantine outcomes' do
       run = trunk_run
     end
     expect(run.report.added).to be_empty
-    expect(run.report.published).to be(false)
+    expect(run.report.submitted).to be(false)
   end
 
   it 'records start and finish times with their sub-second part' do
@@ -112,6 +142,6 @@ RSpec.describe 'quarantine outcomes' do
     result = examples.first.execution_result
     started_at, finished_at = run.report.added.first.values_at(8, 9)
     expect([started_at, finished_at]).to eq([result.started_at.to_f, result.finished_at.to_f])
-    expect(run.report.published).to be(true)
+    expect(run.report.submitted).to be(true)
   end
 end

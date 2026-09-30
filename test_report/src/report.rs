@@ -950,12 +950,9 @@ impl MutTestReport {
 /// timestamp. The fraction is kept (to the microsecond, about what an f64 epoch
 /// holds) so a test's duration isn't rounded to whole seconds.
 fn timestamp_from_epoch_secs(secs: f64) -> Timestamp {
-    let date_time =
-        DateTime::from_timestamp_micros((secs * 1_000_000.0).round() as i64).unwrap_or_default();
-    Timestamp {
-        seconds: date_time.timestamp(),
-        nanos: date_time.timestamp_subsec_nanos() as i32,
-    }
+    DateTime::from_timestamp_micros((secs * 1_000_000.0).round() as i64)
+        .unwrap_or_default()
+        .into()
 }
 
 impl From<MutTestReport> for String {
