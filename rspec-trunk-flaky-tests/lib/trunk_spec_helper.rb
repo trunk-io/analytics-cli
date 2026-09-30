@@ -71,13 +71,18 @@ module RSpec
 
         run = @current_run = Run.new
         RSpec::Core::Example.prepend(ExampleExtension)
-        RSpec.configure do |config|
-          config.before(:example) do
-            skip('Quarantine lookup failed, skipping test run') if run.abort_remaining?
-          end
-          config.around(:each) { |example| Trunk.run_counting_attempts(example) }
-          config.reporter.register_listener AnalyticsListener.new(run), :example_finished, :close
+        RSpec.configure { |config| install(config, run) }
+      end
+
+      def install(config, run)
+        # prepend_before so the abort check runs ahead of every other before hook,
+        # including ones configured before this file was required; a skipped
+        # example shouldn't pay for (or be affected by) the suite's setup.
+        config.prepend_before(:example) do
+          skip('Quarantine lookup failed, skipping test run') if run.abort_remaining?
         end
+        config.around(:each) { |example| Trunk.run_counting_attempts(example) }
+        config.reporter.register_listener AnalyticsListener.new(run), :example_finished, :close
       end
 
       def disabled?
