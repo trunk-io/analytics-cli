@@ -946,9 +946,7 @@ impl MutTestReport {
     }
 }
 
-/// Converts seconds since the Unix epoch, as Ruby's `Time#to_f` gives them, to a
-/// timestamp. The fraction is kept (to the microsecond, about what an f64 epoch
-/// holds) so a test's duration isn't rounded to whole seconds.
+/// Microseconds are about all the precision an f64 epoch holds.
 fn timestamp_from_epoch_secs(secs: f64) -> Timestamp {
     DateTime::from_timestamp_micros((secs * 1_000_000.0).round() as i64)
         .unwrap_or_default()

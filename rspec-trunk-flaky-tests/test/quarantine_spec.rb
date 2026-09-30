@@ -4,13 +4,8 @@ require 'rspec_trunk_flaky_tests'
 require_relative '../spec/spec_helper'
 require_relative 'support/trunk_harness'
 
-# How quarantine outcomes carry through to what RSpec reports and what Trunk
-# records, in the corners where RSpec's own control flow gets in the way.
-#
 # trunk-ignore(rubocop/Metrics/BlockLength)
 RSpec.describe 'quarantine outcomes' do
-  # Runs a sandboxed group; returns what group.run returned (which feeds RSpec's
-  # exit status), its examples, and the Run.
   def run_group(lookup, &block)
     outcome = nil
     TrunkHarness.with_trunk(lookup) do |_config, run|
@@ -36,8 +31,6 @@ RSpec.describe 'quarantine outcomes' do
       ENV['TRUNK_QUARANTINE_QUERY_FAILURE_EXIT'] = previous
     end
 
-    # rspec-retry ignores RSpec.world.wants_to_quit and re-runs the example in
-    # place; the abort must not turn the retry into a skip that hides the failure.
     it 'keeps failing an example that is re-run in place' do
       body_runs = 0
       passed, examples, run = run_group(:failed) do
@@ -52,7 +45,6 @@ RSpec.describe 'quarantine outcomes' do
       expect(examples.first.execution_result.status).to eq(:failed)
       expect(examples.first.exception.message).to eq('the real failure')
       expect(body_runs).to eq(1)
-      # The replayed failure isn't looked up again.
       expect(run.report.lookups).to eq(1)
     end
 
@@ -63,7 +55,6 @@ RSpec.describe 'quarantine outcomes' do
         it('fails') { raise 'the real failure' }
       end
 
-      # The re-run's own after hook fails again, as it would have anyway.
       expect(examples.first.exception.all_exceptions.map(&:message)).to eq(['the real failure', 'cleanup error'])
     end
   end
@@ -84,8 +75,6 @@ RSpec.describe 'quarantine outcomes' do
     end
 
     it 'still fails the group when a pending example hides the error' do
-      # RSpec files the error under the pending example's pending_exception and
-      # records it :passed; plain RSpec still fails the group.
       passed, examples, = run_group(:quarantined) do
         before(:context) { raise 'db down' }
         it('p', :pending) { expect(1).to eq(2) }

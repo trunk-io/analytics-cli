@@ -4,11 +4,6 @@ require 'rspec_trunk_flaky_tests'
 require_relative '../spec/spec_helper'
 require 'rspec/core/sandbox'
 
-# With TRUNK_QUARANTINE_QUERY_FAILURE_EXIT, once the quarantine lookup fails the
-# remaining examples are skipped. That check must run before the suite's own
-# before hooks, even ones configured before the gem was loaded, so none of their
-# setup runs for an example that is about to be skipped.
-#
 # trunk-ignore(rubocop/Metrics/BlockLength)
 RSpec.describe 'abort hook' do
   # trunk-ignore(rubocop/Metrics/MethodLength,rubocop/Metrics/AbcSize)
