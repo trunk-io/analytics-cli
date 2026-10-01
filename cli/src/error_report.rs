@@ -137,10 +137,10 @@ fn is_gix_error(error: &anyhow::Error) -> bool {
     }
 }
 
-fn get_client_error_explanation(error: &anyhow::Error) -> Option<&str> {
+fn get_client_error_explanation(error: &anyhow::Error) -> Option<String> {
     error
         .downcast_ref::<ClientErrorExplanation>()
-        .map(|explanation| explanation.message.as_str())
+        .map(ToString::to_string)
 }
 
 fn get_interrupting_message(error: &anyhow::Error) -> Option<String> {
@@ -254,8 +254,8 @@ fn adds_settings_if_domain_present() {
 fn prints_a_client_error_explanation_beneath_the_base_message() {
     let error = anyhow::anyhow!("HTTP status client error (400 Bad Request)")
         .context(ClientErrorExplanation {
-            code: String::from("SOME_CODE"),
-            message: String::from("Pass --test-collection-id."),
+            code: Some(String::from("SOME_CODE")),
+            message: Some(String::from("Pass --test-collection-id.")),
         })
         .context("Error in create bundle upload endpoint");
     let report = ErrorReport::new(

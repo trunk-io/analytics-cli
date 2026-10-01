@@ -74,6 +74,8 @@ pub struct TelemetryUploadMetricsRequest {
 /// A 4xx body the API sends for an error it explains itself; the CLI prints `message` as given.
 #[derive(Debug, Deserialize)]
 pub struct ClientErrorBody {
-    pub code: String,
-    pub message: String,
+    #[serde(default)]
+    pub code: Option<String>,
+    #[serde(default)]
+    pub message: Option<String>,
 }

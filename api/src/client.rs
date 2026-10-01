@@ -206,11 +206,13 @@ impl ApiClient {
 
                 let response = status_code_help(
                     response,
-                    CheckUnauthorized::Check,
-                    CheckNotFound::Check,
-                    |_| String::from("Failed to create bundle upload."),
-                    &self.api_host,
-                    &self.org_url_slug,
+                    StatusCodeHelp {
+                        check_unauthorized: CheckUnauthorized::Check,
+                        check_not_found: CheckNotFound::Check,
+                        create_error_message: |_| String::from("Failed to create bundle upload."),
+                        api_host: &self.api_host,
+                        org_url_slug: &self.org_url_slug,
+                    },
                 )
                 .await?;
 
@@ -244,17 +246,19 @@ impl ApiClient {
 
                 let response = status_code_help(
                     response,
-                    CheckUnauthorized::Check,
-                    CheckNotFound::DoNotCheck,
-                    |response| -> String {
-                        if response.status() == StatusCode::NOT_FOUND {
-                            String::from("Quarantining config not found.")
-                        } else  {
-                            String::from("Failed to get quarantine bulk test.")
-                        }
+                    StatusCodeHelp {
+                        check_unauthorized: CheckUnauthorized::Check,
+                        check_not_found: CheckNotFound::DoNotCheck,
+                        create_error_message: |response| -> String {
+                            if response.status() == StatusCode::NOT_FOUND {
+                                String::from("Quarantining config not found.")
+                            } else  {
+                                String::from("Failed to get quarantine bulk test.")
+                            }
+                        },
+                        api_host: &self.api_host,
+                        org_url_slug: &self.org_url_slug,
                     },
-                    &self.api_host,
-                    &self.org_url_slug,
                 )
                 .await?;
 
@@ -293,11 +297,13 @@ impl ApiClient {
 
                 status_code_help(
                     response,
-                    CheckUnauthorized::DoNotCheck,
-                    CheckNotFound::DoNotCheck,
-                    |_| String::from("Failed to upload bundle to S3."),
-                    &self.api_host,
-                    &self.org_url_slug
+                    StatusCodeHelp {
+                        check_unauthorized: CheckUnauthorized::DoNotCheck,
+                        check_not_found: CheckNotFound::DoNotCheck,
+                        create_error_message: |_| String::from("Failed to upload bundle to S3."),
+                        api_host: &self.api_host,
+                        org_url_slug: &self.org_url_slug,
+                    },
                 )
                 .await
             },
@@ -407,13 +413,20 @@ pub(crate) const NOT_FOUND_CONTEXT: &str = concat!(
 /// print it beneath the endpoint context the callers add.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ClientErrorExplanation {
-    pub code: String,
-    pub message: String,
+    pub code: Option<String>,
+    pub message: Option<String>,
 }
 
 impl fmt::Display for ClientErrorExplanation {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&self.message)
+        match (&self.message, &self.code) {
+            (Some(message), _) => f.write_str(message),
+            (None, Some(code)) => write!(
+                f,
+                "The Trunk API rejected this request with error code {code}."
+            ),
+            (None, None) => Ok(()),
+        }
     }
 }
 
@@ -421,26 +434,46 @@ impl std::error::Error for ClientErrorExplanation {}
 
 const MAX_CLIENT_ERROR_MESSAGE_LEN: usize = 2048;
 
+fn non_empty(value: Option<String>) -> Option<String> {
+    value
+        .map(|value| value.trim().to_owned())
+        .filter(|value| !value.is_empty())
+}
+
+fn truncate_message(message: String) -> String {
+    match message.char_indices().nth(MAX_CLIENT_ERROR_MESSAGE_LEN) {
+        Some((end, _)) => format!("{}…", &message[..end]),
+        None => message,
+    }
+}
+
 async fn client_error_explanation(response: Response) -> Option<ClientErrorExplanation> {
     let body = response.text().await.ok()?;
     let message::ClientErrorBody { code, message } = serde_json::from_str(&body).ok()?;
-    let message = message.trim();
-    if message.is_empty() || message.len() > MAX_CLIENT_ERROR_MESSAGE_LEN {
-        return None;
-    }
-    Some(ClientErrorExplanation {
-        code,
-        message: message.to_owned(),
-    })
+    let explanation = ClientErrorExplanation {
+        code: non_empty(code),
+        message: non_empty(message).map(truncate_message),
+    };
+    (explanation.code.is_some() || explanation.message.is_some()).then_some(explanation)
+}
+
+pub(crate) struct StatusCodeHelp<'a, T: FnMut(&Response) -> String> {
+    pub check_unauthorized: CheckUnauthorized,
+    pub check_not_found: CheckNotFound,
+    pub create_error_message: T,
+    pub api_host: &'a str,
+    pub org_url_slug: &'a str,
 }
 
 pub(crate) async fn status_code_help<T: FnMut(&Response) -> String>(
     response: Response,
-    check_unauthorized: CheckUnauthorized,
-    check_not_found: CheckNotFound,
-    mut create_error_message: T,
-    api_host: &str,
-    org_url_slug: &str,
+    StatusCodeHelp {
+        check_unauthorized,
+        check_not_found,
+        mut create_error_message,
+        api_host,
+        org_url_slug,
+    }: StatusCodeHelp<'_, T>,
 ) -> anyhow::Result<Response> {
     let base_error_message = create_error_message(&response);
 
