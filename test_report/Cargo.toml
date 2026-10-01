@@ -14,7 +14,7 @@ trunk-analytics-cli = { path = "../cli" }
 prost-wkt-types = { version = "0.5.1", features = ["vendored-protox"] }
 prost = "0.12.6"
 tempfile = "3.2.0"
-chrono = "0.4.33"
+chrono = "0.4.35"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0.133"
 tokio = "1.43.1"
