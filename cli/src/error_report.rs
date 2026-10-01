@@ -1,4 +1,4 @@
-use api::client::get_api_host;
+use api::client::{ClientErrorExplanation, get_api_host};
 use display::end_output::EndOutput;
 use http::StatusCode;
 use superconsole::{
@@ -137,6 +137,12 @@ fn is_gix_error(error: &anyhow::Error) -> bool {
     }
 }
 
+fn get_client_error_explanation(error: &anyhow::Error) -> Option<String> {
+    error
+        .downcast_ref::<ClientErrorExplanation>()
+        .map(ToString::to_string)
+}
+
 fn get_interrupting_message(error: &anyhow::Error) -> Option<String> {
     error
         .root_cause()
@@ -190,6 +196,10 @@ impl EndOutput for ErrorReport {
                 base_message.as_deref().unwrap_or("An error occurred"),
             )]));
             lines.push(Line::default());
+            if let Some(explanation) = get_client_error_explanation(&self.error) {
+                lines.push(Line::from_iter([Span::new_unstyled_lossy(explanation)]));
+                lines.push(Line::default());
+            }
         } else {
             lines.push(Line::from_iter([Span::new_unstyled_lossy(
                 self.error.to_string(),
@@ -238,4 +248,36 @@ fn adds_settings_if_domain_present() {
         final_context,
         "Hint: You can find it under the settings page at https://app.fake-trunk.io/fake-org-slug/settings"
     )
+}
+
+#[test]
+fn prints_a_client_error_explanation_beneath_the_base_message() {
+    let error = anyhow::anyhow!("HTTP status client error (400 Bad Request)")
+        .context(ClientErrorExplanation {
+            code: Some(String::from("SOME_CODE")),
+            message: Some(String::from("Pass --test-collection-id.")),
+        })
+        .context("Error in create bundle upload endpoint");
+    let report = ErrorReport::new(
+        error,
+        String::from("fake-org-slug"),
+        Some(String::from("There was an unexpected error")),
+    );
+
+    let text = report
+        .output()
+        .unwrap()
+        .iter()
+        .map(|line| line.to_unstyled())
+        .collect::<Vec<_>>();
+
+    assert_eq!(
+        text[..4],
+        [
+            "Error Encountered",
+            "There was an unexpected error",
+            "",
+            "Pass --test-collection-id.",
+        ]
+    );
 }
