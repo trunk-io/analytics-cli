@@ -70,3 +70,12 @@ pub struct CreateBundleUploadIntentResponse {
 pub struct TelemetryUploadMetricsRequest {
     pub upload_metrics: proto::upload_metrics::trunk::UploadMetrics,
 }
+
+/// A 4xx body the API sends for an error it explains itself; the CLI prints `message` as given.
+#[derive(Debug, Deserialize)]
+pub struct ClientErrorBody {
+    #[serde(default)]
+    pub code: Option<String>,
+    #[serde(default)]
+    pub message: Option<String>,
+}

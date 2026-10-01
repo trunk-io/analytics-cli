@@ -272,13 +272,16 @@ mod tests {
     use lazy_static::lazy_static;
     use reqwest::Response;
     use serde::{Deserialize, Serialize};
+    use serde_json::json;
     use tokio::time;
 
     use super::{
         CHECK_PROGRESS_INTERVAL_SECS, CallApi, REPORT_SLOW_PROGRESS_TIMEOUT_SECS,
         RETRY_COUNT_DEFAULT, retry_with_deadline,
     };
-    use crate::client::{CheckNotFound, CheckUnauthorized, status_code_help};
+    use crate::client::{
+        CheckNotFound, CheckUnauthorized, ClientErrorExplanation, StatusCodeHelp, status_code_help,
+    };
     #[derive(Debug, Serialize, Clone, Deserialize, PartialEq, Eq)]
     struct EmptyResponse {}
 
@@ -471,12 +474,15 @@ mod tests {
                 let response = Response::from(http_response);
                 status_code_help(
                     response,
-                    CheckUnauthorized::DoNotCheck,
-                    CheckNotFound::Check,
-                    |_e| String::from("Test message"),
-                    &String::from("mock_host"),
-                    &String::from("mock_url_slug"),
+                    StatusCodeHelp {
+                        check_unauthorized: CheckUnauthorized::DoNotCheck,
+                        check_not_found: CheckNotFound::Check,
+                        create_error_message: |_e| String::from("Test message"),
+                        api_host: "mock_host",
+                        org_url_slug: "mock_url_slug",
+                    },
                 )
+                .await
             },
             log_progress_message: |_, _| String::new(),
             report_slow_progress_message: |_| String::new(),
@@ -486,6 +492,100 @@ mod tests {
         .await;
 
         assert_eq!(retry_count.into_inner(), 1);
+    }
+
+    async fn status_code_help_for(status: u16, body: impl Into<String>) -> anyhow::Error {
+        let http_response = http::Response::builder()
+            .status(status)
+            .body(body.into())
+            .unwrap();
+        status_code_help(
+            Response::from(http_response),
+            StatusCodeHelp {
+                check_unauthorized: CheckUnauthorized::Check,
+                check_not_found: CheckNotFound::Check,
+                create_error_message: |_e| String::from("Test message"),
+                api_host: "mock_host",
+                org_url_slug: "mock_url_slug",
+            },
+        )
+        .await
+        .unwrap_err()
+    }
+
+    fn explanation_of(error: &anyhow::Error) -> Option<&ClientErrorExplanation> {
+        error.downcast_ref::<ClientErrorExplanation>()
+    }
+
+    #[tokio::test]
+    async fn carries_the_api_client_error_message() {
+        let body = json!({"code": "SOME_CODE", "message": "Pass --test-collection-id."});
+        let error = status_code_help_for(400, body.to_string()).await;
+
+        assert_eq!(error.to_string(), "Pass --test-collection-id.");
+        assert_eq!(
+            explanation_of(&error),
+            Some(&ClientErrorExplanation {
+                code: Some(String::from("SOME_CODE")),
+                message: Some(String::from("Pass --test-collection-id.")),
+            })
+        );
+        assert_eq!(
+            error
+                .root_cause()
+                .downcast_ref::<reqwest::Error>()
+                .and_then(reqwest::Error::status),
+            Some(reqwest::StatusCode::BAD_REQUEST)
+        );
+        assert!(!super::AbortableRetry::should_retry(&error));
+    }
+
+    #[tokio::test]
+    async fn names_the_code_when_the_api_sends_no_message() {
+        for body in [
+            json!({"code": "SOME_CODE"}),
+            json!({"code": "SOME_CODE", "message": "  "}),
+        ] {
+            let error = status_code_help_for(400, body.to_string()).await;
+
+            assert_eq!(
+                (error.to_string(), explanation_of(&error).cloned()),
+                (
+                    String::from("The Trunk API rejected this request with error code SOME_CODE."),
+                    Some(ClientErrorExplanation {
+                        code: Some(String::from("SOME_CODE")),
+                        message: None,
+                    })
+                ),
+                "body {body}"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn truncates_an_overlong_client_error_message() {
+        let body = json!({"code": "SOME_CODE", "message": "é".repeat(3000)});
+        let error = status_code_help_for(400, body.to_string()).await;
+
+        assert_eq!(error.to_string(), format!("{}…", "é".repeat(2048)));
+    }
+
+    #[tokio::test]
+    async fn leaves_a_body_without_a_code_or_message_unexplained() {
+        for body in [
+            json!({}).to_string(),
+            json!({"code": " ", "message": ""}).to_string(),
+            String::from("Bad Request"),
+            String::new(),
+        ] {
+            let error = status_code_help_for(400, body.clone()).await;
+
+            assert_eq!(error.chain().count(), 1, "body {body:?}");
+            assert!(
+                error.to_string().contains("400 Bad Request"),
+                "body {body:?}"
+            );
+        }
     }
 
     #[tokio::test(start_paused = true)]
