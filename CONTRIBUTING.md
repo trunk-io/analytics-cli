@@ -116,3 +116,19 @@ The pattern is:
 - Use `tracing` for observability and debugging (Sentry + optional verbose output)
 - Use `superconsole` for user-facing communication
 - Errors that block execution should use both: `tracing` for logging and `superconsole` for user display
+
+## Releasing
+
+Releases are published in two places: GitHub releases, and `https://trunk.io/releases/analytics-cli/prod/` (the `trunk-releases` S3 bucket). Trunk's own consumers (the `analytics-uploader` action and the `trunk` CLI's `flakytests` command) read the S3 copy. GitHub releases stay, because the frozen legacy `trunk` launcher and customers' own scripts download from them.
+
+1. **Cut**: run the `Release` workflow with the version. It builds, smoke-tests, creates a GitHub **prerelease**, and uploads the same assets to `releases/analytics-cli/prod/<version>/`. A version is immutable once published.
+2. **Promote**: run the `Promote Release` workflow with the version. It points `releases/analytics-cli/prod/channel.json` at it and marks it latest on GitHub. Do **not** mark a release latest in the GitHub UI, since that leaves `channel.json` behind.
+3. **Backfill**: run `Mirror Releases to S3` to copy releases that predate the S3 lane (or that a failed run left incomplete). Pass space-separated tags or `all`. Re-running it is safe because complete versions are skipped.
+
+Layout under `releases/analytics-cli/prod/`:
+
+- `channel.json`: `{"latest": "<version>"}`, the only mutable object (`Cache-Control: max-age=60`).
+- `<version>/<asset>`: each GitHub release asset under the same filename, e.g. `trunk-analytics-cli-x86_64-unknown-linux.tar.gz`.
+- `<version>/manifest.json`: `{"version": "<version>", "artifacts": {"<asset>": {"sha256": "<hex>"}}}`, uploaded last, so its presence means the version is complete.
+
+One-time prerequisite: the publishing workflows assume the IAM role `trunk-analytics-cli-release-role` in AWS account 443897627245 over GitHub OIDC, through the repository variable `TRUNK_RELEASES_PUBLISH_ROLE_ARN`. The role is granted only the `releases/analytics-cli/*` prefix, plus `s3:ListBucket` on it so a missing key reads as 404 rather than 403. Because this is a public repository, its trust should be restricted to `repo:trunk-io/analytics-cli:ref:refs/heads/main`, not `repo:trunk-io/analytics-cli:*`. See trunk2's `docs/runbooks/trunk-releases-publish-roles.md` for how these roles are created.

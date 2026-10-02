@@ -1,0 +1,57 @@
+name: Mirror Releases to S3
+run-name: Mirror ${{ inputs.tags }} to S3
+on:
+  workflow_dispatch:
+    inputs:
+      # trunk-ignore(checkov/CKV_GHA_7)
+      tags:
+        type: string
+        description: Space-separated release tags to copy from GitHub to trunk.io/releases/analytics-cli/prod/, or `all`
+        required: true
+      set-latest-to-github-latest:
+        type: boolean
+        description: Afterwards, point channel.json at GitHub's current latest release
+        default: false
+concurrency: ${{ github.workflow }}
+
+permissions:
+  contents: read
+
+jobs:
+  mirror:
+    name: Mirror ${{ inputs.tags }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      TAGS: ${{ inputs.tags }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.TRUNK_RELEASES_PUBLISH_ROLE_ARN }}
+          role-skip-session-tagging: true
+          aws-region: us-west-2
+
+      # --skip-complete makes a re-run cheap: versions already published are skipped, and a
+      # version interrupted mid-upload is finished.
+      - name: Mirror
+        run: |
+          if [[ ${TAGS} == all ]]; then
+            TAGS="$(gh release list --limit 1000 --exclude-drafts --json tagName --jq '.[].tagName' | tr '\n' ' ')"
+          fi
+          for tag in ${TAGS}; do
+            dir="$(mktemp -d)"
+            gh release download "${tag}" --dir "${dir}" --pattern '*.tar.gz' --pattern '*.zip'
+            .github/scripts/publish-release-to-s3.sh --skip-complete "${tag}" "${dir}"
+            rm -rf "${dir}"
+          done
+
+      - name: Point channel.json at GitHub's latest release
+        if: inputs.set-latest-to-github-latest
+        run: .github/scripts/set-latest-in-s3.sh "$(gh release view --json tagName --jq .tagName)"
