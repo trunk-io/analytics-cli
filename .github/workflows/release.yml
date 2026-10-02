@@ -11,6 +11,11 @@ jobs:
   release_cli:
     name: Trigger CLI Release
     uses: ./.github/workflows/release_cli.yml
+    # A called workflow's jobs can hold no more than its caller grants; publishing to S3 needs
+    # the OIDC token.
+    permissions:
+      contents: write
+      id-token: write
     secrets: inherit
     with:
       release_tag: ${{ inputs.version }}

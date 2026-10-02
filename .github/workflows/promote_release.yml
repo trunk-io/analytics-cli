@@ -1,0 +1,51 @@
+name: Promote Release
+run-name: Promote ${{ inputs.version }} to latest
+on:
+  workflow_dispatch:
+    inputs:
+      # trunk-ignore(checkov/CKV_GHA_7)
+      version:
+        type: string
+        description: Already-released version to make latest (on GitHub and at trunk.io/releases/analytics-cli/prod/channel.json)
+        required: true
+concurrency: ${{ github.workflow }}
+
+permissions:
+  contents: read
+
+jobs:
+  promote:
+    name: Promote ${{ inputs.version }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+    env:
+      VERSION: ${{ inputs.version }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check the GitHub release
+        run: |
+          if [[ ${VERSION} == *-* ]]; then
+            echo "::error::${VERSION} is a prerelease version; only a stable version can be latest"
+            exit 1
+          fi
+          gh release view "${VERSION}" --json tagName,isDraft --jq 'if .isDraft then error("release is a draft") else .tagName end'
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.TRUNK_RELEASES_PUBLISH_ROLE_ARN }}
+          role-skip-session-tagging: true
+          aws-region: us-west-2
+
+      # S3 moves first: its preconditions (the role, a complete manifest) are the ones that fail in
+      # practice, and when they do GitHub has not moved either. Both steps are idempotent, so if the
+      # GitHub edit fails afterwards, re-running this workflow converges the two.
+      - name: Point channel.json at ${{ inputs.version }}
+        run: .github/scripts/set-latest-in-s3.sh "${VERSION}"
+
+      - name: Mark ${{ inputs.version }} latest on GitHub
+        run: gh release edit "${VERSION}" --prerelease=false --latest
