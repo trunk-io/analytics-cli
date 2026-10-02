@@ -48,6 +48,7 @@ jobs:
           for tag in ${TAGS}; do
             dir="$(mktemp -d)"
             gh release download "${tag}" --dir "${dir}" --pattern '*.tar.gz' --pattern '*.zip'
+            .github/scripts/verify-github-digests.sh "${tag}" "${dir}"
             .github/scripts/publish-release-to-s3.sh --skip-complete "${tag}" "${dir}"
             rm -rf "${dir}"
           done

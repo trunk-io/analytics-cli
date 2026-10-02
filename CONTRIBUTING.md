@@ -123,7 +123,7 @@ Releases are published in two places: GitHub releases, and `https://trunk.io/rel
 
 1. **Cut**: run the `Release` workflow with the version. It builds, smoke-tests, creates a GitHub **prerelease**, and uploads the same assets to `releases/analytics-cli/prod/<version>/`. A version is immutable once published.
 2. **Promote**: run the `Promote Release` workflow with the version. It points `releases/analytics-cli/prod/channel.json` at it and marks it latest on GitHub. Do **not** mark a release latest in the GitHub UI, since that leaves `channel.json` behind.
-3. **Backfill**: run `Mirror Releases to S3` to copy releases that predate the S3 lane (or that a failed run left incomplete). Pass space-separated tags or `all`. Re-running it is safe because complete versions are skipped.
+3. **Backfill**: run `Mirror Releases to S3` to copy releases that predate the S3 lane (or that a failed run left incomplete). Pass space-separated tags or `all`. Re-running it is safe because complete versions are skipped. Each download is first checked against the sha256 digest GitHub recorded for it; releases from before June 2025 have no digest and are copied unchecked.
 
 Layout under `releases/analytics-cli/prod/`:
 
