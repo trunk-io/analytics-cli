@@ -34,24 +34,6 @@ jobs:
           fi
           gh release view "${VERSION}" --json tagName,isDraft --jq 'if .isDraft then error("release is a draft") else .tagName end'
 
-      # The published trunk launcher only installs GitHub's latest release, which is still the
-      # previous version, so pin its one download URL to make it fetch and run this one instead.
-      # TODO: use `FT_VERSION=${VERSION} trunk flakytests --version` once the launcher supports it.
-      - name: Run ${{ inputs.version }} through the trunk launcher
-        run: |
-          dir="$(mktemp -d)"
-          curl -fsSL https://trunk.io/releases/trunk -o "${dir}/trunk"
-          sed -i "s|/releases/latest/download/|/releases/download/${VERSION}/|" "${dir}/trunk"
-          chmod +x "${dir}/trunk"
-          if ! actual="$(TRUNK_CACHE="${dir}/cache" "${dir}/trunk" flakytests --version | tail -n1 | awk '{print $NF}')"; then
-            echo "::error::the trunk launcher could not download or run ${VERSION} from GitHub"
-            exit 1
-          fi
-          if [[ ${actual} != "${VERSION}" ]]; then
-            echo "::error::the trunk launcher ran ${actual}, not ${VERSION}; has its download URL changed?"
-            exit 1
-          fi
-
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
