@@ -34,6 +34,26 @@ jobs:
           fi
           gh release view "${VERSION}" --json tagName,isDraft --jq 'if .isDraft then error("release is a draft") else .tagName end'
 
+      # Both `trunk`s customers install: the bash launcher (trunk-io/trunk#34317) and the new CLI
+      # (trunk-io/trunk2#6728), each pinned with TRUNK_ANALYTICS_CLI_VERSION.
+      - name: Run ${{ inputs.version }} through trunk flakytests
+        run: |
+          dir="$(mktemp -d)"
+          curl -fsSL https://trunk.io/releases/trunk -o "${dir}/launcher"
+          chmod +x "${dir}/launcher"
+          curl -fsSL https://install.trunk.io | sh -s -- --install-dir "${dir}/cli"
+          for trunk in launcher cli/trunk; do
+            if ! actual="$(TRUNK_CACHE="${dir}/cache/${trunk%%/*}" TRUNK_ANALYTICS_CLI_VERSION="${VERSION}" \
+              "${dir}/${trunk}" flakytests --version | tail -n1 | awk '{print $NF}')"; then
+              echo "::error::${trunk} could not download or run ${VERSION}"
+              exit 1
+            fi
+            if [[ ${actual} != "${VERSION}" ]]; then
+              echo "::error::${trunk} ran ${actual}, not ${VERSION}; does it read TRUNK_ANALYTICS_CLI_VERSION yet?"
+              exit 1
+            fi
+          done
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
