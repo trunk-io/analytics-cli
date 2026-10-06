@@ -71,13 +71,25 @@ module RSpec
 
         run = @current_run = Run.new
         RSpec::Core::Example.prepend(ExampleExtension)
-        RSpec.configure do |config|
-          config.before(:example) do
-            skip('Quarantine lookup failed, skipping test run') if run.abort_remaining?
-          end
-          config.around(:each) { |example| Trunk.run_counting_attempts(example) }
-          config.reporter.register_listener AnalyticsListener.new(run), :example_finished, :close
+        RSpec::Core::ExampleGroup.singleton_class.prepend(ExampleGroupExtension)
+        RSpec.configure { |config| install(config, run) }
+      end
+
+      def install(config, run)
+        # prepend_before, to also run ahead of before hooks configured before this file was required.
+        config.prepend_before(:example) do |example|
+          run.start_attempt(example)
+          next unless run.abort_remaining?
+
+          # RSpec starts no new examples once it wants to quit, so this is an in-place
+          # re-run (e.g. rspec-retry), where a skip would hide the failure.
+          failure = run.abort_failure(example)
+          raise failure if failure
+
+          skip('Quarantine lookup failed, skipping test run')
         end
+        config.around(:each) { |example| Trunk.run_counting_attempts(example) }
+        config.reporter.register_listener AnalyticsListener.new(run), :example_finished, :close
       end
 
       def disabled?
@@ -163,6 +175,8 @@ module RSpec
         @report = report
         @quarantining_disabled = false
         @lookup_failed = false
+        @abort_failures = {}.compare_by_identity
+        @quarantined_failures = {}.compare_by_identity
       end
 
       def quarantining_disabled?
@@ -177,9 +191,20 @@ module RSpec
         lookup_failed? && Trunk.quarantine_query_failure_exit?
       end
 
+      def abort_failure(example)
+        @abort_failures[example]
+      end
+
+      def start_attempt(example)
+        @quarantined_failures.delete(example)
+      end
+
       # Whether a failure of `example` with `exception` is quarantined. If the
       # quarantine machinery itself blows up, the failure must stand.
       def quarantine?(example, exception)
+        # A replayed abort failure didn't happen on this attempt, so it can't be quarantined.
+        return false if abort_failure(example).equal?(exception)
+
         check_quarantine(example, exception)
       rescue StandardError => e
         puts Colors.yellow("Quarantine check errored (#{e.class}: #{e.message}), treating test as not quarantined")
@@ -202,10 +227,7 @@ module RSpec
             puts Colors.yellow('Failed to check quarantining status, no failures will be quarantined')
             @lookup_failed = true
           end
-          if Trunk.quarantine_query_failure_exit?
-            puts Colors.red('Quarantine lookup failed, exiting early')
-            RSpec.world.wants_to_quit = true
-          end
+          abort_run(example, exception) if Trunk.quarantine_query_failure_exit?
           false
         elsif result.quarantining_disabled_for_repo
           unless quarantining_disabled?
@@ -214,14 +236,26 @@ module RSpec
           end
           false
         elsif result.test_is_quarantined
-          # monitor the override in the metadata
-          Trunk.write_metadata(example.metadata, :trunk_quarantined_exception, exception)
+          record_quarantined(example, exception)
           puts Colors.green("Test is quarantined, overriding exception: #{exception}")
           true
         else
           puts Colors.red('Test is not quarantined, continuing')
           false
         end
+      end
+
+      def abort_run(example, exception)
+        puts Colors.red('Quarantine lookup failed, exiting early')
+        # The first: a replay's after hooks raise their own errors again anyway.
+        @abort_failures[example] ||= exception
+        RSpec.world.wants_to_quit = true
+      end
+
+      def record_quarantined(example, exception)
+        failures = (@quarantined_failures[example] ||= []) << exception
+        recorded = failures.one? ? exception : RSpec::Core::MultipleExceptionError.new(*failures)
+        Trunk.write_metadata(example.metadata, :trunk_quarantined_exception, recorded)
       end
     end
 
@@ -265,6 +299,22 @@ module RSpec
       def pending_example_fixed?(exception)
         defined?(RSpec::Core::Pending::PendingExampleFixedError) &&
           exception.is_a?(RSpec::Core::Pending::PendingExampleFixedError)
+      end
+    end
+
+    # RSpec fails the run when a before(:context) hook raises, even if every example's failure was
+    # quarantined. A green status alone isn't enough: a pending example hides the error in its
+    # pending_exception and still ends up :passed.
+    module ExampleGroupExtension
+      def run(reporter = RSpec::Core::NullReporter)
+        passed = super
+        return passed unless passed == false && Trunk.current_run
+
+        examples = descendant_filtered_examples
+        examples.any? && examples.all? do |example|
+          example.metadata[:trunk_quarantined_exception] &&
+            %i[passed pending].include?(example.execution_result.status)
+        end
       end
     end
 
@@ -362,12 +412,15 @@ module RSpec
         @run = run
       end
 
+      # --dry-run reports every example as passed without running it.
       def example_finished(notification)
-        add_test_case(notification.example)
+        add_test_case(notification.example) unless RSpec.configuration.dry_run?
       end
 
       # trunk-ignore(rubocop/Metrics/MethodLength,rubocop/Metrics/AbcSize)
       def close(_notification)
+        return if RSpec.configuration.dry_run?
+
         if @run.quarantining_disabled?
           puts Colors.yellow('Note: Quarantining is disabled for this repo. Test failures were not quarantined.')
         end
@@ -407,8 +460,8 @@ module RSpec
         name = example.full_description
         file, classname = Trunk.file_and_classname(example)
         line = example.metadata[:line_number]
-        started_at = example.execution_result.started_at.to_i
-        finished_at = example.execution_result.finished_at.to_i
+        started_at = example.execution_result.started_at.to_f
+        finished_at = example.execution_result.finished_at.to_f
 
         attempt_number = example.metadata[:retry_attempts] || example.metadata[:trunk_attempt_number] || 0
         # set the status to failure, but mark it as quarantined
