@@ -12,6 +12,7 @@ use constants::EXIT_SUCCESS;
 use context::bazel_bep::common::BepParseResult;
 use display::{end_output::EndOutput, message::DisplayMessage};
 use pluralizer::pluralize;
+use superconsole::Hyperlink;
 use superconsole::{
     Line, Lines, Span,
     style::{Attribute, Color, Stylize, style},
@@ -1023,7 +1024,9 @@ impl EndOutput for UploadRunResult {
                     )?;
                     let mut link_output = Line::from_iter([
                         Span::new_unstyled("⤷ ")?,
-                        Span::new_styled(style(link.to_string()).attribute(Attribute::Underlined))?,
+                        Span::new_styled(style(link.to_string())
+                            .with_hyperlink(Hyperlink::new(link))
+                            .attribute(Attribute::Underlined))?,
                     ]);
                     link_output.pad_left(4);
                     output.push(link_output);

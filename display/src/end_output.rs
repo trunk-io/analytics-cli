@@ -1,3 +1,5 @@
+use std::convert::Infallible;
+
 use anyhow::Result;
 use superconsole::{Component, Dimensions, DrawMode, Line, Lines, SuperConsole};
 
@@ -9,7 +11,13 @@ enum EmptyComponent {
     Base,
 }
 impl Component for EmptyComponent {
-    fn draw_unchecked(&self, _dimensions: Dimensions, _mode: DrawMode) -> Result<Lines> {
+    type Error = Infallible;
+
+    fn draw_unchecked(
+        &self,
+        _dimensions: Dimensions,
+        _mode: DrawMode,
+    ) -> std::result::Result<Lines, Infallible> {
         Ok(Lines(vec![]))
     }
 }
