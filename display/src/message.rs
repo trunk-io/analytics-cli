@@ -1,12 +1,12 @@
 use std::sync::{Arc, mpsc::Sender};
 
 use anyhow::Result;
-use superconsole::{Component, Dimensions, DrawMode, Line, Lines, Span, SuperConsole};
+use superconsole::{Component, Dimensions, DrawMode, Line, Lines, Span, SpanError, SuperConsole};
 
 use crate::end_output::{EndOutput, display_end};
 
 pub enum DisplayMessage {
-    Progress(Arc<dyn Component + Send + Sync>, String),
+    Progress(Arc<ProgressMessage>, String),
     Final(Arc<dyn EndOutput + Send + Sync>, String),
 }
 
@@ -14,7 +14,7 @@ impl DisplayMessage {
     pub fn render(&self, superconsole: &mut SuperConsole) {
         let render_result = match self {
             DisplayMessage::Progress(progress_message, _) => {
-                superconsole.render(&**progress_message)
+                superconsole.render(&**progress_message).map_err(anyhow::Error::new)
             }
             DisplayMessage::Final(final_message, _) => display_end(superconsole, &**final_message),
         };
@@ -42,7 +42,9 @@ pub struct ProgressMessage {
     pub message: String,
 }
 impl Component for ProgressMessage {
-    fn draw_unchecked(&self, _dimensions: Dimensions, _mode: DrawMode) -> Result<Lines> {
+    type Error = SpanError;
+
+    fn draw_unchecked(&self, _dimensions: Dimensions, _mode: DrawMode) -> Result<Lines, SpanError> {
         let output = vec![Line::from_iter([
             Span::new_unstyled("⏳ ")?,
             Span::new_unstyled_lossy(self.message.clone()),

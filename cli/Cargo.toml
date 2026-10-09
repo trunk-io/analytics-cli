@@ -56,7 +56,8 @@ proto = { path = "../proto" }
 regex = "1.11.1"
 lazy_static = "1.5.0"
 prost = "0.12.6"
-superconsole = "0.2.0"
+# TODO: Switch to superconsole 0.3.0 once it's released: https://github.com/facebookincubator/superconsole/issues/13
+superconsole = { git = "https://github.com/facebookincubator/superconsole.git", rev = "31719d7b7357fc6a22ec0cb52bfeaac5add8152e" }
 pluralizer = "0.5.0"
 
 [dev-dependencies]
