@@ -992,96 +992,98 @@ impl EndOutput for UploadRunResult {
                 }
             }
             // Helper to render a group
-            let mut render_group = |header: &str,
-                                    color: Color,
-                                    group: &Vec<&Test>|
-             -> anyhow::Result<()> {
-                output.push(Line::from_iter([Span::new_styled(
-                    style(header.to_string())
-                        .with(color)
-                        .attribute(Attribute::Bold),
-                )?]));
-                for test in group.iter().take(3) {
-                    let output_name = format!(
-                        "{}{}{}",
-                        test.parent_name,
-                        if test.parent_name.is_empty() { "" } else { "/" },
-                        test.name
-                    );
-                    let mut test_line = Line::from_iter([Span::new_styled_lossy(
-                        style(output_name.to_string()).attribute(Attribute::Bold),
-                    )]);
-                    test_line.pad_left(2);
-                    output.push(test_line);
-                    let link = url_for_test_case(
-                        &self.api_address,
-                        &self.quarantine_context.org_url_slug,
-                        &self.quarantine_context.repo,
-                        test,
-                        test_collection_short_id,
-                        guid_scope,
-                    )?;
-                    let mut link_output = Line::from_iter([
-                        Span::new_unstyled("⤷ ")?,
-                        Span::new_styled(style(link.to_string()).attribute(Attribute::Underlined))?,
-                    ]);
-                    link_output.pad_left(4);
-                    output.push(link_output);
-                    // Display failure message if present and enabled
-                    // TODO: show_failure_messages is a temporary flag to show failure messages
-                    // in the output. It should be removed once we are confident in this flow
-                    // and we should use the validation report flag instead.
-                    if self.show_failure_messages && test.failure_message.is_some() {
-                        let failure_message = test.failure_message.as_ref().unwrap();
-                        let lines: Vec<&str> = failure_message.split('\n').collect();
-                        let max_lines = 20;
-                        let shown_lines = lines.iter().take(max_lines);
-                        let mut failure_header = Line::from_iter([Span::new_styled(
-                            style("Failure: ".to_string()).with(Color::DarkGrey),
-                        )?]);
-                        failure_header.pad_left(4);
-                        output.push(failure_header);
-                        for (j, line) in shown_lines.enumerate() {
-                            let sanitized_line = line.replace('\t', "    ").replace('\r', "");
-                            if !sanitized_line.trim().is_empty() || j == 0 {
-                                let mut failure_output = Line::from_iter([
+            let mut render_group =
+                |header: &str, color: Color, group: &Vec<&Test>| -> anyhow::Result<()> {
+                    output.push(Line::from_iter([Span::new_styled(
+                        style(header.to_string())
+                            .with(color)
+                            .attribute(Attribute::Bold),
+                    )?]));
+                    for test in group.iter().take(3) {
+                        let output_name = format!(
+                            "{}{}{}",
+                            test.parent_name,
+                            if test.parent_name.is_empty() { "" } else { "/" },
+                            test.name
+                        );
+                        let mut test_line = Line::from_iter([Span::new_styled_lossy(
+                            style(output_name.to_string()).attribute(Attribute::Bold),
+                        )]);
+                        test_line.pad_left(2);
+                        output.push(test_line);
+                        let link = url_for_test_case(
+                            &self.api_address,
+                            &self.quarantine_context.org_url_slug,
+                            &self.quarantine_context.repo,
+                            test,
+                            test_collection_short_id,
+                            guid_scope,
+                        )?;
+                        let mut link_output = Line::from_iter([
+                            Span::new_unstyled("⤷ ")?,
+                            Span::new_styled(
+                                style(link.to_string())
+                                    .with_hyperlink(HyperLink::new(link))
+                                    .attribute(Attribute::Underlined),
+                            )?,
+                        ]);
+                        link_output.pad_left(4);
+                        output.push(link_output);
+                        // Display failure message if present and enabled
+                        // TODO: show_failure_messages is a temporary flag to show failure messages
+                        // in the output. It should be removed once we are confident in this flow
+                        // and we should use the validation report flag instead.
+                        if self.show_failure_messages && test.failure_message.is_some() {
+                            let failure_message = test.failure_message.as_ref().unwrap();
+                            let lines: Vec<&str> = failure_message.split('\n').collect();
+                            let max_lines = 20;
+                            let shown_lines = lines.iter().take(max_lines);
+                            let mut failure_header = Line::from_iter([Span::new_styled(
+                                style("Failure: ".to_string()).with(Color::DarkGrey),
+                            )?]);
+                            failure_header.pad_left(4);
+                            output.push(failure_header);
+                            for (j, line) in shown_lines.enumerate() {
+                                let sanitized_line = line.replace('\t', "    ").replace('\r', "");
+                                if !sanitized_line.trim().is_empty() || j == 0 {
+                                    let mut failure_output = Line::from_iter([
+                                        Span::new_unstyled("   ")?,
+                                        Span::new_styled_lossy(
+                                            style(sanitized_line.to_string())
+                                                .with(Color::Grey)
+                                                .attribute(Attribute::Italic),
+                                        ),
+                                    ]);
+                                    failure_output.pad_left(4);
+                                    output.push(failure_output);
+                                }
+                            }
+                            if lines.len() > max_lines {
+                                let omitted = lines.len() - max_lines;
+                                let mut more_output = Line::from_iter([
                                     Span::new_unstyled("   ")?,
-                                    Span::new_styled_lossy(
-                                        style(sanitized_line.to_string())
+                                    Span::new_styled(
+                                        style(format!("…and {omitted} more lines not shown"))
                                             .with(Color::Grey)
                                             .attribute(Attribute::Italic),
-                                    ),
+                                    )?,
                                 ]);
-                                failure_output.pad_left(4);
-                                output.push(failure_output);
+                                more_output.pad_left(4);
+                                output.push(more_output);
                             }
                         }
-                        if lines.len() > max_lines {
-                            let omitted = lines.len() - max_lines;
-                            let mut more_output = Line::from_iter([
-                                Span::new_unstyled("   ")?,
-                                Span::new_styled(
-                                    style(format!("…and {omitted} more lines not shown"))
-                                        .with(Color::Grey)
-                                        .attribute(Attribute::Italic),
-                                )?,
-                            ]);
-                            more_output.pad_left(4);
-                            output.push(more_output);
-                        }
                     }
-                }
-                if group.len() > 3 {
-                    let mut more_failures = Line::from_iter([Span::new_unstyled(format!(
-                        "…and {} more failures in this group",
-                        group.len() - 3
-                    ))?]);
-                    more_failures.pad_left(2);
-                    output.push(more_failures);
-                }
-                output.push(Line::default());
-                Ok(())
-            };
+                    if group.len() > 3 {
+                        let mut more_failures = Line::from_iter([Span::new_unstyled(format!(
+                            "…and {} more failures in this group",
+                            group.len() - 3
+                        ))?]);
+                        more_failures.pad_left(2);
+                        output.push(more_failures);
+                    }
+                    output.push(Line::default());
+                    Ok(())
+                };
             // Render file path groups (cyan)
             for (file, group) in &groups {
                 render_group(&format!("📁 {}", file), Color::Cyan, group)?;
