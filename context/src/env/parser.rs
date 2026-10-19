@@ -123,7 +123,7 @@ impl CIPlatform {
     // between the two)
     fn prioritize(self, other: CIPlatform) -> CIPlatform {
         match (self, other) {
-            // Evergreen is configured entirely through the custom env vars, so CUSTOM is set too
+            // Evergreen reads the custom env vars, so a template that also sets CUSTOM is still Evergreen
             (CIPlatform::Evergreen, CIPlatform::Custom)
             | (CIPlatform::Custom, CIPlatform::Evergreen) => CIPlatform::Evergreen,
             (CIPlatform::Custom, _) | (_, CIPlatform::Custom) => CIPlatform::Custom,
