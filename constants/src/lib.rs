@@ -497,6 +497,9 @@ pub const ENVS_TO_GET: &[&str] = &[
     "_BASE_BRANCH",
     "_HEAD_REPO_URL",
     "_PR_NUMBER",
+    // Evergreen (the only variable it sets for every command; the project template maps the rest to
+    // the custom setting below)
+    "EVR_TASK_ID",
     // Custom setting
     "CUSTOM",
     "JOB_URL",

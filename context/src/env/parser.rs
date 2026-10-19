@@ -44,6 +44,8 @@ mod ci_platform_env_key {
     pub const BAMBOO: &str = "bamboo_buildNumber";
     /// https://docs.cloud.google.com/build/docs/configuring-builds/substitute-variable-values
     pub const GOOGLE_CLOUD_BUILD: &str = "TRIGGER_NAME";
+    /// https://github.com/evergreen-ci/evergreen/blob/main/docs/Project-Configuration/Project-Commands.md#shellexec
+    pub const EVERGREEN: &str = "EVR_TASK_ID";
     /// Custom environment allowing users to manually set upload metadata using these env vars, all of which are optional:
     /// JOB_URL: Url for the ci job that was run
     /// JOB_NAME: Name of the ci job that was run
@@ -75,6 +77,7 @@ pub enum CIPlatform {
     Drone,
     Bamboo,
     GoogleCloudBuild,
+    Evergreen,
     Custom,
     Unknown,
 }
@@ -96,6 +99,7 @@ impl From<CIPlatform> for &str {
             CIPlatform::Drone => ci_platform_env_key::DRONE,
             CIPlatform::Bamboo => ci_platform_env_key::BAMBOO,
             CIPlatform::GoogleCloudBuild => ci_platform_env_key::GOOGLE_CLOUD_BUILD,
+            CIPlatform::Evergreen => ci_platform_env_key::EVERGREEN,
             CIPlatform::Custom => ci_platform_env_key::CUSTOM,
             CIPlatform::Unknown => "UNKNOWN",
         }
@@ -119,6 +123,9 @@ impl CIPlatform {
     // between the two)
     fn prioritize(self, other: CIPlatform) -> CIPlatform {
         match (self, other) {
+            // Evergreen is configured entirely through the custom env vars, so CUSTOM is set too
+            (CIPlatform::Evergreen, CIPlatform::Custom)
+            | (CIPlatform::Custom, CIPlatform::Evergreen) => CIPlatform::Evergreen,
             (CIPlatform::Custom, _) | (_, CIPlatform::Custom) => CIPlatform::Custom,
             (CIPlatform::GoogleCloudBuild, CIPlatform::JenkinsPipeline)
             | (CIPlatform::JenkinsPipeline, CIPlatform::GoogleCloudBuild) => {
@@ -152,6 +159,7 @@ impl magnus::TryConvert for CIPlatform {
             12 => Ok(CIPlatform::Custom),
             13 => Ok(CIPlatform::Bamboo),
             14 => Ok(CIPlatform::GoogleCloudBuild),
+            15 => Ok(CIPlatform::Evergreen),
             _ => Err(magnus::Error::new(
                 magnus::Ruby::get_with(val).exception_type_error(),
                 format!("invalid CIPlatform: {}", val),
@@ -177,6 +185,7 @@ impl From<&str> for CIPlatform {
             ci_platform_env_key::DRONE => CIPlatform::Drone,
             ci_platform_env_key::BAMBOO => CIPlatform::Bamboo,
             ci_platform_env_key::GOOGLE_CLOUD_BUILD => CIPlatform::GoogleCloudBuild,
+            ci_platform_env_key::EVERGREEN => CIPlatform::Evergreen,
             ci_platform_env_key::CUSTOM => CIPlatform::Custom,
             _ => CIPlatform::Unknown,
         }
@@ -246,7 +255,7 @@ impl<'a> CIInfoParser<'a> {
             CIPlatform::CircleCI => self.parse_circleci(),
             CIPlatform::Bamboo => self.parse_bamboo(),
             CIPlatform::GoogleCloudBuild => self.parse_google_cloud_build(),
-            CIPlatform::Custom => self.parse_custom_info(),
+            CIPlatform::Evergreen | CIPlatform::Custom => self.parse_custom_info(),
             CIPlatform::TravisCI
             | CIPlatform::Webappio
             | CIPlatform::AWSCodeBuild

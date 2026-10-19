@@ -1915,3 +1915,72 @@ fn test_google_cloud_build() {
         );
     }
 }
+
+#[test]
+fn test_evergreen_reads_custom_config() {
+    let job_url =
+        String::from("https://spruce.mongodb.com/task/mms_js_unit_test_abc123?execution=2");
+    let job_name = String::from("js/js_unit_test");
+    let author_email = String::from("jane.doe@example.com");
+    let author_name = String::from("janedoe");
+    let commit_branch = String::from("jane/fix-flake");
+    let pr_number = 1234;
+
+    let env_vars = EnvVars::from_iter(vec![
+        (String::from("CI"), String::from("true")),
+        (
+            String::from("EVR_TASK_ID"),
+            String::from("mms_js_unit_test_abc123"),
+        ),
+        (String::from("CUSTOM"), String::from("true")),
+        (String::from("JOB_URL"), String::from(&job_url)),
+        (String::from("JOB_NAME"), String::from(&job_name)),
+        (String::from("AUTHOR_EMAIL"), String::from(&author_email)),
+        (String::from("AUTHOR_NAME"), String::from(&author_name)),
+        (String::from("COMMIT_BRANCH"), String::from(&commit_branch)),
+        (String::from("PR_NUMBER"), pr_number.to_string()),
+    ]);
+
+    let mut env_parser = EnvParser::new();
+    env_parser.parse(&env_vars, &["master"], None);
+
+    let ci_info = env_parser.into_ci_info_parser().unwrap().info_ci_info();
+
+    pretty_assertions::assert_eq!(
+        ci_info,
+        CIInfo {
+            platform: CIPlatform::Evergreen,
+            job_url: Some(job_url),
+            branch: Some(commit_branch),
+            branch_class: Some(BranchClass::PullRequest),
+            pr_number: Some(pr_number),
+            actor: Some(author_email.clone()),
+            committer_name: Some(author_name.clone()),
+            committer_email: Some(author_email.clone()),
+            author_name: Some(author_name),
+            author_email: Some(author_email),
+            commit_message: None,
+            title: None,
+            workflow: Some(job_name.clone()),
+            job: Some(job_name),
+        }
+    );
+}
+
+#[test]
+fn test_evergreen_without_custom_config() {
+    let env_vars = EnvVars::from_iter(vec![
+        (String::from("CI"), String::from("true")),
+        (
+            String::from("EVR_TASK_ID"),
+            String::from("mms_js_unit_test_abc123"),
+        ),
+    ]);
+
+    let mut env_parser = EnvParser::new();
+    env_parser.parse(&env_vars, &["master"], None);
+
+    let ci_info = env_parser.into_ci_info_parser().unwrap().info_ci_info();
+
+    pretty_assertions::assert_eq!(ci_info, CIInfo::new(CIPlatform::Evergreen));
+}
