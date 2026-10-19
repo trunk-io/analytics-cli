@@ -44,7 +44,7 @@ mod ci_platform_env_key {
     pub const BAMBOO: &str = "bamboo_buildNumber";
     /// https://docs.cloud.google.com/build/docs/configuring-builds/substitute-variable-values
     pub const GOOGLE_CLOUD_BUILD: &str = "TRIGGER_NAME";
-    /// https://github.com/evergreen-ci/evergreen/blob/main/docs/Project-Configuration/Project-Commands.md#shellexec
+    /// https://github.com/evergreen-ci/evergreen/blob/0718211a8c91bb6feefebf971476c6ace1283bf4/docs/Project-Configuration/Project-Commands.md#shellexec
     pub const EVERGREEN: &str = "EVR_TASK_ID";
     /// Custom environment allowing users to manually set upload metadata using these env vars, all of which are optional:
     /// JOB_URL: Url for the ci job that was run
