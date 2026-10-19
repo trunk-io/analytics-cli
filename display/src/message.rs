@@ -13,9 +13,9 @@ pub enum DisplayMessage {
 impl DisplayMessage {
     pub fn render(&self, superconsole: &mut SuperConsole) {
         let render_result = match self {
-            DisplayMessage::Progress(progress_message, _) => {
-                superconsole.render(&**progress_message).map_err(anyhow::Error::new)
-            }
+            DisplayMessage::Progress(progress_message, _) => superconsole
+                .render(&**progress_message)
+                .map_err(anyhow::Error::new),
             DisplayMessage::Final(final_message, _) => display_end(superconsole, &**final_message),
         };
         if let Err(e) = render_result {

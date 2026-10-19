@@ -12,7 +12,11 @@ enum EmptyComponent {
 }
 impl Component for EmptyComponent {
     type Error = Infallible;
-    fn draw_unchecked(&self, _dimensions: Dimensions, _mode: DrawMode) -> Result<Lines, Infallible> {
+    fn draw_unchecked(
+        &self,
+        _dimensions: Dimensions,
+        _mode: DrawMode,
+    ) -> Result<Lines, Infallible> {
         Ok(Lines(vec![]))
     }
 }
