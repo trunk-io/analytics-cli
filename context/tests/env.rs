@@ -1915,3 +1915,162 @@ fn test_google_cloud_build() {
         );
     }
 }
+
+fn evergreen_env_vars(extra: &[(&str, &str)]) -> EnvVars {
+    let mut env_vars = vec![
+        ("CI", "true"),
+        ("EVR_TASK_ID", "mms_js_unit_test_abc123"),
+        ("execution", "2"),
+        ("task_name", "js_unit_test"),
+        ("build_variant", "js"),
+        ("branch_name", "master"),
+        ("author", "jane.doe"),
+    ];
+    env_vars.extend_from_slice(extra);
+    EnvVars::from_iter(
+        env_vars
+            .into_iter()
+            .map(|(key, value)| (String::from(key), String::from(value))),
+    )
+}
+
+fn evergreen_ci_info(env_vars: &EnvVars) -> CIInfo {
+    let mut env_parser = EnvParser::new();
+    env_parser.parse(env_vars, &["master"], None);
+    env_parser.into_ci_info_parser().unwrap().info_ci_info()
+}
+
+fn evergreen_expected(
+    branch: Option<&str>,
+    branch_class: Option<BranchClass>,
+    pr_number: Option<usize>,
+    actor: Option<&str>,
+) -> CIInfo {
+    CIInfo {
+        platform: CIPlatform::Evergreen,
+        job_url: Some(String::from(
+            "https://spruce.mongodb.com/task/mms_js_unit_test_abc123?execution=2",
+        )),
+        branch: branch.map(String::from),
+        branch_class,
+        pr_number,
+        actor: actor.map(String::from),
+        committer_name: None,
+        committer_email: None,
+        author_name: None,
+        author_email: None,
+        commit_message: None,
+        title: None,
+        workflow: Some(String::from("js")),
+        job: Some(String::from("js_unit_test")),
+    }
+}
+
+#[test]
+fn test_evergreen_mainline_commit() {
+    let env_vars = evergreen_env_vars(&[("requester", "commit"), ("is_patch", "")]);
+
+    pretty_assertions::assert_eq!(
+        evergreen_ci_info(&env_vars),
+        evergreen_expected(
+            Some("master"),
+            Some(BranchClass::ProtectedBranch),
+            None,
+            Some("jane.doe"),
+        )
+    );
+}
+
+#[test]
+fn test_evergreen_github_pr() {
+    let env_vars = evergreen_env_vars(&[
+        ("requester", "github_pr"),
+        ("is_patch", "true"),
+        ("author", "github_pull_request"),
+        ("github_pr_number", "1234"),
+        ("github_pr_head_branch", "jane/fix-flake"),
+        ("github_author", "janedoe"),
+    ]);
+
+    pretty_assertions::assert_eq!(
+        evergreen_ci_info(&env_vars),
+        evergreen_expected(
+            Some("jane/fix-flake"),
+            Some(BranchClass::PullRequest),
+            Some(1234),
+            Some("janedoe"),
+        )
+    );
+}
+
+#[test]
+fn test_evergreen_github_pr_without_linked_user() {
+    let env_vars = evergreen_env_vars(&[
+        ("requester", "github_pr"),
+        ("is_patch", "true"),
+        ("author", "github_pull_request"),
+        ("github_pr_number", "1234"),
+        ("github_pr_head_branch", "jane/fix-flake"),
+    ]);
+
+    pretty_assertions::assert_eq!(
+        evergreen_ci_info(&env_vars).actor,
+        None,
+        "the placeholder author must not be recorded as the actor"
+    );
+}
+
+#[test]
+fn test_evergreen_github_merge_queue() {
+    let env_vars = evergreen_env_vars(&[
+        ("requester", "github_merge_queue"),
+        ("is_patch", "true"),
+        ("is_commit_queue", "true"),
+        (
+            "github_head_branch",
+            "gh-readonly-queue/master/pr-1234-9cd8a2532bcddf58369aa82eb66ba88e2323c056",
+        ),
+    ]);
+
+    pretty_assertions::assert_eq!(
+        evergreen_ci_info(&env_vars),
+        evergreen_expected(
+            Some("gh-readonly-queue/master/pr-1234-9cd8a2532bcddf58369aa82eb66ba88e2323c056"),
+            Some(BranchClass::Merge),
+            None,
+            Some("jane.doe"),
+        )
+    );
+}
+
+#[test]
+fn test_evergreen_manual_patch_is_not_the_tracked_branch() {
+    let env_vars = evergreen_env_vars(&[("requester", "patch"), ("is_patch", "true")]);
+
+    pretty_assertions::assert_eq!(
+        evergreen_ci_info(&env_vars),
+        evergreen_expected(None, None, None, Some("jane.doe"))
+    );
+}
+
+#[test]
+fn test_evergreen_without_expansions() {
+    let env_vars = EnvVars::from_iter(vec![
+        (String::from("CI"), String::from("true")),
+        (
+            String::from("EVR_TASK_ID"),
+            String::from("mms_js_unit_test_abc123"),
+        ),
+    ]);
+
+    let ci_info = evergreen_ci_info(&env_vars);
+    assert_eq!(ci_info.platform, CIPlatform::Evergreen);
+    assert_eq!(
+        ci_info.job_url,
+        Some(String::from(
+            "https://spruce.mongodb.com/task/mms_js_unit_test_abc123"
+        ))
+    );
+    assert_eq!(ci_info.branch, None);
+    assert_eq!(ci_info.job, None);
+}

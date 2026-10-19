@@ -44,6 +44,8 @@ mod ci_platform_env_key {
     pub const BAMBOO: &str = "bamboo_buildNumber";
     /// https://docs.cloud.google.com/build/docs/configuring-builds/substitute-variable-values
     pub const GOOGLE_CLOUD_BUILD: &str = "TRIGGER_NAME";
+    /// https://github.com/evergreen-ci/evergreen/blob/main/docs/Project-Configuration/Project-Commands.md#subprocessexec
+    pub const EVERGREEN: &str = "EVR_TASK_ID";
     /// Custom environment allowing users to manually set upload metadata using these env vars, all of which are optional:
     /// JOB_URL: Url for the ci job that was run
     /// JOB_NAME: Name of the ci job that was run
@@ -75,6 +77,7 @@ pub enum CIPlatform {
     Drone,
     Bamboo,
     GoogleCloudBuild,
+    Evergreen,
     Custom,
     Unknown,
 }
@@ -96,6 +99,7 @@ impl From<CIPlatform> for &str {
             CIPlatform::Drone => ci_platform_env_key::DRONE,
             CIPlatform::Bamboo => ci_platform_env_key::BAMBOO,
             CIPlatform::GoogleCloudBuild => ci_platform_env_key::GOOGLE_CLOUD_BUILD,
+            CIPlatform::Evergreen => ci_platform_env_key::EVERGREEN,
             CIPlatform::Custom => ci_platform_env_key::CUSTOM,
             CIPlatform::Unknown => "UNKNOWN",
         }
@@ -152,6 +156,7 @@ impl magnus::TryConvert for CIPlatform {
             12 => Ok(CIPlatform::Custom),
             13 => Ok(CIPlatform::Bamboo),
             14 => Ok(CIPlatform::GoogleCloudBuild),
+            15 => Ok(CIPlatform::Evergreen),
             _ => Err(magnus::Error::new(
                 magnus::Ruby::get_with(val).exception_type_error(),
                 format!("invalid CIPlatform: {}", val),
@@ -177,6 +182,7 @@ impl From<&str> for CIPlatform {
             ci_platform_env_key::DRONE => CIPlatform::Drone,
             ci_platform_env_key::BAMBOO => CIPlatform::Bamboo,
             ci_platform_env_key::GOOGLE_CLOUD_BUILD => CIPlatform::GoogleCloudBuild,
+            ci_platform_env_key::EVERGREEN => CIPlatform::Evergreen,
             ci_platform_env_key::CUSTOM => CIPlatform::Custom,
             _ => CIPlatform::Unknown,
         }
@@ -246,6 +252,7 @@ impl<'a> CIInfoParser<'a> {
             CIPlatform::CircleCI => self.parse_circleci(),
             CIPlatform::Bamboo => self.parse_bamboo(),
             CIPlatform::GoogleCloudBuild => self.parse_google_cloud_build(),
+            CIPlatform::Evergreen => self.parse_evergreen(),
             CIPlatform::Custom => self.parse_custom_info(),
             CIPlatform::TravisCI
             | CIPlatform::Webappio
@@ -557,6 +564,38 @@ impl<'a> CIInfoParser<'a> {
                 ));
             }
             self.ci_info.job = Some(build_id);
+        }
+    }
+
+    fn parse_evergreen(&mut self) {
+        let is_patch = self.get_env_var("is_patch").as_deref() == Some("true")
+            || matches!(
+                self.get_env_var("requester").as_deref(),
+                Some("patch" | "github_pr" | "github_merge_queue")
+            );
+        // `branch_name` is the project's tracked branch, which a patch only builds on top of
+        self.ci_info.branch = self
+            .get_env_var("github_head_branch")
+            .or_else(|| self.get_env_var("github_pr_head_branch"))
+            .or_else(|| self.get_env_var("branch_name").filter(|_| !is_patch));
+        self.ci_info.pr_number = self.parse_pr_number(self.get_env_var("github_pr_number"));
+        // `author` is the literal "github_pull_request" when a PR has no linked Evergreen user
+        self.ci_info.actor = self.get_env_var("github_author").or_else(|| {
+            self.get_env_var("author")
+                .filter(|author| author != "github_pull_request")
+        });
+        self.ci_info.workflow = self.get_env_var("build_variant");
+        self.ci_info.job = self.get_env_var("task_name");
+
+        if let Some(task_id) = self.get_env_var(ci_platform_env_key::EVERGREEN) {
+            let task_id = url_encode_path_segment(&task_id);
+            // Evergreen exposes no UI host to a task, so links assume MongoDB's instance
+            self.ci_info.job_url = Some(match self.get_env_var("execution") {
+                Some(execution) => {
+                    format!("https://spruce.mongodb.com/task/{task_id}?execution={execution}")
+                }
+                None => format!("https://spruce.mongodb.com/task/{task_id}"),
+            });
         }
     }
 
