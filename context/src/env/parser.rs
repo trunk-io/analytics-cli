@@ -123,9 +123,6 @@ impl CIPlatform {
     // between the two)
     fn prioritize(self, other: CIPlatform) -> CIPlatform {
         match (self, other) {
-            // Evergreen reads the custom env vars, so a template that also sets CUSTOM is still Evergreen
-            (CIPlatform::Evergreen, CIPlatform::Custom)
-            | (CIPlatform::Custom, CIPlatform::Evergreen) => CIPlatform::Evergreen,
             (CIPlatform::Custom, _) | (_, CIPlatform::Custom) => CIPlatform::Custom,
             (CIPlatform::GoogleCloudBuild, CIPlatform::JenkinsPipeline)
             | (CIPlatform::JenkinsPipeline, CIPlatform::GoogleCloudBuild) => {

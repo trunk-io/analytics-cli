@@ -1932,7 +1932,6 @@ fn test_evergreen_reads_custom_config() {
             String::from("EVR_TASK_ID"),
             String::from("mms_js_unit_test_abc123"),
         ),
-        (String::from("CUSTOM"), String::from("true")),
         (String::from("JOB_URL"), String::from(&job_url)),
         (String::from("JOB_NAME"), String::from(&job_name)),
         (String::from("AUTHOR_EMAIL"), String::from(&author_email)),
