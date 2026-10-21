@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites name="unit">
+  <testsuite name="MathTests">
+    <testcase name="adds" classname="MathTests" file="src/math.rs" time="0.1"/>
+    <testcase name="subtracts" classname="MathTests" time="0.1"/>
+    <testcase name="" classname="MathTests" file="src/math.rs"/>
+  </testsuite>
+</testsuites>

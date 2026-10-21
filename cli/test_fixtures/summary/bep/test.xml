@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites name="unit_test">
+  <testsuite name="MathTests">
+    <testcase name="adds" classname="MathTests" file="app/math_test.cc" time="0.1"/>
+  </testsuite>
+</testsuites>
