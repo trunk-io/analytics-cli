@@ -240,6 +240,32 @@ impl EndOutput for ErrorReport {
     }
 }
 
+#[cfg(test)]
+fn error_summary(report: &ErrorReport) -> Vec<String> {
+    report
+        .output()
+        .unwrap()
+        .iter()
+        .map(Line::to_unstyled)
+        .collect()
+}
+
+#[cfg(test)]
+pub(crate) fn unauthorized_error() -> anyhow::Error {
+    let response = http::Response::builder().status(401).body("").unwrap();
+    anyhow::Error::from(
+        reqwest::Response::from(response)
+            .error_for_status()
+            .unwrap_err(),
+    )
+}
+
+#[cfg(test)]
+fn connection_refused_error() -> anyhow::Error {
+    anyhow::Error::from(std::io::Error::from(std::io::ErrorKind::ConnectionRefused))
+        .context("Failed to create bundle upload")
+}
+
 #[test]
 fn adds_settings_if_domain_present() {
     let host = "https://api.fake-trunk.io";
@@ -264,12 +290,7 @@ fn prints_a_client_error_explanation_beneath_the_base_message() {
         Some(String::from("There was an unexpected error")),
     );
 
-    let text = report
-        .output()
-        .unwrap()
-        .iter()
-        .map(|line| line.to_unstyled())
-        .collect::<Vec<_>>();
+    let text = error_summary(&report);
 
     assert_eq!(
         text[..4],
@@ -278,6 +299,139 @@ fn prints_a_client_error_explanation_beneath_the_base_message() {
             "There was an unexpected error",
             "",
             "Pass --test-collection-id.",
+        ]
+    );
+}
+
+#[test]
+fn prints_connection_refused_beneath_the_base_message() {
+    let report = ErrorReport::new(
+        connection_refused_error(),
+        String::from("fake-org-slug"),
+        Some(String::from("There was an unexpected error")),
+    );
+
+    assert_eq!(
+        error_summary(&report),
+        [
+            "Error Encountered",
+            "There was an unexpected error",
+            "",
+            "Unable to connect to trunk's server",
+        ]
+    );
+}
+
+#[test]
+fn prints_connection_refused_without_a_base_message() {
+    let report = ErrorReport::new(
+        connection_refused_error(),
+        String::from("fake-org-slug"),
+        None,
+    );
+
+    assert_eq!(
+        error_summary(&report),
+        ["Error Encountered", "Unable to connect to trunk's server"]
+    );
+}
+
+#[test]
+fn prints_unauthorized_with_a_settings_hint() {
+    let report = ErrorReport::new(unauthorized_error(), String::from("fake-org-slug"), None);
+
+    assert_eq!(
+        error_summary(&report),
+        [
+            "Error Encountered",
+            "",
+            "",
+            "Unathorized access, your Trunk organization URL slug or token may be incorrect",
+            "  Hint: You can find it under the settings page at https://app.trunk.io/fake-org-slug/settings",
+        ]
+    );
+}
+
+#[test]
+fn prints_a_generic_error_without_a_base_message() {
+    let report = ErrorReport::new(
+        anyhow::anyhow!("--allow-forked-pr-uploads requires --test-collection-id"),
+        String::from("fake-org-slug"),
+        None,
+    );
+
+    assert_eq!(
+        error_summary(&report),
+        [
+            "Error Encountered",
+            "--allow-forked-pr-uploads requires --test-collection-id",
+            "For more help, contact us at https://slack.trunk.io/",
+            "",
+            "Errors occurred during execution, using quarantining exit code",
+        ]
+    );
+}
+
+#[test]
+fn prints_an_interrupting_error_with_its_exit_code() {
+    let report = ErrorReport::new(
+        anyhow::anyhow!(InterruptingError::new(
+            "No test output files found to validate"
+        )),
+        String::from("fake-org-slug"),
+        None,
+    );
+
+    assert_eq!(
+        error_summary(&report),
+        [
+            "Error Encountered",
+            "No test output files found to validate",
+            "For more help, contact us at https://slack.trunk.io/",
+            "",
+            "Errors occurred during execution, returning exit code: 70",
+        ]
+    );
+}
+
+#[test]
+fn prints_the_default_exit_code() {
+    let mut report = ErrorReport::new(
+        anyhow::anyhow!("something went wrong"),
+        String::from("fake-org-slug"),
+        None,
+    );
+    report.context.exit_code = Some(exitcode::OK);
+
+    assert_eq!(
+        error_summary(&report),
+        [
+            "Error Encountered",
+            "something went wrong",
+            "For more help, contact us at https://slack.trunk.io/",
+            "",
+            "No errors occurred, returning default exit code: 0",
+        ]
+    );
+}
+
+#[test]
+fn prints_any_other_exit_code() {
+    let mut report = ErrorReport::new(
+        anyhow::anyhow!("something went wrong"),
+        String::from("fake-org-slug"),
+        None,
+    );
+    report.context.exit_code = Some(exitcode::USAGE);
+
+    assert_eq!(
+        error_summary(&report),
+        [
+            "Error Encountered",
+            "something went wrong",
+            "For more help, contact us at https://slack.trunk.io/",
+            "",
+            "Errors occurred during execution, returning exit code: 64",
         ]
     );
 }
