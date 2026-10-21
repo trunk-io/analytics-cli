@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites name="first">
+  <testsuite name="MathTests">
+    <testcase name="adds" classname="MathTests" file="src/math.rs" time="0.1"/>
+  </testsuite>
+</testsuites>
+<testsuites name="second">
+  <testsuite name="MathTests">
+    <testcase name="subtracts" classname="MathTests" file="src/math.rs" time="0.1"/>
+  </testsuite>
+</testsuites>
