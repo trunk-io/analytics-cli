@@ -3,6 +3,8 @@
 version: 0.1
 cli:
   version: 1.25.0
+api:
+  address: grpc.api.trunk.io:8443
 # Trunk provides extensibility via plugins. (https://docs.trunk.io/plugins)
 plugins:
   sources:
