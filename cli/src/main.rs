@@ -17,6 +17,10 @@ use tracing_subscriber::{filter::FilterFn, prelude::*};
 use trunk_analytics_cli::{
     context::gather_debug_props,
     error_report::ErrorReport,
+    report::{
+        ErrorSummary, UploadCommand, UploadReport,
+        text::{TextOptions, UploadText},
+    },
     test_command::{TestArgs, run_test},
     upload_command::{RunUploadOptions, UploadArgs, UploadRunResult, run_upload},
     validate_command::{ValidateArgs, ValidateRunResult, run_validate},
@@ -148,31 +152,28 @@ fn main() -> anyhow::Result<()> {
                     close_out_and_exit(exit_code, guard, render_sender, render_handle)
                 }
                 MainOutcome::Finished(Ok(RunResult::Upload(run_result))) => {
-                    let result_ptr = Arc::new(run_result);
+                    let text = UploadText {
+                        report: UploadReport::new(&run_result, UploadCommand::Upload),
+                        options: TextOptions::from(&run_result),
+                    };
+                    let exit_code = text.report.exit_code;
                     send_message(
-                        DisplayMessage::Final(result_ptr.clone(), String::from("upload display")),
+                        DisplayMessage::Final(Arc::new(text), String::from("upload display")),
                         &render_sender,
                     );
-                    let exit_code = result_ptr
-                        .error_report
-                        .as_ref()
-                        .map(|e| e.context.exit_code)
-                        .flatten()
-                        .unwrap_or(result_ptr.quarantine_context.exit_code);
                     close_out_and_exit(exit_code, guard, render_sender, render_handle)
                 }
                 MainOutcome::Finished(Ok(RunResult::Test(run_result))) => {
-                    let result_ptr = Arc::new(run_result);
+                    let text = UploadText {
+                        report: UploadReport::new(&run_result, UploadCommand::Test),
+                        options: TextOptions::from(&run_result),
+                    };
+                    let exit_code = text.report.exit_code;
                     send_message(
-                        DisplayMessage::Final(result_ptr.clone(), String::from("test display")),
+                        DisplayMessage::Final(Arc::new(text), String::from("test display")),
                         &render_sender,
                     );
-                    close_out_and_exit(
-                        result_ptr.quarantine_context.exit_code,
-                        guard,
-                        render_sender,
-                        render_handle,
-                    )
+                    close_out_and_exit(exit_code, guard, render_sender, render_handle)
                 }
                 MainOutcome::Finished(Ok(RunResult::Validate(run_result))) => {
                     let result_ptr = Arc::new(run_result);
@@ -183,13 +184,10 @@ fn main() -> anyhow::Result<()> {
                     close_out_and_exit(result_ptr.exit_code(), guard, render_sender, render_handle)
                 }
                 MainOutcome::Finished(Err(error)) => {
-                    let error_report = ErrorReport::new(error, org_url_slug, None);
-                    let exit_code = error_report.context.exit_code.unwrap_or(exitcode::OK);
+                    let error = ErrorSummary::new(&ErrorReport::new(error, org_url_slug, None));
+                    let exit_code = error.exit_code.unwrap_or(exitcode::OK);
                     send_message(
-                        DisplayMessage::Final(
-                            Arc::new(error_report),
-                            String::from("error display"),
-                        ),
+                        DisplayMessage::Final(Arc::new(error), String::from("error display")),
                         &render_sender,
                     );
                     close_out_and_exit(exit_code, guard, render_sender, render_handle)
