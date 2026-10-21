@@ -13,7 +13,7 @@ use context::bazel_bep::common::BepParseResult;
 use display::{end_output::EndOutput, message::DisplayMessage};
 use pluralizer::pluralize;
 use superconsole::{
-    Line, Lines, Span,
+    Hyperlink, Line, Lines, Span,
     style::{Attribute, Color, Stylize, style},
 };
 use tempfile::TempDir;
@@ -859,8 +859,9 @@ pub fn get_bundle_upload_id_message(bundle_upload_id: &str) -> String {
     format!("🏷️  Bundle Upload ID: {}", bundle_upload_id)
 }
 
-pub fn get_bundle_upload_url_message(url: &str) -> String {
-    format!("🏷️  Upload: {}", url)
+fn hyperlink_span(url: String, attribute: Attribute) -> anyhow::Result<Span> {
+    let span = Span::new_styled(style(url.clone()).attribute(attribute))?;
+    Ok(span.with_hyperlink(Some(Hyperlink::new(url))))
 }
 
 impl UploadRunResult {
@@ -906,17 +907,19 @@ impl EndOutput for UploadRunResult {
         // test-collection link mode, otherwise the bare id as before.
         {
             let bundle_upload_id = &self.meta.base_props.bundle_upload_id;
-            let message = match self.collection_upload_url() {
-                Some(url) => Some(get_bundle_upload_url_message(&url)),
-                None if !bundle_upload_id.is_empty() => {
-                    Some(get_bundle_upload_id_message(bundle_upload_id))
-                }
+            let bold = |text: String| Span::new_styled(style(text).attribute(Attribute::Bold));
+            let line = match self.collection_upload_url() {
+                Some(url) => Some(Line::from_iter([
+                    bold(String::from("🏷️  Upload: "))?,
+                    hyperlink_span(url, Attribute::Bold)?,
+                ])),
+                None if !bundle_upload_id.is_empty() => Some(Line::from_iter([bold(
+                    get_bundle_upload_id_message(bundle_upload_id),
+                )?])),
                 None => None,
             };
-            if let Some(message) = message {
-                output.push(Line::from_iter([Span::new_styled(
-                    style(message).attribute(Attribute::Bold),
-                )?]));
+            if let Some(line) = line {
+                output.push(line);
                 output.push(Line::default());
             }
         }
@@ -1023,7 +1026,7 @@ impl EndOutput for UploadRunResult {
                     )?;
                     let mut link_output = Line::from_iter([
                         Span::new_unstyled("⤷ ")?,
-                        Span::new_styled(style(link.to_string()).attribute(Attribute::Underlined))?,
+                        hyperlink_span(link, Attribute::Underlined)?,
                     ]);
                     link_output.pad_left(4);
                     output.push(link_output);
