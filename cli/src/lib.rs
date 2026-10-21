@@ -2,6 +2,7 @@ pub mod context;
 pub mod context_quarantine;
 pub mod error_report;
 pub mod print;
+pub mod report;
 pub mod report_limiting;
 pub mod test_command;
 pub mod upload_command;

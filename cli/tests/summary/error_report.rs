@@ -1,14 +1,15 @@
 use api::client::ClientErrorExplanation;
-use display::end_output::EndOutput;
 use pretty_assertions::assert_eq;
 use superconsole::Line;
-use trunk_analytics_cli::error_report::{ErrorReport, InterruptingError};
+use trunk_analytics_cli::{
+    error_report::{ErrorReport, InterruptingError},
+    report::{ErrorSummary, text},
+};
 
 use crate::unauthorized_error;
 
 fn error_summary(report: &ErrorReport) -> Vec<String> {
-    report
-        .output()
+    text::render_error(&ErrorSummary::new(report))
         .unwrap()
         .iter()
         .map(Line::to_unstyled)
