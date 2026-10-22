@@ -239,7 +239,7 @@ jobs:
 
   tag_and_release:
     name: Tag and Release [ ${{ github.event.inputs.release_tag || inputs.release_tag }} ]
-    runs-on: ubuntu-latest
+    runs-on: "${{ vars.CI_RUNNER_OVERRIDE == 'hosted' && 'ubuntu-latest' || format('trunk-staging={0}-{1}..size=medium..memory=high', github.run_id, github.run_attempt) }}"
     needs: [build_release, perform_smoke_test]
     permissions:
       contents: write

@@ -22,7 +22,7 @@ permissions:
 
 jobs:
   ci-data:
-    runs-on: ubuntu-latest
+    runs-on: "${{ vars.CI_RUNNER_OVERRIDE == 'hosted' && 'ubuntu-latest' || format('trunk-staging={0}-{1}..size=medium..memory=high', github.run_id, github.run_attempt) }}"
     outputs:
       result: ${{ steps.fetch.outputs.result }}
     steps:
@@ -43,7 +43,7 @@ jobs:
             exclude: [head]
   cross-gem:
     name: ${{ matrix.platform == 'ruby' && 'Validate ruby platform gem' || format('Build gem for {0}', matrix.platform) }}
-    runs-on: ubuntu-latest
+    runs-on: "${{ vars.CI_RUNNER_OVERRIDE == 'hosted' && 'ubuntu-latest' || format('trunk-staging={0}-{1}..size=medium..memory=high', github.run_id, github.run_attempt) }}"
     needs: ci-data
     strategy:
       matrix:
@@ -188,7 +188,7 @@ jobs:
           knapsack-pro-test-suite-token-rspec: ${{ secrets.KNAPSACK_PRO_TEST_SUITE_TOKEN_RSPEC }}
 
   publish_ruby_gem:
-    runs-on: ubuntu-latest
+    runs-on: "${{ vars.CI_RUNNER_OVERRIDE == 'hosted' && 'ubuntu-latest' || format('trunk-staging={0}-{1}..size=medium..memory=high', github.run_id, github.run_attempt) }}"
     needs: [test-ruby-gem, test-musl-gem]
     steps:
       - uses: actions/checkout@v4
