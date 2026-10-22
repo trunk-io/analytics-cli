@@ -1,5 +1,6 @@
 use api::client::ClientErrorExplanation;
 use http::StatusCode;
+use schemars::JsonSchema;
 use serde::Serialize;
 
 pub(crate) const HELP_TEXT: &str = "For more help, contact us at https://slack.trunk.io/";
@@ -77,12 +78,16 @@ impl ErrorReport {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub enum ErrorKind {
+    /// Couldn't connect to Trunk.
     ConnectionRefused,
+    /// Trunk rejected the org slug or token.
     Unauthorized,
+    /// The repo root couldn't be opened as a git repository.
     GitRepository,
+    /// The run stopped early, such as when it found no test reports and empty results aren't allowed.
     Interrupted,
     Other,
 }

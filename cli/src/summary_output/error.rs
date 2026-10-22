@@ -1,17 +1,24 @@
 use api::client::get_api_host;
+use schemars::JsonSchema;
 use serde::Serialize;
 
 use crate::error_report::{ErrorKind, ErrorReport, get_client_error_explanation, settings_url};
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ErrorSummary {
     pub kind: ErrorKind,
+    /// What the CLI was doing when the error happened.
     pub message: Option<String>,
+    /// The error, without its causes.
     pub error: String,
+    /// The errors that led to it, outermost first.
     pub causes: Vec<String>,
+    /// Trunk's explanation, when its API gave one.
     pub explanation: Option<String>,
+    /// Where to check the org slug and token. Only set for `unauthorized` errors.
     pub settings_url: Option<String>,
+    /// A run that fails outright exits with this code, or 0 when it's null. Upload reports exit with their own `exitCode`.
     pub exit_code: Option<i32>,
 }
 
