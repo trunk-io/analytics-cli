@@ -1,25 +1,39 @@
 use std::{fs, path::Path};
 
+use schemars::{JsonSchema, Schema, generate::SchemaSettings};
 use serde::Serialize;
 
 use super::{ErrorSummary, UploadReport};
 
-/// Bump when a change could break a reader, such as renaming or removing a field.
 pub const SCHEMA_VERSION: u32 = 1;
 
-#[derive(Debug, Clone, Copy, Serialize)]
+#[derive(Debug, Clone, Copy, Serialize, JsonSchema)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum Report<'a> {
+    /// The run finished and summarized its tests.
     Upload(&'a UploadReport),
+    /// The run failed before it could summarize any tests.
     Error(&'a ErrorSummary),
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
+#[schemars(
+    title = "Trunk Analytics CLI summary",
+    description = "What `upload` and `test` write to `--summary-output-file`."
+)]
 struct Versioned<'a> {
+    /// Goes up when a change could break a reader, such as renaming or removing a field.
     schema_version: u32,
     #[serde(flatten)]
     report: Report<'a>,
+}
+
+pub fn schema() -> Schema {
+    SchemaSettings::draft2020_12()
+        .for_serialize()
+        .into_generator()
+        .into_root_schema_for::<Versioned<'static>>()
 }
 
 pub fn to_string(report: Report) -> serde_json::Result<String> {
