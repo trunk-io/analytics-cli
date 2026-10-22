@@ -41,6 +41,7 @@ module RSpec
   # Trunk holds everything this gem defines (the native extension defines the
   # module and its classes: TestReport, Status, CIInfo, ...). Nothing is added to
   # the global namespace or to core classes; test/namespace_spec.rb enforces that.
+  # trunk-ignore(rubocop/Metrics/ModuleLength)
   module Trunk
     ANSI_ESCAPE_PATTERN = %r{(?:\e[@-Z\\-_]|\e\[[0-?]*[ -/]*[@-~])}
 
@@ -138,8 +139,70 @@ module RSpec
       end
 
       def parent_name(example)
-        name = example.example_group.metadata[:description]
+        name = description(example.example_group.metadata)
         name.empty? ? 'rspec' : name
+      end
+
+      # The example's full_description, rebuilt with .description at every level.
+      def full_description(example)
+        group = group_full_description(example.example_group.metadata)
+        own = description(example.metadata)
+        group.empty? ? own : "#{group} #{own}"
+      end
+
+      # RSpec's metadata[:description], rebuilt from metadata[:description_args].
+      # RSpec turns those args into text with #to_s, which for an object without its
+      # own #to_s, or an anonymous class, includes its memory address. That gives the
+      # test a new name, and so a new id, on every run. Those args are named by class
+      # instead. Generated descriptions (`it { is_expected.to ... }`) have no args and
+      # are used as RSpec built them.
+      def description(metadata)
+        parent, child = metadata[:description_args]
+        return metadata[:description].to_s if metadata[:description_args].empty?
+        return description_arg(parent) unless child
+        return description_arg(child) if description_arg(parent) == ''
+
+        description_arg(parent) + description_separator(parent, child) + description_arg(child)
+      end
+
+      def group_full_description(metadata)
+        parent = metadata[:parent_example_group]
+        return description(metadata) unless parent
+
+        group_full_description(parent) +
+          description_separator(parent[:description_args].last, metadata[:description_args].first) +
+          description(metadata)
+      end
+
+      # As in RSpec: `describe Foo, '#bar'` is "Foo#bar", not "Foo #bar".
+      def description_separator(parent_arg, child_arg)
+        parent_arg.is_a?(Module) && /^(?:#|::|\.)/.match?(child_arg.to_s) ? '' : ' '
+      end
+
+      def description_arg(arg)
+        if arg.is_a?(Module)
+          arg.name || anonymous_module_name(arg)
+        elsif default_to_s?(arg)
+          "#<#{arg.class.name || anonymous_module_name(arg.class)}>"
+        else
+          arg.to_s
+        end
+      end
+
+      def anonymous_module_name(mod)
+        return '#<Module>' unless mod.is_a?(Class)
+
+        superclass = mod.superclass
+        superclass = superclass.superclass while superclass && superclass.name.nil?
+        superclass ? "#<Class < #{superclass.name}>" : '#<Class>'
+      end
+
+      # Kernel's method, so an object whose own #method means something else
+      # (e.g. an HTTP request's verb) is still checked.
+      def default_to_s?(arg)
+        Kernel.instance_method(:method).bind_call(arg, :to_s).owner == Kernel
+      rescue TypeError # a BasicObject
+        false
       end
     end
 
@@ -219,7 +282,7 @@ module RSpec
         unless quarantining_disabled?
           puts Colors.yellow("Test failed, checking if it can be quarantined: `#{example.location}`")
         end
-        result = report.is_quarantined(example.trunk_id, example.full_description, Trunk.parent_name(example),
+        result = report.is_quarantined(example.trunk_id, Trunk.full_description(example), Trunk.parent_name(example),
                                        classname, file)
 
         if result.quarantine_lookup_failed
@@ -457,7 +520,7 @@ module RSpec
         failure_message = failure_message[0...MAX_TEXT_FIELD_SIZE] if failure_message.length > MAX_TEXT_FIELD_SIZE
         backtrace = backtrace[0...MAX_TEXT_FIELD_SIZE] if backtrace.length > MAX_TEXT_FIELD_SIZE
         # TODO: should we use concatenated string or alias when auto-generated description?
-        name = example.full_description
+        name = Trunk.full_description(example)
         file, classname = Trunk.file_and_classname(example)
         line = example.metadata[:line_number]
         started_at = example.execution_result.started_at.to_f
