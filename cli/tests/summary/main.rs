@@ -1,4 +1,5 @@
 mod error_report;
+mod schema;
 mod upload;
 mod validate;
 

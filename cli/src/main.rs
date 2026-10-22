@@ -45,7 +45,7 @@ impl Cli {
         let token = match &self.command {
             Commands::Test(args) => args.token(),
             Commands::Upload(args) => args.token.clone(),
-            Commands::Validate(..) => None,
+            Commands::Validate(..) | Commands::SummaryOutputSchema => None,
         };
 
         token.map_or(
@@ -59,6 +59,7 @@ impl Cli {
             Commands::Test(..) => "test",
             Commands::Upload(..) => "upload",
             Commands::Validate(..) => "validate",
+            Commands::SummaryOutputSchema => "summary-output-schema",
         }
     }
 
@@ -71,7 +72,7 @@ impl Cli {
         match &self.command {
             Commands::Test(args) => args.org_url_slug(),
             Commands::Upload(args) => args.org_url_slug.clone(),
-            Commands::Validate(..) => String::from("not used"),
+            Commands::Validate(..) | Commands::SummaryOutputSchema => String::from("not used"),
         }
     }
 
@@ -79,7 +80,7 @@ impl Cli {
         match &self.command {
             Commands::Test(args) => args.summary_output_file(),
             Commands::Upload(args) => args.summary_output_file.clone(),
-            Commands::Validate(..) => None,
+            Commands::Validate(..) | Commands::SummaryOutputSchema => None,
         }
     }
 
@@ -87,7 +88,7 @@ impl Cli {
         let explicit_root = match &self.command {
             Commands::Test(args) => args.repo_root(),
             Commands::Upload(args) => args.repo_root.clone(),
-            Commands::Validate(..) => None,
+            Commands::Validate(..) | Commands::SummaryOutputSchema => None,
         };
         explicit_root
             .or(std::env::current_dir()
@@ -106,6 +107,8 @@ enum Commands {
     Upload(UploadArgs),
     /// Validate test report files for compatibility with Trunk Flaky Tests. Runs locally without uploading data.
     Validate(ValidateArgs),
+    /// Print the JSON Schema of the summary that `--summary-output-file` writes.
+    SummaryOutputSchema,
 }
 
 fn close_out_and_exit(
@@ -202,6 +205,10 @@ fn main() -> anyhow::Result<()> {
                     );
                     close_out_and_exit(result_ptr.exit_code(), guard, render_sender, render_handle)
                 }
+                MainOutcome::Finished(Ok(RunResult::SummaryOutputSchema)) => {
+                    println!("{}", serde_json::to_string_pretty(&json::schema())?);
+                    close_out_and_exit(exitcode::OK, guard, render_sender, render_handle)
+                }
                 MainOutcome::Finished(Err(error)) => {
                     let error = Arc::new(ErrorSummary::new(&ErrorReport::new(
                         error,
@@ -258,6 +265,7 @@ enum RunResult {
     Upload(UploadRunResult),
     Test(UploadRunResult),
     Validate(ValidateRunResult),
+    SummaryOutputSchema,
 }
 
 async fn run(cli: Cli, render_sender: Sender<DisplayMessage>) -> anyhow::Result<RunResult> {
@@ -287,6 +295,7 @@ async fn run(cli: Cli, render_sender: Sender<DisplayMessage>) -> anyhow::Result<
             let result = run_validate(validate_args).await?;
             Ok(RunResult::Validate(result))
         }
+        Commands::SummaryOutputSchema => Ok(RunResult::SummaryOutputSchema),
     }
 }
 
