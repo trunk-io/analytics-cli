@@ -3,7 +3,11 @@ use pretty_assertions::assert_eq;
 use superconsole::Line;
 use trunk_analytics_cli::{
     error_report::{ErrorReport, InterruptingError},
-    report::{ErrorSummary, text},
+    report::{
+        ErrorSummary,
+        json::{self, Report},
+        text,
+    },
 };
 
 use crate::unauthorized_error;
@@ -181,4 +185,46 @@ fn prints_any_other_exit_code() {
             "Errors occurred during execution, returning exit code: 64",
         ]
     );
+}
+
+#[test]
+fn writes_an_error_as_json() {
+    let report = ErrorReport::new(
+        anyhow::anyhow!("--allow-forked-pr-uploads requires --test-collection-id")
+            .context("Failed to gather upload context"),
+        String::from("fake-org-slug"),
+        None,
+    );
+    let error = ErrorSummary::new(&report);
+
+    assert_eq!(
+        serde_json::from_str::<serde_json::Value>(&json::to_string(Report::Error(&error)).unwrap())
+            .unwrap(),
+        serde_json::json!({
+            "schemaVersion": 1,
+            "type": "error",
+            "kind": "other",
+            "message": null,
+            "error": "Failed to gather upload context",
+            "causes": ["--allow-forked-pr-uploads requires --test-collection-id"],
+            "explanation": null,
+            "settingsUrl": null,
+            "exitCode": null,
+        })
+    );
+}
+
+#[test]
+fn writes_the_settings_url_and_exit_code_of_an_unauthorized_error_as_json() {
+    let report = ErrorReport::new(unauthorized_error(), String::from("fake-org-slug"), None);
+    let error = ErrorSummary::new(&report);
+    let json: serde_json::Value =
+        serde_json::from_str(&json::to_string(Report::Error(&error)).unwrap()).unwrap();
+
+    assert_eq!(json["kind"], "unauthorized");
+    assert_eq!(
+        json["settingsUrl"],
+        "https://app.trunk.io/fake-org-slug/settings"
+    );
+    assert_eq!(json["exitCode"], 70);
 }

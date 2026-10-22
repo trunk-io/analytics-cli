@@ -1527,6 +1527,110 @@ async fn upload_bundle_invalid_repo_root_explicit() {
     println!("{assert}");
 }
 
+fn read_summary_output_file(path: &std::path::Path) -> serde_json::Value {
+    serde_json::from_reader(fs::File::open(path).unwrap()).unwrap()
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn upload_writes_summary_output_file() {
+    let temp_dir = tempdir().unwrap();
+    generate_mock_git_repo(&temp_dir);
+    generate_mock_valid_junit_xmls_with_failures(&temp_dir);
+    let summary_path = temp_dir.path().join("out").join("summary.json");
+
+    let state = MockServerBuilder::new().spawn_mock_server().await;
+    let assert = CommandBuilder::upload(temp_dir.path(), state.host.clone())
+        .command()
+        .arg("--summary-output-file")
+        .arg(&summary_path)
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains(format!(
+            "Summary written to {}",
+            summary_path.display()
+        )));
+
+    let summary = read_summary_output_file(&summary_path);
+    assert_eq!(summary["schemaVersion"], 1);
+    assert_eq!(summary["type"], "upload");
+    assert_eq!(
+        summary["exitCode"],
+        assert.get_output().status.code().unwrap()
+    );
+    let counts = &summary["counts"];
+    let count = |key: &str| counts[key].as_u64().unwrap();
+    assert!(count("failed") > 0);
+    assert_eq!(
+        count("passed") + count("failed") + count("quarantined"),
+        count("total")
+    );
+    let failures: Vec<&serde_json::Value> = summary["failures"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .flat_map(|group| group["tests"].as_array().unwrap())
+        .collect();
+    assert_eq!(failures.len() as u64, count("failed"));
+    for failure in failures {
+        assert!(!failure["name"].as_str().unwrap().is_empty());
+        assert!(
+            failure["link"]
+                .as_str()
+                .unwrap()
+                .contains("/flaky-tests/test/")
+        );
+    }
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn upload_writes_an_error_to_summary_output_file() {
+    let temp_dir = tempdir().unwrap();
+    generate_mock_git_repo(&temp_dir);
+    let summary_path = temp_dir.path().join("summary.json");
+
+    let state = MockServerBuilder::new().spawn_mock_server().await;
+    CommandBuilder::upload(temp_dir.path(), state.host.clone())
+        .repo_root("../")
+        .command()
+        .arg("--summary-output-file")
+        .arg(&summary_path)
+        .assert()
+        .code(exitcode::SOFTWARE);
+
+    let summary = read_summary_output_file(&summary_path);
+    assert_eq!(summary["schemaVersion"], 1);
+    assert_eq!(summary["type"], "error");
+    assert_eq!(summary["kind"], "gitRepository");
+    assert_eq!(summary["exitCode"], exitcode::SOFTWARE);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn upload_keeps_its_exit_code_when_the_summary_output_file_cannot_be_written() {
+    let temp_dir = tempdir().unwrap();
+    generate_mock_git_repo(&temp_dir);
+    let summary_path = temp_dir.path().join("summary.json");
+    fs::create_dir(&summary_path).unwrap();
+
+    let state = MockServerBuilder::new().spawn_mock_server().await;
+    CommandBuilder::upload(temp_dir.path(), state.host.clone())
+        .command()
+        .arg("--summary-output-file")
+        .arg(&summary_path)
+        .assert()
+        .success()
+        .stderr(predicate::str::contains(format!(
+            "Failed to write the summary to {}",
+            summary_path.display()
+        )));
+
+    let leftovers: Vec<_> = fs::read_dir(temp_dir.path())
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name())
+        .filter(|name| name.to_string_lossy().ends_with(".tmp"))
+        .collect();
+    assert!(leftovers.is_empty(), "left behind {leftovers:?}");
+}
+
 #[tokio::test(flavor = "multi_thread")]
 async fn upload_bundle_valid_repo_root_implicit() {
     let temp_dir = tempdir().unwrap();

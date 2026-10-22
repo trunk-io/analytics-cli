@@ -2,6 +2,7 @@ mod shutdown;
 
 use std::{
     env,
+    path::{Path, PathBuf},
     sync::{Arc, mpsc::Sender},
     thread::JoinHandle,
 };
@@ -19,7 +20,8 @@ use trunk_analytics_cli::{
     error_report::ErrorReport,
     report::{
         ErrorSummary, UploadCommand, UploadReport,
-        text::{TextOptions, UploadText},
+        json::{self, Report},
+        text::{SummaryFileText, TextOptions, UploadText},
     },
     test_command::{TestArgs, run_test},
     upload_command::{RunUploadOptions, UploadArgs, UploadRunResult, run_upload},
@@ -73,6 +75,14 @@ impl Cli {
         }
     }
 
+    pub fn summary_output_file(&self) -> Option<PathBuf> {
+        match &self.command {
+            Commands::Test(args) => args.summary_output_file(),
+            Commands::Upload(args) => args.summary_output_file.clone(),
+            Commands::Validate(..) => None,
+        }
+    }
+
     pub fn repo_root(&self) -> String {
         let explicit_root = match &self.command {
             Commands::Test(args) => args.repo_root(),
@@ -122,6 +132,7 @@ fn main() -> anyhow::Result<()> {
         .block_on(async {
             let cli = Cli::parse();
             let org_url_slug = cli.org_url_slug();
+            let summary_output_file = cli.summary_output_file();
             let log_level_filter = cli.verbose.log_level_filter();
             setup_logger(
                 log_level_filter,
@@ -152,28 +163,36 @@ fn main() -> anyhow::Result<()> {
                     close_out_and_exit(exit_code, guard, render_sender, render_handle)
                 }
                 MainOutcome::Finished(Ok(RunResult::Upload(run_result))) => {
-                    let text = UploadText {
+                    let text = Arc::new(UploadText {
                         report: UploadReport::new(&run_result, UploadCommand::Upload),
                         options: TextOptions::from(&run_result),
-                    };
-                    let exit_code = text.report.exit_code;
+                    });
                     send_message(
-                        DisplayMessage::Final(Arc::new(text), String::from("upload display")),
+                        DisplayMessage::Final(text.clone(), String::from("upload display")),
                         &render_sender,
                     );
-                    close_out_and_exit(exit_code, guard, render_sender, render_handle)
+                    write_summary_file(
+                        summary_output_file.as_deref(),
+                        Report::Upload(&text.report),
+                        &render_sender,
+                    );
+                    close_out_and_exit(text.report.exit_code, guard, render_sender, render_handle)
                 }
                 MainOutcome::Finished(Ok(RunResult::Test(run_result))) => {
-                    let text = UploadText {
+                    let text = Arc::new(UploadText {
                         report: UploadReport::new(&run_result, UploadCommand::Test),
                         options: TextOptions::from(&run_result),
-                    };
-                    let exit_code = text.report.exit_code;
+                    });
                     send_message(
-                        DisplayMessage::Final(Arc::new(text), String::from("test display")),
+                        DisplayMessage::Final(text.clone(), String::from("test display")),
                         &render_sender,
                     );
-                    close_out_and_exit(exit_code, guard, render_sender, render_handle)
+                    write_summary_file(
+                        summary_output_file.as_deref(),
+                        Report::Upload(&text.report),
+                        &render_sender,
+                    );
+                    close_out_and_exit(text.report.exit_code, guard, render_sender, render_handle)
                 }
                 MainOutcome::Finished(Ok(RunResult::Validate(run_result))) => {
                     let result_ptr = Arc::new(run_result);
@@ -184,16 +203,47 @@ fn main() -> anyhow::Result<()> {
                     close_out_and_exit(result_ptr.exit_code(), guard, render_sender, render_handle)
                 }
                 MainOutcome::Finished(Err(error)) => {
-                    let error = ErrorSummary::new(&ErrorReport::new(error, org_url_slug, None));
+                    let error = Arc::new(ErrorSummary::new(&ErrorReport::new(
+                        error,
+                        org_url_slug,
+                        None,
+                    )));
                     let exit_code = error.exit_code.unwrap_or(exitcode::OK);
                     send_message(
-                        DisplayMessage::Final(Arc::new(error), String::from("error display")),
+                        DisplayMessage::Final(error.clone(), String::from("error display")),
+                        &render_sender,
+                    );
+                    write_summary_file(
+                        summary_output_file.as_deref(),
+                        Report::Error(&error),
                         &render_sender,
                     );
                     close_out_and_exit(exit_code, guard, render_sender, render_handle)
                 }
             }
         })
+}
+
+fn write_summary_file(path: Option<&Path>, report: Report, render_sender: &Sender<DisplayMessage>) {
+    let Some(path) = path else {
+        return;
+    };
+    let error = json::write_file(path, report).err().map(|error| {
+        tracing::warn!(
+            "Failed to write the summary to {}: {:?}",
+            path.display(),
+            error
+        );
+        format!("{error:#}")
+    });
+    let text = SummaryFileText {
+        path: path.to_path_buf(),
+        error,
+    };
+    send_message(
+        DisplayMessage::Final(Arc::new(text), String::from("summary file display")),
+        render_sender,
+    );
 }
 
 /// Outcome of racing the command against termination signals in `main`.
