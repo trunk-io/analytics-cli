@@ -393,6 +393,14 @@ pub struct UploadArgs {
         default_missing_value = "true"
     )]
     pub hide_test_collection_links: bool,
+    #[arg(
+        long,
+        env = constants::TRUNK_SUMMARY_OUTPUT_FILE_ENV,
+        help = "Also write the summary as JSON to this file, e.g. for a step that comments on the pull request.",
+        required = false,
+        num_args = 1
+    )]
+    pub summary_output_file: Option<PathBuf>,
 }
 
 #[derive(clap::ValueEnum, Clone, Copy, Debug, Default, PartialEq, Eq)]
