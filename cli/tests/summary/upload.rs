@@ -19,7 +19,8 @@ use trunk_analytics_cli::{
     context_quarantine::{QuarantineContext, QuarantineFetchStatus},
     error_report::ErrorReport,
     report::{
-        UploadCommand, UploadReport,
+        Notice, UploadCommand, UploadReport,
+        json::{self, Report},
         text::{self, TextOptions},
     },
     report_limiting::ValidationReport,
@@ -852,4 +853,159 @@ fn exits_with_the_test_run_exit_code_when_an_error_has_none() {
         1
     );
     assert_eq!(UploadReport::new(&result, UploadCommand::Test).exit_code, 1);
+}
+
+fn upload_json(result: &UploadRunResult) -> serde_json::Value {
+    let report = UploadReport::new(result, UploadCommand::Upload);
+    serde_json::from_str(&json::to_string(Report::Upload(&report)).unwrap()).unwrap()
+}
+
+#[test]
+fn writes_the_report_as_json() {
+    let mut result = in_collection(upload_result(10));
+    result.error_report = Some(ErrorReport::new(
+        anyhow::anyhow!("HTTP status server error (500 Internal Server Error)")
+            .context("Failed to create bundle upload"),
+        String::from("test-org"),
+        Some(String::from(UPLOAD_ERROR_MESSAGE)),
+    ));
+    result.validations = JunitReportValidations::new(BTreeMap::from([
+        (
+            String::from("test-results/a.xml"),
+            validation(vec![
+                name_too_short(),
+                warning(JunitTestCaseValidationIssueSubOptimal::TestCaseNoTimeDuration),
+            ]),
+        ),
+        (
+            String::from("test-results/b.xml"),
+            Err(anyhow::anyhow!("unexpected end of file")),
+        ),
+    ]));
+    result.quarantine_context.exit_code = 1;
+    result.quarantine_context.fetch_status = QuarantineFetchStatus::FetchSucceeded;
+    result
+        .quarantine_context
+        .quarantine_status
+        .quarantine_results = vec![failure("adds", "MathTests", Some("src/math.rs"))];
+    result.quarantine_context.failures = vec![
+        Test {
+            class_name: Some(String::from("Math")),
+            failure_message: Some(String::from("expected 1, got 2")),
+            variant: Some(String::from("linux")),
+            ..failure("subtracts", "MathTests", Some("src/math.rs"))
+        },
+        failure("boots", "", None),
+    ];
+    result.notices = vec![Notice::deprecation(
+        "The --team flag is deprecated and will be removed in a future version.",
+    )];
+
+    assert_eq!(
+        upload_json(&result),
+        serde_json::json!({
+            "schemaVersion": 1,
+            "type": "upload",
+            "error": {
+                "kind": "other",
+                "message": "There was an unexpected error that occurred while uploading test results",
+                "error": "Failed to create bundle upload",
+                "causes": ["HTTP status server error (500 Internal Server Error)"],
+                "explanation": null,
+                "settingsUrl": null,
+                "exitCode": null,
+            },
+            "bundleUploadId": "4b1d2c3e-5f60-4a7b-8c9d-0e1f2a3b4c5d",
+            "uploadUrl": "https://app.trunk.io/test-org/flaky-tests/collections/abc123/uploads/eyJpZCI6IjBiNmY0YzFlLThhN2QtNGUyYi05YzNmLTVkMWEyYjNjNGQ1ZSIsImNyZWF0ZWRBdCI6MTc5MjU4NDAwMDAwMH0",
+            "validations": [
+                {
+                    "file": "test-results/a.xml",
+                    "parseError": null,
+                    "errors": ["test case name too short"],
+                    "warnings": ["test case or parent has no time duration"],
+                    "testSuiteCount": 0,
+                    "testCaseCount": 0,
+                },
+                {
+                    "file": "test-results/b.xml",
+                    "parseError": {
+                        "error": "unexpected end of file",
+                        "causes": [],
+                    },
+                    "errors": [],
+                    "warnings": [],
+                    "testSuiteCount": null,
+                    "testCaseCount": null,
+                },
+            ],
+            "counts": {
+                "total": 10,
+                "passed": 7,
+                "failed": 2,
+                "quarantined": 1,
+                "passRatio": 0.7,
+            },
+            "quarantineLookupFailed": false,
+            "quarantined": [
+                {
+                    "key": { "file": "src/math.rs" },
+                    "tests": [
+                        {
+                            "name": "adds",
+                            "suite": "MathTests",
+                            "className": null,
+                            "file": "src/math.rs",
+                            "id": "adds-id",
+                            "variant": null,
+                            "failureMessage": null,
+                            "quarantined": true,
+                            "link": "https://app.trunk.io/test-org/flaky-tests/collections/abc123/t/adds-id?repo=trunk-io%2Fanalytics-cli",
+                        },
+                    ],
+                },
+            ],
+            "failures": [
+                {
+                    "key": { "file": "src/math.rs" },
+                    "tests": [
+                        {
+                            "name": "subtracts",
+                            "suite": "MathTests",
+                            "className": "Math",
+                            "file": "src/math.rs",
+                            "id": "subtracts-id",
+                            "variant": "linux",
+                            "failureMessage": "expected 1, got 2",
+                            "quarantined": false,
+                            "link": "https://app.trunk.io/test-org/flaky-tests/collections/abc123/t/subtracts-id?repo=trunk-io%2Fanalytics-cli",
+                        },
+                    ],
+                },
+                {
+                    "key": "other",
+                    "tests": [
+                        {
+                            "name": "boots",
+                            "suite": "",
+                            "className": null,
+                            "file": null,
+                            "id": "boots-id",
+                            "variant": null,
+                            "failureMessage": null,
+                            "quarantined": false,
+                            "link": "https://app.trunk.io/test-org/flaky-tests/collections/abc123/t/boots-id?repo=trunk-io%2Fanalytics-cli",
+                        },
+                    ],
+                },
+            ],
+            "outcome": "failuresNotQuarantined",
+            "exitCode": 1,
+            "notices": [
+                {
+                    "kind": "deprecation",
+                    "message": "The --team flag is deprecated and will be removed in a future version.",
+                },
+            ],
+        })
+    );
 }

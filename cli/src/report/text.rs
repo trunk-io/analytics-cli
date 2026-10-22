@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use constants::EXIT_SUCCESS;
 use display::end_output::EndOutput;
 use pluralizer::pluralize;
@@ -50,6 +52,25 @@ impl EndOutput for UploadText {
 impl EndOutput for ErrorSummary {
     fn output(&self) -> anyhow::Result<Vec<Line>> {
         render_error(self)
+    }
+}
+
+pub struct SummaryFileText {
+    pub path: PathBuf,
+    pub error: Option<String>,
+}
+
+impl EndOutput for SummaryFileText {
+    fn output(&self) -> anyhow::Result<Vec<Line>> {
+        let path = self.path.display();
+        let message = match &self.error {
+            None => format!("Summary written to {path}"),
+            Some(error) => format!("⚠️  Failed to write the summary to {path}: {error}"),
+        };
+        Ok(vec![
+            Line::default(),
+            Line::from_iter([Span::new_unstyled_lossy(message)]),
+        ])
     }
 }
 
