@@ -1,13 +1,8 @@
-use std::{
-    collections::{BTreeMap, HashSet},
-    io::BufReader,
-    path::PathBuf,
-};
+use std::{collections::BTreeMap, io::BufReader, path::PathBuf};
 
 use bundle::{FileSet, FileSetBuilder, FileSetTestRunnerReport};
 use clap::{ArgAction, Args, arg};
 use codeowners::{CodeOwners, OwnersSource};
-use constants::{EXIT_FAILURE, EXIT_SUCCESS};
 use context::{
     bazel_bep::{common::BepParseResult, parser::BazelBepParser},
     junit::{
@@ -21,16 +16,10 @@ use context::{
         },
     },
 };
-use display::end_output::EndOutput;
-use pluralizer::pluralize;
 use quick_junit::Report;
-use superconsole::{
-    Line, Span,
-    style::{Attribute, Color, Stylize, style},
-};
 
 use crate::{
-    context::fall_back_to_binary_parse, error_report::InterruptingError,
+    context::fall_back_to_binary_parse, error_report::InterruptingError, report::Notice,
     upload_command::CodeownersType,
 };
 
@@ -89,331 +78,46 @@ pub struct ValidateArgs {
 
 #[derive(Debug)]
 pub struct BepValidateResult {
-    errors: Vec<String>,
+    pub(crate) errors: Vec<String>,
 }
 
 #[derive(Debug)]
 pub struct FileSetResult {
-    glob: String,
-    file_paths: Vec<String>,
+    pub(crate) glob: String,
+    pub(crate) file_paths: Vec<String>,
 }
 
 #[derive(Debug)]
 pub struct ParseIssues {
-    file_path: String,
-    fatal_error: Option<anyhow::Error>,
-    errors: Vec<JunitParseIssue>,
-    warnings: Vec<JunitParseIssue>,
+    pub(crate) file_path: String,
+    pub(crate) fatal_error: Option<anyhow::Error>,
+    pub(crate) errors: Vec<JunitParseIssue>,
+    pub(crate) warnings: Vec<JunitParseIssue>,
 }
 
 #[derive(Debug)]
 pub struct TestIssues {
-    file_path: String,
-    num_test_suites: usize,
-    num_test_cases: usize,
-    errors: Vec<JunitReportValidationFlatIssue>,
-    warnings: Vec<JunitReportValidationFlatIssue>,
+    pub(crate) file_path: String,
+    pub(crate) num_test_suites: usize,
+    pub(crate) num_test_cases: usize,
+    pub(crate) errors: Vec<JunitReportValidationFlatIssue>,
+    pub(crate) warnings: Vec<JunitReportValidationFlatIssue>,
 }
 
 #[derive(Debug)]
 pub struct CodeownersIssues {
-    file_path: PathBuf,
-    warnings: Vec<String>,
+    pub(crate) file_path: PathBuf,
+    pub(crate) warnings: Vec<String>,
 }
 
 #[derive(Debug)]
 pub struct ValidateRunResult {
-    bep_result: Option<BepValidateResult>,
-    file_sets: Vec<FileSetResult>,
-    file_parse_issues: Vec<ParseIssues>,
-    test_issues: Vec<TestIssues>,
-    codeowners_issues: Option<CodeownersIssues>,
-}
-
-impl ValidateRunResult {
-    pub fn exit_code(&self) -> i32 {
-        let has_errors = self.file_parse_issues.iter().any(|file_parse_issue| {
-            file_parse_issue.fatal_error.is_some() || !file_parse_issue.errors.is_empty()
-        }) || self
-            .test_issues
-            .iter()
-            .any(|test_issue| !test_issue.errors.is_empty());
-        if has_errors {
-            EXIT_FAILURE
-        } else {
-            EXIT_SUCCESS
-        }
-    }
-
-    fn num_files(&self) -> usize {
-        let mut num = 0;
-        for file_set in self.file_sets.iter() {
-            num += file_set.file_paths.len();
-        }
-        num
-    }
-}
-
-impl EndOutput for ValidateRunResult {
-    fn output(&self) -> anyhow::Result<Vec<Line>> {
-        let mut output: Vec<Line> = Vec::new();
-
-        if let Some(bep_results) = &self.bep_result {
-            if !bep_results.errors.is_empty() {
-                output.push(Line::from_iter([
-                    Span::new_unstyled("⚠️  BEP file had parse errors: ")?,
-                    Span::new_unstyled_lossy(format!("{:?}", bep_results.errors)),
-                ]));
-                output.push(Line::default());
-            }
-        }
-
-        output.push(Line::from_iter([Span::new_unstyled(format!(
-            "📚 Validating {} files:",
-            self.num_files()
-        ))?]));
-        for file_set in self.file_sets.iter() {
-            output.push(Line::from_iter([Span::new_unstyled(format!(
-                "  Files matching: {}:",
-                file_set.glob
-            ))?]));
-            for file_path in file_set.file_paths.iter() {
-                output.push(Line::from_iter([Span::new_unstyled(format!(
-                    "    {}",
-                    file_path
-                ))?]))
-            }
-            output.push(Line::default());
-        }
-
-        output.push(Line::from_iter([Span::new_styled(
-            style(String::from("File parse issues")).attribute(Attribute::Bold),
-        )?]));
-        for file_parse_issue in self.file_parse_issues.iter() {
-            let has_errors =
-                file_parse_issue.fatal_error.is_some() || !file_parse_issue.errors.is_empty();
-            let has_warnings = !file_parse_issue.warnings.is_empty();
-
-            let title_colour = if has_errors {
-                Color::Red
-            } else if has_warnings {
-                Color::Yellow
-            } else {
-                Color::Green
-            };
-            output.push(Line::from_iter([Span::new_styled_lossy(
-                style(file_parse_issue.file_path.clone()).with(title_colour),
-            )]));
-
-            let num_errors = if file_parse_issue.fatal_error.is_some() {
-                file_parse_issue.errors.len() + 1
-            } else {
-                file_parse_issue.errors.len()
-            };
-            output.push(Line::from_iter([Span::new_styled(
-                style(format!(
-                    "{} errors, {} warnings",
-                    num_errors,
-                    file_parse_issue.warnings.len()
-                ))
-                .attribute(Attribute::Italic),
-            )?]));
-
-            if has_errors {
-                output.push(Line::from_iter([Span::new_unstyled(" ❌ Errors:")?]));
-                if let Some(e) = &file_parse_issue.fatal_error {
-                    output.push(Line::from_iter([Span::new_unstyled_lossy(format!(
-                        "  {:?}",
-                        e
-                    ))]));
-                }
-                for error in file_parse_issue.errors.iter() {
-                    output.push(Line::from_iter([Span::new_unstyled_lossy(format!(
-                        "  {}",
-                        error
-                    ))]));
-                }
-            }
-
-            if has_warnings {
-                output.push(Line::from_iter([Span::new_unstyled(" ⚠️  Warnings:")?]));
-                for warning in file_parse_issue.warnings.iter() {
-                    output.push(Line::from_iter([Span::new_unstyled_lossy(format!(
-                        "  {}",
-                        warning.clone()
-                    ))]));
-                }
-            }
-
-            output.push(Line::default());
-        }
-
-        output.push(Line::from_iter([Span::new_styled(
-            style(String::from("Test Validation Issues")).attribute(Attribute::Bold),
-        )?]));
-        for test_issue in self.test_issues.iter() {
-            let has_errors = !test_issue.errors.is_empty();
-            let has_warnings = !test_issue.warnings.is_empty();
-
-            let title_colour = if has_errors {
-                Color::Red
-            } else if has_warnings {
-                Color::Yellow
-            } else {
-                Color::Green
-            };
-            output.push(Line::from_iter([Span::new_styled_lossy(
-                style(test_issue.file_path.clone()).with(title_colour),
-            )]));
-
-            output.push(Line::from_iter([Span::new_styled(
-                style(format!(
-                    "{} test suites, {} test cases, {} errors, {} warnings",
-                    test_issue.num_test_suites,
-                    test_issue.num_test_cases,
-                    test_issue.errors.len(),
-                    test_issue.warnings.len(),
-                ))
-                .attribute(Attribute::Italic),
-            )?]));
-
-            if has_errors {
-                output.push(Line::from_iter([Span::new_unstyled(String::from(
-                    " ❌ Errors:",
-                ))?]));
-                for error in test_issue.errors.iter() {
-                    output.push(Line::from_iter([Span::new_unstyled_lossy(format!(
-                        "  {}",
-                        error.error_message
-                    ))]));
-                }
-            }
-
-            if has_warnings {
-                output.push(Line::from_iter([Span::new_unstyled(" ⚠️  Warnings:")?]));
-                for warning in test_issue.warnings.iter() {
-                    output.push(Line::from_iter([Span::new_unstyled_lossy(format!(
-                        "  {}",
-                        warning.error_message
-                    ))]));
-                }
-            }
-        }
-
-        output.push(Line::default());
-        output.push(Line::from_iter([Span::new_styled(
-            style(String::from("Checking for codeowners file...")).attribute(Attribute::Bold),
-        )?]));
-        match &self.codeowners_issues {
-            None => {
-                output.push(Line::from_iter([Span::new_unstyled(
-                    "  No codeowners file found",
-                )?]));
-            }
-            Some(codeowners_issues) => {
-                output.push(Line::from_iter([Span::new_styled_lossy(
-                    style(format!(
-                        "  Found codeowners path: {:?}",
-                        codeowners_issues.file_path
-                    ))
-                    .attribute(Attribute::Italic),
-                )]));
-                for warning in codeowners_issues.warnings.iter() {
-                    output.push(Line::from_iter([Span::new_unstyled_lossy(format!(
-                        "  {}",
-                        warning.clone()
-                    ))]));
-                }
-            }
-        }
-        output.push(Line::default());
-
-        let mut num_warnings = 0;
-        let mut num_errors = 0;
-
-        let mut files_with_no_issues: HashSet<String> = HashSet::new();
-        let mut files_with_warnings: HashSet<String> = HashSet::new();
-        let mut files_with_errors: HashSet<String> = HashSet::new();
-
-        for file_set in self.file_sets.iter() {
-            for file_path in file_set.file_paths.iter() {
-                files_with_no_issues.insert(file_path.clone());
-            }
-        }
-
-        let num_files = files_with_no_issues.len();
-
-        for parse_issues in self.file_parse_issues.iter() {
-            if parse_issues.fatal_error.is_some() {
-                num_errors += 1;
-                files_with_errors.insert(parse_issues.file_path.clone());
-                files_with_no_issues.remove(&parse_issues.file_path);
-            }
-            if !parse_issues.errors.is_empty() {
-                num_errors += parse_issues.errors.len();
-                files_with_errors.insert(parse_issues.file_path.clone());
-                files_with_no_issues.remove(&parse_issues.file_path);
-            }
-            if !parse_issues.warnings.is_empty() {
-                num_warnings += parse_issues.warnings.len();
-                files_with_warnings.insert(parse_issues.file_path.clone());
-                files_with_no_issues.remove(&parse_issues.file_path);
-            }
-        }
-
-        for test_issues in self.test_issues.iter() {
-            if !test_issues.errors.is_empty() {
-                num_errors += test_issues.errors.len();
-                files_with_errors.insert(test_issues.file_path.clone());
-                files_with_no_issues.remove(&test_issues.file_path);
-            }
-            if !test_issues.warnings.is_empty() {
-                num_warnings += test_issues.warnings.len();
-                files_with_warnings.insert(test_issues.file_path.clone());
-                files_with_no_issues.remove(&test_issues.file_path);
-            }
-        }
-
-        let num_files_with_no_issues = files_with_no_issues.len();
-        let num_files_with_warnings = files_with_warnings.len();
-        let num_files_with_errors = files_with_errors.len();
-
-        output.push(Line::from_iter([
-            Span::new_styled(style(format!("{}", num_files_with_no_issues)).with(Color::Green))?,
-            Span::new_unstyled(format!(
-                " {}, ",
-                pluralize("valid file", num_files_with_no_issues as isize, false)
-            ))?,
-            Span::new_styled(style(format!("{}", num_files_with_warnings)).with(Color::Yellow))?,
-            Span::new_unstyled(format!(
-                " {} with warnings, and ",
-                pluralize("file", num_files_with_warnings as isize, false)
-            ))?,
-            Span::new_styled(style(format!("{}", num_files_with_errors)).with(Color::Red))?,
-            Span::new_unstyled(format!(
-                " {} with errors, ",
-                pluralize("file", num_files_with_errors as isize, false)
-            ))?,
-            Span::new_unstyled(format!(
-                "with {} total (a file is double counted if it has both errors and warnings)",
-                pluralize("file", num_files as isize, true)
-            ))?,
-        ]));
-        output.push(Line::from_iter([
-            Span::new_styled(style(format!("{}", num_warnings)).with(Color::Yellow))?,
-            Span::new_unstyled(format!(
-                " {}, and ",
-                pluralize("warning", num_warnings as isize, false)
-            ))?,
-            Span::new_styled(style(format!("{}", num_errors as isize)).with(Color::Red))?,
-            Span::new_unstyled(format!(
-                " {}",
-                pluralize("error", num_errors as isize, false)
-            ))?,
-        ]));
-
-        Ok(output)
-    }
+    pub(crate) bep_result: Option<BepValidateResult>,
+    pub(crate) file_sets: Vec<FileSetResult>,
+    pub(crate) file_parse_issues: Vec<ParseIssues>,
+    pub(crate) test_issues: Vec<TestIssues>,
+    pub(crate) codeowners_issues: Option<CodeownersIssues>,
+    pub(crate) notices: Vec<Notice>,
 }
 
 fn parse_test_report(
@@ -451,10 +155,11 @@ fn flatten_glob(glob_text: &str) -> Vec<String> {
 }
 
 pub async fn run_validate(validate_args: ValidateArgs) -> anyhow::Result<ValidateRunResult> {
+    let mut notices = Vec::new();
     if validate_args.hide_banner {
-        tracing::error!(
-            "The --hide-banner flag is deprecated and does nothing. It will be removed in a future version."
-        );
+        let message = "The --hide-banner flag is deprecated and does nothing. It will be removed in a future version.";
+        tracing::error!("{message}");
+        notices.push(Notice::deprecation(message));
     }
 
     let ValidateArgs {
@@ -509,6 +214,7 @@ pub async fn run_validate(validate_args: ValidateArgs) -> anyhow::Result<Validat
         codeowners_path,
         codeowners_type.map(OwnersSource::from),
         bep_validate_result,
+        notices,
     )
     .await
 }
@@ -530,6 +236,7 @@ async fn validate(
     codeowners_path: Option<String>,
     codeowners_type: Option<OwnersSource>,
     bep_result: Option<BepValidateResult>,
+    notices: Vec<Notice>,
 ) -> anyhow::Result<ValidateRunResult> {
     let current_dir = std::env::current_dir()
         .ok()
@@ -598,6 +305,7 @@ async fn validate(
         file_parse_issues,
         test_issues,
         codeowners_issues,
+        notices,
     })
 }
 
