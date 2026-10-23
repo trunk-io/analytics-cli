@@ -965,6 +965,7 @@ dependencies = [
  "quick-junit",
  "quick-xml 0.36.2",
  "regex",
+ "rstest",
  "serde",
  "serde_json",
  "sha2",

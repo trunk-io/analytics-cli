@@ -1215,10 +1215,15 @@ pub fn bin_parse(bin: &[u8]) -> anyhow::Result<Vec<BindingsReport>> {
 mod tests {
     use std::io::BufReader;
 
+    use codeowners::{
+        CodeOwners,
+        OwnersSource::{self, GitHub, GitLab},
+    };
     use prost_wkt_types::Timestamp;
     use proto::test_context::test_run::{
         AttemptNumber, LineNumber, TestCaseRun, TestCaseRunStatus, TestOutput,
     };
+    use rstest::rstest;
 
     use crate::{
         junit::parser::{
@@ -1241,6 +1246,7 @@ mod tests {
         );
         // root-level target with no package
         assert_eq!(bazel_label_to_package_path("//:target"), None);
+        assert_eq!(bazel_label_to_codeowners_path("//:target"), None);
         // no // prefix
         assert_eq!(
             bazel_label_to_package_path("pkg/path:target"),
@@ -1253,45 +1259,41 @@ mod tests {
         );
     }
 
-    #[test]
-    fn test_bazel_label_codeowners_match_directory_rules() {
-        const CODEOWNERS: &[u8] = br#"
+    #[rstest]
+    #[case::github_dir_with_slash(GitHub, "//services/billing:tests", &["@dir-with-slash"])]
+    #[case::github_nested_package(GitHub, "//services/billing/invoices:tests", &["@dir-with-slash"])]
+    #[case::github_dir_without_slash(GitHub, "//services/search/ranking:ranking_tests", &["@dir-without-slash"])]
+    #[case::github_dir_glob(GitHub, "//jobs/nightly/ingest:tests", &["@dir-glob"])]
+    #[case::github_ignores_file_rules(GitHub, "//libs/core:tests", &["@core"])]
+    #[case::github_no_rule(GitHub, "//libs/other:tests", &[])]
+    #[case::gitlab_dir_with_slash(GitLab, "//services/billing:tests", &["@dir-with-slash"])]
+    #[case::gitlab_nested_package(GitLab, "//services/billing/invoices:tests", &["@dir-with-slash"])]
+    #[case::gitlab_ignores_file_rules(GitLab, "//libs/core:tests", &["@core"])]
+    #[case::gitlab_no_rule(GitLab, "//libs/other:tests", &[])]
+    fn test_bazel_label_codeowners_match_directory_rules(
+        #[case] source: OwnersSource,
+        #[case] label: &str,
+        #[case] expected: &[&str],
+    ) {
+        let codeowners = CodeOwners::parse(
+            br#"
 /services/billing/ @dir-with-slash
 /services/search @dir-without-slash
 /jobs/*/ingest* @dir-glob
 /libs/core/ @core
 /libs/core/*.py @core-python
 /libs/core/BUILD.bazel @core-build-file
-"#;
-        for source in [
-            codeowners::OwnersSource::GitHub,
-            codeowners::OwnersSource::GitLab,
-        ] {
-            let codeowners = codeowners::CodeOwners::parse(CODEOWNERS.to_vec(), &source);
-            let owners = |label: &str| {
-                codeowners::flatten_code_owners(
-                    &codeowners,
-                    &bazel_label_to_codeowners_path(label).unwrap(),
-                )
-            };
-
-            assert_eq!(owners("//services/billing:tests"), ["@dir-with-slash"]);
-            assert_eq!(
-                owners("//services/billing/invoices:tests"),
-                ["@dir-with-slash"]
-            );
-            assert_eq!(owners("//libs/core:tests"), ["@core"]);
-            assert!(owners("//libs/other:tests").is_empty());
-
-            if source == codeowners::OwnersSource::GitHub {
-                assert_eq!(
-                    owners("//services/search/ranking:ranking_tests"),
-                    ["@dir-without-slash"]
-                );
-                assert_eq!(owners("//jobs/nightly/ingest:tests"), ["@dir-glob"]);
-            }
-        }
-        assert_eq!(bazel_label_to_codeowners_path("//:target"), None);
+"#
+            .to_vec(),
+            &source,
+        );
+        assert_eq!(
+            codeowners::flatten_code_owners(
+                &codeowners,
+                &bazel_label_to_codeowners_path(label).unwrap()
+            ),
+            expected
+        );
     }
 
     #[test]
