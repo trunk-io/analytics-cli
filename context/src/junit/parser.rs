@@ -1008,16 +1008,10 @@ fn test_case_run_for_rerun(base: &TestCaseRun, rerun: &TestRerun) -> TestCaseRun
     run
 }
 
-/// The CODEOWNERS matchers take file paths, and a bare package path does not match a
-/// directory rule such as `/pkg/path/`. Matching a placeholder file inside the package
-/// applies every rule that covers the package's files, but no rule for a specific file.
-const BAZEL_PACKAGE_CODEOWNERS_PLACEHOLDER: &str = "__trunk_bazel_package__";
-
-/// Converts `//pkg/path:target` to `Some("pkg/path/<placeholder>")`, the path whose
-/// owners are the owners of the package `pkg/path`.
+/// Converts `//pkg/path:target` to `Some("pkg/path/")`. The trailing slash makes the
+/// CODEOWNERS matchers treat the package as a directory, not a file named `path`.
 fn bazel_label_to_codeowners_path(label: &str) -> Option<String> {
-    bazel_label_to_package_path(label)
-        .map(|package| format!("{package}/{BAZEL_PACKAGE_CODEOWNERS_PLACEHOLDER}"))
+    bazel_label_to_package_path(label).map(|package| format!("{package}/"))
 }
 
 /// Converts `//pkg/path:target` to `Some("pkg/path")`.
@@ -1261,37 +1255,42 @@ mod tests {
 
     #[test]
     fn test_bazel_label_codeowners_match_directory_rules() {
-        let codeowners = codeowners::CodeOwners::parse(
-            br#"
+        const CODEOWNERS: &[u8] = br#"
 /services/billing/ @dir-with-slash
 /services/search @dir-without-slash
 /jobs/*/ingest* @dir-glob
 /libs/core/ @core
 /libs/core/*.py @core-python
 /libs/core/BUILD.bazel @core-build-file
-"#
-            .to_vec(),
-            &codeowners::OwnersSource::GitHub,
-        );
-        let owners = |label: &str| {
-            codeowners::flatten_code_owners(
-                &codeowners,
-                &bazel_label_to_codeowners_path(label).unwrap(),
-            )
-        };
+"#;
+        for source in [
+            codeowners::OwnersSource::GitHub,
+            codeowners::OwnersSource::GitLab,
+        ] {
+            let codeowners = codeowners::CodeOwners::parse(CODEOWNERS.to_vec(), &source);
+            let owners = |label: &str| {
+                codeowners::flatten_code_owners(
+                    &codeowners,
+                    &bazel_label_to_codeowners_path(label).unwrap(),
+                )
+            };
 
-        assert_eq!(owners("//services/billing:tests"), ["@dir-with-slash"]);
-        assert_eq!(
-            owners("//services/billing/invoices:tests"),
-            ["@dir-with-slash"]
-        );
-        assert_eq!(
-            owners("//services/search/ranking:ranking_tests"),
-            ["@dir-without-slash"]
-        );
-        assert_eq!(owners("//jobs/nightly/ingest:tests"), ["@dir-glob"]);
-        assert_eq!(owners("//libs/core:tests"), ["@core"]);
-        assert!(owners("//libs/other:tests").is_empty());
+            assert_eq!(owners("//services/billing:tests"), ["@dir-with-slash"]);
+            assert_eq!(
+                owners("//services/billing/invoices:tests"),
+                ["@dir-with-slash"]
+            );
+            assert_eq!(owners("//libs/core:tests"), ["@core"]);
+            assert!(owners("//libs/other:tests").is_empty());
+
+            if source == codeowners::OwnersSource::GitHub {
+                assert_eq!(
+                    owners("//services/search/ranking:ranking_tests"),
+                    ["@dir-without-slash"]
+                );
+                assert_eq!(owners("//jobs/nightly/ingest:tests"), ["@dir-glob"]);
+            }
+        }
         assert_eq!(bazel_label_to_codeowners_path("//:target"), None);
     }
 

@@ -274,6 +274,33 @@ mod tests {
     }
 
     #[test]
+    fn directory_path_owners() {
+        let owners = GitLabOwners::from_reader(
+            r#"
+* @default
+/a/b/c/ @dir-with-slash
+/a/b/f/* @dir-children
+/a/b/* @parent-children
+/a/b/g/*.py @python-files
+/a/b/g/BUILD.bazel @build-file
+"#
+            .as_bytes(),
+        )
+        .unwrap();
+        let owner = |path: &str| owners.of(path).map(|o| o[0].to_string());
+
+        assert_eq!(owner("a/b/c/"), Some("@dir-with-slash".into()));
+        assert_eq!(owner("a/b/c/sub/"), Some("@dir-with-slash".into()));
+        assert_eq!(owner("a/b/f/"), Some("@dir-children".into()));
+        assert_eq!(owner("a/b/g/"), Some("@default".into()));
+        assert_eq!(owner("z/"), Some("@default".into()));
+
+        assert_eq!(owner("a/b/g/x.py"), Some("@python-files".into()));
+        assert_eq!(owner("a/b/g/BUILD.bazel"), Some("@build-file".into()));
+        assert_eq!(owner("a/b/x.txt"), Some("@parent-children".into()));
+    }
+
+    #[test]
     fn relative_path_is_parsable() {
         let relative_path = GitLabOwners::from_reader(
             "/ @doug\nfoo/bar @doug\nfoo/bar/baz.rs @bob\nfoo/bar/baz2.rs @alice".as_bytes(),
