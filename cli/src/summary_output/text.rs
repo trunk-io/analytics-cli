@@ -270,9 +270,24 @@ pub fn render_upload(report: &UploadReport, options: &TextOptions) -> anyhow::Re
     }
 
     match report.outcome {
-        Outcome::NoTestsFound => output.push(Line::from_iter([Span::new_unstyled(
-            "⚠️  No tests were found in the provided test results",
-        )?])),
+        Outcome::NoTestsFound if report.cli_exit_code().is_success() => {
+            output.push(Line::from_iter([Span::new_unstyled(
+                "⚠️  No tests were found in the provided test results",
+            )?]))
+        }
+        Outcome::NoTestsFound => {
+            output.push(Line::from_iter([
+                Span::new_unstyled(
+                    "⚠️  No tests were found in the provided test results, but non zero exit code provided: ",
+                )?,
+                Span::new_styled(
+                    style(format!("{}", report.cli_exit_code())).attribute(Attribute::Bold),
+                )?,
+            ]));
+            output.push(Line::from_iter([Span::new_unstyled(
+                "The test step appears to have failed without running tests -- see above for the original failure.",
+            )?]));
+        }
         Outcome::AllFailuresQuarantined => output.push(Line::from_iter([
             Span::new_unstyled(
                 "🎉 All test failures were quarantined, overriding exit code to be exit_success ",
