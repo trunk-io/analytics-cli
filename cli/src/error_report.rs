@@ -51,21 +51,35 @@ pub struct ErrorReport {
 
 impl ErrorReport {
     pub fn new(error: anyhow::Error, org_url_slug: String, base_message: Option<String>) -> Self {
-        let kind = ErrorKind::of(&error);
-        match kind {
+        let report = Self::unlogged(error, org_url_slug, base_message);
+        match report.kind {
             ErrorKind::ConnectionRefused => tracing::warn!(CONNECTION_REFUSED_CONTEXT),
             ErrorKind::Unauthorized => tracing::warn!(UNAUTHORIZED_CONTEXT),
             ErrorKind::GitRepository => tracing::warn!(GIX_ERROR_CONTEXT),
             ErrorKind::Interrupted => {
-                if let Some(message) = get_interrupting_message(&error) {
+                if let Some(message) = get_interrupting_message(&report.error) {
                     tracing::warn!("{}", message);
                 }
             }
             ErrorKind::Other => {
-                tracing::error!("{}", error);
-                tracing::error!(hidden_in_console = true, "Caused by error: {:#?}", error);
+                tracing::error!("{}", report.error);
+                tracing::error!(
+                    hidden_in_console = true,
+                    "Caused by error: {:#?}",
+                    report.error
+                );
             }
         }
+        report
+    }
+
+    /// For callers that log the error themselves, so it isn't sent to Sentry twice.
+    pub fn unlogged(
+        error: anyhow::Error,
+        org_url_slug: String,
+        base_message: Option<String>,
+    ) -> Self {
+        let kind = ErrorKind::of(&error);
         Self {
             context: Context {
                 base_message,

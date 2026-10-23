@@ -179,7 +179,12 @@ fn main() -> anyhow::Result<()> {
                         Report::Upload(&text.report),
                         &render_sender,
                     );
-                    close_out_and_exit(text.report.exit_code, guard, render_sender, render_handle)
+                    close_out_and_exit(
+                        text.report.cli_exit_code(),
+                        guard,
+                        render_sender,
+                        render_handle,
+                    )
                 }
                 MainOutcome::Finished(Ok(RunResult::Test(run_result))) => {
                     let text = Arc::new(UploadText {
@@ -195,7 +200,12 @@ fn main() -> anyhow::Result<()> {
                         Report::Upload(&text.report),
                         &render_sender,
                     );
-                    close_out_and_exit(text.report.exit_code, guard, render_sender, render_handle)
+                    close_out_and_exit(
+                        text.report.cli_exit_code(),
+                        guard,
+                        render_sender,
+                        render_handle,
+                    )
                 }
                 MainOutcome::Finished(Ok(RunResult::Validate(run_result))) => {
                     let result_ptr = Arc::new(run_result);
@@ -235,18 +245,7 @@ fn write_summary_file(path: Option<&Path>, report: Report, render_sender: &Sende
     let Some(path) = path else {
         return;
     };
-    let error = json::write_file(path, report).err().map(|error| {
-        tracing::warn!(
-            "Failed to write the summary to {}: {:?}",
-            path.display(),
-            error
-        );
-        format!("{error:#}")
-    });
-    let text = SummaryFileText {
-        path: path.to_path_buf(),
-        error,
-    };
+    let text = SummaryFileText::new(path, json::write_file(path, report));
     send_message(
         DisplayMessage::Final(Arc::new(text), String::from("summary file display")),
         render_sender,

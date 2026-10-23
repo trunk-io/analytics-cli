@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use constants::EXIT_SUCCESS;
 use display::end_output::EndOutput;
@@ -54,20 +54,40 @@ impl EndOutput for ErrorSummary {
 }
 
 pub struct SummaryFileText {
-    pub path: PathBuf,
-    pub error: Option<String>,
+    path: PathBuf,
+    error: Option<String>,
+}
+
+impl SummaryFileText {
+    pub fn new(path: &Path, written: anyhow::Result<()>) -> Self {
+        let error = written.err().map(|error| {
+            tracing::warn!(
+                "Failed to write the summary to {}: {:?}",
+                path.display(),
+                error
+            );
+            format!("{error:#}")
+        });
+        Self {
+            path: path.to_path_buf(),
+            error,
+        }
+    }
+
+    pub fn message(&self) -> String {
+        let path = self.path.display();
+        match &self.error {
+            None => format!("Summary written to {path}"),
+            Some(error) => format!("⚠️  Failed to write the summary to {path}: {error}"),
+        }
+    }
 }
 
 impl EndOutput for SummaryFileText {
     fn output(&self) -> anyhow::Result<Vec<Line>> {
-        let path = self.path.display();
-        let message = match &self.error {
-            None => format!("Summary written to {path}"),
-            Some(error) => format!("⚠️  Failed to write the summary to {path}: {error}"),
-        };
         Ok(vec![
             Line::default(),
-            Line::from_iter([Span::new_unstyled_lossy(message)]),
+            Line::from_iter([Span::new_unstyled_lossy(self.message())]),
         ])
     }
 }
@@ -266,7 +286,7 @@ pub fn render_upload(report: &UploadReport, options: &TextOptions) -> anyhow::Re
                     "⚠️  No test failures found, but non zero exit code provided: ",
                 )?,
                 Span::new_styled(
-                    style(format!("{}", report.exit_code)).attribute(Attribute::Bold),
+                    style(format!("{}", report.cli_exit_code())).attribute(Attribute::Bold),
                 )?,
             ]));
             output.push(Line::from_iter([Span::new_unstyled(
@@ -277,7 +297,9 @@ pub fn render_upload(report: &UploadReport, options: &TextOptions) -> anyhow::Re
             Span::new_unstyled(
                 "⚠️  Some test failures were not quarantined, using exit code: ".to_string(),
             )?,
-            Span::new_styled(style(format!("{}", report.exit_code)).attribute(Attribute::Bold))?,
+            Span::new_styled(
+                style(format!("{}", report.cli_exit_code())).attribute(Attribute::Bold),
+            )?,
         ])),
     }
     Ok(output)

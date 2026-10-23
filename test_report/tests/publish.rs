@@ -11,7 +11,9 @@ use std::{
     thread,
 };
 
+use api::message::{GetQuarantineConfigRequest, GetQuarantineConfigResponse};
 use assert_matches::assert_matches;
+use axum::{Json, http::StatusCode};
 use bundle::{BundleMeta, FileSetType};
 use common::{cleanup_env_vars, setup_quarantine_disk_cache_dir};
 use constants::{
@@ -19,7 +21,8 @@ use constants::{
     TRUNK_DISABLE_QUARANTINING_ENV, TRUNK_DRY_RUN_ENV, TRUNK_ORG_URL_SLUG_ENV, TRUNK_PR_NUMBER_ENV,
     TRUNK_PUBLIC_API_ADDRESS_ENV, TRUNK_QUARANTINED_TESTS_DISK_CACHE_TTL_SECS_ENV,
     TRUNK_REPO_HEAD_AUTHOR_NAME_ENV, TRUNK_REPO_HEAD_BRANCH_ENV, TRUNK_REPO_HEAD_COMMIT_EPOCH_ENV,
-    TRUNK_REPO_HEAD_SHA_ENV, TRUNK_REPO_URL_ENV, TRUNK_USE_UNCLONED_REPO_ENV, TRUNK_VARIANT_ENV,
+    TRUNK_REPO_HEAD_SHA_ENV, TRUNK_REPO_ROOT_ENV, TRUNK_REPO_URL_ENV,
+    TRUNK_SUMMARY_OUTPUT_FILE_ENV, TRUNK_USE_UNCLONED_REPO_ENV, TRUNK_VARIANT_ENV,
 };
 use context::repo::RepoUrlParts;
 use prost::Message;
@@ -591,4 +594,147 @@ async fn publish_variant_priority_constructor_over_env() {
     assert_matches!(&requests_iter.next().unwrap(), RequestPayload::S3Upload(_));
 
     let _ = env::set_current_dir(original_dir);
+}
+
+fn read_summary_output_file(path: &Path) -> serde_json::Value {
+    serde_json::from_reader(fs::File::open(path).unwrap()).unwrap()
+}
+
+fn add_a_passing_and_a_failing_test(test_report: &MutTestReport) {
+    for (id, name, status) in [
+        ("1", "passes", Status::Success),
+        ("2", "fails", Status::Failure),
+    ] {
+        test_report.add_test(
+            Some(id.into()),
+            name.into(),
+            "test-classname".into(),
+            "test-file".into(),
+            "test-parent-name".into(),
+            None,
+            status,
+            0,
+            1000.0,
+            1001.0,
+            "test-message".into(),
+            "test-backtrace".into(),
+            false,
+        );
+    }
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[serial]
+async fn publish_writes_summary_output_file() {
+    cleanup_env_vars();
+    let temp_dir = tempdir().unwrap();
+    setup_quarantine_disk_cache_dir(&temp_dir);
+    setup_repo_with_commit(&temp_dir).unwrap();
+    env::set_current_dir(&temp_dir).unwrap();
+    let summary_path = temp_dir.path().join("summary.json");
+    let state = MockServerBuilder::new().spawn_mock_server().await;
+    unsafe {
+        env::set_var(TRUNK_PUBLIC_API_ADDRESS_ENV, &state.host);
+        env::set_var("CI", "1");
+        env::set_var("GITHUB_JOB", "test-job");
+        env::set_var(TRUNK_API_TOKEN_ENV, "test-token");
+        env::set_var(TRUNK_ORG_URL_SLUG_ENV, "test-org");
+        env::set_var(TRUNK_SUMMARY_OUTPUT_FILE_ENV, &summary_path);
+    }
+
+    thread::spawn(|| {
+        let test_report = MutTestReport::new("test".into(), "test-command 123".into(), None);
+        add_a_passing_and_a_failing_test(&test_report);
+        assert!(test_report.publish());
+    })
+    .join()
+    .unwrap();
+
+    let summary = read_summary_output_file(&summary_path);
+    assert_eq!(summary["schemaVersion"], 1);
+    assert_eq!(summary["type"], "upload");
+    assert_eq!(
+        summary["counts"],
+        serde_json::json!({ "total": 2, "passed": 1, "failed": 1, "quarantined": 0, "passRatio": 0.5 })
+    );
+    assert_eq!(summary["outcome"], "failuresNotQuarantined");
+    assert_eq!(summary["quarantineLookupFailed"], false);
+    assert_eq!(summary.get("exitCode"), None);
+    assert_eq!(summary["failures"][0]["tests"][0]["name"], "fails");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[serial]
+async fn publish_writes_a_failed_quarantine_lookup_to_summary_output_file() {
+    cleanup_env_vars();
+    let temp_dir = tempdir().unwrap();
+    setup_quarantine_disk_cache_dir(&temp_dir);
+    setup_repo_with_commit(&temp_dir).unwrap();
+    env::set_current_dir(&temp_dir).unwrap();
+    let summary_path = temp_dir.path().join("summary.json");
+    let state = {
+        let mut builder = MockServerBuilder::new();
+        builder.set_get_quarantining_config_handler(
+            |Json(_): Json<GetQuarantineConfigRequest>| async {
+                Err::<Json<GetQuarantineConfigResponse>, StatusCode>(StatusCode::BAD_REQUEST)
+            },
+        );
+        builder.spawn_mock_server().await
+    };
+    unsafe {
+        env::set_var(TRUNK_PUBLIC_API_ADDRESS_ENV, &state.host);
+        env::set_var(TRUNK_API_TOKEN_ENV, "test-token");
+        env::set_var(TRUNK_ORG_URL_SLUG_ENV, "test-org");
+        env::set_var(TRUNK_QUARANTINED_TESTS_DISK_CACHE_TTL_SECS_ENV, "0");
+        env::set_var(TRUNK_SUMMARY_OUTPUT_FILE_ENV, &summary_path);
+    }
+
+    thread::spawn(|| {
+        let test_report = MutTestReport::new("test".into(), "test-command 123".into(), None);
+        test_report.is_quarantined(
+            Some("2".into()),
+            Some("fails".into()),
+            Some("test-parent-name".into()),
+            Some("test-classname".into()),
+            Some("test-file".into()),
+        );
+        add_a_passing_and_a_failing_test(&test_report);
+        assert!(test_report.publish());
+    })
+    .join()
+    .unwrap();
+
+    let summary = read_summary_output_file(&summary_path);
+    assert_eq!(summary["quarantineLookupFailed"], true);
+    assert_eq!(summary["counts"]["failed"], 1);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[serial]
+async fn publish_writes_an_error_to_summary_output_file() {
+    cleanup_env_vars();
+    let temp_dir = tempdir().unwrap();
+    setup_quarantine_disk_cache_dir(&temp_dir);
+    env::set_current_dir(&temp_dir).unwrap();
+    let summary_path = temp_dir.path().join("summary.json");
+    let state = MockServerBuilder::new().spawn_mock_server().await;
+    unsafe {
+        env::set_var(TRUNK_PUBLIC_API_ADDRESS_ENV, &state.host);
+        env::set_var(TRUNK_API_TOKEN_ENV, "test-token");
+        env::set_var(TRUNK_ORG_URL_SLUG_ENV, "test-org");
+        env::set_var(TRUNK_REPO_ROOT_ENV, temp_dir.path());
+        env::set_var(TRUNK_SUMMARY_OUTPUT_FILE_ENV, &summary_path);
+    }
+
+    thread::spawn(|| {
+        let test_report = MutTestReport::new("test".into(), "test-command 123".into(), None);
+        assert!(!test_report.publish());
+    })
+    .join()
+    .unwrap();
+
+    let summary = read_summary_output_file(&summary_path);
+    assert_eq!(summary["schemaVersion"], 1);
+    assert_eq!(summary["type"], "error");
+    assert_eq!(summary["kind"], "gitRepository");
 }
