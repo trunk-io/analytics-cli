@@ -26,9 +26,9 @@ pub enum ExitCode {
     /// value, unless every failure was quarantined. test does this even when uploading the
     /// results fails.
     PassedThrough(i32),
-    /// Trunk rejected the token or organization slug, the repo root isn't a git repository, or
-    /// the run stopped early (e.g. no test reports were found with
-    /// --allow-empty-test-results=false).
+    /// Trunk rejected the token or organization slug, the repo root isn't a git repository,
+    /// test's command couldn't be started, or the run stopped early (e.g. no test reports were
+    /// found with --allow-empty-test-results=false).
     Error,
     /// The CLI was interrupted (SIGINT, or Ctrl-C on Windows).
     Interrupted,

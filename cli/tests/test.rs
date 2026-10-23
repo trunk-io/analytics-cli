@@ -25,6 +25,7 @@ use tempfile::tempdir;
 use test_utils::mock_server::{
     MOCK_REPO_ID, MOCK_TEST_COLLECTION_ID, MockServerBuilder, RequestPayload, SharedMockServerState,
 };
+use trunk_analytics_cli::exit_code::ExitCode;
 
 // NOTE: must be multi threaded to start a mock server
 #[tokio::test(flavor = "multi_thread")]
@@ -589,4 +590,27 @@ async fn test_command_writes_summary_output_file() {
     assert_eq!(summary["schemaVersion"], 1);
     assert_eq!(summary["type"], "UPLOAD");
     assert_eq!(summary["exitCode"], 1);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn test_command_fails_when_the_command_cannot_be_started() {
+    let temp_dir = tempdir().unwrap();
+    generate_mock_git_repo(&temp_dir);
+
+    let state = MockServerBuilder::new().spawn_mock_server().await;
+
+    CommandBuilder::test(
+        temp_dir.path(),
+        state.host.clone(),
+        vec![String::from("trunk-test-command-that-does-not-exist")],
+    )
+    .command()
+    .assert()
+    .code(ExitCode::Error.code())
+    .stderr(predicate::str::contains(
+        "Couldn't run the test command `trunk-test-command-that-does-not-exist`",
+    ))
+    .stderr(predicate::str::contains("Unable to connect").not());
+
+    assert!(state.requests.lock().unwrap().is_empty());
 }
