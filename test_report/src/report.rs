@@ -32,7 +32,7 @@ use trunk_analytics_cli::{
     context::gather_initial_test_context,
     error_report::ErrorReport,
     summary_output::{
-        ErrorSummary, UploadCommand, UploadReport,
+        ErrorSummary, Quarantining, UploadCommand, UploadReport,
         json::{self, Report},
         text::SummaryFileText,
     },
@@ -350,6 +350,18 @@ impl MutTestReport {
             Some(QuarantineLookupSource::Failed) => QuarantineQueryResult::Failure,
             Some(QuarantineLookupSource::Disabled) => QuarantineQueryResult::Disabled,
             None => QuarantineQueryResult::Skipped,
+        }
+    }
+
+    /// `TRUNK_DISABLE_QUARANTINING` isn't here because the gem quarantines during the run regardless.
+    fn quarantining(&self) -> Quarantining {
+        match self.0.borrow().quarantine_lookup_source {
+            Some(QuarantineLookupSource::Api | QuarantineLookupSource::DiskCache) => {
+                Quarantining::Checked
+            }
+            Some(QuarantineLookupSource::Disabled) => Quarantining::DisabledViaApi,
+            Some(QuarantineLookupSource::Failed) => Quarantining::LookupFailed,
+            None => Quarantining::NotNeeded,
         }
     }
 
@@ -969,11 +981,8 @@ impl MutTestReport {
                         if let Some(path) = &summary_output_file {
                             let mut report =
                                 UploadReport::new(&upload_result, UploadCommand::RSpec);
-                            // The upload trusts the gem's quarantine results, so only the gem knows
-                            // whether its lookup failed.
-                            report.quarantine_lookup_failed =
-                                self.0.borrow().quarantine_lookup_source
-                                    == Some(QuarantineLookupSource::Failed);
+                            // The upload trusts the gem's quarantine results without looking them up.
+                            report.quarantining = self.quarantining();
                             write_summary_file(path, Report::Upload(&report));
                         }
                         if let Some(upload_bundle_error) =

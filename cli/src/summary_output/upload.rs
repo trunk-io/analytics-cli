@@ -11,11 +11,12 @@ use super::{ErrorSummary, Notice};
 use crate::{upload_command::UploadRunResult, validate_command::JunitReportValidations};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum UploadCommand {
     Upload,
     Test,
     /// The RSpec gem, which leaves the exit code to RSpec.
+    #[serde(rename = "RSPEC")]
     RSpec,
 }
 
@@ -34,8 +35,7 @@ pub struct UploadReport {
     /// One entry per test report file.
     pub validations: Vec<FileValidation>,
     pub counts: TestCounts,
-    /// Trunk couldn't say which tests are quarantined, so no failed test counts as quarantined.
-    pub quarantine_lookup_failed: bool,
+    pub quarantining: Quarantining,
     /// Failed tests that were quarantined, grouped like `failures`.
     pub quarantined: Vec<FailureGroup>,
     /// Failed tests that weren't quarantined, grouped by file, else by suite.
@@ -71,7 +71,7 @@ pub struct FailureGroup {
 
 /// Groups sort by file, then by suite, then the rest, in declaration order.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
+#[serde(tag = "type", content = "name", rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum GroupKey {
     /// Failed tests from this file.
     File(String),
@@ -123,8 +123,24 @@ pub struct ParseError {
     pub causes: Vec<String>,
 }
 
+/// Whether the failed tests could be checked for quarantining, and if not, why.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum Quarantining {
+    /// Trunk said which failed tests are quarantined.
+    Checked,
+    /// Nothing needed looking up: no test failed, or the results already said which are quarantined.
+    NotNeeded,
+    /// Turned off for this run with `--disable-quarantining`.
+    DisabledViaCli,
+    /// Turned off for the repo in Trunk.
+    DisabledViaApi,
+    /// Trunk couldn't say which tests are quarantined, so no failed test counts as quarantined.
+    LookupFailed,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, JsonSchema)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum Outcome {
     /// The test reports had no tests.
     NoTestsFound,
@@ -171,7 +187,7 @@ impl UploadReport {
             upload_url: upload_url(result),
             validations: file_validations(&result.validations),
             counts,
-            quarantine_lookup_failed: quarantine_context.fetch_status.is_failure(),
+            quarantining: quarantine_context.quarantining(result.disable_quarantining),
             quarantined: group(quarantined, |test| failed_test(result, test, true)),
             failures: group(failures, |test| failed_test(result, test, false)),
             outcome: Outcome::new(&counts, quarantine_context.exit_code),

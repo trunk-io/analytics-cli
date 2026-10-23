@@ -487,6 +487,7 @@ pub struct UploadRunResult {
     pub guid_scope: Option<TestCaseGuidScope>,
     pub notices: Vec<Notice>,
     pub dry_run: bool,
+    pub disable_quarantining: bool,
 }
 
 pub struct RunUploadOptions {
@@ -823,6 +824,7 @@ pub async fn run_upload(
         guid_scope,
         notices,
         dry_run: upload_args.dry_run,
+        disable_quarantining,
     })
 }
 
