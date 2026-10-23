@@ -20,7 +20,7 @@ pub enum Report<'a> {
 #[serde(rename_all = "camelCase")]
 #[schemars(
     title = "Trunk Analytics CLI summary",
-    description = "What `upload` and `test` write to `--summary-output-file`."
+    description = "What `upload` and `test` write to `--summary-output-file`, and the RSpec gem to `TRUNK_SUMMARY_OUTPUT_FILE`."
 )]
 struct Versioned<'a> {
     /// Goes up when a change could break a reader, such as renaming or removing a field.

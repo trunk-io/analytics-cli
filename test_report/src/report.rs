@@ -30,6 +30,12 @@ use third_party::sentry;
 use tracing_subscriber::{filter::FilterFn, prelude::*};
 use trunk_analytics_cli::{
     context::gather_initial_test_context,
+    error_report::ErrorReport,
+    summary_output::{
+        ErrorSummary, UploadCommand, UploadReport,
+        json::{self, Report},
+        text::SummaryFileText,
+    },
     upload_command::{RunUploadOptions, run_upload},
 };
 use uuid::Uuid;
@@ -818,6 +824,10 @@ impl MutTestReport {
         }
 
         let variant = env::var(constants::TRUNK_VARIANT_ENV).ok();
+        let summary_output_file = env::var(constants::TRUNK_SUMMARY_OUTPUT_FILE_ENV)
+            .ok()
+            .filter(|path| !path.is_empty())
+            .map(PathBuf::from);
 
         if let Some(ref variant) = variant {
             let test_report = &mut self.0.borrow_mut().test_report;
@@ -956,6 +966,16 @@ impl MutTestReport {
                         },
                     )) {
                     Ok(upload_result) => {
+                        if let Some(path) = &summary_output_file {
+                            let mut report =
+                                UploadReport::new(&upload_result, UploadCommand::RSpec);
+                            // The upload trusts the gem's quarantine results, so only the gem knows
+                            // whether its lookup failed.
+                            report.quarantine_lookup_failed =
+                                self.0.borrow().quarantine_lookup_source
+                                    == Some(QuarantineLookupSource::Failed);
+                            write_summary_file(path, Report::Upload(&report));
+                        }
                         if let Some(upload_bundle_error) =
                             upload_result.error_report.map(|e| e.error)
                         {
@@ -969,13 +989,21 @@ impl MutTestReport {
                         }
                     }
                     Err(e) => {
-                        tracing::error!("Error uploading test report bundle: {:?}", e);
+                        let report = ErrorReport::unlogged(e, self.get_org_url_slug(), None);
+                        if let Some(path) = &summary_output_file {
+                            write_summary_file(path, Report::Error(&ErrorSummary::new(&report)));
+                        }
+                        tracing::error!("Error uploading test report bundle: {:?}", report.error);
                         false
                     }
                 }
             }
             Err(e) => {
-                tracing::error!("Error gathering initial context: {:?}", e);
+                let report = ErrorReport::unlogged(e, self.get_org_url_slug(), None);
+                if let Some(path) = &summary_output_file {
+                    write_summary_file(path, Report::Error(&ErrorSummary::new(&report)));
+                }
+                tracing::error!("Error gathering initial context: {:?}", report.error);
                 false
             }
         };
@@ -1103,6 +1131,14 @@ impl MutTestReport {
     pub fn to_string(&self) -> String {
         self.clone().into()
     }
+}
+
+/// On stderr, as the CLI prints it: the gem's own logs only reach the console at error level.
+fn write_summary_file(path: &Path, report: Report) {
+    eprintln!(
+        "{}",
+        SummaryFileText::new(path, json::write_file(path, report)).message()
+    );
 }
 
 /// Microseconds are about all the precision an f64 epoch holds.

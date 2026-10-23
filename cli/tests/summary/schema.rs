@@ -1,6 +1,6 @@
 use assert_cmd::{Command, cargo};
 use pretty_assertions::assert_eq;
-use trunk_analytics_cli::report::json;
+use trunk_analytics_cli::summary_output::json;
 
 #[test]
 fn prints_the_summary_output_schema() {
