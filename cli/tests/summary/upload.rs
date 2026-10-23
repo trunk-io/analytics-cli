@@ -241,6 +241,25 @@ fn prints_that_no_tests_were_found() {
 }
 
 #[test]
+fn prints_that_no_tests_were_found_with_a_non_zero_exit_code() {
+    let mut result = upload_result(0);
+    result.quarantine_context.exit_code = 1;
+
+    assert_eq!(
+        upload_summary(&result),
+        [
+            "🏷️  Bundle Upload ID: 4b1d2c3e-5f60-4a7b-8c9d-0e1f2a3b4c5d",
+            "",
+            "📚 Test Report",
+            "   Total: 0   Pass: 0   Fail: 0   Quarantined: 0   Pass Ratio: N/A",
+            "",
+            "⚠️  No tests were found in the provided test results, but non zero exit code provided: 1",
+            "The test step appears to have failed without running tests -- see above for the original failure.",
+        ]
+    );
+}
+
+#[test]
 fn prints_failures_that_were_all_quarantined() {
     let mut result = upload_result(4);
     result.quarantine_context.fetch_status = QuarantineFetchStatus::FetchSucceeded;
