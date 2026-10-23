@@ -7,6 +7,6 @@ mod upload;
 pub use error::ErrorSummary;
 pub use notice::{Notice, NoticeKind};
 pub use upload::{
-    FailedTest, FailureGroup, FileValidation, GroupKey, Outcome, TestCounts, UploadCommand,
-    UploadReport,
+    FailedTest, FailureGroup, FileValidation, GroupKey, Outcome, Quarantining, TestCounts,
+    UploadCommand, UploadReport,
 };

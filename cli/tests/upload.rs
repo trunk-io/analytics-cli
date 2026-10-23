@@ -1552,8 +1552,9 @@ async fn upload_writes_summary_output_file() {
 
     let summary = read_summary_output_file(&summary_path);
     assert_eq!(summary["schemaVersion"], 1);
-    assert_eq!(summary["type"], "upload");
+    assert_eq!(summary["type"], "UPLOAD");
     assert_eq!(summary["dryRun"], false);
+    assert_eq!(summary["quarantining"], "CHECKED");
     assert_eq!(
         summary["exitCode"],
         assert.get_output().status.code().unwrap()
@@ -1605,10 +1606,31 @@ async fn upload_writes_a_dry_run_to_summary_output_file() {
 
     let summary = read_summary_output_file(&summary_path);
     assert_eq!(summary["dryRun"], true);
+    assert_eq!(summary["quarantining"], "CHECKED");
     assert_eq!(summary["error"], serde_json::Value::Null);
     assert_eq!(summary["bundleUploadId"], serde_json::Value::Null);
     assert_eq!(summary["uploadUrl"], serde_json::Value::Null);
     assert!(summary["counts"]["failed"].as_u64().unwrap() > 0);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn upload_writes_that_quarantining_was_disabled_to_summary_output_file() {
+    let temp_dir = tempdir().unwrap();
+    generate_mock_git_repo(&temp_dir);
+    generate_mock_valid_junit_xmls_with_failures(&temp_dir);
+    let summary_path = temp_dir.path().join("summary.json");
+
+    let state = MockServerBuilder::new().spawn_mock_server().await;
+    CommandBuilder::upload(temp_dir.path(), state.host.clone())
+        .disable_quarantining(true)
+        .command()
+        .arg("--summary-output-file")
+        .arg(&summary_path)
+        .assert()
+        .success();
+
+    let summary = read_summary_output_file(&summary_path);
+    assert_eq!(summary["quarantining"], "DISABLED_VIA_CLI");
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -1628,8 +1650,8 @@ async fn upload_writes_an_error_to_summary_output_file() {
 
     let summary = read_summary_output_file(&summary_path);
     assert_eq!(summary["schemaVersion"], 1);
-    assert_eq!(summary["type"], "error");
-    assert_eq!(summary["kind"], "gitRepository");
+    assert_eq!(summary["type"], "ERROR");
+    assert_eq!(summary["kind"], "GIT_REPOSITORY");
     assert_eq!(summary["exitCode"], exitcode::SOFTWARE);
 }
 

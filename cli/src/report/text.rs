@@ -9,7 +9,8 @@ use superconsole::{
 };
 
 use super::{
-    ErrorSummary, FailureGroup, FileValidation, GroupKey, Outcome, TestCounts, UploadReport,
+    ErrorSummary, FailureGroup, FileValidation, GroupKey, Outcome, Quarantining, TestCounts,
+    UploadReport,
 };
 use crate::{
     error_report::{CONNECTION_REFUSED_CONTEXT, ErrorKind, HELP_TEXT, UNAUTHORIZED_CONTEXT},
@@ -212,7 +213,7 @@ pub fn render_upload(report: &UploadReport, options: &TextOptions) -> anyhow::Re
         "   Total: {}   Pass: {}   Fail: {}   Quarantined: {}   Pass Ratio: {}",
         total, passed, failed, quarantined, pass_ratio
     ))?]));
-    if report.quarantine_lookup_failed {
+    if report.quarantining == Quarantining::LookupFailed {
         output.push(Line::from_iter([Span::new_styled(
             style("   We were unable to determine the quarantine status for tests. Any failing tests will be reported as failures".to_string()).with(Color::Yellow).attribute(Attribute::Bold),
         )?]));

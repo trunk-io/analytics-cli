@@ -3,7 +3,7 @@ mod common;
 use std::{
     env, fs,
     io::BufReader,
-    path::Path,
+    path::{Path, PathBuf},
     sync::{
         Arc,
         atomic::{AtomicBool, Ordering},
@@ -29,7 +29,7 @@ use prost::Message;
 use prost_wkt_types::Timestamp;
 use proto::test_context::test_run::{AttemptNumber, TestCaseRunStatus, TestOutput, TestReport};
 use serial_test::serial;
-use tempfile::tempdir;
+use tempfile::{TempDir, tempdir};
 use test_report::report::{MutTestReport, Status};
 use test_utils::mock_git_repo::setup_repo_with_commit;
 use test_utils::mock_server::{MockServerBuilder, RequestPayload};
@@ -600,27 +600,57 @@ fn read_summary_output_file(path: &Path) -> serde_json::Value {
     serde_json::from_reader(fs::File::open(path).unwrap()).unwrap()
 }
 
-fn add_a_passing_and_a_failing_test(test_report: &MutTestReport) {
-    for (id, name, status) in [
-        ("1", "passes", Status::Success),
-        ("2", "fails", Status::Failure),
-    ] {
-        test_report.add_test(
-            Some(id.into()),
-            name.into(),
-            "test-classname".into(),
-            "test-file".into(),
-            "test-parent-name".into(),
-            None,
-            status,
-            0,
-            1000.0,
-            1001.0,
-            "test-message".into(),
-            "test-backtrace".into(),
-            false,
-        );
+fn set_up_summary_output_file(temp_dir: &TempDir, host: &str) -> PathBuf {
+    setup_quarantine_disk_cache_dir(temp_dir);
+    setup_repo_with_commit(temp_dir).unwrap();
+    env::set_current_dir(temp_dir).unwrap();
+    let summary_path = temp_dir.path().join("summary.json");
+    unsafe {
+        env::set_var(TRUNK_PUBLIC_API_ADDRESS_ENV, host);
+        env::set_var(TRUNK_API_TOKEN_ENV, "test-token");
+        env::set_var(TRUNK_ORG_URL_SLUG_ENV, "test-org");
+        env::set_var(TRUNK_QUARANTINED_TESTS_DISK_CACHE_TTL_SECS_ENV, "0");
+        env::set_var(TRUNK_SUMMARY_OUTPUT_FILE_ENV, &summary_path);
     }
+    summary_path
+}
+
+fn publish_a_passing_and_a_failing_test(check_quarantine: bool) -> bool {
+    thread::spawn(move || {
+        let test_report = MutTestReport::new("test".into(), "test-command 123".into(), None);
+        if check_quarantine {
+            test_report.is_quarantined(
+                Some("2".into()),
+                Some("fails".into()),
+                Some("test-parent-name".into()),
+                Some("test-classname".into()),
+                Some("test-file".into()),
+            );
+        }
+        for (id, name, status) in [
+            ("1", "passes", Status::Success),
+            ("2", "fails", Status::Failure),
+        ] {
+            test_report.add_test(
+                Some(id.into()),
+                name.into(),
+                "test-classname".into(),
+                "test-file".into(),
+                "test-parent-name".into(),
+                None,
+                status,
+                0,
+                1000.0,
+                1001.0,
+                "test-message".into(),
+                "test-backtrace".into(),
+                false,
+            );
+        }
+        test_report.publish()
+    })
+    .join()
+    .unwrap()
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -628,37 +658,20 @@ fn add_a_passing_and_a_failing_test(test_report: &MutTestReport) {
 async fn publish_writes_summary_output_file() {
     cleanup_env_vars();
     let temp_dir = tempdir().unwrap();
-    setup_quarantine_disk_cache_dir(&temp_dir);
-    setup_repo_with_commit(&temp_dir).unwrap();
-    env::set_current_dir(&temp_dir).unwrap();
-    let summary_path = temp_dir.path().join("summary.json");
     let state = MockServerBuilder::new().spawn_mock_server().await;
-    unsafe {
-        env::set_var(TRUNK_PUBLIC_API_ADDRESS_ENV, &state.host);
-        env::set_var("CI", "1");
-        env::set_var("GITHUB_JOB", "test-job");
-        env::set_var(TRUNK_API_TOKEN_ENV, "test-token");
-        env::set_var(TRUNK_ORG_URL_SLUG_ENV, "test-org");
-        env::set_var(TRUNK_SUMMARY_OUTPUT_FILE_ENV, &summary_path);
-    }
+    let summary_path = set_up_summary_output_file(&temp_dir, &state.host);
 
-    thread::spawn(|| {
-        let test_report = MutTestReport::new("test".into(), "test-command 123".into(), None);
-        add_a_passing_and_a_failing_test(&test_report);
-        assert!(test_report.publish());
-    })
-    .join()
-    .unwrap();
+    assert!(publish_a_passing_and_a_failing_test(true));
 
     let summary = read_summary_output_file(&summary_path);
     assert_eq!(summary["schemaVersion"], 1);
-    assert_eq!(summary["type"], "upload");
+    assert_eq!(summary["type"], "UPLOAD");
     assert_eq!(
         summary["counts"],
         serde_json::json!({ "total": 2, "passed": 1, "failed": 1, "quarantined": 0, "passRatio": 0.5 })
     );
-    assert_eq!(summary["outcome"], "failuresNotQuarantined");
-    assert_eq!(summary["quarantineLookupFailed"], false);
+    assert_eq!(summary["outcome"], "FAILURES_NOT_QUARANTINED");
+    assert_eq!(summary["quarantining"], "CHECKED");
     assert_eq!(summary["dryRun"], false);
     assert_eq!(summary.get("exitCode"), None);
     assert_eq!(summary["failures"][0]["tests"][0]["name"], "fails");
@@ -669,30 +682,18 @@ async fn publish_writes_summary_output_file() {
 async fn publish_writes_a_dry_run_to_summary_output_file() {
     cleanup_env_vars();
     let temp_dir = tempdir().unwrap();
-    setup_quarantine_disk_cache_dir(&temp_dir);
-    setup_repo_with_commit(&temp_dir).unwrap();
-    env::set_current_dir(&temp_dir).unwrap();
-    let summary_path = temp_dir.path().join("summary.json");
     let state = MockServerBuilder::new().spawn_mock_server().await;
+    let summary_path = set_up_summary_output_file(&temp_dir, &state.host);
     unsafe {
-        env::set_var(TRUNK_PUBLIC_API_ADDRESS_ENV, &state.host);
-        env::set_var(TRUNK_API_TOKEN_ENV, "test-token");
-        env::set_var(TRUNK_ORG_URL_SLUG_ENV, "test-org");
         env::set_var(TRUNK_DRY_RUN_ENV, "true");
-        env::set_var(TRUNK_SUMMARY_OUTPUT_FILE_ENV, &summary_path);
     }
 
-    thread::spawn(|| {
-        let test_report = MutTestReport::new("test".into(), "test-command 123".into(), None);
-        add_a_passing_and_a_failing_test(&test_report);
-        assert!(test_report.publish());
-    })
-    .join()
-    .unwrap();
+    assert!(publish_a_passing_and_a_failing_test(false));
 
     assert!(state.requests.lock().unwrap().is_empty());
     let summary = read_summary_output_file(&summary_path);
     assert_eq!(summary["dryRun"], true);
+    assert_eq!(summary["quarantining"], "NOT_NEEDED");
     assert_eq!(summary["bundleUploadId"], serde_json::Value::Null);
     assert_eq!(summary["counts"]["failed"], 1);
 }
@@ -702,10 +703,6 @@ async fn publish_writes_a_dry_run_to_summary_output_file() {
 async fn publish_writes_a_failed_quarantine_lookup_to_summary_output_file() {
     cleanup_env_vars();
     let temp_dir = tempdir().unwrap();
-    setup_quarantine_disk_cache_dir(&temp_dir);
-    setup_repo_with_commit(&temp_dir).unwrap();
-    env::set_current_dir(&temp_dir).unwrap();
-    let summary_path = temp_dir.path().join("summary.json");
     let state = {
         let mut builder = MockServerBuilder::new();
         builder.set_get_quarantining_config_handler(
@@ -715,32 +712,38 @@ async fn publish_writes_a_failed_quarantine_lookup_to_summary_output_file() {
         );
         builder.spawn_mock_server().await
     };
-    unsafe {
-        env::set_var(TRUNK_PUBLIC_API_ADDRESS_ENV, &state.host);
-        env::set_var(TRUNK_API_TOKEN_ENV, "test-token");
-        env::set_var(TRUNK_ORG_URL_SLUG_ENV, "test-org");
-        env::set_var(TRUNK_QUARANTINED_TESTS_DISK_CACHE_TTL_SECS_ENV, "0");
-        env::set_var(TRUNK_SUMMARY_OUTPUT_FILE_ENV, &summary_path);
-    }
+    let summary_path = set_up_summary_output_file(&temp_dir, &state.host);
 
-    thread::spawn(|| {
-        let test_report = MutTestReport::new("test".into(), "test-command 123".into(), None);
-        test_report.is_quarantined(
-            Some("2".into()),
-            Some("fails".into()),
-            Some("test-parent-name".into()),
-            Some("test-classname".into()),
-            Some("test-file".into()),
-        );
-        add_a_passing_and_a_failing_test(&test_report);
-        assert!(test_report.publish());
-    })
-    .join()
-    .unwrap();
+    assert!(publish_a_passing_and_a_failing_test(true));
 
     let summary = read_summary_output_file(&summary_path);
-    assert_eq!(summary["quarantineLookupFailed"], true);
+    assert_eq!(summary["quarantining"], "LOOKUP_FAILED");
     assert_eq!(summary["counts"]["failed"], 1);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[serial]
+async fn publish_writes_that_quarantining_is_disabled_for_the_repo_to_summary_output_file() {
+    cleanup_env_vars();
+    let temp_dir = tempdir().unwrap();
+    let state = {
+        let mut builder = MockServerBuilder::new();
+        builder.set_get_quarantining_config_handler(
+            |Json(_): Json<GetQuarantineConfigRequest>| async {
+                Json(GetQuarantineConfigResponse {
+                    is_disabled: true,
+                    ..Default::default()
+                })
+            },
+        );
+        builder.spawn_mock_server().await
+    };
+    let summary_path = set_up_summary_output_file(&temp_dir, &state.host);
+
+    assert!(publish_a_passing_and_a_failing_test(true));
+
+    let summary = read_summary_output_file(&summary_path);
+    assert_eq!(summary["quarantining"], "DISABLED_VIA_API");
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -769,6 +772,6 @@ async fn publish_writes_an_error_to_summary_output_file() {
 
     let summary = read_summary_output_file(&summary_path);
     assert_eq!(summary["schemaVersion"], 1);
-    assert_eq!(summary["type"], "error");
-    assert_eq!(summary["kind"], "gitRepository");
+    assert_eq!(summary["type"], "ERROR");
+    assert_eq!(summary["kind"], "GIT_REPOSITORY");
 }

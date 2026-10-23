@@ -202,8 +202,8 @@ fn writes_an_error_as_json() {
             .unwrap(),
         serde_json::json!({
             "schemaVersion": 1,
-            "type": "error",
-            "kind": "other",
+            "type": "ERROR",
+            "kind": "OTHER",
             "message": null,
             "error": "Failed to gather upload context",
             "causes": ["--allow-forked-pr-uploads requires --test-collection-id"],
@@ -221,7 +221,7 @@ fn writes_the_settings_url_and_exit_code_of_an_unauthorized_error_as_json() {
     let json: serde_json::Value =
         serde_json::from_str(&json::to_string(Report::Error(&error)).unwrap()).unwrap();
 
-    assert_eq!(json["kind"], "unauthorized");
+    assert_eq!(json["kind"], "UNAUTHORIZED");
     assert_eq!(
         json["settingsUrl"],
         "https://app.trunk.io/fake-org-slug/settings"

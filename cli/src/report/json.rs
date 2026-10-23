@@ -8,7 +8,7 @@ use super::{ErrorSummary, UploadReport};
 pub const SCHEMA_VERSION: u32 = 1;
 
 #[derive(Debug, Clone, Copy, Serialize, JsonSchema)]
-#[serde(tag = "type", rename_all = "camelCase")]
+#[serde(tag = "type", rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum Report<'a> {
     /// The run finished and summarized its tests.
     Upload(&'a UploadReport),
