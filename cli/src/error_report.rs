@@ -93,7 +93,7 @@ impl ErrorReport {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum ErrorKind {
     /// Couldn't connect to Trunk.
     ConnectionRefused,

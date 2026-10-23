@@ -102,6 +102,7 @@ fn upload_result(num_tests: usize) -> UploadRunResult {
         guid_scope: None,
         notices: Vec::new(),
         dry_run: false,
+        disable_quarantining: false,
     }
 }
 
@@ -912,9 +913,9 @@ fn writes_the_report_as_json() {
         upload_json(&result),
         serde_json::json!({
             "schemaVersion": 1,
-            "type": "upload",
+            "type": "UPLOAD",
             "error": {
-                "kind": "other",
+                "kind": "OTHER",
                 "message": "There was an unexpected error that occurred while uploading test results",
                 "error": "Failed to create bundle upload",
                 "causes": ["HTTP status server error (500 Internal Server Error)"],
@@ -953,10 +954,10 @@ fn writes_the_report_as_json() {
                 "quarantined": 1,
                 "passRatio": 0.7,
             },
-            "quarantineLookupFailed": false,
+            "quarantining": "CHECKED",
             "quarantined": [
                 {
-                    "key": { "file": "src/math.rs" },
+                    "key": { "type": "FILE", "name": "src/math.rs" },
                     "tests": [
                         {
                             "name": "adds",
@@ -974,7 +975,7 @@ fn writes_the_report_as_json() {
             ],
             "failures": [
                 {
-                    "key": { "file": "src/math.rs" },
+                    "key": { "type": "FILE", "name": "src/math.rs" },
                     "tests": [
                         {
                             "name": "subtracts",
@@ -990,7 +991,7 @@ fn writes_the_report_as_json() {
                     ],
                 },
                 {
-                    "key": "other",
+                    "key": { "type": "OTHER" },
                     "tests": [
                         {
                             "name": "boots",
@@ -1006,14 +1007,39 @@ fn writes_the_report_as_json() {
                     ],
                 },
             ],
-            "outcome": "failuresNotQuarantined",
+            "outcome": "FAILURES_NOT_QUARANTINED",
             "exitCode": 1,
             "notices": [
                 {
-                    "kind": "deprecation",
+                    "kind": "DEPRECATION",
                     "message": "The --team flag is deprecated and will be removed in a future version.",
                 },
             ],
         })
     );
+}
+
+#[test]
+fn says_whether_failures_could_be_checked_for_quarantining() {
+    let quarantining = |result: &UploadRunResult| {
+        serde_json::to_value(UploadReport::new(result, UploadCommand::Upload).quarantining).unwrap()
+    };
+    let mut result = upload_result(1);
+    assert_eq!(quarantining(&result), "NOT_NEEDED");
+
+    result.quarantine_context.fetch_status = QuarantineFetchStatus::FetchSucceeded;
+    assert_eq!(quarantining(&result), "CHECKED");
+
+    result.quarantine_context.fetch_status =
+        QuarantineFetchStatus::FetchFailed(anyhow::anyhow!("request timed out"));
+    assert_eq!(quarantining(&result), "LOOKUP_FAILED");
+
+    result
+        .quarantine_context
+        .quarantine_status
+        .quarantining_disabled_for_repo = true;
+    assert_eq!(quarantining(&result), "DISABLED_VIA_API");
+
+    result.disable_quarantining = true;
+    assert_eq!(quarantining(&result), "DISABLED_VIA_CLI");
 }

@@ -16,7 +16,7 @@ pub struct ErrorSummary {
     pub causes: Vec<String>,
     /// Trunk's explanation, when its API gave one.
     pub explanation: Option<String>,
-    /// Where to check the org slug and token. Only set for `unauthorized` errors.
+    /// Where to check the org slug and token. Only set for `UNAUTHORIZED` errors.
     pub settings_url: Option<String>,
     /// A run that fails outright exits with this code, or 0 when it's null. Upload reports exit with their own `exitCode`.
     pub exit_code: Option<i32>,
