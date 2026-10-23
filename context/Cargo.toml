@@ -15,6 +15,7 @@ test_utils = { path = "../test_utils" }
 tempfile = "3.2.0"
 codeowners = { path = "../codeowners" }
 itertools = "0.14.0"
+rstest = "0.26.1"
 
 [dependencies]
 anyhow = "1.0.44"
