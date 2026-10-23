@@ -833,9 +833,12 @@ fn upload_exits_with_the_exit_code_of_an_error_but_test_does_not() {
 
     assert_eq!(
         UploadReport::new(&result, UploadCommand::Upload).exit_code,
-        70
+        Some(70)
     );
-    assert_eq!(UploadReport::new(&result, UploadCommand::Test).exit_code, 1);
+    assert_eq!(
+        UploadReport::new(&result, UploadCommand::Test).exit_code,
+        Some(1)
+    );
 }
 
 #[test]
@@ -850,9 +853,12 @@ fn exits_with_the_test_run_exit_code_when_an_error_has_none() {
 
     assert_eq!(
         UploadReport::new(&result, UploadCommand::Upload).exit_code,
-        1
+        Some(1)
     );
-    assert_eq!(UploadReport::new(&result, UploadCommand::Test).exit_code, 1);
+    assert_eq!(
+        UploadReport::new(&result, UploadCommand::Test).exit_code,
+        Some(1)
+    );
 }
 
 fn upload_json(result: &UploadRunResult) -> serde_json::Value {

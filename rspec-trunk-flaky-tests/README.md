@@ -118,6 +118,14 @@ By default (when unset or not `true`), quarantine lookup failures print a warnin
 TRUNK_QUARANTINE_QUERY_FAILURE_EXIT=true bundle exec rspec
 ```
 
+#### `TRUNK_SUMMARY_OUTPUT_FILE`
+
+When set to a file path, the gem writes a JSON summary of the run to that file after uploading: the test counts, and each failure with its link to Trunk. It's the same JSON that `trunk-analytics-cli upload --summary-output-file` writes, except that it has no `exitCode`, because RSpec decides the exit code. `trunk-analytics-cli summary-output-schema` prints its JSON Schema. Nothing is written when `TRUNK_LOCAL_UPLOAD_DIR` is set, since nothing is uploaded.
+
+```bash
+TRUNK_SUMMARY_OUTPUT_FILE=tmp/trunk-summary.json bundle exec rspec
+```
+
 #### `TRUNK_LOCAL_UPLOAD_DIR` (Experimental)
 
 > **⚠️ Experimental Feature**: This feature is experimental. Please reach out to support@trunk.io before attempting to use it.

@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use api::urls::{url_for_test_case, url_for_upload};
 use bundle::Test;
-use constants::EXIT_SUCCESS;
+use constants::{EXIT_FAILURE, EXIT_SUCCESS};
 use context::junit::validator::JunitValidationLevel;
 use schemars::JsonSchema;
 use serde::Serialize;
@@ -14,6 +14,8 @@ use crate::{upload_command::UploadRunResult, validate_command::JunitReportValida
 pub enum UploadCommand {
     Upload,
     Test,
+    /// The RSpec gem, which leaves the exit code to RSpec.
+    RSpec,
 }
 
 #[derive(Debug, Clone, Serialize, JsonSchema)]
@@ -34,8 +36,9 @@ pub struct UploadReport {
     /// Failed tests that weren't quarantined, grouped by file, else by suite.
     pub failures: Vec<FailureGroup>,
     pub outcome: Outcome,
-    /// The code the CLI exits with.
-    pub exit_code: i32,
+    /// The code the CLI exits with. Left out by the RSpec gem, where RSpec decides the exit code.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub exit_code: Option<i32>,
     /// Warnings that didn't stop the run, such as a deprecated flag.
     pub notices: Vec<Notice>,
 }
@@ -141,11 +144,14 @@ impl UploadReport {
         );
         let error = result.error_report.as_ref().map(ErrorSummary::new);
         let exit_code = match command {
-            UploadCommand::Upload => error
-                .as_ref()
-                .and_then(|error| error.exit_code)
-                .unwrap_or(quarantine_context.exit_code),
-            UploadCommand::Test => quarantine_context.exit_code,
+            UploadCommand::Upload => Some(
+                error
+                    .as_ref()
+                    .and_then(|error| error.exit_code)
+                    .unwrap_or(quarantine_context.exit_code),
+            ),
+            UploadCommand::Test => Some(quarantine_context.exit_code),
+            UploadCommand::RSpec => None,
         };
         let bundle_upload_id = &result.meta.base_props.bundle_upload_id;
 
@@ -162,6 +168,13 @@ impl UploadReport {
             exit_code,
             notices: result.notices.clone(),
         }
+    }
+}
+
+impl UploadReport {
+    /// What `upload` and `test` exit with; only the RSpec gem leaves `exit_code` unset.
+    pub fn cli_exit_code(&self) -> i32 {
+        self.exit_code.unwrap_or(EXIT_FAILURE)
     }
 }
 
