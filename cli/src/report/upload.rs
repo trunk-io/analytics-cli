@@ -23,6 +23,8 @@ pub enum UploadCommand {
 pub struct UploadReport {
     /// Why uploading the results failed. The tests are still summarized.
     pub error: Option<ErrorSummary>,
+    /// Nothing was uploaded (`--dry-run`), so there's no upload ID or upload link.
+    pub dry_run: bool,
     pub bundle_upload_id: Option<String>,
     /// This upload's page in Trunk. Only set for uploads to a test collection.
     pub upload_url: Option<String>,
@@ -157,6 +159,7 @@ impl UploadReport {
 
         Self {
             error,
+            dry_run: result.dry_run,
             bundle_upload_id: Some(bundle_upload_id.clone()).filter(|id| !id.is_empty()),
             upload_url: upload_url(result),
             validations: file_validations(&result.validations),

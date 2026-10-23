@@ -1553,6 +1553,7 @@ async fn upload_writes_summary_output_file() {
     let summary = read_summary_output_file(&summary_path);
     assert_eq!(summary["schemaVersion"], 1);
     assert_eq!(summary["type"], "upload");
+    assert_eq!(summary["dryRun"], false);
     assert_eq!(
         summary["exitCode"],
         assert.get_output().status.code().unwrap()
@@ -1580,6 +1581,34 @@ async fn upload_writes_summary_output_file() {
                 .contains("/flaky-tests/test/")
         );
     }
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn upload_writes_a_dry_run_to_summary_output_file() {
+    let temp_dir = tempdir().unwrap();
+    generate_mock_git_repo(&temp_dir);
+    generate_mock_valid_junit_xmls_with_failures(&temp_dir);
+    let summary_path = temp_dir.path().join("summary.json");
+
+    let state = MockServerBuilder::new().spawn_mock_server().await;
+    CommandBuilder::upload(temp_dir.path(), state.host.clone())
+        .dry_run(true)
+        .command()
+        .arg("--summary-output-file")
+        .arg(&summary_path)
+        .assert()
+        .failure();
+
+    let requests = state.requests.lock().unwrap().clone();
+    assert_eq!(requests.len(), 1);
+    assert_matches!(requests[0], RequestPayload::GetQuarantineConfig(..));
+
+    let summary = read_summary_output_file(&summary_path);
+    assert_eq!(summary["dryRun"], true);
+    assert_eq!(summary["error"], serde_json::Value::Null);
+    assert_eq!(summary["bundleUploadId"], serde_json::Value::Null);
+    assert_eq!(summary["uploadUrl"], serde_json::Value::Null);
+    assert!(summary["counts"]["failed"].as_u64().unwrap() > 0);
 }
 
 #[tokio::test(flavor = "multi_thread")]

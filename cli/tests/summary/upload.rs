@@ -101,6 +101,7 @@ fn upload_result(num_tests: usize) -> UploadRunResult {
         api_address: String::from("https://api.trunk.io"),
         guid_scope: None,
         notices: Vec::new(),
+        dry_run: false,
     }
 }
 
@@ -921,6 +922,7 @@ fn writes_the_report_as_json() {
                 "settingsUrl": null,
                 "exitCode": null,
             },
+            "dryRun": false,
             "bundleUploadId": "4b1d2c3e-5f60-4a7b-8c9d-0e1f2a3b4c5d",
             "uploadUrl": "https://app.trunk.io/test-org/flaky-tests/collections/abc123/uploads/eyJpZCI6IjBiNmY0YzFlLThhN2QtNGUyYi05YzNmLTVkMWEyYjNjNGQ1ZSIsImNyZWF0ZWRBdCI6MTc5MjU4NDAwMDAwMH0",
             "validations": [
