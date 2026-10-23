@@ -73,6 +73,11 @@ jobs:
             runs-on: public-amd64-4xlarge-dind-germany
             target: x86_64-pc-windows-gnu
 
+          # Temporary: superconsole is on a trunk-io fork until facebookincubator/superconsole#15 lands.
+          - os-name: linux-86_64
+            runs-on: ubuntu-latest
+            target: x86_64-unknown-illumos
+
     runs-on: ${{ matrix.platform.runs-on }}
     steps:
       # we've been hitting out of free space issues
