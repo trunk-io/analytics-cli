@@ -392,7 +392,7 @@ impl JunitParser {
                             use_bazel_target_for_codeowners: true,
                         }) = test_runner_config.as_ref()
                         {
-                            bazel_label_to_package_path(&bazel_run_information.label)
+                            bazel_label_to_codeowners_path(&bazel_run_information.label)
                         } else {
                             None
                         };
@@ -1008,7 +1008,13 @@ fn test_case_run_for_rerun(base: &TestCaseRun, rerun: &TestRerun) -> TestCaseRun
     run
 }
 
-/// Converts `//pkg/path:target` to `Some("pkg/path")` for codeowners lookup.
+/// Converts `//pkg/path:target` to `Some("pkg/path/")`. The trailing slash makes the
+/// CODEOWNERS matchers treat the package as a directory, not a file named `path`.
+fn bazel_label_to_codeowners_path(label: &str) -> Option<String> {
+    bazel_label_to_package_path(label).map(|package| format!("{package}/"))
+}
+
+/// Converts `//pkg/path:target` to `Some("pkg/path")`.
 /// Returns `None` if the label has no package component (e.g. `//:target`).
 fn bazel_label_to_package_path(label: &str) -> Option<String> {
     let without_prefix = label.strip_prefix("//").unwrap_or(label);
@@ -1209,13 +1215,21 @@ pub fn bin_parse(bin: &[u8]) -> anyhow::Result<Vec<BindingsReport>> {
 mod tests {
     use std::io::BufReader;
 
+    use codeowners::{
+        CodeOwners,
+        OwnersSource::{self, GitHub, GitLab},
+    };
     use prost_wkt_types::Timestamp;
     use proto::test_context::test_run::{
         AttemptNumber, LineNumber, TestCaseRun, TestCaseRunStatus, TestOutput,
     };
+    use rstest::rstest;
 
     use crate::{
-        junit::parser::{IntoTestCaseRunsOptions, JunitParser, bazel_label_to_package_path},
+        junit::parser::{
+            IntoTestCaseRunsOptions, JunitParser, bazel_label_to_codeowners_path,
+            bazel_label_to_package_path,
+        },
         meta::id::{gen_info_id, gen_info_id_base},
         repo::RepoUrlParts,
     };
@@ -1232,6 +1246,7 @@ mod tests {
         );
         // root-level target with no package
         assert_eq!(bazel_label_to_package_path("//:target"), None);
+        assert_eq!(bazel_label_to_codeowners_path("//:target"), None);
         // no // prefix
         assert_eq!(
             bazel_label_to_package_path("pkg/path:target"),
@@ -1241,6 +1256,43 @@ mod tests {
         assert_eq!(
             bazel_label_to_package_path("//pkg/path"),
             Some("pkg/path".to_string())
+        );
+    }
+
+    #[rstest]
+    #[case::github_dir_with_slash(GitHub, "//services/billing:tests", &["@dir-with-slash"])]
+    #[case::github_nested_package(GitHub, "//services/billing/invoices:tests", &["@dir-with-slash"])]
+    #[case::github_dir_without_slash(GitHub, "//services/search/ranking:ranking_tests", &["@dir-without-slash"])]
+    #[case::github_dir_glob(GitHub, "//jobs/nightly/ingest:tests", &["@dir-glob"])]
+    #[case::github_ignores_file_rules(GitHub, "//libs/core:tests", &["@core"])]
+    #[case::github_no_rule(GitHub, "//libs/other:tests", &[])]
+    #[case::gitlab_dir_with_slash(GitLab, "//services/billing:tests", &["@dir-with-slash"])]
+    #[case::gitlab_nested_package(GitLab, "//services/billing/invoices:tests", &["@dir-with-slash"])]
+    #[case::gitlab_ignores_file_rules(GitLab, "//libs/core:tests", &["@core"])]
+    #[case::gitlab_no_rule(GitLab, "//libs/other:tests", &[])]
+    fn test_bazel_label_codeowners_match_directory_rules(
+        #[case] source: OwnersSource,
+        #[case] label: &str,
+        #[case] expected: &[&str],
+    ) {
+        let codeowners = CodeOwners::parse(
+            br#"
+/services/billing/ @dir-with-slash
+/services/search @dir-without-slash
+/jobs/*/ingest* @dir-glob
+/libs/core/ @core
+/libs/core/*.py @core-python
+/libs/core/BUILD.bazel @core-build-file
+"#
+            .to_vec(),
+            &source,
+        );
+        assert_eq!(
+            codeowners::flatten_code_owners(
+                &codeowners,
+                &bazel_label_to_codeowners_path(label).unwrap()
+            ),
+            expected
         );
     }
 
