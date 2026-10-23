@@ -85,6 +85,8 @@ impl OwnersOfPath for GitHubOwners {
     where
         P: AsRef<Path>,
     {
+        let path_str = path.as_ref().to_string_lossy();
+        let dir_path = path_str.strip_suffix('/');
         self.paths
             .iter()
             .filter_map(|mapping| {
@@ -94,14 +96,19 @@ impl OwnersOfPath for GitHubOwners {
                     require_literal_separator: pattern.contains('/'),
                     require_literal_leading_dot: false,
                 };
-                if pattern.matches_path_with(path.as_ref(), opts) {
+                // a wildcard must not match a directory path's trailing slash
+                let path_opts = glob::MatchOptions {
+                    require_literal_separator: opts.require_literal_separator || dir_path.is_some(),
+                    ..opts
+                };
+                if pattern.matches_path_with(path.as_ref(), path_opts) {
                     Some(owners)
                 } else {
                     // NOTE: if the path is relative, we need to strip the leading dot
                     // to match the pattern. We are doing this as a workaround for
                     // cases where the provided path is relative, like `./foo/bar/baz.rs`
                     if let Ok(simplified_path) = path.as_ref().strip_prefix("./") {
-                        if pattern.matches_path_with(simplified_path, opts) {
+                        if pattern.matches_path_with(simplified_path, path_opts) {
                             return Some(owners);
                         }
                     }
@@ -111,8 +118,7 @@ impl OwnersOfPath for GitHubOwners {
                     // case of implied owned children
                     // foo/bar @owner should indicate that foo/bar/baz.rs is
                     // owned by @owner, and that the directory foo/bar/ is too
-                    let path_str = path.as_ref().to_string_lossy();
-                    let mut dir = match path_str.strip_suffix('/') {
+                    let mut dir = match dir_path {
                         Some(trimmed) => Some(Path::new(trimmed)),
                         None => path.as_ref().parent(),
                     };
@@ -770,6 +776,7 @@ mod tests {
 /a/b/* @parent-children
 /a/b/g/*.py @python-files
 /a/b/g/BUILD.bazel @build-file
+/b.c? @dotted-single-char
 "#
             .as_bytes(),
         )
@@ -777,6 +784,8 @@ mod tests {
         let owner = |path: &str| owners.of(path).map(|o| o[0].to_string());
 
         assert_eq!(owner("a/b/c/"), Some("@dir-with-slash".into()));
+        assert_eq!(owner("b.c/"), Some("@default".into()));
+        assert_eq!(owner("b.cd"), Some("@dotted-single-char".into()));
         assert_eq!(owner("a/b/c/sub/"), Some("@dir-with-slash".into()));
         assert_eq!(owner("a/b/d/"), Some("@dir-without-slash".into()));
         assert_eq!(owner("a/x/e/"), Some("@dir-glob".into()));
