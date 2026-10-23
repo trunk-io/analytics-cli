@@ -5227,7 +5227,7 @@ checksum = "13c2bddecc57b384dee18652358fb23172facb8a2c51ccc10d74c157bdea3292"
 [[package]]
 name = "superconsole"
 version = "0.3.0"
-source = "git+https://github.com/facebookincubator/superconsole.git?tag=v2026.10.19.00#6675dbcea443df27566f544030cf9b4df57c1548"
+source = "git+https://github.com/trunk-io/superconsole.git?rev=c09da207332c219e09d8b8688f5cb8b3ebd362d1#c09da207332c219e09d8b8688f5cb8b3ebd362d1"
 dependencies = [
  "anstyle-parse 1.0.0",
  "bytes",

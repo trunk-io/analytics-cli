@@ -6,6 +6,7 @@ edition = "2024"
 [dependencies]
 anyhow = "1.0.44"
 # TODO: Switch to superconsole 0.3.0 once it's released: https://github.com/facebookincubator/superconsole/issues/13
-superconsole = { git = "https://github.com/facebookincubator/superconsole.git", tag = "v2026.10.19.00" }
+# The fork adds facebookincubator/superconsole#15 to v2026.10.19.00 so the crate builds on illumos.
+superconsole = { git = "https://github.com/trunk-io/superconsole.git", rev = "c09da207332c219e09d8b8688f5cb8b3ebd362d1" }
 tracing = "0.1.41"
 terminal_size = "0.4.2"
