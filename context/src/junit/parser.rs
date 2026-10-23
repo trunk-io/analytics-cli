@@ -392,7 +392,7 @@ impl JunitParser {
                             use_bazel_target_for_codeowners: true,
                         }) = test_runner_config.as_ref()
                         {
-                            bazel_label_to_package_path(&bazel_run_information.label)
+                            bazel_label_to_codeowners_path(&bazel_run_information.label)
                         } else {
                             None
                         };
@@ -1008,7 +1008,19 @@ fn test_case_run_for_rerun(base: &TestCaseRun, rerun: &TestRerun) -> TestCaseRun
     run
 }
 
-/// Converts `//pkg/path:target` to `Some("pkg/path")` for codeowners lookup.
+/// The CODEOWNERS matchers take file paths, and a bare package path does not match a
+/// directory rule such as `/pkg/path/`. Matching a placeholder file inside the package
+/// applies every rule that covers the package's files, but no rule for a specific file.
+const BAZEL_PACKAGE_CODEOWNERS_PLACEHOLDER: &str = "__trunk_bazel_package__";
+
+/// Converts `//pkg/path:target` to `Some("pkg/path/<placeholder>")`, the path whose
+/// owners are the owners of the package `pkg/path`.
+fn bazel_label_to_codeowners_path(label: &str) -> Option<String> {
+    bazel_label_to_package_path(label)
+        .map(|package| format!("{package}/{BAZEL_PACKAGE_CODEOWNERS_PLACEHOLDER}"))
+}
+
+/// Converts `//pkg/path:target` to `Some("pkg/path")`.
 /// Returns `None` if the label has no package component (e.g. `//:target`).
 fn bazel_label_to_package_path(label: &str) -> Option<String> {
     let without_prefix = label.strip_prefix("//").unwrap_or(label);
@@ -1215,7 +1227,10 @@ mod tests {
     };
 
     use crate::{
-        junit::parser::{IntoTestCaseRunsOptions, JunitParser, bazel_label_to_package_path},
+        junit::parser::{
+            IntoTestCaseRunsOptions, JunitParser, bazel_label_to_codeowners_path,
+            bazel_label_to_package_path,
+        },
         meta::id::{gen_info_id, gen_info_id_base},
         repo::RepoUrlParts,
     };
@@ -1242,6 +1257,42 @@ mod tests {
             bazel_label_to_package_path("//pkg/path"),
             Some("pkg/path".to_string())
         );
+    }
+
+    #[test]
+    fn test_bazel_label_codeowners_match_directory_rules() {
+        let codeowners = codeowners::CodeOwners::parse(
+            br#"
+/services/billing/ @dir-with-slash
+/services/search @dir-without-slash
+/jobs/*/ingest* @dir-glob
+/libs/core/ @core
+/libs/core/*.py @core-python
+/libs/core/BUILD.bazel @core-build-file
+"#
+            .to_vec(),
+            &codeowners::OwnersSource::GitHub,
+        );
+        let owners = |label: &str| {
+            codeowners::flatten_code_owners(
+                &codeowners,
+                &bazel_label_to_codeowners_path(label).unwrap(),
+            )
+        };
+
+        assert_eq!(owners("//services/billing:tests"), ["@dir-with-slash"]);
+        assert_eq!(
+            owners("//services/billing/invoices:tests"),
+            ["@dir-with-slash"]
+        );
+        assert_eq!(
+            owners("//services/search/ranking:ranking_tests"),
+            ["@dir-without-slash"]
+        );
+        assert_eq!(owners("//jobs/nightly/ingest:tests"), ["@dir-glob"]);
+        assert_eq!(owners("//libs/core:tests"), ["@core"]);
+        assert!(owners("//libs/other:tests").is_empty());
+        assert_eq!(bazel_label_to_codeowners_path("//:target"), None);
     }
 
     #[test]
