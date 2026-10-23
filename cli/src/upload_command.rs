@@ -26,7 +26,7 @@ use crate::{
         gather_initial_test_context, gather_post_test_context, gather_upload_id_context,
         generate_internal_file, generate_internal_file_from_bep,
     },
-    error_report::ErrorReport,
+    error_report::{ErrorReport, InterruptingError},
     report_limiting::ValidationReport,
     test_command::TestRunResult,
 };
@@ -550,16 +550,17 @@ pub async fn run_upload(
 
     // Caught here rather than server-side: without a collection there is nothing for the forked
     // lane to authorize against, and a 401 from a fork run is fail-open — a warning and a green
-    // step, which is exactly the silent misconfiguration this flag exists to prevent.
+    // step, which is exactly the silent misconfiguration this flag exists to prevent. Any error
+    // other than an InterruptingError would fail open the same way.
     if upload_args.allow_forked_pr_uploads
         && upload_args
             .test_collection_short_id
             .as_ref()
             .is_none_or(|id| id.trim().is_empty())
     {
-        return Err(anyhow::anyhow!(
+        return Err(anyhow::anyhow!(InterruptingError::new(
             "--allow-forked-pr-uploads requires --test-collection-id: forked pull request uploads are authorized by the collection's own opt-in."
-        ));
+        )));
     }
 
     let api_client = ApiClient::new(

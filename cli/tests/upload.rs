@@ -1479,6 +1479,29 @@ async fn upload_bundle_no_files_allow_missing_junit_files() {
     }
 }
 
+#[rstest::rstest]
+#[case::without_a_test_collection(&[])]
+#[case::with_a_blank_test_collection(&["--test-collection-id", " "])]
+#[tokio::test(flavor = "multi_thread")]
+async fn upload_fails_when_forked_pr_uploads_have_no_test_collection(#[case] extra_args: &[&str]) {
+    let temp_dir = tempdir().unwrap();
+    generate_mock_git_repo(&temp_dir);
+
+    let state = MockServerBuilder::new().spawn_mock_server().await;
+
+    CommandBuilder::upload(temp_dir.path(), state.host.clone())
+        .command()
+        .arg("--allow-forked-pr-uploads")
+        .args(extra_args)
+        .assert()
+        .code(exitcode::SOFTWARE)
+        .stderr(predicate::str::contains(
+            "--allow-forked-pr-uploads requires --test-collection-id",
+        ));
+
+    assert!(state.requests.lock().unwrap().is_empty());
+}
+
 #[tokio::test(flavor = "multi_thread")]
 async fn upload_bundle_invalid_repo_root() {
     let temp_dir = tempdir().unwrap();
