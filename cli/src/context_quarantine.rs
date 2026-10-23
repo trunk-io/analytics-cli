@@ -23,20 +23,13 @@ use pluralizer::pluralize;
 use prost::Message;
 use proto::upload_metrics::trunk::QuarantineQueryResult;
 
+use crate::report::Quarantining;
+
 #[derive(Debug)]
 pub enum QuarantineFetchStatus {
     FetchSucceeded,
     FetchSkipped,
     FetchFailed(anyhow::Error),
-}
-impl QuarantineFetchStatus {
-    pub fn is_failure(&self) -> bool {
-        match self {
-            Self::FetchSucceeded => false,
-            Self::FetchSkipped => false,
-            Self::FetchFailed(_) => true,
-        }
-    }
 }
 
 #[derive(Debug)]
@@ -50,6 +43,20 @@ pub struct QuarantineContext {
     pub quarantine_resolution_mode: QuarantineResolutionMode,
 }
 impl QuarantineContext {
+    pub fn quarantining(&self, disable_quarantining: bool) -> Quarantining {
+        if disable_quarantining {
+            Quarantining::DisabledViaCli
+        } else if self.quarantine_status.quarantining_disabled_for_repo {
+            Quarantining::DisabledViaApi
+        } else {
+            match &self.fetch_status {
+                QuarantineFetchStatus::FetchFailed(_) => Quarantining::LookupFailed,
+                QuarantineFetchStatus::FetchSkipped => Quarantining::NotNeeded,
+                QuarantineFetchStatus::FetchSucceeded => Quarantining::Checked,
+            }
+        }
+    }
+
     pub fn skip_fetch(failures: Vec<Test>) -> Self {
         Self {
             exit_code: i32::default(),
@@ -79,14 +86,13 @@ pub fn quarantine_query_result(
     disable_quarantining: bool,
     ctx: &QuarantineContext,
 ) -> proto::upload_metrics::trunk::QuarantineQueryResult {
-    if disable_quarantining || ctx.quarantine_status.quarantining_disabled_for_repo {
-        return QuarantineQueryResult::Disabled;
-    }
-
-    match &ctx.fetch_status {
-        QuarantineFetchStatus::FetchFailed(_) => QuarantineQueryResult::Failure,
-        QuarantineFetchStatus::FetchSkipped => QuarantineQueryResult::Skipped,
-        QuarantineFetchStatus::FetchSucceeded => QuarantineQueryResult::Success,
+    match ctx.quarantining(disable_quarantining) {
+        Quarantining::DisabledViaCli | Quarantining::DisabledViaApi => {
+            QuarantineQueryResult::Disabled
+        }
+        Quarantining::LookupFailed => QuarantineQueryResult::Failure,
+        Quarantining::NotNeeded => QuarantineQueryResult::Skipped,
+        Quarantining::Checked => QuarantineQueryResult::Success,
     }
 }
 

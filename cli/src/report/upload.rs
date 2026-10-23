@@ -2,8 +2,9 @@ use std::collections::BTreeMap;
 
 use api::urls::{url_for_test_case, url_for_upload};
 use bundle::Test;
-use constants::EXIT_SUCCESS;
+use constants::{EXIT_FAILURE, EXIT_SUCCESS};
 use context::junit::validator::JunitValidationLevel;
+use schemars::JsonSchema;
 use serde::Serialize;
 
 use super::{ErrorSummary, Notice};
@@ -13,88 +14,136 @@ use crate::{upload_command::UploadRunResult, validate_command::JunitReportValida
 pub enum UploadCommand {
     Upload,
     Test,
+    /// The RSpec gem, which leaves the exit code to RSpec.
+    RSpec,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct UploadReport {
+    /// Why uploading the results failed. The tests are still summarized.
     pub error: Option<ErrorSummary>,
+    /// Nothing was uploaded (`--dry-run`), so there's no upload ID or upload link.
+    pub dry_run: bool,
     pub bundle_upload_id: Option<String>,
+    /// This upload's page in Trunk. Only set for uploads to a test collection.
     pub upload_url: Option<String>,
+    /// One entry per test report file.
     pub validations: Vec<FileValidation>,
     pub counts: TestCounts,
-    pub quarantine_lookup_failed: bool,
+    pub quarantining: Quarantining,
+    /// Failed tests that were quarantined, grouped like `failures`.
     pub quarantined: Vec<FailureGroup>,
+    /// Failed tests that weren't quarantined, grouped by file, else by suite.
     pub failures: Vec<FailureGroup>,
     pub outcome: Outcome,
-    pub exit_code: i32,
+    /// The code the CLI exits with. Left out by the RSpec gem, where RSpec decides the exit code.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub exit_code: Option<i32>,
+    /// Warnings that didn't stop the run, such as a deprecated flag.
     pub notices: Vec<Notice>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct TestCounts {
     pub total: usize,
+    /// Tests that neither failed nor were quarantined.
     pub passed: usize,
+    /// Failed tests that weren't quarantined.
     pub failed: usize,
+    /// Failed tests that were quarantined.
     pub quarantined: usize,
+    /// `passed / total`, from 0 to 1. Null when there are no tests.
     pub pass_ratio: Option<f64>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct FailureGroup {
     pub key: GroupKey,
     pub tests: Vec<FailedTest>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, JsonSchema)]
+#[serde(tag = "type", content = "name", rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum GroupKey {
+    /// Failed tests from this file.
     File(String),
+    /// Failed tests from this suite that have no file.
     Suite(String),
+    /// Failed tests with neither a file nor a suite.
     Other,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct FailedTest {
     pub name: String,
+    /// Empty when the test has no suite.
     pub suite: String,
     pub class_name: Option<String>,
     pub file: Option<String>,
+    /// Trunk's ID for the test.
     pub id: String,
     pub variant: Option<String>,
+    /// The full message, which can be long.
     pub failure_message: Option<String>,
     pub quarantined: bool,
+    /// The test's page in Trunk.
     pub link: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct FileValidation {
     pub file: String,
+    /// Why the file couldn't be parsed. `errors` and `warnings` are empty when this is set.
     pub parse_error: Option<ParseError>,
     pub errors: Vec<String>,
     pub warnings: Vec<String>,
+    /// Null when the file couldn't be parsed.
     pub test_suite_count: Option<usize>,
+    /// Null when the file couldn't be parsed.
     pub test_case_count: Option<usize>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ParseError {
     pub error: String,
+    /// The errors that caused `error`, outermost first.
     pub causes: Vec<String>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "camelCase")]
+/// Whether the failed tests could be checked for quarantining, and if not, why.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, JsonSchema)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum Quarantining {
+    /// Trunk said which failed tests are quarantined.
+    Checked,
+    /// Nothing needed looking up: no test failed, or the results already said which are quarantined.
+    NotNeeded,
+    /// Turned off for this run with `--disable-quarantining`.
+    DisabledViaCli,
+    /// Turned off for the repo in Trunk.
+    DisabledViaApi,
+    /// Trunk couldn't say which tests are quarantined, so no failed test counts as quarantined.
+    LookupFailed,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, JsonSchema)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum Outcome {
+    /// The test reports had no tests.
     NoTestsFound,
+    /// Every failed test was quarantined, so none of them fail the run.
     AllFailuresQuarantined,
+    /// No tests failed.
     NoFailures,
+    /// No tests failed, but the test run's exit code wasn't 0, so some tests may not have run.
     NoFailuresButNonZeroExitCode,
+    /// Some failed tests weren't quarantined.
     FailuresNotQuarantined,
 }
 
@@ -112,27 +161,38 @@ impl UploadReport {
         );
         let error = result.error_report.as_ref().map(ErrorSummary::new);
         let exit_code = match command {
-            UploadCommand::Upload => error
-                .as_ref()
-                .and_then(|error| error.exit_code)
-                .unwrap_or(quarantine_context.exit_code),
-            UploadCommand::Test => quarantine_context.exit_code,
+            UploadCommand::Upload => Some(
+                error
+                    .as_ref()
+                    .and_then(|error| error.exit_code)
+                    .unwrap_or(quarantine_context.exit_code),
+            ),
+            UploadCommand::Test => Some(quarantine_context.exit_code),
+            UploadCommand::RSpec => None,
         };
         let bundle_upload_id = &result.meta.base_props.bundle_upload_id;
 
         Self {
             error,
+            dry_run: result.dry_run,
             bundle_upload_id: Some(bundle_upload_id.clone()).filter(|id| !id.is_empty()),
             upload_url: upload_url(result),
             validations: file_validations(&result.validations),
             counts,
-            quarantine_lookup_failed: quarantine_context.fetch_status.is_failure(),
+            quarantining: quarantine_context.quarantining(result.disable_quarantining),
             quarantined: group(quarantined, |test| failed_test(result, test, true)),
             failures: group(failures, |test| failed_test(result, test, false)),
             outcome: Outcome::new(&counts, quarantine_context.exit_code),
             exit_code,
             notices: result.notices.clone(),
         }
+    }
+}
+
+impl UploadReport {
+    /// What `upload` and `test` exit with; only the RSpec gem leaves `exit_code` unset.
+    pub fn cli_exit_code(&self) -> i32 {
+        self.exit_code.unwrap_or(EXIT_FAILURE)
     }
 }
 

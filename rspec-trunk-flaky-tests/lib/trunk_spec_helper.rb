@@ -27,6 +27,7 @@
 #   TRUNK_DRY_RUN - Set to 'true' to save bundle locally instead of uploading
 #   TRUNK_USE_UNCLONED_REPO - Set to 'true' for uncloned repo mode
 #   TRUNK_LOCAL_UPLOAD_DIR - Directory to save test results locally (disables upload)
+#   TRUNK_SUMMARY_OUTPUT_FILE - Path to write a JSON summary of the uploaded results to
 #   TRUNK_QUARANTINED_TESTS_DISK_CACHE_TTL_SECS - Time to cache quarantined tests on disk (in seconds)
 #   TRUNK_QUARANTINE_QUERY_FAILURE_EXIT - Set to 'true' to abort the RSpec run when quarantine
 #     lookup fails (remaining examples are skipped)
