@@ -16,7 +16,7 @@ runtimes:
   enabled:
     - go@1.21.0
     - rust@SYSTEM
-    - node@25.9.0
+    - node@26.12.1
     - python@3.14.4
     - ruby@4.0.5
 # This is the section where you manage your linters. (https://docs.trunk.io/check/configuration)
