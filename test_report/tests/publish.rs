@@ -659,8 +659,42 @@ async fn publish_writes_summary_output_file() {
     );
     assert_eq!(summary["outcome"], "failuresNotQuarantined");
     assert_eq!(summary["quarantineLookupFailed"], false);
+    assert_eq!(summary["dryRun"], false);
     assert_eq!(summary.get("exitCode"), None);
     assert_eq!(summary["failures"][0]["tests"][0]["name"], "fails");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[serial]
+async fn publish_writes_a_dry_run_to_summary_output_file() {
+    cleanup_env_vars();
+    let temp_dir = tempdir().unwrap();
+    setup_quarantine_disk_cache_dir(&temp_dir);
+    setup_repo_with_commit(&temp_dir).unwrap();
+    env::set_current_dir(&temp_dir).unwrap();
+    let summary_path = temp_dir.path().join("summary.json");
+    let state = MockServerBuilder::new().spawn_mock_server().await;
+    unsafe {
+        env::set_var(TRUNK_PUBLIC_API_ADDRESS_ENV, &state.host);
+        env::set_var(TRUNK_API_TOKEN_ENV, "test-token");
+        env::set_var(TRUNK_ORG_URL_SLUG_ENV, "test-org");
+        env::set_var(TRUNK_DRY_RUN_ENV, "true");
+        env::set_var(TRUNK_SUMMARY_OUTPUT_FILE_ENV, &summary_path);
+    }
+
+    thread::spawn(|| {
+        let test_report = MutTestReport::new("test".into(), "test-command 123".into(), None);
+        add_a_passing_and_a_failing_test(&test_report);
+        assert!(test_report.publish());
+    })
+    .join()
+    .unwrap();
+
+    assert!(state.requests.lock().unwrap().is_empty());
+    let summary = read_summary_output_file(&summary_path);
+    assert_eq!(summary["dryRun"], true);
+    assert_eq!(summary["bundleUploadId"], serde_json::Value::Null);
+    assert_eq!(summary["counts"]["failed"], 1);
 }
 
 #[tokio::test(flavor = "multi_thread")]
