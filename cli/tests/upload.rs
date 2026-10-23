@@ -1728,7 +1728,8 @@ async fn upload_bundle_with_no_junit_files_no_quarantine_successful_upload() {
         .success()
         .stderr(predicate::str::contains(
             "No tests were found in the provided test results",
-        ));
+        ))
+        .stderr(predicate::str::contains("without running tests").not());
 
     // HINT: View CLI output with `cargo test -- --nocapture`
     println!("{assert}");
