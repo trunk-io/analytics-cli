@@ -486,6 +486,7 @@ pub struct UploadRunResult {
     pub api_address: String,
     pub guid_scope: Option<TestCaseGuidScope>,
     pub notices: Vec<Notice>,
+    pub dry_run: bool,
 }
 
 pub struct RunUploadOptions {
@@ -821,6 +822,7 @@ pub async fn run_upload(
         api_address: api_client.api_host.clone(),
         guid_scope,
         notices,
+        dry_run: upload_args.dry_run,
     })
 }
 
