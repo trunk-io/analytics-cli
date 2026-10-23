@@ -74,9 +74,18 @@ pub struct FailedTest {
 #[serde(rename_all = "camelCase")]
 pub struct FileValidation {
     pub file: String,
-    pub parse_error: Option<String>,
+    pub parse_error: Option<ParseError>,
     pub errors: Vec<String>,
     pub warnings: Vec<String>,
+    pub test_suite_count: Option<usize>,
+    pub test_case_count: Option<usize>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ParseError {
+    pub error: String,
+    pub causes: Vec<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -143,6 +152,15 @@ impl TestCounts {
 impl FileValidation {
     pub fn has_issues(&self) -> bool {
         self.parse_error.is_some() || !self.errors.is_empty() || !self.warnings.is_empty()
+    }
+}
+
+impl ParseError {
+    pub fn new(error: &anyhow::Error) -> Self {
+        Self {
+            error: error.to_string(),
+            causes: error.chain().skip(1).map(ToString::to_string).collect(),
+        }
     }
 }
 
@@ -246,9 +264,11 @@ fn file_validations(validations: &JunitReportValidations) -> Vec<FileValidation>
         .map(|(file, validation)| match validation {
             Err(error) => FileValidation {
                 file: file.clone(),
-                parse_error: Some(format!("{error:#}")),
+                parse_error: Some(ParseError::new(error)),
                 errors: Vec::new(),
                 warnings: Vec::new(),
+                test_suite_count: None,
+                test_case_count: None,
             },
             Ok(validation) => {
                 let issues = validation.all_issues_flat();
@@ -264,6 +284,8 @@ fn file_validations(validations: &JunitReportValidations) -> Vec<FileValidation>
                     parse_error: None,
                     errors: messages(JunitValidationLevel::Invalid),
                     warnings: messages(JunitValidationLevel::SubOptimal),
+                    test_suite_count: Some(validation.test_suites().len()),
+                    test_case_count: Some(validation.test_cases().len()),
                 }
             }
         })

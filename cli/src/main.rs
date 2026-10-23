@@ -18,7 +18,7 @@ use trunk_analytics_cli::{
     context::gather_debug_props,
     error_report::ErrorReport,
     report::{
-        ErrorSummary, UploadCommand, UploadReport,
+        ErrorSummary, UploadCommand, UploadReport, ValidateReport,
         text::{TextOptions, UploadText},
     },
     test_command::{TestArgs, run_test},
@@ -176,12 +176,13 @@ fn main() -> anyhow::Result<()> {
                     close_out_and_exit(exit_code, guard, render_sender, render_handle)
                 }
                 MainOutcome::Finished(Ok(RunResult::Validate(run_result))) => {
-                    let result_ptr = Arc::new(run_result);
+                    let report = ValidateReport::new(&run_result);
+                    let exit_code = report.exit_code;
                     send_message(
-                        DisplayMessage::Final(result_ptr.clone(), String::from("validate display")),
+                        DisplayMessage::Final(Arc::new(report), String::from("validate display")),
                         &render_sender,
                     );
-                    close_out_and_exit(result_ptr.exit_code(), guard, render_sender, render_handle)
+                    close_out_and_exit(exit_code, guard, render_sender, render_handle)
                 }
                 MainOutcome::Finished(Err(error)) => {
                     let error = ErrorSummary::new(&ErrorReport::new(error, org_url_slug, None));

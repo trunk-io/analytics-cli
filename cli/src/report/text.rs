@@ -7,12 +7,14 @@ use superconsole::{
 };
 
 use super::{
-    ErrorSummary, FailureGroup, FileValidation, GroupKey, Outcome, TestCounts, UploadReport,
+    ErrorSummary, FailureGroup, FileValidation, GroupKey, NoticeKind, Outcome, ParseError,
+    TestCounts, UploadReport, ValidateReport, ValidationCounts,
 };
 use crate::{
     error_report::{CONNECTION_REFUSED_CONTEXT, ErrorKind, HELP_TEXT, UNAUTHORIZED_CONTEXT},
     report_limiting::ValidationReport,
     upload_command::{UploadRunResult, get_bundle_upload_id_message},
+    validate_command::ValidateRunResult,
 };
 
 /// Flags that change how much of the summary to show, not what it says.
@@ -472,4 +474,257 @@ fn render_validations(
 fn hyperlink_span(url: String, attribute: Attribute) -> anyhow::Result<Span> {
     let span = Span::new_styled(style(url.clone()).attribute(attribute))?;
     Ok(span.with_hyperlink(Some(Hyperlink::new(url))))
+}
+
+impl EndOutput for ValidateReport {
+    fn output(&self) -> anyhow::Result<Vec<Line>> {
+        render_validate(self)
+    }
+}
+
+impl EndOutput for ValidateRunResult {
+    fn output(&self) -> anyhow::Result<Vec<Line>> {
+        render_validate(&ValidateReport::new(self))
+    }
+}
+
+pub fn render_validate(report: &ValidateReport) -> anyhow::Result<Vec<Line>> {
+    let mut output: Vec<Line> = Vec::new();
+
+    let bep_parse_errors: Vec<&String> = report
+        .notices
+        .iter()
+        .filter(|notice| notice.kind == NoticeKind::BepParseError)
+        .map(|notice| &notice.message)
+        .collect();
+    if !bep_parse_errors.is_empty() {
+        output.push(Line::from_iter([
+            Span::new_unstyled("⚠️  BEP file had parse errors: ")?,
+            Span::new_unstyled_lossy(format!("{:?}", bep_parse_errors)),
+        ]));
+        output.push(Line::default());
+    }
+
+    let num_files: usize = report
+        .matched_files
+        .iter()
+        .map(|matched| matched.files.len())
+        .sum();
+    output.push(Line::from_iter([Span::new_unstyled(format!(
+        "📚 Validating {} files:",
+        num_files
+    ))?]));
+    for matched in report.matched_files.iter() {
+        output.push(Line::from_iter([Span::new_unstyled(format!(
+            "  Files matching: {}:",
+            matched.glob
+        ))?]));
+        for file in matched.files.iter() {
+            output.push(Line::from_iter([Span::new_unstyled(format!(
+                "    {}",
+                file
+            ))?]))
+        }
+        output.push(Line::default());
+    }
+
+    // Files that weren't read as exactly one report have no test counts.
+    output.push(Line::from_iter([Span::new_styled(
+        style(String::from("File parse issues")).attribute(Attribute::Bold),
+    )?]));
+    for validation in report
+        .validations
+        .iter()
+        .filter(|validation| validation.test_case_count.is_none())
+    {
+        let num_errors = validation.errors.len() + usize::from(validation.parse_error.is_some());
+        output.push(file_title(validation, num_errors)?);
+        output.push(Line::from_iter([Span::new_styled(
+            style(format!(
+                "{} errors, {} warnings",
+                num_errors,
+                validation.warnings.len()
+            ))
+            .attribute(Attribute::Italic),
+        )?]));
+        let parse_error = validation.parse_error.as_ref().map(anyhow_debug);
+        output.extend(render_issues(
+            parse_error.iter().chain(validation.errors.iter()),
+            &validation.warnings,
+        )?);
+        output.push(Line::default());
+    }
+
+    output.push(Line::from_iter([Span::new_styled(
+        style(String::from("Test Validation Issues")).attribute(Attribute::Bold),
+    )?]));
+    for validation in report.validations.iter() {
+        let (Some(num_test_suites), Some(num_test_cases)) =
+            (validation.test_suite_count, validation.test_case_count)
+        else {
+            continue;
+        };
+        output.push(file_title(validation, validation.errors.len())?);
+        output.push(Line::from_iter([Span::new_styled(
+            style(format!(
+                "{} test suites, {} test cases, {} errors, {} warnings",
+                num_test_suites,
+                num_test_cases,
+                validation.errors.len(),
+                validation.warnings.len(),
+            ))
+            .attribute(Attribute::Italic),
+        )?]));
+        output.extend(render_issues(
+            validation.errors.iter(),
+            &validation.warnings,
+        )?);
+    }
+
+    output.push(Line::default());
+    output.push(Line::from_iter([Span::new_styled(
+        style(String::from("Checking for codeowners file...")).attribute(Attribute::Bold),
+    )?]));
+    match &report.codeowners {
+        None => {
+            output.push(Line::from_iter([Span::new_unstyled(
+                "  No codeowners file found",
+            )?]));
+        }
+        Some(codeowners) => {
+            output.push(Line::from_iter([Span::new_styled_lossy(
+                style(format!("  Found codeowners path: {:?}", codeowners.path))
+                    .attribute(Attribute::Italic),
+            )]));
+            for warning in codeowners.warnings.iter() {
+                output.push(Line::from_iter([Span::new_unstyled_lossy(format!(
+                    "  {}",
+                    warning
+                ))]));
+            }
+        }
+    }
+    output.push(Line::default());
+
+    let ValidationCounts {
+        files,
+        valid_files,
+        files_with_warnings,
+        files_with_errors,
+        warnings,
+        errors,
+    } = report.counts;
+    output.push(Line::from_iter([
+        Span::new_styled(style(format!("{}", valid_files)).with(Color::Green))?,
+        Span::new_unstyled(format!(
+            " {}, ",
+            pluralize("valid file", valid_files as isize, false)
+        ))?,
+        Span::new_styled(style(format!("{}", files_with_warnings)).with(Color::Yellow))?,
+        Span::new_unstyled(format!(
+            " {} with warnings, and ",
+            pluralize("file", files_with_warnings as isize, false)
+        ))?,
+        Span::new_styled(style(format!("{}", files_with_errors)).with(Color::Red))?,
+        Span::new_unstyled(format!(
+            " {} with errors, ",
+            pluralize("file", files_with_errors as isize, false)
+        ))?,
+        Span::new_unstyled(format!(
+            "with {} total (a file is double counted if it has both errors and warnings)",
+            pluralize("file", files as isize, true)
+        ))?,
+    ]));
+    output.push(Line::from_iter([
+        Span::new_styled(style(format!("{}", warnings)).with(Color::Yellow))?,
+        Span::new_unstyled(format!(
+            " {}, and ",
+            pluralize("warning", warnings as isize, false)
+        ))?,
+        Span::new_styled(style(format!("{}", errors)).with(Color::Red))?,
+        Span::new_unstyled(format!(" {}", pluralize("error", errors as isize, false)))?,
+    ]));
+
+    Ok(output)
+}
+
+fn file_title(validation: &FileValidation, num_errors: usize) -> anyhow::Result<Line> {
+    let color = if num_errors > 0 {
+        Color::Red
+    } else if !validation.warnings.is_empty() {
+        Color::Yellow
+    } else {
+        Color::Green
+    };
+    Ok(Line::from_iter([Span::new_styled_lossy(
+        style(validation.file.clone()).with(color),
+    )]))
+}
+
+fn render_issues<'a>(
+    errors: impl Iterator<Item = &'a String>,
+    warnings: &[String],
+) -> anyhow::Result<Vec<Line>> {
+    let mut output = Vec::new();
+    let mut errors = errors.peekable();
+    if errors.peek().is_some() {
+        output.push(Line::from_iter([Span::new_unstyled(" ❌ Errors:")?]));
+        for error in errors {
+            output.push(Line::from_iter([Span::new_unstyled_lossy(format!(
+                "  {}",
+                error
+            ))]));
+        }
+    }
+    if !warnings.is_empty() {
+        output.push(Line::from_iter([Span::new_unstyled(" ⚠️  Warnings:")?]));
+        for warning in warnings {
+            output.push(Line::from_iter([Span::new_unstyled_lossy(format!(
+                "  {}",
+                warning
+            ))]));
+        }
+    }
+    Ok(output)
+}
+
+/// The error as `{:?}` on an `anyhow::Error` prints it, which `validate` has always shown:
+/// the error, then its causes, indented (and numbered when there's more than one).
+fn anyhow_debug(parse_error: &ParseError) -> String {
+    let mut text = parse_error.error.clone();
+    if parse_error.causes.is_empty() {
+        return text;
+    }
+    text.push_str("\n\nCaused by:");
+    let numbered = parse_error.causes.len() > 1;
+    for (n, cause) in parse_error.causes.iter().enumerate() {
+        text.push('\n');
+        let (first, rest) = if numbered {
+            (format!("{n: >5}: "), "       ")
+        } else {
+            (String::from("    "), "    ")
+        };
+        text.push_str(&first);
+        text.push_str(&cause.replace('\n', &format!("\n{rest}")));
+    }
+    text
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn anyhow_debug_matches_anyhow() {
+        let errors = [
+            anyhow::anyhow!("no causes"),
+            anyhow::anyhow!("cause").context("error"),
+            anyhow::anyhow!("root\nspans lines")
+                .context("middle")
+                .context("error\nspans lines"),
+        ];
+        for error in errors {
+            assert_eq!(anyhow_debug(&ParseError::new(&error)), format!("{error:?}"));
+        }
+    }
 }
