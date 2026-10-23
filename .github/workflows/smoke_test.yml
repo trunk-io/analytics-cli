@@ -20,7 +20,7 @@ on:
 jobs:
   determine_releases:
     name: Determine Release Versions
-    runs-on: ubuntu-latest
+    runs-on: "${{ vars.CI_RUNNER_OVERRIDE == 'hosted' && 'ubuntu-latest' || format('trunk-staging={0}-{1}..size=medium..memory=high', github.run_id, github.run_attempt) }}"
     outputs:
       release: ${{ steps.set-releases.outputs.release }}
       rspec_release: ${{ steps.set-releases.outputs.rspec_release }}
@@ -128,7 +128,7 @@ jobs:
 
   download_ruby_gem:
     name: Download Ruby gem from release
-    runs-on: ubuntu-latest
+    runs-on: "${{ vars.CI_RUNNER_OVERRIDE == 'hosted' && 'ubuntu-latest' || format('trunk-staging={0}-{1}..size=medium..memory=high', github.run_id, github.run_attempt) }}"
     needs: determine_releases
     steps:
       - name: Checkout
@@ -154,7 +154,7 @@ jobs:
 
   test_ruby_gem_staging:
     name: Test Ruby gem on staging
-    runs-on: ubuntu-latest
+    runs-on: "${{ vars.CI_RUNNER_OVERRIDE == 'hosted' && 'ubuntu-latest' || format('trunk-staging={0}-{1}..size=medium..memory=high', github.run_id, github.run_attempt) }}"
     needs: download_ruby_gem
     steps:
       - name: Checkout
@@ -181,7 +181,7 @@ jobs:
 
   test_ruby_gem_production:
     name: Test Ruby gem on production
-    runs-on: ubuntu-latest
+    runs-on: "${{ vars.CI_RUNNER_OVERRIDE == 'hosted' && 'ubuntu-latest' || format('trunk-staging={0}-{1}..size=medium..memory=high', github.run_id, github.run_attempt) }}"
     needs: download_ruby_gem
     steps:
       - name: Checkout
@@ -213,7 +213,7 @@ jobs:
       - build_cli
       - test_ruby_gem_production
       - determine_releases
-    runs-on: ubuntu-latest
+    runs-on: "${{ vars.CI_RUNNER_OVERRIDE == 'hosted' && 'ubuntu-latest' || format('trunk-staging={0}-{1}..size=medium..memory=high', github.run_id, github.run_attempt) }}"
     permissions:
       actions: read
     env:
@@ -243,7 +243,7 @@ jobs:
       - build_cli
       - test_ruby_gem_staging
       - determine_releases
-    runs-on: ubuntu-latest
+    runs-on: "${{ vars.CI_RUNNER_OVERRIDE == 'hosted' && 'ubuntu-latest' || format('trunk-staging={0}-{1}..size=medium..memory=high', github.run_id, github.run_attempt) }}"
     permissions:
       actions: read
     env:
