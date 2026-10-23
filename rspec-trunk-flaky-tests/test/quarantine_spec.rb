@@ -59,6 +59,24 @@ RSpec.describe 'quarantine outcomes' do
     end
   end
 
+  context 'when TRUNK_DISABLE_QUARANTINING is true' do
+    around do |example|
+      previous = ENV.fetch('TRUNK_DISABLE_QUARANTINING', nil)
+      ENV['TRUNK_DISABLE_QUARANTINING'] = 'true'
+      example.run
+    ensure
+      ENV['TRUNK_DISABLE_QUARANTINING'] = previous
+    end
+
+    it 'fails a quarantined example without looking it up' do
+      passed, examples, run = run_group(:quarantined) { it('fails') { raise 'the real failure' } }
+
+      expect(passed).to be(false)
+      expect(examples.first.execution_result.status).to eq(:failed)
+      expect(run.report.lookups).to eq(0)
+    end
+  end
+
   context 'when a before(:context) hook raises' do
     let(:group_body) do
       proc do

@@ -63,6 +63,7 @@ module RSpec
       trunk_is_description_generated: :is_description_generated
     }.freeze
 
+    # trunk-ignore(rubocop/Metrics/ClassLength)
     class << self
       # The state for this RSpec process, or nil when Trunk is disabled.
       attr_reader :current_run
@@ -104,6 +105,10 @@ module RSpec
 
       def quarantine_query_failure_exit?
         ENV['TRUNK_QUARANTINE_QUERY_FAILURE_EXIT'] == 'true'
+      end
+
+      def disable_quarantining?
+        ENV['TRUNK_DISABLE_QUARANTINING'] == 'true'
       end
 
       def command_line
@@ -267,6 +272,7 @@ module RSpec
       def quarantine?(example, exception)
         # A replayed abort failure didn't happen on this attempt, so it can't be quarantined.
         return false if abort_failure(example).equal?(exception)
+        return false if Trunk.disable_quarantining?
 
         check_quarantine(example, exception)
       rescue StandardError => e
@@ -480,10 +486,13 @@ module RSpec
         add_test_case(notification.example) unless RSpec.configuration.dry_run?
       end
 
-      # trunk-ignore(rubocop/Metrics/MethodLength,rubocop/Metrics/AbcSize)
+      # trunk-ignore(rubocop/Metrics/MethodLength,rubocop/Metrics/AbcSize,rubocop/Metrics/CyclomaticComplexity)
       def close(_notification)
         return if RSpec.configuration.dry_run?
 
+        if Trunk.disable_quarantining?
+          puts Colors.yellow('Note: TRUNK_DISABLE_QUARANTINING is set. Test failures were not quarantined.')
+        end
         if @run.quarantining_disabled?
           puts Colors.yellow('Note: Quarantining is disabled for this repo. Test failures were not quarantined.')
         end
