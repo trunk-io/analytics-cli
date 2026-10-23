@@ -554,3 +554,26 @@ async fn test_command_can_print_subcommand_output_with_faux_html() {
         "<head>This breaks superconsole</head>",
     ));
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn test_command_fails_when_the_command_cannot_be_started() {
+    let temp_dir = tempdir().unwrap();
+    generate_mock_git_repo(&temp_dir);
+
+    let state = MockServerBuilder::new().spawn_mock_server().await;
+
+    CommandBuilder::test(
+        temp_dir.path(),
+        state.host.clone(),
+        vec![String::from("trunk-test-command-that-does-not-exist")],
+    )
+    .command()
+    .assert()
+    .code(exitcode::SOFTWARE)
+    .stderr(predicate::str::contains(
+        "Couldn't run the test command `trunk-test-command-that-does-not-exist`",
+    ))
+    .stderr(predicate::str::contains("Unable to connect").not());
+
+    assert!(state.requests.lock().unwrap().is_empty());
+}
