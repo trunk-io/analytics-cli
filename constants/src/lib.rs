@@ -145,6 +145,8 @@ pub const ENVS_TO_GET: &[&str] = &[
     "GITHUB_EXTERNAL_ID",
     "RUNNER_ARCH",
     "RUNNER_OS",
+    // Depot CI (runs GitHub Actions workflows and sets the GitHub variables above as well)
+    "DEPOT_JOB_URL",
     // GitLab
     "GITLAB_CI",
     "GITLAB_USER_EMAIL",

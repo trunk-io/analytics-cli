@@ -46,6 +46,8 @@ mod ci_platform_env_key {
     pub const GOOGLE_CLOUD_BUILD: &str = "TRIGGER_NAME";
     /// https://github.com/evergreen-ci/evergreen/blob/0718211a8c91bb6feefebf971476c6ace1283bf4/docs/Project-Configuration/Project-Commands.md#shellexec
     pub const EVERGREEN: &str = "EVR_TASK_ID";
+    /// https://depot.dev/docs/environment-variables
+    pub const DEPOT_CI: &str = "DEPOT_JOB_URL";
     /// Custom environment allowing users to manually set upload metadata using these env vars, all of which are optional:
     /// JOB_URL: Url for the ci job that was run
     /// JOB_NAME: Name of the ci job that was run
@@ -78,6 +80,7 @@ pub enum CIPlatform {
     Bamboo,
     GoogleCloudBuild,
     Evergreen,
+    DepotCI,
     Custom,
     Unknown,
 }
@@ -100,6 +103,7 @@ impl From<CIPlatform> for &str {
             CIPlatform::Bamboo => ci_platform_env_key::BAMBOO,
             CIPlatform::GoogleCloudBuild => ci_platform_env_key::GOOGLE_CLOUD_BUILD,
             CIPlatform::Evergreen => ci_platform_env_key::EVERGREEN,
+            CIPlatform::DepotCI => ci_platform_env_key::DEPOT_CI,
             CIPlatform::Custom => ci_platform_env_key::CUSTOM,
             CIPlatform::Unknown => "UNKNOWN",
         }
@@ -128,6 +132,8 @@ impl CIPlatform {
             | (CIPlatform::JenkinsPipeline, CIPlatform::GoogleCloudBuild) => {
                 CIPlatform::GoogleCloudBuild
             }
+            (CIPlatform::DepotCI, CIPlatform::GitHubActions)
+            | (CIPlatform::GitHubActions, CIPlatform::DepotCI) => CIPlatform::DepotCI,
             (CIPlatform::Unknown, anything_else) | (anything_else, CIPlatform::Unknown) => {
                 anything_else
             }
@@ -157,6 +163,7 @@ impl magnus::TryConvert for CIPlatform {
             13 => Ok(CIPlatform::Bamboo),
             14 => Ok(CIPlatform::GoogleCloudBuild),
             15 => Ok(CIPlatform::Evergreen),
+            16 => Ok(CIPlatform::DepotCI),
             _ => Err(magnus::Error::new(
                 magnus::Ruby::get_with(val).exception_type_error(),
                 format!("invalid CIPlatform: {}", val),
@@ -183,6 +190,7 @@ impl From<&str> for CIPlatform {
             ci_platform_env_key::BAMBOO => CIPlatform::Bamboo,
             ci_platform_env_key::GOOGLE_CLOUD_BUILD => CIPlatform::GoogleCloudBuild,
             ci_platform_env_key::EVERGREEN => CIPlatform::Evergreen,
+            ci_platform_env_key::DEPOT_CI => CIPlatform::DepotCI,
             ci_platform_env_key::CUSTOM => CIPlatform::Custom,
             _ => CIPlatform::Unknown,
         }
@@ -243,6 +251,7 @@ impl<'a> CIInfoParser<'a> {
     pub fn parse(&mut self) {
         match self.ci_info.platform {
             CIPlatform::GitHubActions => self.parse_github_actions(),
+            CIPlatform::DepotCI => self.parse_depot_ci(),
             CIPlatform::JenkinsPipeline => self.parse_jenkins_pipeline(),
             CIPlatform::Buildkite => self.parse_buildkite(),
             CIPlatform::Semaphore => self.parse_semaphore(),
@@ -352,6 +361,15 @@ impl<'a> CIInfoParser<'a> {
         self.ci_info.job_url = job_url;
         self.ci_info.workflow = self.get_env_var("GITHUB_WORKFLOW");
         self.ci_info.job = self.get_env_var("GITHUB_JOB");
+    }
+
+    fn parse_depot_ci(&mut self) {
+        self.parse_github_actions();
+        // GITHUB_RUN_ID is Depot's run id re-encoded as a number, so the GitHub URL built from it
+        // does not exist.
+        self.ci_info.job_url = self
+            .get_env_var("JOB_URL")
+            .or_else(|| self.get_env_var("DEPOT_JOB_URL"));
     }
 
     fn parse_jenkins_pipeline(&mut self) {
@@ -1007,5 +1025,17 @@ fn other_ciplatforms_mid_tier() {
     pretty_assertions::assert_eq!(
         (CIPlatform::Unknown).prioritize(CIPlatform::TravisCI),
         CIPlatform::TravisCI,
+    );
+}
+
+#[test]
+fn depot_ci_beats_github_actions() {
+    pretty_assertions::assert_eq!(
+        (CIPlatform::GitHubActions).prioritize(CIPlatform::DepotCI),
+        CIPlatform::DepotCI,
+    );
+    pretty_assertions::assert_eq!(
+        (CIPlatform::DepotCI).prioritize(CIPlatform::GitHubActions),
+        CIPlatform::DepotCI,
     );
 }
