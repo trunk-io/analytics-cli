@@ -265,9 +265,22 @@ pub fn gather_post_test_context<U: AsRef<Path>>(
     )?;
 
     if !allow_empty_test_results && file_set_builder.no_files_found() {
-        return Err(anyhow::anyhow!(InterruptingError::new(
-            "No test output files found to upload."
-        )));
+        let searched = junit_path_wrappers
+            .iter()
+            .map(|j| j.junit_path.as_str())
+            .collect::<Vec<_>>()
+            .join(", ");
+        // Both spellings, since clap can't tell which was passed and the GitHub Action passes the alias.
+        return Err(anyhow::anyhow!(InterruptingError::new(format!(
+            "No test results found to upload{}. Failing because --allow-empty-test-results \
+             (or its alias --allow-missing-junit-files) is false; set it to true to continue \
+             without test results.",
+            if searched.is_empty() {
+                String::new()
+            } else {
+                format!(" in: {searched}")
+            }
+        ))));
     }
 
     tracing::info!("Total files pack and upload: {}", file_set_builder.count());
