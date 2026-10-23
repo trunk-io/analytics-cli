@@ -18,6 +18,7 @@ use superconsole::{
 
 use crate::{
     context::{gather_debug_props, gather_initial_test_context},
+    error_report::InterruptingError,
     upload_command::{RunUploadOptions, UploadArgs, UploadRunResult, run_upload},
 };
 
@@ -173,7 +174,15 @@ pub async fn run_test_command<T: AsRef<str>>(
         )
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit())
-        .spawn()?;
+        .spawn()
+        // Its io::Error would otherwise read as a refused connection, which exits 0.
+        .map_err(|error| {
+            anyhow::anyhow!(InterruptingError::new(format!(
+                "Couldn't run the test command `{}`: {}",
+                command_line(command),
+                error
+            )))
+        })?;
     let exit_result = child.wait_with_output().map_err(|e| {
         tracing::warn!("Error waiting for execution: {}", e);
         e
@@ -194,12 +203,16 @@ pub async fn run_test_command<T: AsRef<str>>(
     Ok(TestRunResult {
         exit_code,
         exec_start: Some(exec_start),
-        command: command
-            .iter()
-            .map(|s| s.as_ref())
-            .collect::<Vec<_>>()
-            .join(" "),
+        command: command_line(command),
         command_stdout: stdout,
         command_stderr: stderr,
     })
+}
+
+fn command_line<T: AsRef<str>>(command: &[T]) -> String {
+    command
+        .iter()
+        .map(|s| s.as_ref())
+        .collect::<Vec<_>>()
+        .join(" ")
 }
