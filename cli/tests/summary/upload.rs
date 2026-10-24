@@ -18,6 +18,7 @@ use superconsole::Line;
 use trunk_analytics_cli::{
     context_quarantine::{QuarantineContext, QuarantineFetchStatus},
     error_report::ErrorReport,
+    exit_code::ExitCode,
     report::{
         Notice, UploadCommand, UploadReport,
         json::{self, Report},
@@ -281,7 +282,7 @@ fn prints_failures_that_were_all_quarantined() {
 #[test]
 fn prints_failures_that_were_not_quarantined() {
     let mut result = upload_result(5);
-    result.quarantine_context.exit_code = 1;
+    result.quarantine_context.exit_code = ExitCode::Failure;
     result.quarantine_context.fetch_status = QuarantineFetchStatus::FetchSucceeded;
     result
         .quarantine_context
@@ -324,7 +325,7 @@ fn prints_failures_that_were_not_quarantined() {
 #[test]
 fn prints_a_warning_when_the_quarantine_lookup_failed() {
     let mut result = upload_result(3);
-    result.quarantine_context.exit_code = 1;
+    result.quarantine_context.exit_code = ExitCode::Failure;
     result.quarantine_context.fetch_status =
         QuarantineFetchStatus::FetchFailed(anyhow::anyhow!("request timed out"));
     result.quarantine_context.failures = vec![failure("adds", "MathTests", None)];
@@ -353,7 +354,7 @@ fn prints_a_warning_when_the_quarantine_lookup_failed() {
 #[test]
 fn stops_at_an_error_that_blocks_quarantining() {
     let mut result = upload_result(3);
-    result.quarantine_context.exit_code = 1;
+    result.quarantine_context.exit_code = ExitCode::Failure;
     result.quarantine_context.failures = vec![failure("adds", "MathTests", None)];
     result.error_report = Some(ErrorReport::new(
         unauthorized_error(),
@@ -378,7 +379,7 @@ fn stops_at_an_error_that_blocks_quarantining() {
 fn proceeds_past_an_upload_error() {
     let mut result = upload_result(3);
     result.meta.base_props.bundle_upload_id = String::new();
-    result.quarantine_context.exit_code = 1;
+    result.quarantine_context.exit_code = ExitCode::Failure;
     result.quarantine_context.failures = vec![failure("adds", "MathTests", None)];
     result.error_report = Some(ErrorReport::new(
         anyhow::anyhow!("HTTP status client error (400 Bad Request)")
@@ -555,7 +556,7 @@ fn prints_validation_when_every_file_is_correct() {
 fn prints_long_failure_messages_when_asked() {
     let mut result = upload_result(1);
     result.show_failure_messages = true;
-    result.quarantine_context.exit_code = 1;
+    result.quarantine_context.exit_code = ExitCode::Failure;
     let mut message_lines = vec![
         String::from("assertion `left == right` failed\r"),
         String::from("\tleft: 1"),
@@ -612,7 +613,7 @@ fn prints_long_failure_messages_when_asked() {
 #[test]
 fn prints_the_upload_as_a_collection_link() {
     let mut result = in_collection(upload_result(2));
-    result.quarantine_context.exit_code = 1;
+    result.quarantine_context.exit_code = ExitCode::Failure;
     result.quarantine_context.failures = vec![Test {
         id: String::from("c33a7f64-8f3e-5db9-b37b-2ea870d2441b"),
         ..failure("adds", "MathTests", None)
@@ -645,7 +646,7 @@ fn prints_the_upload_as_a_collection_link() {
 #[test]
 fn links_tests_by_short_link_without_collection_ids() {
     let mut result = in_collection(upload_result(2));
-    result.quarantine_context.exit_code = 1;
+    result.quarantine_context.exit_code = ExitCode::Failure;
     result.quarantine_context.failures = vec![failure("adds", "MathTests", None)];
 
     assert_eq!(
@@ -672,7 +673,7 @@ fn links_tests_by_short_link_without_collection_ids() {
 fn prints_the_bundle_upload_id_when_collection_links_are_hidden() {
     let mut result = in_collection(upload_result(2));
     result.hide_test_collection_links = true;
-    result.quarantine_context.exit_code = 1;
+    result.quarantine_context.exit_code = ExitCode::Failure;
     result.quarantine_context.failures = vec![Test {
         id: String::from("c33a7f64-8f3e-5db9-b37b-2ea870d2441b"),
         ..failure("adds", "MathTests", None)
@@ -721,7 +722,7 @@ fn omits_the_upload_line_without_a_bundle_upload_id() {
 #[test]
 fn groups_failures_by_file_then_suite_then_neither() {
     let mut result = upload_result(10);
-    result.quarantine_context.exit_code = 1;
+    result.quarantine_context.exit_code = ExitCode::Failure;
     result.quarantine_context.failures = vec![
         failure("parses_dates", "DateTests", Some("src/date.rs")),
         failure("adds", "MathTests", None),
@@ -773,7 +774,7 @@ fn groups_failures_by_file_then_suite_then_neither() {
 #[test]
 fn shows_three_failures_per_group() {
     let mut result = upload_result(5);
-    result.quarantine_context.exit_code = 1;
+    result.quarantine_context.exit_code = ExitCode::Failure;
     result.quarantine_context.failures = ["adds", "subtracts", "multiplies", "divides", "rounds"]
         .into_iter()
         .map(|name| failure(name, "MathTests", Some("src/math.rs")))
@@ -807,7 +808,7 @@ fn shows_three_failures_per_group() {
 #[test]
 fn warns_about_a_non_zero_exit_code_without_failures() {
     let mut result = upload_result(5);
-    result.quarantine_context.exit_code = 1;
+    result.quarantine_context.exit_code = ExitCode::Failure;
 
     assert_eq!(
         upload_summary(&result),
@@ -826,7 +827,7 @@ fn warns_about_a_non_zero_exit_code_without_failures() {
 #[test]
 fn upload_exits_with_the_exit_code_of_an_error_but_test_does_not() {
     let mut result = upload_result(3);
-    result.quarantine_context.exit_code = 1;
+    result.quarantine_context.exit_code = ExitCode::Failure;
     result.error_report = Some(ErrorReport::new(
         unauthorized_error(),
         String::from("test-org"),
@@ -835,18 +836,18 @@ fn upload_exits_with_the_exit_code_of_an_error_but_test_does_not() {
 
     assert_eq!(
         UploadReport::new(&result, UploadCommand::Upload).exit_code,
-        Some(70)
+        Some(ExitCode::Error)
     );
     assert_eq!(
         UploadReport::new(&result, UploadCommand::Test).exit_code,
-        Some(1)
+        Some(ExitCode::Failure)
     );
 }
 
 #[test]
 fn exits_with_the_test_run_exit_code_when_an_error_has_none() {
     let mut result = upload_result(3);
-    result.quarantine_context.exit_code = 1;
+    result.quarantine_context.exit_code = ExitCode::Failure;
     result.error_report = Some(ErrorReport::new(
         anyhow::anyhow!("HTTP status server error (500 Internal Server Error)"),
         String::from("test-org"),
@@ -855,11 +856,11 @@ fn exits_with_the_test_run_exit_code_when_an_error_has_none() {
 
     assert_eq!(
         UploadReport::new(&result, UploadCommand::Upload).exit_code,
-        Some(1)
+        Some(ExitCode::Failure)
     );
     assert_eq!(
         UploadReport::new(&result, UploadCommand::Test).exit_code,
-        Some(1)
+        Some(ExitCode::Failure)
     );
 }
 
@@ -890,7 +891,7 @@ fn writes_the_report_as_json() {
             Err(anyhow::anyhow!("unexpected end of file")),
         ),
     ]));
-    result.quarantine_context.exit_code = 1;
+    result.quarantine_context.exit_code = ExitCode::Failure;
     result.quarantine_context.fetch_status = QuarantineFetchStatus::FetchSucceeded;
     result
         .quarantine_context
