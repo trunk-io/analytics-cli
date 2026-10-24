@@ -1,8 +1,5 @@
 pub const ALLOW_LIST: &[&str] = &[r".*\.xml$", r".*\.junit$", r".*\.bin$"];
 
-pub const EXIT_SUCCESS: i32 = 0;
-pub const EXIT_FAILURE: i32 = 1;
-
 // NOTE: The order of these locations matters! Each provider looks at each of these locations in
 // order, to find the relevant `CODEOWNERS` file.
 //

@@ -3,6 +3,8 @@ use http::StatusCode;
 use schemars::JsonSchema;
 use serde::Serialize;
 
+use crate::exit_code::ExitCode;
+
 pub(crate) const HELP_TEXT: &str = "For more help, contact us at https://slack.trunk.io/";
 pub(crate) const CONNECTION_REFUSED_CONTEXT: &str = concat!("Unable to connect to trunk's server",);
 
@@ -40,7 +42,7 @@ impl InterruptingError {
 pub struct Context {
     pub base_message: Option<String>,
     pub org_url_slug: String,
-    pub exit_code: Option<i32>,
+    pub exit_code: Option<ExitCode>,
 }
 
 pub struct ErrorReport {
@@ -121,12 +123,12 @@ impl ErrorKind {
         }
     }
 
-    pub fn exit_code(self) -> Option<i32> {
+    /// `None` leaves the exit code to the rest of the run: `upload` uses quarantining's, and a run
+    /// that fails outright exits with `ExitCode::Success`, so that our errors fail open.
+    pub fn exit_code(self) -> Option<ExitCode> {
         match self {
             Self::ConnectionRefused | Self::Other => None,
-            Self::Unauthorized | Self::GitRepository | Self::Interrupted => {
-                Some(exitcode::SOFTWARE)
-            }
+            Self::Unauthorized | Self::GitRepository | Self::Interrupted => Some(ExitCode::Error),
         }
     }
 
