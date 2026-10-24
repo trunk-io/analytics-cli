@@ -52,6 +52,7 @@ quick-junit = "0.5.0"
 schemars = "1.2"
 serde = { version = "1.0.215", features = ["derive"] }
 serde_json = "1.0"
+strum = { version = "0.27", features = ["derive"] }
 clap-verbosity-flag = "3.0.2"
 proto = { path = "../proto" }
 regex = "1.11.1"
