@@ -3,6 +3,7 @@ use pretty_assertions::assert_eq;
 use superconsole::Line;
 use trunk_analytics_cli::{
     error_report::{ErrorReport, InterruptingError},
+    exit_code::ExitCode,
     report::{
         ErrorSummary,
         json::{self, Report},
@@ -152,7 +153,7 @@ fn prints_the_default_exit_code() {
         String::from("fake-org-slug"),
         None,
     );
-    report.context.exit_code = Some(exitcode::OK);
+    report.context.exit_code = Some(ExitCode::Success);
 
     assert_eq!(
         error_summary(&report),
@@ -173,7 +174,7 @@ fn prints_any_other_exit_code() {
         String::from("fake-org-slug"),
         None,
     );
-    report.context.exit_code = Some(exitcode::USAGE);
+    report.context.exit_code = Some(ExitCode::PassedThrough(64));
 
     assert_eq!(
         error_summary(&report),

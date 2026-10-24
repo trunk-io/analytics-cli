@@ -1,6 +1,5 @@
 use std::path::{Path, PathBuf};
 
-use constants::EXIT_SUCCESS;
 use display::end_output::EndOutput;
 use pluralizer::pluralize;
 use superconsole::{
@@ -14,6 +13,7 @@ use super::{
 };
 use crate::{
     error_report::{CONNECTION_REFUSED_CONTEXT, ErrorKind, HELP_TEXT, UNAUTHORIZED_CONTEXT},
+    exit_code::ExitCode,
     report_limiting::ValidationReport,
     upload_command::{UploadRunResult, get_bundle_upload_id_message},
     validate_command::ValidateRunResult,
@@ -141,9 +141,9 @@ pub fn render_error(error: &ErrorSummary) -> anyhow::Result<Vec<Line>> {
     lines.push(Line::from_iter([Span::new_unstyled(HELP_TEXT)?]));
     lines.push(Line::default());
     match error.exit_code {
-        Some(exitcode::OK) => lines.push(Line::from_iter([
+        Some(exit_code) if exit_code.is_success() => lines.push(Line::from_iter([
             Span::new_unstyled("No errors occurred, returning default exit code: ")?,
-            Span::new_styled(style(exitcode::OK.to_string()).attribute(Attribute::Bold))?,
+            Span::new_styled(style(exit_code.to_string()).attribute(Attribute::Bold))?,
         ])),
         Some(exit_code) => lines.push(Line::from_iter([
             Span::new_unstyled("Errors occurred during execution, returning exit code: ")?,
@@ -277,7 +277,7 @@ pub fn render_upload(report: &UploadReport, options: &TextOptions) -> anyhow::Re
             Span::new_unstyled(
                 "🎉 All test failures were quarantined, overriding exit code to be exit_success ",
             )?,
-            Span::new_styled(style(format!("({})", EXIT_SUCCESS)).attribute(Attribute::Bold))?,
+            Span::new_styled(style(format!("({})", ExitCode::Success)).attribute(Attribute::Bold))?,
         ])),
         Outcome::NoFailures => output.push(Line::from_iter([Span::new_unstyled(
             "🎉 No test failures found!",

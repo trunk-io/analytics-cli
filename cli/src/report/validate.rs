@@ -1,11 +1,13 @@
 use std::collections::HashSet;
 
-use constants::{EXIT_FAILURE, EXIT_SUCCESS};
 use context::junit::validator::JunitReportValidationFlatIssue;
 use serde::Serialize;
 
 use super::{FileValidation, Notice, ParseError};
-use crate::validate_command::{ParseIssues, TestIssues, ValidateRunResult};
+use crate::{
+    exit_code::ExitCode,
+    validate_command::{ParseIssues, TestIssues, ValidateRunResult},
+};
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -14,7 +16,7 @@ pub struct ValidateReport {
     pub validations: Vec<FileValidation>,
     pub codeowners: Option<Codeowners>,
     pub counts: ValidationCounts,
-    pub exit_code: i32,
+    pub exit_code: ExitCode,
     pub notices: Vec<Notice>,
 }
 
@@ -80,9 +82,9 @@ impl ValidateReport {
                     warnings: codeowners.warnings.clone(),
                 }),
             exit_code: if has_errors {
-                EXIT_FAILURE
+                ExitCode::Failure
             } else {
-                EXIT_SUCCESS
+                ExitCode::Success
             },
             notices,
         }

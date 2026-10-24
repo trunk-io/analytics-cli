@@ -18,6 +18,7 @@ use tracing_subscriber::{filter::FilterFn, prelude::*};
 use trunk_analytics_cli::{
     context::gather_debug_props,
     error_report::ErrorReport,
+    exit_code::ExitCode,
     report::{
         ErrorSummary, UploadCommand, UploadReport, ValidateReport,
         json::{self, Report},
@@ -32,6 +33,7 @@ use trunk_analytics_cli::{
 #[command(
     version = std::env!("CARGO_PKG_VERSION"),
     about = "Trunk Analytics CLI",
+    after_long_help = ExitCode::help(),
 )]
 struct Cli {
     #[command(subcommand)]
@@ -102,17 +104,20 @@ impl Cli {
 #[derive(Debug, Subcommand)]
 enum Commands {
     /// Run a test command and upload results to Trunk Flaky Tests. Automatically detects and reports flaky tests.
+    #[command(after_long_help = ExitCode::help())]
     Test(TestArgs),
     /// Upload test results to Trunk Flaky Tests. Use this when you've already run tests and have result files.
+    #[command(after_long_help = ExitCode::help())]
     Upload(UploadArgs),
     /// Validate test report files for compatibility with Trunk Flaky Tests. Runs locally without uploading data.
+    #[command(after_long_help = ExitCode::help())]
     Validate(ValidateArgs),
     /// Print the JSON Schema of the summary that `--summary-output-file` writes.
     SummaryOutputSchema,
 }
 
 fn close_out_and_exit(
-    exit_code: i32,
+    exit_code: ExitCode,
     guard: ClientInitGuard,
     render_sender: Sender<DisplayMessage>,
     render_handle: JoinHandle<()>,
@@ -120,7 +125,7 @@ fn close_out_and_exit(
     guard.flush(None);
     drop(render_sender);
     let _ = render_handle.join();
-    std::process::exit(exit_code)
+    std::process::exit(exit_code.code())
 }
 
 // "the Sentry client must be initialized before starting an async runtime or spawning threads"
@@ -218,7 +223,7 @@ fn main() -> anyhow::Result<()> {
                 }
                 MainOutcome::Finished(Ok(RunResult::SummaryOutputSchema)) => {
                     println!("{}", serde_json::to_string_pretty(&json::schema())?);
-                    close_out_and_exit(exitcode::OK, guard, render_sender, render_handle)
+                    close_out_and_exit(ExitCode::Success, guard, render_sender, render_handle)
                 }
                 MainOutcome::Finished(Err(error)) => {
                     let error = Arc::new(ErrorSummary::new(&ErrorReport::new(
@@ -226,7 +231,7 @@ fn main() -> anyhow::Result<()> {
                         org_url_slug,
                         None,
                     )));
-                    let exit_code = error.exit_code.unwrap_or(exitcode::OK);
+                    let exit_code = error.exit_code.unwrap_or(ExitCode::Success);
                     send_message(
                         DisplayMessage::Final(error.clone(), String::from("error display")),
                         &render_sender,
@@ -258,7 +263,7 @@ enum MainOutcome {
     /// The command ran to completion (successfully or with an error).
     Finished(anyhow::Result<RunResult>),
     /// A termination signal was received first; the payload is the exit code to use.
-    Interrupted(i32),
+    Interrupted(ExitCode),
 }
 
 enum RunResult {

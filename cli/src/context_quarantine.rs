@@ -8,7 +8,6 @@ use bundle::{
     FileSet, FileSetBuilder, FileSetTestRunnerReport, FileSetType, QuarantineBulkTestStatus, Test,
 };
 use chrono::TimeDelta;
-use constants::{EXIT_FAILURE, EXIT_SUCCESS};
 use context::{
     junit::{
         bindings::{
@@ -23,6 +22,7 @@ use pluralizer::pluralize;
 use prost::Message;
 use proto::upload_metrics::trunk::QuarantineQueryResult;
 
+use crate::exit_code::ExitCode;
 use crate::report::Quarantining;
 
 #[derive(Debug)]
@@ -34,7 +34,7 @@ pub enum QuarantineFetchStatus {
 
 #[derive(Debug)]
 pub struct QuarantineContext {
-    pub exit_code: i32,
+    pub exit_code: ExitCode,
     pub quarantine_status: QuarantineBulkTestStatus,
     pub failures: Vec<Test>,
     pub repo: RepoUrlParts,
@@ -59,7 +59,7 @@ impl QuarantineContext {
 
     pub fn skip_fetch(failures: Vec<Test>) -> Self {
         Self {
-            exit_code: i32::default(),
+            exit_code: ExitCode::Success,
             quarantine_status: QuarantineBulkTestStatus::default(),
             failures,
             repo: RepoUrlParts::default(),
@@ -71,7 +71,7 @@ impl QuarantineContext {
 
     pub fn fail_fetch(error: anyhow::Error) -> Self {
         Self {
-            exit_code: i32::default(),
+            exit_code: ExitCode::Success,
             quarantine_status: QuarantineBulkTestStatus::default(),
             failures: Vec::default(),
             repo: RepoUrlParts::default(),
@@ -294,11 +294,11 @@ impl FailedTestsExtractor {
         &self.failed_tests
     }
 
-    pub fn exit_code(&self) -> i32 {
+    pub fn exit_code(&self) -> ExitCode {
         if self.failed_tests.is_empty() {
-            EXIT_SUCCESS
+            ExitCode::Success
         } else {
-            EXIT_FAILURE
+            ExitCode::Failure
         }
     }
 }
@@ -308,7 +308,7 @@ pub async fn gather_quarantine_context(
     request: &api::message::GetQuarantineConfigRequest,
     file_set_builder: &FileSetBuilder,
     failed_tests_extractor: Option<FailedTestsExtractor>,
-    test_run_exit_code: Option<i32>,
+    test_run_exit_code: Option<ExitCode>,
     variant: &String,
     hide_test_collection_links: bool,
 ) -> anyhow::Result<QuarantineContext> {
@@ -321,7 +321,7 @@ pub async fn gather_quarantine_context(
         )
     });
 
-    let mut exit_code = test_run_exit_code.unwrap_or(EXIT_SUCCESS);
+    let mut exit_code = test_run_exit_code.unwrap_or(ExitCode::Success);
 
     if file_set_builder.no_files_found() {
         tracing::info!("No test output files found, not quarantining any tests.");
@@ -460,11 +460,11 @@ pub async fn gather_quarantine_context(
             exit_code
         );
         exit_code
-    } else if exit_code != EXIT_SUCCESS {
+    } else if !exit_code.is_success() {
         tracing::info!(
             "All test failures were quarantined, overriding exit code to be exit_success"
         );
-        EXIT_SUCCESS
+        ExitCode::Success
     } else {
         exit_code
     };
@@ -692,7 +692,7 @@ mod tests {
         use proto::upload_metrics::trunk::QuarantineQueryResult;
 
         let success_ctx = QuarantineContext {
-            exit_code: 0,
+            exit_code: ExitCode::Success,
             quarantine_status: QuarantineBulkTestStatus::default(),
             failures: vec![],
             repo: RepoUrlParts::default(),
@@ -724,7 +724,7 @@ mod tests {
                 ..Default::default()
             },
             fetch_status: QuarantineFetchStatus::FetchSucceeded,
-            exit_code: 0,
+            exit_code: ExitCode::Success,
             failures: vec![],
             repo: RepoUrlParts::default(),
             org_url_slug: String::new(),

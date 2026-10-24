@@ -38,7 +38,6 @@ const SINGLE_TEST_JUNIT_XML: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
     </testsuite>
 </testsuites>
 "#;
-use constants::EXIT_FAILURE;
 use context::{
     bazel_bep::{common::BepTestStatus, parser::BazelBepParser},
     junit::{junit_path::TestRunnerReportStatus, parser::JunitParser},
@@ -60,6 +59,7 @@ use test_utils::{
         SharedMockServerState,
     },
 };
+use trunk_analytics_cli::exit_code::ExitCode;
 use trunk_analytics_cli::upload_command::{DRY_RUN_OUTPUT_DIR, get_bundle_upload_id_message};
 
 // The mock JUnit generator adds a random number of reruns per test, so the number of
@@ -1646,13 +1646,13 @@ async fn upload_writes_an_error_to_summary_output_file() {
         .arg("--summary-output-file")
         .arg(&summary_path)
         .assert()
-        .code(exitcode::SOFTWARE);
+        .code(ExitCode::Error.code());
 
     let summary = read_summary_output_file(&summary_path);
     assert_eq!(summary["schemaVersion"], 1);
     assert_eq!(summary["type"], "ERROR");
     assert_eq!(summary["kind"], "GIT_REPOSITORY");
-    assert_eq!(summary["exitCode"], exitcode::SOFTWARE);
+    assert_eq!(summary["exitCode"], ExitCode::Error.code());
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -2808,7 +2808,7 @@ async fn uses_failure_exit_code_if_unquarantined_tests_fail() {
         .junit_paths("junit.xml")
         .command()
         .assert()
-        .code(predicate::eq(EXIT_FAILURE));
+        .code(predicate::eq(ExitCode::Failure.code()));
 
     // HINT: View CLI output with `cargo test -- --nocapture`
     println!("{assert}");
