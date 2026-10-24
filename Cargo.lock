@@ -5971,6 +5971,7 @@ dependencies = [
  "sentry-tracing",
  "serde",
  "serde_json",
+ "strum 0.27.2",
  "superconsole",
  "tempfile",
  "test_utils",
