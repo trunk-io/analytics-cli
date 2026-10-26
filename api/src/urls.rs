@@ -3,12 +3,13 @@ use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use bundle::Test;
 use chrono::DateTime;
 use context::{meta::id::gen_test_case_guid, repo::RepoUrlParts};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use url::{ParseError, Url, form_urlencoded};
 use uuid::Uuid;
 
-/// The server-resolved half of the test-case GUID tuple, from `CreateBundleUploadResponse`.
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// The server-resolved half of the test-case GUID tuple: from `CreateBundleUploadResponse` on
+/// v1, and from `quarantine-status` on v2.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TestCaseGuidScope {
     pub test_collection_id: String,
     pub repo_id: String,
@@ -45,11 +46,17 @@ pub fn url_for_test_case(
 }
 
 fn test_case_guid(ids: &TestCaseGuidScope, test_case: &Test) -> Option<Uuid> {
-    Some(gen_test_case_guid(
-        Uuid::parse_str(&ids.test_collection_id).ok()?,
-        Uuid::parse_str(&ids.repo_id).ok()?,
-        Uuid::parse_str(&test_case.id).ok()?,
-    ))
+    ids.test_case_guid(&test_case.id)
+}
+
+impl TestCaseGuidScope {
+    pub fn test_case_guid(&self, test_case_id: &str) -> Option<Uuid> {
+        Some(gen_test_case_guid(
+            Uuid::parse_str(&self.test_collection_id).ok()?,
+            Uuid::parse_str(&self.repo_id).ok()?,
+            Uuid::parse_str(test_case_id).ok()?,
+        ))
+    }
 }
 
 /// Serialized to match trunk2's `encodeBundleMetaKey` byte for byte — hence the field order

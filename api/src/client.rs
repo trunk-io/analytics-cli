@@ -1,7 +1,10 @@
+use std::collections::HashSet;
 use std::fmt;
 use std::path::Path;
+use std::sync::Mutex;
 use std::sync::mpsc::Sender;
 
+use base64::{Engine as _, engine::general_purpose::STANDARD};
 use constants::{DEFAULT_ORIGIN, TRUNK_PUBLIC_API_ADDRESS_ENV};
 use display::message::DisplayMessage;
 use http::{HeaderValue, header::HeaderMap};
@@ -10,7 +13,8 @@ use serde::de::DeserializeOwned;
 use tokio::fs;
 
 use crate::call_api::CallApi;
-use crate::message;
+use crate::message::{self, UploadApiVersion};
+use crate::urls::TestCaseGuidScope;
 
 #[derive(Debug)]
 pub enum ApiErrorEndpoint {
@@ -49,10 +53,15 @@ pub struct ApiClient {
     pub telemetry_host: String,
     s3_client: Client,
     trunk_api_client: Client,
+    /// Only a client holding an API token can call v2, which takes it as a bearer credential.
+    trunk_api_v2_client: Option<Client>,
     telemetry_client: Client,
     version_path_prefix: String,
     org_url_slug: String,
     render_sender: Option<Sender<DisplayMessage>>,
+    upload_api_version: UploadApiVersion,
+    // The v2 upload create does not return the collection's UUID, which the test links hash.
+    test_collection_uuid: Mutex<Option<String>>,
 }
 
 pub fn get_api_host() -> String {
@@ -64,6 +73,10 @@ pub fn get_api_host() -> String {
 
 impl ApiClient {
     const TRUNK_API_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
+    // A slow answer must never hold up a customer's CI run for longer than this.
+    const UPLOAD_API_VERSION_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(2);
+    const QUARANTINE_STATUS_MAX_IDENTIFIERS: usize = 2_000;
+    const ALL_QUARANTINED_TESTS_PAGE_SIZE: usize = 25_000;
     // This should always be fast
     const TRUNK_TELEMETRY_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(1);
     const TRUNK_API_TOKEN_HEADER: &'static str = "x-api-token";
@@ -148,6 +161,27 @@ impl ApiClient {
             .default_headers(trunk_api_client_default_headers)
             .build()?;
 
+        let trunk_api_v2_client = api_token
+            .as_deref()
+            .map(|token| {
+                let mut headers = HeaderMap::new();
+                headers.append(
+                    header::CONTENT_TYPE,
+                    HeaderValue::from_static("application/json"),
+                );
+                headers.append(
+                    header::AUTHORIZATION,
+                    HeaderValue::from_str(&format!("Bearer {token}"))
+                        .map_err(|_| anyhow::Error::msg("Trunk API token is not ASCII"))?,
+                );
+                Client::builder()
+                    .timeout(Self::TRUNK_API_TIMEOUT)
+                    .default_headers(headers)
+                    .build()
+                    .map_err(anyhow::Error::from)
+            })
+            .transpose()?;
+
         let mut telemetry_client_default_headers = HeaderMap::new();
         telemetry_client_default_headers.append(
             header::CONTENT_TYPE,
@@ -184,17 +218,103 @@ impl ApiClient {
             api_host,
             s3_client,
             trunk_api_client,
+            trunk_api_v2_client,
             telemetry_client,
             version_path_prefix,
             org_url_slug,
             render_sender,
+            upload_api_version: UploadApiVersion::V1,
+            test_collection_uuid: Mutex::new(None),
         })
+    }
+
+    pub fn upload_api_version(&self) -> UploadApiVersion {
+        self.upload_api_version
+    }
+
+    /// Which API the run's quarantine lookup and upload use. Every later call follows it.
+    pub fn set_upload_api_version(&mut self, upload_api_version: UploadApiVersion) {
+        self.upload_api_version = upload_api_version;
+    }
+
+    /// Asks Trunk whether this run uses v2. Anything but an explicit `v2`, a failed call
+    /// included, is v1, so this never fails a run and never retries.
+    pub async fn get_upload_api_version(
+        &self,
+        request: &message::GetUploadApiVersionRequest,
+    ) -> UploadApiVersion {
+        let upload_api_version = if self.trunk_api_v2_client.is_none()
+            || request
+                .test_collection_short_id
+                .as_deref()
+                .is_none_or(str::is_empty)
+        {
+            UploadApiVersion::V1
+        } else {
+            match self.request_upload_api_version(request).await {
+                Ok(response) if response.api_version == "v2" => UploadApiVersion::V2,
+                Ok(_) => UploadApiVersion::V1,
+                Err(error) => {
+                    tracing::debug!("Could not choose the Trunk API version, using v1: {error:?}");
+                    UploadApiVersion::V1
+                }
+            }
+        };
+        tracing::info!("Using Trunk API {}", upload_api_version.as_str());
+        upload_api_version
+    }
+
+    async fn request_upload_api_version(
+        &self,
+        request: &message::GetUploadApiVersionRequest,
+    ) -> anyhow::Result<message::GetUploadApiVersionResponse> {
+        Ok(self
+            .trunk_api_client
+            .post(format!(
+                "{}{}/metrics/getUploadApiVersion",
+                self.api_host, self.version_path_prefix
+            ))
+            .timeout(Self::UPLOAD_API_VERSION_TIMEOUT)
+            .json(request)
+            .send()
+            .await?
+            .error_for_status()?
+            .json::<message::GetUploadApiVersionResponse>()
+            .await?)
+    }
+
+    fn v2_client(&self) -> anyhow::Result<&Client> {
+        self.trunk_api_v2_client
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("The Trunk API v2 needs a Trunk API token."))
+    }
+
+    fn v2_test_collection_url(
+        &self,
+        test_collection_short_id: Option<&str>,
+        route: &str,
+    ) -> anyhow::Result<url::Url> {
+        let short_id = test_collection_short_id
+            .filter(|id| !id.is_empty())
+            .ok_or_else(|| anyhow::anyhow!("The Trunk API v2 needs a test collection id."))?;
+        let mut url = url::Url::parse(&self.api_host)?;
+        url.path_segments_mut()
+            .map_err(|_| anyhow::anyhow!("Invalid Trunk API address: {}", self.api_host))?
+            .pop_if_empty()
+            .extend(["v2", "test-collections", short_id, route]);
+        Ok(url)
     }
 
     pub async fn create_bundle_upload(
         &self,
         request: &message::CreateBundleUploadRequest,
     ) -> anyhow::Result<message::CreateBundleUploadResponse> {
+        if self.upload_api_version == UploadApiVersion::V2 {
+            return self
+                .create_test_upload(request)
+                .await
+                .map_err(|e| e.context(ApiErrorEndpoint::CreateBundleUpload));
+        }
         CallApi {
             action: || async {
                 let response = self
@@ -235,6 +355,12 @@ impl ApiClient {
         &self,
         request: &message::GetQuarantineConfigRequest,
     ) -> anyhow::Result<message::GetQuarantineConfigResponse> {
+        if self.upload_api_version == UploadApiVersion::V2 {
+            return self
+                .get_quarantine_status(request)
+                .await
+                .map_err(|e| e.context(ApiErrorEndpoint::GetQuarantiningConfig));
+        }
         CallApi {
             action: || async {
                 let response = self
@@ -275,6 +401,237 @@ impl ApiClient {
         .call_api()
         .await
         .map_err(|e| e.context(ApiErrorEndpoint::GetQuarantiningConfig))
+    }
+
+    async fn create_test_upload(
+        &self,
+        request: &message::CreateBundleUploadRequest,
+    ) -> anyhow::Result<message::CreateBundleUploadResponse> {
+        let client = self.v2_client()?;
+        let url =
+            self.v2_test_collection_url(request.test_collection_short_id.as_deref(), "uploads")?;
+        let body = message::CreateTestUploadRequest {
+            repo: request.repo.clone(),
+            remote_urls: request.remote_urls.clone(),
+            client_version: request.client_version.clone(),
+            external_id: request.external_id.clone(),
+        };
+        let upload = CallApi {
+            action: || async {
+                let response = client.post(url.clone()).json(&body).send().await?;
+                let response = status_code_help(
+                    response,
+                    StatusCodeHelp {
+                        check_unauthorized: CheckUnauthorized::Check,
+                        check_not_found: CheckNotFound::DoNotCheck,
+                        create_error_message: |response| {
+                            if response.status() == StatusCode::NOT_FOUND {
+                                String::from("Test collection not found.")
+                            } else {
+                                String::from("Failed to create bundle upload.")
+                            }
+                        },
+                        api_host: &self.api_host,
+                        org_url_slug: &self.org_url_slug,
+                    },
+                )
+                .await?;
+                self.deserialize_response::<message::CreatedTestUpload>(response).await
+            },
+            log_progress_message: |time_elapsed, _| {
+                format!("Reporting bundle upload initiation to Trunk services is taking longer than expected. It has taken {} seconds so far.", time_elapsed.as_secs())
+            },
+            report_slow_progress_message: |time_elapsed| {
+                format!("Creating a Trunk upload intent is taking longer than {} seconds", time_elapsed.as_secs())
+            },
+            render_sender: self.render_sender.clone(),
+        }
+        .call_api()
+        .await?;
+
+        let id_v2 = STANDARD.encode(serde_json::to_vec(&message::BundleUploadIdV2 {
+            id: &upload.id,
+            created_at: &upload.created_at,
+            repo_id: &upload.repository_id,
+        })?);
+        let test_collection_id = self
+            .test_collection_uuid
+            .lock()
+            .ok()
+            .and_then(|uuid| uuid.clone());
+        Ok(message::CreateBundleUploadResponse {
+            id: upload.id.clone(),
+            id_v2,
+            url: upload.upload_url,
+            key: String::new(),
+            test_collection_bundle_meta_id: Some(upload.id),
+            test_collection_bundle_meta_created_at: Some(upload.created_at),
+            repo_id: Some(upload.repository_id),
+            test_collection_id,
+        })
+    }
+
+    async fn get_quarantine_status(
+        &self,
+        request: &message::GetQuarantineConfigRequest,
+    ) -> anyhow::Result<message::GetQuarantineConfigResponse> {
+        let identifiers: Vec<message::QuarantineStatusIdentifier> = request
+            .test_identifiers
+            .iter()
+            .map(message::QuarantineStatusIdentifier::from)
+            .collect();
+        let mut batches: Vec<&[message::QuarantineStatusIdentifier]> = identifiers
+            .chunks(Self::QUARANTINE_STATUS_MAX_IDENTIFIERS)
+            .collect();
+        if batches.is_empty() {
+            batches.push(&[]);
+        }
+
+        let mut status: Option<message::QuarantineStatus> = None;
+        let mut quarantined_tests = Vec::new();
+        for batch in batches {
+            let batch_status = self.post_quarantine_status(request, batch).await?;
+            quarantined_tests.extend(
+                batch_status
+                    .tests
+                    .iter()
+                    .filter(|test| test.quarantined)
+                    .filter_map(|test| test.client_test_id.clone()),
+            );
+            status = Some(batch_status);
+        }
+        let status = status.ok_or_else(|| anyhow::anyhow!("No quarantine status returned."))?;
+
+        if let Ok(mut uuid) = self.test_collection_uuid.lock() {
+            *uuid = Some(status.test_collection_uuid.clone());
+        }
+        let quarantined_test_case_guids = if identifiers.is_empty() && status.quarantine_enabled {
+            Some(
+                self.get_all_quarantined_tests(
+                    request.test_collection_short_id.as_deref(),
+                    &status.repository_id,
+                )
+                .await?,
+            )
+        } else {
+            None
+        };
+
+        Ok(message::GetQuarantineConfigResponse {
+            is_disabled: !status.quarantine_enabled,
+            quarantined_tests,
+            quarantine_resolution_mode: message::QuarantineResolutionMode::TestCollection,
+            test_case_guid_scope: Some(TestCaseGuidScope {
+                test_collection_id: status.test_collection_uuid,
+                repo_id: status.repository_id,
+            }),
+            quarantined_test_case_guids,
+        })
+    }
+
+    async fn post_quarantine_status(
+        &self,
+        request: &message::GetQuarantineConfigRequest,
+        identifiers: &[message::QuarantineStatusIdentifier],
+    ) -> anyhow::Result<message::QuarantineStatus> {
+        let client = self.v2_client()?;
+        let url = self.v2_test_collection_url(
+            request.test_collection_short_id.as_deref(),
+            "quarantine-status",
+        )?;
+        let body = message::QuarantineStatusRequest {
+            repo: request.repo.clone(),
+            test_identifiers: identifiers.to_vec(),
+        };
+        CallApi {
+            action: || async {
+                let response = client.post(url.clone()).json(&body).send().await?;
+                let response = status_code_help(
+                    response,
+                    StatusCodeHelp {
+                        check_unauthorized: CheckUnauthorized::Check,
+                        check_not_found: CheckNotFound::DoNotCheck,
+                        create_error_message: |response| {
+                            if response.status() == StatusCode::NOT_FOUND {
+                                String::from("Test collection not found.")
+                            } else {
+                                String::from("Failed to get quarantine status.")
+                            }
+                        },
+                        api_host: &self.api_host,
+                        org_url_slug: &self.org_url_slug,
+                    },
+                )
+                .await?;
+                self.deserialize_response::<message::QuarantineStatus>(response).await
+            },
+            log_progress_message: |time_elapsed, _| {
+                format!("Getting quarantine status from Trunk services is taking longer than expected. It has taken {} seconds so far.", time_elapsed.as_secs())
+            },
+            report_slow_progress_message: |time_elapsed| {
+                format!("Getting a Trunk quarantine status is taking longer than {} seconds", time_elapsed.as_secs())
+            },
+            render_sender: self.render_sender.clone(),
+        }
+        .call_api()
+        .await
+    }
+
+    async fn get_all_quarantined_tests(
+        &self,
+        test_collection_short_id: Option<&str>,
+        repository_id: &str,
+    ) -> anyhow::Result<HashSet<String>> {
+        let client = self.v2_client()?;
+        let base_url =
+            self.v2_test_collection_url(test_collection_short_id, "all-quarantined-tests")?;
+        let mut test_ids = HashSet::new();
+        let mut cursor: Option<String> = None;
+        loop {
+            let mut url = base_url.clone();
+            {
+                let mut query = url.query_pairs_mut();
+                query
+                    .append_pair("repositoryId", repository_id)
+                    .append_pair("limit", &Self::ALL_QUARANTINED_TESTS_PAGE_SIZE.to_string());
+                if let Some(cursor) = cursor.as_deref() {
+                    query.append_pair("cursor", cursor);
+                }
+            }
+            let page = CallApi {
+                action: || async {
+                    let response = client.get(url.clone()).send().await?;
+                    let response = status_code_help(
+                        response,
+                        StatusCodeHelp {
+                            check_unauthorized: CheckUnauthorized::Check,
+                            check_not_found: CheckNotFound::DoNotCheck,
+                            create_error_message: |_| {
+                                String::from("Failed to get quarantined tests.")
+                            },
+                            api_host: &self.api_host,
+                            org_url_slug: &self.org_url_slug,
+                        },
+                    )
+                    .await?;
+                    self.deserialize_response::<message::QuarantinedTestList>(response).await
+                },
+                log_progress_message: |time_elapsed, _| {
+                    format!("Getting quarantined tests from Trunk services is taking longer than expected. It has taken {} seconds so far.", time_elapsed.as_secs())
+                },
+                report_slow_progress_message: |time_elapsed| {
+                    format!("Getting Trunk quarantined tests is taking longer than {} seconds", time_elapsed.as_secs())
+                },
+                render_sender: self.render_sender.clone(),
+            }
+            .call_api()
+            .await?;
+            test_ids.extend(page.data.into_iter().map(|test| test.test_id));
+            match page.next_cursor {
+                Some(next) => cursor = Some(next),
+                None => return Ok(test_ids),
+            }
+        }
     }
 
     pub async fn put_bundle_to_s3<U: AsRef<str>, B: AsRef<Path>>(
@@ -902,5 +1259,527 @@ mod tests {
     #[test]
     fn allow_forked_pr_uploads_satisfies_the_credential_requirement() {
         assert!(ApiClient::new(None, None, true, "mock-org", None).is_ok());
+    }
+}
+
+#[cfg(test)]
+mod v2_tests {
+    use std::{
+        collections::HashSet,
+        sync::{Arc, Mutex},
+        time::Duration,
+    };
+
+    use axum::{
+        Json, Router,
+        extract::{Query, State},
+        http::{HeaderMap, StatusCode, Uri},
+        response::IntoResponse,
+        routing::{get, post},
+    };
+    use base64::{Engine as _, engine::general_purpose::STANDARD};
+    use bundle::Test;
+    use serde_json::{Value, json};
+    use tokio::net::TcpListener;
+
+    use super::ApiClient;
+    use crate::message::{self, UploadApiCaller, UploadApiVersion};
+    use crate::urls::TestCaseGuidScope;
+
+    const SHORT_ID: &str = "aB3xY9kQ";
+    const COLLECTION_UUID: &str = "204b6c93-1c51-4e0f-a13c-e07b9bc60688";
+    const REPO_ID: &str = "7a1f0e3d-2b4c-4d5e-8f90-123456789abc";
+
+    #[derive(Default)]
+    struct Seen {
+        bodies: Vec<Value>,
+        uris: Vec<String>,
+        authorization: Vec<Option<String>>,
+    }
+
+    type Shared = Arc<Mutex<Seen>>;
+
+    fn record(seen: &Shared, headers: &HeaderMap, uri: &Uri, body: Option<Value>) {
+        let mut seen = seen.lock().unwrap();
+        seen.uris.push(uri.to_string());
+        seen.authorization.push(
+            headers
+                .get("authorization")
+                .and_then(|value| value.to_str().ok())
+                .map(String::from),
+        );
+        if let Some(body) = body {
+            seen.bodies.push(body);
+        }
+    }
+
+    async fn serve(router: Router<Shared>) -> (String, Shared) {
+        let listener = TcpListener::bind("localhost:0").await.unwrap();
+        let host = format!("http://localhost:{}", listener.local_addr().unwrap().port());
+        let seen = Shared::default();
+        let app = router.with_state(seen.clone());
+        tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        (host, seen)
+    }
+
+    fn client(host: &str, token: Option<&str>) -> ApiClient {
+        let mut client =
+            ApiClient::new(token.map(String::from), None, false, "acme", None).unwrap();
+        client.api_host = String::from(host);
+        client
+    }
+
+    fn repo() -> context::repo::RepoUrlParts {
+        context::repo::RepoUrlParts {
+            host: String::from("github.com"),
+            owner: String::from("acme"),
+            name: String::from("web"),
+        }
+    }
+
+    fn version_request(short_id: Option<&str>) -> message::GetUploadApiVersionRequest {
+        message::GetUploadApiVersionRequest {
+            cli_version: String::from("0.17.0"),
+            org_slug: String::from("acme"),
+            test_collection_short_id: short_id.map(String::from),
+            repo: Some(repo()),
+            ci_provider: Some(String::from("GitHubActions")),
+            is_fork_pr: false,
+            caller: UploadApiCaller::TestRunnerPlugin,
+        }
+    }
+
+    fn quarantine_request(test_identifiers: Vec<Test>) -> message::GetQuarantineConfigRequest {
+        message::GetQuarantineConfigRequest {
+            repo: repo(),
+            remote_urls: vec![String::from("https://github.com/acme/web.git")],
+            org_url_slug: String::from("acme"),
+            test_identifiers,
+            test_collection_short_id: Some(String::from(SHORT_ID)),
+        }
+    }
+
+    fn failure(index: usize) -> Test {
+        Test {
+            id: format!("00000000-0000-4000-8000-{index:012}"),
+            name: format!("test {index}"),
+            parent_name: String::from("Suite"),
+            class_name: Some(String::new()),
+            file: None,
+            timestamp_millis: None,
+            is_quarantined: false,
+            failure_message: None,
+            variant: None,
+        }
+    }
+
+    async fn decide(answer: (StatusCode, &'static str)) -> (UploadApiVersion, Shared) {
+        let router = Router::new().route(
+            "/v1/metrics/getUploadApiVersion",
+            post(
+                move |State(seen): State<Shared>,
+                      headers: HeaderMap,
+                      uri: Uri,
+                      Json(body): Json<Value>| async move {
+                    record(&seen, &headers, &uri, Some(body));
+                    answer
+                },
+            ),
+        );
+        let (host, seen) = serve(router).await;
+        let version = client(&host, Some("org-key"))
+            .get_upload_api_version(&version_request(Some(SHORT_ID)))
+            .await;
+        (version, seen)
+    }
+
+    #[tokio::test]
+    async fn sends_the_run_and_reads_an_explicit_v2() {
+        let (version, seen) = decide((StatusCode::OK, r#"{"apiVersion":"v2"}"#)).await;
+
+        assert_eq!(version, UploadApiVersion::V2);
+        assert_eq!(
+            seen.lock().unwrap().bodies,
+            vec![json!({
+                "cliVersion": "0.17.0",
+                "orgSlug": "acme",
+                "testCollectionShortId": SHORT_ID,
+                "repo": {"host": "github.com", "owner": "acme", "name": "web"},
+                "ciProvider": "GitHubActions",
+                "isForkPr": false,
+                "caller": "test-runner-plugin",
+            })]
+        );
+    }
+
+    #[tokio::test]
+    async fn reads_any_other_answer_as_v1() {
+        for answer in [
+            (StatusCode::OK, r#"{"apiVersion":"v1"}"#),
+            (StatusCode::OK, r#"{"apiVersion":"v3"}"#),
+            (StatusCode::OK, "not json"),
+            (StatusCode::UNAUTHORIZED, ""),
+            (StatusCode::INTERNAL_SERVER_ERROR, r#"{"apiVersion":"v2"}"#),
+        ] {
+            let (version, seen) = decide(answer).await;
+            assert_eq!(version, UploadApiVersion::V1, "{answer:?}");
+            assert_eq!(seen.lock().unwrap().bodies.len(), 1, "{answer:?}: no retry");
+        }
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn reads_a_slow_answer_as_v1() {
+        let router = Router::new().route(
+            "/v1/metrics/getUploadApiVersion",
+            post(|| async {
+                tokio::time::sleep(Duration::from_secs(3)).await;
+                Json(json!({"apiVersion": "v2"}))
+            }),
+        );
+        let (host, _) = serve(router).await;
+
+        let version = client(&host, Some("org-key"))
+            .get_upload_api_version(&version_request(Some(SHORT_ID)))
+            .await;
+
+        assert_eq!(version, UploadApiVersion::V1);
+    }
+
+    #[tokio::test]
+    async fn does_not_ask_without_a_token_or_a_collection() {
+        let router = Router::new().route(
+            "/v1/metrics/getUploadApiVersion",
+            post(
+                |State(seen): State<Shared>, headers: HeaderMap, uri: Uri| async move {
+                    record(&seen, &headers, &uri, None);
+                    Json(json!({"apiVersion": "v2"}))
+                },
+            ),
+        );
+        let (host, seen) = serve(router).await;
+
+        let mut public_repo_client =
+            ApiClient::new(None, Some(String::from("public-id")), false, "acme", None).unwrap();
+        public_repo_client.api_host.clone_from(&host);
+        assert_eq!(
+            public_repo_client
+                .get_upload_api_version(&version_request(Some(SHORT_ID)))
+                .await,
+            UploadApiVersion::V1
+        );
+        for short_id in [None, Some("")] {
+            assert_eq!(
+                client(&host, Some("org-key"))
+                    .get_upload_api_version(&version_request(short_id))
+                    .await,
+                UploadApiVersion::V1
+            );
+        }
+        assert!(seen.lock().unwrap().uris.is_empty());
+    }
+
+    #[tokio::test]
+    async fn creates_a_v2_upload() {
+        let router = Router::new().route(
+            "/v2/test-collections/:id/uploads",
+            post(
+                |State(seen): State<Shared>,
+                 headers: HeaderMap,
+                 uri: Uri,
+                 Json(body): Json<Value>| async move {
+                    record(&seen, &headers, &uri, Some(body));
+                    (
+                        StatusCode::CREATED,
+                        Json(json!({
+                            "id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+                            "status": "awaitingData",
+                            "uploadUrl": "https://bundles.example/key?sig=1",
+                            "expiresAt": "2026-10-06T17:00:00.000Z",
+                            "repositoryId": REPO_ID,
+                            "createdAt": "2026-10-06T16:00:00.000Z",
+                        })),
+                    )
+                },
+            ),
+        );
+        let (host, seen) = serve(router).await;
+        let mut client = client(&host, Some("org-key"));
+        client.set_upload_api_version(UploadApiVersion::V2);
+
+        let upload = client
+            .create_bundle_upload(&message::CreateBundleUploadRequest {
+                repo: repo(),
+                org_url_slug: String::from("acme"),
+                client_version: String::from("trunk-analytics-cli 0.17.0"),
+                remote_urls: vec![String::from("https://github.com/acme/web.git")],
+                external_id: None,
+                test_collection_short_id: Some(String::from(SHORT_ID)),
+            })
+            .await
+            .unwrap();
+
+        let id_v2: Value =
+            serde_json::from_slice(&STANDARD.decode(&upload.id_v2).unwrap()).unwrap();
+        assert_eq!(
+            (
+                upload.id.as_str(),
+                id_v2,
+                upload.url.as_str(),
+                upload.test_collection_bundle_meta_id.as_deref(),
+                upload.test_collection_bundle_meta_created_at.as_deref(),
+                upload.repo_id.as_deref(),
+                upload.test_collection_id.as_deref(),
+            ),
+            (
+                "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+                json!({
+                    "id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+                    "createdAt": "2026-10-06T16:00:00.000Z",
+                    "repoId": REPO_ID,
+                }),
+                "https://bundles.example/key?sig=1",
+                Some("f47ac10b-58cc-4372-a567-0e02b2c3d479"),
+                Some("2026-10-06T16:00:00.000Z"),
+                Some(REPO_ID),
+                None,
+            )
+        );
+        let seen = seen.lock().unwrap();
+        assert_eq!(
+            seen.uris,
+            vec![format!("/v2/test-collections/{SHORT_ID}/uploads")]
+        );
+        assert_eq!(
+            seen.authorization,
+            vec![Some(String::from("Bearer org-key"))]
+        );
+        assert_eq!(
+            seen.bodies,
+            vec![json!({
+                "repo": {"host": "github.com", "owner": "acme", "name": "web"},
+                "remoteUrls": ["https://github.com/acme/web.git"],
+                "clientVersion": "trunk-analytics-cli 0.17.0",
+            })]
+        );
+    }
+
+    fn quarantine_status_router(quarantine_enabled: bool) -> Router<Shared> {
+        Router::new()
+            .route(
+                "/v2/test-collections/:id/quarantine-status",
+                post(
+                    move |State(seen): State<Shared>, headers: HeaderMap, uri: Uri, Json(body): Json<Value>| async move {
+                        let tests: Vec<Value> = body["testIdentifiers"]
+                            .as_array()
+                            .unwrap()
+                            .iter()
+                            .map(|identifier| {
+                                json!({
+                                    "clientTestId": identifier["id"],
+                                    "testId": null,
+                                    "quarantined": identifier["name"] != "test 0",
+                                })
+                            })
+                            .collect();
+                        record(&seen, &headers, &uri, Some(body));
+                        Json(json!({
+                            "testCollectionUuid": COLLECTION_UUID,
+                            "repositoryId": REPO_ID,
+                            "quarantineEnabled": quarantine_enabled,
+                            "tests": tests,
+                        }))
+                    },
+                ),
+            )
+            .route(
+                "/v2/test-collections/:id/all-quarantined-tests",
+                get(
+                    |State(seen): State<Shared>, headers: HeaderMap, uri: Uri, Query(query): Query<std::collections::HashMap<String, String>>| async move {
+                        record(&seen, &headers, &uri, None);
+                        let page = match query.get("cursor").map(String::as_str) {
+                            None => json!({
+                                "data": [{"testId": "bfeebcf4-72d1-887d-8bcd-788d0dec7f97"}],
+                                "nextCursor": "page-2",
+                                "hasMore": true,
+                            }),
+                            Some("page-2") => json!({
+                                "data": [{"testId": "0f7f61f2-0000-8000-8000-000000000000"}],
+                                "nextCursor": null,
+                                "hasMore": false,
+                            }),
+                            Some(_) => return StatusCode::BAD_REQUEST.into_response(),
+                        };
+                        Json(page).into_response()
+                    },
+                ),
+            )
+    }
+
+    fn scope() -> Option<TestCaseGuidScope> {
+        Some(TestCaseGuidScope {
+            test_collection_id: String::from(COLLECTION_UUID),
+            repo_id: String::from(REPO_ID),
+        })
+    }
+
+    #[tokio::test]
+    async fn looks_up_failures_in_batches_of_2000() {
+        let (host, seen) = serve(quarantine_status_router(true)).await;
+        let mut client = client(&host, Some("org-key"));
+        client.set_upload_api_version(UploadApiVersion::V2);
+        let failures: Vec<Test> = (0..2001).map(failure).collect();
+
+        let config = client
+            .get_quarantining_config(&quarantine_request(failures.clone()))
+            .await
+            .unwrap();
+
+        assert_eq!(
+            (
+                config.is_disabled,
+                config.quarantined_tests,
+                config.quarantine_resolution_mode,
+                config.test_case_guid_scope,
+                config.quarantined_test_case_guids,
+            ),
+            (
+                false,
+                failures[1..]
+                    .iter()
+                    .map(|test| test.id.clone())
+                    .collect::<Vec<_>>(),
+                message::QuarantineResolutionMode::TestCollection,
+                scope(),
+                None,
+            )
+        );
+        let seen = seen.lock().unwrap();
+        assert_eq!(
+            seen.bodies
+                .iter()
+                .map(|body| body["testIdentifiers"].as_array().unwrap().len())
+                .collect::<Vec<_>>(),
+            vec![2000, 1]
+        );
+        assert_eq!(
+            seen.bodies[1],
+            json!({
+                "repo": {"host": "github.com", "owner": "acme", "name": "web"},
+                "testIdentifiers": [{
+                    "id": failures[2000].id,
+                    "name": "test 2000",
+                    "parentName": "Suite",
+                }],
+            })
+        );
+        assert_eq!(
+            seen.authorization,
+            vec![Some(String::from("Bearer org-key")); 2]
+        );
+        // The upload, created after the lookup, can then mint GUID links.
+        drop(seen);
+        assert_eq!(
+            client.test_collection_uuid.lock().unwrap().as_deref(),
+            Some(COLLECTION_UUID)
+        );
+    }
+
+    #[tokio::test]
+    async fn pages_the_whole_quarantined_set_for_a_lookup_with_no_identifiers() {
+        let (host, seen) = serve(quarantine_status_router(true)).await;
+        let mut client = client(&host, Some("org-key"));
+        client.set_upload_api_version(UploadApiVersion::V2);
+
+        let config = client
+            .get_quarantining_config(&quarantine_request(vec![]))
+            .await
+            .unwrap();
+
+        assert_eq!(
+            (
+                config.is_disabled,
+                config.quarantined_tests,
+                config.test_case_guid_scope,
+                config.quarantined_test_case_guids
+            ),
+            (
+                false,
+                Vec::<String>::new(),
+                scope(),
+                Some(HashSet::from([
+                    String::from("bfeebcf4-72d1-887d-8bcd-788d0dec7f97"),
+                    String::from("0f7f61f2-0000-8000-8000-000000000000"),
+                ])),
+            )
+        );
+        assert_eq!(
+            seen.lock().unwrap().uris,
+            vec![
+                format!("/v2/test-collections/{SHORT_ID}/quarantine-status"),
+                format!(
+                    "/v2/test-collections/{SHORT_ID}/all-quarantined-tests?repositoryId={REPO_ID}&limit=25000"
+                ),
+                format!(
+                    "/v2/test-collections/{SHORT_ID}/all-quarantined-tests?repositoryId={REPO_ID}&limit=25000&cursor=page-2"
+                ),
+            ]
+        );
+    }
+
+    #[tokio::test]
+    async fn does_not_page_the_set_when_quarantining_is_off() {
+        let (host, seen) = serve(quarantine_status_router(false)).await;
+        let mut client = client(&host, Some("org-key"));
+        client.set_upload_api_version(UploadApiVersion::V2);
+
+        let config = client
+            .get_quarantining_config(&quarantine_request(vec![]))
+            .await
+            .unwrap();
+
+        assert_eq!(
+            (config.is_disabled, config.quarantined_test_case_guids),
+            (true, None)
+        );
+        assert_eq!(
+            seen.lock().unwrap().uris,
+            vec![format!("/v2/test-collections/{SHORT_ID}/quarantine-status")]
+        );
+    }
+
+    #[tokio::test]
+    async fn reports_a_failed_v2_lookup_without_falling_back_to_v1() {
+        let router = Router::new()
+            .route(
+                "/v2/test-collections/:id/quarantine-status",
+                post(|State(seen): State<Shared>, headers: HeaderMap, uri: Uri| async move {
+                    record(&seen, &headers, &uri, None);
+                    (
+                        StatusCode::NOT_FOUND,
+                        r#"{"error":{"code":"NOT_FOUND","message":"Test collection not found."}}"#,
+                    )
+                }),
+            )
+            .route(
+                "/v1/metrics/getQuarantineConfig",
+                post(|State(seen): State<Shared>, headers: HeaderMap, uri: Uri| async move {
+                    record(&seen, &headers, &uri, None);
+                    Json(json!({"isDisabled": false, "testIds": []}))
+                }),
+            );
+        let (host, seen) = serve(router).await;
+        let mut client = client(&host, Some("org-key"));
+        client.set_upload_api_version(UploadApiVersion::V2);
+
+        let error = client
+            .get_quarantining_config(&quarantine_request(vec![failure(0)]))
+            .await
+            .unwrap_err();
+
+        assert!(format!("{error:?}").contains("404 Not Found"), "{error:?}");
+        assert_eq!(
+            seen.lock().unwrap().uris,
+            vec![format!("/v2/test-collections/{SHORT_ID}/quarantine-status")]
+        );
     }
 }

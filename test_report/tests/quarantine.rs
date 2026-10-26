@@ -678,3 +678,118 @@ async fn quarantine_lookup_failed_when_endpoint_fails() {
     );
     assert!(!bool::from(result), "Test should not be quarantined");
 }
+
+#[tokio::test(flavor = "multi_thread")]
+#[serial]
+async fn v2_matches_a_test_by_its_computed_test_id() {
+    use axum::routing::{get, post};
+    use context::meta::id::gen_test_case_guid;
+    use serde_json::json;
+    use uuid::Uuid;
+
+    const SHORT_ID: &str = "aB3xY9kQ";
+    const COLLECTION_UUID: &str = "204b6c93-1c51-4e0f-a13c-e07b9bc60688";
+    const REPO_ID: &str = "7a1f0e3d-2b4c-4d5e-8f90-123456789abc";
+
+    cleanup_env_vars();
+    let temp_dir = tempdir().unwrap();
+    setup_quarantine_disk_cache_dir(&temp_dir);
+    let _ = env::set_current_dir(&temp_dir);
+
+    let repo = RepoUrlParts {
+        host: "github.com".into(),
+        owner: "test-org".into(),
+        name: "test-repo".into(),
+    };
+    let test_id = |name: &str| {
+        Test::new(
+            None::<String>,
+            name.to_string(),
+            "test-parent-name".to_string(),
+            Some("TestClass".to_string()),
+            Some("test_file.rs".to_string()),
+            "test-org".to_string(),
+            &repo,
+            None,
+            "".to_string(),
+        )
+        .id
+    };
+    let quarantined_guid = gen_test_case_guid(
+        Uuid::parse_str(COLLECTION_UUID).unwrap(),
+        Uuid::parse_str(REPO_ID).unwrap(),
+        Uuid::parse_str(&test_id("quarantined")).unwrap(),
+    )
+    .to_string();
+
+    let state = {
+        let mut builder = MockServerBuilder::new();
+        builder.set_get_quarantining_config_handler(|| async {
+            (StatusCode::INTERNAL_SERVER_ERROR, "v1 must not be called")
+        });
+        builder.route(
+            "/v1/metrics/getUploadApiVersion",
+            post(|| async { Json(json!({"apiVersion": "v2"})) }),
+        );
+        builder.route(
+            "/v2/test-collections/:id/quarantine-status",
+            post(|| async {
+                Json(json!({
+                    "testCollectionUuid": COLLECTION_UUID,
+                    "repositoryId": REPO_ID,
+                    "quarantineEnabled": true,
+                    "tests": [],
+                }))
+            }),
+        );
+        builder.route(
+            "/v2/test-collections/:id/all-quarantined-tests",
+            get(move || async move {
+                Json(json!({
+                    "data": [{"testId": quarantined_guid}],
+                    "nextCursor": null,
+                    "hasMore": false,
+                }))
+            }),
+        );
+        builder.spawn_mock_server().await
+    };
+
+    unsafe {
+        env::set_var(TRUNK_PUBLIC_API_ADDRESS_ENV, &state.host);
+        env::set_var(TRUNK_API_TOKEN_ENV, "test-token");
+        env::set_var(TRUNK_ORG_URL_SLUG_ENV, "test-org");
+        env::set_var(
+            TRUNK_REPO_URL_ENV,
+            "https://github.com/test-org/test-repo.git",
+        );
+        env::set_var(TRUNK_USE_UNCLONED_REPO_ENV, "true");
+        env::set_var(TRUNK_REPO_HEAD_SHA_ENV, "");
+        env::set_var(TRUNK_REPO_HEAD_BRANCH_ENV, "");
+        env::set_var(TRUNK_REPO_HEAD_AUTHOR_NAME_ENV, "");
+        env::set_var(TRUNK_QUARANTINED_TESTS_DISK_CACHE_TTL_SECS_ENV, "0");
+        env::set_var(constants::TRUNK_TEST_COLLECTION_ID_ENV, SHORT_ID);
+    }
+
+    let results = thread::spawn(|| {
+        let test_report = MutTestReport::new("test".into(), "test-command".into(), None);
+        ["quarantined", "not-quarantined"].map(|name| {
+            let result = test_report.is_quarantined(
+                None,
+                Some(name.to_string()),
+                Some("test-parent-name".to_string()),
+                Some("TestClass".to_string()),
+                Some("test_file.rs".to_string()),
+            );
+            (
+                result.test_is_quarantined,
+                result.quarantining_disabled_for_repo,
+                result.quarantine_lookup_failed,
+            )
+        })
+    })
+    .join()
+    .unwrap();
+
+    assert_eq!(results, [(true, false, false), (false, false, false)]);
+}

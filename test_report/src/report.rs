@@ -9,7 +9,8 @@ use std::{
 
 use api::{
     client::ApiClient,
-    message::{self, QuarantineResolutionMode},
+    message::{self, QuarantineResolutionMode, UploadApiCaller, UploadApiVersion},
+    urls::TestCaseGuidScope,
 };
 use bundle::BundleMetaDebugProps;
 use bundle::Test;
@@ -47,6 +48,9 @@ struct QuarantineConfig {
     quarantined_tests: HashMap<String, bool>,
     #[serde(default)]
     quarantine_resolution_mode: QuarantineResolutionMode,
+    /// Set on v2, where `quarantined_tests` is keyed by test-case GUID rather than test id.
+    #[serde(default)]
+    test_case_guid_scope: Option<TestCaseGuidScope>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -71,6 +75,7 @@ pub struct TestReport {
     quarantine_config: Option<QuarantineConfig>,
     quarantine_lookup_source: Option<QuarantineLookupSource>,
     quarantined_tests_disk_cache_ttl: Duration,
+    upload_api_version: Option<UploadApiVersion>,
     codeowners: Option<CodeOwners>,
     variant: Option<String>,
     repo: Option<BundleRepo>,
@@ -248,6 +253,7 @@ impl MutTestReport {
             quarantine_config: None,
             quarantine_lookup_source: None,
             quarantined_tests_disk_cache_ttl,
+            upload_api_version: None,
             codeowners,
             repo,
             variant: variant.clone(),
@@ -393,7 +399,10 @@ impl MutTestReport {
             use_uncloned_repo,
         );
         match (api_client, bundle_repo) {
-            (Ok(api_client), Ok(bundle_repo)) => {
+            (Ok(mut api_client), Ok(bundle_repo)) => {
+                api_client.set_upload_api_version(
+                    self.upload_api_version(&api_client, &bundle_repo.repo),
+                );
                 let variant =
                     env::var(constants::TRUNK_VARIANT_ENV).unwrap_or_else(|_| "".to_string());
                 let test_identifier = Test::new(
@@ -414,10 +423,16 @@ impl MutTestReport {
                     org_url_slug,
                 );
                 if let Some(quarantine_config) = self.0.borrow().quarantine_config.as_ref() {
+                    let key = match quarantine_config.test_case_guid_scope.as_ref() {
+                        Some(scope) => scope
+                            .test_case_guid(&test_identifier.id)
+                            .map(|guid| guid.to_string()),
+                        None => Some(test_identifier.id.clone()),
+                    };
                     return IsQuarantinedResult {
-                        test_is_quarantined: quarantine_config
-                            .quarantined_tests
-                            .contains_key(&test_identifier.id),
+                        test_is_quarantined: key.is_some_and(|key| {
+                            quarantine_config.quarantined_tests.contains_key(&key)
+                        }),
                         quarantining_disabled_for_repo: quarantine_config
                             .quarantining_disabled_for_repo,
                         quarantine_lookup_failed: quarantine_config.quarantine_lookup_failed,
@@ -444,13 +459,18 @@ impl MutTestReport {
         repo_url: &str,
         test_collection_short_id: Option<&str>,
     ) -> PathBuf {
+        // v1 and v2 entries key their tests differently, so they must not share a file.
+        let version_suffix = match self.0.borrow().upload_api_version {
+            Some(UploadApiVersion::V2) => "#v2",
+            _ => "",
+        };
         // The collection id is part of the key: quarantine status now resolves
         // per test collection, so two runs in the same repo with different ids
         // must not share a cache entry.
         let cache_key = Uuid::new_v5(
             &Uuid::NAMESPACE_URL,
             format!(
-                "{org_url_slug}#{repo_url}#{}",
+                "{org_url_slug}#{repo_url}#{}{version_suffix}",
                 test_collection_short_id.unwrap_or_default()
             )
             .as_bytes(),
@@ -599,12 +619,17 @@ impl MutTestReport {
             .unwrap()
             .block_on(api_client.get_quarantining_config(&request));
         let mut resolution_mode = QuarantineResolutionMode::Unspecified;
+        let mut test_case_guid_scope = None;
         let (quarantining_disabled, quarantine_lookup_failed) = match response {
             Ok(response) => {
                 let is_disabled = response.is_disabled;
                 for quarantined_test_id in response.quarantined_tests.iter() {
                     quarantined_tests.insert(quarantined_test_id.clone(), true);
                 }
+                for guid in response.quarantined_test_case_guids.iter().flatten() {
+                    quarantined_tests.insert(guid.clone(), true);
+                }
+                test_case_guid_scope = response.test_case_guid_scope.clone();
                 resolution_mode = response.quarantine_resolution_mode;
                 if let Some(line) =
                     resolution_mode.resolution_log_line(test_collection_short_id.as_deref(), repo)
@@ -635,6 +660,7 @@ impl MutTestReport {
             quarantine_lookup_failed,
             quarantined_tests: quarantined_tests.clone(),
             quarantine_resolution_mode: resolution_mode,
+            test_case_guid_scope,
         };
         self.0.borrow_mut().quarantine_config = Some(quarantine_config.clone());
         if !quarantine_lookup_failed {
@@ -645,6 +671,36 @@ impl MutTestReport {
                 &quarantine_config,
             );
         }
+    }
+
+    /// Chosen once per run, so the quarantine lookups and the upload use the same API.
+    fn upload_api_version(&self, api_client: &ApiClient, repo: &RepoUrlParts) -> UploadApiVersion {
+        if let Some(upload_api_version) = self.0.borrow().upload_api_version {
+            return upload_api_version;
+        }
+        let mut upload_args = trunk_analytics_cli::upload_command::UploadArgs::new(
+            self.get_token(),
+            self.get_org_url_slug(),
+            vec![],
+            None,
+            true,
+        );
+        upload_args.test_collection_short_id =
+            env::var(constants::TRUNK_TEST_COLLECTION_ID_ENV).ok();
+        let envs: HashMap<String, String> = env::vars().collect();
+        let request = trunk_analytics_cli::upload_command::upload_api_version_request(
+            &upload_args,
+            repo,
+            &envs,
+            UploadApiCaller::TestRunnerPlugin,
+        );
+        let upload_api_version = tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .unwrap()
+            .block_on(api_client.get_upload_api_version(&request));
+        self.0.borrow_mut().upload_api_version = Some(upload_api_version);
+        upload_api_version
     }
 
     fn get_org_url_slug(&self) -> String {
@@ -793,6 +849,8 @@ impl MutTestReport {
                             quarantine_resolution_mode_override: Some(
                                 self.quarantine_resolution_mode(),
                             ),
+                            upload_api_version: self.0.borrow().upload_api_version,
+                            caller: UploadApiCaller::TestRunnerPlugin,
                             ..Default::default()
                         },
                     )) {
