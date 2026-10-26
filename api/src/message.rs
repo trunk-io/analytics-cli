@@ -167,23 +167,16 @@ pub struct QuarantineStatusRequest {
     pub test_identifiers: Vec<QuarantineStatusIdentifier>,
 }
 
+/// A test by its id alone: v2 matches an id by itself, so names would only add bytes.
 #[derive(Debug, Serialize, Clone, PartialEq, Eq)]
-#[serde(rename_all = "camelCase")]
 pub struct QuarantineStatusIdentifier {
     pub id: String,
-    pub name: String,
-    pub parent_name: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub class_name: Option<String>,
 }
 
 impl From<&Test> for QuarantineStatusIdentifier {
     fn from(test: &Test) -> Self {
         Self {
             id: test.id.clone(),
-            name: test.name.clone(),
-            parent_name: test.parent_name.clone(),
-            class_name: test.class_name.clone().filter(|name| !name.is_empty()),
         }
     }
 }

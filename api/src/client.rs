@@ -1615,7 +1615,7 @@ mod v2_tests {
                             json!({
                                 "clientTestId": identifier["id"],
                                 "testId": null,
-                                "quarantined": identifier["name"] != "test 0",
+                                "quarantined": identifier["id"] != "00000000-0000-4000-8000-000000000000",
                             })
                         })
                         .collect();
@@ -1681,11 +1681,7 @@ mod v2_tests {
             seen.bodies[1],
             json!({
                 "repo": {"host": "github.com", "owner": "acme", "name": "web"},
-                "testIdentifiers": [{
-                    "id": failures[2000].id,
-                    "name": "test 2000",
-                    "parentName": "Suite",
-                }],
+                "testIdentifiers": [{"id": failures[2000].id}],
             })
         );
         assert_eq!(
