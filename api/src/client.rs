@@ -60,7 +60,9 @@ pub struct ApiClient {
     org_url_slug: String,
     render_sender: Option<Sender<DisplayMessage>>,
     upload_api_version: UploadApiVersion,
-    // The v2 upload create does not return the collection's UUID, which the test links hash.
+    // The v2 upload create does not return the collection's UUID, which the test links hash, so
+    // the upload takes it from an earlier `quarantine-status` call. A run that skips the lookup
+    // (no failures, or quarantining disabled) gets short links instead.
     test_collection_uuid: Mutex<Option<String>>,
 }
 
@@ -628,6 +630,12 @@ impl ApiClient {
             .await?;
             test_ids.extend(page.data.into_iter().map(|test| test.test_id));
             match page.next_cursor {
+                // A server that repeats a cursor would otherwise hold the CI step forever.
+                Some(next) if cursor.as_deref() == Some(next.as_str()) => {
+                    return Err(anyhow::anyhow!(
+                        "The quarantined tests list repeated its cursor."
+                    ));
+                }
                 Some(next) => cursor = Some(next),
                 None => return Ok(test_ids),
             }
@@ -1564,55 +1572,63 @@ mod v2_tests {
     }
 
     fn quarantine_status_router(quarantine_enabled: bool) -> Router<Shared> {
-        Router::new()
-            .route(
-                "/v2/test-collections/:id/quarantine-status",
-                post(
-                    move |State(seen): State<Shared>, headers: HeaderMap, uri: Uri, Json(body): Json<Value>| async move {
-                        let tests: Vec<Value> = body["testIdentifiers"]
-                            .as_array()
-                            .unwrap()
-                            .iter()
-                            .map(|identifier| {
-                                json!({
-                                    "clientTestId": identifier["id"],
-                                    "testId": null,
-                                    "quarantined": identifier["name"] != "test 0",
-                                })
+        quarantine_status_only_router(quarantine_enabled).route(
+            "/v2/test-collections/:id/all-quarantined-tests",
+            get(
+                |State(seen): State<Shared>,
+                 headers: HeaderMap,
+                 uri: Uri,
+                 Query(query): Query<std::collections::HashMap<String, String>>| async move {
+                    record(&seen, &headers, &uri, None);
+                    let page = match query.get("cursor").map(String::as_str) {
+                        None => json!({
+                            "data": [{"testId": "bfeebcf4-72d1-887d-8bcd-788d0dec7f97"}],
+                            "nextCursor": "page-2",
+                            "hasMore": true,
+                        }),
+                        Some("page-2") => json!({
+                            "data": [{"testId": "0f7f61f2-0000-8000-8000-000000000000"}],
+                            "nextCursor": null,
+                            "hasMore": false,
+                        }),
+                        Some(_) => return StatusCode::BAD_REQUEST.into_response(),
+                    };
+                    Json(page).into_response()
+                },
+            ),
+        )
+    }
+
+    fn quarantine_status_only_router(quarantine_enabled: bool) -> Router<Shared> {
+        Router::new().route(
+            "/v2/test-collections/:id/quarantine-status",
+            post(
+                move |State(seen): State<Shared>,
+                      headers: HeaderMap,
+                      uri: Uri,
+                      Json(body): Json<Value>| async move {
+                    let tests: Vec<Value> = body["testIdentifiers"]
+                        .as_array()
+                        .unwrap()
+                        .iter()
+                        .map(|identifier| {
+                            json!({
+                                "clientTestId": identifier["id"],
+                                "testId": null,
+                                "quarantined": identifier["name"] != "test 0",
                             })
-                            .collect();
-                        record(&seen, &headers, &uri, Some(body));
-                        Json(json!({
-                            "testCollectionUuid": COLLECTION_UUID,
-                            "repositoryId": REPO_ID,
-                            "quarantineEnabled": quarantine_enabled,
-                            "tests": tests,
-                        }))
-                    },
-                ),
-            )
-            .route(
-                "/v2/test-collections/:id/all-quarantined-tests",
-                get(
-                    |State(seen): State<Shared>, headers: HeaderMap, uri: Uri, Query(query): Query<std::collections::HashMap<String, String>>| async move {
-                        record(&seen, &headers, &uri, None);
-                        let page = match query.get("cursor").map(String::as_str) {
-                            None => json!({
-                                "data": [{"testId": "bfeebcf4-72d1-887d-8bcd-788d0dec7f97"}],
-                                "nextCursor": "page-2",
-                                "hasMore": true,
-                            }),
-                            Some("page-2") => json!({
-                                "data": [{"testId": "0f7f61f2-0000-8000-8000-000000000000"}],
-                                "nextCursor": null,
-                                "hasMore": false,
-                            }),
-                            Some(_) => return StatusCode::BAD_REQUEST.into_response(),
-                        };
-                        Json(page).into_response()
-                    },
-                ),
-            )
+                        })
+                        .collect();
+                    record(&seen, &headers, &uri, Some(body));
+                    Json(json!({
+                        "testCollectionUuid": COLLECTION_UUID,
+                        "repositoryId": REPO_ID,
+                        "quarantineEnabled": quarantine_enabled,
+                        "tests": tests,
+                    }))
+                },
+            ),
+        )
     }
 
     fn scope() -> Option<TestCaseGuidScope> {
@@ -1744,6 +1760,32 @@ mod v2_tests {
         assert_eq!(
             seen.lock().unwrap().uris,
             vec![format!("/v2/test-collections/{SHORT_ID}/quarantine-status")]
+        );
+    }
+
+    #[tokio::test]
+    async fn stops_paging_on_a_repeated_cursor() {
+        let router = quarantine_status_only_router(true).route(
+            "/v2/test-collections/:id/all-quarantined-tests",
+            get(|| async { Json(json!({"data": [], "nextCursor": "same", "hasMore": true})) }),
+        );
+        let (host, seen) = serve(router).await;
+        let mut client = client(&host, Some("org-key"));
+        client.set_upload_api_version(UploadApiVersion::V2);
+
+        let error = client
+            .get_quarantining_config(&quarantine_request(vec![]))
+            .await
+            .unwrap_err();
+
+        assert!(
+            format!("{error:?}").contains("repeated its cursor"),
+            "{error:?}"
+        );
+        assert_eq!(
+            seen.lock().unwrap().uris.len(),
+            1,
+            "only the status call is recorded"
         );
     }
 

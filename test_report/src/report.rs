@@ -38,6 +38,68 @@ pub fn quarantine_disk_cache_dir() -> PathBuf {
         .map(PathBuf::from)
         .unwrap_or_else(|_| env::temp_dir().join(constants::CACHE_DIR))
 }
+
+fn upload_api_version_cache_file_path(
+    org_url_slug: &str,
+    repo: &RepoUrlParts,
+    test_collection_short_id: Option<&str>,
+) -> PathBuf {
+    let cache_key = Uuid::new_v5(
+        &Uuid::NAMESPACE_URL,
+        format!(
+            "{org_url_slug}#{}/{}/{}#{}",
+            repo.host,
+            repo.owner,
+            repo.name,
+            test_collection_short_id.unwrap_or_default()
+        )
+        .as_bytes(),
+    );
+    quarantine_disk_cache_dir().join(format!("upload_api_version_{cache_key}.json"))
+}
+
+fn now_secs() -> Option<u64> {
+    SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .ok()
+        .map(|duration| duration.as_secs())
+}
+
+fn load_upload_api_version(cache_path: &Path, ttl_secs: u64) -> Option<UploadApiVersion> {
+    let entry: UploadApiVersionDiskCacheEntry =
+        serde_json::from_reader(fs::File::open(cache_path).ok()?).ok()?;
+    if now_secs()?.saturating_sub(entry.cached_at_secs) >= ttl_secs {
+        return None;
+    }
+    Some(if entry.v2 {
+        UploadApiVersion::V2
+    } else {
+        UploadApiVersion::V1
+    })
+}
+
+fn save_upload_api_version(cache_path: &Path, upload_api_version: UploadApiVersion) {
+    let Some(cached_at_secs) = now_secs() else {
+        return;
+    };
+    let entry = UploadApiVersionDiskCacheEntry {
+        v2: upload_api_version == UploadApiVersion::V2,
+        cached_at_secs,
+    };
+    let written = cache_path
+        .parent()
+        .map(fs::create_dir_all)
+        .transpose()
+        .and_then(|_| {
+            fs::write(
+                cache_path,
+                serde_json::to_string(&entry).map_err(std::io::Error::other)?,
+            )
+        });
+    if let Err(err) = written {
+        tracing::warn!("Failed to write upload API version cache file: {:?}", err);
+    }
+}
 #[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::wasm_bindgen;
 
@@ -56,6 +118,12 @@ struct QuarantineConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct QuarantineConfigDiskCacheEntry {
     quarantine_config: QuarantineConfig,
+    cached_at_secs: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct UploadApiVersionDiskCacheEntry {
+    v2: bool,
     cached_at_secs: u64,
 }
 
@@ -673,20 +741,33 @@ impl MutTestReport {
         }
     }
 
-    /// Chosen once per run, so the quarantine lookups and the upload use the same API.
+    /// Chosen once per run, so the quarantine lookups and the upload use the same API. Kept on
+    /// disk with the quarantine cache's TTL, because a runner may check quarantine in several
+    /// worker processes and upload from another.
     fn upload_api_version(&self, api_client: &ApiClient, repo: &RepoUrlParts) -> UploadApiVersion {
         if let Some(upload_api_version) = self.0.borrow().upload_api_version {
             return upload_api_version;
         }
+        let org_url_slug = self.get_org_url_slug();
+        let test_collection_short_id = env::var(constants::TRUNK_TEST_COLLECTION_ID_ENV).ok();
+        let cache_path = upload_api_version_cache_file_path(
+            &org_url_slug,
+            repo,
+            test_collection_short_id.as_deref(),
+        );
+        let ttl = self.0.borrow().quarantined_tests_disk_cache_ttl.as_secs();
+        if let Some(upload_api_version) = load_upload_api_version(&cache_path, ttl) {
+            self.0.borrow_mut().upload_api_version = Some(upload_api_version);
+            return upload_api_version;
+        }
         let mut upload_args = trunk_analytics_cli::upload_command::UploadArgs::new(
             self.get_token(),
-            self.get_org_url_slug(),
+            org_url_slug,
             vec![],
             None,
             true,
         );
-        upload_args.test_collection_short_id =
-            env::var(constants::TRUNK_TEST_COLLECTION_ID_ENV).ok();
+        upload_args.test_collection_short_id = test_collection_short_id;
         let envs: HashMap<String, String> = env::vars().collect();
         let request = trunk_analytics_cli::upload_command::upload_api_version_request(
             &upload_args,
@@ -700,6 +781,7 @@ impl MutTestReport {
             .unwrap()
             .block_on(api_client.get_upload_api_version(&request));
         self.0.borrow_mut().upload_api_version = Some(upload_api_version);
+        save_upload_api_version(&cache_path, upload_api_version);
         upload_api_version
     }
 
@@ -832,6 +914,23 @@ impl MutTestReport {
             command_stdout: String::from(""),
             command_stderr: String::from(""),
         };
+        if let Ok(bundle_repo) = BundleRepo::new(
+            upload_args.repo_root.clone(),
+            upload_args.repo_url.clone(),
+            upload_args.repo_head_sha.clone(),
+            upload_args.repo_head_branch.clone(),
+            upload_args.repo_head_commit_epoch.clone(),
+            upload_args.repo_head_author_name.clone(),
+            upload_args.use_uncloned_repo,
+        ) && let Ok(api_client) = ApiClient::new(
+            upload_args.token.clone(),
+            None,
+            false,
+            upload_args.org_url_slug.clone(),
+            None,
+        ) {
+            self.upload_api_version(&api_client, &bundle_repo.repo);
+        }
         let result = match gather_initial_test_context(upload_args.clone(), debug_props) {
             Ok(pre_test_context) => {
                 match tokio::runtime::Builder::new_multi_thread()

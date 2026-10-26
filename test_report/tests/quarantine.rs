@@ -793,3 +793,67 @@ async fn v2_matches_a_test_by_its_computed_test_id() {
 
     assert_eq!(results, [(true, false, false), (false, false, false)]);
 }
+
+#[tokio::test(flavor = "multi_thread")]
+#[serial]
+async fn shares_the_api_version_choice_across_processes() {
+    use std::sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    };
+
+    use axum::routing::post;
+    use serde_json::json;
+
+    cleanup_env_vars();
+    let temp_dir = tempdir().unwrap();
+    setup_quarantine_disk_cache_dir(&temp_dir);
+    let _ = env::set_current_dir(&temp_dir);
+
+    let version_calls = Arc::new(AtomicUsize::new(0));
+    let state = {
+        let mut builder = MockServerBuilder::new();
+        let calls = version_calls.clone();
+        builder.route(
+            "/v1/metrics/getUploadApiVersion",
+            post(move || {
+                calls.fetch_add(1, Ordering::SeqCst);
+                async { Json(json!({"apiVersion": "v1"})) }
+            }),
+        );
+        builder.spawn_mock_server().await
+    };
+
+    unsafe {
+        env::set_var(TRUNK_PUBLIC_API_ADDRESS_ENV, &state.host);
+        env::set_var(TRUNK_API_TOKEN_ENV, "test-token");
+        env::set_var(TRUNK_ORG_URL_SLUG_ENV, "test-org");
+        env::set_var(
+            TRUNK_REPO_URL_ENV,
+            "https://github.com/test-org/test-repo.git",
+        );
+        env::set_var(TRUNK_USE_UNCLONED_REPO_ENV, "true");
+        env::set_var(TRUNK_REPO_HEAD_SHA_ENV, "");
+        env::set_var(TRUNK_REPO_HEAD_BRANCH_ENV, "");
+        env::set_var(TRUNK_REPO_HEAD_AUTHOR_NAME_ENV, "");
+        env::set_var(TRUNK_QUARANTINED_TESTS_DISK_CACHE_TTL_SECS_ENV, "300");
+        env::set_var(constants::TRUNK_TEST_COLLECTION_ID_ENV, "aB3xY9kQ");
+    }
+
+    // Each report stands for a worker process: it shares nothing with the other but the disk.
+    for _ in 0..2 {
+        thread::spawn(|| {
+            MutTestReport::new("test".into(), "test-command".into(), None).is_quarantined(
+                None,
+                Some("test-name".to_string()),
+                Some("test-parent-name".to_string()),
+                None,
+                None,
+            )
+        })
+        .join()
+        .unwrap();
+    }
+
+    assert_eq!(version_calls.load(Ordering::SeqCst), 1);
+}

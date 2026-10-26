@@ -600,6 +600,8 @@ pub async fn run_upload(
 
     let upload_api_version = match upload_api_version {
         Some(upload_api_version) => upload_api_version,
+        // A dry run uploads nothing, so it has nothing to choose.
+        None if upload_args.dry_run => UploadApiVersion::V1,
         None => {
             api_client
                 .get_upload_api_version(&upload_api_version_request(
@@ -825,9 +827,36 @@ pub fn upload_api_version_request(
             .filter(|id| !id.is_empty()),
         repo: Some(repo.clone()),
         ci_provider: Some(ci_provider.to_string()),
-        is_fork_pr: upload_args.allow_forked_pr_uploads || upload_args.public_repo_id.is_some(),
+        // The captured envs leave the event path out, so it is read from the process too.
+        is_fork_pr: is_fork_pr(
+            envs.get("GITHUB_EVENT_PATH")
+                .cloned()
+                .or_else(|| env::var("GITHUB_EVENT_PATH").ok())
+                .as_deref(),
+            envs,
+        ),
         caller,
     }
+}
+
+/// Whether the run builds a pull request from another repository. Fork runs usually have no API
+/// token and so never ask; this catches the ones that do, such as `pull_request_target`.
+pub fn is_fork_pr(github_event_path: Option<&str>, envs: &context::env::EnvVars) -> bool {
+    if let Some(event_path) = github_event_path {
+        return github_event_is_fork_pr(event_path).unwrap_or(false);
+    }
+    // CircleCI sets CIRCLE_PR_NUMBER only for a pull request from a fork.
+    envs.get("CIRCLE_PR_NUMBER")
+        .is_some_and(|number| !number.is_empty())
+}
+
+fn github_event_is_fork_pr(event_path: &str) -> Option<bool> {
+    let event: serde_json::Value =
+        serde_json::from_reader(std::fs::File::open(event_path).ok()?).ok()?;
+    let pull_request = event.get("pull_request")?;
+    let head = pull_request.pointer("/head/repo/full_name")?.as_str()?;
+    let base = pull_request.pointer("/base/repo/full_name")?.as_str()?;
+    Some(!head.eq_ignore_ascii_case(base))
 }
 
 struct UploadedBundle {
@@ -1275,5 +1304,60 @@ mod tests {
         let plain = rendered(false);
         assert!(!plain.contains("\x1b]8;;"));
         assert!(plain.contains(URL));
+    }
+}
+
+#[cfg(test)]
+mod fork_pr_tests {
+    use std::collections::HashMap;
+
+    use super::is_fork_pr;
+
+    fn github_event(head: &str, base: &str) -> tempfile::NamedTempFile {
+        let file = tempfile::NamedTempFile::new().unwrap();
+        std::fs::write(
+            file.path(),
+            serde_json::json!({
+                "pull_request": {
+                    "head": {"repo": {"full_name": head}},
+                    "base": {"repo": {"full_name": base}},
+                }
+            })
+            .to_string(),
+        )
+        .unwrap();
+        file
+    }
+
+    fn envs(pairs: &[(&str, &str)]) -> HashMap<String, String> {
+        pairs
+            .iter()
+            .map(|(key, value)| (key.to_string(), value.to_string()))
+            .collect()
+    }
+
+    #[test]
+    fn reads_a_github_pull_request_from_another_repository_as_a_fork() {
+        let fork = github_event("someone/web", "acme/web");
+        let same = github_event("acme/web", "ACME/web");
+        let push = tempfile::NamedTempFile::new().unwrap();
+        std::fs::write(push.path(), r#"{"ref": "refs/heads/main"}"#).unwrap();
+
+        assert_eq!(
+            [&fork, &same, &push].map(|event| is_fork_pr(event.path().to_str(), &HashMap::new())),
+            [true, false, false]
+        );
+    }
+
+    #[test]
+    fn reads_circleci_pr_number_as_a_fork() {
+        assert_eq!(
+            [
+                envs(&[("CIRCLE_PR_NUMBER", "42")]),
+                envs(&[("CIRCLE_PR_NUMBER", "")]),
+            ]
+            .map(|envs| is_fork_pr(None, &envs)),
+            [true, false]
+        );
     }
 }
