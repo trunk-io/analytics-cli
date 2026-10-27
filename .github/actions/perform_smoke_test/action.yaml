@@ -186,6 +186,7 @@ runs:
         --org-url-slug trunk \
         --junit-paths "${{ github.workspace }}/target/**/*junit.xml" \
         --token ${{ inputs.production-api-token }} \
+        --test-collection-id 4B2wfoEU \
         cargo nextest run -p smoke-test --profile ci
 
     - name: Upload Swift tests on production
@@ -208,7 +209,8 @@ runs:
         --org-url-slug trunk \
         --xcresult-path smoke-test/swift/TestResults.xcresult \
         --token ${{ inputs.production-api-token }} \
-        --test-process-exit-code $EXIT_CODE
+        --test-process-exit-code $EXIT_CODE \
+        --test-collection-id 4B2wfoEU
       env:
         TRUNK_PUBLIC_API_ADDRESS: https://api.trunk.io
 
@@ -224,7 +226,7 @@ runs:
         --org-url-slug trunk \
         --junit-paths "${{ github.workspace }}/target/**/*junit.xml" \
         --token ${{ inputs.production-api-token }} \
-        --test-collection-id 4B2wfoEU # analytics-cli-smoke-tests: https://app.trunk.io/trunk/flaky-tests/collections/4B2wfoEU/monitors
+        --test-collection-id 4B2wfoEU
 
     - name: Upload to production with public repo id
       id: production-upload-public-repo-id
@@ -241,7 +243,8 @@ runs:
         --repo-url https://github.com/trunk-io/flake-farm-staging-fork-prs.git \
         --repo-head-sha ${{ github.sha }} \
         --repo-head-branch refs/heads/main \
-        --repo-head-author-name "Trunk Smoke Test"
+        --repo-head-author-name "Trunk Smoke Test" \
+        --test-collection-id 4B2wfoEU
 
     # upload with variant should fail because we treat variant as a separate test
     - name: Upload to production with variant
@@ -256,7 +259,8 @@ runs:
         --org-url-slug trunk \
         --junit-paths "${{ github.workspace }}/target/**/*junit.xml" \
         --token ${{ inputs.production-api-token }} \
-        --variant smoke-test-variant
+        --variant smoke-test-variant \
+        --test-collection-id 4B2wfoEU
         EXIT_CODE=$?
         if [ $EXIT_CODE -eq 0 ]; then
           echo "ERROR: Expected upload with variant to fail, but it succeeded"
