@@ -3716,3 +3716,23 @@ async fn upload_verbose_logs_go_to_stderr() {
         .stdout(predicate::str::contains(DEBUG_LOG_MARKER).not())
         .stderr(predicate::str::contains(DEBUG_LOG_MARKER));
 }
+
+// NOTE: must be multi threaded to start a mock server
+#[tokio::test(flavor = "multi_thread")]
+async fn upload_quietest_verbosity_logs_nothing() {
+    let temp_dir = tempdir().unwrap();
+    generate_mock_git_repo(&temp_dir);
+    generate_mock_valid_junit_xmls(&temp_dir);
+
+    let state = MockServerBuilder::new().spawn_mock_server().await;
+
+    let assert = CommandBuilder::upload(temp_dir.path(), state.host.clone())
+        .extra_args(&["-qqq"])
+        .command()
+        .assert();
+
+    println!("{assert}");
+    assert
+        .stdout(predicate::str::contains(DEBUG_LOG_MARKER).not())
+        .stderr(predicate::str::contains(DEBUG_LOG_MARKER).not());
+}
