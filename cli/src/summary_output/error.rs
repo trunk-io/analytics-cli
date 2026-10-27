@@ -1,13 +1,13 @@
 use api::client::get_api_host;
 use schemars::JsonSchema;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::{
     error_report::{ErrorKind, ErrorReport, get_client_error_explanation, settings_url},
     exit_code::ExitCode,
 };
 
-#[derive(Debug, Clone, Serialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ErrorSummary {
     pub kind: ErrorKind,

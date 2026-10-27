@@ -32,7 +32,7 @@ use trunk_analytics_cli::{
 use crate::unauthorized_error;
 
 const BUNDLE_UPLOAD_ID: &str = "4b1d2c3e-5f60-4a7b-8c9d-0e1f2a3b4c5d";
-const UPLOAD_ERROR_MESSAGE: &str =
+pub(super) const UPLOAD_ERROR_MESSAGE: &str =
     "There was an unexpected error that occurred while uploading test results";
 
 fn upload_summary(result: &UploadRunResult) -> Vec<String> {
@@ -52,7 +52,7 @@ fn repo() -> RepoUrlParts {
     }
 }
 
-fn upload_result(num_tests: usize) -> UploadRunResult {
+pub(super) fn upload_result(num_tests: usize) -> UploadRunResult {
     let mut quarantine_context = QuarantineContext::skip_fetch(Vec::new());
     quarantine_context.repo = repo();
     quarantine_context.org_url_slug = String::from("test-org");
@@ -117,7 +117,7 @@ fn in_collection(mut result: UploadRunResult) -> UploadRunResult {
     result
 }
 
-fn failure(name: &str, parent_name: &str, file: Option<&str>) -> Test {
+pub(super) fn failure(name: &str, parent_name: &str, file: Option<&str>) -> Test {
     Test {
         name: String::from(name),
         parent_name: String::from(parent_name),

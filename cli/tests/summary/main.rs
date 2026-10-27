@@ -1,4 +1,5 @@
 mod error_report;
+mod github;
 mod schema;
 mod upload;
 mod validate;

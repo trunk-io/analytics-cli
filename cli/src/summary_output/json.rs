@@ -1,7 +1,8 @@
 use std::{fs, path::Path};
 
+use anyhow::Context;
 use schemars::{JsonSchema, Schema, generate::SchemaSettings};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use super::{ErrorSummary, UploadReport};
 
@@ -29,6 +30,20 @@ struct Versioned<'a> {
     report: Report<'a>,
 }
 
+/// A summary read back from a file, owning its report.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(tag = "type", rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum Summary {
+    Upload(Box<UploadReport>),
+    Error(ErrorSummary),
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SchemaVersion {
+    schema_version: u32,
+}
+
 pub fn schema() -> Schema {
     SchemaSettings::draft2020_12()
         .for_serialize()
@@ -41,6 +56,25 @@ pub fn to_string(report: Report) -> serde_json::Result<String> {
         schema_version: SCHEMA_VERSION,
         report,
     })
+}
+
+/// Reads a summary that this or an older CLI wrote. A newer schema version is an error, since its
+/// fields may have changed meaning.
+pub fn from_str(json: &str) -> anyhow::Result<Summary> {
+    let SchemaVersion { schema_version } =
+        serde_json::from_str(json).context("not a summary: no schemaVersion")?;
+    if schema_version > SCHEMA_VERSION {
+        anyhow::bail!(
+            "schemaVersion {schema_version} is newer than this CLI understands ({SCHEMA_VERSION})"
+        );
+    }
+    Ok(serde_json::from_str(json)?)
+}
+
+pub fn read_file(path: &Path) -> anyhow::Result<Summary> {
+    let json =
+        fs::read_to_string(path).with_context(|| format!("couldn't read {}", path.display()))?;
+    from_str(&json).with_context(|| format!("couldn't read the summary in {}", path.display()))
 }
 
 /// Writes a sibling file and renames it into place, so a reader never sees half a summary.

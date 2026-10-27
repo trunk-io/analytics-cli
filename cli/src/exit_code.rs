@@ -6,7 +6,7 @@ use std::{borrow::Cow, fmt};
 
 use clap::builder::{StyledStr, styling::Styles};
 use schemars::{JsonSchema, Schema, SchemaGenerator, json_schema};
-use serde::{Serialize, Serializer};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use strum::{EnumIter, EnumMessage, IntoEnumIterator};
 
 /// Two exit codes are equal when the process exits with the same number, so
@@ -131,6 +131,18 @@ impl Serialize for ExitCode {
     }
 }
 
+/// A number that matches a named code reads back as that code, and any other as `PassedThrough`.
+impl<'de> Deserialize<'de> for ExitCode {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let code = i32::deserialize(deserializer)?;
+        Ok(Self::iter()
+            .find(|exit_code| {
+                !matches!(exit_code, Self::PassedThrough(_)) && exit_code.code() == code
+            })
+            .unwrap_or(Self::PassedThrough(code)))
+    }
+}
+
 impl JsonSchema for ExitCode {
     fn schema_name() -> Cow<'static, str> {
         "ExitCode".into()
@@ -166,6 +178,14 @@ mod tests {
         assert_eq!(ExitCode::PassedThrough(1), ExitCode::Failure);
         assert_ne!(ExitCode::PassedThrough(2), ExitCode::Failure);
         assert!(ExitCode::PassedThrough(0).is_success());
+    }
+
+    #[test]
+    fn deserializes_from_its_number() {
+        let read = |json: &str| serde_json::from_str::<ExitCode>(json).unwrap();
+        assert!(matches!(read("70"), ExitCode::Error));
+        assert!(matches!(read("0"), ExitCode::Success));
+        assert!(matches!(read("3"), ExitCode::PassedThrough(3)));
     }
 
     #[test]

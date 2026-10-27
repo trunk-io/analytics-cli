@@ -4,14 +4,14 @@ use api::urls::{url_for_test_case, url_for_upload};
 use bundle::Test;
 use context::junit::validator::JunitValidationLevel;
 use schemars::JsonSchema;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use super::{ErrorSummary, Notice};
 use crate::{
     exit_code::ExitCode, upload_command::UploadRunResult, validate_command::JunitReportValidations,
 };
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum UploadCommand {
     Upload,
@@ -21,7 +21,7 @@ pub enum UploadCommand {
     RSpec,
 }
 
-#[derive(Debug, Clone, Serialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct UploadReport {
     /// Which command wrote this summary.
@@ -49,7 +49,7 @@ pub struct UploadReport {
     pub notices: Vec<Notice>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct TestCounts {
     pub total: usize,
@@ -63,7 +63,7 @@ pub struct TestCounts {
     pub pass_ratio: Option<f64>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct FailureGroup {
     pub key: GroupKey,
@@ -71,7 +71,7 @@ pub struct FailureGroup {
 }
 
 /// Groups sort by file, then by suite, then the rest, in declaration order.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "type", content = "name", rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum GroupKey {
     /// Failed tests from this file.
@@ -82,7 +82,7 @@ pub enum GroupKey {
     Other,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct FailedTest {
     pub name: String,
@@ -102,7 +102,7 @@ pub struct FailedTest {
     pub link: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct FileValidation {
     pub file: String,
@@ -116,7 +116,7 @@ pub struct FileValidation {
     pub test_case_count: Option<usize>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ParseError {
     pub error: String,
@@ -125,7 +125,7 @@ pub struct ParseError {
 }
 
 /// Whether the failed tests could be checked for quarantining, and if not, why.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum Quarantining {
     /// Trunk said which failed tests are quarantined.
@@ -140,7 +140,7 @@ pub enum Quarantining {
     LookupFailed,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum Outcome {
     /// The test reports had no tests.
