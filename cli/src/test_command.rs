@@ -104,6 +104,7 @@ pub async fn run_test(
         RunUploadOptions {
             pre_test_context: Some(test_context),
             test_run_result: Some(test_run_result.clone()),
+            render_sender: Some(render_sender),
             ..Default::default()
         },
     )
