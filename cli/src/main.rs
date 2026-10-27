@@ -380,10 +380,11 @@ fn setup_logger(
     });
 
     // make console layer toggle based on vebosity
+    // logs go to stderr so stdout is left for the command's output
     let console_layer = tracing_subscriber::fmt::Layer::new()
         .with_target(true)
         .with_level(true)
-        .with_writer(std::io::stdout.with_max_level(to_trace_filter(log_level_filter)))
+        .with_writer(std::io::stderr.with_max_level(to_trace_filter(log_level_filter)))
         .with_filter(FilterFn::new(move |metadata| {
             !metadata
                 .fields()
