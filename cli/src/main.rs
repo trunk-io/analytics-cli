@@ -351,9 +351,12 @@ fn setup_logger(
 ) -> anyhow::Result<()> {
     let command_string = String::from(command_name);
     let sentry_layer = sentry_tracing::layer().event_mapper(move |event, context| {
+        // deprecation warnings are sent as events so we can see who still uses deprecated flags
+        let is_deprecation = *event.metadata().level() == tracing::Level::WARN
+            && event.metadata().fields().field("deprecated_flag").is_some();
         // trunk-ignore(clippy/match_ref_pats)
         match event.metadata().level() {
-            &tracing::Level::ERROR => {
+            level if *level == tracing::Level::ERROR || is_deprecation => {
                 let mut event = sentry_tracing::event_from_event(event, context);
                 event
                     .tags
