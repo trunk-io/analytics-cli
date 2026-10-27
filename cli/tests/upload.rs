@@ -1248,7 +1248,7 @@ async fn falls_back_to_binary_file() {
     let meta_json = fs::File::open(tar_extract_directory.join("meta.json")).unwrap();
     assert!(serde_json::from_reader::<fs::File, BundleMeta>(meta_json).is_ok());
 
-    assert.stdout(predicate::str::contains(
+    assert.stderr(predicate::str::contains(
         "Attempting to parse bep file as binary",
     ));
 }
@@ -3691,4 +3691,28 @@ async fn upload_on_v2_when_trunk_chooses_it() {
             }),
         )
     );
+}
+
+// A debug log emitted while setting up the API client, so it only shows up with `--verbose`.
+const DEBUG_LOG_MARKER: &str = "Using public api address";
+
+// NOTE: must be multi threaded to start a mock server
+#[tokio::test(flavor = "multi_thread")]
+async fn upload_verbose_logs_go_to_stderr() {
+    let temp_dir = tempdir().unwrap();
+    generate_mock_git_repo(&temp_dir);
+    generate_mock_valid_junit_xmls(&temp_dir);
+
+    let state = MockServerBuilder::new().spawn_mock_server().await;
+
+    let assert = CommandBuilder::upload(temp_dir.path(), state.host.clone())
+        .verbose(true)
+        .command()
+        .assert();
+
+    println!("{assert}");
+    // stdout is kept free of logs so it can carry machine-readable output
+    assert
+        .stdout(predicate::str::contains(DEBUG_LOG_MARKER).not())
+        .stderr(predicate::str::contains(DEBUG_LOG_MARKER));
 }
