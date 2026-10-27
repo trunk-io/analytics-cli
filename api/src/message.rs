@@ -1,11 +1,7 @@
-use std::collections::HashSet;
-
 pub use bundle::QuarantineResolutionMode;
 use bundle::Test;
 use context::repo::RepoUrlParts;
 use serde::{Deserialize, Serialize};
-
-use crate::urls::TestCaseGuidScope;
 
 #[derive(Debug, Serialize, Clone, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -41,13 +37,6 @@ pub struct GetQuarantineConfigResponse {
     pub quarantined_tests: Vec<String>,
     #[serde(default)]
     pub quarantine_resolution_mode: QuarantineResolutionMode,
-    /// Set on v2, which returns the collection's UUID and the repository id.
-    #[serde(skip)]
-    pub test_case_guid_scope: Option<TestCaseGuidScope>,
-    /// v2's whole quarantined set, by test-case GUID. Set only for a request with no
-    /// identifiers, where `quarantined_tests` stays empty.
-    #[serde(skip)]
-    pub quarantined_test_case_guids: Option<HashSet<String>>,
 }
 
 #[derive(Debug, Serialize, Clone, Deserialize, PartialEq, Eq)]
@@ -134,12 +123,23 @@ pub struct GetUploadApiVersionResponse {
 
 #[derive(Debug, Serialize, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
-pub struct CreateTestUploadRequest {
-    pub repo: RepoUrlParts,
-    pub remote_urls: Vec<String>,
-    pub client_version: String,
+pub struct CreateTestUploadRequest<'a> {
+    pub repo: &'a RepoUrlParts,
+    pub remote_urls: &'a [String],
+    pub client_version: &'a str,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub external_id: Option<String>,
+    pub external_id: Option<&'a str>,
+}
+
+impl<'a> From<&'a CreateBundleUploadRequest> for CreateTestUploadRequest<'a> {
+    fn from(request: &'a CreateBundleUploadRequest) -> Self {
+        Self {
+            repo: &request.repo,
+            remote_urls: &request.remote_urls,
+            client_version: &request.client_version,
+            external_id: request.external_id.as_deref(),
+        }
+    }
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -147,6 +147,7 @@ pub struct CreateTestUploadRequest {
 pub struct CreatedTestUpload {
     pub id: String,
     pub upload_url: String,
+    pub test_collection_uuid: String,
     pub repository_id: String,
     pub created_at: String,
 }
@@ -202,6 +203,9 @@ pub struct QuarantineStatusTest {
 pub struct QuarantinedTestList {
     pub data: Vec<QuarantinedTest>,
     pub next_cursor: Option<String>,
+    pub test_collection_uuid: String,
+    pub repository_id: String,
+    pub quarantine_enabled: bool,
 }
 
 #[derive(Debug, Deserialize, Clone)]

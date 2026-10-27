@@ -3469,6 +3469,7 @@ async fn upload_on_v2_when_trunk_chooses_it() {
                             "status": "awaitingData",
                             "uploadUrl": format!("{}/s3upload", state.host),
                             "expiresAt": "2026-10-06T17:00:00.000Z",
+                            "testCollectionUuid": MOCK_TEST_COLLECTION_ID,
                             "repositoryId": MOCK_REPO_ID,
                             "createdAt": CREATED_AT,
                         })),

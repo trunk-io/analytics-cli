@@ -1,7 +1,6 @@
 use std::collections::HashSet;
 use std::fmt;
 use std::path::Path;
-use std::sync::Mutex;
 use std::sync::mpsc::Sender;
 
 use base64::{Engine as _, engine::general_purpose::STANDARD};
@@ -14,6 +13,7 @@ use tokio::fs;
 
 use crate::call_api::CallApi;
 use crate::message::{self, UploadApiVersion};
+use crate::quarantine::{QuarantineLookup, QuarantinedTestSet, QuarantinedTests};
 use crate::urls::TestCaseGuidScope;
 
 #[derive(Debug)]
@@ -60,10 +60,6 @@ pub struct ApiClient {
     org_url_slug: String,
     render_sender: Option<Sender<DisplayMessage>>,
     upload_api_version: UploadApiVersion,
-    // The v2 upload create does not return the collection's UUID, which the test links hash, so
-    // the upload takes it from an earlier `quarantine-status` call. A run that skips the lookup
-    // (no failures, or quarantining disabled) gets short links instead.
-    test_collection_uuid: Mutex<Option<String>>,
 }
 
 pub fn get_api_host() -> String {
@@ -75,8 +71,9 @@ pub fn get_api_host() -> String {
 
 impl ApiClient {
     const TRUNK_API_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
-    // A slow answer must never hold up a customer's CI run for longer than this.
+    // Two attempts at this, so a slow answer holds up a customer's CI run for at most 4s.
     const UPLOAD_API_VERSION_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(2);
+    const UPLOAD_API_VERSION_ATTEMPTS: usize = 2;
     const QUARANTINE_STATUS_MAX_IDENTIFIERS: usize = 2_000;
     const ALL_QUARANTINED_TESTS_PAGE_SIZE: usize = 25_000;
     // This should always be fast
@@ -226,7 +223,6 @@ impl ApiClient {
             org_url_slug,
             render_sender,
             upload_api_version: UploadApiVersion::V1,
-            test_collection_uuid: Mutex::new(None),
         })
     }
 
@@ -240,7 +236,8 @@ impl ApiClient {
     }
 
     /// Asks Trunk whether this run uses v2. Anything but an explicit `v2`, a failed call
-    /// included, is v1, so this never fails a run and never retries.
+    /// included, is v1, so this never fails a run. A timeout, a connection error or a 5xx is
+    /// retried once; any other answer is final.
     pub async fn get_upload_api_version(
         &self,
         request: &message::GetUploadApiVersionRequest,
@@ -267,6 +264,24 @@ impl ApiClient {
     }
 
     async fn request_upload_api_version(
+        &self,
+        request: &message::GetUploadApiVersionRequest,
+    ) -> anyhow::Result<message::GetUploadApiVersionResponse> {
+        let mut attempt = 1;
+        loop {
+            match self.request_upload_api_version_once(request).await {
+                Err(error)
+                    if attempt < Self::UPLOAD_API_VERSION_ATTEMPTS && is_retryable(&error) =>
+                {
+                    tracing::debug!("Retrying the Trunk API version check: {error:?}");
+                    attempt += 1;
+                }
+                result => return result,
+            }
+        }
+    }
+
+    async fn request_upload_api_version_once(
         &self,
         request: &message::GetUploadApiVersionRequest,
     ) -> anyhow::Result<message::GetUploadApiVersionResponse> {
@@ -353,16 +368,48 @@ impl ApiClient {
         .map_err(|e| e.context(ApiErrorEndpoint::CreateBundleUpload))
     }
 
+    /// Looks up the run's failing tests. A test runner checking a test at a time wants the whole
+    /// set instead: `get_quarantined_test_set`.
     pub async fn get_quarantining_config(
         &self,
         request: &message::GetQuarantineConfigRequest,
-    ) -> anyhow::Result<message::GetQuarantineConfigResponse> {
+    ) -> anyhow::Result<QuarantineLookup> {
         if self.upload_api_version == UploadApiVersion::V2 {
             return self
                 .get_quarantine_status(request)
                 .await
                 .map_err(|e| e.context(ApiErrorEndpoint::GetQuarantiningConfig));
         }
+        self.get_quarantine_config_v1(request)
+            .await
+            .map(QuarantineLookup::from)
+    }
+
+    /// Every quarantined test, for a test runner that checks each test as it runs. On v1 that is
+    /// the lookup with no identifiers; on v2 it is the paged `all-quarantined-tests`.
+    pub async fn get_quarantined_test_set(
+        &self,
+        request: &message::GetQuarantineConfigRequest,
+    ) -> anyhow::Result<QuarantinedTestSet> {
+        if self.upload_api_version == UploadApiVersion::V2 {
+            return self
+                .get_all_quarantined_tests(request)
+                .await
+                .map_err(|e| e.context(ApiErrorEndpoint::GetQuarantiningConfig));
+        }
+        let request = message::GetQuarantineConfigRequest {
+            test_identifiers: Vec::new(),
+            ..request.clone()
+        };
+        self.get_quarantine_config_v1(&request)
+            .await
+            .map(QuarantinedTestSet::from)
+    }
+
+    async fn get_quarantine_config_v1(
+        &self,
+        request: &message::GetQuarantineConfigRequest,
+    ) -> anyhow::Result<message::GetQuarantineConfigResponse> {
         CallApi {
             action: || async {
                 let response = self
@@ -412,12 +459,7 @@ impl ApiClient {
         let client = self.v2_client()?;
         let url =
             self.v2_test_collection_url(request.test_collection_short_id.as_deref(), "uploads")?;
-        let body = message::CreateTestUploadRequest {
-            repo: request.repo.clone(),
-            remote_urls: request.remote_urls.clone(),
-            client_version: request.client_version.clone(),
-            external_id: request.external_id.clone(),
-        };
+        let body = message::CreateTestUploadRequest::from(request);
         let upload = CallApi {
             action: || async {
                 let response = client.post(url.clone()).json(&body).send().await?;
@@ -456,11 +498,6 @@ impl ApiClient {
             created_at: &upload.created_at,
             repo_id: &upload.repository_id,
         })?);
-        let test_collection_id = self
-            .test_collection_uuid
-            .lock()
-            .ok()
-            .and_then(|uuid| uuid.clone());
         Ok(message::CreateBundleUploadResponse {
             id: upload.id.clone(),
             id_v2,
@@ -469,66 +506,39 @@ impl ApiClient {
             test_collection_bundle_meta_id: Some(upload.id),
             test_collection_bundle_meta_created_at: Some(upload.created_at),
             repo_id: Some(upload.repository_id),
-            test_collection_id,
+            test_collection_id: Some(upload.test_collection_uuid),
         })
     }
 
     async fn get_quarantine_status(
         &self,
         request: &message::GetQuarantineConfigRequest,
-    ) -> anyhow::Result<message::GetQuarantineConfigResponse> {
+    ) -> anyhow::Result<QuarantineLookup> {
         let identifiers: Vec<message::QuarantineStatusIdentifier> = request
             .test_identifiers
             .iter()
             .map(message::QuarantineStatusIdentifier::from)
             .collect();
-        let mut batches: Vec<&[message::QuarantineStatusIdentifier]> = identifiers
-            .chunks(Self::QUARANTINE_STATUS_MAX_IDENTIFIERS)
-            .collect();
-        if batches.is_empty() {
-            batches.push(&[]);
-        }
-
-        let mut status: Option<message::QuarantineStatus> = None;
-        let mut quarantined_tests = Vec::new();
-        for batch in batches {
-            let batch_status = self.post_quarantine_status(request, batch).await?;
-            quarantined_tests.extend(
-                batch_status
-                    .tests
-                    .iter()
-                    .filter(|test| test.quarantined)
-                    .filter_map(|test| test.client_test_id.clone()),
-            );
-            status = Some(batch_status);
-        }
-        let status = status.ok_or_else(|| anyhow::anyhow!("No quarantine status returned."))?;
-
-        if let Ok(mut uuid) = self.test_collection_uuid.lock() {
-            *uuid = Some(status.test_collection_uuid.clone());
-        }
-        let quarantined_test_case_guids = if identifiers.is_empty() && status.quarantine_enabled {
-            Some(
-                self.get_all_quarantined_tests(
-                    request.test_collection_short_id.as_deref(),
-                    &status.repository_id,
-                )
-                .await?,
-            )
-        } else {
-            None
-        };
-
-        Ok(message::GetQuarantineConfigResponse {
-            is_disabled: !status.quarantine_enabled,
-            quarantined_tests,
+        let mut lookup = QuarantineLookup {
             quarantine_resolution_mode: message::QuarantineResolutionMode::TestCollection,
-            test_case_guid_scope: Some(TestCaseGuidScope {
+            ..QuarantineLookup::default()
+        };
+        for batch in identifiers.chunks(Self::QUARANTINE_STATUS_MAX_IDENTIFIERS) {
+            let status = self.post_quarantine_status(request, batch).await?;
+            lookup.quarantined_tests.extend(
+                status
+                    .tests
+                    .into_iter()
+                    .filter(|test| test.quarantined)
+                    .filter_map(|test| test.client_test_id),
+            );
+            lookup.is_disabled = !status.quarantine_enabled;
+            lookup.test_case_guid_scope = Some(TestCaseGuidScope {
                 test_collection_id: status.test_collection_uuid,
                 repo_id: status.repository_id,
-            }),
-            quarantined_test_case_guids,
-        })
+            });
+        }
+        Ok(lookup)
     }
 
     async fn post_quarantine_status(
@@ -581,21 +591,31 @@ impl ApiClient {
 
     async fn get_all_quarantined_tests(
         &self,
-        test_collection_short_id: Option<&str>,
-        repository_id: &str,
-    ) -> anyhow::Result<HashSet<String>> {
+        request: &message::GetQuarantineConfigRequest,
+    ) -> anyhow::Result<QuarantinedTestSet> {
         let client = self.v2_client()?;
-        let base_url =
-            self.v2_test_collection_url(test_collection_short_id, "all-quarantined-tests")?;
-        let mut test_ids = HashSet::new();
+        let base_url = self.v2_test_collection_url(
+            request.test_collection_short_id.as_deref(),
+            "all-quarantined-tests",
+        )?;
+        let repo = &request.repo;
+        let has_repo = [&repo.host, &repo.owner, &repo.name]
+            .iter()
+            .all(|part| !part.is_empty());
+        let mut guids = HashSet::new();
+        let mut scope: Option<(TestCaseGuidScope, bool)> = None;
         let mut cursor: Option<String> = None;
         loop {
             let mut url = base_url.clone();
             {
                 let mut query = url.query_pairs_mut();
-                query
-                    .append_pair("repositoryId", repository_id)
-                    .append_pair("limit", &Self::ALL_QUARANTINED_TESTS_PAGE_SIZE.to_string());
+                if has_repo {
+                    query
+                        .append_pair("repoHost", &repo.host)
+                        .append_pair("repoOwner", &repo.owner)
+                        .append_pair("repoName", &repo.name);
+                }
+                query.append_pair("limit", &Self::ALL_QUARANTINED_TESTS_PAGE_SIZE.to_string());
                 if let Some(cursor) = cursor.as_deref() {
                     query.append_pair("cursor", cursor);
                 }
@@ -608,8 +628,12 @@ impl ApiClient {
                         StatusCodeHelp {
                             check_unauthorized: CheckUnauthorized::Check,
                             check_not_found: CheckNotFound::DoNotCheck,
-                            create_error_message: |_| {
-                                String::from("Failed to get quarantined tests.")
+                            create_error_message: |response| {
+                                if response.status() == StatusCode::NOT_FOUND {
+                                    String::from("Test collection not found.")
+                                } else {
+                                    String::from("Failed to get quarantined tests.")
+                                }
                             },
                             api_host: &self.api_host,
                             org_url_slug: &self.org_url_slug,
@@ -628,7 +652,15 @@ impl ApiClient {
             }
             .call_api()
             .await?;
-            test_ids.extend(page.data.into_iter().map(|test| test.test_id));
+            guids.extend(page.data.into_iter().map(|test| test.test_id));
+            // Every page carries the same scope, so the first page's is the list's.
+            let (scope, quarantine_enabled) = scope.get_or_insert((
+                TestCaseGuidScope {
+                    test_collection_id: page.test_collection_uuid,
+                    repo_id: page.repository_id,
+                },
+                page.quarantine_enabled,
+            ));
             match page.next_cursor {
                 // A server that repeats a cursor would otherwise hold the CI step forever.
                 Some(next) if cursor.as_deref() == Some(next.as_str()) => {
@@ -637,7 +669,17 @@ impl ApiClient {
                     ));
                 }
                 Some(next) => cursor = Some(next),
-                None => return Ok(test_ids),
+                None => {
+                    return Ok(QuarantinedTestSet {
+                        is_disabled: !*quarantine_enabled,
+                        quarantine_resolution_mode:
+                            message::QuarantineResolutionMode::TestCollection,
+                        tests: QuarantinedTests::ByTestCaseGuid {
+                            scope: scope.clone(),
+                            guids,
+                        },
+                    });
+                }
             }
         }
     }
@@ -798,6 +840,16 @@ impl fmt::Display for ClientErrorExplanation {
 impl std::error::Error for ClientErrorExplanation {}
 
 const MAX_CLIENT_ERROR_MESSAGE_LEN: usize = 2048;
+
+fn is_retryable(error: &anyhow::Error) -> bool {
+    error.downcast_ref::<reqwest::Error>().is_some_and(|error| {
+        error.is_timeout()
+            || error.is_connect()
+            || error
+                .status()
+                .is_some_and(|status| status.is_server_error())
+    })
+}
 
 fn non_empty(value: Option<String>) -> Option<String> {
     value
@@ -1292,6 +1344,7 @@ mod v2_tests {
 
     use super::ApiClient;
     use crate::message::{self, UploadApiCaller, UploadApiVersion};
+    use crate::quarantine::{QuarantineLookup, QuarantinedTestSet, QuarantinedTests};
     use crate::urls::TestCaseGuidScope;
 
     const SHORT_ID: &str = "aB3xY9kQ";
@@ -1422,17 +1475,48 @@ mod v2_tests {
 
     #[tokio::test]
     async fn reads_any_other_answer_as_v1() {
-        for answer in [
-            (StatusCode::OK, r#"{"apiVersion":"v1"}"#),
-            (StatusCode::OK, r#"{"apiVersion":"v3"}"#),
-            (StatusCode::OK, "not json"),
-            (StatusCode::UNAUTHORIZED, ""),
-            (StatusCode::INTERNAL_SERVER_ERROR, r#"{"apiVersion":"v2"}"#),
+        for (answer, attempts) in [
+            ((StatusCode::OK, r#"{"apiVersion":"v1"}"#), 1),
+            ((StatusCode::OK, r#"{"apiVersion":"v3"}"#), 1),
+            ((StatusCode::OK, "not json"), 1),
+            ((StatusCode::UNAUTHORIZED, ""), 1),
+            // Only a 5xx, a timeout or a failed connection is worth a second attempt.
+            (
+                (StatusCode::INTERNAL_SERVER_ERROR, r#"{"apiVersion":"v2"}"#),
+                2,
+            ),
         ] {
             let (version, seen) = decide(answer).await;
             assert_eq!(version, UploadApiVersion::V1, "{answer:?}");
-            assert_eq!(seen.lock().unwrap().bodies.len(), 1, "{answer:?}: no retry");
+            assert_eq!(seen.lock().unwrap().bodies.len(), attempts, "{answer:?}");
         }
+    }
+
+    #[tokio::test]
+    async fn retries_a_failed_check_once() {
+        let router = Router::new().route(
+            "/v1/metrics/getUploadApiVersion",
+            post(
+                |State(seen): State<Shared>, headers: HeaderMap, uri: Uri| async move {
+                    record(&seen, &headers, &uri, None);
+                    if seen.lock().unwrap().uris.len() == 1 {
+                        StatusCode::SERVICE_UNAVAILABLE.into_response()
+                    } else {
+                        Json(json!({"apiVersion": "v2"})).into_response()
+                    }
+                },
+            ),
+        );
+        let (host, seen) = serve(router).await;
+
+        let version = client(&host, Some("org-key"))
+            .get_upload_api_version(&version_request(Some(SHORT_ID)))
+            .await;
+
+        assert_eq!(
+            (version, seen.lock().unwrap().uris.len()),
+            (UploadApiVersion::V2, 2)
+        );
     }
 
     #[tokio::test(start_paused = true)]
@@ -1503,6 +1587,7 @@ mod v2_tests {
                             "status": "awaitingData",
                             "uploadUrl": "https://bundles.example/key?sig=1",
                             "expiresAt": "2026-10-06T17:00:00.000Z",
+                            "testCollectionUuid": COLLECTION_UUID,
                             "repositoryId": REPO_ID,
                             "createdAt": "2026-10-06T16:00:00.000Z",
                         })),
@@ -1549,7 +1634,8 @@ mod v2_tests {
                 Some("f47ac10b-58cc-4372-a567-0e02b2c3d479"),
                 Some("2026-10-06T16:00:00.000Z"),
                 Some(REPO_ID),
-                None,
+                // From the upload itself, so a run that makes no lookup still gets GUID links.
+                Some(COLLECTION_UUID),
             )
         );
         let seen = seen.lock().unwrap();
@@ -1571,35 +1657,42 @@ mod v2_tests {
         );
     }
 
-    fn quarantine_status_router(quarantine_enabled: bool) -> Router<Shared> {
-        quarantine_status_only_router(quarantine_enabled).route(
+    fn all_quarantined_tests_router(quarantine_enabled: bool) -> Router<Shared> {
+        Router::new().route(
             "/v2/test-collections/:id/all-quarantined-tests",
             get(
-                |State(seen): State<Shared>,
-                 headers: HeaderMap,
-                 uri: Uri,
-                 Query(query): Query<std::collections::HashMap<String, String>>| async move {
+                move |State(seen): State<Shared>,
+                      headers: HeaderMap,
+                      uri: Uri,
+                      Query(query): Query<std::collections::HashMap<String, String>>| async move {
                     record(&seen, &headers, &uri, None);
-                    let page = match query.get("cursor").map(String::as_str) {
-                        None => json!({
-                            "data": [{"testId": "bfeebcf4-72d1-887d-8bcd-788d0dec7f97"}],
-                            "nextCursor": "page-2",
-                            "hasMore": true,
-                        }),
-                        Some("page-2") => json!({
-                            "data": [{"testId": "0f7f61f2-0000-8000-8000-000000000000"}],
-                            "nextCursor": null,
-                            "hasMore": false,
-                        }),
+                    let (data, next_cursor) = match query.get("cursor").map(String::as_str) {
+                        _ if !quarantine_enabled => (json!([]), json!(null)),
+                        None => (
+                            json!([{"testId": "bfeebcf4-72d1-887d-8bcd-788d0dec7f97"}]),
+                            json!("page-2"),
+                        ),
+                        Some("page-2") => (
+                            json!([{"testId": "0f7f61f2-0000-8000-8000-000000000000"}]),
+                            json!(null),
+                        ),
                         Some(_) => return StatusCode::BAD_REQUEST.into_response(),
                     };
-                    Json(page).into_response()
+                    Json(json!({
+                        "data": data,
+                        "nextCursor": next_cursor,
+                        "hasMore": !next_cursor.is_null(),
+                        "testCollectionUuid": COLLECTION_UUID,
+                        "repositoryId": REPO_ID,
+                        "quarantineEnabled": quarantine_enabled,
+                    }))
+                    .into_response()
                 },
             ),
         )
     }
 
-    fn quarantine_status_only_router(quarantine_enabled: bool) -> Router<Shared> {
+    fn quarantine_status_router(quarantine_enabled: bool) -> Router<Shared> {
         Router::new().route(
             "/v2/test-collections/:id/quarantine-status",
             post(
@@ -1651,23 +1744,13 @@ mod v2_tests {
             .unwrap();
 
         assert_eq!(
-            (
-                config.is_disabled,
-                config.quarantined_tests,
-                config.quarantine_resolution_mode,
-                config.test_case_guid_scope,
-                config.quarantined_test_case_guids,
-            ),
-            (
-                false,
-                failures[1..]
-                    .iter()
-                    .map(|test| test.id.clone())
-                    .collect::<Vec<_>>(),
-                message::QuarantineResolutionMode::TestCollection,
-                scope(),
-                None,
-            )
+            config,
+            QuarantineLookup {
+                is_disabled: false,
+                quarantined_tests: failures[1..].iter().map(|test| test.id.clone()).collect(),
+                quarantine_resolution_mode: message::QuarantineResolutionMode::TestCollection,
+                test_case_guid_scope: scope(),
+            }
         );
         let seen = seen.lock().unwrap();
         assert_eq!(
@@ -1688,16 +1771,10 @@ mod v2_tests {
             seen.authorization,
             vec![Some(String::from("Bearer org-key")); 2]
         );
-        // The upload, created after the lookup, can then mint GUID links.
-        drop(seen);
-        assert_eq!(
-            client.test_collection_uuid.lock().unwrap().as_deref(),
-            Some(COLLECTION_UUID)
-        );
     }
 
     #[tokio::test]
-    async fn pages_the_whole_quarantined_set_for_a_lookup_with_no_identifiers() {
+    async fn makes_no_request_to_look_up_no_tests() {
         let (host, seen) = serve(quarantine_status_router(true)).await;
         let mut client = client(&host, Some("org-key"));
         client.set_upload_api_version(UploadApiVersion::V2);
@@ -1708,80 +1785,122 @@ mod v2_tests {
             .unwrap();
 
         assert_eq!(
-            (
-                config.is_disabled,
-                config.quarantined_tests,
-                config.test_case_guid_scope,
-                config.quarantined_test_case_guids
-            ),
-            (
-                false,
-                Vec::<String>::new(),
-                scope(),
-                Some(HashSet::from([
-                    String::from("bfeebcf4-72d1-887d-8bcd-788d0dec7f97"),
-                    String::from("0f7f61f2-0000-8000-8000-000000000000"),
-                ])),
-            )
+            (config.quarantined_tests, config.test_case_guid_scope),
+            (Vec::<String>::new(), None)
+        );
+        assert!(seen.lock().unwrap().uris.is_empty());
+    }
+
+    #[tokio::test]
+    async fn pages_the_whole_quarantined_set_with_no_status_call() {
+        let (host, seen) =
+            serve(all_quarantined_tests_router(true).merge(quarantine_status_router(true))).await;
+        let mut client = client(&host, Some("org-key"));
+        client.set_upload_api_version(UploadApiVersion::V2);
+
+        let set = client
+            .get_quarantined_test_set(&quarantine_request(vec![]))
+            .await
+            .unwrap();
+
+        assert_eq!(
+            set,
+            QuarantinedTestSet {
+                is_disabled: false,
+                quarantine_resolution_mode: message::QuarantineResolutionMode::TestCollection,
+                tests: QuarantinedTests::ByTestCaseGuid {
+                    scope: scope().unwrap(),
+                    guids: HashSet::from([
+                        String::from("bfeebcf4-72d1-887d-8bcd-788d0dec7f97"),
+                        String::from("0f7f61f2-0000-8000-8000-000000000000"),
+                    ]),
+                },
+            }
         );
         assert_eq!(
             seen.lock().unwrap().uris,
             vec![
-                format!("/v2/test-collections/{SHORT_ID}/quarantine-status"),
                 format!(
-                    "/v2/test-collections/{SHORT_ID}/all-quarantined-tests?repositoryId={REPO_ID}&limit=25000"
+                    "/v2/test-collections/{SHORT_ID}/all-quarantined-tests?repoHost=github.com&repoOwner=acme&repoName=web&limit=25000"
                 ),
                 format!(
-                    "/v2/test-collections/{SHORT_ID}/all-quarantined-tests?repositoryId={REPO_ID}&limit=25000&cursor=page-2"
+                    "/v2/test-collections/{SHORT_ID}/all-quarantined-tests?repoHost=github.com&repoOwner=acme&repoName=web&limit=25000&cursor=page-2"
                 ),
             ]
         );
     }
 
     #[tokio::test]
-    async fn does_not_page_the_set_when_quarantining_is_off() {
-        let (host, seen) = serve(quarantine_status_router(false)).await;
+    async fn names_no_repository_for_an_upload_without_one() {
+        let (host, seen) = serve(all_quarantined_tests_router(false)).await;
         let mut client = client(&host, Some("org-key"));
         client.set_upload_api_version(UploadApiVersion::V2);
+        let request = message::GetQuarantineConfigRequest {
+            repo: context::repo::RepoUrlParts::default(),
+            ..quarantine_request(vec![])
+        };
 
-        let config = client
-            .get_quarantining_config(&quarantine_request(vec![]))
-            .await
-            .unwrap();
+        client.get_quarantined_test_set(&request).await.unwrap();
 
-        assert_eq!(
-            (config.is_disabled, config.quarantined_test_case_guids),
-            (true, None)
-        );
         assert_eq!(
             seen.lock().unwrap().uris,
-            vec![format!("/v2/test-collections/{SHORT_ID}/quarantine-status")]
+            vec![format!(
+                "/v2/test-collections/{SHORT_ID}/all-quarantined-tests?limit=25000"
+            )]
         );
     }
 
     #[tokio::test]
-    async fn stops_paging_on_a_repeated_cursor() {
-        let router = quarantine_status_only_router(true).route(
-            "/v2/test-collections/:id/all-quarantined-tests",
-            get(|| async { Json(json!({"data": [], "nextCursor": "same", "hasMore": true})) }),
+    async fn reads_quarantining_off_from_the_list() {
+        let (host, seen) = serve(all_quarantined_tests_router(false)).await;
+        let mut client = client(&host, Some("org-key"));
+        client.set_upload_api_version(UploadApiVersion::V2);
+
+        let set = client
+            .get_quarantined_test_set(&quarantine_request(vec![]))
+            .await
+            .unwrap();
+
+        assert_eq!(
+            (set.is_disabled, set.tests),
+            (
+                true,
+                QuarantinedTests::ByTestCaseGuid {
+                    scope: scope().unwrap(),
+                    guids: HashSet::new(),
+                },
+            )
         );
-        let (host, seen) = serve(router).await;
+        assert_eq!(seen.lock().unwrap().uris.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn stops_paging_on_a_repeated_cursor() {
+        let router = Router::new().route(
+            "/v2/test-collections/:id/all-quarantined-tests",
+            get(|| async {
+                Json(json!({
+                    "data": [],
+                    "nextCursor": "same",
+                    "hasMore": true,
+                    "testCollectionUuid": COLLECTION_UUID,
+                    "repositoryId": REPO_ID,
+                    "quarantineEnabled": true,
+                }))
+            }),
+        );
+        let (host, _) = serve(router).await;
         let mut client = client(&host, Some("org-key"));
         client.set_upload_api_version(UploadApiVersion::V2);
 
         let error = client
-            .get_quarantining_config(&quarantine_request(vec![]))
+            .get_quarantined_test_set(&quarantine_request(vec![]))
             .await
             .unwrap_err();
 
         assert!(
             format!("{error:?}").contains("repeated its cursor"),
             "{error:?}"
-        );
-        assert_eq!(
-            seen.lock().unwrap().uris.len(),
-            1,
-            "only the status call is recorded"
         );
     }
 

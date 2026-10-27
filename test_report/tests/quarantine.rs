@@ -731,16 +731,10 @@ async fn v2_matches_a_test_by_its_computed_test_id() {
             "/v1/metrics/getUploadApiVersion",
             post(|| async { Json(json!({"apiVersion": "v2"})) }),
         );
+        // The list carries the scope, so a runner makes no status call.
         builder.route(
             "/v2/test-collections/:id/quarantine-status",
-            post(|| async {
-                Json(json!({
-                    "testCollectionUuid": COLLECTION_UUID,
-                    "repositoryId": REPO_ID,
-                    "quarantineEnabled": true,
-                    "tests": [],
-                }))
-            }),
+            post(|| async { (StatusCode::INTERNAL_SERVER_ERROR, "not needed") }),
         );
         builder.route(
             "/v2/test-collections/:id/all-quarantined-tests",
@@ -749,6 +743,9 @@ async fn v2_matches_a_test_by_its_computed_test_id() {
                     "data": [{"testId": quarantined_guid}],
                     "nextCursor": null,
                     "hasMore": false,
+                    "testCollectionUuid": COLLECTION_UUID,
+                    "repositoryId": REPO_ID,
+                    "quarantineEnabled": true,
                 }))
             }),
         );

@@ -8,7 +8,7 @@ use url::{ParseError, Url, form_urlencoded};
 use uuid::Uuid;
 
 /// The server-resolved half of the test-case GUID tuple: from `CreateBundleUploadResponse` on
-/// v1, and from `quarantine-status` on v2.
+/// v1, and from any v2 quarantine or upload response.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TestCaseGuidScope {
     pub test_collection_id: String,

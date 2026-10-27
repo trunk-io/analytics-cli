@@ -10,6 +10,7 @@ use std::{
 use api::{
     client::ApiClient,
     message::{self, QuarantineResolutionMode, UploadApiCaller, UploadApiVersion},
+    quarantine::QuarantinedTests,
     urls::TestCaseGuidScope,
 };
 use bundle::BundleMetaDebugProps;
@@ -685,19 +686,20 @@ impl MutTestReport {
             .enable_all()
             .build()
             .unwrap()
-            .block_on(api_client.get_quarantining_config(&request));
+            .block_on(api_client.get_quarantined_test_set(&request));
         let mut resolution_mode = QuarantineResolutionMode::Unspecified;
         let mut test_case_guid_scope = None;
         let (quarantining_disabled, quarantine_lookup_failed) = match response {
             Ok(response) => {
                 let is_disabled = response.is_disabled;
-                for quarantined_test_id in response.quarantined_tests.iter() {
-                    quarantined_tests.insert(quarantined_test_id.clone(), true);
-                }
-                for guid in response.quarantined_test_case_guids.iter().flatten() {
-                    quarantined_tests.insert(guid.clone(), true);
-                }
-                test_case_guid_scope = response.test_case_guid_scope.clone();
+                let keys = match response.tests {
+                    QuarantinedTests::ByTestId(test_ids) => test_ids,
+                    QuarantinedTests::ByTestCaseGuid { scope, guids } => {
+                        test_case_guid_scope = Some(scope);
+                        guids
+                    }
+                };
+                quarantined_tests.extend(keys.into_iter().map(|key| (key, true)));
                 resolution_mode = response.quarantine_resolution_mode;
                 if let Some(line) =
                     resolution_mode.resolution_log_line(test_collection_short_id.as_deref(), repo)
