@@ -1983,3 +1983,85 @@ fn test_evergreen_without_custom_config() {
 
     pretty_assertions::assert_eq!(ci_info, CIInfo::new(CIPlatform::Evergreen));
 }
+
+#[test]
+fn test_depot_ci_pull_request() {
+    let repository = String::from("test/tester");
+    let branch = String::from("some-branch-name");
+    let job_url = String::from("https://depot.dev/orgs/abcdefghij/workflows/x17bxd5m0z?job=django");
+    let pr_number = 123;
+
+    let env_vars = EnvVars::from_iter(vec![
+        (String::from("GITHUB_ACTIONS"), String::from("true")),
+        (String::from("DEPOT_JOB_URL"), String::from(&job_url)),
+        (
+            String::from("GITHUB_EVENT_NAME"),
+            String::from("pull_request"),
+        ),
+        (String::from("GITHUB_RUN_ID"), String::from("457806187163")),
+        (String::from("GITHUB_ACTOR"), String::from("username")),
+        (String::from("GITHUB_REPOSITORY"), String::from(&repository)),
+        (
+            String::from("GITHUB_REF"),
+            format!("refs/pull/{pr_number}/merge"),
+        ),
+        (String::from("GITHUB_HEAD_REF"), String::from(&branch)),
+        (
+            String::from("GITHUB_WORKFLOW"),
+            String::from("Backend CI on Depot"),
+        ),
+        (String::from("GITHUB_JOB"), String::from("django")),
+    ]);
+
+    let mut env_parser = EnvParser::new();
+    env_parser.parse(&env_vars, &[], None);
+
+    let ci_info = env_parser.into_ci_info_parser().unwrap().info_ci_info();
+
+    pretty_assertions::assert_eq!(
+        ci_info,
+        CIInfo {
+            platform: CIPlatform::DepotCI,
+            job_url: Some(job_url),
+            branch: Some(branch),
+            branch_class: Some(BranchClass::PullRequest),
+            pr_number: Some(pr_number),
+            actor: Some(String::from("username")),
+            committer_name: None,
+            committer_email: None,
+            author_name: None,
+            author_email: None,
+            commit_message: None,
+            title: None,
+            workflow: Some(String::from("Backend CI on Depot")),
+            job: Some(String::from("django")),
+        }
+    );
+}
+
+#[test]
+fn test_depot_ci_job_url_override() {
+    let job_url = String::from("https://ci.example.com/job/1");
+
+    let env_vars = EnvVars::from_iter(vec![
+        (String::from("GITHUB_ACTIONS"), String::from("true")),
+        (
+            String::from("DEPOT_JOB_URL"),
+            String::from("https://depot.dev/orgs/abcdefghij/workflows/x17bxd5m0z?job=django"),
+        ),
+        (String::from("JOB_URL"), String::from(&job_url)),
+        (String::from("GITHUB_RUN_ID"), String::from("457806187163")),
+        (
+            String::from("GITHUB_REPOSITORY"),
+            String::from("test/tester"),
+        ),
+    ]);
+
+    let mut env_parser = EnvParser::new();
+    env_parser.parse(&env_vars, &[], None);
+
+    let ci_info = env_parser.into_ci_info_parser().unwrap().info_ci_info();
+
+    pretty_assertions::assert_eq!(ci_info.platform, CIPlatform::DepotCI);
+    pretty_assertions::assert_eq!(ci_info.job_url, Some(job_url));
+}
