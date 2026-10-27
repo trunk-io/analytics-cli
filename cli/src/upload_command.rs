@@ -13,7 +13,7 @@ use context::bazel_bep::common::BepParseResult;
 use display::{end_output::EndOutput, message::DisplayMessage};
 use pluralizer::pluralize;
 use superconsole::{
-    Hyperlink, Line, Lines, Span,
+    Hyperlink, Line, Lines, Span, SuperConsole,
     style::{Attribute, Color, Stylize, style},
 };
 use tempfile::TempDir;
@@ -859,9 +859,19 @@ pub fn get_bundle_upload_id_message(bundle_upload_id: &str) -> String {
     format!("🏷️  Bundle Upload ID: {}", bundle_upload_id)
 }
 
+/// Plain text unless superconsole is drawing to an interactive terminal: log viewers such as
+/// GitHub Actions don't support OSC 8 and drop the link text along with the escape.
 fn hyperlink_span(url: String, attribute: Attribute) -> anyhow::Result<Span> {
+    url_span(url, attribute, SuperConsole::compatible())
+}
+
+fn url_span(url: String, attribute: Attribute, clickable: bool) -> anyhow::Result<Span> {
     let span = Span::new_styled(style(url.clone()).attribute(attribute))?;
-    Ok(span.with_hyperlink(Some(Hyperlink::new(url))))
+    Ok(if clickable {
+        span.with_hyperlink(Some(Hyperlink::new(url)))
+    } else {
+        span
+    })
 }
 
 impl UploadRunResult {
@@ -1200,5 +1210,26 @@ impl EndOutput for UploadRunResult {
             ]));
         }
         Ok(output)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use superconsole::{Line, style::Attribute};
+
+    use super::url_span;
+
+    const URL: &str = "https://app.trunk.io/my-org/flaky-tests/test/1";
+
+    fn rendered(clickable: bool) -> String {
+        Line::from_iter([url_span(URL.into(), Attribute::Underlined, clickable).unwrap()]).render()
+    }
+
+    #[test]
+    fn url_span_adds_osc8_only_when_clickable() {
+        assert!(rendered(true).contains("\x1b]8;;"));
+        let plain = rendered(false);
+        assert!(!plain.contains("\x1b]8;;"));
+        assert!(plain.contains(URL));
     }
 }
