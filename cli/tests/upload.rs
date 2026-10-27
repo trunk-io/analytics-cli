@@ -3708,13 +3708,19 @@ async fn upload_verbose_logs_go_to_stderr() {
     let assert = CommandBuilder::upload(temp_dir.path(), state.host.clone())
         .verbose(true)
         .command()
+        .arg("--team")
+        .arg("some-team")
         .assert();
 
     println!("{assert}");
     // stdout is kept free of logs so it can carry machine-readable output
     assert
         .stdout(predicate::str::contains(DEBUG_LOG_MARKER).not())
-        .stderr(predicate::str::contains(DEBUG_LOG_MARKER));
+        .stderr(predicate::str::contains(DEBUG_LOG_MARKER))
+        .stderr(predicate::str::contains(
+            "The --team flag is deprecated and will be removed in a future version.",
+        ))
+        .stderr(predicate::str::contains("WARN"));
 }
 
 // NOTE: must be multi threaded to start a mock server
