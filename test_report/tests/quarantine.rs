@@ -738,7 +738,7 @@ async fn v2_matches_a_test_by_its_computed_test_id() {
         );
         builder.route(
             "/v2/test-collections/:id/all-quarantined-tests",
-            get(move || async move {
+            post(move || async move {
                 Json(json!({
                     "data": [{"testId": quarantined_guid}],
                     "nextCursor": null,

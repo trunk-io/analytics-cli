@@ -552,8 +552,8 @@ impl ApiClient {
             "quarantine-status",
         )?;
         let body = message::QuarantineStatusRequest {
-            repo: request.repo.clone(),
-            test_identifiers: identifiers.to_vec(),
+            repo: message::named_repo(&request.repo),
+            test_identifiers: identifiers,
         };
         CallApi {
             action: || async {
@@ -598,10 +598,9 @@ impl ApiClient {
             request.test_collection_short_id.as_deref(),
             "all-quarantined-tests",
         )?;
-        let repo = &request.repo;
-        let has_repo = [&repo.host, &repo.owner, &repo.name]
-            .iter()
-            .all(|part| !part.is_empty());
+        let body = message::AllQuarantinedTestsRequest {
+            repo: message::named_repo(&request.repo),
+        };
         let mut guids = HashSet::new();
         let mut scope: Option<(TestCaseGuidScope, bool)> = None;
         let mut cursor: Option<String> = None;
@@ -609,12 +608,6 @@ impl ApiClient {
             let mut url = base_url.clone();
             {
                 let mut query = url.query_pairs_mut();
-                if has_repo {
-                    query
-                        .append_pair("repoHost", &repo.host)
-                        .append_pair("repoOwner", &repo.owner)
-                        .append_pair("repoName", &repo.name);
-                }
                 query.append_pair("limit", &Self::ALL_QUARANTINED_TESTS_PAGE_SIZE.to_string());
                 if let Some(cursor) = cursor.as_deref() {
                     query.append_pair("cursor", cursor);
@@ -622,7 +615,7 @@ impl ApiClient {
             }
             let page = CallApi {
                 action: || async {
-                    let response = client.get(url.clone()).send().await?;
+                    let response = client.post(url.clone()).json(&body).send().await?;
                     let response = status_code_help(
                         response,
                         StatusCodeHelp {
@@ -1660,12 +1653,13 @@ mod v2_tests {
     fn all_quarantined_tests_router(quarantine_enabled: bool) -> Router<Shared> {
         Router::new().route(
             "/v2/test-collections/:id/all-quarantined-tests",
-            get(
+            post(
                 move |State(seen): State<Shared>,
                       headers: HeaderMap,
                       uri: Uri,
-                      Query(query): Query<std::collections::HashMap<String, String>>| async move {
-                    record(&seen, &headers, &uri, None);
+                      Query(query): Query<std::collections::HashMap<String, String>>,
+                      Json(body): Json<Value>| async move {
+                    record(&seen, &headers, &uri, Some(body));
                     let (data, next_cursor) = match query.get("cursor").map(String::as_str) {
                         _ if !quarantine_enabled => (json!([]), json!(null)),
                         None => (
@@ -1817,17 +1811,18 @@ mod v2_tests {
                 },
             }
         );
+        let seen = seen.lock().unwrap();
         assert_eq!(
-            seen.lock().unwrap().uris,
+            seen.uris,
             vec![
+                format!("/v2/test-collections/{SHORT_ID}/all-quarantined-tests?limit=25000"),
                 format!(
-                    "/v2/test-collections/{SHORT_ID}/all-quarantined-tests?repoHost=github.com&repoOwner=acme&repoName=web&limit=25000"
-                ),
-                format!(
-                    "/v2/test-collections/{SHORT_ID}/all-quarantined-tests?repoHost=github.com&repoOwner=acme&repoName=web&limit=25000&cursor=page-2"
+                    "/v2/test-collections/{SHORT_ID}/all-quarantined-tests?limit=25000&cursor=page-2"
                 ),
             ]
         );
+        let repo = json!({"repo": {"host": "github.com", "owner": "acme", "name": "web"}});
+        assert_eq!(seen.bodies, vec![repo.clone(), repo]);
     }
 
     #[tokio::test]
@@ -1842,12 +1837,14 @@ mod v2_tests {
 
         client.get_quarantined_test_set(&request).await.unwrap();
 
+        let seen = seen.lock().unwrap();
         assert_eq!(
-            seen.lock().unwrap().uris,
+            seen.uris,
             vec![format!(
                 "/v2/test-collections/{SHORT_ID}/all-quarantined-tests?limit=25000"
             )]
         );
+        assert_eq!(seen.bodies, vec![json!({"repo": null})]);
     }
 
     #[tokio::test]
@@ -1878,7 +1875,7 @@ mod v2_tests {
     async fn stops_paging_on_a_repeated_cursor() {
         let router = Router::new().route(
             "/v2/test-collections/:id/all-quarantined-tests",
-            get(|| async {
+            post(|| async {
                 Json(json!({
                     "data": [],
                     "nextCursor": "same",

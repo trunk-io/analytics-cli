@@ -124,7 +124,7 @@ pub struct GetUploadApiVersionResponse {
 #[derive(Debug, Serialize, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateTestUploadRequest<'a> {
-    pub repo: &'a RepoUrlParts,
+    pub repo: Option<&'a RepoUrlParts>,
     pub remote_urls: &'a [String],
     pub client_version: &'a str,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -134,7 +134,7 @@ pub struct CreateTestUploadRequest<'a> {
 impl<'a> From<&'a CreateBundleUploadRequest> for CreateTestUploadRequest<'a> {
     fn from(request: &'a CreateBundleUploadRequest) -> Self {
         Self {
-            repo: &request.repo,
+            repo: named_repo(&request.repo),
             remote_urls: &request.remote_urls,
             client_version: &request.client_version,
             external_id: request.external_id.as_deref(),
@@ -163,9 +163,23 @@ pub struct BundleUploadIdV2<'a> {
 
 #[derive(Debug, Serialize, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
-pub struct QuarantineStatusRequest {
-    pub repo: RepoUrlParts,
-    pub test_identifiers: Vec<QuarantineStatusIdentifier>,
+pub struct QuarantineStatusRequest<'a> {
+    pub repo: Option<&'a RepoUrlParts>,
+    pub test_identifiers: &'a [QuarantineStatusIdentifier],
+}
+
+#[derive(Debug, Serialize, Clone, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct AllQuarantinedTestsRequest<'a> {
+    pub repo: Option<&'a RepoUrlParts>,
+}
+
+/// v2 names an upload without a repository with `null`; it refuses empty parts.
+pub fn named_repo(repo: &RepoUrlParts) -> Option<&RepoUrlParts> {
+    [&repo.host, &repo.owner, &repo.name]
+        .iter()
+        .all(|part| !part.is_empty())
+        .then_some(repo)
 }
 
 /// A test by its id alone: v2 matches an id by itself, so names would only add bytes.
