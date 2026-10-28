@@ -490,6 +490,7 @@ async fn upload_bundle_records_quarantine_resolution_mode() {
                 is_disabled: false,
                 quarantined_tests: Vec::new(),
                 quarantine_resolution_mode: QuarantineResolutionMode::TestCollection,
+                ..Default::default()
             })
         },
     );
@@ -3394,4 +3395,144 @@ async fn a_swift_test_xunit_file_reached_twice_is_uploaded_once() {
         "expected duplicate routes to one file to collapse, got {cases:?}"
     );
     assert_declarations_resolved(cases);
+}
+
+// NOTE: must be multi threaded to start a mock server
+#[tokio::test(flavor = "multi_thread")]
+async fn upload_on_v2_when_trunk_chooses_it() {
+    use axum::routing::post;
+    use serde_json::{Value, json};
+
+    const UPLOAD_ID: &str = "f47ac10b-58cc-4372-a567-0e02b2c3d479";
+    const CREATED_AT: &str = "2026-10-06T16:00:00.000Z";
+
+    let temp_dir = tempdir().unwrap();
+    generate_mock_git_repo(&temp_dir);
+    generate_mock_valid_junit_xmls_with_failures(&temp_dir);
+
+    // (route, authorization header) per v2 call
+    type Calls = Arc<Mutex<Vec<(String, Option<String>)>>>;
+    let v2_calls: Calls = Arc::default();
+    let mut mock_server_builder = MockServerBuilder::new();
+    mock_server_builder.route(
+        "/v1/metrics/getUploadApiVersion",
+        post(|| async { Json(json!({"apiVersion": "v2"})) }),
+    );
+    let calls = v2_calls.clone();
+    mock_server_builder.route(
+        "/v2/test-collections/:id/quarantine-status",
+        post(move |headers: axum::http::HeaderMap, Json(body): Json<Value>| {
+            let calls = calls.clone();
+            async move {
+                calls.lock().unwrap().push((
+                    String::from("quarantine-status"),
+                    headers
+                        .get("authorization")
+                        .and_then(|value| value.to_str().ok())
+                        .map(String::from),
+                ));
+                let tests: Vec<Value> = body["testIdentifiers"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .map(|identifier| {
+                        json!({"clientTestId": identifier["id"], "testId": null, "quarantined": true})
+                    })
+                    .collect();
+                Json(json!({
+                    "testCollectionUuid": MOCK_TEST_COLLECTION_ID,
+                    "repositoryId": MOCK_REPO_ID,
+                    "quarantineEnabled": true,
+                    "tests": tests,
+                }))
+            }
+        }),
+    );
+    let calls = v2_calls.clone();
+    mock_server_builder.route(
+        "/v2/test-collections/:id/uploads",
+        post(
+            move |State(state): State<SharedMockServerState>, headers: axum::http::HeaderMap| {
+                let calls = calls.clone();
+                async move {
+                    calls.lock().unwrap().push((
+                        String::from("uploads"),
+                        headers
+                            .get("authorization")
+                            .and_then(|value| value.to_str().ok())
+                            .map(String::from),
+                    ));
+                    (
+                        StatusCode::CREATED,
+                        Json(json!({
+                            "id": UPLOAD_ID,
+                            "status": "awaitingData",
+                            "uploadUrl": format!("{}/s3upload", state.host),
+                            "expiresAt": "2026-10-06T17:00:00.000Z",
+                            "testCollectionUuid": MOCK_TEST_COLLECTION_ID,
+                            "repositoryId": MOCK_REPO_ID,
+                            "createdAt": CREATED_AT,
+                        })),
+                    )
+                }
+            },
+        ),
+    );
+    let state = mock_server_builder.spawn_mock_server().await;
+
+    CommandBuilder::upload(temp_dir.path(), state.host.clone())
+        .command()
+        .arg("--test-collection-id")
+        .arg("aB3xY9kQ")
+        .assert()
+        // every failure is quarantined
+        .success();
+
+    assert_eq!(
+        v2_calls.lock().unwrap().clone(),
+        vec![
+            (
+                String::from("quarantine-status"),
+                Some(String::from("Bearer test-token"))
+            ),
+            (
+                String::from("uploads"),
+                Some(String::from("Bearer test-token"))
+            ),
+        ]
+    );
+    let requests = state.requests.lock().unwrap().clone();
+    assert!(
+        !requests.iter().any(|request| matches!(
+            request,
+            RequestPayload::CreateBundleUpload(_) | RequestPayload::GetQuarantineConfig(_)
+        )),
+        "a v2 run must not call the v1 routes"
+    );
+    let tar_extract_directory = requests
+        .iter()
+        .find_map(|request| match request {
+            RequestPayload::S3Upload(directory) => Some(directory),
+            _ => None,
+        })
+        .expect("the bundle must have been uploaded");
+    let file = fs::File::open(tar_extract_directory.join("meta.json")).unwrap();
+    let bundle_meta: BundleMeta = serde_json::from_reader(BufReader::new(file)).unwrap();
+    assert_eq!(
+        (
+            bundle_meta.base_props.bundle_upload_id.as_str(),
+            bundle_meta.bundle_upload_id_v2.as_str(),
+            bundle_meta.base_props.test_collection,
+        ),
+        (
+            UPLOAD_ID,
+            // base64 of {"id":…,"createdAt":…,"repoId":…}, which ingestion decodes
+            "eyJpZCI6ImY0N2FjMTBiLTU4Y2MtNDM3Mi1hNTY3LTBlMDJiMmMzZDQ3OSIsImNyZWF0ZWRBdCI6IjIwMjYtMTAtMDZUMTY6MDA6MDAuMDAwWiIsInJlcG9JZCI6IjdhMWYwZTNkLTJiNGMtNGQ1ZS04ZjkwLTEyMzQ1Njc4OWFiYyJ9",
+            Some(TestCollectionProps {
+                short_id: String::from("aB3xY9kQ"),
+                bundle_meta_id: String::from(UPLOAD_ID),
+                bundle_meta_created_at: String::from(CREATED_AT),
+            }),
+        )
+    );
 }
