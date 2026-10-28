@@ -901,7 +901,8 @@ fn writes_the_report_as_json() {
     result.quarantine_context.failures = vec![
         Test {
             class_name: Some(String::from("Math")),
-            failure_message: Some(String::from("expected 1, got 2")),
+            failure_message_attribute: Some(String::from("expected 1, got 2")),
+            failure_text: Some(String::from("at src/math.rs:12")),
             variant: Some(String::from("linux")),
             ..failure("subtracts", "MathTests", Some("src/math.rs"))
         },
@@ -916,6 +917,7 @@ fn writes_the_report_as_json() {
         serde_json::json!({
             "schemaVersion": 1,
             "type": "UPLOAD",
+            "command": "UPLOAD",
             "error": {
                 "kind": "OTHER",
                 "message": "There was an unexpected error that occurred while uploading test results",
@@ -969,6 +971,7 @@ fn writes_the_report_as_json() {
                             "id": "adds-id",
                             "variant": null,
                             "failureMessage": null,
+                            "failureText": null,
                             "quarantined": true,
                             "link": "https://app.trunk.io/test-org/flaky-tests/collections/abc123/t/adds-id?repo=trunk-io%2Fanalytics-cli",
                         },
@@ -987,6 +990,7 @@ fn writes_the_report_as_json() {
                             "id": "subtracts-id",
                             "variant": "linux",
                             "failureMessage": "expected 1, got 2",
+                            "failureText": "at src/math.rs:12",
                             "quarantined": false,
                             "link": "https://app.trunk.io/test-org/flaky-tests/collections/abc123/t/subtracts-id?repo=trunk-io%2Fanalytics-cli",
                         },
@@ -1003,6 +1007,7 @@ fn writes_the_report_as_json() {
                             "id": "boots-id",
                             "variant": null,
                             "failureMessage": null,
+                            "failureText": null,
                             "quarantined": false,
                             "link": "https://app.trunk.io/test-org/flaky-tests/collections/abc123/t/boots-id?repo=trunk-io%2Fanalytics-cli",
                         },
