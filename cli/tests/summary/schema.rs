@@ -14,6 +14,6 @@ fn prints_the_summary_output_schema() {
 
     assert_eq!(
         serde_json::from_slice::<serde_json::Value>(&output).unwrap(),
-        serde_json::to_value(json::schema()).unwrap()
+        serde_json::to_value(json::Report::schema()).unwrap()
     );
 }

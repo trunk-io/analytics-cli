@@ -5,7 +5,7 @@ use assert_cmd::{Command, cargo};
 use pretty_assertions::assert_eq;
 use trunk_analytics_cli::{
     context_quarantine::QuarantineFetchStatus,
-    error_report::{ErrorReport, InterruptingError},
+    error_report::{ErrorKind, ErrorReport, InterruptingError},
     exit_code::ExitCode,
     summary_output::{
         ErrorSummary, UploadCommand, UploadReport,
@@ -23,7 +23,11 @@ use super::{
 /// Writes the summary as `upload` would, then reads it back the way the command does.
 fn upload_annotations(result: &UploadRunResult) -> Vec<String> {
     let report = UploadReport::new(result, UploadCommand::Upload);
-    let summary = json::from_str(&json::to_string(Report::Upload(&report)).unwrap()).unwrap();
+    let summary = Report::Upload(&report)
+        .to_json()
+        .unwrap()
+        .parse::<json::Summary>()
+        .unwrap();
     annotations(&summary)
         .iter()
         .map(ToString::to_string)
@@ -32,7 +36,11 @@ fn upload_annotations(result: &UploadRunResult) -> Vec<String> {
 
 fn error_annotations(report: &ErrorReport) -> Vec<String> {
     let error = ErrorSummary::new(report);
-    let summary = json::from_str(&json::to_string(Report::Error(&error)).unwrap()).unwrap();
+    let summary = Report::Error(&error)
+        .to_json()
+        .unwrap()
+        .parse::<json::Summary>()
+        .unwrap();
     annotations(&summary)
         .iter()
         .map(ToString::to_string)
@@ -45,22 +53,41 @@ fn reads_back_the_summary_it_wrote() {
     result.quarantine_context.exit_code = ExitCode::Failure;
     result.quarantine_context.failures = vec![failure("adds", "MathTests", Some("src/math.rs"))];
     let report = UploadReport::new(&result, UploadCommand::Upload);
-    let written = json::to_string(Report::Upload(&report)).unwrap();
+    let written = Report::Upload(&report).to_json().unwrap();
 
-    let json::Summary::Upload(read) = json::from_str(&written).unwrap() else {
+    let json::Summary::Upload(read) = written.parse().unwrap() else {
         panic!("expected an upload summary");
     };
-    assert_eq!(json::to_string(Report::Upload(&read)).unwrap(), written);
+    assert_eq!(Report::Upload(&read).to_json().unwrap(), written);
 }
 
 #[test]
 fn rejects_a_newer_schema_version() {
-    let error = json::from_str(r#"{"schemaVersion": 2, "type": "ERROR"}"#).unwrap_err();
+    let error = r#"{"schemaVersion": 2, "type": "ERROR"}"#.parse::<json::Summary>().unwrap_err();
     assert_eq!(
         error.to_string(),
         "schemaVersion 2 is newer than this CLI understands (1)"
     );
-    assert!(json::from_str("{}").is_err());
+    assert!("{}".parse::<json::Summary>().is_err());
+}
+
+#[test]
+fn reads_a_newer_schema_version_that_still_parses() {
+    let error = ErrorSummary::new(&ErrorReport::new(
+        unauthorized_error(),
+        String::from("fake-org-slug"),
+        None,
+    ));
+    let mut written: serde_json::Value =
+        serde_json::from_str(&Report::Error(&error).to_json().unwrap()).unwrap();
+    written["schemaVersion"] = serde_json::json!(2);
+    written["kind"] = serde_json::json!("SOME_NEW_KIND");
+    written["someNewField"] = serde_json::json!(true);
+
+    let json::Summary::Error(read) = written.to_string().parse().unwrap() else {
+        panic!("expected an error summary");
+    };
+    assert_eq!(read.kind, ErrorKind::Other);
 }
 
 #[test]
@@ -109,7 +136,7 @@ fn annotates_each_failure_that_was_not_quarantined() {
         .quarantine_status
         .quarantine_results = vec![failure("adds", "MathTests", Some("src/math.rs"))];
     let mut divides = failure("divides", "MathTests", None);
-    divides.failure_message = Some(String::from("expected 1, got 2\n100% wrong"));
+    divides.failure_text = Some(String::from("expected 1, got 2\n100% wrong"));
     result.quarantine_context.failures = vec![
         failure("subtracts", "Math, Tests: unit", Some("src/math.rs")),
         divides,
@@ -236,7 +263,7 @@ fn the_command_prints_annotations_and_exits_0() {
     let mut result = upload_result(0);
     result.quarantine_context.exit_code = ExitCode::Failure;
     let report = UploadReport::new(&result, UploadCommand::Upload);
-    json::write_file(&path, Report::Upload(&report)).unwrap();
+    Report::Upload(&report).write_file(&path).unwrap();
 
     github_annotations(&path).success().stdout(
         "::error::No tests were found in the provided test results, but non zero exit code provided: 1%0AThe test step appears to have failed without running tests -- see above for the original failure.\n",
@@ -248,7 +275,7 @@ fn the_command_exits_non_zero_with_nothing_to_say() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("summary.json");
     let report = UploadReport::new(&upload_result(5), UploadCommand::Upload);
-    json::write_file(&path, Report::Upload(&report)).unwrap();
+    Report::Upload(&report).write_file(&path).unwrap();
 
     github_annotations(&path).code(1).stdout("");
 

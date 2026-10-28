@@ -8,7 +8,7 @@ use pluralizer::pluralize;
 
 use super::{
     ErrorSummary, FailedTest, Outcome, Quarantining, UploadReport,
-    json::{self, Summary},
+    json::Summary,
     text::{
         FAILED_WITHOUT_RUNNING_TESTS, FAILURE_MESSAGE_MAX_LINES, NO_TEST_FAILURES, NO_TESTS_FOUND,
         QUARANTINE_LOOKUP_FAILED, SOME_TESTS_MAY_NOT_HAVE_RUN, UNAUTHORIZED_HINT,
@@ -40,7 +40,7 @@ pub struct Annotation {
 /// 0, and otherwise falls back to its own message, so anything else exits non-zero: a summary
 /// with nothing to say, and one that can't be read.
 pub fn run(summary_file: &Path) -> ExitCode {
-    let summary = match json::read_file(summary_file) {
+    let summary = match Summary::read_file(summary_file) {
         Ok(summary) => summary,
         Err(error) => {
             eprintln!("{error:#}");

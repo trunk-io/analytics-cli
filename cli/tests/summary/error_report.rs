@@ -199,7 +199,7 @@ fn writes_an_error_as_json() {
     let error = ErrorSummary::new(&report);
 
     assert_eq!(
-        serde_json::from_str::<serde_json::Value>(&json::to_string(Report::Error(&error)).unwrap())
+        serde_json::from_str::<serde_json::Value>(&Report::Error(&error).to_json().unwrap())
             .unwrap(),
         serde_json::json!({
             "schemaVersion": 1,
@@ -220,7 +220,7 @@ fn writes_the_settings_url_and_exit_code_of_an_unauthorized_error_as_json() {
     let report = ErrorReport::new(unauthorized_error(), String::from("fake-org-slug"), None);
     let error = ErrorSummary::new(&report);
     let json: serde_json::Value =
-        serde_json::from_str(&json::to_string(Report::Error(&error)).unwrap()).unwrap();
+        serde_json::from_str(&Report::Error(&error).to_json().unwrap()).unwrap();
 
     assert_eq!(json["kind"], "UNAUTHORIZED");
     assert_eq!(

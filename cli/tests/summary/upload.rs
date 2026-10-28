@@ -887,7 +887,7 @@ fn exits_with_the_test_run_exit_code_when_an_error_has_none() {
 
 fn upload_json(result: &UploadRunResult) -> serde_json::Value {
     let report = UploadReport::new(result, UploadCommand::Upload);
-    serde_json::from_str(&json::to_string(Report::Upload(&report)).unwrap()).unwrap()
+    serde_json::from_str(&Report::Upload(&report).to_json().unwrap()).unwrap()
 }
 
 #[test]

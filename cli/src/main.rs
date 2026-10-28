@@ -247,7 +247,7 @@ fn main() -> anyhow::Result<()> {
                     close_out_and_exit(exit_code, guard, render_sender, render_handle)
                 }
                 MainOutcome::Finished(Ok(RunResult::SummaryOutputSchema)) => {
-                    println!("{}", serde_json::to_string_pretty(&json::schema())?);
+                    println!("{}", serde_json::to_string_pretty(&json::Report::schema())?);
                     close_out_and_exit(ExitCode::Success, guard, render_sender, render_handle)
                 }
                 MainOutcome::Finished(Err(error)) => {
@@ -276,7 +276,7 @@ fn write_summary_file(path: Option<&Path>, report: Report, render_sender: &Sende
     let Some(path) = path else {
         return;
     };
-    let text = SummaryFileText::new(path, json::write_file(path, report));
+    let text = SummaryFileText::new(path, report.write_file(path));
     send_message(
         DisplayMessage::Final(Arc::new(text), String::from("summary file display")),
         render_sender,

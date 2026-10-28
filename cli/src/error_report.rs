@@ -105,6 +105,8 @@ pub enum ErrorKind {
     GitRepository,
     /// The run stopped early, such as when it found no test reports and empty results aren't allowed.
     Interrupted,
+    /// Also what a kind from a newer CLI reads as.
+    #[serde(other)]
     Other,
 }
 
