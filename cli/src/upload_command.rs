@@ -481,6 +481,8 @@ pub struct UploadRunResult {
     pub hide_test_collection_links: bool,
     pub api_address: String,
     pub guid_scope: Option<TestCaseGuidScope>,
+    /// `None` for a dry run, which uploads nothing.
+    pub upload_api_version: Option<UploadApiVersion>,
 }
 
 pub struct RunUploadOptions {
@@ -795,6 +797,7 @@ pub async fn run_upload(
             "No test collection ids returned for this upload; test links will use the short-link form"
         );
     }
+    let upload_api_version = (!upload_args.dry_run).then(|| api_client.upload_api_version());
     Ok(UploadRunResult {
         quarantine_context,
         error_report,
@@ -808,6 +811,7 @@ pub async fn run_upload(
         hide_test_collection_links: upload_args.hide_test_collection_links,
         api_address: api_client.api_host.clone(),
         guid_scope,
+        upload_api_version,
     })
 }
 
@@ -1005,6 +1009,15 @@ impl EndOutput for UploadRunResult {
             };
             if let Some(line) = line {
                 output.push(line);
+            }
+            // So support can tell from a customer's CI log which API the run used.
+            if let Some(upload_api_version) = self.upload_api_version {
+                output.push(Line::from_iter([Span::new_unstyled(format!(
+                    "🔌 Trunk API: {}",
+                    upload_api_version.as_str()
+                ))?]));
+            }
+            if output.last().is_some_and(|line| !line.is_empty()) {
                 output.push(Line::default());
             }
         }

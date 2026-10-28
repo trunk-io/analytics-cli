@@ -405,7 +405,8 @@ async fn upload_bundle_prints_test_collection_upload_link() {
         .stderr(predicate::str::contains(
             "/test-org/flaky-tests/collections/tc_123/uploads/eyJpZCI6IjgyYzZhNmU1LWY4ZWEtNGQ5My05YTI2LWI4YWI2ZmY4ZjZiYyIsImNyZWF0ZWRBdCI6MTc3ODQxNjQ5NjAwMH0",
         ))
-        .stderr(predicate::str::contains("Bundle Upload ID:").not());
+        .stderr(predicate::str::contains("Bundle Upload ID:").not())
+        .stderr(predicate::str::contains("🔌 Trunk API: v1"));
 }
 
 // NOTE: must be multi threaded to start a mock server
@@ -946,7 +947,8 @@ async fn upload_bundle_using_dry_run() {
         .disable_quarantining(true)
         .command()
         .assert()
-        .success();
+        .success()
+        .stderr(predicate::str::contains("Trunk API:").not());
 
     let requests = state.requests.lock().unwrap().clone();
     // dry run means no upload or telemetry requests should be made
@@ -3486,7 +3488,8 @@ async fn upload_on_v2_when_trunk_chooses_it() {
         .arg("aB3xY9kQ")
         .assert()
         // every failure is quarantined
-        .success();
+        .success()
+        .stderr(predicate::str::contains("🔌 Trunk API: v2"));
 
     assert_eq!(
         v2_calls.lock().unwrap().clone(),
