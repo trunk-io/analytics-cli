@@ -9,7 +9,8 @@ use serde::Serialize;
 use super::{ErrorSummary, Notice};
 use crate::{upload_command::UploadRunResult, validate_command::JunitReportValidations};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub enum UploadCommand {
     Upload,
     Test,
@@ -18,6 +19,7 @@ pub enum UploadCommand {
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UploadReport {
+    pub command: UploadCommand,
     pub error: Option<ErrorSummary>,
     pub bundle_upload_id: Option<String>,
     pub upload_url: Option<String>,
@@ -48,7 +50,8 @@ pub struct FailureGroup {
     pub tests: Vec<FailedTest>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+/// Groups sort by file, then by suite, then the rest, in declaration order.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum GroupKey {
     File(String),
@@ -65,7 +68,10 @@ pub struct FailedTest {
     pub file: Option<String>,
     pub id: String,
     pub variant: Option<String>,
+    /// The failure's `message` attribute.
     pub failure_message: Option<String>,
+    /// The failure's text, usually a stack trace.
+    pub failure_text: Option<String>,
     pub quarantined: bool,
     pub link: Option<String>,
 }
@@ -112,6 +118,7 @@ impl UploadReport {
         let bundle_upload_id = &result.meta.base_props.bundle_upload_id;
 
         Self {
+            command,
             error,
             bundle_upload_id: Some(bundle_upload_id.clone()).filter(|id| !id.is_empty()),
             upload_url: upload_url(result),
@@ -123,6 +130,16 @@ impl UploadReport {
             outcome: Outcome::new(&counts, quarantine_context.exit_code),
             exit_code,
             notices: result.notices.clone(),
+        }
+    }
+}
+
+impl GroupKey {
+    fn of(test: &Test) -> Self {
+        match &test.file {
+            Some(file) => Self::File(file.clone()),
+            None if !test.parent_name.is_empty() => Self::Suite(test.parent_name.clone()),
+            None => Self::Other,
         }
     }
 }
@@ -202,41 +219,29 @@ fn failed_test(result: &UploadRunResult, test: &Test, quarantined: bool) -> Fail
         file: test.file.clone(),
         id: test.id.clone(),
         variant: test.variant.clone(),
-        failure_message: test.failure_message.clone(),
+        failure_message: test.failure_message_attribute.clone(),
+        failure_text: test.failure_text.clone(),
         quarantined,
         link: link.ok(),
     }
 }
 
 fn group(tests: &[Test], to_failed_test: impl Fn(&Test) -> FailedTest) -> Vec<FailureGroup> {
-    let mut by_file: BTreeMap<&str, Vec<FailedTest>> = BTreeMap::new();
-    let mut by_suite: BTreeMap<&str, Vec<FailedTest>> = BTreeMap::new();
-    let mut other = Vec::new();
-    for test in tests {
-        if let Some(file) = &test.file {
-            by_file.entry(file).or_default().push(to_failed_test(test));
-        } else if !test.parent_name.is_empty() {
-            by_suite
-                .entry(&test.parent_name)
-                .or_default()
-                .push(to_failed_test(test));
-        } else {
-            other.push(to_failed_test(test));
-        }
-    }
-    let files = by_file.into_iter().map(|(file, tests)| FailureGroup {
-        key: GroupKey::File(file.to_string()),
-        tests,
-    });
-    let suites = by_suite.into_iter().map(|(suite, tests)| FailureGroup {
-        key: GroupKey::Suite(suite.to_string()),
-        tests,
-    });
-    let other = (!other.is_empty()).then_some(FailureGroup {
-        key: GroupKey::Other,
-        tests: other,
-    });
-    files.chain(suites).chain(other).collect()
+    tests
+        .iter()
+        .fold(
+            BTreeMap::<GroupKey, Vec<FailedTest>>::new(),
+            |mut groups, test| {
+                groups
+                    .entry(GroupKey::of(test))
+                    .or_default()
+                    .push(to_failed_test(test));
+                groups
+            },
+        )
+        .into_iter()
+        .map(|(key, tests)| FailureGroup { key, tests })
+        .collect()
 }
 
 fn file_validations(validations: &JunitReportValidations) -> Vec<FileValidation> {

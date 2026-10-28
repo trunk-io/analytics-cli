@@ -123,6 +123,8 @@ fn failure(name: &str, parent_name: &str, file: Option<&str>) -> Test {
         timestamp_millis: None,
         is_quarantined: false,
         failure_message: None,
+        failure_message_attribute: None,
+        failure_text: None,
         variant: None,
     }
 }
@@ -562,7 +564,7 @@ fn prints_long_failure_messages_when_asked() {
     ];
     message_lines.extend((6..=23).map(|n| format!("frame {n}")));
     result.quarantine_context.failures = vec![Test {
-        failure_message: Some(message_lines.join("\n")),
+        failure_text: Some(message_lines.join("\n")),
         ..failure("adds", "MathTests", None)
     }];
 

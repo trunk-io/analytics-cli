@@ -297,8 +297,9 @@ fn render_groups(groups: &[FailureGroup], options: &TextOptions) -> anyhow::Resu
             link_output.pad_left(4);
             output.push(link_output);
             if let Some(failure_message) = test
-                .failure_message
+                .failure_text
                 .as_ref()
+                .or(test.failure_message.as_ref())
                 .filter(|_| options.show_failure_messages)
             {
                 output.extend(render_failure_message(failure_message)?);
