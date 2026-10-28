@@ -40,7 +40,8 @@ pub struct QuarantinedTestSet {
 pub enum QuarantinedTests {
     /// v1: the CLI's test ids.
     ByTestId(HashSet<String>),
-    /// v2: test-case GUIDs, which a test's GUID is computed from `scope` to match.
+    /// v2: the quarantined tests' `testId`s (test-case GUIDs). A test is quarantined when the GUID
+    /// computed from `scope` and its own test id is in `guids`.
     ByTestCaseGuid {
         scope: TestCaseGuidScope,
         guids: HashSet<String>,

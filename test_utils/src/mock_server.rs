@@ -51,7 +51,35 @@ pub struct MockServerState {
     /// Request headers captured per endpoint (keyed by endpoint name, e.g.
     /// "createBundleUpload"), so tests can assert on auth headers.
     pub request_headers: Mutex<HashMap<String, HeaderMap>>,
+    /// Requests to the routes added with `MockServerBuilder::route`, in arrival order. Those
+    /// handlers are the test's own, so each pushes its request with `record_route_request`.
+    pub route_requests: Mutex<Vec<RouteRequest>>,
     pub host: String,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct RouteRequest {
+    pub uri: String,
+    pub authorization: Option<String>,
+    pub body: Option<serde_json::Value>,
+}
+
+impl MockServerState {
+    pub fn record_route_request(
+        &self,
+        headers: &HeaderMap,
+        uri: &axum::http::Uri,
+        body: Option<serde_json::Value>,
+    ) {
+        self.route_requests.lock().unwrap().push(RouteRequest {
+            uri: uri.to_string(),
+            authorization: headers
+                .get("authorization")
+                .and_then(|value| value.to_str().ok())
+                .map(String::from),
+            body,
+        });
+    }
 }
 
 #[derive(Debug, Clone)]

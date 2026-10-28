@@ -1,0 +1,985 @@
+use std::fmt;
+use std::path::Path;
+use std::sync::mpsc::Sender;
+
+use constants::{DEFAULT_ORIGIN, TRUNK_PUBLIC_API_ADDRESS_ENV};
+use display::message::DisplayMessage;
+use http::{HeaderValue, header::HeaderMap};
+use reqwest::{Client, Response, StatusCode, header};
+use serde::de::DeserializeOwned;
+use tokio::fs;
+
+use crate::call_api::CallApi;
+use crate::message::{self, UploadApiVersion};
+use crate::quarantine::{QuarantineLookup, QuarantinedTestSet};
+
+mod v1;
+mod v2;
+
+#[derive(Debug)]
+pub enum ApiErrorEndpoint {
+    CreateBundleUpload,
+    GetQuarantiningConfig,
+    PutBundleToS3,
+    TelemetryUploadMetrics,
+}
+
+impl ApiErrorEndpoint {
+    pub fn unknown_error_reason(&self) -> String {
+        match self {
+            Self::CreateBundleUpload => "unknown_create_bundle_upload".into(),
+            Self::GetQuarantiningConfig => "unknown_get_quarantining_config".into(),
+            Self::PutBundleToS3 => "unknown_put_bundle_to_s3".into(),
+            Self::TelemetryUploadMetrics => "unknown_telemetry_upload_metrics".into(),
+        }
+    }
+}
+
+impl fmt::Display for ApiErrorEndpoint {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::CreateBundleUpload => write!(f, "Error in create bundle upload endpoint"),
+            Self::GetQuarantiningConfig => write!(f, "Error in get quarantine config endpoint"),
+            Self::PutBundleToS3 => write!(f, "Error in put bundle to s3 endpoint"),
+            Self::TelemetryUploadMetrics => write!(f, "Error in telemetry upload metrics endpoint"),
+        }
+    }
+}
+
+impl std::error::Error for ApiErrorEndpoint {}
+
+pub struct ApiClient {
+    pub api_host: String,
+    pub telemetry_host: String,
+    s3_client: Client,
+    trunk_api_client: Client,
+    /// Only a client holding an API token can call v2, which takes it as a bearer credential.
+    trunk_api_v2_client: Option<Client>,
+    telemetry_client: Client,
+    version_path_prefix: String,
+    org_url_slug: String,
+    render_sender: Option<Sender<DisplayMessage>>,
+    upload_api_version: UploadApiVersion,
+}
+
+pub fn get_api_host() -> String {
+    std::env::var(TRUNK_PUBLIC_API_ADDRESS_ENV)
+        .ok()
+        .and_then(|s| if s.is_empty() { None } else { Some(s) })
+        .unwrap_or_else(|| DEFAULT_ORIGIN.to_string())
+}
+
+impl ApiClient {
+    const TRUNK_API_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
+    // Two attempts at this, so a slow answer holds up a customer's CI run for at most 4s.
+    const UPLOAD_API_VERSION_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(2);
+    const UPLOAD_API_VERSION_ATTEMPTS: usize = 2;
+    // This should always be fast
+    const TRUNK_TELEMETRY_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(1);
+    const TRUNK_API_TOKEN_HEADER: &'static str = "x-api-token";
+    const TRUNK_PUBLIC_REPO_ID_HEADER: &'static str = "x-trunk-public-repo-id";
+    const TRUNK_ALLOW_FORKED_PR_UPLOADS_HEADER: &'static str = "x-trunk-allow-forked-pr-uploads";
+
+    pub fn new(
+        api_token: Option<String>,
+        public_repo_id: Option<String>,
+        allow_forked_pr_uploads: bool,
+        org_url_slug: impl AsRef<str>,
+        render_sender: Option<Sender<DisplayMessage>>,
+    ) -> anyhow::Result<ApiClient> {
+        let org_url_slug = String::from(org_url_slug.as_ref());
+
+        // Either a secret API token or a non-secret public repo id authenticates the
+        // request. Fork PRs can't read repo secrets, so they rely on the public repo id.
+        let api_token = api_token.filter(|token| !token.trim().is_empty());
+        let public_repo_id = public_repo_id.filter(|id| !id.trim().is_empty());
+        // The forked-PR lane presents no credential at all: the collection id already in the
+        // request authorizes it, gated on that collection's opt-in server-side.
+        if api_token.is_none() && public_repo_id.is_none() && !allow_forked_pr_uploads {
+            return Err(anyhow::anyhow!(
+                "Either a Trunk API token, a public repo id, or --allow-forked-pr-uploads is required."
+            ));
+        }
+
+        let api_token_header_value = api_token
+            .as_deref()
+            .map(|token| {
+                HeaderValue::from_str(token)
+                    .map_err(|_| anyhow::Error::msg("Trunk API token is not ASCII"))
+            })
+            .transpose()?;
+        let public_repo_id_header_value = public_repo_id
+            .as_deref()
+            .map(|id| {
+                HeaderValue::from_str(id)
+                    .map_err(|_| anyhow::Error::msg("Trunk public repo id is not ASCII"))
+            })
+            .transpose()?;
+
+        let api_host = get_api_host();
+        tracing::debug!("Using public api address {}", api_host);
+
+        let telemetry_host = if api_host.contains("https://") {
+            format!(
+                "https://telemetry.{}",
+                api_host.split("https://").nth(1).unwrap_or_default()
+            )
+        } else {
+            // If the api_host is not https, we default to the api host
+            // this happens when the api_host is localhost and we are running
+            // inside of test environments
+            api_host.clone()
+        };
+
+        let mut trunk_api_client_default_headers = HeaderMap::new();
+        trunk_api_client_default_headers.append(
+            header::CONTENT_TYPE,
+            HeaderValue::from_static("application/json"),
+        );
+        if let Some(api_token_header_value) = api_token_header_value.clone() {
+            trunk_api_client_default_headers
+                .append(Self::TRUNK_API_TOKEN_HEADER, api_token_header_value);
+        }
+        if let Some(public_repo_id_header_value) = public_repo_id_header_value {
+            trunk_api_client_default_headers.append(
+                Self::TRUNK_PUBLIC_REPO_ID_HEADER,
+                public_repo_id_header_value,
+            );
+        }
+        if allow_forked_pr_uploads {
+            trunk_api_client_default_headers.append(
+                Self::TRUNK_ALLOW_FORKED_PR_UPLOADS_HEADER,
+                HeaderValue::from_static("true"),
+            );
+        }
+
+        let trunk_api_client = Client::builder()
+            .timeout(Self::TRUNK_API_TIMEOUT)
+            .default_headers(trunk_api_client_default_headers)
+            .build()?;
+
+        let trunk_api_v2_client = api_token
+            .as_deref()
+            .map(|token| {
+                let mut headers = HeaderMap::new();
+                headers.append(
+                    header::CONTENT_TYPE,
+                    HeaderValue::from_static("application/json"),
+                );
+                headers.append(
+                    header::AUTHORIZATION,
+                    HeaderValue::from_str(&format!("Bearer {token}"))
+                        .map_err(|_| anyhow::Error::msg("Trunk API token is not ASCII"))?,
+                );
+                Client::builder()
+                    .timeout(Self::TRUNK_API_TIMEOUT)
+                    .default_headers(headers)
+                    .build()
+                    .map_err(anyhow::Error::from)
+            })
+            .transpose()?;
+
+        let mut telemetry_client_default_headers = HeaderMap::new();
+        telemetry_client_default_headers.append(
+            header::CONTENT_TYPE,
+            HeaderValue::from_static("application/x-protobuf"),
+        );
+
+        if let Some(api_token_header_value) = api_token_header_value {
+            telemetry_client_default_headers
+                .append(Self::TRUNK_API_TOKEN_HEADER, api_token_header_value);
+        }
+
+        let telemetry_client = Client::builder()
+            .timeout(Self::TRUNK_TELEMETRY_TIMEOUT)
+            .default_headers(telemetry_client_default_headers)
+            .build()?;
+
+        let mut s3_client_default_headers = HeaderMap::new();
+        s3_client_default_headers.append(
+            header::CONTENT_TYPE,
+            HeaderValue::from_static("application/octet-stream"),
+        );
+        let s3_client = Client::builder()
+            .default_headers(s3_client_default_headers)
+            .build()?;
+
+        let version_path_prefix = if std::env::var("DEBUG_STRIP_VERSION_PREFIX").is_ok() {
+            String::from("")
+        } else {
+            String::from("/v1")
+        };
+
+        Ok(ApiClient {
+            telemetry_host,
+            api_host,
+            s3_client,
+            trunk_api_client,
+            trunk_api_v2_client,
+            telemetry_client,
+            version_path_prefix,
+            org_url_slug,
+            render_sender,
+            upload_api_version: UploadApiVersion::V1,
+        })
+    }
+
+    pub fn upload_api_version(&self) -> UploadApiVersion {
+        self.upload_api_version
+    }
+
+    /// Which API the run's quarantine lookup and upload use. Every later call follows it.
+    pub fn set_upload_api_version(&mut self, upload_api_version: UploadApiVersion) {
+        self.upload_api_version = upload_api_version;
+    }
+
+    /// Asks Trunk whether this run uses v2. Anything but an explicit `v2`, a failed call
+    /// included, is v1, so this never fails a run. A timeout, a connection error or a 5xx is
+    /// retried once; any other answer is final.
+    pub async fn get_upload_api_version(
+        &self,
+        request: &message::GetUploadApiVersionRequest,
+    ) -> UploadApiVersion {
+        let upload_api_version = if self.trunk_api_v2_client.is_none()
+            || request
+                .test_collection_short_id
+                .as_deref()
+                .is_none_or(str::is_empty)
+        {
+            UploadApiVersion::V1
+        } else {
+            match self.request_upload_api_version(request).await {
+                Ok(response) if response.api_version == "v2" => UploadApiVersion::V2,
+                Ok(_) => UploadApiVersion::V1,
+                Err(error) => {
+                    tracing::debug!("Could not choose the Trunk API version, using v1: {error:?}");
+                    UploadApiVersion::V1
+                }
+            }
+        };
+        tracing::info!("Using Trunk API {}", upload_api_version.as_str());
+        upload_api_version
+    }
+
+    async fn request_upload_api_version(
+        &self,
+        request: &message::GetUploadApiVersionRequest,
+    ) -> anyhow::Result<message::GetUploadApiVersionResponse> {
+        let mut attempt = 1;
+        loop {
+            match self.request_upload_api_version_once(request).await {
+                Err(error)
+                    if attempt < Self::UPLOAD_API_VERSION_ATTEMPTS && is_retryable(&error) =>
+                {
+                    tracing::debug!("Retrying the Trunk API version check: {error:?}");
+                    attempt += 1;
+                }
+                result => return result,
+            }
+        }
+    }
+
+    async fn request_upload_api_version_once(
+        &self,
+        request: &message::GetUploadApiVersionRequest,
+    ) -> anyhow::Result<message::GetUploadApiVersionResponse> {
+        Ok(self
+            .trunk_api_client
+            .post(format!(
+                "{}{}/metrics/getUploadApiVersion",
+                self.api_host, self.version_path_prefix
+            ))
+            .timeout(Self::UPLOAD_API_VERSION_TIMEOUT)
+            .json(request)
+            .send()
+            .await?
+            .error_for_status()?
+            .json::<message::GetUploadApiVersionResponse>()
+            .await?)
+    }
+
+    pub async fn create_bundle_upload(
+        &self,
+        request: &message::CreateBundleUploadRequest,
+    ) -> anyhow::Result<message::CreateBundleUploadResponse> {
+        match self.upload_api_version {
+            UploadApiVersion::V2 => self.create_test_upload(request).await,
+            UploadApiVersion::V1 => self.create_bundle_upload_v1(request).await,
+        }
+        .map_err(|e| e.context(ApiErrorEndpoint::CreateBundleUpload))
+    }
+
+    /// Looks up the run's failing tests. A test runner checking a test at a time wants the whole
+    /// set instead: `get_quarantined_test_set`.
+    pub async fn get_quarantining_config(
+        &self,
+        request: &message::GetQuarantineConfigRequest,
+    ) -> anyhow::Result<QuarantineLookup> {
+        match self.upload_api_version {
+            UploadApiVersion::V2 => self.get_quarantine_status(request).await,
+            UploadApiVersion::V1 => self
+                .get_quarantine_config_v1(request)
+                .await
+                .map(QuarantineLookup::from),
+        }
+        .map_err(|e| e.context(ApiErrorEndpoint::GetQuarantiningConfig))
+    }
+
+    /// Every quarantined test, for a test runner that checks each test as it runs. On v1 that is
+    /// the lookup with no identifiers; on v2 it is the paged `all-quarantined-tests`.
+    pub async fn get_quarantined_test_set(
+        &self,
+        request: &message::GetQuarantineConfigRequest,
+    ) -> anyhow::Result<QuarantinedTestSet> {
+        match self.upload_api_version {
+            UploadApiVersion::V2 => self.get_all_quarantined_tests(request).await,
+            UploadApiVersion::V1 => {
+                let request = message::GetQuarantineConfigRequest {
+                    test_identifiers: Vec::new(),
+                    ..request.clone()
+                };
+                self.get_quarantine_config_v1(&request)
+                    .await
+                    .map(QuarantinedTestSet::from)
+            }
+        }
+        .map_err(|e| e.context(ApiErrorEndpoint::GetQuarantiningConfig))
+    }
+
+    pub async fn put_bundle_to_s3<U: AsRef<str>, B: AsRef<Path>>(
+        &self,
+        url: U,
+        bundle_path: B,
+    ) -> anyhow::Result<Response> {
+        CallApi {
+            action: || async {
+                let file = fs::File::open(bundle_path.as_ref()).await?;
+                let file_size = file.metadata().await?.len();
+
+                let response = self
+                    .s3_client
+                    .put(url.as_ref())
+                    .header(header::CONTENT_LENGTH, file_size)
+                    .body(file)
+                    .send()
+                    .await?;
+
+                status_code_help(
+                    response,
+                    StatusCodeHelp {
+                        check_unauthorized: CheckUnauthorized::DoNotCheck,
+                        check_not_found: CheckNotFound::DoNotCheck,
+                        create_error_message: |_| String::from("Failed to upload bundle to S3."),
+                        api_host: &self.api_host,
+                        org_url_slug: &self.org_url_slug,
+                    },
+                )
+                .await
+            },
+            log_progress_message: |time_elapsed, _| {
+                format!("Uploading bundle to S3 is taking longer than expected. It has taken {} seconds so far.", time_elapsed.as_secs())
+            },
+            report_slow_progress_message: |time_elapsed| {
+                format!("Uploading bundle to S3 is taking longer than {} seconds", time_elapsed.as_secs())
+            },
+            render_sender: self.render_sender.clone(),
+        }
+        .call_api()
+        .await
+        .map_err(|e| e.context(ApiErrorEndpoint::PutBundleToS3))
+    }
+
+    pub async fn telemetry_upload_metrics(
+        &self,
+        request: &message::TelemetryUploadMetricsRequest,
+    ) -> anyhow::Result<()> {
+        CallApi {
+            action: || async {
+                if std::env::var("DISABLE_TELEMETRY").is_ok() {
+                    return Ok(());
+                }
+                let response = self
+                    .telemetry_client
+                    .post(format!(
+                        "{}{}/flakytests-cli/upload-metrics",
+                        self.telemetry_host, self.version_path_prefix
+                    ))
+                    .body(prost::Message::encode_to_vec(&request.upload_metrics))
+                    .send()
+                    .await?;
+
+                let error_message = "Failed to send telemetry metrics";
+                if !response.status().is_client_error() {
+                    response.error_for_status().map_err(|reqwest_error| {
+                        tracing::warn!(hidden_in_console=true, "{} - {}", error_message, reqwest_error);
+                        anyhow::Error::from(reqwest_error)
+                    }).map(|_| ())
+                } else {
+                    match response.error_for_status() {
+                        Ok(response) => {
+                            tracing::debug!("{} - {}", error_message, response.status());
+                            Err(anyhow::Error::msg(error_message))
+                        },
+                        Err(error) => {
+                            tracing::debug!("{} - {}", error_message, error);
+                            Err(anyhow::Error::from(error))
+                        },
+                    }
+                }
+            },
+            log_progress_message: {
+                |time_elapsed, _| {
+                    format!("Reporting telemetry metrics to Trunk services is taking longer than expected. It has taken {} seconds so far.", time_elapsed.as_secs())
+                }
+            },
+            report_slow_progress_message: {
+                |time_elapsed| {
+                    format!("Reporting telemetry metrics to Trunk services is taking longer than {} seconds", time_elapsed.as_secs())
+                }
+            },
+            render_sender: self.render_sender.clone(),
+        }
+        .call_api()
+        .await
+        .map_err(|e| e.context(ApiErrorEndpoint::TelemetryUploadMetrics))
+    }
+
+    async fn deserialize_response<MessageType: DeserializeOwned>(
+        &self,
+        response: Response,
+    ) -> Result<MessageType, anyhow::Error> {
+        let deserialized: reqwest::Result<MessageType> = response.json::<MessageType>().await;
+        if deserialized.is_err() {
+            tracing::warn!("Failed to get response body as json.");
+        }
+        deserialized.map_err(anyhow::Error::from)
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum CheckUnauthorized {
+    Check,
+    DoNotCheck,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum CheckNotFound {
+    Check,
+    DoNotCheck,
+}
+
+pub(crate) const UNAUTHORIZED_CONTEXT: &str = concat!(
+    "Your Trunk token may be incorrect - find it on the Trunk app ",
+    "(Settings -> Manage Organization -> Organization API Token -> View).",
+);
+
+pub(crate) const NOT_FOUND_CONTEXT: &str = concat!(
+    "Your Trunk organization URL slug may be incorrect - find it on the Trunk app ",
+    "(Settings -> Manage Organization -> Organization Slug).",
+);
+
+/// The API's explanation of a client error, kept in the error chain so the error report can
+/// print it beneath the endpoint context the callers add.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ClientErrorExplanation {
+    pub code: Option<String>,
+    pub message: Option<String>,
+}
+
+impl fmt::Display for ClientErrorExplanation {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match (&self.message, &self.code) {
+            (Some(message), _) => f.write_str(message),
+            (None, Some(code)) => write!(
+                f,
+                "The Trunk API rejected this request with error code {code}."
+            ),
+            (None, None) => Ok(()),
+        }
+    }
+}
+
+impl std::error::Error for ClientErrorExplanation {}
+
+const MAX_CLIENT_ERROR_MESSAGE_LEN: usize = 2048;
+
+fn is_retryable(error: &anyhow::Error) -> bool {
+    error.downcast_ref::<reqwest::Error>().is_some_and(|error| {
+        error.is_timeout()
+            || error.is_connect()
+            || error
+                .status()
+                .is_some_and(|status| status.is_server_error())
+    })
+}
+
+fn non_empty(value: Option<String>) -> Option<String> {
+    value
+        .map(|value| value.trim().to_owned())
+        .filter(|value| !value.is_empty())
+}
+
+fn truncate_message(message: String) -> String {
+    match message.char_indices().nth(MAX_CLIENT_ERROR_MESSAGE_LEN) {
+        Some((end, _)) => format!("{}…", &message[..end]),
+        None => message,
+    }
+}
+
+async fn client_error_explanation(response: Response) -> Option<ClientErrorExplanation> {
+    let body = response.text().await.ok()?;
+    let message::ClientErrorBody { code, message } = serde_json::from_str(&body).ok()?;
+    let explanation = ClientErrorExplanation {
+        code: non_empty(code),
+        message: non_empty(message).map(truncate_message),
+    };
+    (explanation.code.is_some() || explanation.message.is_some()).then_some(explanation)
+}
+
+pub(crate) struct StatusCodeHelp<'a, T: FnMut(&Response) -> String> {
+    pub check_unauthorized: CheckUnauthorized,
+    pub check_not_found: CheckNotFound,
+    pub create_error_message: T,
+    pub api_host: &'a str,
+    pub org_url_slug: &'a str,
+}
+
+pub(crate) async fn status_code_help<T: FnMut(&Response) -> String>(
+    response: Response,
+    StatusCodeHelp {
+        check_unauthorized,
+        check_not_found,
+        mut create_error_message,
+        api_host,
+        org_url_slug,
+    }: StatusCodeHelp<'_, T>,
+) -> anyhow::Result<Response> {
+    let base_error_message = create_error_message(&response);
+
+    if !response.status().is_client_error() {
+        response.error_for_status().map_err(anyhow::Error::from)
+    } else {
+        let domain: Option<String> = url::Url::parse(api_host)
+            .ok()
+            .into_iter()
+            .flat_map(|url| {
+                url.domain()
+                    .into_iter()
+                    .map(String::from)
+                    .collect::<Vec<String>>()
+            })
+            .next();
+        let error_message = match (response.status(), check_unauthorized, check_not_found) {
+            (StatusCode::UNAUTHORIZED, CheckUnauthorized::Check, _) => add_settings_url_to_context(
+                UNAUTHORIZED_CONTEXT,
+                domain,
+                &String::from(org_url_slug),
+            ),
+            (StatusCode::NOT_FOUND, _, CheckNotFound::Check) => {
+                add_settings_url_to_context(NOT_FOUND_CONTEXT, domain, &String::from(org_url_slug))
+            }
+            _ => base_error_message,
+        };
+
+        match response.error_for_status_ref().err() {
+            None => Err(anyhow::Error::msg(error_message)),
+            Some(error) => {
+                let error = anyhow::Error::from(error);
+                Err(match client_error_explanation(response).await {
+                    Some(explanation) => error.context(explanation),
+                    None => error,
+                })
+            }
+        }
+    }
+}
+
+fn add_settings_url_to_context(
+    context: &str,
+    domain: Option<String>,
+    org_url_slug: &String,
+) -> String {
+    match domain {
+        Some(present_domain) => {
+            let settings_url = format!(
+                "https://{}/{}/settings",
+                present_domain.replace("api", "app"),
+                org_url_slug
+            );
+            format!(
+                "{}\nHint - Your settings page can be found at: {}",
+                context, settings_url
+            )
+        }
+        None => String::from(context),
+    }
+}
+
+#[test]
+fn adds_settings_if_domain_present() {
+    let domain = url::Url::parse("https://api.fake-trunk.io/")
+        .ok()
+        .into_iter()
+        .flat_map(|url| {
+            url.domain()
+                .into_iter()
+                .map(String::from)
+                .collect::<Vec<String>>()
+        })
+        .next();
+    let final_context =
+        add_settings_url_to_context("base_context", domain, &String::from("fake-org-slug"));
+    assert_eq!(
+        final_context,
+        "base_context\nHint - Your settings page can be found at: https://app.fake-trunk.io/fake-org-slug/settings",
+    )
+}
+
+#[test]
+fn does_not_add_settings_if_domain_absent() {
+    let final_context =
+        add_settings_url_to_context("base_context", None, &String::from("fake-org-slug"));
+    assert_eq!(final_context, "base_context",)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::{
+        Arc, Mutex,
+        atomic::{AtomicUsize, Ordering},
+    };
+
+    use axum::{
+        http::{HeaderMap, StatusCode},
+        response::Response,
+    };
+    use context;
+    use lazy_static::lazy_static;
+    use test_utils::mock_server::MockServerBuilder;
+
+    use super::ApiClient;
+    use crate::message;
+
+    #[tokio::test(start_paused = true)]
+    async fn does_not_retry_on_ok_501() {
+        let mut mock_server_builder = MockServerBuilder::new();
+
+        lazy_static! {
+            static ref CALL_COUNT: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
+        }
+
+        let quarantining_config_handler = move || async {
+            CALL_COUNT.fetch_add(1, Ordering::Relaxed);
+            Response::builder()
+                .status(StatusCode::NOT_IMPLEMENTED)
+                .body(String::from(
+                    r#"{ "status_code": 501, "error": "we broke" }"#,
+                ))
+                .unwrap()
+        };
+
+        mock_server_builder.set_get_quarantining_config_handler(quarantining_config_handler);
+
+        let state = mock_server_builder.spawn_mock_server().await;
+
+        let mut api_client = ApiClient::new(
+            Some(String::from("mock-token")),
+            None,
+            false,
+            "mock-org",
+            None,
+        )
+        .unwrap();
+        api_client.api_host.clone_from(&state.host);
+
+        assert!(
+            format!(
+                "{:?}",
+                api_client
+                    .get_quarantining_config(&message::GetQuarantineConfigRequest {
+                        repo: context::repo::RepoUrlParts {
+                            host: String::from("host"),
+                            owner: String::from("owner"),
+                            name: String::from("name"),
+                        },
+                        org_url_slug: String::from("org_url_slug"),
+                        test_identifiers: vec![],
+                        remote_urls: vec![],
+                        test_collection_short_id: None,
+                    })
+                    .await
+                    .unwrap_err()
+            )
+            .contains("501 Not Implemented")
+        );
+        assert_eq!(CALL_COUNT.load(Ordering::Relaxed), 1);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn retries_on_ok_500() {
+        let mut mock_server_builder = MockServerBuilder::new();
+
+        lazy_static! {
+            static ref CALL_COUNT: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
+        }
+
+        let quarantining_config_handler = move || async {
+            CALL_COUNT.fetch_add(1, Ordering::Relaxed);
+            Response::builder()
+                .status(StatusCode::INTERNAL_SERVER_ERROR)
+                .body(String::from(
+                    r#"{ "status_code": 500, "error": "we broke" }"#,
+                ))
+                .unwrap()
+        };
+
+        mock_server_builder.set_get_quarantining_config_handler(quarantining_config_handler);
+
+        let state = mock_server_builder.spawn_mock_server().await;
+
+        let mut api_client = ApiClient::new(
+            Some(String::from("mock-token")),
+            None,
+            false,
+            "mock-org",
+            None,
+        )
+        .unwrap();
+        api_client.api_host.clone_from(&state.host);
+
+        assert!(
+            format!(
+                "{:?}",
+                api_client
+                    .get_quarantining_config(&message::GetQuarantineConfigRequest {
+                        repo: context::repo::RepoUrlParts {
+                            host: String::from("api_host"),
+                            owner: String::from("owner"),
+                            name: String::from("name"),
+                        },
+                        remote_urls: vec![],
+                        org_url_slug: String::from("org_url_slug"),
+                        test_identifiers: vec![],
+                        test_collection_short_id: None,
+                    })
+                    .await
+                    .unwrap_err()
+            )
+            .contains("500 Internal Server Error")
+        );
+        assert_eq!(CALL_COUNT.load(Ordering::Relaxed), 6);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn get_quarantining_config_not_found() {
+        let mut mock_server_builder = MockServerBuilder::new();
+
+        async fn quarantining_config_not_found_handler() -> Response<String> {
+            Response::builder()
+                .status(StatusCode::NOT_FOUND)
+                .body(String::from(
+                    r#"{ "status_code": 404, "error": "not found" }"#,
+                ))
+                .unwrap()
+        }
+        mock_server_builder
+            .set_get_quarantining_config_handler(quarantining_config_not_found_handler);
+
+        let state = mock_server_builder.spawn_mock_server().await;
+
+        let mut api_client = ApiClient::new(
+            Some(String::from("mock-token")),
+            None,
+            false,
+            "mock-org",
+            None,
+        )
+        .unwrap();
+        api_client.api_host.clone_from(&state.host);
+
+        assert!(
+            format!(
+                "{:?}",
+                api_client
+                    .get_quarantining_config(&message::GetQuarantineConfigRequest {
+                        repo: context::repo::RepoUrlParts {
+                            host: String::from("api_host"),
+                            owner: String::from("owner"),
+                            name: String::from("name"),
+                        },
+                        remote_urls: vec![],
+                        org_url_slug: String::from("org_url_slug"),
+                        test_identifiers: vec![],
+                        test_collection_short_id: None,
+                    })
+                    .await
+                    .unwrap_err()
+            )
+            .contains("404 Not Found")
+        );
+    }
+
+    #[test]
+    fn requires_a_token_or_public_repo_id() {
+        // Neither credential is an error.
+        let err = ApiClient::new(None, None, false, "mock-org", None)
+            .err()
+            .expect("expected an error when no credentials are provided");
+        assert!(err.to_string().contains(
+            "Either a Trunk API token, a public repo id, or --allow-forked-pr-uploads is required"
+        ));
+
+        // Blank values are treated as absent.
+        assert!(
+            ApiClient::new(
+                Some(String::from("   ")),
+                Some(String::from("   ")),
+                false,
+                "mock-org",
+                None
+            )
+            .is_err()
+        );
+
+        // A token alone is sufficient - no public repo id required.
+        assert!(ApiClient::new(Some(String::from("token")), None, false, "mock-org", None).is_ok());
+
+        // A public repo id alone is sufficient - no token required.
+        assert!(
+            ApiClient::new(
+                None,
+                Some(String::from("public-repo-id")),
+                false,
+                "mock-org",
+                None
+            )
+            .is_ok()
+        );
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn sends_public_repo_id_header_in_place_of_token() {
+        let mut mock_server_builder = MockServerBuilder::new();
+
+        lazy_static! {
+            static ref CAPTURED_HEADERS: Arc<Mutex<HeaderMap>> =
+                Arc::new(Mutex::new(HeaderMap::new()));
+        }
+
+        let quarantining_config_handler = move |headers: HeaderMap| async move {
+            *CAPTURED_HEADERS.lock().unwrap() = headers;
+            Response::builder()
+                .status(StatusCode::NOT_FOUND)
+                .body(String::from(
+                    r#"{ "status_code": 404, "error": "not found" }"#,
+                ))
+                .unwrap()
+        };
+        mock_server_builder.set_get_quarantining_config_handler(quarantining_config_handler);
+
+        let state = mock_server_builder.spawn_mock_server().await;
+
+        let mut api_client = ApiClient::new(
+            None,
+            Some(String::from("public-repo-id-123")),
+            false,
+            "mock-org",
+            None,
+        )
+        .unwrap();
+        api_client.api_host.clone_from(&state.host);
+
+        // The call itself errors (404) - we only care about the headers it sent.
+        let _ = api_client
+            .get_quarantining_config(&message::GetQuarantineConfigRequest {
+                repo: context::repo::RepoUrlParts {
+                    host: String::from("host"),
+                    owner: String::from("owner"),
+                    name: String::from("name"),
+                },
+                org_url_slug: String::from("org_url_slug"),
+                test_identifiers: vec![],
+                remote_urls: vec![],
+                test_collection_short_id: None,
+            })
+            .await;
+
+        let headers = CAPTURED_HEADERS.lock().unwrap();
+        assert_eq!(
+            headers
+                .get(super::ApiClient::TRUNK_PUBLIC_REPO_ID_HEADER)
+                .and_then(|value| value.to_str().ok()),
+            Some("public-repo-id-123")
+        );
+        assert!(
+            headers
+                .get(super::ApiClient::TRUNK_API_TOKEN_HEADER)
+                .is_none(),
+            "token header should be absent when only a public repo id is provided"
+        );
+    }
+
+    #[tokio::test]
+    async fn sends_allow_forked_pr_uploads_header_with_no_credential() {
+        let mut mock_server_builder = MockServerBuilder::new();
+
+        lazy_static! {
+            static ref CAPTURED_HEADERS: Arc<Mutex<HeaderMap>> =
+                Arc::new(Mutex::new(HeaderMap::new()));
+        }
+
+        let quarantining_config_handler = move |headers: HeaderMap| async move {
+            *CAPTURED_HEADERS.lock().unwrap() = headers;
+            Response::builder()
+                .status(StatusCode::NOT_FOUND)
+                .body(String::from(
+                    r#"{ "status_code": 404, "error": "not found" }"#,
+                ))
+                .unwrap()
+        };
+        mock_server_builder.set_get_quarantining_config_handler(quarantining_config_handler);
+
+        let state = mock_server_builder.spawn_mock_server().await;
+
+        let mut api_client = ApiClient::new(None, None, true, "mock-org", None).unwrap();
+        api_client.api_host.clone_from(&state.host);
+
+        let _ = api_client
+            .get_quarantining_config(&message::GetQuarantineConfigRequest {
+                repo: context::repo::RepoUrlParts {
+                    host: String::from("host"),
+                    owner: String::from("owner"),
+                    name: String::from("name"),
+                },
+                org_url_slug: String::from("org_url_slug"),
+                test_identifiers: vec![],
+                remote_urls: vec![],
+                test_collection_short_id: Some(String::from("abc12345")),
+            })
+            .await;
+
+        let headers = CAPTURED_HEADERS.lock().unwrap();
+        assert_eq!(
+            headers
+                .get(super::ApiClient::TRUNK_ALLOW_FORKED_PR_UPLOADS_HEADER)
+                .and_then(|value| value.to_str().ok()),
+            Some("true")
+        );
+        // The lane presents no credential at all — the collection id in the body is what the
+        // server authorizes, against that collection's own opt-in.
+        assert!(
+            headers
+                .get(super::ApiClient::TRUNK_API_TOKEN_HEADER)
+                .is_none()
+                && headers
+                    .get(super::ApiClient::TRUNK_PUBLIC_REPO_ID_HEADER)
+                    .is_none(),
+            "no credential header should be sent on the forked-PR lane"
+        );
+    }
+
+    #[test]
+    fn allow_forked_pr_uploads_satisfies_the_credential_requirement() {
+        assert!(ApiClient::new(None, None, true, "mock-org", None).is_ok());
+    }
+}
