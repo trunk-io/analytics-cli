@@ -4,12 +4,14 @@ use std::path::PathBuf;
 use std::sync::mpsc::Sender;
 
 use api::client::{ApiClient, ApiErrorEndpoint};
+use api::message::{GetUploadApiVersionRequest, UploadApiCaller, UploadApiVersion};
 use api::urls::{TestCaseGuidScope, url_for_test_case, url_for_upload};
 use bundle::{BundleMeta, BundlerUtil, QuarantineResolutionMode, Test, unzip_tarball};
 use clap::{ArgAction, Args};
 use codeowners::OwnersSource;
 use constants::EXIT_SUCCESS;
 use context::bazel_bep::common::BepParseResult;
+use context::env::parser::CIPlatform;
 use display::{end_output::EndOutput, message::DisplayMessage};
 use pluralizer::pluralize;
 use superconsole::{
@@ -488,6 +490,10 @@ pub struct RunUploadOptions {
     pub quarantine_query_result_override:
         Option<proto::upload_metrics::trunk::QuarantineQueryResult>,
     pub quarantine_resolution_mode_override: Option<QuarantineResolutionMode>,
+    /// The API a caller already chose for this run, so its quarantine lookup and the upload
+    /// use the same one. `None` asks Trunk.
+    pub upload_api_version: Option<UploadApiVersion>,
+    pub caller: UploadApiCaller,
 }
 
 impl Default for RunUploadOptions {
@@ -498,6 +504,8 @@ impl Default for RunUploadOptions {
             render_sender: None,
             quarantine_query_result_override: None,
             quarantine_resolution_mode_override: None,
+            upload_api_version: None,
+            caller: UploadApiCaller::Cli,
         }
     }
 }
@@ -512,6 +520,8 @@ pub async fn run_upload(
         render_sender,
         quarantine_query_result_override,
         quarantine_resolution_mode_override,
+        upload_api_version,
+        caller,
     } = options;
     // grab the exec start if provided (`test` subcommand) or use the current time
     let cli_started_at = if let Some(test_run_result) = test_run_result.as_ref() {
@@ -562,7 +572,7 @@ pub async fn run_upload(
         ));
     }
 
-    let api_client = ApiClient::new(
+    let mut api_client = ApiClient::new(
         upload_args.token.clone(),
         upload_args.public_repo_id.clone(),
         upload_args.allow_forked_pr_uploads,
@@ -587,6 +597,23 @@ pub async fn run_upload(
             ),
         )?
     };
+
+    let upload_api_version = match upload_api_version {
+        Some(upload_api_version) => upload_api_version,
+        // A dry run uploads nothing, so it has nothing to choose.
+        None if upload_args.dry_run => UploadApiVersion::V1,
+        None => {
+            api_client
+                .get_upload_api_version(&upload_api_version_request(
+                    &upload_args,
+                    &meta.base_props.repo.repo,
+                    &meta.base_props.envs,
+                    caller,
+                ))
+                .await
+        }
+    };
+    api_client.set_upload_api_version(upload_api_version);
 
     let file_set_builder = gather_post_test_context(
         &mut meta,
@@ -782,6 +809,54 @@ pub async fn run_upload(
         api_address: api_client.api_host.clone(),
         guid_scope,
     })
+}
+
+pub fn upload_api_version_request(
+    upload_args: &UploadArgs,
+    repo: &context::repo::RepoUrlParts,
+    envs: &context::env::EnvVars,
+    caller: UploadApiCaller,
+) -> GetUploadApiVersionRequest {
+    let ci_provider: &str = CIPlatform::from(envs).into();
+    GetUploadApiVersionRequest {
+        cli_version: env!("CARGO_PKG_VERSION").to_string(),
+        org_slug: upload_args.org_url_slug.clone(),
+        test_collection_short_id: upload_args
+            .test_collection_short_id
+            .clone()
+            .filter(|id| !id.is_empty()),
+        repo: Some(repo.clone()),
+        ci_provider: Some(ci_provider.to_string()),
+        // The captured envs leave the event path out, so it is read from the process too.
+        is_fork_pr: is_fork_pr(
+            envs.get("GITHUB_EVENT_PATH")
+                .cloned()
+                .or_else(|| env::var("GITHUB_EVENT_PATH").ok())
+                .as_deref(),
+            envs,
+        ),
+        caller,
+    }
+}
+
+/// Whether the run builds a pull request from another repository. Fork runs usually have no API
+/// token and so never ask; this catches the ones that do, such as `pull_request_target`.
+pub fn is_fork_pr(github_event_path: Option<&str>, envs: &context::env::EnvVars) -> bool {
+    if let Some(event_path) = github_event_path {
+        return github_event_is_fork_pr(event_path).unwrap_or(false);
+    }
+    // CircleCI sets CIRCLE_PR_NUMBER only for a pull request from a fork.
+    envs.get("CIRCLE_PR_NUMBER")
+        .is_some_and(|number| !number.is_empty())
+}
+
+fn github_event_is_fork_pr(event_path: &str) -> Option<bool> {
+    let event: serde_json::Value =
+        serde_json::from_reader(std::fs::File::open(event_path).ok()?).ok()?;
+    let pull_request = event.get("pull_request")?;
+    let head = pull_request.pointer("/head/repo/full_name")?.as_str()?;
+    let base = pull_request.pointer("/base/repo/full_name")?.as_str()?;
+    Some(!head.eq_ignore_ascii_case(base))
 }
 
 struct UploadedBundle {
@@ -1005,96 +1080,94 @@ impl EndOutput for UploadRunResult {
                 }
             }
             // Helper to render a group
-            let mut render_group = |header: &str,
-                                    color: Color,
-                                    group: &Vec<&Test>|
-             -> anyhow::Result<()> {
-                output.push(Line::from_iter([Span::new_styled(
-                    style(header.to_string())
-                        .with(color)
-                        .attribute(Attribute::Bold),
-                )?]));
-                for test in group.iter().take(3) {
-                    let output_name = format!(
-                        "{}{}{}",
-                        test.parent_name,
-                        if test.parent_name.is_empty() { "" } else { "/" },
-                        test.name
-                    );
-                    let mut test_line = Line::from_iter([Span::new_styled_lossy(
-                        style(output_name.to_string()).attribute(Attribute::Bold),
-                    )]);
-                    test_line.pad_left(2);
-                    output.push(test_line);
-                    let link = url_for_test_case(
-                        &self.api_address,
-                        &self.quarantine_context.org_url_slug,
-                        &self.quarantine_context.repo,
-                        test,
-                        test_collection_short_id,
-                        guid_scope,
-                    )?;
-                    let mut link_output = Line::from_iter([
-                        Span::new_unstyled("⤷ ")?,
-                        hyperlink_span(link, Attribute::Underlined)?,
-                    ]);
-                    link_output.pad_left(4);
-                    output.push(link_output);
-                    // Display failure message if present and enabled
-                    // TODO: show_failure_messages is a temporary flag to show failure messages
-                    // in the output. It should be removed once we are confident in this flow
-                    // and we should use the validation report flag instead.
-                    if self.show_failure_messages && test.failure_message.is_some() {
-                        let failure_message = test.failure_message.as_ref().unwrap();
-                        let lines: Vec<&str> = failure_message.split('\n').collect();
-                        let max_lines = 20;
-                        let shown_lines = lines.iter().take(max_lines);
-                        let mut failure_header = Line::from_iter([Span::new_styled(
-                            style("Failure: ".to_string()).with(Color::DarkGrey),
-                        )?]);
-                        failure_header.pad_left(4);
-                        output.push(failure_header);
-                        for (j, line) in shown_lines.enumerate() {
-                            let sanitized_line = line.replace('\t', "    ").replace('\r', "");
-                            if !sanitized_line.trim().is_empty() || j == 0 {
-                                let mut failure_output = Line::from_iter([
+            let mut render_group =
+                |header: &str, color: Color, group: &Vec<&Test>| -> anyhow::Result<()> {
+                    output.push(Line::from_iter([Span::new_styled(
+                        style(header.to_string())
+                            .with(color)
+                            .attribute(Attribute::Bold),
+                    )?]));
+                    for test in group.iter().take(3) {
+                        let output_name = format!(
+                            "{}{}{}",
+                            test.parent_name,
+                            if test.parent_name.is_empty() { "" } else { "/" },
+                            test.name
+                        );
+                        let mut test_line = Line::from_iter([Span::new_styled_lossy(
+                            style(output_name.to_string()).attribute(Attribute::Bold),
+                        )]);
+                        test_line.pad_left(2);
+                        output.push(test_line);
+                        let link = url_for_test_case(
+                            &self.api_address,
+                            &self.quarantine_context.org_url_slug,
+                            &self.quarantine_context.repo,
+                            test,
+                            test_collection_short_id,
+                            guid_scope,
+                        )?;
+                        let mut link_output = Line::from_iter([
+                            Span::new_unstyled("⤷ ")?,
+                            hyperlink_span(link, Attribute::Underlined)?,
+                        ]);
+                        link_output.pad_left(4);
+                        output.push(link_output);
+                        // Display failure message if present and enabled
+                        // TODO: show_failure_messages is a temporary flag to show failure messages
+                        // in the output. It should be removed once we are confident in this flow
+                        // and we should use the validation report flag instead.
+                        if self.show_failure_messages && test.failure_message.is_some() {
+                            let failure_message = test.failure_message.as_ref().unwrap();
+                            let lines: Vec<&str> = failure_message.split('\n').collect();
+                            let max_lines = 20;
+                            let shown_lines = lines.iter().take(max_lines);
+                            let mut failure_header = Line::from_iter([Span::new_styled(
+                                style("Failure: ".to_string()).with(Color::DarkGrey),
+                            )?]);
+                            failure_header.pad_left(4);
+                            output.push(failure_header);
+                            for (j, line) in shown_lines.enumerate() {
+                                let sanitized_line = line.replace('\t', "    ").replace('\r', "");
+                                if !sanitized_line.trim().is_empty() || j == 0 {
+                                    let mut failure_output = Line::from_iter([
+                                        Span::new_unstyled("   ")?,
+                                        Span::new_styled_lossy(
+                                            style(sanitized_line.to_string())
+                                                .with(Color::Grey)
+                                                .attribute(Attribute::Italic),
+                                        ),
+                                    ]);
+                                    failure_output.pad_left(4);
+                                    output.push(failure_output);
+                                }
+                            }
+                            if lines.len() > max_lines {
+                                let omitted = lines.len() - max_lines;
+                                let mut more_output = Line::from_iter([
                                     Span::new_unstyled("   ")?,
-                                    Span::new_styled_lossy(
-                                        style(sanitized_line.to_string())
+                                    Span::new_styled(
+                                        style(format!("…and {omitted} more lines not shown"))
                                             .with(Color::Grey)
                                             .attribute(Attribute::Italic),
-                                    ),
+                                    )?,
                                 ]);
-                                failure_output.pad_left(4);
-                                output.push(failure_output);
+                                more_output.pad_left(4);
+                                output.push(more_output);
                             }
                         }
-                        if lines.len() > max_lines {
-                            let omitted = lines.len() - max_lines;
-                            let mut more_output = Line::from_iter([
-                                Span::new_unstyled("   ")?,
-                                Span::new_styled(
-                                    style(format!("…and {omitted} more lines not shown"))
-                                        .with(Color::Grey)
-                                        .attribute(Attribute::Italic),
-                                )?,
-                            ]);
-                            more_output.pad_left(4);
-                            output.push(more_output);
-                        }
                     }
-                }
-                if group.len() > 3 {
-                    let mut more_failures = Line::from_iter([Span::new_unstyled(format!(
-                        "…and {} more failures in this group",
-                        group.len() - 3
-                    ))?]);
-                    more_failures.pad_left(2);
-                    output.push(more_failures);
-                }
-                output.push(Line::default());
-                Ok(())
-            };
+                    if group.len() > 3 {
+                        let mut more_failures = Line::from_iter([Span::new_unstyled(format!(
+                            "…and {} more failures in this group",
+                            group.len() - 3
+                        ))?]);
+                        more_failures.pad_left(2);
+                        output.push(more_failures);
+                    }
+                    output.push(Line::default());
+                    Ok(())
+                };
             // Render file path groups (cyan)
             for (file, group) in &groups {
                 render_group(&format!("📁 {}", file), Color::Cyan, group)?;
@@ -1231,5 +1304,60 @@ mod tests {
         let plain = rendered(false);
         assert!(!plain.contains("\x1b]8;;"));
         assert!(plain.contains(URL));
+    }
+}
+
+#[cfg(test)]
+mod fork_pr_tests {
+    use std::collections::HashMap;
+
+    use super::is_fork_pr;
+
+    fn github_event(head: &str, base: &str) -> tempfile::NamedTempFile {
+        let file = tempfile::NamedTempFile::new().unwrap();
+        std::fs::write(
+            file.path(),
+            serde_json::json!({
+                "pull_request": {
+                    "head": {"repo": {"full_name": head}},
+                    "base": {"repo": {"full_name": base}},
+                }
+            })
+            .to_string(),
+        )
+        .unwrap();
+        file
+    }
+
+    fn envs(pairs: &[(&str, &str)]) -> HashMap<String, String> {
+        pairs
+            .iter()
+            .map(|(key, value)| (key.to_string(), value.to_string()))
+            .collect()
+    }
+
+    #[test]
+    fn reads_a_github_pull_request_from_another_repository_as_a_fork() {
+        let fork = github_event("someone/web", "acme/web");
+        let same = github_event("acme/web", "ACME/web");
+        let push = tempfile::NamedTempFile::new().unwrap();
+        std::fs::write(push.path(), r#"{"ref": "refs/heads/main"}"#).unwrap();
+
+        assert_eq!(
+            [&fork, &same, &push].map(|event| is_fork_pr(event.path().to_str(), &HashMap::new())),
+            [true, false, false]
+        );
+    }
+
+    #[test]
+    fn reads_circleci_pr_number_as_a_fork() {
+        assert_eq!(
+            [
+                envs(&[("CIRCLE_PR_NUMBER", "42")]),
+                envs(&[("CIRCLE_PR_NUMBER", "")]),
+            ]
+            .map(|envs| is_fork_pr(None, &envs)),
+            [true, false]
+        );
     }
 }

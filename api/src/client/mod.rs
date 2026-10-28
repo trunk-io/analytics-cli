@@ -10,7 +10,11 @@ use serde::de::DeserializeOwned;
 use tokio::fs;
 
 use crate::call_api::CallApi;
-use crate::message;
+use crate::message::{self, UploadApiVersion};
+use crate::quarantine::{QuarantineLookup, QuarantinedTestSet};
+
+mod v1;
+mod v2;
 
 #[derive(Debug)]
 pub enum ApiErrorEndpoint {
@@ -49,10 +53,13 @@ pub struct ApiClient {
     pub telemetry_host: String,
     s3_client: Client,
     trunk_api_client: Client,
+    /// Only a client holding an API token can call v2, which takes it as a bearer credential.
+    trunk_api_v2_client: Option<Client>,
     telemetry_client: Client,
     version_path_prefix: String,
     org_url_slug: String,
     render_sender: Option<Sender<DisplayMessage>>,
+    upload_api_version: UploadApiVersion,
 }
 
 pub fn get_api_host() -> String {
@@ -64,6 +71,9 @@ pub fn get_api_host() -> String {
 
 impl ApiClient {
     const TRUNK_API_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
+    // Two attempts at this, so a slow answer holds up a customer's CI run for at most 4s.
+    const UPLOAD_API_VERSION_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(2);
+    const UPLOAD_API_VERSION_ATTEMPTS: usize = 2;
     // This should always be fast
     const TRUNK_TELEMETRY_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(1);
     const TRUNK_API_TOKEN_HEADER: &'static str = "x-api-token";
@@ -148,6 +158,27 @@ impl ApiClient {
             .default_headers(trunk_api_client_default_headers)
             .build()?;
 
+        let trunk_api_v2_client = api_token
+            .as_deref()
+            .map(|token| {
+                let mut headers = HeaderMap::new();
+                headers.append(
+                    header::CONTENT_TYPE,
+                    HeaderValue::from_static("application/json"),
+                );
+                headers.append(
+                    header::AUTHORIZATION,
+                    HeaderValue::from_str(&format!("Bearer {token}"))
+                        .map_err(|_| anyhow::Error::msg("Trunk API token is not ASCII"))?,
+                );
+                Client::builder()
+                    .timeout(Self::TRUNK_API_TIMEOUT)
+                    .default_headers(headers)
+                    .build()
+                    .map_err(anyhow::Error::from)
+            })
+            .transpose()?;
+
         let mut telemetry_client_default_headers = HeaderMap::new();
         telemetry_client_default_headers.append(
             header::CONTENT_TYPE,
@@ -184,96 +215,134 @@ impl ApiClient {
             api_host,
             s3_client,
             trunk_api_client,
+            trunk_api_v2_client,
             telemetry_client,
             version_path_prefix,
             org_url_slug,
             render_sender,
+            upload_api_version: UploadApiVersion::V1,
         })
+    }
+
+    pub fn upload_api_version(&self) -> UploadApiVersion {
+        self.upload_api_version
+    }
+
+    /// Which API the run's quarantine lookup and upload use. Every later call follows it.
+    pub fn set_upload_api_version(&mut self, upload_api_version: UploadApiVersion) {
+        self.upload_api_version = upload_api_version;
+    }
+
+    /// Asks Trunk whether this run uses v2. Anything but an explicit `v2`, a failed call
+    /// included, is v1, so this never fails a run. A timeout, a connection error or a 5xx is
+    /// retried once; any other answer is final.
+    pub async fn get_upload_api_version(
+        &self,
+        request: &message::GetUploadApiVersionRequest,
+    ) -> UploadApiVersion {
+        let upload_api_version = if self.trunk_api_v2_client.is_none()
+            || request
+                .test_collection_short_id
+                .as_deref()
+                .is_none_or(str::is_empty)
+        {
+            UploadApiVersion::V1
+        } else {
+            match self.request_upload_api_version(request).await {
+                Ok(response) if response.api_version == "v2" => UploadApiVersion::V2,
+                Ok(_) => UploadApiVersion::V1,
+                Err(error) => {
+                    tracing::debug!("Could not choose the Trunk API version, using v1: {error:?}");
+                    UploadApiVersion::V1
+                }
+            }
+        };
+        tracing::info!("Using Trunk API {}", upload_api_version.as_str());
+        upload_api_version
+    }
+
+    async fn request_upload_api_version(
+        &self,
+        request: &message::GetUploadApiVersionRequest,
+    ) -> anyhow::Result<message::GetUploadApiVersionResponse> {
+        let mut attempt = 1;
+        loop {
+            match self.request_upload_api_version_once(request).await {
+                Err(error)
+                    if attempt < Self::UPLOAD_API_VERSION_ATTEMPTS && is_retryable(&error) =>
+                {
+                    tracing::debug!("Retrying the Trunk API version check: {error:?}");
+                    attempt += 1;
+                }
+                result => return result,
+            }
+        }
+    }
+
+    async fn request_upload_api_version_once(
+        &self,
+        request: &message::GetUploadApiVersionRequest,
+    ) -> anyhow::Result<message::GetUploadApiVersionResponse> {
+        Ok(self
+            .trunk_api_client
+            .post(format!(
+                "{}{}/metrics/getUploadApiVersion",
+                self.api_host, self.version_path_prefix
+            ))
+            .timeout(Self::UPLOAD_API_VERSION_TIMEOUT)
+            .json(request)
+            .send()
+            .await?
+            .error_for_status()?
+            .json::<message::GetUploadApiVersionResponse>()
+            .await?)
     }
 
     pub async fn create_bundle_upload(
         &self,
         request: &message::CreateBundleUploadRequest,
     ) -> anyhow::Result<message::CreateBundleUploadResponse> {
-        CallApi {
-            action: || async {
-                let response = self
-                    .trunk_api_client
-                    .post(format!("{}{}/metrics/createBundleUpload", self.api_host, self.version_path_prefix))
-                    .json(&request)
-                    .send()
-                    .await?;
-
-                let response = status_code_help(
-                    response,
-                    StatusCodeHelp {
-                        check_unauthorized: CheckUnauthorized::Check,
-                        check_not_found: CheckNotFound::Check,
-                        create_error_message: |_| String::from("Failed to create bundle upload."),
-                        api_host: &self.api_host,
-                        org_url_slug: &self.org_url_slug,
-                    },
-                )
-                .await?;
-
-                self.deserialize_response::<message::CreateBundleUploadResponse>(response).await
-            },
-            log_progress_message: |time_elapsed, _| {
-                format!("Reporting bundle upload initiation to Trunk services is taking longer than expected. It has taken {} seconds so far.", time_elapsed.as_secs())
-            },
-            report_slow_progress_message: |time_elapsed| {
-                format!("Creating a Trunk upload intent is taking longer than {} seconds", time_elapsed.as_secs())
-            },
-            render_sender: self.render_sender.clone(),
+        match self.upload_api_version {
+            UploadApiVersion::V2 => self.create_test_upload(request).await,
+            UploadApiVersion::V1 => self.create_bundle_upload_v1(request).await,
         }
-        .call_api()
-        .await
         .map_err(|e| e.context(ApiErrorEndpoint::CreateBundleUpload))
     }
 
+    /// Looks up the run's failing tests. A test runner checking a test at a time wants the whole
+    /// set instead: `get_quarantined_test_set`.
     pub async fn get_quarantining_config(
         &self,
         request: &message::GetQuarantineConfigRequest,
-    ) -> anyhow::Result<message::GetQuarantineConfigResponse> {
-        CallApi {
-            action: || async {
-                let response = self
-                    .trunk_api_client
-                    .post(format!("{}{}/metrics/getQuarantineConfig", self.api_host, self.version_path_prefix))
-                    .json(&request)
-                    .send()
-                    .await?;
-
-                let response = status_code_help(
-                    response,
-                    StatusCodeHelp {
-                        check_unauthorized: CheckUnauthorized::Check,
-                        check_not_found: CheckNotFound::DoNotCheck,
-                        create_error_message: |response| -> String {
-                            if response.status() == StatusCode::NOT_FOUND {
-                                String::from("Quarantining config not found.")
-                            } else  {
-                                String::from("Failed to get quarantine bulk test.")
-                            }
-                        },
-                        api_host: &self.api_host,
-                        org_url_slug: &self.org_url_slug,
-                    },
-                )
-                .await?;
-
-                self.deserialize_response::<message::GetQuarantineConfigResponse>(response).await
-            },
-            log_progress_message: |time_elapsed, _| {
-                format!("Getting quarantine configuration from Trunk services is taking longer than expected. It has taken {} seconds so far.", time_elapsed.as_secs())
-            },
-            report_slow_progress_message: |time_elapsed| {
-                format!("Getting a Trunk quarantine configuration is taking longer than {} seconds", time_elapsed.as_secs())
-            },
-            render_sender: self.render_sender.clone(),
+    ) -> anyhow::Result<QuarantineLookup> {
+        match self.upload_api_version {
+            UploadApiVersion::V2 => self.get_quarantine_status(request).await,
+            UploadApiVersion::V1 => self
+                .get_quarantine_config_v1(request)
+                .await
+                .map(QuarantineLookup::from),
         }
-        .call_api()
-        .await
+        .map_err(|e| e.context(ApiErrorEndpoint::GetQuarantiningConfig))
+    }
+
+    /// Every quarantined test, for a test runner that checks each test as it runs. On v1 that is
+    /// the lookup with no identifiers; on v2 it is the paged `all-quarantined-tests`.
+    pub async fn get_quarantined_test_set(
+        &self,
+        request: &message::GetQuarantineConfigRequest,
+    ) -> anyhow::Result<QuarantinedTestSet> {
+        match self.upload_api_version {
+            UploadApiVersion::V2 => self.get_all_quarantined_tests(request).await,
+            UploadApiVersion::V1 => {
+                let request = message::GetQuarantineConfigRequest {
+                    test_identifiers: Vec::new(),
+                    ..request.clone()
+                };
+                self.get_quarantine_config_v1(&request)
+                    .await
+                    .map(QuarantinedTestSet::from)
+            }
+        }
         .map_err(|e| e.context(ApiErrorEndpoint::GetQuarantiningConfig))
     }
 
@@ -433,6 +502,16 @@ impl fmt::Display for ClientErrorExplanation {
 impl std::error::Error for ClientErrorExplanation {}
 
 const MAX_CLIENT_ERROR_MESSAGE_LEN: usize = 2048;
+
+fn is_retryable(error: &anyhow::Error) -> bool {
+    error.downcast_ref::<reqwest::Error>().is_some_and(|error| {
+        error.is_timeout()
+            || error.is_connect()
+            || error
+                .status()
+                .is_some_and(|status| status.is_server_error())
+    })
+}
 
 fn non_empty(value: Option<String>) -> Option<String> {
     value

@@ -51,7 +51,35 @@ pub struct MockServerState {
     /// Request headers captured per endpoint (keyed by endpoint name, e.g.
     /// "createBundleUpload"), so tests can assert on auth headers.
     pub request_headers: Mutex<HashMap<String, HeaderMap>>,
+    /// Requests to the routes added with `MockServerBuilder::route`, in arrival order. Those
+    /// handlers are the test's own, so each pushes its request with `record_route_request`.
+    pub route_requests: Mutex<Vec<RouteRequest>>,
     pub host: String,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct RouteRequest {
+    pub uri: String,
+    pub authorization: Option<String>,
+    pub body: Option<serde_json::Value>,
+}
+
+impl MockServerState {
+    pub fn record_route_request(
+        &self,
+        headers: &HeaderMap,
+        uri: &axum::http::Uri,
+        body: Option<serde_json::Value>,
+    ) {
+        self.route_requests.lock().unwrap().push(RouteRequest {
+            uri: uri.to_string(),
+            authorization: headers
+                .get("authorization")
+                .and_then(|value| value.to_str().ok())
+                .map(String::from),
+            body,
+        });
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -60,6 +88,7 @@ pub struct MockServerBuilder {
     get_quarantining_config_handler: MethodRouter<SharedMockServerState>,
     s3_upload_handler: MethodRouter<SharedMockServerState>,
     telemetry_upload_metrics: MethodRouter<SharedMockServerState>,
+    routes: Vec<(&'static str, MethodRouter<SharedMockServerState>)>,
 }
 
 impl MockServerBuilder {
@@ -69,7 +98,17 @@ impl MockServerBuilder {
             get_quarantining_config_handler: post(get_quarantining_config_handler),
             s3_upload_handler: put(s3_upload_handler),
             telemetry_upload_metrics: post(telemetry_upload_metrics_handler),
+            routes: Vec::new(),
         }
+    }
+
+    /// Serves `path` as well, such as a v2 route, which the builder has no default for.
+    pub fn route(
+        &mut self,
+        path: &'static str,
+        method_router: MethodRouter<SharedMockServerState>,
+    ) {
+        self.routes.push((path, method_router));
     }
 
     pub fn set_create_bundle_handler<H, T>(&mut self, handler: H)
@@ -126,6 +165,10 @@ impl MockServerBuilder {
                 "/v1/flakytests-cli/upload-metrics",
                 self.telemetry_upload_metrics,
             );
+
+        for (path, method_router) in self.routes {
+            app = app.route(path, method_router);
+        }
 
         app = app.route(
             "/*rest",

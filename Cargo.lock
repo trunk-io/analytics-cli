@@ -5425,6 +5425,7 @@ dependencies = [
  "prost",
  "proto",
  "sentry",
+ "serde_json",
  "tar",
  "tempfile",
  "tokio",
