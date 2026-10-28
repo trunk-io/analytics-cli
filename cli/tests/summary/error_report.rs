@@ -3,7 +3,7 @@ use pretty_assertions::assert_eq;
 use superconsole::Line;
 use trunk_analytics_cli::{
     error_report::{ErrorReport, InterruptingError},
-    report::{ErrorSummary, text},
+    summary_output::{ErrorSummary, text},
 };
 
 use crate::unauthorized_error;

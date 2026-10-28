@@ -17,7 +17,7 @@ use tracing_subscriber::{filter::FilterFn, prelude::*};
 use trunk_analytics_cli::{
     context::gather_debug_props,
     error_report::ErrorReport,
-    report::{
+    summary_output::{
         ErrorSummary, UploadCommand, UploadReport,
         text::{TextOptions, UploadText},
     },

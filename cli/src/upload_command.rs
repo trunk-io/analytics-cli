@@ -24,8 +24,8 @@ use crate::{
         generate_internal_file, generate_internal_file_from_bep,
     },
     error_report::ErrorReport,
-    report::Notice,
     report_limiting::ValidationReport,
+    summary_output::Notice,
     test_command::TestRunResult,
 };
 

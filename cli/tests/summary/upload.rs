@@ -18,11 +18,11 @@ use superconsole::Line;
 use trunk_analytics_cli::{
     context_quarantine::{QuarantineContext, QuarantineFetchStatus},
     error_report::ErrorReport,
-    report::{
+    report_limiting::ValidationReport,
+    summary_output::{
         UploadCommand, UploadReport,
         text::{self, TextOptions},
     },
-    report_limiting::ValidationReport,
     upload_command::UploadRunResult,
     validate_command::JunitReportValidations,
 };
