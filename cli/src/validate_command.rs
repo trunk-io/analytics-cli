@@ -19,7 +19,7 @@ use context::{
 use quick_junit::Report;
 
 use crate::{
-    context::fall_back_to_binary_parse, error_report::InterruptingError, report::Notice,
+    context::fall_back_to_binary_parse, error_report::InterruptingError, summary_output::Notice,
     upload_command::CodeownersType,
 };
 
