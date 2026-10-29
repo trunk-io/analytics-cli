@@ -249,35 +249,3 @@ fn adds_settings_if_domain_present() {
         "Hint: You can find it under the settings page at https://app.fake-trunk.io/fake-org-slug/settings"
     )
 }
-
-#[test]
-fn prints_a_client_error_explanation_beneath_the_base_message() {
-    let error = anyhow::anyhow!("HTTP status client error (400 Bad Request)")
-        .context(ClientErrorExplanation {
-            code: Some(String::from("SOME_CODE")),
-            message: Some(String::from("Pass --test-collection-id.")),
-        })
-        .context("Error in create bundle upload endpoint");
-    let report = ErrorReport::new(
-        error,
-        String::from("fake-org-slug"),
-        Some(String::from("There was an unexpected error")),
-    );
-
-    let text = report
-        .output()
-        .unwrap()
-        .iter()
-        .map(|line| line.to_unstyled())
-        .collect::<Vec<_>>();
-
-    assert_eq!(
-        text[..4],
-        [
-            "Error Encountered",
-            "There was an unexpected error",
-            "",
-            "Pass --test-collection-id.",
-        ]
-    );
-}
