@@ -2,13 +2,14 @@ use std::collections::BTreeMap;
 
 use api::urls::{url_for_test_case, url_for_upload};
 use bundle::Test;
-use constants::{EXIT_FAILURE, EXIT_SUCCESS};
 use context::junit::validator::JunitValidationLevel;
 use schemars::JsonSchema;
 use serde::Serialize;
 
 use super::{ErrorSummary, Notice};
-use crate::{upload_command::UploadRunResult, validate_command::JunitReportValidations};
+use crate::{
+    exit_code::ExitCode, upload_command::UploadRunResult, validate_command::JunitReportValidations,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, JsonSchema)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
@@ -43,7 +44,7 @@ pub struct UploadReport {
     pub outcome: Outcome,
     /// The code the CLI exits with. Left out by the RSpec gem, where RSpec decides the exit code.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub exit_code: Option<i32>,
+    pub exit_code: Option<ExitCode>,
     /// Warnings that didn't stop the run, such as a deprecated flag.
     pub notices: Vec<Notice>,
 }
@@ -199,8 +200,8 @@ impl UploadReport {
 
 impl UploadReport {
     /// What `upload` and `test` exit with; only the RSpec gem leaves `exit_code` unset.
-    pub fn cli_exit_code(&self) -> i32 {
-        self.exit_code.unwrap_or(EXIT_FAILURE)
+    pub fn cli_exit_code(&self) -> ExitCode {
+        self.exit_code.unwrap_or(ExitCode::Failure)
     }
 }
 
@@ -243,12 +244,12 @@ impl ParseError {
 }
 
 impl Outcome {
-    fn new(counts: &TestCounts, test_run_exit_code: i32) -> Self {
+    fn new(counts: &TestCounts, test_run_exit_code: ExitCode) -> Self {
         if counts.total == 0 {
             Self::NoTestsFound
         } else if counts.failed == 0 && counts.quarantined > 0 {
             Self::AllFailuresQuarantined
-        } else if counts.failed == 0 && test_run_exit_code == EXIT_SUCCESS {
+        } else if counts.failed == 0 && test_run_exit_code.is_success() {
             Self::NoFailures
         } else if counts.failed == 0 {
             Self::NoFailuresButNonZeroExitCode

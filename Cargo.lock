@@ -1329,12 +1329,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "exitcode"
-version = "1.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "de853764b47027c2e862a995c34978ffa63c1501f2e15f987ba11bd4f9bba193"
-
-[[package]]
 name = "fake"
 version = "2.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5953,7 +5947,6 @@ dependencies = [
  "constants",
  "context",
  "display",
- "exitcode",
  "github-actions",
  "gix",
  "glob",
@@ -5980,6 +5973,7 @@ dependencies = [
  "sentry-tracing",
  "serde",
  "serde_json",
+ "strum 0.27.2",
  "superconsole",
  "tempfile",
  "test_utils",

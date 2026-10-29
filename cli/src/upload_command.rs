@@ -9,13 +9,13 @@ use api::urls::TestCaseGuidScope;
 use bundle::{BundleMeta, BundlerUtil, QuarantineResolutionMode, unzip_tarball};
 use clap::{ArgAction, Args};
 use codeowners::OwnersSource;
-use constants::EXIT_SUCCESS;
 use context::bazel_bep::common::BepParseResult;
 use context::env::parser::CIPlatform;
 use display::message::DisplayMessage;
 use tempfile::TempDir;
 
 use crate::context_quarantine::{QuarantineContext, quarantine_query_result};
+use crate::exit_code::ExitCode;
 use crate::validate_command::JunitReportValidations;
 use crate::{
     context::{
@@ -640,7 +640,8 @@ pub async fn run_upload(
 
     let default_exit_code = upload_args
         .test_process_exit_code
-        .or_else(|| test_run_result.as_ref().map(|r| r.exit_code));
+        .or_else(|| test_run_result.as_ref().map(|r| r.exit_code))
+        .map(ExitCode::PassedThrough);
     let disable_quarantining =
         upload_args.disable_quarantining || !upload_args.use_quarantining.unwrap_or(true);
     let quarantine_context = match gather_exit_code_and_quarantined_tests_context(
@@ -888,7 +889,7 @@ async fn upload_bundle(
     requested_test_collection_short_id: Option<String>,
     api_client: &ApiClient,
     bep_result: Option<BepParseResult>,
-    exit_code: i32,
+    exit_code: ExitCode,
     dry_run: bool,
 ) -> anyhow::Result<UploadedBundle> {
     let upload_result = gather_upload_id_context(
@@ -920,7 +921,7 @@ async fn upload_bundle(
             api_client
                 .put_bundle_to_s3(&upload.url, &bundle_temp_file)
                 .await?;
-            if exit_code == EXIT_SUCCESS {
+            if exit_code.is_success() {
                 tracing::info!("Upload successful");
             } else {
                 tracing::info!(

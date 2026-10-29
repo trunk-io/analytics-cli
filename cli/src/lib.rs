@@ -1,6 +1,7 @@
 pub mod context;
 pub mod context_quarantine;
 pub mod error_report;
+pub mod exit_code;
 pub mod print;
 pub mod report_limiting;
 pub mod summary_output;

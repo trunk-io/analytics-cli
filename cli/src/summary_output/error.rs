@@ -2,7 +2,10 @@ use api::client::get_api_host;
 use schemars::JsonSchema;
 use serde::Serialize;
 
-use crate::error_report::{ErrorKind, ErrorReport, get_client_error_explanation, settings_url};
+use crate::{
+    error_report::{ErrorKind, ErrorReport, get_client_error_explanation, settings_url},
+    exit_code::ExitCode,
+};
 
 #[derive(Debug, Clone, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
@@ -19,7 +22,7 @@ pub struct ErrorSummary {
     /// Where to check the org slug and token. Only set for `UNAUTHORIZED` errors.
     pub settings_url: Option<String>,
     /// A run that fails outright exits with this code, or 0 when it's null. Upload reports exit with their own `exitCode`.
-    pub exit_code: Option<i32>,
+    pub exit_code: Option<ExitCode>,
 }
 
 impl ErrorSummary {
