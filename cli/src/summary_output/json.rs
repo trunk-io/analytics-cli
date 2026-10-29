@@ -4,7 +4,7 @@ use anyhow::Context;
 use schemars::{JsonSchema, Schema, generate::SchemaSettings};
 use serde::{Deserialize, Serialize};
 
-use super::{ErrorSummary, UploadReport};
+use super::{ErrorSummary, UploadReport, ValidateReport};
 
 pub const SCHEMA_VERSION: u32 = 1;
 
@@ -13,6 +13,8 @@ pub const SCHEMA_VERSION: u32 = 1;
 pub enum Report<'a> {
     /// The run finished and summarized its tests.
     Upload(&'a UploadReport),
+    /// `validate` finished and summarized the files it checked.
+    Validate(&'a ValidateReport),
     /// The run failed before it could summarize any tests.
     Error(&'a ErrorSummary),
 }
@@ -21,7 +23,7 @@ pub enum Report<'a> {
 #[serde(rename_all = "camelCase")]
 #[schemars(
     title = "Trunk Analytics CLI summary",
-    description = "What `upload` and `test` write to `--summary-output-file`, and the RSpec gem to `TRUNK_SUMMARY_OUTPUT_FILE`."
+    description = "What `upload` and `test` write to `--summary-output-file`, the RSpec gem to `TRUNK_SUMMARY_OUTPUT_FILE`, and `upload` and `validate` print with `--output-format json`."
 )]
 struct Versioned<'a> {
     /// Goes up when a change could break a reader, such as renaming or removing a field.

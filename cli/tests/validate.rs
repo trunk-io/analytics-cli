@@ -241,3 +241,43 @@ fn validate_writes_summary_to_stdout_and_notices_to_stderr() {
 
     println!("{assert}");
 }
+
+#[test]
+fn validate_prints_only_the_json_summary_on_stdout() {
+    let temp_dir = tempdir().unwrap();
+    generate_mock_valid_junit_xmls(&temp_dir);
+    generate_mock_codeowners(&temp_dir);
+
+    let assert = CommandBuilder::validate(temp_dir.path())
+        .command()
+        .args(["--output-format", "json", "--hide-banner", "--verbose"])
+        .assert()
+        .success()
+        .stderr(predicate::str::contains("Starting trunk-analytics-cli"))
+        .stderr(predicate::str::contains(
+            "⚠️  The --hide-banner flag is deprecated",
+        ));
+
+    let summary: serde_json::Value = serde_json::from_slice(&assert.get_output().stdout).unwrap();
+    assert_eq!(summary["schemaVersion"], 1);
+    assert_eq!(summary["type"], "VALIDATE");
+    assert_eq!(summary["counts"]["files"], 1);
+    assert_eq!(summary["exitCode"], 0);
+}
+
+#[test]
+fn validate_prints_json_with_the_same_exit_code() {
+    let temp_dir = tempdir().unwrap();
+    generate_mock_invalid_junit_xmls(&temp_dir);
+
+    let assert = CommandBuilder::validate(temp_dir.path())
+        .command()
+        .args(["--output-format", "json"])
+        .assert()
+        .code(1);
+
+    let summary: serde_json::Value = serde_json::from_slice(&assert.get_output().stdout).unwrap();
+    assert_eq!(summary["type"], "VALIDATE");
+    assert_eq!(summary["counts"]["errors"], 1);
+    assert_eq!(summary["exitCode"], 1);
+}
