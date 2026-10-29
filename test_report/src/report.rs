@@ -344,6 +344,9 @@ impl MutTestReport {
     ) -> proto::upload_metrics::trunk::QuarantineQueryResult {
         use proto::upload_metrics::trunk::QuarantineQueryResult;
 
+        if quarantining_disabled_by_env() {
+            return QuarantineQueryResult::Disabled;
+        }
         match self.0.borrow().quarantine_lookup_source {
             Some(QuarantineLookupSource::DiskCache) => QuarantineQueryResult::Cached,
             Some(QuarantineLookupSource::Api) => QuarantineQueryResult::Success,
@@ -909,10 +912,7 @@ impl MutTestReport {
             .ok()
             .and_then(|v| v.parse().ok())
             .unwrap_or(false);
-        upload_args.disable_quarantining = env::var(constants::TRUNK_DISABLE_QUARANTINING_ENV)
-            .ok()
-            .and_then(|v| v.parse().ok())
-            .unwrap_or(false);
+        upload_args.disable_quarantining = quarantining_disabled_by_env();
         upload_args.allow_empty_test_results =
             env::var(constants::TRUNK_ALLOW_EMPTY_TEST_RESULTS_ENV)
                 .ok()
@@ -1148,6 +1148,13 @@ fn write_summary_file(path: &Path, report: Report) {
         "{}",
         SummaryFileText::new(path, report.write_file(path)).message()
     );
+}
+
+fn quarantining_disabled_by_env() -> bool {
+    env::var(constants::TRUNK_DISABLE_QUARANTINING_ENV)
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(false)
 }
 
 /// Microseconds are about all the precision an f64 epoch holds.

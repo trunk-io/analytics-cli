@@ -6,10 +6,11 @@ use api::message::{GetQuarantineConfigRequest, GetQuarantineConfigResponse};
 use axum::{Json, extract::State, http::StatusCode};
 use common::{clean_up_cache_files, cleanup_env_vars, setup_quarantine_disk_cache_dir};
 use constants::{
-    TRUNK_API_CLIENT_RETRY_COUNT_ENV, TRUNK_API_TOKEN_ENV, TRUNK_ORG_URL_SLUG_ENV,
-    TRUNK_PUBLIC_API_ADDRESS_ENV, TRUNK_QUARANTINED_TESTS_DISK_CACHE_TTL_SECS_ENV,
-    TRUNK_REPO_HEAD_AUTHOR_NAME_ENV, TRUNK_REPO_HEAD_BRANCH_ENV, TRUNK_REPO_HEAD_SHA_ENV,
-    TRUNK_REPO_URL_ENV, TRUNK_USE_UNCLONED_REPO_ENV,
+    TRUNK_API_CLIENT_RETRY_COUNT_ENV, TRUNK_API_TOKEN_ENV, TRUNK_DISABLE_QUARANTINING_ENV,
+    TRUNK_ORG_URL_SLUG_ENV, TRUNK_PUBLIC_API_ADDRESS_ENV,
+    TRUNK_QUARANTINED_TESTS_DISK_CACHE_TTL_SECS_ENV, TRUNK_REPO_HEAD_AUTHOR_NAME_ENV,
+    TRUNK_REPO_HEAD_BRANCH_ENV, TRUNK_REPO_HEAD_SHA_ENV, TRUNK_REPO_URL_ENV,
+    TRUNK_USE_UNCLONED_REPO_ENV,
 };
 use proto::upload_metrics::trunk::QuarantineQueryResult;
 use serial_test::serial;
@@ -226,6 +227,34 @@ async fn telemetry_query_result_disabled_on_publish() {
             Some("TestClass".into()),
             Some("test_file.rs".into()),
         );
+        publish_minimal_success_test(&test_report);
+    })
+    .join()
+    .unwrap();
+
+    let requests = state.requests.lock().unwrap().clone();
+    assert_telemetry_quarantine_query_result(&requests, QuarantineQueryResult::Disabled);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[serial]
+async fn telemetry_query_result_disabled_by_env_on_publish() {
+    cleanup_env_vars();
+    let temp_dir = tempdir().unwrap();
+    setup_quarantine_disk_cache_dir(&temp_dir);
+    env::set_current_dir(&temp_dir).unwrap();
+
+    let state = MockServerBuilder::new().spawn_mock_server().await;
+    set_mock_api_env(&state.host);
+    set_uncloned_repo_publish_env(
+        "https://github.com/test-org/test-repo-env-disabled-telemetry.git",
+    );
+    unsafe {
+        env::set_var(TRUNK_DISABLE_QUARANTINING_ENV, "true");
+    }
+
+    thread::spawn(|| {
+        let test_report = MutTestReport::new("test".into(), "env-disabled-publish".into(), None);
         publish_minimal_success_test(&test_report);
     })
     .join()
