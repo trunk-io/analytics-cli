@@ -1477,7 +1477,7 @@ async fn upload_bundle_no_files_allow_missing_junit_files() {
 
         if matches!(flag, Flag::OffWithEquals | Flag::OffAliasWithEquals) {
             assert = assert.code(70).stderr(predicate::str::contains(
-                "No test results found to upload in: ./*. Failing because \
+                "No test results found to upload in: <./*>. Failing because \
                  --allow-empty-test-results (or its alias --allow-missing-junit-files) is false; \
                  set it to true to continue without test results.",
             ));

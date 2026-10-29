@@ -278,7 +278,7 @@ pub fn gather_post_test_context<U: AsRef<Path>>(
             if searched.is_empty() {
                 String::new()
             } else {
-                format!(" in: {searched}")
+                format!(" in: <{searched}>")
             }
         ))));
     }
