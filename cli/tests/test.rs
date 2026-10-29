@@ -153,7 +153,10 @@ async fn test_command_fails_with_no_junit_files_no_quarantine_successful_upload(
     .failure()
     .code(128)
     .stderr(predicate::str::contains(
-        "No tests were found in the provided test results",
+        "No tests were found in the provided test results, but non zero exit code provided: ",
+    ))
+    .stderr(predicate::str::contains(
+        "The test step appears to have failed without running tests",
     ));
 
     println!("{assert}");
