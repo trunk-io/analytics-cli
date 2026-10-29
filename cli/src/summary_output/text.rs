@@ -1,5 +1,6 @@
 use std::path::{Path, PathBuf};
 
+use context::junit::validator::TIMESTAMP_OLD_HOURS;
 use pluralizer::pluralize;
 use superconsole::{
     Hyperlink, Line, Lines, Span, SuperConsole,
@@ -81,6 +82,16 @@ pub(crate) const SOME_TESTS_MAY_NOT_HAVE_RUN: &str = "This may indicate that som
 pub(crate) const QUARANTINE_LOOKUP_FAILED: &str = "We were unable to determine the quarantine status for tests. Any failing tests will be reported as failures";
 pub(crate) const FAILURE_MESSAGE_MAX_LINES: usize = 20;
 pub(crate) const UNAUTHORIZED_HINT: &str = "Hint: You can find it under the settings page at";
+pub(crate) const BAZEL_BEP_HINT: &str = "If Bazel restored these files from its cache, upload with --bazel-bep-path to skip cached results: https://docs.trunk.io/flaky-tests/get-started/frameworks/bazel";
+
+/// Shown whatever `--validation-report` says, since Trunk's ingestion drops these files' results.
+pub(crate) fn old_timestamps_message(files: usize) -> String {
+    format!(
+        "{} {} test results older than {TIMESTAMP_OLD_HOURS} hours. Trunk will drop these results",
+        pluralize("file", files as isize, true),
+        if files == 1 { "has" } else { "have" },
+    )
+}
 
 pub fn render_error(error: &ErrorSummary) -> anyhow::Result<Vec<Line>> {
     let mut lines = Vec::new();
@@ -209,6 +220,12 @@ pub fn render_upload(report: &UploadReport, options: &TextOptions) -> anyhow::Re
                 .attribute(Attribute::Bold),
         )?]));
     }
+    if report.files_with_old_timestamps > 0 {
+        output.extend(render_old_timestamps(format!(
+            "{}, but the test counts above include them.",
+            old_timestamps_message(report.files_with_old_timestamps)
+        ))?);
+    }
     output.push(Line::default());
 
     if quarantined > 0 {
@@ -308,6 +325,17 @@ pub fn render_upload(report: &UploadReport, options: &TextOptions) -> anyhow::Re
         ])),
     }
     Ok(output)
+}
+
+fn render_old_timestamps(message: String) -> anyhow::Result<Vec<Line>> {
+    Ok(vec![
+        Line::from_iter([Span::new_styled_lossy(
+            style(format!("   ⚠️  {message}"))
+                .with(Color::Yellow)
+                .attribute(Attribute::Bold),
+        )]),
+        Line::from_iter([Span::new_unstyled(format!("   {BAZEL_BEP_HINT}"))?]),
+    ])
 }
 
 fn render_groups(groups: &[FailureGroup], options: &TextOptions) -> anyhow::Result<Lines> {
@@ -663,6 +691,7 @@ pub fn render_validate(report: &ValidateReport) -> anyhow::Result<Vec<Line>> {
         files_with_errors,
         warnings,
         errors,
+        files_with_old_timestamps,
     } = report.counts;
     output.push(Line::from_iter([
         Span::new_styled(style(format!("{}", valid_files)).with(Color::Green))?,
@@ -694,6 +723,13 @@ pub fn render_validate(report: &ValidateReport) -> anyhow::Result<Vec<Line>> {
         Span::new_styled(style(format!("{}", errors)).with(Color::Red))?,
         Span::new_unstyled(format!(" {}", pluralize("error", errors as isize, false)))?,
     ]));
+    if files_with_old_timestamps > 0 {
+        output.push(Line::default());
+        output.extend(render_old_timestamps(format!(
+            "{} when they're uploaded.",
+            old_timestamps_message(files_with_old_timestamps)
+        ))?);
+    }
 
     Ok(output)
 }

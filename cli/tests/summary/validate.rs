@@ -121,3 +121,38 @@ async fn prints_bep_parse_errors_as_notices_without_a_codeowners_file() {
         ]
     );
 }
+
+/// One test that ran two days ago: old enough for Trunk to drop, too recent for the validator
+/// to discard as a defaulted timestamp.
+fn old_timestamp_junit_xml() -> String {
+    let timestamp = (chrono::Utc::now() - chrono::TimeDelta::days(2)).format("%Y-%m-%dT%H:%M:%SZ");
+    format!(
+        r#"<?xml version="1.0" encoding="UTF-8"?>
+<testsuites name="old">
+  <testsuite name="MathTests" timestamp="{timestamp}">
+    <testcase name="adds" classname="MathTests" file="src/math.rs" time="0.1" timestamp="{timestamp}"/>
+  </testsuite>
+</testsuites>
+"#
+    )
+}
+
+#[tokio::test]
+async fn says_that_results_with_old_timestamps_will_be_dropped() {
+    let temp_dir = tempfile::tempdir().unwrap();
+    let path = temp_dir.path().join("old.xml");
+    std::fs::write(&path, old_timestamp_junit_xml()).unwrap();
+    let report = validate_report(&["--junit-paths", path.to_str().unwrap()]).await;
+    assert_eq!(report.counts.files_with_old_timestamps, 1);
+    let summary = unstyled(text::render_validate(&report));
+    assert_eq!(
+        summary[summary.len() - 5..].to_vec(),
+        [
+            "0 valid files, 1 file with warnings, and 0 files with errors, with 1 file total (a file is double counted if it has both errors and warnings)",
+            "1 warning, and 0 errors",
+            "",
+            "   ⚠️  1 file has test results older than 24 hours. Trunk will drop these results when they're uploaded.",
+            "   If Bazel restored these files from its cache, upload with --bazel-bep-path to skip cached results: https://docs.trunk.io/flaky-tests/get-started/frameworks/bazel",
+        ]
+    );
+}

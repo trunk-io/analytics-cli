@@ -17,7 +17,7 @@ use trunk_analytics_cli::{
 
 use super::{
     unauthorized_error,
-    upload::{UPLOAD_ERROR_MESSAGE, failure, upload_result},
+    upload::{UPLOAD_ERROR_MESSAGE, failure, old_timestamp_validations, upload_result},
 };
 
 /// Writes the summary as `upload` would, then reads it back the way the command does.
@@ -231,6 +231,42 @@ fn warns_about_an_upload_error_before_the_failures() {
             "::error::1 test failed and was not quarantined, using exit code: 1",
         ]
     );
+}
+
+#[test]
+fn warns_that_results_with_old_timestamps_will_be_dropped() {
+    let mut result = upload_result(5);
+    result.validations = old_timestamp_validations(2);
+
+    assert_eq!(
+        upload_annotations(&result),
+        [
+            "::warning::2 files have test results older than 24 hours. Trunk will drop these results, but the test counts include them.%0AIf Bazel restored these files from its cache, upload with --bazel-bep-path to skip cached results: https://docs.trunk.io/flaky-tests/get-started/frameworks/bazel"
+        ]
+    );
+}
+
+#[test]
+fn reads_a_summary_written_before_old_timestamps_were_counted() {
+    let mut result = upload_result(5);
+    result.validations = old_timestamp_validations(1);
+    let report = UploadReport::new(&result, UploadCommand::Upload);
+    let mut written: serde_json::Value =
+        serde_json::from_str(&Report::Upload(&report).to_json().unwrap()).unwrap();
+    written
+        .as_object_mut()
+        .unwrap()
+        .remove("filesWithOldTimestamps");
+    written["validations"][0]
+        .as_object_mut()
+        .unwrap()
+        .remove("oldTimestamps");
+
+    let json::Summary::Upload(read) = written.to_string().parse().unwrap() else {
+        panic!("expected an upload summary");
+    };
+    assert_eq!(read.files_with_old_timestamps, 0);
+    assert!(!read.validations[0].old_timestamps);
 }
 
 #[test]

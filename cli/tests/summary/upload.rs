@@ -477,6 +477,8 @@ fn prints_a_limited_validation_report() {
             "",
             "📚 Test Report",
             "   Total: 5   Pass: 5   Fail: 0   Quarantined: 0   Pass Ratio: 100.0%",
+            "   ⚠️  1 file has test results older than 24 hours. Trunk will drop these results, but the test counts above include them.",
+            "   If Bazel restored these files from its cache, upload with --bazel-bep-path to skip cached results: https://docs.trunk.io/flaky-tests/get-started/frameworks/bazel",
             "",
             "🎉 No test failures found!",
         ]
@@ -521,6 +523,8 @@ fn prints_a_full_validation_report() {
             "",
             "📚 Test Report",
             "   Total: 5   Pass: 5   Fail: 0   Quarantined: 0   Pass Ratio: 100.0%",
+            "   ⚠️  1 file has test results older than 24 hours. Trunk will drop these results, but the test counts above include them.",
+            "   If Bazel restored these files from its cache, upload with --bazel-bep-path to skip cached results: https://docs.trunk.io/flaky-tests/get-started/frameworks/bazel",
             "",
             "🎉 No test failures found!",
         ]
@@ -541,6 +545,8 @@ fn prints_a_blank_line_for_no_validation_report() {
             "",
             "📚 Test Report",
             "   Total: 5   Pass: 5   Fail: 0   Quarantined: 0   Pass Ratio: 100.0%",
+            "   ⚠️  1 file has test results older than 24 hours. Trunk will drop these results, but the test counts above include them.",
+            "   If Bazel restored these files from its cache, upload with --bazel-bep-path to skip cached results: https://docs.trunk.io/flaky-tests/get-started/frameworks/bazel",
             "",
             "🎉 No test failures found!",
         ]
@@ -885,6 +891,85 @@ fn exits_with_the_test_run_exit_code_when_an_error_has_none() {
     );
 }
 
+/// Like the run that prompted this: every file has warnings, so the file limit cuts some of
+/// the old timestamps from the per-file list.
+pub(super) fn old_timestamp_validations(num_files: usize) -> JunitReportValidations {
+    JunitReportValidations::new(
+        (0..num_files)
+            .map(|n| {
+                (
+                    format!("test-results/{n:02}.xml"),
+                    validation(vec![
+                        report_warning(JunitReportValidationIssueSubOptimal::MissingTimestamps),
+                        report_warning(JunitReportValidationIssueSubOptimal::OldTimestamps),
+                    ]),
+                )
+            })
+            .collect(),
+    )
+}
+
+#[test]
+fn counts_every_file_with_old_timestamps_past_the_file_limit() {
+    let mut result = upload_result(1344);
+    result.validations = old_timestamp_validations(112);
+
+    let summary = upload_summary(&result);
+    assert_eq!(
+        summary[summary.len() - 8..].to_vec(),
+        [
+            "…and 104 more",
+            "",
+            "📚 Test Report",
+            "   Total: 1344   Pass: 1344   Fail: 0   Quarantined: 0   Pass Ratio: 100.0%",
+            "   ⚠️  112 files have test results older than 24 hours. Trunk will drop these results, but the test counts above include them.",
+            "   If Bazel restored these files from its cache, upload with --bazel-bep-path to skip cached results: https://docs.trunk.io/flaky-tests/get-started/frameworks/bazel",
+            "",
+            "🎉 No test failures found!",
+        ]
+    );
+}
+
+#[test]
+fn writes_the_files_with_old_timestamps_as_json() {
+    let mut result = upload_result(4);
+    result.validations = JunitReportValidations::new(BTreeMap::from([
+        (
+            String::from("test-results/new.xml"),
+            validation(vec![report_warning(
+                JunitReportValidationIssueSubOptimal::StaleTimestamps,
+            )]),
+        ),
+        (
+            String::from("test-results/old.xml"),
+            validation(vec![report_warning(
+                JunitReportValidationIssueSubOptimal::OldTimestamps,
+            )]),
+        ),
+    ]));
+
+    let json = upload_json(&result);
+    assert_eq!(json["filesWithOldTimestamps"], 1);
+    assert_eq!(
+        json["validations"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|validation| (&validation["file"], &validation["oldTimestamps"]))
+            .collect::<Vec<_>>(),
+        [
+            (
+                &serde_json::json!("test-results/new.xml"),
+                &serde_json::json!(false)
+            ),
+            (
+                &serde_json::json!("test-results/old.xml"),
+                &serde_json::json!(true)
+            ),
+        ]
+    );
+}
+
 fn upload_json(result: &UploadRunResult) -> serde_json::Value {
     let report = UploadReport::new(result, UploadCommand::Upload);
     serde_json::from_str(&Report::Upload(&report).to_json().unwrap()).unwrap()
@@ -958,6 +1043,7 @@ fn writes_the_report_as_json() {
                     "warnings": ["test case or parent has no time duration"],
                     "testSuiteCount": 0,
                     "testCaseCount": 0,
+                    "oldTimestamps": false,
                 },
                 {
                     "file": "test-results/b.xml",
@@ -969,8 +1055,10 @@ fn writes_the_report_as_json() {
                     "warnings": [],
                     "testSuiteCount": null,
                     "testCaseCount": null,
+                    "oldTimestamps": false,
                 },
             ],
+            "filesWithOldTimestamps": 0,
             "counts": {
                 "total": 10,
                 "passed": 7,
