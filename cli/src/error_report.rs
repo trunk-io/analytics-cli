@@ -1,5 +1,6 @@
 use api::client::ClientErrorExplanation;
 use http::StatusCode;
+use schemars::JsonSchema;
 use serde::Serialize;
 
 pub(crate) const HELP_TEXT: &str = "For more help, contact us at https://slack.trunk.io/";
@@ -50,21 +51,35 @@ pub struct ErrorReport {
 
 impl ErrorReport {
     pub fn new(error: anyhow::Error, org_url_slug: String, base_message: Option<String>) -> Self {
-        let kind = ErrorKind::of(&error);
-        match kind {
+        let report = Self::unlogged(error, org_url_slug, base_message);
+        match report.kind {
             ErrorKind::ConnectionRefused => tracing::warn!(CONNECTION_REFUSED_CONTEXT),
             ErrorKind::Unauthorized => tracing::warn!(UNAUTHORIZED_CONTEXT),
             ErrorKind::GitRepository => tracing::warn!(GIX_ERROR_CONTEXT),
             ErrorKind::Interrupted => {
-                if let Some(message) = get_interrupting_message(&error) {
+                if let Some(message) = get_interrupting_message(&report.error) {
                     tracing::warn!("{}", message);
                 }
             }
             ErrorKind::Other => {
-                tracing::error!("{}", error);
-                tracing::error!(hidden_in_console = true, "Caused by error: {:#?}", error);
+                tracing::error!("{}", report.error);
+                tracing::error!(
+                    hidden_in_console = true,
+                    "Caused by error: {:#?}",
+                    report.error
+                );
             }
         }
+        report
+    }
+
+    /// For callers that log the error themselves, so it isn't sent to Sentry twice.
+    pub fn unlogged(
+        error: anyhow::Error,
+        org_url_slug: String,
+        base_message: Option<String>,
+    ) -> Self {
+        let kind = ErrorKind::of(&error);
         Self {
             context: Context {
                 base_message,
@@ -77,12 +92,16 @@ impl ErrorReport {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, JsonSchema)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum ErrorKind {
+    /// Couldn't connect to Trunk.
     ConnectionRefused,
+    /// Trunk rejected the org slug or token.
     Unauthorized,
+    /// The repo root couldn't be opened as a git repository.
     GitRepository,
+    /// The run stopped early, such as when it found no test reports and empty results aren't allowed.
     Interrupted,
     Other,
 }

@@ -1,5 +1,6 @@
 use std::{
     env,
+    path::PathBuf,
     process::{Command, Stdio},
     sync::{Arc, mpsc::Sender},
     time::SystemTime,
@@ -61,6 +62,10 @@ impl TestArgs {
 
     pub fn repo_root(&self) -> Option<String> {
         self.upload_args.repo_root.clone()
+    }
+
+    pub fn summary_output_file(&self) -> Option<PathBuf> {
+        self.upload_args.summary_output_file.clone()
     }
 }
 

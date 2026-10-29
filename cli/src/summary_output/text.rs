@@ -1,3 +1,5 @@
+use std::path::{Path, PathBuf};
+
 use constants::EXIT_SUCCESS;
 use display::end_output::EndOutput;
 use pluralizer::pluralize;
@@ -8,7 +10,7 @@ use superconsole::{
 
 use super::{
     ErrorSummary, FailureGroup, FileValidation, GroupKey, NoticeKind, Outcome, ParseError,
-    TestCounts, UploadReport, ValidateReport, ValidationCounts,
+    Quarantining, TestCounts, UploadReport, ValidateReport, ValidationCounts,
 };
 use crate::{
     error_report::{CONNECTION_REFUSED_CONTEXT, ErrorKind, HELP_TEXT, UNAUTHORIZED_CONTEXT},
@@ -50,6 +52,45 @@ impl EndOutput for UploadText {
 impl EndOutput for ErrorSummary {
     fn output(&self) -> anyhow::Result<Vec<Line>> {
         render_error(self)
+    }
+}
+
+pub struct SummaryFileText {
+    path: PathBuf,
+    error: Option<String>,
+}
+
+impl SummaryFileText {
+    pub fn new(path: &Path, written: anyhow::Result<()>) -> Self {
+        let error = written.err().map(|error| {
+            tracing::warn!(
+                "Failed to write the summary to {}: {:?}",
+                path.display(),
+                error
+            );
+            format!("{error:#}")
+        });
+        Self {
+            path: path.to_path_buf(),
+            error,
+        }
+    }
+
+    pub fn message(&self) -> String {
+        let path = self.path.display();
+        match &self.error {
+            None => format!("Summary written to {path}"),
+            Some(error) => format!("⚠️  Failed to write the summary to {path}: {error}"),
+        }
+    }
+}
+
+impl EndOutput for SummaryFileText {
+    fn output(&self) -> anyhow::Result<Vec<Line>> {
+        Ok(vec![
+            Line::default(),
+            Line::from_iter([Span::new_unstyled_lossy(self.message())]),
+        ])
     }
 }
 
@@ -173,7 +214,7 @@ pub fn render_upload(report: &UploadReport, options: &TextOptions) -> anyhow::Re
         "   Total: {}   Pass: {}   Fail: {}   Quarantined: {}   Pass Ratio: {}",
         total, passed, failed, quarantined, pass_ratio
     ))?]));
-    if report.quarantine_lookup_failed {
+    if report.quarantining == Quarantining::LookupFailed {
         output.push(Line::from_iter([Span::new_styled(
             style("   We were unable to determine the quarantine status for tests. Any failing tests will be reported as failures".to_string()).with(Color::Yellow).attribute(Attribute::Bold),
         )?]));
@@ -247,7 +288,7 @@ pub fn render_upload(report: &UploadReport, options: &TextOptions) -> anyhow::Re
                     "⚠️  No test failures found, but non zero exit code provided: ",
                 )?,
                 Span::new_styled(
-                    style(format!("{}", report.exit_code)).attribute(Attribute::Bold),
+                    style(format!("{}", report.cli_exit_code())).attribute(Attribute::Bold),
                 )?,
             ]));
             output.push(Line::from_iter([Span::new_unstyled(
@@ -258,7 +299,9 @@ pub fn render_upload(report: &UploadReport, options: &TextOptions) -> anyhow::Re
             Span::new_unstyled(
                 "⚠️  Some test failures were not quarantined, using exit code: ".to_string(),
             )?,
-            Span::new_styled(style(format!("{}", report.exit_code)).attribute(Attribute::Bold))?,
+            Span::new_styled(
+                style(format!("{}", report.cli_exit_code())).attribute(Attribute::Bold),
+            )?,
         ])),
     }
     Ok(output)

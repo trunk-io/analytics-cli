@@ -20,7 +20,8 @@ use trunk_analytics_cli::{
     error_report::ErrorReport,
     report_limiting::ValidationReport,
     summary_output::{
-        UploadCommand, UploadReport,
+        Notice, UploadCommand, UploadReport,
+        json::{self, Report},
         text::{self, TextOptions},
     },
     upload_command::UploadRunResult,
@@ -100,6 +101,8 @@ fn upload_result(num_tests: usize) -> UploadRunResult {
         api_address: String::from("https://api.trunk.io"),
         guid_scope: None,
         notices: Vec::new(),
+        dry_run: false,
+        disable_quarantining: false,
     }
 }
 
@@ -834,9 +837,12 @@ fn upload_exits_with_the_exit_code_of_an_error_but_test_does_not() {
 
     assert_eq!(
         UploadReport::new(&result, UploadCommand::Upload).exit_code,
-        70
+        Some(70)
     );
-    assert_eq!(UploadReport::new(&result, UploadCommand::Test).exit_code, 1);
+    assert_eq!(
+        UploadReport::new(&result, UploadCommand::Test).exit_code,
+        Some(1)
+    );
 }
 
 #[test]
@@ -851,7 +857,196 @@ fn exits_with_the_test_run_exit_code_when_an_error_has_none() {
 
     assert_eq!(
         UploadReport::new(&result, UploadCommand::Upload).exit_code,
-        1
+        Some(1)
     );
-    assert_eq!(UploadReport::new(&result, UploadCommand::Test).exit_code, 1);
+    assert_eq!(
+        UploadReport::new(&result, UploadCommand::Test).exit_code,
+        Some(1)
+    );
+}
+
+fn upload_json(result: &UploadRunResult) -> serde_json::Value {
+    let report = UploadReport::new(result, UploadCommand::Upload);
+    serde_json::from_str(&json::to_string(Report::Upload(&report)).unwrap()).unwrap()
+}
+
+#[test]
+fn writes_the_report_as_json() {
+    let mut result = in_collection(upload_result(10));
+    result.error_report = Some(ErrorReport::new(
+        anyhow::anyhow!("HTTP status server error (500 Internal Server Error)")
+            .context("Failed to create bundle upload"),
+        String::from("test-org"),
+        Some(String::from(UPLOAD_ERROR_MESSAGE)),
+    ));
+    result.validations = JunitReportValidations::new(BTreeMap::from([
+        (
+            String::from("test-results/a.xml"),
+            validation(vec![
+                name_too_short(),
+                warning(JunitTestCaseValidationIssueSubOptimal::TestCaseNoTimeDuration),
+            ]),
+        ),
+        (
+            String::from("test-results/b.xml"),
+            Err(anyhow::anyhow!("unexpected end of file")),
+        ),
+    ]));
+    result.quarantine_context.exit_code = 1;
+    result.quarantine_context.fetch_status = QuarantineFetchStatus::FetchSucceeded;
+    result
+        .quarantine_context
+        .quarantine_status
+        .quarantine_results = vec![failure("adds", "MathTests", Some("src/math.rs"))];
+    result.quarantine_context.failures = vec![
+        Test {
+            class_name: Some(String::from("Math")),
+            failure_message_attribute: Some(String::from("expected 1, got 2")),
+            failure_text: Some(String::from("at src/math.rs:12")),
+            variant: Some(String::from("linux")),
+            ..failure("subtracts", "MathTests", Some("src/math.rs"))
+        },
+        failure("boots", "", None),
+    ];
+    result.notices = vec![Notice::deprecation(
+        "The --team flag is deprecated and will be removed in a future version.",
+    )];
+
+    assert_eq!(
+        upload_json(&result),
+        serde_json::json!({
+            "schemaVersion": 1,
+            "type": "UPLOAD",
+            "command": "UPLOAD",
+            "error": {
+                "kind": "OTHER",
+                "message": "There was an unexpected error that occurred while uploading test results",
+                "error": "Failed to create bundle upload",
+                "causes": ["HTTP status server error (500 Internal Server Error)"],
+                "explanation": null,
+                "settingsUrl": null,
+                "exitCode": null,
+            },
+            "dryRun": false,
+            "bundleUploadId": "4b1d2c3e-5f60-4a7b-8c9d-0e1f2a3b4c5d",
+            "uploadUrl": "https://app.trunk.io/test-org/flaky-tests/collections/abc123/uploads/eyJpZCI6IjBiNmY0YzFlLThhN2QtNGUyYi05YzNmLTVkMWEyYjNjNGQ1ZSIsImNyZWF0ZWRBdCI6MTc5MjU4NDAwMDAwMH0",
+            "validations": [
+                {
+                    "file": "test-results/a.xml",
+                    "parseError": null,
+                    "errors": ["test case name too short"],
+                    "warnings": ["test case or parent has no time duration"],
+                    "testSuiteCount": 0,
+                    "testCaseCount": 0,
+                },
+                {
+                    "file": "test-results/b.xml",
+                    "parseError": {
+                        "error": "unexpected end of file",
+                        "causes": [],
+                    },
+                    "errors": [],
+                    "warnings": [],
+                    "testSuiteCount": null,
+                    "testCaseCount": null,
+                },
+            ],
+            "counts": {
+                "total": 10,
+                "passed": 7,
+                "failed": 2,
+                "quarantined": 1,
+                "passRatio": 0.7,
+            },
+            "quarantining": "CHECKED",
+            "quarantined": [
+                {
+                    "key": { "type": "FILE", "name": "src/math.rs" },
+                    "tests": [
+                        {
+                            "name": "adds",
+                            "suite": "MathTests",
+                            "className": null,
+                            "file": "src/math.rs",
+                            "id": "adds-id",
+                            "variant": null,
+                            "failureMessage": null,
+                            "failureText": null,
+                            "quarantined": true,
+                            "link": "https://app.trunk.io/test-org/flaky-tests/collections/abc123/t/adds-id?repo=trunk-io%2Fanalytics-cli",
+                        },
+                    ],
+                },
+            ],
+            "failures": [
+                {
+                    "key": { "type": "FILE", "name": "src/math.rs" },
+                    "tests": [
+                        {
+                            "name": "subtracts",
+                            "suite": "MathTests",
+                            "className": "Math",
+                            "file": "src/math.rs",
+                            "id": "subtracts-id",
+                            "variant": "linux",
+                            "failureMessage": "expected 1, got 2",
+                            "failureText": "at src/math.rs:12",
+                            "quarantined": false,
+                            "link": "https://app.trunk.io/test-org/flaky-tests/collections/abc123/t/subtracts-id?repo=trunk-io%2Fanalytics-cli",
+                        },
+                    ],
+                },
+                {
+                    "key": { "type": "OTHER" },
+                    "tests": [
+                        {
+                            "name": "boots",
+                            "suite": "",
+                            "className": null,
+                            "file": null,
+                            "id": "boots-id",
+                            "variant": null,
+                            "failureMessage": null,
+                            "failureText": null,
+                            "quarantined": false,
+                            "link": "https://app.trunk.io/test-org/flaky-tests/collections/abc123/t/boots-id?repo=trunk-io%2Fanalytics-cli",
+                        },
+                    ],
+                },
+            ],
+            "outcome": "FAILURES_NOT_QUARANTINED",
+            "exitCode": 1,
+            "notices": [
+                {
+                    "kind": "DEPRECATION",
+                    "message": "The --team flag is deprecated and will be removed in a future version.",
+                },
+            ],
+        })
+    );
+}
+
+#[test]
+fn says_whether_failures_could_be_checked_for_quarantining() {
+    let quarantining = |result: &UploadRunResult| {
+        serde_json::to_value(UploadReport::new(result, UploadCommand::Upload).quarantining).unwrap()
+    };
+    let mut result = upload_result(1);
+    assert_eq!(quarantining(&result), "NOT_NEEDED");
+
+    result.quarantine_context.fetch_status = QuarantineFetchStatus::FetchSucceeded;
+    assert_eq!(quarantining(&result), "CHECKED");
+
+    result.quarantine_context.fetch_status =
+        QuarantineFetchStatus::FetchFailed(anyhow::anyhow!("request timed out"));
+    assert_eq!(quarantining(&result), "LOOKUP_FAILED");
+
+    result
+        .quarantine_context
+        .quarantine_status
+        .quarantining_disabled_for_repo = true;
+    assert_eq!(quarantining(&result), "DISABLED_VIA_API");
+
+    result.disable_quarantining = true;
+    assert_eq!(quarantining(&result), "DISABLED_VIA_CLI");
 }

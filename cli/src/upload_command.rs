@@ -393,6 +393,14 @@ pub struct UploadArgs {
         default_missing_value = "true"
     )]
     pub hide_test_collection_links: bool,
+    #[arg(
+        long,
+        env = constants::TRUNK_SUMMARY_OUTPUT_FILE_ENV,
+        help = "Also write the summary as JSON to this file, e.g. for a step that comments on the pull request.",
+        required = false,
+        num_args = 1
+    )]
+    pub summary_output_file: Option<PathBuf>,
 }
 
 #[derive(clap::ValueEnum, Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -478,6 +486,8 @@ pub struct UploadRunResult {
     pub api_address: String,
     pub guid_scope: Option<TestCaseGuidScope>,
     pub notices: Vec<Notice>,
+    pub dry_run: bool,
+    pub disable_quarantining: bool,
 }
 
 pub struct RunUploadOptions {
@@ -813,6 +823,8 @@ pub async fn run_upload(
         api_address: api_client.api_host.clone(),
         guid_scope,
         notices,
+        dry_run: upload_args.dry_run,
+        disable_quarantining,
     })
 }
 
