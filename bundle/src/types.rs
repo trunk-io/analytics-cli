@@ -23,7 +23,14 @@ pub struct Test {
     /// Added in v0.6.9
     pub timestamp_millis: Option<i64>,
     pub is_quarantined: bool,
+    /// What's uploaded: the failure's text, else its `message` attribute.
     pub failure_message: Option<String>,
+    /// The failure's `message` attribute, kept apart for the CLI's summary. Not uploaded.
+    #[serde(skip)]
+    pub failure_message_attribute: Option<String>,
+    /// The failure's text, usually a stack trace, kept apart for the CLI's summary. Not uploaded.
+    #[serde(skip)]
+    pub failure_text: Option<String>,
     pub variant: Option<String>,
 }
 
@@ -49,6 +56,8 @@ impl Test {
             timestamp_millis,
             is_quarantined: false,
             failure_message: None,
+            failure_message_attribute: None,
+            failure_text: None,
             variant: Some(variant.to_string()),
         };
 
@@ -198,6 +207,8 @@ mod tests {
             timestamp_millis: Some(0),
             is_quarantined: false,
             failure_message: None,
+            failure_message_attribute: None,
+            failure_text: None,
             variant: Some(String::new()),
         };
         assert_eq!(result.name, name);

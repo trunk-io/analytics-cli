@@ -5,22 +5,17 @@ use std::sync::mpsc::Sender;
 
 use api::client::{ApiClient, ApiErrorEndpoint};
 use api::message::{GetUploadApiVersionRequest, UploadApiCaller, UploadApiVersion};
-use api::urls::{TestCaseGuidScope, url_for_test_case, url_for_upload};
-use bundle::{BundleMeta, BundlerUtil, QuarantineResolutionMode, Test, unzip_tarball};
+use api::urls::TestCaseGuidScope;
+use bundle::{BundleMeta, BundlerUtil, QuarantineResolutionMode, unzip_tarball};
 use clap::{ArgAction, Args};
 use codeowners::OwnersSource;
-use constants::EXIT_SUCCESS;
 use context::bazel_bep::common::BepParseResult;
 use context::env::parser::CIPlatform;
-use display::{end_output::EndOutput, message::DisplayMessage};
-use pluralizer::pluralize;
-use superconsole::{
-    Hyperlink, Line, Lines, Span, SuperConsole,
-    style::{Attribute, Color, Stylize, style},
-};
+use display::message::DisplayMessage;
 use tempfile::TempDir;
 
 use crate::context_quarantine::{QuarantineContext, quarantine_query_result};
+use crate::exit_code::ExitCode;
 use crate::validate_command::JunitReportValidations;
 use crate::{
     context::{
@@ -30,6 +25,7 @@ use crate::{
     },
     error_report::ErrorReport,
     report_limiting::ValidationReport,
+    summary_output::Notice,
     test_command::TestRunResult,
 };
 
@@ -397,6 +393,14 @@ pub struct UploadArgs {
         default_missing_value = "true"
     )]
     pub hide_test_collection_links: bool,
+    #[arg(
+        long,
+        env = constants::TRUNK_SUMMARY_OUTPUT_FILE_ENV,
+        help = "Also write the summary as JSON to this file, e.g. for a step that comments on the pull request.",
+        required = false,
+        num_args = 1
+    )]
+    pub summary_output_file: Option<PathBuf>,
 }
 
 #[derive(clap::ValueEnum, Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -481,6 +485,9 @@ pub struct UploadRunResult {
     pub hide_test_collection_links: bool,
     pub api_address: String,
     pub guid_scope: Option<TestCaseGuidScope>,
+    pub notices: Vec<Notice>,
+    pub dry_run: bool,
+    pub disable_quarantining: bool,
 }
 
 pub struct RunUploadOptions {
@@ -532,30 +539,33 @@ pub async fn run_upload(
         chrono::Utc::now().into()
     };
 
+    let mut notices = Vec::new();
     if upload_args.print_files.is_some() {
-        tracing::error!(
-            "The --print-files flag is deprecated and will be removed in a future version."
-        );
+        let message =
+            "The --print-files flag is deprecated and will be removed in a future version.";
+        tracing::error!("{message}");
+        notices.push(Notice::deprecation(message));
     }
 
     if let Some(team) = &upload_args.team {
         if !team.is_empty() {
-            tracing::error!(
-                "The --team flag is deprecated and will be removed in a future version."
-            );
+            let message = "The --team flag is deprecated and will be removed in a future version.";
+            tracing::error!("{message}");
+            notices.push(Notice::deprecation(message));
         }
     }
 
     if upload_args.hide_banner {
-        tracing::error!(
-            "The --hide-banner flag is deprecated and does nothing. It will be removed in a future version."
-        );
+        let message = "The --hide-banner flag is deprecated and does nothing. It will be removed in a future version.";
+        tracing::error!("{message}");
+        notices.push(Notice::deprecation(message));
     }
 
     if upload_args.use_quarantining.is_some() {
-        tracing::warn!(
-            "The --use-quarantining flag is deprecated. Use --disable-quarantining instead."
-        );
+        let message =
+            "The --use-quarantining flag is deprecated. Use --disable-quarantining instead.";
+        tracing::warn!("{message}");
+        notices.push(Notice::deprecation(message));
     }
 
     // Caught here rather than server-side: without a collection there is nothing for the forked
@@ -615,6 +625,10 @@ pub async fn run_upload(
     };
     api_client.set_upload_api_version(upload_api_version);
 
+    if let Some(bep_result) = &bep_result {
+        notices.extend(bep_result.errors.iter().map(Notice::bep_parse_error));
+    }
+
     let file_set_builder = gather_post_test_context(
         &mut meta,
         junit_path_wrappers,
@@ -626,7 +640,8 @@ pub async fn run_upload(
 
     let default_exit_code = upload_args
         .test_process_exit_code
-        .or_else(|| test_run_result.as_ref().map(|r| r.exit_code));
+        .or_else(|| test_run_result.as_ref().map(|r| r.exit_code))
+        .map(ExitCode::PassedThrough);
     let disable_quarantining =
         upload_args.disable_quarantining || !upload_args.use_quarantining.unwrap_or(true);
     let quarantine_context = match gather_exit_code_and_quarantined_tests_context(
@@ -808,6 +823,9 @@ pub async fn run_upload(
         hide_test_collection_links: upload_args.hide_test_collection_links,
         api_address: api_client.api_host.clone(),
         guid_scope,
+        notices,
+        dry_run: upload_args.dry_run,
+        disable_quarantining,
     })
 }
 
@@ -871,7 +889,7 @@ async fn upload_bundle(
     requested_test_collection_short_id: Option<String>,
     api_client: &ApiClient,
     bep_result: Option<BepParseResult>,
-    exit_code: i32,
+    exit_code: ExitCode,
     dry_run: bool,
 ) -> anyhow::Result<UploadedBundle> {
     let upload_result = gather_upload_id_context(
@@ -903,7 +921,7 @@ async fn upload_bundle(
             api_client
                 .put_bundle_to_s3(&upload.url, &bundle_temp_file)
                 .await?;
-            if exit_code == EXIT_SUCCESS {
+            if exit_code.is_success() {
                 tracing::info!("Upload successful");
             } else {
                 tracing::info!(
@@ -932,379 +950,6 @@ async fn upload_bundle(
 
 pub fn get_bundle_upload_id_message(bundle_upload_id: &str) -> String {
     format!("🏷️  Bundle Upload ID: {}", bundle_upload_id)
-}
-
-/// Plain text unless superconsole is drawing to an interactive terminal: log viewers such as
-/// GitHub Actions don't support OSC 8 and drop the link text along with the escape.
-fn hyperlink_span(url: String, attribute: Attribute) -> anyhow::Result<Span> {
-    url_span(url, attribute, SuperConsole::compatible())
-}
-
-fn url_span(url: String, attribute: Attribute, clickable: bool) -> anyhow::Result<Span> {
-    let span = Span::new_styled(style(url.clone()).attribute(attribute))?;
-    Ok(if clickable {
-        span.with_hyperlink(Some(Hyperlink::new(url)))
-    } else {
-        span
-    })
-}
-
-impl UploadRunResult {
-    /// Link to this upload's page, when the run is in test-collection link mode. Gated on
-    /// `test_collection_short_id` rather than `base_props.test_collection.short_id` so an
-    /// exported-but-blank collection id can't yield a malformed `/collections//uploads/`
-    /// link. The payload supplies both halves of the key the canonical route is keyed on.
-    fn collection_upload_url(&self) -> Option<String> {
-        if self.hide_test_collection_links {
-            return None;
-        }
-        let short_id = self.test_collection_short_id.as_deref()?;
-        let test_collection = self.meta.base_props.test_collection.as_ref()?;
-        url_for_upload(
-            &self.api_address,
-            &self.meta.base_props.org,
-            short_id,
-            &test_collection.bundle_meta_id,
-            &test_collection.bundle_meta_created_at,
-        )
-        .ok()
-    }
-}
-
-impl EndOutput for UploadRunResult {
-    fn output(&self) -> anyhow::Result<Vec<Line>> {
-        let mut output: Vec<Line> = Vec::new();
-        // If there is an error report, we display it instead
-        if let Some(error_report) = self.error_report.as_ref() {
-            output.push(Line::default());
-            output.extend(error_report.output()?);
-            if error_report.should_block_quarantining() {
-                return Ok(output);
-            } else {
-                output.push(Line::from_iter([Span::new_unstyled(
-                    "Proceeding with test report...",
-                )?]));
-                output.push(Line::default());
-            }
-        }
-
-        // Add the bundle upload message: the short link when the run is in
-        // test-collection link mode, otherwise the bare id as before.
-        {
-            let bundle_upload_id = &self.meta.base_props.bundle_upload_id;
-            let bold = |text: String| Span::new_styled(style(text).attribute(Attribute::Bold));
-            let line = match self.collection_upload_url() {
-                Some(url) => Some(Line::from_iter([
-                    bold(String::from("🏷️  Upload: "))?,
-                    hyperlink_span(url, Attribute::Bold)?,
-                ])),
-                None if !bundle_upload_id.is_empty() => Some(Line::from_iter([bold(
-                    get_bundle_upload_id_message(bundle_upload_id),
-                )?])),
-                None => None,
-            };
-            if let Some(line) = line {
-                output.push(line);
-                output.push(Line::default());
-            }
-        }
-
-        if !self.validations.validations.is_empty() {
-            output.extend(
-                self.validations
-                    .output_with_report_limits(&self.validation_report)?,
-            );
-            output.push(Line::default());
-        }
-        // Summary statistics
-        let total_tests = self.meta.junit_props.num_tests;
-        let quarantined = self
-            .quarantine_context
-            .quarantine_status
-            .quarantine_results
-            .len();
-        let failures = self.quarantine_context.failures.len();
-        let passes = total_tests.saturating_sub(quarantined + failures);
-        let pass_ratio = if total_tests > 0 {
-            format!("{:.1}%", (passes as f64 / total_tests as f64) * 100.0)
-        } else {
-            "N/A".to_string()
-        };
-        output.push(Line::from_iter([Span::new_styled(
-            style("📚 Test Report".to_string()).attribute(Attribute::Bold),
-        )?]));
-        output.push(Line::from_iter([Span::new_unstyled(format!(
-            "   Total: {}   Pass: {}   Fail: {}   Quarantined: {}   Pass Ratio: {}",
-            total_tests, passes, failures, quarantined, pass_ratio
-        ))?]));
-        if self.quarantine_context.fetch_status.is_failure() {
-            output.push(Line::from_iter([Span::new_styled(
-                style("   We were unable to determine the quarantine status for tests. Any failing tests will be reported as failures".to_string()).with(Color::Yellow).attribute(Attribute::Bold),
-            )?]));
-        }
-        output.push(Line::default());
-        let qc = &self.quarantine_context;
-        let quarantined = &qc.quarantine_status.quarantine_results;
-        let failures = &qc.failures;
-        let quarantined_count = quarantined.len();
-        let non_quarantined_count = failures.len();
-        let all_quarantined = non_quarantined_count == 0 && quarantined_count > 0;
-
-        let test_collection_short_id = self
-            .test_collection_short_id
-            .as_deref()
-            .filter(|_| !self.hide_test_collection_links);
-        let guid_scope = self
-            .guid_scope
-            .as_ref()
-            .filter(|_| !self.hide_test_collection_links);
-
-        // Helper closure to render the test table
-        let render_test_table = |tests: &[Test]| -> anyhow::Result<Lines> {
-            use std::collections::BTreeMap;
-            let mut output = Vec::new();
-            // Group tests by file path, then by suite, then standalone
-            let mut groups: BTreeMap<String, Vec<&Test>> = BTreeMap::new();
-            let mut suite_groups: BTreeMap<String, Vec<&Test>> = BTreeMap::new();
-            let mut standalone: Vec<&Test> = Vec::new();
-            for test in tests.iter() {
-                if let Some(file) = &test.file {
-                    groups.entry(file.clone()).or_default().push(test);
-                } else if !test.parent_name.is_empty() {
-                    suite_groups
-                        .entry(test.parent_name.clone())
-                        .or_default()
-                        .push(test);
-                } else {
-                    standalone.push(test);
-                }
-            }
-            // Helper to render a group
-            let mut render_group =
-                |header: &str, color: Color, group: &Vec<&Test>| -> anyhow::Result<()> {
-                    output.push(Line::from_iter([Span::new_styled(
-                        style(header.to_string())
-                            .with(color)
-                            .attribute(Attribute::Bold),
-                    )?]));
-                    for test in group.iter().take(3) {
-                        let output_name = format!(
-                            "{}{}{}",
-                            test.parent_name,
-                            if test.parent_name.is_empty() { "" } else { "/" },
-                            test.name
-                        );
-                        let mut test_line = Line::from_iter([Span::new_styled_lossy(
-                            style(output_name.to_string()).attribute(Attribute::Bold),
-                        )]);
-                        test_line.pad_left(2);
-                        output.push(test_line);
-                        let link = url_for_test_case(
-                            &self.api_address,
-                            &self.quarantine_context.org_url_slug,
-                            &self.quarantine_context.repo,
-                            test,
-                            test_collection_short_id,
-                            guid_scope,
-                        )?;
-                        let mut link_output = Line::from_iter([
-                            Span::new_unstyled("⤷ ")?,
-                            hyperlink_span(link, Attribute::Underlined)?,
-                        ]);
-                        link_output.pad_left(4);
-                        output.push(link_output);
-                        // Display failure message if present and enabled
-                        // TODO: show_failure_messages is a temporary flag to show failure messages
-                        // in the output. It should be removed once we are confident in this flow
-                        // and we should use the validation report flag instead.
-                        if self.show_failure_messages && test.failure_message.is_some() {
-                            let failure_message = test.failure_message.as_ref().unwrap();
-                            let lines: Vec<&str> = failure_message.split('\n').collect();
-                            let max_lines = 20;
-                            let shown_lines = lines.iter().take(max_lines);
-                            let mut failure_header = Line::from_iter([Span::new_styled(
-                                style("Failure: ".to_string()).with(Color::DarkGrey),
-                            )?]);
-                            failure_header.pad_left(4);
-                            output.push(failure_header);
-                            for (j, line) in shown_lines.enumerate() {
-                                let sanitized_line = line.replace('\t', "    ").replace('\r', "");
-                                if !sanitized_line.trim().is_empty() || j == 0 {
-                                    let mut failure_output = Line::from_iter([
-                                        Span::new_unstyled("   ")?,
-                                        Span::new_styled_lossy(
-                                            style(sanitized_line.to_string())
-                                                .with(Color::Grey)
-                                                .attribute(Attribute::Italic),
-                                        ),
-                                    ]);
-                                    failure_output.pad_left(4);
-                                    output.push(failure_output);
-                                }
-                            }
-                            if lines.len() > max_lines {
-                                let omitted = lines.len() - max_lines;
-                                let mut more_output = Line::from_iter([
-                                    Span::new_unstyled("   ")?,
-                                    Span::new_styled(
-                                        style(format!("…and {omitted} more lines not shown"))
-                                            .with(Color::Grey)
-                                            .attribute(Attribute::Italic),
-                                    )?,
-                                ]);
-                                more_output.pad_left(4);
-                                output.push(more_output);
-                            }
-                        }
-                    }
-                    if group.len() > 3 {
-                        let mut more_failures = Line::from_iter([Span::new_unstyled(format!(
-                            "…and {} more failures in this group",
-                            group.len() - 3
-                        ))?]);
-                        more_failures.pad_left(2);
-                        output.push(more_failures);
-                    }
-                    output.push(Line::default());
-                    Ok(())
-                };
-            // Render file path groups (cyan)
-            for (file, group) in &groups {
-                render_group(&format!("📁 {}", file), Color::Cyan, group)?;
-            }
-            // Render suite groups (magenta)
-            for (suite, group) in &suite_groups {
-                render_group(&format!("📦 {}", suite), Color::Magenta, group)?;
-            }
-            // Render standalone (yellow)
-            if !standalone.is_empty() {
-                render_group("🔍 Other", Color::Yellow, &standalone)?;
-            }
-            let mut output = Lines(output);
-            output.pad_lines_left(2);
-            output.pad_lines_bottom(1);
-            Ok(output)
-        };
-
-        // Quarantined section
-        if quarantined_count > 0 {
-            output.extend(vec![
-                Line::from_iter([
-                    Span::new_unstyled("❤️‍🩹  ")?,
-                    Span::new_styled(
-                        style(format!(
-                            "{} ",
-                            pluralize("test", quarantined_count as isize, true)
-                        ))
-                        .attribute(Attribute::Bold),
-                    )?,
-                    Span::new_styled(style(format!(
-                        "failed and {} ",
-                        pluralize("was", quarantined_count as isize, false)
-                    )))?,
-                    Span::new_styled(
-                        style(String::from("quarantined"))
-                            .with(Color::Yellow)
-                            .attribute(Attribute::Bold),
-                    )?,
-                ]),
-                Line::default(),
-            ]);
-            output.extend(render_test_table(quarantined)?);
-        }
-
-        // Non-quarantined failures section
-        if non_quarantined_count > 0 {
-            output.extend(vec![
-                Line::from_iter([
-                    Span::new_unstyled("❌ ")?,
-                    Span::new_unstyled(format!(
-                        "{} ",
-                        pluralize("test", non_quarantined_count as isize, true)
-                    ))?,
-                    Span::new_styled(
-                        style(String::from("failed "))
-                            .with(Color::Red)
-                            .attribute(Attribute::Bold),
-                    )?,
-                    Span::new_styled(style(format!(
-                        "and {} ",
-                        pluralize("was", non_quarantined_count as isize, false)
-                    )))?,
-                    Span::new_styled(style(String::from("not ")).attribute(Attribute::Bold))?,
-                    Span::new_unstyled("quarantined")?,
-                ]),
-                Line::default(),
-            ]);
-            output.extend(render_test_table(failures)?);
-        }
-
-        // Final messages
-        if self.meta.junit_props.num_tests == 0 {
-            output.push(Line::from_iter([Span::new_unstyled(
-                "⚠️  No tests were found in the provided test results",
-            )?]));
-        } else if all_quarantined {
-            output.push(Line::from_iter([
-                Span::new_unstyled("🎉 All test failures were quarantined, overriding exit code to be exit_success ")?,
-                Span::new_styled(style(format!(
-                    "({})",
-                    EXIT_SUCCESS
-                )).attribute(Attribute::Bold))?
-            ]));
-        } else if failures.is_empty() && self.quarantine_context.exit_code == EXIT_SUCCESS {
-            output.push(Line::from_iter([Span::new_unstyled(
-                "🎉 No test failures found!",
-            )?]));
-        } else if failures.is_empty() && self.quarantine_context.exit_code != EXIT_SUCCESS {
-            // no test failures found but exit code not 0
-            output.push(Line::from_iter([
-                Span::new_unstyled(
-                    "⚠️  No test failures found, but non zero exit code provided: ",
-                )?,
-                Span::new_styled(
-                    style(format!("{}", self.quarantine_context.exit_code))
-                        .attribute(Attribute::Bold),
-                )?,
-            ]));
-            output.push(
-                Line::from_iter([
-                Span::new_unstyled("This may indicate that some tests were not run or that there were other issues during the test run.")?,
-            ]));
-        } else {
-            output.push(Line::from_iter([
-                Span::new_unstyled(
-                    "⚠️  Some test failures were not quarantined, using exit code: ".to_string(),
-                )?,
-                Span::new_styled(
-                    style(format!("{}", self.quarantine_context.exit_code))
-                        .attribute(Attribute::Bold),
-                )?,
-            ]));
-        }
-        Ok(output)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use superconsole::{Line, style::Attribute};
-
-    use super::url_span;
-
-    const URL: &str = "https://app.trunk.io/my-org/flaky-tests/test/1";
-
-    fn rendered(clickable: bool) -> String {
-        Line::from_iter([url_span(URL.into(), Attribute::Underlined, clickable).unwrap()]).render()
-    }
-
-    #[test]
-    fn url_span_adds_osc8_only_when_clickable() {
-        assert!(rendered(true).contains("\x1b]8;;"));
-        let plain = rendered(false);
-        assert!(!plain.contains("\x1b]8;;"));
-        assert!(plain.contains(URL));
-    }
 }
 
 #[cfg(test)]

@@ -30,6 +30,12 @@ use third_party::sentry;
 use tracing_subscriber::{filter::FilterFn, prelude::*};
 use trunk_analytics_cli::{
     context::gather_initial_test_context,
+    error_report::ErrorReport,
+    summary_output::{
+        ErrorSummary, Quarantining, UploadCommand, UploadReport,
+        json::{self, Report},
+        text::SummaryFileText,
+    },
     upload_command::{RunUploadOptions, run_upload},
 };
 use uuid::Uuid;
@@ -344,6 +350,18 @@ impl MutTestReport {
             Some(QuarantineLookupSource::Failed) => QuarantineQueryResult::Failure,
             Some(QuarantineLookupSource::Disabled) => QuarantineQueryResult::Disabled,
             None => QuarantineQueryResult::Skipped,
+        }
+    }
+
+    /// `TRUNK_DISABLE_QUARANTINING` isn't here because the gem quarantines during the run regardless.
+    fn quarantining(&self) -> Quarantining {
+        match self.0.borrow().quarantine_lookup_source {
+            Some(QuarantineLookupSource::Api | QuarantineLookupSource::DiskCache) => {
+                Quarantining::Checked
+            }
+            Some(QuarantineLookupSource::Disabled) => Quarantining::DisabledViaApi,
+            Some(QuarantineLookupSource::Failed) => Quarantining::LookupFailed,
+            None => Quarantining::NotNeeded,
         }
     }
 
@@ -818,6 +836,10 @@ impl MutTestReport {
         }
 
         let variant = env::var(constants::TRUNK_VARIANT_ENV).ok();
+        let summary_output_file = env::var(constants::TRUNK_SUMMARY_OUTPUT_FILE_ENV)
+            .ok()
+            .filter(|path| !path.is_empty())
+            .map(PathBuf::from);
 
         if let Some(ref variant) = variant {
             let test_report = &mut self.0.borrow_mut().test_report;
@@ -956,6 +978,13 @@ impl MutTestReport {
                         },
                     )) {
                     Ok(upload_result) => {
+                        if let Some(path) = &summary_output_file {
+                            let mut report =
+                                UploadReport::new(&upload_result, UploadCommand::RSpec);
+                            // The upload trusts the gem's quarantine results without looking them up.
+                            report.quarantining = self.quarantining();
+                            write_summary_file(path, Report::Upload(&report));
+                        }
                         if let Some(upload_bundle_error) =
                             upload_result.error_report.map(|e| e.error)
                         {
@@ -969,13 +998,21 @@ impl MutTestReport {
                         }
                     }
                     Err(e) => {
-                        tracing::error!("Error uploading test report bundle: {:?}", e);
+                        let report = ErrorReport::unlogged(e, self.get_org_url_slug(), None);
+                        if let Some(path) = &summary_output_file {
+                            write_summary_file(path, Report::Error(&ErrorSummary::new(&report)));
+                        }
+                        tracing::error!("Error uploading test report bundle: {:?}", report.error);
                         false
                     }
                 }
             }
             Err(e) => {
-                tracing::error!("Error gathering initial context: {:?}", e);
+                let report = ErrorReport::unlogged(e, self.get_org_url_slug(), None);
+                if let Some(path) = &summary_output_file {
+                    write_summary_file(path, Report::Error(&ErrorSummary::new(&report)));
+                }
+                tracing::error!("Error gathering initial context: {:?}", report.error);
                 false
             }
         };
@@ -1103,6 +1140,14 @@ impl MutTestReport {
     pub fn to_string(&self) -> String {
         self.clone().into()
     }
+}
+
+/// On stderr, as the CLI prints it: the gem's own logs only reach the console at error level.
+fn write_summary_file(path: &Path, report: Report) {
+    eprintln!(
+        "{}",
+        SummaryFileText::new(path, report.write_file(path)).message()
+    );
 }
 
 /// Microseconds are about all the precision an f64 epoch holds.

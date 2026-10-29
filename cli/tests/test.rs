@@ -153,7 +153,10 @@ async fn test_command_fails_with_no_junit_files_no_quarantine_successful_upload(
     .failure()
     .code(128)
     .stderr(predicate::str::contains(
-        "No tests were found in the provided test results",
+        "No tests were found in the provided test results, but non zero exit code provided: ",
+    ))
+    .stderr(predicate::str::contains(
+        "The test step appears to have failed without running tests",
     ));
 
     println!("{assert}");
@@ -553,4 +556,37 @@ async fn test_command_can_print_subcommand_output_with_faux_html() {
     .stdout(predicate::str::contains(
         "<head>This breaks superconsole</head>",
     ));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn test_command_writes_summary_output_file() {
+    let temp_dir = tempdir().unwrap();
+    generate_mock_git_repo(&temp_dir);
+    let summary_path = temp_dir.path().join("summary.json");
+
+    let state = MockServerBuilder::new().spawn_mock_server().await;
+
+    CommandBuilder::test(
+        temp_dir.path(),
+        state.host.clone(),
+        vec![
+            String::from("bash"),
+            String::from("-c"),
+            String::from("exit 1"),
+        ],
+    )
+    .command()
+    .env(constants::TRUNK_SUMMARY_OUTPUT_FILE_ENV, &summary_path)
+    .assert()
+    .code(1)
+    .stderr(predicate::str::contains(format!(
+        "Summary written to {}",
+        summary_path.display()
+    )));
+
+    let summary: serde_json::Value =
+        serde_json::from_reader(File::open(&summary_path).unwrap()).unwrap();
+    assert_eq!(summary["schemaVersion"], 1);
+    assert_eq!(summary["type"], "UPLOAD");
+    assert_eq!(summary["exitCode"], 1);
 }

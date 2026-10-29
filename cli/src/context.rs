@@ -44,6 +44,7 @@ use xcresult::test_locations::{Limits, TestKey, TestLocationIndex};
 use xcresult::xcresult::XCResult;
 
 use crate::error_report::InterruptingError;
+use crate::exit_code::ExitCode;
 use crate::{
     context_quarantine::{
         FailedTestsExtractor, QuarantineContext, QuarantineFetchStatus, gather_quarantine_context,
@@ -811,7 +812,7 @@ pub async fn gather_exit_code_and_quarantined_tests_context(
     disable_quarantining: bool,
     api_client: &ApiClient,
     file_set_builder: &FileSetBuilder,
-    default_exit_code: Option<i32>,
+    default_exit_code: Option<ExitCode>,
     test_collection_short_id: Option<String>,
     hide_test_collection_links: bool,
 ) -> anyhow::Result<QuarantineContext> {

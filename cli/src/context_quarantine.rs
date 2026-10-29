@@ -12,7 +12,6 @@ use bundle::{
     FileSet, FileSetBuilder, FileSetTestRunnerReport, FileSetType, QuarantineBulkTestStatus, Test,
 };
 use chrono::TimeDelta;
-use constants::{EXIT_FAILURE, EXIT_SUCCESS};
 use context::{
     junit::{
         bindings::{
@@ -27,25 +26,19 @@ use pluralizer::pluralize;
 use prost::Message;
 use proto::upload_metrics::trunk::QuarantineQueryResult;
 
+use crate::exit_code::ExitCode;
+use crate::summary_output::Quarantining;
+
 #[derive(Debug)]
 pub enum QuarantineFetchStatus {
     FetchSucceeded,
     FetchSkipped,
     FetchFailed(anyhow::Error),
 }
-impl QuarantineFetchStatus {
-    pub fn is_failure(&self) -> bool {
-        match self {
-            Self::FetchSucceeded => false,
-            Self::FetchSkipped => false,
-            Self::FetchFailed(_) => true,
-        }
-    }
-}
 
 #[derive(Debug)]
 pub struct QuarantineContext {
-    pub exit_code: i32,
+    pub exit_code: ExitCode,
     pub quarantine_status: QuarantineBulkTestStatus,
     pub failures: Vec<Test>,
     pub repo: RepoUrlParts,
@@ -54,9 +47,23 @@ pub struct QuarantineContext {
     pub quarantine_resolution_mode: QuarantineResolutionMode,
 }
 impl QuarantineContext {
+    pub fn quarantining(&self, disable_quarantining: bool) -> Quarantining {
+        if disable_quarantining {
+            Quarantining::DisabledViaCli
+        } else if self.quarantine_status.quarantining_disabled_for_repo {
+            Quarantining::DisabledViaApi
+        } else {
+            match &self.fetch_status {
+                QuarantineFetchStatus::FetchFailed(_) => Quarantining::LookupFailed,
+                QuarantineFetchStatus::FetchSkipped => Quarantining::NotNeeded,
+                QuarantineFetchStatus::FetchSucceeded => Quarantining::Checked,
+            }
+        }
+    }
+
     pub fn skip_fetch(failures: Vec<Test>) -> Self {
         Self {
-            exit_code: i32::default(),
+            exit_code: ExitCode::Success,
             quarantine_status: QuarantineBulkTestStatus::default(),
             failures,
             repo: RepoUrlParts::default(),
@@ -68,7 +75,7 @@ impl QuarantineContext {
 
     pub fn fail_fetch(error: anyhow::Error) -> Self {
         Self {
-            exit_code: i32::default(),
+            exit_code: ExitCode::Success,
             quarantine_status: QuarantineBulkTestStatus::default(),
             failures: Vec::default(),
             repo: RepoUrlParts::default(),
@@ -83,14 +90,13 @@ pub fn quarantine_query_result(
     disable_quarantining: bool,
     ctx: &QuarantineContext,
 ) -> proto::upload_metrics::trunk::QuarantineQueryResult {
-    if disable_quarantining || ctx.quarantine_status.quarantining_disabled_for_repo {
-        return QuarantineQueryResult::Disabled;
-    }
-
-    match &ctx.fetch_status {
-        QuarantineFetchStatus::FetchFailed(_) => QuarantineQueryResult::Failure,
-        QuarantineFetchStatus::FetchSkipped => QuarantineQueryResult::Skipped,
-        QuarantineFetchStatus::FetchSucceeded => QuarantineQueryResult::Success,
+    match ctx.quarantining(disable_quarantining) {
+        Quarantining::DisabledViaCli | Quarantining::DisabledViaApi => {
+            QuarantineQueryResult::Disabled
+        }
+        Quarantining::LookupFailed => QuarantineQueryResult::Failure,
+        Quarantining::NotNeeded => QuarantineQueryResult::Skipped,
+        Quarantining::Checked => QuarantineQueryResult::Success,
     }
 }
 
@@ -112,13 +118,13 @@ fn convert_case_to_test<T: AsRef<str> + ToString>(
             .or(suite.timestamp_micros)
             .unwrap_or(0),
     )));
-    let failure_message = match &case.status.non_success {
-        Some(non_success) => non_success
-            .description
-            .clone()
-            .or_else(|| non_success.message.clone()),
-        _ => None,
+    let (failure_message_attribute, failure_text) = match &case.status.non_success {
+        Some(non_success) => (non_success.message.clone(), non_success.description.clone()),
+        None => (None, None),
     };
+    let failure_message = failure_text
+        .clone()
+        .or_else(|| failure_message_attribute.clone());
     let mut test = Test {
         name,
         parent_name,
@@ -128,6 +134,8 @@ fn convert_case_to_test<T: AsRef<str> + ToString>(
         timestamp_millis,
         is_quarantined: case.is_quarantined(),
         failure_message,
+        failure_message_attribute,
+        failure_text,
         variant: Some(variant.to_string()),
     };
     if let Some(id) = case.extra().get("id") {
@@ -292,11 +300,11 @@ impl FailedTestsExtractor {
         &self.failed_tests
     }
 
-    pub fn exit_code(&self) -> i32 {
+    pub fn exit_code(&self) -> ExitCode {
         if self.failed_tests.is_empty() {
-            EXIT_SUCCESS
+            ExitCode::Success
         } else {
-            EXIT_FAILURE
+            ExitCode::Failure
         }
     }
 }
@@ -306,7 +314,7 @@ pub async fn gather_quarantine_context(
     request: &api::message::GetQuarantineConfigRequest,
     file_set_builder: &FileSetBuilder,
     failed_tests_extractor: Option<FailedTestsExtractor>,
-    test_run_exit_code: Option<i32>,
+    test_run_exit_code: Option<ExitCode>,
     variant: &String,
     hide_test_collection_links: bool,
 ) -> anyhow::Result<QuarantineContext> {
@@ -319,7 +327,7 @@ pub async fn gather_quarantine_context(
         )
     });
 
-    let mut exit_code = test_run_exit_code.unwrap_or(EXIT_SUCCESS);
+    let mut exit_code = test_run_exit_code.unwrap_or(ExitCode::Success);
 
     if file_set_builder.no_files_found() {
         tracing::info!("No test output files found, not quarantining any tests.");
@@ -468,11 +476,11 @@ pub async fn gather_quarantine_context(
             exit_code
         );
         exit_code
-    } else if exit_code != EXIT_SUCCESS {
+    } else if !exit_code.is_success() {
         tracing::info!(
             "All test failures were quarantined, overriding exit code to be exit_success"
         );
-        EXIT_SUCCESS
+        ExitCode::Success
     } else {
         exit_code
     };
@@ -702,7 +710,7 @@ mod tests {
         use proto::upload_metrics::trunk::QuarantineQueryResult;
 
         let success_ctx = QuarantineContext {
-            exit_code: 0,
+            exit_code: ExitCode::Success,
             quarantine_status: QuarantineBulkTestStatus::default(),
             failures: vec![],
             repo: RepoUrlParts::default(),
@@ -734,7 +742,7 @@ mod tests {
                 ..Default::default()
             },
             fetch_status: QuarantineFetchStatus::FetchSucceeded,
-            exit_code: 0,
+            exit_code: ExitCode::Success,
             failures: vec![],
             repo: RepoUrlParts::default(),
             org_url_slug: String::new(),
@@ -781,6 +789,11 @@ mod tests {
 
         assert_eq!(test.name, "test_case");
         assert_eq!(test.failure_message, Some("This is a failure".to_string()));
+        assert_eq!(
+            test.failure_message_attribute,
+            Some("Failure message".to_string())
+        );
+        assert_eq!(test.failure_text, Some("This is a failure".to_string()));
     }
 
     #[test]

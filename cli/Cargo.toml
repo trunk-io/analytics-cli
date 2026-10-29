@@ -24,7 +24,6 @@ context = { path = "../context", features = ["bindings"] }
 third-party = { path = "../third-party" }
 display = { path = "../display" }
 log = "0.4.14"
-exitcode = "1.1.1"
 gix = { version = "0.74.0", default-features = false, features = [
 ], optional = true }
 http = "1.1.0"
@@ -50,7 +49,10 @@ sentry-tracing = "0.36.0"
 openssl = { version = "0.10.78", features = ["vendored"] }
 openssl-src = { version = "=300.3.1", optional = true }
 quick-junit = "0.5.0"
+schemars = "1.2"
+serde = { version = "1.0.215", features = ["derive"] }
 serde_json = "1.0"
+strum = { version = "0.27", features = ["derive"] }
 clap-verbosity-flag = "3.0.2"
 proto = { path = "../proto" }
 regex = "1.11.1"

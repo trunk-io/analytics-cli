@@ -1,12 +1,12 @@
 use std::{
     env,
+    path::PathBuf,
     process::{Command, Stdio},
     sync::{Arc, mpsc::Sender},
     time::SystemTime,
 };
 
 use clap::Args;
-use constants::EXIT_FAILURE;
 use display::{
     end_output::EndOutput,
     message::{DisplayMessage, send_message},
@@ -18,6 +18,7 @@ use superconsole::{
 
 use crate::{
     context::{gather_debug_props, gather_initial_test_context},
+    exit_code::ExitCode,
     upload_command::{RunUploadOptions, UploadArgs, UploadRunResult, run_upload},
 };
 
@@ -61,6 +62,10 @@ impl TestArgs {
 
     pub fn repo_root(&self) -> Option<String> {
         self.upload_args.repo_root.clone()
+    }
+
+    pub fn summary_output_file(&self) -> Option<PathBuf> {
+        self.upload_args.summary_output_file.clone()
     }
 }
 
@@ -181,14 +186,14 @@ pub async fn run_test_command<T: AsRef<str>>(
     let (exit_code, stdout, stderr) = exit_result
         .map(|result| {
             (
-                result.status.code().unwrap_or(EXIT_FAILURE),
+                result.status.code().unwrap_or(ExitCode::Failure.code()),
                 String::from_utf8(result.stdout)
                     .unwrap_or_else(|_| String::from("Error: Command had non-utf-8 output!")),
                 String::from_utf8(result.stderr)
                     .unwrap_or_else(|_| String::from("Error: Command had non-utf-8 error output!")),
             )
         })
-        .unwrap_or((EXIT_FAILURE, String::from(""), String::from("")));
+        .unwrap_or((ExitCode::Failure.code(), String::from(""), String::from("")));
     tracing::info!("Command exit code: {}", exit_code);
 
     Ok(TestRunResult {
