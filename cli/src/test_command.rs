@@ -78,43 +78,6 @@ pub struct TestRunResult {
     pub command_stderr: String,
 }
 
-fn lines_of(output: String) -> impl Iterator<Item = String> {
-    output
-        .lines()
-        .flat_map(|lf_line| {
-            lf_line
-                .split('\r')
-                .map(|crlf_line| crlf_line.replace('\t', "    "))
-        })
-        .collect::<Vec<String>>()
-        .into_iter()
-}
-
-impl EndOutput for TestRunResult {
-    fn output(&self) -> anyhow::Result<Vec<Line>> {
-        let mut output: Vec<Line> = Vec::new();
-
-        output.extend(vec![
-            Line::from_iter([Span::new_styled(
-                String::from("📒 Test command outputs").attribute(Attribute::Bold),
-            )?]),
-            Line::default(),
-        ]);
-
-        for stderr_line in lines_of(self.command_stderr.clone()) {
-            output.push(Line::from_iter([Span::new_unstyled_lossy(stderr_line)]));
-        }
-
-        output.push(Line::default());
-
-        for stdout_line in lines_of(self.command_stdout.clone()) {
-            output.push(Line::from_iter([Span::new_unstyled_lossy(stdout_line)]));
-        }
-
-        Ok(output)
-    }
-}
-
 pub async fn run_test(
     TestArgs {
         upload_args,
@@ -141,6 +104,7 @@ pub async fn run_test(
         RunUploadOptions {
             pre_test_context: Some(test_context),
             test_run_result: Some(test_run_result.clone()),
+            render_sender: Some(render_sender),
             ..Default::default()
         },
     )

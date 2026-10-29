@@ -543,28 +543,28 @@ pub async fn run_upload(
     if upload_args.print_files.is_some() {
         let message =
             "The --print-files flag is deprecated and will be removed in a future version.";
-        tracing::error!("{message}");
+        tracing::warn!(deprecated_flag = "--print-files", "{message}");
         notices.push(Notice::deprecation(message));
     }
 
     if let Some(team) = &upload_args.team {
         if !team.is_empty() {
             let message = "The --team flag is deprecated and will be removed in a future version.";
-            tracing::error!("{message}");
+            tracing::warn!(deprecated_flag = "--team", "{message}");
             notices.push(Notice::deprecation(message));
         }
     }
 
     if upload_args.hide_banner {
         let message = "The --hide-banner flag is deprecated and does nothing. It will be removed in a future version.";
-        tracing::error!("{message}");
+        tracing::warn!(deprecated_flag = "--hide-banner", "{message}");
         notices.push(Notice::deprecation(message));
     }
 
     if upload_args.use_quarantining.is_some() {
         let message =
             "The --use-quarantining flag is deprecated. Use --disable-quarantining instead.";
-        tracing::warn!("{message}");
+        tracing::warn!(deprecated_flag = "--use-quarantining", "{message}");
         notices.push(Notice::deprecation(message));
     }
 
