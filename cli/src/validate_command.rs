@@ -102,6 +102,7 @@ pub struct TestIssues {
     pub(crate) num_test_cases: usize,
     pub(crate) errors: Vec<JunitReportValidationFlatIssue>,
     pub(crate) warnings: Vec<JunitReportValidationFlatIssue>,
+    pub(crate) old_timestamps: bool,
 }
 
 #[derive(Debug)]
@@ -448,6 +449,7 @@ fn gen_test_issues(report_validations: &JunitFileToValidation) -> Vec<TestIssues
                 num_test_cases: report_validation.test_cases().len(),
                 errors,
                 warnings,
+                old_timestamps: report_validation.has_old_timestamps(),
             }
         })
         .collect()
