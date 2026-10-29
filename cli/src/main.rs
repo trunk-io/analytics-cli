@@ -3,7 +3,7 @@ mod shutdown;
 use std::{
     env,
     path::{Path, PathBuf},
-    sync::{Arc, mpsc::Sender},
+    sync::mpsc::Sender,
     thread::JoinHandle,
 };
 
@@ -14,19 +14,19 @@ use display::{
     render::spin_up_renderer,
 };
 use sentry::ClientInitGuard;
+use superconsole::Line;
 use tracing_subscriber::{filter::FilterFn, prelude::*};
 use trunk_analytics_cli::{
     context::gather_debug_props,
     error_report::ErrorReport,
     exit_code::ExitCode,
     summary_output::{
-        ErrorSummary, UploadCommand, UploadReport, ValidateReport, github,
-        json::{self, Report},
-        text::{SummaryFileText, TextOptions, UploadText},
+        ErrorSummary, UploadCommand, UploadReport, ValidateReport, github, json,
+        text::{self, SummaryFileText, TextOptions},
     },
     test_command::{TestArgs, run_test},
-    upload_command::{RunUploadOptions, UploadArgs, UploadRunResult, run_upload},
-    validate_command::{ValidateArgs, ValidateRunResult, run_validate},
+    upload_command::{RunUploadOptions, UploadArgs, run_upload},
+    validate_command::{ValidateArgs, run_validate},
 };
 
 #[derive(Debug, Parser)]
@@ -195,75 +195,57 @@ fn main() -> anyhow::Result<()> {
                     );
                     close_out_and_exit(exit_code, guard, render_sender, render_handle)
                 }
-                MainOutcome::Finished(Ok(RunResult::Upload(run_result))) => {
-                    let text = Arc::new(UploadText {
-                        report: UploadReport::new(&run_result, UploadCommand::Upload),
-                        options: TextOptions::from(&run_result),
-                    });
-                    send_message(
-                        DisplayMessage::Final(text.clone(), String::from("upload display")),
+                MainOutcome::Finished(Ok(Report::Upload(report, options))) => {
+                    show(
+                        DisplayMessage::Notice,
+                        text::render_notices(&report.notices),
+                        "notices",
+                        &render_sender,
+                    );
+                    show(
+                        DisplayMessage::Report,
+                        text::render_upload(&report, &options),
+                        "upload summary",
                         &render_sender,
                     );
                     write_summary_file(
                         summary_output_file.as_deref(),
-                        Report::Upload(&text.report),
+                        json::Report::Upload(&report),
                         &render_sender,
                     );
-                    close_out_and_exit(
-                        text.report.cli_exit_code(),
-                        guard,
-                        render_sender,
-                        render_handle,
-                    )
+                    close_out_and_exit(report.cli_exit_code(), guard, render_sender, render_handle)
                 }
-                MainOutcome::Finished(Ok(RunResult::Test(run_result))) => {
-                    let text = Arc::new(UploadText {
-                        report: UploadReport::new(&run_result, UploadCommand::Test),
-                        options: TextOptions::from(&run_result),
-                    });
-                    send_message(
-                        DisplayMessage::Final(text.clone(), String::from("test display")),
+                MainOutcome::Finished(Ok(Report::Validate(report))) => {
+                    show(
+                        DisplayMessage::Notice,
+                        text::render_notices(&report.notices),
+                        "notices",
                         &render_sender,
                     );
-                    write_summary_file(
-                        summary_output_file.as_deref(),
-                        Report::Upload(&text.report),
+                    show(
+                        DisplayMessage::Report,
+                        text::render_validate(&report),
+                        "validate summary",
                         &render_sender,
                     );
-                    close_out_and_exit(
-                        text.report.cli_exit_code(),
-                        guard,
-                        render_sender,
-                        render_handle,
-                    )
+                    close_out_and_exit(report.exit_code, guard, render_sender, render_handle)
                 }
-                MainOutcome::Finished(Ok(RunResult::Validate(run_result))) => {
-                    let report = ValidateReport::new(&run_result);
-                    let exit_code = report.exit_code;
-                    send_message(
-                        DisplayMessage::Final(Arc::new(report), String::from("validate display")),
-                        &render_sender,
-                    );
-                    close_out_and_exit(exit_code, guard, render_sender, render_handle)
-                }
-                MainOutcome::Finished(Ok(RunResult::SummaryOutputSchema)) => {
+                MainOutcome::Finished(Ok(Report::SummaryOutputSchema)) => {
                     println!("{}", serde_json::to_string_pretty(&json::Report::schema())?);
                     close_out_and_exit(ExitCode::Success, guard, render_sender, render_handle)
                 }
                 MainOutcome::Finished(Err(error)) => {
-                    let error = Arc::new(ErrorSummary::new(&ErrorReport::new(
-                        error,
-                        org_url_slug,
-                        None,
-                    )));
+                    let error = ErrorSummary::new(&ErrorReport::new(error, org_url_slug, None));
                     let exit_code = error.exit_code.unwrap_or(ExitCode::Success);
-                    send_message(
-                        DisplayMessage::Final(error.clone(), String::from("error display")),
+                    show(
+                        DisplayMessage::Notice,
+                        text::render_error(&error),
+                        "error",
                         &render_sender,
                     );
                     write_summary_file(
                         summary_output_file.as_deref(),
-                        Report::Error(&error),
+                        json::Report::Error(&error),
                         &render_sender,
                     );
                     close_out_and_exit(exit_code, guard, render_sender, render_handle)
@@ -272,13 +254,29 @@ fn main() -> anyhow::Result<()> {
         })
 }
 
-fn write_summary_file(path: Option<&Path>, report: Report, render_sender: &Sender<DisplayMessage>) {
+fn show(
+    message: fn(Vec<Line>, String) -> DisplayMessage,
+    lines: anyhow::Result<Vec<Line>>,
+    description: &str,
+    render_sender: &Sender<DisplayMessage>,
+) {
+    match lines {
+        Ok(lines) => send_message(message(lines, String::from(description)), render_sender),
+        Err(error) => tracing::error!("Failed to render {description}: {error:?}"),
+    }
+}
+
+fn write_summary_file(
+    path: Option<&Path>,
+    report: json::Report,
+    render_sender: &Sender<DisplayMessage>,
+) {
     let Some(path) = path else {
         return;
     };
     let text = SummaryFileText::new(path, report.write_file(path));
     send_message(
-        DisplayMessage::Final(Arc::new(text), String::from("summary file display")),
+        DisplayMessage::Notice(text.render(), String::from("summary file display")),
         render_sender,
     );
 }
@@ -286,19 +284,19 @@ fn write_summary_file(path: Option<&Path>, report: Report, render_sender: &Sende
 /// Outcome of racing the command against termination signals in `main`.
 enum MainOutcome {
     /// The command ran to completion (successfully or with an error).
-    Finished(anyhow::Result<RunResult>),
+    Finished(anyhow::Result<Report>),
     /// A termination signal was received first; the payload is the exit code to use.
     Interrupted(ExitCode),
 }
 
-enum RunResult {
-    Upload(UploadRunResult),
-    Test(UploadRunResult),
-    Validate(ValidateRunResult),
+/// What a command found, to show as its summary and take the exit code from.
+enum Report {
+    Upload(Box<UploadReport>, TextOptions),
+    Validate(ValidateReport),
     SummaryOutputSchema,
 }
 
-async fn run(cli: Cli, render_sender: Sender<DisplayMessage>) -> anyhow::Result<RunResult> {
+async fn run(cli: Cli, render_sender: Sender<DisplayMessage>) -> anyhow::Result<Report> {
     tracing::info!(
         "Starting trunk-analytics-cli {} (git={}) rustc={}",
         env!("CARGO_PKG_VERSION"),
@@ -315,17 +313,23 @@ async fn run(cli: Cli, render_sender: Sender<DisplayMessage>) -> anyhow::Result<
                 },
             )
             .await?;
-            Ok(RunResult::Upload(result))
+            Ok(Report::Upload(
+                Box::new(UploadReport::new(&result, UploadCommand::Upload)),
+                TextOptions::from(&result),
+            ))
         }
         Commands::Test(test_args) => {
             let result = run_test(test_args, render_sender).await?;
-            Ok(RunResult::Test(result))
+            Ok(Report::Upload(
+                Box::new(UploadReport::new(&result, UploadCommand::Test)),
+                TextOptions::from(&result),
+            ))
         }
         Commands::Validate(validate_args) => {
             let result = run_validate(validate_args).await?;
-            Ok(RunResult::Validate(result))
+            Ok(Report::Validate(ValidateReport::new(&result)))
         }
-        Commands::SummaryOutputSchema => Ok(RunResult::SummaryOutputSchema),
+        Commands::SummaryOutputSchema => Ok(Report::SummaryOutputSchema),
         Commands::GithubAnnotations(..) => {
             anyhow::bail!("github-annotations runs before the async runtime starts")
         }

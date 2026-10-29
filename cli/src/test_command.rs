@@ -2,15 +2,12 @@ use std::{
     env,
     path::PathBuf,
     process::{Command, Stdio},
-    sync::{Arc, mpsc::Sender},
+    sync::mpsc::Sender,
     time::SystemTime,
 };
 
 use clap::Args;
-use display::{
-    end_output::EndOutput,
-    message::{DisplayMessage, send_message},
-};
+use display::message::{DisplayMessage, send_message};
 use superconsole::{
     Line, Span,
     style::{Attribute, Stylize},
@@ -21,22 +18,6 @@ use crate::{
     exit_code::ExitCode,
     upload_command::{RunUploadOptions, UploadArgs, UploadRunResult, run_upload},
 };
-
-enum RunOutput {
-    Title,
-}
-impl EndOutput for RunOutput {
-    fn output(&self) -> anyhow::Result<Vec<Line>> {
-        match self {
-            RunOutput::Title => Ok(vec![
-                Line::from_iter([Span::new_styled(
-                    String::from("📒 Test command outputs").attribute(Attribute::Bold),
-                )?]),
-                Line::default(),
-            ]),
-        }
-    }
-}
 
 #[derive(Args, Clone, Debug)]
 pub struct TestArgs {
@@ -127,9 +108,14 @@ pub async fn run_test_command<T: AsRef<str>>(
     render_sender: Sender<DisplayMessage>,
 ) -> anyhow::Result<TestRunResult> {
     let exec_start = SystemTime::now();
-    let title_ptr = Arc::new(RunOutput::Title);
+    let title = vec![
+        Line::from_iter([Span::new_styled(
+            String::from("📒 Test command outputs").attribute(Attribute::Bold),
+        )?]),
+        Line::default(),
+    ];
     send_message(
-        DisplayMessage::Final(title_ptr, String::from("test command title")),
+        DisplayMessage::Notice(title, String::from("test command title")),
         &render_sender,
     );
     let child = Command::new(command.first().map(|s| s.as_ref()).unwrap_or_default())

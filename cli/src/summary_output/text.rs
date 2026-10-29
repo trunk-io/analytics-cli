@@ -1,6 +1,5 @@
 use std::path::{Path, PathBuf};
 
-use display::end_output::EndOutput;
 use pluralizer::pluralize;
 use superconsole::{
     Hyperlink, Line, Lines, Span, SuperConsole,
@@ -8,7 +7,7 @@ use superconsole::{
 };
 
 use super::{
-    ErrorSummary, FailureGroup, FileValidation, GroupKey, NoticeKind, Outcome, ParseError,
+    ErrorSummary, FailureGroup, FileValidation, GroupKey, Notice, NoticeKind, Outcome, ParseError,
     Quarantining, TestCounts, UploadReport, ValidateReport, ValidationCounts,
 };
 use crate::{
@@ -16,7 +15,6 @@ use crate::{
     exit_code::ExitCode,
     report_limiting::ValidationReport,
     upload_command::{UploadRunResult, get_bundle_upload_id_message},
-    validate_command::ValidateRunResult,
 };
 
 /// Flags that change how much of the summary to show, not what it says.
@@ -35,23 +33,6 @@ impl From<&UploadRunResult> for TextOptions {
             validation_report: result.validation_report.clone(),
             show_failure_messages: result.show_failure_messages,
         }
-    }
-}
-
-pub struct UploadText {
-    pub report: UploadReport,
-    pub options: TextOptions,
-}
-
-impl EndOutput for UploadText {
-    fn output(&self) -> anyhow::Result<Vec<Line>> {
-        render_upload(&self.report, &self.options)
-    }
-}
-
-impl EndOutput for ErrorSummary {
-    fn output(&self) -> anyhow::Result<Vec<Line>> {
-        render_error(self)
     }
 }
 
@@ -83,14 +64,12 @@ impl SummaryFileText {
             Some(error) => format!("⚠️  Failed to write the summary to {path}: {error}"),
         }
     }
-}
 
-impl EndOutput for SummaryFileText {
-    fn output(&self) -> anyhow::Result<Vec<Line>> {
-        Ok(vec![
+    pub fn render(&self) -> Vec<Line> {
+        vec![
             Line::default(),
             Line::from_iter([Span::new_unstyled_lossy(self.message())]),
-        ])
+        ]
     }
 }
 
@@ -554,34 +533,27 @@ fn url_span(url: String, attribute: Attribute, clickable: bool) -> anyhow::Resul
     })
 }
 
-impl EndOutput for ValidateReport {
-    fn output(&self) -> anyhow::Result<Vec<Line>> {
-        render_validate(self)
+/// Shown on stderr, apart from the summary.
+pub fn render_notices(notices: &[Notice]) -> anyhow::Result<Vec<Line>> {
+    let mut output: Vec<Line> = Vec::new();
+    for notice in notices {
+        let prefix = match notice.kind {
+            NoticeKind::Deprecation => "⚠️  ",
+            NoticeKind::BepParseError => "⚠️  BEP file had a parse error: ",
+        };
+        output.push(Line::from_iter([
+            Span::new_unstyled(prefix)?,
+            Span::new_unstyled_lossy(&notice.message),
+        ]));
     }
-}
-
-impl EndOutput for ValidateRunResult {
-    fn output(&self) -> anyhow::Result<Vec<Line>> {
-        render_validate(&ValidateReport::new(self))
+    if !output.is_empty() {
+        output.push(Line::default());
     }
+    Ok(output)
 }
 
 pub fn render_validate(report: &ValidateReport) -> anyhow::Result<Vec<Line>> {
     let mut output: Vec<Line> = Vec::new();
-
-    let bep_parse_errors: Vec<&String> = report
-        .notices
-        .iter()
-        .filter(|notice| notice.kind == NoticeKind::BepParseError)
-        .map(|notice| &notice.message)
-        .collect();
-    if !bep_parse_errors.is_empty() {
-        output.push(Line::from_iter([
-            Span::new_unstyled("⚠️  BEP file had parse errors: ")?,
-            Span::new_unstyled_lossy(format!("{:?}", bep_parse_errors)),
-        ]));
-        output.push(Line::default());
-    }
 
     let num_files: usize = report
         .matched_files
