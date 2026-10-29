@@ -1687,6 +1687,64 @@ async fn upload_keeps_its_exit_code_when_the_summary_output_file_cannot_be_writt
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn upload_prints_only_the_json_summary_on_stdout() {
+    let temp_dir = tempdir().unwrap();
+    generate_mock_git_repo(&temp_dir);
+    generate_mock_valid_junit_xmls_with_failures(&temp_dir);
+    let summary_path = temp_dir.path().join("summary.json");
+
+    let mut mock_server_builder = MockServerBuilder::new();
+    // Slow enough to show a progress message.
+    mock_server_builder.set_get_quarantining_config_handler(
+        |Json(_): Json<GetQuarantineConfigRequest>| async move {
+            tokio::time::sleep(Duration::from_secs(3)).await;
+            Json(GetQuarantineConfigResponse::default())
+        },
+    );
+    let state = mock_server_builder.spawn_mock_server().await;
+    let assert = CommandBuilder::upload(temp_dir.path(), state.host.clone())
+        .verbose(true)
+        .command()
+        .args(["--output-format", "json", "--hide-banner"])
+        .arg("--summary-output-file")
+        .arg(&summary_path)
+        .assert()
+        .code(ExitCode::Failure.code())
+        .stderr(predicate::str::contains("Starting trunk-analytics-cli"))
+        .stderr(predicate::str::contains(
+            "⚠️  The --hide-banner flag is deprecated",
+        ))
+        .stderr(predicate::str::contains("taking longer than expected"))
+        .stderr(predicate::str::contains("Summary written to"));
+
+    let summary: serde_json::Value = serde_json::from_slice(&assert.get_output().stdout).unwrap();
+    assert_eq!(summary, read_summary_output_file(&summary_path));
+    assert_eq!(summary["type"], "UPLOAD");
+    assert_eq!(summary["exitCode"], ExitCode::Failure.code());
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn upload_prints_a_json_error_on_stdout() {
+    let temp_dir = tempdir().unwrap();
+    generate_mock_git_repo(&temp_dir);
+
+    let state = MockServerBuilder::new().spawn_mock_server().await;
+    let assert = CommandBuilder::upload(temp_dir.path(), state.host.clone())
+        .repo_root("../")
+        .command()
+        .env(constants::TRUNK_OUTPUT_FORMAT_ENV, "json")
+        .assert()
+        .code(ExitCode::Error.code())
+        .stderr(predicate::str::contains("Error Encountered"));
+
+    let summary: serde_json::Value = serde_json::from_slice(&assert.get_output().stdout).unwrap();
+    assert_eq!(summary["schemaVersion"], 1);
+    assert_eq!(summary["type"], "ERROR");
+    assert_eq!(summary["kind"], "GIT_REPOSITORY");
+    assert_eq!(summary["exitCode"], ExitCode::Error.code());
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn upload_bundle_valid_repo_root_implicit() {
     let temp_dir = tempdir().unwrap();
     generate_mock_git_repo(&temp_dir);

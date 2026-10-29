@@ -7,7 +7,7 @@ use std::{
     thread::JoinHandle,
 };
 
-use clap::{Args, Parser, Subcommand};
+use clap::{Args, Parser, Subcommand, ValueEnum};
 use clap_verbosity_flag::{InfoLevel, Verbosity, log::LevelFilter};
 use display::{
     message::{DisplayMessage, send_message},
@@ -46,8 +46,8 @@ impl Cli {
     pub fn debug_props(&self) -> String {
         let token = match &self.command {
             Commands::Test(args) => args.token(),
-            Commands::Upload(args) => args.token.clone(),
-            Commands::Validate(..)
+            Commands::Upload { args, .. } => args.token.clone(),
+            Commands::Validate { .. }
             | Commands::SummaryOutputSchema
             | Commands::GithubAnnotations(..) => None,
         };
@@ -61,8 +61,8 @@ impl Cli {
     pub fn command_name(&self) -> &str {
         match &self.command {
             Commands::Test(..) => "test",
-            Commands::Upload(..) => "upload",
-            Commands::Validate(..) => "validate",
+            Commands::Upload { .. } => "upload",
+            Commands::Validate { .. } => "validate",
             Commands::SummaryOutputSchema => "summary-output-schema",
             Commands::GithubAnnotations(..) => "github-annotations",
         }
@@ -76,8 +76,8 @@ impl Cli {
     pub fn org_url_slug(&self) -> String {
         match &self.command {
             Commands::Test(args) => args.org_url_slug(),
-            Commands::Upload(args) => args.org_url_slug.clone(),
-            Commands::Validate(..)
+            Commands::Upload { args, .. } => args.org_url_slug.clone(),
+            Commands::Validate { .. }
             | Commands::SummaryOutputSchema
             | Commands::GithubAnnotations(..) => String::from("not used"),
         }
@@ -86,18 +86,29 @@ impl Cli {
     pub fn summary_output_file(&self) -> Option<PathBuf> {
         match &self.command {
             Commands::Test(args) => args.summary_output_file(),
-            Commands::Upload(args) => args.summary_output_file.clone(),
-            Commands::Validate(..)
+            Commands::Upload { args, .. } => args.summary_output_file.clone(),
+            Commands::Validate { .. }
             | Commands::SummaryOutputSchema
             | Commands::GithubAnnotations(..) => None,
+        }
+    }
+
+    pub fn output_format(&self) -> OutputFormat {
+        match &self.command {
+            Commands::Upload { output, .. } | Commands::Validate { output, .. } => {
+                output.output_format
+            }
+            Commands::Test(..)
+            | Commands::SummaryOutputSchema
+            | Commands::GithubAnnotations(..) => OutputFormat::Text,
         }
     }
 
     pub fn repo_root(&self) -> String {
         let explicit_root = match &self.command {
             Commands::Test(args) => args.repo_root(),
-            Commands::Upload(args) => args.repo_root.clone(),
-            Commands::Validate(..)
+            Commands::Upload { args, .. } => args.repo_root.clone(),
+            Commands::Validate { .. }
             | Commands::SummaryOutputSchema
             | Commands::GithubAnnotations(..) => None,
         };
@@ -117,16 +128,45 @@ enum Commands {
     Test(TestArgs),
     /// Upload test results to Trunk Flaky Tests. Use this when you've already run tests and have result files.
     #[command(after_long_help = ExitCode::help())]
-    Upload(UploadArgs),
+    Upload {
+        #[command(flatten)]
+        args: UploadArgs,
+        #[command(flatten)]
+        output: OutputFormatArgs,
+    },
     /// Validate test report files for compatibility with Trunk Flaky Tests. Runs locally without uploading data.
     #[command(after_long_help = ExitCode::help())]
-    Validate(ValidateArgs),
-    /// Print the JSON Schema of the summary that `--summary-output-file` writes.
+    Validate {
+        #[command(flatten)]
+        args: ValidateArgs,
+        #[command(flatten)]
+        output: OutputFormatArgs,
+    },
+    /// Print the JSON Schema of the summary that `--summary-output-file` writes and `--output-format json` prints.
     SummaryOutputSchema,
     /// Print GitHub Actions annotations for why a run failed, from its `--summary-output-file`.
     /// Exits 0 only when it printed one. Used by the analytics-uploader action.
     #[command(hide = true)]
     GithubAnnotations(GithubAnnotationsArgs),
+}
+
+/// Not in `UploadArgs`, because `test` includes those and its test command writes to stdout.
+#[derive(Debug, Args)]
+struct OutputFormatArgs {
+    #[arg(
+        long,
+        env = constants::TRUNK_OUTPUT_FORMAT_ENV,
+        value_enum,
+        default_value_t = OutputFormat::Text,
+        help = "Print the summary on stdout as text, or as the JSON that --summary-output-file writes. Logs and progress stay on stderr."
+    )]
+    output_format: OutputFormat,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+enum OutputFormat {
+    Text,
+    Json,
 }
 
 #[derive(Debug, Args)]
@@ -136,8 +176,11 @@ struct GithubAnnotationsArgs {
     summary_file: PathBuf,
 }
 
+/// `json` is the summary for `--output-format json`, printed once the renderer has finished so
+/// nothing else is written to stdout around it.
 fn close_out_and_exit(
     exit_code: ExitCode,
+    json: Option<json::Report>,
     guard: ClientInitGuard,
     render_sender: Sender<DisplayMessage>,
     render_handle: JoinHandle<()>,
@@ -145,6 +188,12 @@ fn close_out_and_exit(
     guard.flush(None);
     drop(render_sender);
     let _ = render_handle.join();
+    if let Some(report) = json {
+        match report.to_json() {
+            Ok(json) => println!("{json}"),
+            Err(error) => tracing::error!("Failed to print the summary as JSON: {error:?}"),
+        }
+    }
     std::process::exit(exit_code.code())
 }
 
@@ -166,6 +215,7 @@ fn main() -> anyhow::Result<()> {
         .block_on(async {
             let org_url_slug = cli.org_url_slug();
             let summary_output_file = cli.summary_output_file();
+            let output_format = cli.output_format();
             let log_level_filter = cli.verbose.log_level_filter();
             setup_logger(
                 log_level_filter,
@@ -193,7 +243,7 @@ fn main() -> anyhow::Result<()> {
                     tracing::warn!(
                         "Received termination signal; aborting in-flight work and shutting down."
                     );
-                    close_out_and_exit(exit_code, guard, render_sender, render_handle)
+                    close_out_and_exit(exit_code, None, guard, render_sender, render_handle)
                 }
                 MainOutcome::Finished(Ok(Report::Upload(report, options))) => {
                     show(
@@ -202,18 +252,30 @@ fn main() -> anyhow::Result<()> {
                         "notices",
                         &render_sender,
                     );
-                    show(
-                        DisplayMessage::Report,
-                        text::render_upload(&report, &options),
-                        "upload summary",
-                        &render_sender,
-                    );
+                    let json = match output_format {
+                        OutputFormat::Text => {
+                            show(
+                                DisplayMessage::Report,
+                                text::render_upload(&report, &options),
+                                "upload summary",
+                                &render_sender,
+                            );
+                            None
+                        }
+                        OutputFormat::Json => Some(json::Report::Upload(&report)),
+                    };
                     write_summary_file(
                         summary_output_file.as_deref(),
                         json::Report::Upload(&report),
                         &render_sender,
                     );
-                    close_out_and_exit(report.cli_exit_code(), guard, render_sender, render_handle)
+                    close_out_and_exit(
+                        report.cli_exit_code(),
+                        json,
+                        guard,
+                        render_sender,
+                        render_handle,
+                    )
                 }
                 MainOutcome::Finished(Ok(Report::Validate(report))) => {
                     show(
@@ -222,17 +284,23 @@ fn main() -> anyhow::Result<()> {
                         "notices",
                         &render_sender,
                     );
-                    show(
-                        DisplayMessage::Report,
-                        text::render_validate(&report),
-                        "validate summary",
-                        &render_sender,
-                    );
-                    close_out_and_exit(report.exit_code, guard, render_sender, render_handle)
+                    let json = match output_format {
+                        OutputFormat::Text => {
+                            show(
+                                DisplayMessage::Report,
+                                text::render_validate(&report),
+                                "validate summary",
+                                &render_sender,
+                            );
+                            None
+                        }
+                        OutputFormat::Json => Some(json::Report::Validate(&report)),
+                    };
+                    close_out_and_exit(report.exit_code, json, guard, render_sender, render_handle)
                 }
                 MainOutcome::Finished(Ok(Report::SummaryOutputSchema)) => {
                     println!("{}", serde_json::to_string_pretty(&json::Report::schema())?);
-                    close_out_and_exit(ExitCode::Success, guard, render_sender, render_handle)
+                    close_out_and_exit(ExitCode::Success, None, guard, render_sender, render_handle)
                 }
                 MainOutcome::Finished(Err(error)) => {
                     let error = ErrorSummary::new(&ErrorReport::new(error, org_url_slug, None));
@@ -248,7 +316,9 @@ fn main() -> anyhow::Result<()> {
                         json::Report::Error(&error),
                         &render_sender,
                     );
-                    close_out_and_exit(exit_code, guard, render_sender, render_handle)
+                    let json = (output_format == OutputFormat::Json)
+                        .then_some(json::Report::Error(&error));
+                    close_out_and_exit(exit_code, json, guard, render_sender, render_handle)
                 }
             }
         })
@@ -304,7 +374,9 @@ async fn run(cli: Cli, render_sender: Sender<DisplayMessage>) -> anyhow::Result<
         env!("VERGEN_RUSTC_SEMVER")
     );
     match cli.command {
-        Commands::Upload(upload_args) => {
+        Commands::Upload {
+            args: upload_args, ..
+        } => {
             let result = run_upload(
                 upload_args,
                 RunUploadOptions {
@@ -325,7 +397,10 @@ async fn run(cli: Cli, render_sender: Sender<DisplayMessage>) -> anyhow::Result<
                 TextOptions::from(&result),
             ))
         }
-        Commands::Validate(validate_args) => {
+        Commands::Validate {
+            args: validate_args,
+            ..
+        } => {
             let result = run_validate(validate_args).await?;
             Ok(Report::Validate(ValidateReport::new(&result)))
         }
