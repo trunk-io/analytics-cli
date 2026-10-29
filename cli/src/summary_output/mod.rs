@@ -1,4 +1,5 @@
 mod error;
+pub mod github;
 pub mod json;
 mod notice;
 pub mod text;

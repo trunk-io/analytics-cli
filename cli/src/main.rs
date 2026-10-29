@@ -7,7 +7,7 @@ use std::{
     thread::JoinHandle,
 };
 
-use clap::{Parser, Subcommand};
+use clap::{Args, Parser, Subcommand};
 use clap_verbosity_flag::{InfoLevel, Verbosity, log::LevelFilter};
 use display::{
     message::{DisplayMessage, send_message},
@@ -20,7 +20,7 @@ use trunk_analytics_cli::{
     error_report::ErrorReport,
     exit_code::ExitCode,
     summary_output::{
-        ErrorSummary, UploadCommand, UploadReport, ValidateReport,
+        ErrorSummary, UploadCommand, UploadReport, ValidateReport, github,
         json::{self, Report},
         text::{SummaryFileText, TextOptions, UploadText},
     },
@@ -47,7 +47,9 @@ impl Cli {
         let token = match &self.command {
             Commands::Test(args) => args.token(),
             Commands::Upload(args) => args.token.clone(),
-            Commands::Validate(..) | Commands::SummaryOutputSchema => None,
+            Commands::Validate(..)
+            | Commands::SummaryOutputSchema
+            | Commands::GithubAnnotations(..) => None,
         };
 
         token.map_or(
@@ -62,6 +64,7 @@ impl Cli {
             Commands::Upload(..) => "upload",
             Commands::Validate(..) => "validate",
             Commands::SummaryOutputSchema => "summary-output-schema",
+            Commands::GithubAnnotations(..) => "github-annotations",
         }
     }
 
@@ -74,7 +77,9 @@ impl Cli {
         match &self.command {
             Commands::Test(args) => args.org_url_slug(),
             Commands::Upload(args) => args.org_url_slug.clone(),
-            Commands::Validate(..) | Commands::SummaryOutputSchema => String::from("not used"),
+            Commands::Validate(..)
+            | Commands::SummaryOutputSchema
+            | Commands::GithubAnnotations(..) => String::from("not used"),
         }
     }
 
@@ -82,7 +87,9 @@ impl Cli {
         match &self.command {
             Commands::Test(args) => args.summary_output_file(),
             Commands::Upload(args) => args.summary_output_file.clone(),
-            Commands::Validate(..) | Commands::SummaryOutputSchema => None,
+            Commands::Validate(..)
+            | Commands::SummaryOutputSchema
+            | Commands::GithubAnnotations(..) => None,
         }
     }
 
@@ -90,7 +97,9 @@ impl Cli {
         let explicit_root = match &self.command {
             Commands::Test(args) => args.repo_root(),
             Commands::Upload(args) => args.repo_root.clone(),
-            Commands::Validate(..) | Commands::SummaryOutputSchema => None,
+            Commands::Validate(..)
+            | Commands::SummaryOutputSchema
+            | Commands::GithubAnnotations(..) => None,
         };
         explicit_root
             .or(std::env::current_dir()
@@ -114,6 +123,17 @@ enum Commands {
     Validate(ValidateArgs),
     /// Print the JSON Schema of the summary that `--summary-output-file` writes.
     SummaryOutputSchema,
+    /// Print GitHub Actions annotations for why a run failed, from its `--summary-output-file`.
+    /// Exits 0 only when it printed one. Used by the analytics-uploader action.
+    #[command(hide = true)]
+    GithubAnnotations(GithubAnnotationsArgs),
+}
+
+#[derive(Debug, Args)]
+struct GithubAnnotationsArgs {
+    /// The summary that `upload` or `test` wrote to `--summary-output-file`.
+    #[arg(long)]
+    summary_file: PathBuf,
 }
 
 fn close_out_and_exit(
@@ -131,6 +151,12 @@ fn close_out_and_exit(
 // "the Sentry client must be initialized before starting an async runtime or spawning threads"
 // https://docs.sentry.io/platforms/rust/#async-main-function
 fn main() -> anyhow::Result<()> {
+    let cli = Cli::parse();
+    // Before Sentry and logging start, so stdout carries only the workflow commands.
+    if let Commands::GithubAnnotations(args) = &cli.command {
+        std::process::exit(github::run(&args.summary_file).code());
+    }
+
     let release_name = format!("analytics-cli@{}", env!("CARGO_PKG_VERSION"));
     let guard = third_party::sentry::init(release_name.into(), None);
 
@@ -138,7 +164,6 @@ fn main() -> anyhow::Result<()> {
         .enable_all()
         .build()?
         .block_on(async {
-            let cli = Cli::parse();
             let org_url_slug = cli.org_url_slug();
             let summary_output_file = cli.summary_output_file();
             let log_level_filter = cli.verbose.log_level_filter();
@@ -222,7 +247,7 @@ fn main() -> anyhow::Result<()> {
                     close_out_and_exit(exit_code, guard, render_sender, render_handle)
                 }
                 MainOutcome::Finished(Ok(RunResult::SummaryOutputSchema)) => {
-                    println!("{}", serde_json::to_string_pretty(&json::schema())?);
+                    println!("{}", serde_json::to_string_pretty(&json::Report::schema())?);
                     close_out_and_exit(ExitCode::Success, guard, render_sender, render_handle)
                 }
                 MainOutcome::Finished(Err(error)) => {
@@ -251,7 +276,7 @@ fn write_summary_file(path: Option<&Path>, report: Report, render_sender: &Sende
     let Some(path) = path else {
         return;
     };
-    let text = SummaryFileText::new(path, json::write_file(path, report));
+    let text = SummaryFileText::new(path, report.write_file(path));
     send_message(
         DisplayMessage::Final(Arc::new(text), String::from("summary file display")),
         render_sender,
@@ -301,6 +326,9 @@ async fn run(cli: Cli, render_sender: Sender<DisplayMessage>) -> anyhow::Result<
             Ok(RunResult::Validate(result))
         }
         Commands::SummaryOutputSchema => Ok(RunResult::SummaryOutputSchema),
+        Commands::GithubAnnotations(..) => {
+            anyhow::bail!("github-annotations runs before the async runtime starts")
+        }
     }
 }
 

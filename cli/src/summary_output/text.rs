@@ -94,6 +94,15 @@ impl EndOutput for SummaryFileText {
     }
 }
 
+// Shared with the GitHub annotations, so both say the same thing.
+pub(crate) const NO_TESTS_FOUND: &str = "No tests were found in the provided test results";
+pub(crate) const FAILED_WITHOUT_RUNNING_TESTS: &str = "The test step appears to have failed without running tests -- see above for the original failure.";
+pub(crate) const NO_TEST_FAILURES: &str = "No test failures found";
+pub(crate) const SOME_TESTS_MAY_NOT_HAVE_RUN: &str = "This may indicate that some tests were not run or that there were other issues during the test run.";
+pub(crate) const QUARANTINE_LOOKUP_FAILED: &str = "We were unable to determine the quarantine status for tests. Any failing tests will be reported as failures";
+pub(crate) const FAILURE_MESSAGE_MAX_LINES: usize = 20;
+pub(crate) const UNAUTHORIZED_HINT: &str = "Hint: You can find it under the settings page at";
+
 pub fn render_error(error: &ErrorSummary) -> anyhow::Result<Vec<Line>> {
     let mut lines = Vec::new();
     lines.push(Line::from_iter([Span::new_styled(
@@ -112,7 +121,7 @@ pub fn render_error(error: &ErrorSummary) -> anyhow::Result<Vec<Line>> {
         }
         ErrorKind::Unauthorized => {
             let mut hint = Line::from_iter([Span::new_unstyled_lossy(format!(
-                "Hint: You can find it under the settings page at {}",
+                "{UNAUTHORIZED_HINT} {}",
                 error.settings_url.as_deref().unwrap_or_default()
             ))]);
             hint.pad_left(2);
@@ -216,7 +225,9 @@ pub fn render_upload(report: &UploadReport, options: &TextOptions) -> anyhow::Re
     ))?]));
     if report.quarantining == Quarantining::LookupFailed {
         output.push(Line::from_iter([Span::new_styled(
-            style("   We were unable to determine the quarantine status for tests. Any failing tests will be reported as failures".to_string()).with(Color::Yellow).attribute(Attribute::Bold),
+            style(format!("   {QUARANTINE_LOOKUP_FAILED}"))
+                .with(Color::Yellow)
+                .attribute(Attribute::Bold),
         )?]));
     }
     output.push(Line::default());
@@ -270,22 +281,20 @@ pub fn render_upload(report: &UploadReport, options: &TextOptions) -> anyhow::Re
     }
 
     match report.outcome {
-        Outcome::NoTestsFound if report.cli_exit_code().is_success() => {
-            output.push(Line::from_iter([Span::new_unstyled(
-                "⚠️  No tests were found in the provided test results",
-            )?]))
-        }
+        Outcome::NoTestsFound if report.cli_exit_code().is_success() => output.push(
+            Line::from_iter([Span::new_unstyled(format!("⚠️  {NO_TESTS_FOUND}"))?]),
+        ),
         Outcome::NoTestsFound => {
             output.push(Line::from_iter([
-                Span::new_unstyled(
-                    "⚠️  No tests were found in the provided test results, but non zero exit code provided: ",
-                )?,
+                Span::new_unstyled(format!(
+                    "⚠️  {NO_TESTS_FOUND}, but non zero exit code provided: "
+                ))?,
                 Span::new_styled(
                     style(format!("{}", report.cli_exit_code())).attribute(Attribute::Bold),
                 )?,
             ]));
             output.push(Line::from_iter([Span::new_unstyled(
-                "The test step appears to have failed without running tests -- see above for the original failure.",
+                FAILED_WITHOUT_RUNNING_TESTS,
             )?]));
         }
         Outcome::AllFailuresQuarantined => output.push(Line::from_iter([
@@ -299,15 +308,15 @@ pub fn render_upload(report: &UploadReport, options: &TextOptions) -> anyhow::Re
         )?])),
         Outcome::NoFailuresButNonZeroExitCode => {
             output.push(Line::from_iter([
-                Span::new_unstyled(
-                    "⚠️  No test failures found, but non zero exit code provided: ",
-                )?,
+                Span::new_unstyled(format!(
+                    "⚠️  {NO_TEST_FAILURES}, but non zero exit code provided: "
+                ))?,
                 Span::new_styled(
                     style(format!("{}", report.cli_exit_code())).attribute(Attribute::Bold),
                 )?,
             ]));
             output.push(Line::from_iter([Span::new_unstyled(
-                "This may indicate that some tests were not run or that there were other issues during the test run.",
+                SOME_TESTS_MAY_NOT_HAVE_RUN,
             )?]));
         }
         Outcome::FailuresNotQuarantined => output.push(Line::from_iter([
@@ -384,7 +393,7 @@ fn render_groups(groups: &[FailureGroup], options: &TextOptions) -> anyhow::Resu
 fn render_failure_message(failure_message: &str) -> anyhow::Result<Vec<Line>> {
     let mut output = Vec::new();
     let lines: Vec<&str> = failure_message.split('\n').collect();
-    let max_lines = 20;
+    let max_lines = FAILURE_MESSAGE_MAX_LINES;
     let mut failure_header = Line::from_iter([Span::new_styled(
         style("Failure: ".to_string()).with(Color::DarkGrey),
     )?]);

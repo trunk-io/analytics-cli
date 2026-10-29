@@ -1,7 +1,7 @@
 use api::client::ClientErrorExplanation;
 use http::StatusCode;
 use schemars::JsonSchema;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::exit_code::ExitCode;
 
@@ -94,7 +94,7 @@ impl ErrorReport {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, JsonSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum ErrorKind {
     /// Couldn't connect to Trunk.
@@ -105,6 +105,8 @@ pub enum ErrorKind {
     GitRepository,
     /// The run stopped early, such as when it found no test reports and empty results aren't allowed.
     Interrupted,
+    /// Also what a kind from a newer CLI reads as.
+    #[serde(other)]
     Other,
 }
 

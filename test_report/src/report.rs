@@ -1146,7 +1146,7 @@ impl MutTestReport {
 fn write_summary_file(path: &Path, report: Report) {
     eprintln!(
         "{}",
-        SummaryFileText::new(path, json::write_file(path, report)).message()
+        SummaryFileText::new(path, report.write_file(path)).message()
     );
 }
 
