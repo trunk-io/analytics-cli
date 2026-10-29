@@ -1588,6 +1588,65 @@ async fn upload_writes_summary_output_file() {
     }
 }
 
+/// One test that ran two days ago: old enough for Trunk to drop, too recent for the validator
+/// to discard as a defaulted timestamp.
+fn old_timestamp_junit_xml() -> String {
+    let timestamp = (chrono::Utc::now() - chrono::TimeDelta::days(2)).format("%Y-%m-%dT%H:%M:%SZ");
+    format!(
+        r#"<?xml version="1.0" encoding="UTF-8"?>
+<testsuites name="old">
+  <testsuite name="MathTests" timestamp="{timestamp}">
+    <testcase name="adds" classname="MathTests" file="src/math.rs" time="0.1" timestamp="{timestamp}"/>
+  </testsuite>
+</testsuites>
+"#
+    )
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn upload_says_how_many_files_have_old_timestamps_past_the_file_limit() {
+    let temp_dir = tempdir().unwrap();
+    generate_mock_git_repo(&temp_dir);
+    for n in 0..10 {
+        fs::write(
+            temp_dir.path().join(format!("old-{n}.xml")),
+            old_timestamp_junit_xml(),
+        )
+        .unwrap();
+    }
+    let summary_path = temp_dir.path().join("summary.json");
+
+    let state = MockServerBuilder::new().spawn_mock_server().await;
+    let assert = CommandBuilder::upload(temp_dir.path(), state.host.clone())
+        .junit_paths("old-*.xml")
+        .command()
+        .arg("--summary-output-file")
+        .arg(&summary_path)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("…and 2 more"));
+
+    // Listed once, though 2 of the 10 files are cut from the per-file warnings.
+    let stdout = String::from_utf8_lossy(&assert.get_output().stdout).into_owned();
+    assert_eq!(
+        stdout
+            .matches(
+                "10 files have test results older than 24 hours. Trunk will drop these results, but the test counts above include them."
+            )
+            .count(),
+        1
+    );
+    assert!(stdout.contains("upload with --bazel-bep-path to skip cached results"));
+
+    let requests = state.requests.lock().unwrap().clone();
+    assert_eq!(requests.len(), 3);
+    assert_matches!(requests[1], RequestPayload::S3Upload(_));
+
+    let summary = read_summary_output_file(&summary_path);
+    assert_eq!(summary["filesWithOldTimestamps"], 10);
+    assert_eq!(summary["counts"]["total"], 10);
+}
+
 #[tokio::test(flavor = "multi_thread")]
 async fn upload_writes_a_dry_run_to_summary_output_file() {
     let temp_dir = tempdir().unwrap();

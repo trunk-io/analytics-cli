@@ -3,7 +3,7 @@ use std::collections::HashSet;
 use context::junit::validator::JunitReportValidationFlatIssue;
 use serde::Serialize;
 
-use super::{FileValidation, Notice, ParseError};
+use super::{FileValidation, Notice, ParseError, upload::files_with_old_timestamps};
 use crate::{
     exit_code::ExitCode,
     validate_command::{ParseIssues, TestIssues, ValidateRunResult},
@@ -43,6 +43,8 @@ pub struct ValidationCounts {
     pub files_with_errors: usize,
     pub warnings: usize,
     pub errors: usize,
+    /// Files whose results Trunk will drop for having old timestamps.
+    pub files_with_old_timestamps: usize,
 }
 
 impl ValidateReport {
@@ -126,6 +128,7 @@ impl ValidationCounts {
             files_with_errors: files_with_errors.len(),
             warnings,
             errors,
+            files_with_old_timestamps: files_with_old_timestamps(validations),
         }
     }
 }
@@ -139,6 +142,7 @@ fn parse_validation(issues: &ParseIssues) -> FileValidation {
         warnings: issues.warnings.iter().map(ToString::to_string).collect(),
         test_suite_count: None,
         test_case_count: None,
+        old_timestamps: false,
     }
 }
 
@@ -156,5 +160,6 @@ fn test_validation(issues: &TestIssues) -> FileValidation {
         warnings: messages(&issues.warnings),
         test_suite_count: Some(issues.num_test_suites),
         test_case_count: Some(issues.num_test_cases),
+        old_timestamps: issues.old_timestamps,
     }
 }
