@@ -151,6 +151,8 @@ mod tests {
             timestamp_millis: None,
             is_quarantined: false,
             failure_message: None,
+            failure_message_attribute: None,
+            failure_text: None,
             variant: None,
         }
     }

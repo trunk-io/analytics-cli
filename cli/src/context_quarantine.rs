@@ -112,13 +112,13 @@ fn convert_case_to_test<T: AsRef<str> + ToString>(
             .or(suite.timestamp_micros)
             .unwrap_or(0),
     )));
-    let failure_message = match &case.status.non_success {
-        Some(non_success) => non_success
-            .description
-            .clone()
-            .or_else(|| non_success.message.clone()),
-        _ => None,
+    let (failure_message_attribute, failure_text) = match &case.status.non_success {
+        Some(non_success) => (non_success.message.clone(), non_success.description.clone()),
+        None => (None, None),
     };
+    let failure_message = failure_text
+        .clone()
+        .or_else(|| failure_message_attribute.clone());
     let mut test = Test {
         name,
         parent_name,
@@ -128,6 +128,8 @@ fn convert_case_to_test<T: AsRef<str> + ToString>(
         timestamp_millis,
         is_quarantined: case.is_quarantined(),
         failure_message,
+        failure_message_attribute,
+        failure_text,
         variant: Some(variant.to_string()),
     };
     if let Some(id) = case.extra().get("id") {
@@ -781,6 +783,11 @@ mod tests {
 
         assert_eq!(test.name, "test_case");
         assert_eq!(test.failure_message, Some("This is a failure".to_string()));
+        assert_eq!(
+            test.failure_message_attribute,
+            Some("Failure message".to_string())
+        );
+        assert_eq!(test.failure_text, Some("This is a failure".to_string()));
     }
 
     #[test]

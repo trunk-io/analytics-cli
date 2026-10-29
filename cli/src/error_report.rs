@@ -1,25 +1,17 @@
-use api::client::{ClientErrorExplanation, get_api_host};
-use display::end_output::EndOutput;
+use api::client::ClientErrorExplanation;
 use http::StatusCode;
-use superconsole::{
-    Line, Span,
-    style::{Attribute, Stylize, style},
-};
+use serde::Serialize;
 
-const HELP_TEXT: &str = "For more help, contact us at https://slack.trunk.io/";
-const CONNECTION_REFUSED_CONTEXT: &str = concat!("Unable to connect to trunk's server",);
+pub(crate) const HELP_TEXT: &str = "For more help, contact us at https://slack.trunk.io/";
+pub(crate) const CONNECTION_REFUSED_CONTEXT: &str = concat!("Unable to connect to trunk's server",);
 
 pub(crate) const UNAUTHORIZED_CONTEXT: &str =
     concat!("Unathorized access, your Trunk organization URL slug or token may be incorrect",);
 
 const GIX_ERROR_CONTEXT: &str = "Unable to open git repository";
 
-fn add_settings_url_to_context(domain: String, org_url_slug: &String) -> String {
-    let settings_url = format!("{}/{}/settings", domain.replace("api", "app"), org_url_slug);
-    format!(
-        "Hint: You can find it under the settings page at {}",
-        settings_url
-    )
+pub(crate) fn settings_url(domain: &str, org_url_slug: &str) -> String {
+    format!("{}/{}/settings", domain.replace("api", "app"), org_url_slug)
 }
 
 pub struct InterruptingError {
@@ -53,50 +45,77 @@ pub struct Context {
 pub struct ErrorReport {
     pub error: anyhow::Error,
     pub context: Context,
+    pub kind: ErrorKind,
 }
 
 impl ErrorReport {
     pub fn new(error: anyhow::Error, org_url_slug: String, base_message: Option<String>) -> Self {
+        let kind = ErrorKind::of(&error);
+        match kind {
+            ErrorKind::ConnectionRefused => tracing::warn!(CONNECTION_REFUSED_CONTEXT),
+            ErrorKind::Unauthorized => tracing::warn!(UNAUTHORIZED_CONTEXT),
+            ErrorKind::GitRepository => tracing::warn!(GIX_ERROR_CONTEXT),
+            ErrorKind::Interrupted => {
+                if let Some(message) = get_interrupting_message(&error) {
+                    tracing::warn!("{}", message);
+                }
+            }
+            ErrorKind::Other => {
+                tracing::error!("{}", error);
+                tracing::error!(hidden_in_console = true, "Caused by error: {:#?}", error);
+            }
+        }
         Self {
             context: Context {
                 base_message,
                 org_url_slug,
-                exit_code: ErrorReport::find_exit_code(&error),
+                exit_code: kind.exit_code(),
             },
             error,
+            kind,
         }
     }
+}
 
-    fn find_exit_code(error: &anyhow::Error) -> Option<i32> {
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ErrorKind {
+    ConnectionRefused,
+    Unauthorized,
+    GitRepository,
+    Interrupted,
+    Other,
+}
+
+impl ErrorKind {
+    pub fn of(error: &anyhow::Error) -> Self {
         if is_connection_refused(error) {
-            tracing::warn!(CONNECTION_REFUSED_CONTEXT);
-            return None;
+            Self::ConnectionRefused
+        } else if is_unauthorized(error) {
+            Self::Unauthorized
+        } else if is_gix_error(error) {
+            Self::GitRepository
+        } else if get_interrupting_message(error).is_some() {
+            Self::Interrupted
+        } else {
+            Self::Other
         }
-
-        if is_unauthorized(error) {
-            tracing::warn!(UNAUTHORIZED_CONTEXT);
-            return Some(exitcode::SOFTWARE);
-        }
-
-        if is_gix_error(error) {
-            tracing::warn!(GIX_ERROR_CONTEXT);
-            return Some(exitcode::SOFTWARE);
-        }
-
-        if let Some(message) = get_interrupting_message(error) {
-            tracing::warn!("{}", message);
-            return Some(exitcode::SOFTWARE);
-        }
-
-        tracing::error!("{}", error);
-        tracing::error!(hidden_in_console = true, "Caused by error: {:#?}", error);
-        None
     }
 
-    pub fn should_block_quarantining(&self) -> bool {
-        is_unauthorized(&self.error)
-            || is_gix_error(&self.error)
-            || get_interrupting_message(&self.error).is_some()
+    pub fn exit_code(self) -> Option<i32> {
+        match self {
+            Self::ConnectionRefused | Self::Other => None,
+            Self::Unauthorized | Self::GitRepository | Self::Interrupted => {
+                Some(exitcode::SOFTWARE)
+            }
+        }
+    }
+
+    pub fn blocks_quarantining(self) -> bool {
+        matches!(
+            self,
+            Self::Unauthorized | Self::GitRepository | Self::Interrupted
+        )
     }
 }
 
@@ -137,7 +156,7 @@ fn is_gix_error(error: &anyhow::Error) -> bool {
     }
 }
 
-fn get_client_error_explanation(error: &anyhow::Error) -> Option<String> {
+pub(crate) fn get_client_error_explanation(error: &anyhow::Error) -> Option<String> {
     error
         .downcast_ref::<ClientErrorExplanation>()
         .map(ToString::to_string)
@@ -150,102 +169,10 @@ fn get_interrupting_message(error: &anyhow::Error) -> Option<String> {
         .map(|e| e.message.clone())
 }
 
-impl EndOutput for ErrorReport {
-    fn output(&self) -> anyhow::Result<Vec<Line>> {
-        let Context {
-            base_message,
-            org_url_slug,
-            exit_code,
-        } = &self.context;
-        let mut lines = Vec::new();
-        lines.push(Line::from_iter([Span::new_styled(
-            String::from("Error Encountered").attribute(Attribute::Bold),
-        )?]));
-        if is_connection_refused(&self.error) {
-            if let Some(base_message) = base_message {
-                lines.push(Line::from_iter([Span::new_unstyled_lossy(base_message)]));
-                lines.push(Line::default());
-            }
-            lines.push(Line::from_iter([Span::new_unstyled(
-                CONNECTION_REFUSED_CONTEXT,
-            )?]));
-            return Ok(lines);
-        }
-        let api_host = get_api_host();
-        if is_unauthorized(&self.error) {
-            {
-                lines.extend(vec![
-                    Line::from_iter([Span::new_unstyled_lossy(
-                        base_message.as_deref().unwrap_or_default(),
-                    )]),
-                    Line::default(),
-                    Line::from_iter([Span::new_unstyled(UNAUTHORIZED_CONTEXT)?]),
-                    Line::from_iter([Span::new_unstyled_lossy(add_settings_url_to_context(
-                        api_host,
-                        org_url_slug,
-                    ))]),
-                ]);
-                if let Some(line) = lines.last_mut() {
-                    line.pad_left(2);
-                }
-                return Ok(lines);
-            }
-        }
-        if base_message.is_some() {
-            lines.push(Line::from_iter([Span::new_unstyled_lossy(
-                base_message.as_deref().unwrap_or("An error occurred"),
-            )]));
-            lines.push(Line::default());
-            if let Some(explanation) = get_client_error_explanation(&self.error) {
-                lines.push(Line::from_iter([Span::new_unstyled_lossy(explanation)]));
-                lines.push(Line::default());
-            }
-        } else {
-            lines.push(Line::from_iter([Span::new_unstyled_lossy(
-                self.error.to_string(),
-            )]));
-        }
-        lines.push(Line::from_iter([Span::new_unstyled(HELP_TEXT)?]));
-        lines.push(Line::default());
-        match exit_code {
-            Some(exitcode::OK) => lines.push(Line::from_iter([
-                Span::new_unstyled("No errors occurred, returning default exit code: ")?,
-                Span::new_styled(style(exitcode::OK.to_string()).attribute(Attribute::Bold))?,
-            ])),
-            Some(exitcode::SOFTWARE) => {
-                // SOFTWARE is used to indicate that the upload command failed due to user error
-                lines.push(Line::from_iter([
-                    Span::new_unstyled("Errors occurred during execution, returning exit code: ")?,
-                    Span::new_styled(
-                        style(exitcode::SOFTWARE.to_string()).attribute(Attribute::Bold),
-                    )?,
-                ]));
-            }
-            Some(other_code) => {
-                // Should be an unused codepath, but we log it for completeness
-                lines.push(Line::from_iter([
-                    Span::new_unstyled("Errors occurred during execution, returning exit code: ")?,
-                    Span::new_styled(style(other_code.to_string()).attribute(Attribute::Bold))?,
-                ]));
-            }
-            None => {
-                // If uploads fail because trunk is down, we fall back to whatever came out of quarantining
-                // to minimize customer impact
-                lines.push(Line::from_iter([Span::new_unstyled(
-                    "Errors occurred during execution, using quarantining exit code",
-                )?]));
-            }
-        }
-        Ok(lines)
-    }
-}
-
 #[test]
-fn adds_settings_if_domain_present() {
-    let host = "https://api.fake-trunk.io";
-    let final_context = add_settings_url_to_context(host.into(), &String::from("fake-org-slug"));
+fn builds_the_settings_url_from_the_api_host() {
     assert_eq!(
-        final_context,
-        "Hint: You can find it under the settings page at https://app.fake-trunk.io/fake-org-slug/settings"
+        settings_url("https://api.fake-trunk.io", "fake-org-slug"),
+        "https://app.fake-trunk.io/fake-org-slug/settings"
     )
 }

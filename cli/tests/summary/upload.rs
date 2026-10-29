@@ -13,13 +13,16 @@ use context::{
     },
     repo::{BundleRepo, RepoUrlParts},
 };
-use display::end_output::EndOutput;
 use pretty_assertions::assert_eq;
 use superconsole::Line;
 use trunk_analytics_cli::{
     context_quarantine::{QuarantineContext, QuarantineFetchStatus},
     error_report::ErrorReport,
     report_limiting::ValidationReport,
+    summary_output::{
+        UploadCommand, UploadReport,
+        text::{self, TextOptions},
+    },
     upload_command::UploadRunResult,
     validate_command::JunitReportValidations,
 };
@@ -31,8 +34,8 @@ const UPLOAD_ERROR_MESSAGE: &str =
     "There was an unexpected error that occurred while uploading test results";
 
 fn upload_summary(result: &UploadRunResult) -> Vec<String> {
-    result
-        .output()
+    let report = UploadReport::new(result, UploadCommand::Upload);
+    text::render_upload(&report, &TextOptions::from(result))
         .unwrap()
         .iter()
         .map(Line::to_unstyled)
@@ -96,6 +99,7 @@ fn upload_result(num_tests: usize) -> UploadRunResult {
         hide_test_collection_links: false,
         api_address: String::from("https://api.trunk.io"),
         guid_scope: None,
+        notices: Vec::new(),
     }
 }
 
@@ -119,6 +123,8 @@ fn failure(name: &str, parent_name: &str, file: Option<&str>) -> Test {
         timestamp_millis: None,
         is_quarantined: false,
         failure_message: None,
+        failure_message_attribute: None,
+        failure_text: None,
         variant: None,
     }
 }
@@ -558,7 +564,7 @@ fn prints_long_failure_messages_when_asked() {
     ];
     message_lines.extend((6..=23).map(|n| format!("frame {n}")));
     result.quarantine_context.failures = vec![Test {
-        failure_message: Some(message_lines.join("\n")),
+        failure_text: Some(message_lines.join("\n")),
         ..failure("adds", "MathTests", None)
     }];
 
@@ -814,4 +820,38 @@ fn warns_about_a_non_zero_exit_code_without_failures() {
             "This may indicate that some tests were not run or that there were other issues during the test run.",
         ]
     );
+}
+
+#[test]
+fn upload_exits_with_the_exit_code_of_an_error_but_test_does_not() {
+    let mut result = upload_result(3);
+    result.quarantine_context.exit_code = 1;
+    result.error_report = Some(ErrorReport::new(
+        unauthorized_error(),
+        String::from("test-org"),
+        Some(String::from(UPLOAD_ERROR_MESSAGE)),
+    ));
+
+    assert_eq!(
+        UploadReport::new(&result, UploadCommand::Upload).exit_code,
+        70
+    );
+    assert_eq!(UploadReport::new(&result, UploadCommand::Test).exit_code, 1);
+}
+
+#[test]
+fn exits_with_the_test_run_exit_code_when_an_error_has_none() {
+    let mut result = upload_result(3);
+    result.quarantine_context.exit_code = 1;
+    result.error_report = Some(ErrorReport::new(
+        anyhow::anyhow!("HTTP status server error (500 Internal Server Error)"),
+        String::from("test-org"),
+        Some(String::from(UPLOAD_ERROR_MESSAGE)),
+    ));
+
+    assert_eq!(
+        UploadReport::new(&result, UploadCommand::Upload).exit_code,
+        1
+    );
+    assert_eq!(UploadReport::new(&result, UploadCommand::Test).exit_code, 1);
 }
