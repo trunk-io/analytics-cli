@@ -19,7 +19,7 @@ jobs:
   # pull_request -- push (main), tags and dispatch run everything outright.
   dynamic-ci-filter:
     name: Dynamic CI Filter
-    runs-on: ubuntu-latest
+    runs-on: "${{ vars.CI_RUNNER_OVERRIDE == 'hosted' && 'ubuntu-latest' || format('trunk-staging={0}-{1}..size=medium..memory=high', github.run_id, github.run_attempt) }}"
     timeout-minutes: 5
     if: github.event_name == 'pull_request'
     # Per-job outputs are set at runtime, so they are re-exported here by name.
@@ -36,7 +36,7 @@ jobs:
           token: ${{ secrets.TRUNK_PROD_ORG_API_TOKEN }}
 
   build:
-    runs-on: ubuntu-latest
+    runs-on: "${{ vars.CI_RUNNER_OVERRIDE == 'hosted' && 'ubuntu-latest' || format('trunk-staging={0}-{1}..size=medium..memory=high', github.run_id, github.run_attempt) }}"
     needs: [dynamic-ci-filter]
     if: >-
       !cancelled() &&
@@ -113,7 +113,7 @@ jobs:
 
   build-ruby-gem:
     name: Build Ruby gem
-    runs-on: ubuntu-latest
+    runs-on: "${{ vars.CI_RUNNER_OVERRIDE == 'hosted' && 'ubuntu-latest' || format('trunk-staging={0}-{1}..size=medium..memory=high', github.run_id, github.run_attempt) }}"
     needs: [dynamic-ci-filter]
     # Also runs when `test-ruby-gem-uploads` is wanted: it consumes this gem.
     if: >-
@@ -179,7 +179,7 @@ jobs:
 
   test-ruby-gem-uploads:
     name: Test Ruby gem uploads
-    runs-on: ubuntu-latest
+    runs-on: "${{ vars.CI_RUNNER_OVERRIDE == 'hosted' && 'ubuntu-latest' || format('trunk-staging={0}-{1}..size=medium..memory=high', github.run_id, github.run_attempt) }}"
     needs: [build-ruby-gem, dynamic-ci-filter]
     if: >-
       !cancelled() &&
@@ -245,7 +245,7 @@ jobs:
 
   gate:
     name: rspec Gate
-    runs-on: ubuntu-latest
+    runs-on: "${{ vars.CI_RUNNER_OVERRIDE == 'hosted' && 'ubuntu-latest' || format('trunk-staging={0}-{1}..size=medium..memory=high', github.run_id, github.run_attempt) }}"
     timeout-minutes: 5
     # Branch-protection fan-in: one stable required context for this whole workflow.
     # A matrix job skipped by its job-level `if:` reports a single check run under the

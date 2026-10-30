@@ -20,7 +20,7 @@ permissions:
 jobs:
   mirror:
     name: Mirror ${{ inputs.tags }}
-    runs-on: ubuntu-latest
+    runs-on: "${{ vars.CI_RUNNER_OVERRIDE == 'hosted' && 'ubuntu-latest' || format('trunk-staging={0}-{1}..size=medium..memory=high', github.run_id, github.run_attempt) }}"
     timeout-minutes: 120
     permissions:
       contents: read
