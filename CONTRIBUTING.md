@@ -17,6 +17,35 @@ cargo build
 
 The CLI will be built to `target/debug/trunk-analytics-cli`
 
+### Cross-Compiling for Other Linux Architectures
+
+Release targets your machine cannot build natively (`powerpc64le-unknown-linux-gnu`, `s390x-unknown-linux-gnu`, `x86_64-unknown-illumos`) build in Docker with [cross](https://github.com/cross-rs/cross):
+
+```bash
+cargo install cross --git https://github.com/cross-rs/cross
+cross build -p trunk-analytics-cli --profile=release --target=s390x-unknown-linux-gnu
+```
+
+Build only `-p trunk-analytics-cli`, as CI does; building the workspace links libraries the release binary must not need.
+
+The ppc64le and s390x builds link glibc dynamically, and `Cross.toml` pins their images to old ones so they run on RHEL 8 and SLES 15. Check the floor after changing an image or dependency:
+
+```bash
+readelf --dyn-syms -W target/s390x-unknown-linux-gnu/release/trunk-analytics-cli | grep -o 'GLIBC_[0-9.]*' | sort -uV | tail -1
+```
+
+Use a fresh `CARGO_TARGET_DIR` when switching a target's image: build scripts compiled in one image may not run in another.
+
+To try a binary, run it under the QEMU that ships in its cross image:
+
+```bash
+docker run --rm -v "$PWD:/repo" -w /repo ghcr.io/cross-rs/s390x-unknown-linux-gnu:0.2.5 \
+  /linux-runner s390x target/s390x-unknown-linux-gnu/release/trunk-analytics-cli \
+  validate --junit-paths cli/test_fixtures/junit0_fail.xml
+```
+
+s390x is big-endian, so it is the target most likely to show a byte-order bug.
+
 ### Package-Specific Build Instructions
 
 For detailed build instructions for each supported package, see their respective README files:
