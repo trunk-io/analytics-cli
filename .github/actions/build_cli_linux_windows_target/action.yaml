@@ -47,7 +47,7 @@ runs:
           strip -s target/${{ inputs.target }}/${{ inputs.profile }}/trunk-analytics-cli
         fi
 
-    # UPX cannot pack s390x, and its ppc64le stub is unproven on 64 KiB-page kernels.
+    # UPX cannot pack s390x, and no packed ppc64le binary has been run.
     - name: Install upx
       shell: bash
       if: ${{ !endsWith(inputs.target, '-unknown-linux-gnu') }}
@@ -81,10 +81,17 @@ runs:
         binary=target/${{ inputs.target }}/${{ inputs.profile }}/trunk-analytics-cli
         needed=$(readelf -d "$binary" | sed -n 's/.*(NEEDED).*\[\(.*\)\]/\1/p')
         echo "NEEDED: $(echo $needed)"
-        echo "Minimum glibc: $(readelf --dyn-syms -W "$binary" | grep -o 'GLIBC_[0-9.]*' | sort -uV | tail -1)"
         unexpected=$(echo "$needed" | grep -vE '^(libc|libm|libgcc_s|libpthread|libdl|librt|ld64)\.so' || true)
         if [ -n "$unexpected" ]; then
           echo "trunk-analytics-cli links more than glibc: $unexpected"
+          exit 1
+        fi
+        # RHEL 8's glibc; Cross.toml's pinned images keep the build below it.
+        ceiling=2.28
+        floor=$(readelf --dyn-syms -W "$binary" | grep -o 'GLIBC_[0-9.]*' | sed 's/GLIBC_//' | sort -uV | tail -1)
+        echo "Minimum glibc: $floor"
+        if [ "$(printf '%s\n' "$floor" "$ceiling" | sort -V | tail -1)" != "$ceiling" ]; then
+          echo "trunk-analytics-cli needs glibc $floor, newer than $ceiling"
           exit 1
         fi
 
