@@ -28,7 +28,7 @@ cross build -p trunk-analytics-cli --profile=release --target=s390x-unknown-linu
 
 Build only `-p trunk-analytics-cli`, as CI does; building the workspace links libraries the release binary must not need.
 
-The ppc64le and s390x builds link glibc dynamically, and `Cross.toml` pins their images to old ones so they run on RHEL 8; CI fails a build that needs glibc newer than 2.28. Use a fresh `CARGO_TARGET_DIR` when switching a target's image: build scripts compiled in one image may not run in another.
+The ppc64le and s390x builds link glibc dynamically, and `Cross.toml` keeps them at glibc 2.28 or older so they run on RHEL 8 (zig for ppc64le, which the cross 0.2.5 release ignores; an old image for s390x). CI fails a build that needs a newer glibc. Use a fresh `CARGO_TARGET_DIR` when switching a target's image: build scripts compiled in one image may not run in another.
 
 To try a binary, run it under the QEMU that ships in its cross image:
 
