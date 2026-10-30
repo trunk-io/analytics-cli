@@ -41,6 +41,19 @@ jobs:
             runs-on: ubuntu-latest
             target: x86_64-unknown-illumos
             artifact-name: x86_64-unknown-illumos
+            skip-cli-tools: true
+
+          - os-name: linux-ppc64le
+            runs-on: ubuntu-latest
+            target: powerpc64le-unknown-linux-gnu
+            artifact-name: powerpc64le-unknown-linux
+            skip-cli-tools: true
+
+          - os-name: linux-s390x
+            runs-on: ubuntu-latest
+            target: s390x-unknown-linux-gnu
+            artifact-name: s390x-unknown-linux
+            skip-cli-tools: true
 
           - os-name: x86_64-darwin
             runs-on: macos-latest
@@ -74,6 +87,9 @@ jobs:
 
       - name: Setup Rust & Cargo
         uses: ./.github/actions/setup_rust_cargo
+        with:
+          # Targets build in different images; a shared target/ runs one image's build scripts in another.
+          cache-key: ${{ matrix.platform.target }}
 
       - name: Update CLI version
         uses: ./.github/actions/update_version
@@ -115,7 +131,7 @@ jobs:
       #########################################################
       - name: Build CLI Tools
         uses: ./.github/actions/build_cli_tools
-        if: matrix.platform.target != 'x86_64-unknown-illumos'
+        if: ${{ !matrix.platform.skip-cli-tools }}
         with:
           target: ${{ matrix.platform.target }}
           os-name: ${{ matrix.platform.os-name }}
@@ -153,7 +169,7 @@ jobs:
 
       - name: Upload Bundle CLI artifact (Unix)
         uses: actions/upload-artifact@v4
-        if: ${{ matrix.platform.target != 'x86_64-unknown-illumos' && !contains(matrix.platform.os-name, 'windows') }}
+        if: ${{ !matrix.platform.skip-cli-tools && !contains(matrix.platform.os-name, 'windows') }}
         with:
           name: ${{ matrix.platform.artifact-name }}-bundle
           path: target/${{ matrix.platform.target }}/release-with-debug/proto-bin-to-json
@@ -169,7 +185,7 @@ jobs:
 
       - name: Upload XCResult CLI artifact (Unix)
         uses: actions/upload-artifact@v4
-        if: ${{ matrix.platform.target != 'x86_64-unknown-illumos' && !contains(matrix.platform.os-name, 'windows') }}
+        if: ${{ !matrix.platform.skip-cli-tools && !contains(matrix.platform.os-name, 'windows') }}
         with:
           name: ${{ matrix.platform.artifact-name }}-xcresult
           path: target/${{ matrix.platform.target }}/release-with-debug/xcresult-to-junit
@@ -185,7 +201,7 @@ jobs:
 
       - name: Upload Codeowners CLI artifact (Unix)
         uses: actions/upload-artifact@v4
-        if: ${{ matrix.platform.target != 'x86_64-unknown-illumos' && !contains(matrix.platform.os-name, 'windows') }}
+        if: ${{ !matrix.platform.skip-cli-tools && !contains(matrix.platform.os-name, 'windows') }}
         with:
           name: ${{ matrix.platform.artifact-name }}-codeowners
           path: target/${{ matrix.platform.target }}/release-with-debug/check-codeowners
@@ -206,6 +222,17 @@ jobs:
           - name: windows
             os: windows-latest
             target: x86_64-pc-windows-gnu
+          # GitHub has no ppc64le or s390x runners, so these run under QEMU user-mode.
+          - name: linux-ppc64le
+            os: ubuntu-latest
+            target: powerpc64le-unknown-linux
+            qemu-triple: powerpc64le-linux-gnu
+            qemu-deb-arch: ppc64el
+          - name: linux-s390x
+            os: ubuntu-latest
+            target: s390x-unknown-linux
+            qemu-triple: s390x-linux-gnu
+            qemu-deb-arch: s390x
     needs:
       - build_release
     steps:
@@ -217,6 +244,17 @@ jobs:
         with:
           name: ${{ matrix.type.target }}
           path: ./trunk-analytics-cli
+
+      - name: Set up QEMU user-mode emulation
+        if: ${{ matrix.type.qemu-triple }}
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y qemu-user-static binfmt-support \
+            libc6-${{ matrix.type.qemu-deb-arch }}-cross libgcc-s1-${{ matrix.type.qemu-deb-arch }}-cross
+          echo "QEMU_LD_PREFIX=/usr/${{ matrix.type.qemu-triple }}" >> "$GITHUB_ENV"
+          chmod +x trunk-analytics-cli/trunk-analytics-cli
+          QEMU_LD_PREFIX=/usr/${{ matrix.type.qemu-triple }} trunk-analytics-cli/trunk-analytics-cli --version
 
       - name: Setup Run Smoke Tests
         uses: ./.github/actions/setup_run_smoke_tests
