@@ -60,6 +60,8 @@ runs:
         # NOTE: DO NOT BUILD WORKSPACE OTHERWISE THE CLI MAY BE LINKED TO UNNECESSARY LIBRARIES
         args: "-p trunk-analytics-cli --profile=${{ inputs.profile }} --target=${{ inputs.target }} ${{ (inputs.force-sentry-dev == 'true' && '--features force-sentry-env-dev') || '' }}"
         use-rust-cache: false
+        # The latest cross release (0.2.5) ignores Cross.toml's `zig`, which ppc64le needs.
+        cross-version: ${{ endsWith(inputs.target, '-unknown-linux-gnu') && 'd5a5ead7397be7d49db1b12ed1a6f3583d42fb98' || '' }}
 
     - name: Build CLI ${{ inputs.target }} target
       shell: bash
