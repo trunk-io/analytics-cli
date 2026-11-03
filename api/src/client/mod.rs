@@ -236,29 +236,53 @@ impl ApiClient {
     /// Asks Trunk whether this run uses v2. Anything but an explicit `v2`, a failed call
     /// included, is v1, so this never fails a run. A timeout, a connection error or a 5xx is
     /// retried once; any other answer is final.
+    ///
+    /// A run that names no collection asks too, by its repository: Trunk may answer `v2` with the
+    /// collection it inferred. A `v2` that names none is v1, since every v2 route needs one.
     pub async fn get_upload_api_version(
         &self,
         request: &message::GetUploadApiVersionRequest,
-    ) -> UploadApiVersion {
-        let upload_api_version = if self.trunk_api_v2_client.is_none()
-            || request
-                .test_collection_short_id
-                .as_deref()
-                .is_none_or(str::is_empty)
-        {
-            UploadApiVersion::V1
+    ) -> message::UploadApiDecision {
+        let requested = request
+            .test_collection_short_id
+            .as_deref()
+            .filter(|id| !id.trim().is_empty());
+        let has_repo = request
+            .repo
+            .as_ref()
+            .and_then(message::named_repo)
+            .is_some();
+        let decision = if self.trunk_api_v2_client.is_none() || (requested.is_none() && !has_repo) {
+            message::UploadApiDecision::default()
         } else {
             match self.request_upload_api_version(request).await {
-                Ok(response) if response.api_version == "v2" => UploadApiVersion::V2,
-                Ok(_) => UploadApiVersion::V1,
+                Ok(response) if response.api_version == "v2" => {
+                    let answer = message::UploadApiDecision {
+                        version: UploadApiVersion::V2,
+                        inferred_test_collection_short_id: response.test_collection_short_id,
+                    };
+                    let decision = message::UploadApiDecision {
+                        version: answer.version_for(requested),
+                        inferred_test_collection_short_id: answer
+                            .inferred_for(requested)
+                            .map(String::from),
+                    };
+                    if decision.version == UploadApiVersion::V1 {
+                        tracing::debug!(
+                            "Trunk chose v2 but named no test collection for this run, using v1"
+                        );
+                    }
+                    decision
+                }
+                Ok(_) => message::UploadApiDecision::default(),
                 Err(error) => {
                     tracing::debug!("Could not choose the Trunk API version, using v1: {error:?}");
-                    UploadApiVersion::V1
+                    message::UploadApiDecision::default()
                 }
             }
         };
-        tracing::info!("Using Trunk API {}", upload_api_version.as_str());
-        upload_api_version
+        tracing::info!("Using Trunk API {}", decision.version.as_str());
+        decision
     }
 
     async fn request_upload_api_version(

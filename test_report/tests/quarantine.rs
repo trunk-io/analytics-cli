@@ -793,6 +793,135 @@ async fn v2_matches_a_test_by_its_computed_test_id() {
 
 #[tokio::test(flavor = "multi_thread")]
 #[serial]
+async fn v2_uses_the_collection_trunk_inferred_in_every_process() {
+    use std::sync::{
+        Arc, Mutex,
+        atomic::{AtomicUsize, Ordering},
+    };
+
+    use axum::{extract::Path, routing::post};
+    use context::meta::id::gen_test_case_guid;
+    use serde_json::json;
+    use uuid::Uuid;
+
+    const INFERRED_SHORT_ID: &str = "zQ8nP2mW";
+    const COLLECTION_UUID: &str = "204b6c93-1c51-4e0f-a13c-e07b9bc60688";
+    const REPO_ID: &str = "7a1f0e3d-2b4c-4d5e-8f90-123456789abc";
+
+    cleanup_env_vars();
+    let temp_dir = tempdir().unwrap();
+    setup_quarantine_disk_cache_dir(&temp_dir);
+    let _ = env::set_current_dir(&temp_dir);
+
+    let repo = RepoUrlParts {
+        host: "github.com".into(),
+        owner: "test-org".into(),
+        name: "test-repo".into(),
+    };
+    let quarantined_guid = gen_test_case_guid(
+        Uuid::parse_str(COLLECTION_UUID).unwrap(),
+        Uuid::parse_str(REPO_ID).unwrap(),
+        Uuid::parse_str(
+            &Test::new(
+                None::<String>,
+                "quarantined".to_string(),
+                "test-parent-name".to_string(),
+                None,
+                None,
+                "test-org".to_string(),
+                &repo,
+                None,
+                "".to_string(),
+            )
+            .id,
+        )
+        .unwrap(),
+    )
+    .to_string();
+
+    let version_calls = Arc::new(AtomicUsize::new(0));
+    let listed_collections: Arc<Mutex<Vec<String>>> = Arc::default();
+    let state = {
+        let mut builder = MockServerBuilder::new();
+        builder.set_get_quarantining_config_handler(|| async {
+            (StatusCode::INTERNAL_SERVER_ERROR, "v1 must not be called")
+        });
+        let calls = version_calls.clone();
+        builder.route(
+            "/v1/metrics/getUploadApiVersion",
+            post(move || {
+                calls.fetch_add(1, Ordering::SeqCst);
+                async {
+                    Json(json!({"apiVersion": "v2", "testCollectionShortId": INFERRED_SHORT_ID}))
+                }
+            }),
+        );
+        let listed = listed_collections.clone();
+        builder.route(
+            "/v2/test-collections/:id/all-quarantined-tests",
+            post(move |Path(id): Path<String>| {
+                listed.lock().unwrap().push(id);
+                let quarantined_guid = quarantined_guid.clone();
+                async move {
+                    Json(json!({
+                        "data": [{"testId": quarantined_guid}],
+                        "nextCursor": null,
+                        "hasMore": false,
+                        "testCollectionUuid": COLLECTION_UUID,
+                        "repositoryId": REPO_ID,
+                        "quarantineEnabled": true,
+                    }))
+                }
+            }),
+        );
+        builder.spawn_mock_server().await
+    };
+
+    unsafe {
+        env::set_var(TRUNK_PUBLIC_API_ADDRESS_ENV, &state.host);
+        env::set_var(TRUNK_API_TOKEN_ENV, "test-token");
+        env::set_var(TRUNK_ORG_URL_SLUG_ENV, "test-org");
+        env::set_var(
+            TRUNK_REPO_URL_ENV,
+            "https://github.com/test-org/test-repo.git",
+        );
+        env::set_var(TRUNK_USE_UNCLONED_REPO_ENV, "true");
+        env::set_var(TRUNK_REPO_HEAD_SHA_ENV, "");
+        env::set_var(TRUNK_REPO_HEAD_BRANCH_ENV, "");
+        env::set_var(TRUNK_REPO_HEAD_AUTHOR_NAME_ENV, "");
+        env::set_var(TRUNK_QUARANTINED_TESTS_DISK_CACHE_TTL_SECS_ENV, "300");
+    }
+
+    // Each report stands for a worker process: the second reads the choice, inferred collection
+    // included, from disk, and must still look up quarantine on v2.
+    let results: Vec<_> = (0..2)
+        .map(|_| {
+            thread::spawn(|| {
+                let result = MutTestReport::new("test".into(), "test-command".into(), None)
+                    .is_quarantined(
+                        None,
+                        Some("quarantined".to_string()),
+                        Some("test-parent-name".to_string()),
+                        None,
+                        None,
+                    );
+                (result.test_is_quarantined, result.quarantine_lookup_failed)
+            })
+            .join()
+            .unwrap()
+        })
+        .collect();
+
+    assert_eq!(results, [(true, false), (true, false)]);
+    assert_eq!(version_calls.load(Ordering::SeqCst), 1);
+    assert_eq!(
+        listed_collections.lock().unwrap().clone(),
+        [INFERRED_SHORT_ID]
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[serial]
 async fn shares_the_api_version_choice_across_processes() {
     use std::sync::{
         Arc,

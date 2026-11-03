@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use std::sync::mpsc::Sender;
 
 use api::client::{ApiClient, ApiErrorEndpoint};
-use api::message::{GetUploadApiVersionRequest, UploadApiCaller, UploadApiVersion};
+use api::message::{GetUploadApiVersionRequest, UploadApiCaller, UploadApiDecision};
 use api::urls::TestCaseGuidScope;
 use bundle::{BundleMeta, BundlerUtil, QuarantineResolutionMode, unzip_tarball};
 use clap::{ArgAction, Args};
@@ -498,8 +498,8 @@ pub struct RunUploadOptions {
         Option<proto::upload_metrics::trunk::QuarantineQueryResult>,
     pub quarantine_resolution_mode_override: Option<QuarantineResolutionMode>,
     /// The API a caller already chose for this run, so its quarantine lookup and the upload
-    /// use the same one. `None` asks Trunk.
-    pub upload_api_version: Option<UploadApiVersion>,
+    /// use the same one (and the same inferred collection). `None` asks Trunk.
+    pub upload_api_version: Option<UploadApiDecision>,
     pub caller: UploadApiCaller,
 }
 
@@ -518,7 +518,7 @@ impl Default for RunUploadOptions {
 }
 
 pub async fn run_upload(
-    upload_args: UploadArgs,
+    mut upload_args: UploadArgs,
     options: RunUploadOptions,
 ) -> anyhow::Result<UploadRunResult> {
     let RunUploadOptions {
@@ -609,10 +609,10 @@ pub async fn run_upload(
         )?
     };
 
-    let upload_api_version = match upload_api_version {
-        Some(upload_api_version) => upload_api_version,
+    let upload_api_decision = match upload_api_version {
+        Some(upload_api_decision) => upload_api_decision,
         // A dry run uploads nothing, so it has nothing to choose.
-        None if upload_args.dry_run => UploadApiVersion::V1,
+        None if upload_args.dry_run => UploadApiDecision::default(),
         None => {
             api_client
                 .get_upload_api_version(&upload_api_version_request(
@@ -624,6 +624,17 @@ pub async fn run_upload(
                 .await
         }
     };
+    let requested_test_collection_short_id = upload_args.test_collection_short_id.as_deref();
+    let upload_api_version = upload_api_decision.version_for(requested_test_collection_short_id);
+    if let Some(inferred) = upload_api_decision
+        .inferred_for(requested_test_collection_short_id)
+        .map(String::from)
+    {
+        let message = inferred_test_collection_message(&inferred, caller);
+        tracing::warn!("{message}");
+        notices.push(Notice::deprecation(message));
+        upload_args.test_collection_short_id = Some(inferred);
+    }
     api_client.set_upload_api_version(upload_api_version);
 
     if let Some(bep_result) = &bep_result {
@@ -828,6 +839,19 @@ pub async fn run_upload(
         dry_run: upload_args.dry_run,
         disable_quarantining,
     })
+}
+
+/// The run goes on as if the user had named the collection Trunk inferred, until 1.0.0 requires it.
+pub fn inferred_test_collection_message(short_id: &str, caller: UploadApiCaller) -> String {
+    let how_to_pass = match caller {
+        UploadApiCaller::Cli => format!("Pass --test-collection-id {short_id}"),
+        UploadApiCaller::TestRunnerPlugin => {
+            format!("Set {}={short_id}", constants::TRUNK_TEST_COLLECTION_ID_ENV)
+        }
+    };
+    format!(
+        "Uploading to test collection {short_id}, inferred from the repository. {how_to_pass}: analytics-cli 1.0.0 requires it."
+    )
 }
 
 pub fn upload_api_version_request(

@@ -119,6 +119,50 @@ pub struct GetUploadApiVersionRequest {
 #[serde(rename_all = "camelCase")]
 pub struct GetUploadApiVersionResponse {
     pub api_version: String,
+    /// Sent only with `v2`, for a run that named no collection, when Trunk inferred one from the
+    /// repository. Older servers never send it.
+    #[serde(default)]
+    pub test_collection_short_id: Option<String>,
+}
+
+/// Which API a run uses and, on v2 for a run that named no test collection, the collection Trunk
+/// inferred from its repository.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct UploadApiDecision {
+    pub version: UploadApiVersion,
+    pub inferred_test_collection_short_id: Option<String>,
+}
+
+impl UploadApiDecision {
+    /// The inferred collection, when the run named none of its own and so uses it.
+    pub fn inferred_for(&self, requested: Option<&str>) -> Option<&str> {
+        match (self.version, requested.filter(|id| !id.trim().is_empty())) {
+            (UploadApiVersion::V2, None) => self
+                .inferred_test_collection_short_id
+                .as_deref()
+                .filter(|id| !id.trim().is_empty()),
+            _ => None,
+        }
+    }
+
+    /// Every v2 route is scoped to a collection, so v2 with none named and none inferred is v1.
+    pub fn version_for(&self, requested: Option<&str>) -> UploadApiVersion {
+        let has_collection = requested.is_some_and(|id| !id.trim().is_empty())
+            || self.inferred_for(requested).is_some();
+        match self.version {
+            UploadApiVersion::V2 if has_collection => UploadApiVersion::V2,
+            _ => UploadApiVersion::V1,
+        }
+    }
+}
+
+impl From<UploadApiVersion> for UploadApiDecision {
+    fn from(version: UploadApiVersion) -> Self {
+        Self {
+            version,
+            inferred_test_collection_short_id: None,
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Clone, PartialEq, Eq)]

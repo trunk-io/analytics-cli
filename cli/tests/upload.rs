@@ -3584,35 +3584,36 @@ async fn a_swift_test_xunit_file_reached_twice_is_uploaded_once() {
     assert_declarations_resolved(cases);
 }
 
-// NOTE: must be multi threaded to start a mock server
-#[tokio::test(flavor = "multi_thread")]
-async fn upload_on_v2_when_trunk_chooses_it() {
-    use axum::routing::post;
+const V2_UPLOAD_ID: &str = "f47ac10b-58cc-4372-a567-0e02b2c3d479";
+const V2_CREATED_AT: &str = "2026-10-06T16:00:00.000Z";
+
+// (route, collection short id, authorization header) per v2 call
+type V2Calls = Arc<Mutex<Vec<(String, String, Option<String>)>>>;
+
+/// A server whose decision route answers `decision`, and which serves the v2 quarantine lookup
+/// and upload, quarantining every failure.
+fn v2_mock_server(decision: serde_json::Value) -> (MockServerBuilder, V2Calls) {
+    use axum::{extract::Path, routing::post};
     use serde_json::{Value, json};
 
-    const UPLOAD_ID: &str = "f47ac10b-58cc-4372-a567-0e02b2c3d479";
-    const CREATED_AT: &str = "2026-10-06T16:00:00.000Z";
+    const UPLOAD_ID: &str = V2_UPLOAD_ID;
+    const CREATED_AT: &str = V2_CREATED_AT;
 
-    let temp_dir = tempdir().unwrap();
-    generate_mock_git_repo(&temp_dir);
-    generate_mock_valid_junit_xmls_with_failures(&temp_dir);
-
-    // (route, authorization header) per v2 call
-    type Calls = Arc<Mutex<Vec<(String, Option<String>)>>>;
-    let v2_calls: Calls = Arc::default();
+    let v2_calls: V2Calls = Arc::default();
     let mut mock_server_builder = MockServerBuilder::new();
     mock_server_builder.route(
         "/v1/metrics/getUploadApiVersion",
-        post(|| async { Json(json!({"apiVersion": "v2"})) }),
+        post(move || async move { Json(decision) }),
     );
     let calls = v2_calls.clone();
     mock_server_builder.route(
         "/v2/test-collections/:id/quarantine-status",
-        post(move |headers: axum::http::HeaderMap, Json(body): Json<Value>| {
+        post(move |Path(id): Path<String>, headers: axum::http::HeaderMap, Json(body): Json<Value>| {
             let calls = calls.clone();
             async move {
                 calls.lock().unwrap().push((
                     String::from("quarantine-status"),
+                    id,
                     headers
                         .get("authorization")
                         .and_then(|value| value.to_str().ok())
@@ -3639,11 +3640,14 @@ async fn upload_on_v2_when_trunk_chooses_it() {
     mock_server_builder.route(
         "/v2/test-collections/:id/uploads",
         post(
-            move |State(state): State<SharedMockServerState>, headers: axum::http::HeaderMap| {
+            move |State(state): State<SharedMockServerState>,
+                  Path(id): Path<String>,
+                  headers: axum::http::HeaderMap| {
                 let calls = calls.clone();
                 async move {
                     calls.lock().unwrap().push((
                         String::from("uploads"),
+                        id,
                         headers
                             .get("authorization")
                             .and_then(|value| value.to_str().ok())
@@ -3665,29 +3669,23 @@ async fn upload_on_v2_when_trunk_chooses_it() {
             },
         ),
     );
-    let state = mock_server_builder.spawn_mock_server().await;
+    (mock_server_builder, v2_calls)
+}
 
-    CommandBuilder::upload(temp_dir.path(), state.host.clone())
-        .command()
-        .arg("--test-collection-id")
-        .arg("aB3xY9kQ")
-        .assert()
-        // every failure is quarantined
-        .success();
+fn v2_calls_for(short_id: &str) -> Vec<(String, String, Option<String>)> {
+    ["quarantine-status", "uploads"]
+        .into_iter()
+        .map(|route| {
+            (
+                String::from(route),
+                String::from(short_id),
+                Some(String::from("Bearer test-token")),
+            )
+        })
+        .collect()
+}
 
-    assert_eq!(
-        v2_calls.lock().unwrap().clone(),
-        vec![
-            (
-                String::from("quarantine-status"),
-                Some(String::from("Bearer test-token"))
-            ),
-            (
-                String::from("uploads"),
-                Some(String::from("Bearer test-token"))
-            ),
-        ]
-    );
+fn assert_no_v1_calls(state: &SharedMockServerState) {
     let requests = state.requests.lock().unwrap().clone();
     assert!(
         !requests.iter().any(|request| matches!(
@@ -3696,6 +3694,37 @@ async fn upload_on_v2_when_trunk_chooses_it() {
         )),
         "a v2 run must not call the v1 routes"
     );
+}
+
+const INFERRED_SHORT_ID: &str = "zQ8nP2mW";
+
+// NOTE: must be multi threaded to start a mock server
+#[tokio::test(flavor = "multi_thread")]
+async fn upload_on_v2_when_trunk_chooses_it() {
+    let temp_dir = tempdir().unwrap();
+    generate_mock_git_repo(&temp_dir);
+    generate_mock_valid_junit_xmls_with_failures(&temp_dir);
+
+    // A run that names its collection ignores any the server infers.
+    let (mock_server_builder, v2_calls) = v2_mock_server(serde_json::json!({
+        "apiVersion": "v2",
+        "testCollectionShortId": INFERRED_SHORT_ID,
+    }));
+
+    let state = mock_server_builder.spawn_mock_server().await;
+
+    CommandBuilder::upload(temp_dir.path(), state.host.clone())
+        .command()
+        .arg("--test-collection-id")
+        .arg("aB3xY9kQ")
+        .assert()
+        // every failure is quarantined
+        .success()
+        .stderr(predicate::str::contains("inferred from the repository").not());
+
+    assert_eq!(v2_calls.lock().unwrap().clone(), v2_calls_for("aB3xY9kQ"));
+    assert_no_v1_calls(&state);
+    let requests = state.requests.lock().unwrap().clone();
     let tar_extract_directory = requests
         .iter()
         .find_map(|request| match request {
@@ -3712,14 +3741,85 @@ async fn upload_on_v2_when_trunk_chooses_it() {
             bundle_meta.base_props.test_collection,
         ),
         (
-            UPLOAD_ID,
+            V2_UPLOAD_ID,
             // base64 of {"id":…,"createdAt":…,"repoId":…}, which ingestion decodes
             "eyJpZCI6ImY0N2FjMTBiLTU4Y2MtNDM3Mi1hNTY3LTBlMDJiMmMzZDQ3OSIsImNyZWF0ZWRBdCI6IjIwMjYtMTAtMDZUMTY6MDA6MDAuMDAwWiIsInJlcG9JZCI6IjdhMWYwZTNkLTJiNGMtNGQ1ZS04ZjkwLTEyMzQ1Njc4OWFiYyJ9",
             Some(TestCollectionProps {
                 short_id: String::from("aB3xY9kQ"),
-                bundle_meta_id: String::from(UPLOAD_ID),
-                bundle_meta_created_at: String::from(CREATED_AT),
+                bundle_meta_id: String::from(V2_UPLOAD_ID),
+                bundle_meta_created_at: String::from(V2_CREATED_AT),
             }),
         )
+    );
+}
+
+// NOTE: must be multi threaded to start a mock server
+#[tokio::test(flavor = "multi_thread")]
+async fn upload_on_v2_to_the_collection_trunk_inferred() {
+    let temp_dir = tempdir().unwrap();
+    generate_mock_git_repo(&temp_dir);
+    generate_mock_valid_junit_xmls_with_failures(&temp_dir);
+
+    let (mock_server_builder, v2_calls) = v2_mock_server(serde_json::json!({
+        "apiVersion": "v2",
+        "testCollectionShortId": INFERRED_SHORT_ID,
+    }));
+    let state = mock_server_builder.spawn_mock_server().await;
+
+    CommandBuilder::upload(temp_dir.path(), state.host.clone())
+        .command()
+        .assert()
+        // every failure is quarantined, by the inferred collection
+        .success()
+        .stderr(predicate::str::contains(format!(
+            "Uploading to test collection {INFERRED_SHORT_ID}, inferred from the repository. Pass --test-collection-id {INFERRED_SHORT_ID}: analytics-cli 1.0.0 requires it."
+        )));
+
+    assert_eq!(
+        v2_calls.lock().unwrap().clone(),
+        v2_calls_for(INFERRED_SHORT_ID)
+    );
+    assert_no_v1_calls(&state);
+    let requests = state.requests.lock().unwrap().clone();
+    let tar_extract_directory = requests
+        .iter()
+        .find_map(|request| match request {
+            RequestPayload::S3Upload(directory) => Some(directory),
+            _ => None,
+        })
+        .expect("the bundle must have been uploaded");
+    let file = fs::File::open(tar_extract_directory.join("meta.json")).unwrap();
+    let bundle_meta: BundleMeta = serde_json::from_reader(BufReader::new(file)).unwrap();
+    assert_eq!(
+        bundle_meta
+            .base_props
+            .test_collection
+            .map(|collection| collection.short_id),
+        Some(String::from(INFERRED_SHORT_ID))
+    );
+}
+
+// NOTE: must be multi threaded to start a mock server
+#[tokio::test(flavor = "multi_thread")]
+async fn upload_on_v1_when_trunk_chooses_v2_but_names_no_collection() {
+    let temp_dir = tempdir().unwrap();
+    generate_mock_git_repo(&temp_dir);
+    generate_mock_valid_junit_xmls(&temp_dir);
+
+    let (mock_server_builder, v2_calls) = v2_mock_server(serde_json::json!({"apiVersion": "v2"}));
+    let state = mock_server_builder.spawn_mock_server().await;
+
+    CommandBuilder::upload(temp_dir.path(), state.host.clone())
+        .command()
+        .assert()
+        .stderr(predicate::str::contains("inferred from the repository").not());
+
+    assert!(v2_calls.lock().unwrap().is_empty());
+    let requests = state.requests.lock().unwrap().clone();
+    assert!(
+        requests
+            .iter()
+            .any(|request| matches!(request, RequestPayload::CreateBundleUpload(_))),
+        "the run must have uploaded on v1"
     );
 }
