@@ -160,19 +160,6 @@ pub fn render_upload(report: &UploadReport, options: &TextOptions) -> anyhow::Re
         output.push(Line::default());
     }
 
-    // The console shows tracing only when verbose, so these are shown here or not at all.
-    for notice in &report.notices {
-        if matches!(
-            notice.kind,
-            NoticeKind::Deprecation | NoticeKind::UploadSkipped
-        ) {
-            output.push(Line::from_iter([Span::new_styled_lossy(
-                style(format!("⚠️  {}", notice.message)).with(Color::Yellow),
-            )]));
-            output.push(Line::default());
-        }
-    }
-
     let bold = |text: String| Span::new_styled(style(text).attribute(Attribute::Bold));
     let upload_line = match (&report.upload_url, &report.bundle_upload_id) {
         (Some(url), _) => Some(Line::from_iter([
@@ -551,7 +538,7 @@ pub fn render_notices(notices: &[Notice]) -> anyhow::Result<Vec<Line>> {
     let mut output: Vec<Line> = Vec::new();
     for notice in notices {
         let prefix = match notice.kind {
-            NoticeKind::Deprecation => "⚠️  ",
+            NoticeKind::Deprecation | NoticeKind::UploadSkipped => "⚠️  ",
             NoticeKind::BepParseError => "⚠️  BEP file had a parse error: ",
         };
         output.push(Line::from_iter([

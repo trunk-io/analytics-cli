@@ -227,20 +227,33 @@ fn prints_a_passing_run() {
 }
 
 #[test]
-fn prints_deprecation_notices_first() {
+fn prints_notices_apart_from_the_summary() {
     let mut result = upload_result(5);
     result.notices = vec![
         Notice::deprecation(
             "Uploading to test collection zQ8nP2mW, inferred from the repository. Pass --test-collection-id zQ8nP2mW: analytics-cli 1.0.0 requires it.",
         ),
-        Notice::bep_parse_error("not shown here"),
+        Notice::upload_skipped("Test results were not uploaded."),
+        Notice::bep_parse_error("unexpected EOF"),
     ];
+    let report = UploadReport::new(&result, UploadCommand::Upload);
 
+    assert_eq!(
+        text::render_notices(&report.notices)
+            .unwrap()
+            .iter()
+            .map(Line::to_unstyled)
+            .collect::<Vec<_>>(),
+        [
+            "⚠️  Uploading to test collection zQ8nP2mW, inferred from the repository. Pass --test-collection-id zQ8nP2mW: analytics-cli 1.0.0 requires it.",
+            "⚠️  Test results were not uploaded.",
+            "⚠️  BEP file had a parse error: unexpected EOF",
+            "",
+        ]
+    );
     assert_eq!(
         upload_summary(&result),
         [
-            "⚠️  Uploading to test collection zQ8nP2mW, inferred from the repository. Pass --test-collection-id zQ8nP2mW: analytics-cli 1.0.0 requires it.",
-            "",
             "🏷️  Bundle Upload ID: 4b1d2c3e-5f60-4a7b-8c9d-0e1f2a3b4c5d",
             "",
             "📚 Test Report",
