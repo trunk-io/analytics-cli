@@ -512,6 +512,12 @@ impl MutTestReport {
         match (api_client, bundle_repo) {
             (Ok(mut api_client), Ok(bundle_repo)) => {
                 let upload_api_decision = self.upload_api_version(&api_client, &bundle_repo.repo);
+                if upload_api_decision.missing_test_collection {
+                    tracing::debug!(
+                        "Not checking quarantine status: Trunk has no test collection for this run"
+                    );
+                    return IsQuarantinedResult::default();
+                }
                 api_client.set_upload_api_version(
                     upload_api_decision
                         .version_for(requested_test_collection_short_id().as_deref()),

@@ -922,6 +922,68 @@ async fn v2_uses_the_collection_trunk_inferred_in_every_process() {
 
 #[tokio::test(flavor = "multi_thread")]
 #[serial]
+async fn makes_no_quarantine_lookup_when_trunk_has_no_collection() {
+    use std::sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    };
+
+    use axum::routing::post;
+    use serde_json::json;
+
+    cleanup_env_vars();
+    let temp_dir = tempdir().unwrap();
+    setup_quarantine_disk_cache_dir(&temp_dir);
+    let _ = env::set_current_dir(&temp_dir);
+
+    let v1_calls = Arc::new(AtomicUsize::new(0));
+    let state = {
+        let mut builder = MockServerBuilder::new();
+        let calls = v1_calls.clone();
+        builder.set_get_quarantining_config_handler(move || {
+            calls.fetch_add(1, Ordering::SeqCst);
+            async { (StatusCode::NOT_FOUND, "A test collection is required") }
+        });
+        builder.route(
+            "/v1/metrics/getUploadApiVersion",
+            post(|| async { Json(json!({"apiVersion": "v1", "missingTestCollection": true})) }),
+        );
+        builder.spawn_mock_server().await
+    };
+
+    unsafe {
+        env::set_var(TRUNK_PUBLIC_API_ADDRESS_ENV, &state.host);
+        env::set_var(TRUNK_API_TOKEN_ENV, "test-token");
+        env::set_var(TRUNK_ORG_URL_SLUG_ENV, "test-org");
+        env::set_var(
+            TRUNK_REPO_URL_ENV,
+            "https://github.com/test-org/test-repo.git",
+        );
+        env::set_var(TRUNK_USE_UNCLONED_REPO_ENV, "true");
+        env::set_var(TRUNK_REPO_HEAD_SHA_ENV, "");
+        env::set_var(TRUNK_REPO_HEAD_BRANCH_ENV, "");
+        env::set_var(TRUNK_REPO_HEAD_AUTHOR_NAME_ENV, "");
+    }
+
+    let result = thread::spawn(|| {
+        MutTestReport::new("test".into(), "test-command".into(), None).is_quarantined(
+            None,
+            Some("quarantined".to_string()),
+            Some("test-parent-name".to_string()),
+            None,
+            None,
+        )
+    })
+    .join()
+    .unwrap();
+
+    assert!(!result.test_is_quarantined);
+    assert!(!result.quarantine_lookup_failed);
+    assert_eq!(v1_calls.load(Ordering::SeqCst), 0);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[serial]
 async fn shares_the_api_version_choice_across_processes() {
     use std::sync::{
         Arc,

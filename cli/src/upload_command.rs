@@ -644,6 +644,7 @@ pub async fn run_upload(
         notices.push(Notice::upload_skipped(message));
     }
     api_client.set_upload_api_version(upload_api_version);
+    api_client.set_missing_test_collection(skip_upload);
 
     if let Some(bep_result) = &bep_result {
         notices.extend(bep_result.errors.iter().map(Notice::bep_parse_error));

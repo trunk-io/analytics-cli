@@ -3835,8 +3835,9 @@ async fn skip_the_upload_when_trunk_has_no_collection_for_the_run() {
             RequestPayload::CreateBundleUpload(_)
                 | RequestPayload::S3Upload(_)
                 | RequestPayload::TelemetryUploadMetrics(_)
+                | RequestPayload::GetQuarantineConfig(_)
         )),
-        "a skipped upload must not call the upload routes"
+        "a run Trunk has no collection for must not call v1"
     );
 }
 

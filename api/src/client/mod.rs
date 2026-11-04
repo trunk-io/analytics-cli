@@ -60,6 +60,7 @@ pub struct ApiClient {
     org_url_slug: String,
     render_sender: Option<Sender<DisplayMessage>>,
     upload_api_version: UploadApiVersion,
+    missing_test_collection: bool,
 }
 
 pub fn get_api_host() -> String {
@@ -221,7 +222,18 @@ impl ApiClient {
             org_url_slug,
             render_sender,
             upload_api_version: UploadApiVersion::V1,
+            missing_test_collection: false,
         })
+    }
+
+    /// Trunk has no test collection for this run, so it makes no quarantine lookup and no upload:
+    /// v1 refuses both for a fully migrated org.
+    pub fn missing_test_collection(&self) -> bool {
+        self.missing_test_collection
+    }
+
+    pub fn set_missing_test_collection(&mut self, missing_test_collection: bool) {
+        self.missing_test_collection = missing_test_collection;
     }
 
     pub fn upload_api_version(&self) -> UploadApiVersion {
