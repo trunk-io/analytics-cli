@@ -153,10 +153,10 @@ async fn test_command_fails_with_no_junit_files_no_quarantine_successful_upload(
     .assert()
     .failure()
     .code(128)
-    .stderr(predicate::str::contains(
+    .stdout(predicate::str::contains(
         "No tests were found in the provided test results, but non zero exit code provided: ",
     ))
-    .stderr(predicate::str::contains(
+    .stdout(predicate::str::contains(
         "The test step appears to have failed without running tests",
     ));
 
@@ -613,4 +613,26 @@ async fn test_command_fails_when_the_command_cannot_be_started() {
     .stderr(predicate::str::contains("Unable to connect").not());
 
     assert!(state.requests.lock().unwrap().is_empty());
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn test_command_writes_summary_to_stdout_and_its_header_to_stderr() {
+    let temp_dir = tempdir().unwrap();
+    generate_mock_git_repo(&temp_dir);
+    generate_mock_valid_junit_xmls(&temp_dir);
+
+    let state = MockServerBuilder::new().spawn_mock_server().await;
+
+    CommandBuilder::test(
+        temp_dir.path(),
+        state.host.clone(),
+        vec![String::from("true")],
+    )
+    .command()
+    .assert()
+    .success()
+    .stdout(predicate::str::contains("📚 Test Report"))
+    .stderr(predicate::str::contains("📚 Test Report").not())
+    .stderr(predicate::str::contains("📒 Test command outputs"))
+    .stdout(predicate::str::contains("📒 Test command outputs").not());
 }

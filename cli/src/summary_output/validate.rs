@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 
 use context::junit::validator::JunitReportValidationFlatIssue;
+use schemars::JsonSchema;
 use serde::Serialize;
 
 use super::{FileValidation, Notice, ParseError};
@@ -9,32 +10,37 @@ use crate::{
     validate_command::{ParseIssues, TestIssues, ValidateRunResult},
 };
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ValidateReport {
+    /// The files each glob matched.
     pub matched_files: Vec<MatchedFiles>,
+    /// One entry per test report file.
     pub validations: Vec<FileValidation>,
+    /// The CODEOWNERS file, when one was found.
     pub codeowners: Option<Codeowners>,
     pub counts: ValidationCounts,
+    /// The code the CLI exits with.
     pub exit_code: ExitCode,
+    /// Warnings that didn't stop the run, such as a Bazel BEP parse error.
     pub notices: Vec<Notice>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct MatchedFiles {
     pub glob: String,
     pub files: Vec<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct Codeowners {
     pub path: String,
     pub warnings: Vec<String>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ValidationCounts {
     pub files: usize,

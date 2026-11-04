@@ -2,15 +2,12 @@ use std::{
     env,
     path::PathBuf,
     process::{Command, Stdio},
-    sync::{Arc, mpsc::Sender},
+    sync::mpsc::Sender,
     time::SystemTime,
 };
 
 use clap::Args;
-use display::{
-    end_output::EndOutput,
-    message::{DisplayMessage, send_message},
-};
+use display::message::{DisplayMessage, send_message};
 use superconsole::{
     Line, Span,
     style::{Attribute, Stylize},
@@ -22,22 +19,6 @@ use crate::{
     exit_code::ExitCode,
     upload_command::{RunUploadOptions, UploadArgs, UploadRunResult, run_upload},
 };
-
-enum RunOutput {
-    Title,
-}
-impl EndOutput for RunOutput {
-    fn output(&self) -> anyhow::Result<Vec<Line>> {
-        match self {
-            RunOutput::Title => Ok(vec![
-                Line::from_iter([Span::new_styled(
-                    String::from("📒 Test command outputs").attribute(Attribute::Bold),
-                )?]),
-                Line::default(),
-            ]),
-        }
-    }
-}
 
 #[derive(Args, Clone, Debug)]
 pub struct TestArgs {
@@ -79,43 +60,6 @@ pub struct TestRunResult {
     pub command_stderr: String,
 }
 
-fn lines_of(output: String) -> impl Iterator<Item = String> {
-    output
-        .lines()
-        .flat_map(|lf_line| {
-            lf_line
-                .split('\r')
-                .map(|crlf_line| crlf_line.replace('\t', "    "))
-        })
-        .collect::<Vec<String>>()
-        .into_iter()
-}
-
-impl EndOutput for TestRunResult {
-    fn output(&self) -> anyhow::Result<Vec<Line>> {
-        let mut output: Vec<Line> = Vec::new();
-
-        output.extend(vec![
-            Line::from_iter([Span::new_styled(
-                String::from("📒 Test command outputs").attribute(Attribute::Bold),
-            )?]),
-            Line::default(),
-        ]);
-
-        for stderr_line in lines_of(self.command_stderr.clone()) {
-            output.push(Line::from_iter([Span::new_unstyled_lossy(stderr_line)]));
-        }
-
-        output.push(Line::default());
-
-        for stdout_line in lines_of(self.command_stdout.clone()) {
-            output.push(Line::from_iter([Span::new_unstyled_lossy(stdout_line)]));
-        }
-
-        Ok(output)
-    }
-}
-
 pub async fn run_test(
     TestArgs {
         upload_args,
@@ -142,6 +86,7 @@ pub async fn run_test(
         RunUploadOptions {
             pre_test_context: Some(test_context),
             test_run_result: Some(test_run_result.clone()),
+            render_sender: Some(render_sender),
             ..Default::default()
         },
     )
@@ -164,9 +109,14 @@ pub async fn run_test_command<T: AsRef<str>>(
     render_sender: Sender<DisplayMessage>,
 ) -> anyhow::Result<TestRunResult> {
     let exec_start = SystemTime::now();
-    let title_ptr = Arc::new(RunOutput::Title);
+    let title = vec![
+        Line::from_iter([Span::new_styled(
+            String::from("📒 Test command outputs").attribute(Attribute::Bold),
+        )?]),
+        Line::default(),
+    ];
     send_message(
-        DisplayMessage::Final(title_ptr, String::from("test command title")),
+        DisplayMessage::Notice(title, String::from("test command title")),
         &render_sender,
     );
     let child = Command::new(command.first().map(|s| s.as_ref()).unwrap_or_default())

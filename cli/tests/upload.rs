@@ -310,7 +310,7 @@ async fn upload_bundle() {
     println!("{assert}");
     // A collection id was passed, so the upload surfaces as a link rather than the bare id
     // (the bare-id form is covered by the links-hidden test below).
-    assert.stderr(predicate::str::contains(
+    assert.stdout(predicate::str::contains(
         "/test-org/flaky-tests/collections/tc_123/uploads/eyJpZCI6IjgyYzZhNmU1LWY4ZWEtNGQ5My05YTI2LWI4YWI2ZmY4ZjZiYyIsImNyZWF0ZWRBdCI6MTc3ODQxNjQ5NjAwMH0",
     ));
 }
@@ -332,11 +332,11 @@ async fn upload_bundle_prints_test_collection_links() {
         .failure();
 
     assert
-        .stderr(predicate::str::contains(
+        .stdout(predicate::str::contains(
             "/test-org/flaky-tests/collections/tc_123/tests/",
         ))
-        .stderr(predicate::str::contains("/collections/tc_123/t/").not())
-        .stderr(predicate::str::contains("?repo=trunk-io%2Fanalytics-cli").not());
+        .stdout(predicate::str::contains("/collections/tc_123/t/").not())
+        .stdout(predicate::str::contains("?repo=trunk-io%2Fanalytics-cli").not());
 }
 
 // NOTE: must be multi threaded to start a mock server
@@ -376,11 +376,11 @@ async fn upload_bundle_falls_back_to_short_links_without_collection_ids() {
         .failure();
 
     assert
-        .stderr(predicate::str::contains(
+        .stdout(predicate::str::contains(
             "/test-org/flaky-tests/collections/tc_123/t/",
         ))
-        .stderr(predicate::str::contains("?repo=trunk-io%2Fanalytics-cli"))
-        .stderr(predicate::str::contains("/collections/tc_123/tests/").not());
+        .stdout(predicate::str::contains("?repo=trunk-io%2Fanalytics-cli"))
+        .stdout(predicate::str::contains("/collections/tc_123/tests/").not());
 }
 
 // NOTE: must be multi threaded to start a mock server
@@ -402,10 +402,10 @@ async fn upload_bundle_prints_test_collection_upload_link() {
     // The canonical form: a base64url `{id, createdAt}` key from both halves the server
     // returned, not the bundle upload id. Needs no ?repo= — the short id scopes the upload.
     assert
-        .stderr(predicate::str::contains(
+        .stdout(predicate::str::contains(
             "/test-org/flaky-tests/collections/tc_123/uploads/eyJpZCI6IjgyYzZhNmU1LWY4ZWEtNGQ5My05YTI2LWI4YWI2ZmY4ZjZiYyIsImNyZWF0ZWRBdCI6MTc3ODQxNjQ5NjAwMH0",
         ))
-        .stderr(predicate::str::contains("Bundle Upload ID:").not());
+        .stdout(predicate::str::contains("Bundle Upload ID:").not());
 }
 
 // NOTE: must be multi threaded to start a mock server
@@ -426,10 +426,10 @@ async fn upload_bundle_prints_bare_upload_id_when_links_hidden() {
         .failure();
 
     assert
-        .stderr(predicate::str::contains(
+        .stdout(predicate::str::contains(
             get_bundle_upload_id_message("test-bundle-upload-id").as_str(),
         ))
-        .stderr(predicate::str::contains("/flaky-tests/collections/tc_123/uploads/").not());
+        .stdout(predicate::str::contains("/flaky-tests/collections/tc_123/uploads/").not());
 }
 
 // NOTE: must be multi threaded to start a mock server
@@ -450,8 +450,8 @@ async fn upload_bundle_hides_test_collection_links_when_env_set() {
         .failure();
 
     assert
-        .stderr(predicate::str::contains("/test-org/flaky-tests/test/"))
-        .stderr(predicate::str::contains("/flaky-tests/collections/").not());
+        .stdout(predicate::str::contains("/test-org/flaky-tests/test/"))
+        .stdout(predicate::str::contains("/flaky-tests/collections/").not());
 }
 
 // NOTE: must be multi threaded to start a mock server
@@ -472,8 +472,8 @@ async fn upload_bundle_without_test_collection_id_prints_repo_links() {
         .failure();
 
     assert
-        .stderr(predicate::str::contains("/test-org/flaky-tests/test/"))
-        .stderr(predicate::str::contains("/flaky-tests/collections/").not());
+        .stdout(predicate::str::contains("/test-org/flaky-tests/test/"))
+        .stdout(predicate::str::contains("/flaky-tests/collections/").not());
 }
 
 // NOTE: must be multi threaded to start a mock server
@@ -876,7 +876,7 @@ async fn upload_bundle_using_xcresult(#[case] extra_args: &[&str]) {
         .command()
         .assert()
         .success()
-        .stderr(predicate::str::contains("1 file found, 1 with issues").not());
+        .stdout(predicate::str::contains("1 file found, 1 with issues").not());
 
     let requests = state.requests.lock().unwrap().clone();
     assert_eq!(requests.len(), 3);
@@ -1248,7 +1248,7 @@ async fn falls_back_to_binary_file() {
     let meta_json = fs::File::open(tar_extract_directory.join("meta.json")).unwrap();
     assert!(serde_json::from_reader::<fs::File, BundleMeta>(meta_json).is_ok());
 
-    assert.stdout(predicate::str::contains(
+    assert.stderr(predicate::str::contains(
         "Attempting to parse bep file as binary",
     ));
 }
@@ -1523,9 +1523,12 @@ async fn upload_bundle_invalid_repo_root() {
         .command()
         .assert()
         .failure()
+        .stderr(predicate::str::contains("Error Encountered"))
         .stderr(predicate::str::contains(
             "\"../\" does not appear to be a git repository",
-        ));
+        ))
+        // A run that fails outright has no summary
+        .stdout(predicate::str::is_empty());
     let requests = state.requests.lock().unwrap().clone();
     assert_eq!(requests.len(), 0);
 
@@ -1715,6 +1718,64 @@ async fn upload_keeps_its_exit_code_when_the_summary_output_file_cannot_be_writt
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn upload_prints_only_the_json_summary_on_stdout() {
+    let temp_dir = tempdir().unwrap();
+    generate_mock_git_repo(&temp_dir);
+    generate_mock_valid_junit_xmls_with_failures(&temp_dir);
+    let summary_path = temp_dir.path().join("summary.json");
+
+    let mut mock_server_builder = MockServerBuilder::new();
+    // Slow enough to show a progress message.
+    mock_server_builder.set_get_quarantining_config_handler(
+        |Json(_): Json<GetQuarantineConfigRequest>| async move {
+            tokio::time::sleep(Duration::from_secs(3)).await;
+            Json(GetQuarantineConfigResponse::default())
+        },
+    );
+    let state = mock_server_builder.spawn_mock_server().await;
+    let assert = CommandBuilder::upload(temp_dir.path(), state.host.clone())
+        .verbose(true)
+        .command()
+        .args(["--output-format", "json", "--hide-banner"])
+        .arg("--summary-output-file")
+        .arg(&summary_path)
+        .assert()
+        .code(ExitCode::Failure.code())
+        .stderr(predicate::str::contains("Starting trunk-analytics-cli"))
+        .stderr(predicate::str::contains(
+            "⚠️  The --hide-banner flag is deprecated",
+        ))
+        .stderr(predicate::str::contains("taking longer than expected"))
+        .stderr(predicate::str::contains("Summary written to"));
+
+    let summary: serde_json::Value = serde_json::from_slice(&assert.get_output().stdout).unwrap();
+    assert_eq!(summary, read_summary_output_file(&summary_path));
+    assert_eq!(summary["type"], "UPLOAD");
+    assert_eq!(summary["exitCode"], ExitCode::Failure.code());
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn upload_prints_a_json_error_on_stdout() {
+    let temp_dir = tempdir().unwrap();
+    generate_mock_git_repo(&temp_dir);
+
+    let state = MockServerBuilder::new().spawn_mock_server().await;
+    let assert = CommandBuilder::upload(temp_dir.path(), state.host.clone())
+        .repo_root("../")
+        .command()
+        .env(constants::TRUNK_OUTPUT_FORMAT_ENV, "json")
+        .assert()
+        .code(ExitCode::Error.code())
+        .stderr(predicate::str::contains("Error Encountered"));
+
+    let summary: serde_json::Value = serde_json::from_slice(&assert.get_output().stdout).unwrap();
+    assert_eq!(summary["schemaVersion"], 1);
+    assert_eq!(summary["type"], "ERROR");
+    assert_eq!(summary["kind"], "GIT_REPOSITORY");
+    assert_eq!(summary["exitCode"], ExitCode::Error.code());
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn upload_bundle_valid_repo_root_implicit() {
     let temp_dir = tempdir().unwrap();
     generate_mock_git_repo(&temp_dir);
@@ -1758,10 +1819,10 @@ async fn upload_bundle_with_no_junit_files_no_quarantine_successful_upload() {
         .assert()
         .code(0)
         .success()
-        .stderr(predicate::str::contains(
+        .stdout(predicate::str::contains(
             "No tests were found in the provided test results",
         ))
-        .stderr(predicate::str::contains("without running tests").not());
+        .stdout(predicate::str::contains("without running tests").not());
 
     // HINT: View CLI output with `cargo test -- --nocapture`
     println!("{assert}");
@@ -1976,7 +2037,7 @@ async fn is_not_ok_on_bad_request() {
     command
         .assert()
         .failure()
-        .stderr(predicate::str::contains("error"));
+        .stdout(predicate::str::contains("error"));
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -2765,7 +2826,7 @@ async fn presents_error_message_if_you_dont_have_permission_for_s3_upload() {
         .command()
         .assert()
         .failure()
-        .stderr(predicate::str::contains("Error Encountered"));
+        .stdout(predicate::str::contains("Error Encountered"));
 
     // HINT: View CLI output with `cargo test -- --nocapture`
     println!("{assert}");
@@ -2807,7 +2868,7 @@ async fn presents_error_message_if_you_dont_have_permission_for_upload_endpoint(
         .command()
         .assert()
         .failure()
-        .stderr(predicate::str::contains("Error Encountered"));
+        .stdout(predicate::str::contains("Error Encountered"));
 
     // HINT: View CLI output with `cargo test -- --nocapture`
     println!("{assert}");
@@ -2895,7 +2956,7 @@ async fn does_not_print_exit_code_with_validation_reports_none() {
         .command()
         .assert()
         .failure()
-        .stderr(predicate::str::contains("File Validation").not());
+        .stdout(predicate::str::contains("File Validation").not());
 
     println!("{assert}");
 }
@@ -2919,7 +2980,7 @@ async fn reports_failures_even_if_cannot_get_quarantine_context() {
 
     let mut command = CommandBuilder::upload(temp_dir.path(), state.host.clone()).command();
 
-    let assert = command.assert().failure().stderr(predicate::str::contains(
+    let assert = command.assert().failure().stdout(predicate::str::contains(
         "We were unable to determine the quarantine status for tests.",
     ));
 
@@ -2963,7 +3024,7 @@ async fn reports_failing_tests_but_succeeds_when_quarantine_disabled() {
     let assert = command
         .assert()
         .success()
-        .stderr(predicate::str::contains("Fail: 0").not());
+        .stdout(predicate::str::contains("Fail: 0").not());
 
     println!("{assert}");
 }
@@ -3864,4 +3925,74 @@ async fn upload_on_v1_when_trunk_chooses_v2_but_names_no_collection() {
             .any(|request| matches!(request, RequestPayload::CreateBundleUpload(_))),
         "the run must have uploaded on v1"
     );
+}
+
+// A debug log emitted while setting up the API client, so it only shows up with `--verbose`.
+const DEBUG_LOG_MARKER: &str = "Using public api address";
+
+// NOTE: must be multi threaded to start a mock server
+#[tokio::test(flavor = "multi_thread")]
+async fn upload_verbose_logs_go_to_stderr() {
+    let temp_dir = tempdir().unwrap();
+    generate_mock_git_repo(&temp_dir);
+    generate_mock_valid_junit_xmls(&temp_dir);
+
+    let state = MockServerBuilder::new().spawn_mock_server().await;
+
+    let assert = CommandBuilder::upload(temp_dir.path(), state.host.clone())
+        .verbose(true)
+        .command()
+        .arg("--team")
+        .arg("some-team")
+        .assert();
+
+    println!("{assert}");
+    // stdout is kept free of logs so it can carry machine-readable output
+    assert
+        .stdout(predicate::str::contains(DEBUG_LOG_MARKER).not())
+        .stderr(predicate::str::contains(DEBUG_LOG_MARKER))
+        .stderr(predicate::str::contains(
+            "The --team flag is deprecated and will be removed in a future version.",
+        ))
+        .stderr(predicate::str::contains("WARN"));
+}
+
+// NOTE: must be multi threaded to start a mock server
+#[tokio::test(flavor = "multi_thread")]
+async fn upload_quietest_verbosity_logs_nothing() {
+    let temp_dir = tempdir().unwrap();
+    generate_mock_git_repo(&temp_dir);
+    generate_mock_valid_junit_xmls(&temp_dir);
+
+    let state = MockServerBuilder::new().spawn_mock_server().await;
+
+    let assert = CommandBuilder::upload(temp_dir.path(), state.host.clone())
+        .extra_args(&["-qqq"])
+        .command()
+        .assert();
+
+    println!("{assert}");
+    assert
+        .stdout(predicate::str::contains(DEBUG_LOG_MARKER).not())
+        .stderr(predicate::str::contains(DEBUG_LOG_MARKER).not());
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn upload_writes_summary_to_stdout_and_notices_to_stderr() {
+    let temp_dir = tempdir().unwrap();
+    generate_mock_git_repo(&temp_dir);
+    generate_mock_valid_junit_xmls(&temp_dir);
+
+    let state = MockServerBuilder::new().spawn_mock_server().await;
+
+    CommandBuilder::upload(temp_dir.path(), state.host.clone())
+        .extra_args(&["--hide-banner"])
+        .command()
+        .assert()
+        .stdout(predicate::str::contains("📚 Test Report"))
+        .stderr(predicate::str::contains("📚 Test Report").not())
+        .stderr(predicate::str::contains(
+            "The --hide-banner flag is deprecated",
+        ))
+        .stdout(predicate::str::contains("deprecated").not());
 }
