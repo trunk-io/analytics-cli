@@ -358,6 +358,18 @@ impl JunitReportValidation {
             .collect()
     }
 
+    /// Trunk drops a report with old timestamps when it ingests the upload.
+    pub fn has_old_timestamps(&self) -> bool {
+        self.all_issues.iter().any(|issue| {
+            matches!(
+                issue,
+                JunitValidationIssueType::Report(JunitValidationIssue::SubOptimal(
+                    JunitReportValidationIssueSubOptimal::OldTimestamps
+                ))
+            )
+        })
+    }
+
     pub fn test_suites(&self) -> &[JunitTestSuiteValidation] {
         &self.test_suites
     }

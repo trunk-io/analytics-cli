@@ -10,8 +10,9 @@ use super::{
     ErrorSummary, FailedTest, Outcome, Quarantining, UploadReport,
     json::Summary,
     text::{
-        FAILED_WITHOUT_RUNNING_TESTS, FAILURE_MESSAGE_MAX_LINES, NO_TEST_FAILURES, NO_TESTS_FOUND,
-        QUARANTINE_LOOKUP_FAILED, SOME_TESTS_MAY_NOT_HAVE_RUN, UNAUTHORIZED_HINT,
+        BAZEL_BEP_HINT, FAILED_WITHOUT_RUNNING_TESTS, FAILURE_MESSAGE_MAX_LINES, NO_TEST_FAILURES,
+        NO_TESTS_FOUND, QUARANTINE_LOOKUP_FAILED, SOME_TESTS_MAY_NOT_HAVE_RUN, UNAUTHORIZED_HINT,
+        old_timestamps_message,
     },
 };
 use crate::{
@@ -73,6 +74,12 @@ fn upload_annotations(report: &UploadReport) -> Vec<Annotation> {
             return vec![Annotation::error(error_message(error))];
         }
         annotations.push(Annotation::warning(error_message(error)));
+    }
+    if report.files_with_old_timestamps > 0 {
+        annotations.push(Annotation::warning(format!(
+            "{}, but the test counts include them.\n{BAZEL_BEP_HINT}",
+            old_timestamps_message(report.files_with_old_timestamps)
+        )));
     }
 
     let exit_code = report.cli_exit_code();
