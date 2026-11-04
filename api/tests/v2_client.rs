@@ -1,7 +1,7 @@
 use std::{collections::HashSet, time::Duration};
 
 use api::client::ApiClient;
-use api::message::{self, UploadApiCaller, UploadApiVersion};
+use api::message::{self, UploadApiCaller, UploadApiDecision, UploadApiVersion};
 use api::quarantine::{QuarantineLookup, QuarantinedTestSet, QuarantinedTests};
 use api::urls::TestCaseGuidScope;
 use axum::{
@@ -131,6 +131,14 @@ fn scope() -> TestCaseGuidScope {
 }
 
 async fn decide(answer: (StatusCode, &'static str)) -> (UploadApiVersion, SharedMockServerState) {
+    let (decision, state) = decide_for(Some(SHORT_ID), answer).await;
+    (decision.version, state)
+}
+
+async fn decide_for(
+    short_id: Option<&str>,
+    answer: (StatusCode, &'static str),
+) -> (UploadApiDecision, SharedMockServerState) {
     let state = serve(vec![(
         VERSION_ROUTE,
         post(
@@ -144,10 +152,10 @@ async fn decide(answer: (StatusCode, &'static str)) -> (UploadApiVersion, Shared
         ),
     )])
     .await;
-    let version = client(&state, Some("org-key"))
-        .get_upload_api_version(&version_request(Some(SHORT_ID)))
+    let decision = client(&state, Some("org-key"))
+        .get_upload_api_version(&version_request(short_id))
         .await;
-    (version, state)
+    (decision, state)
 }
 
 fn quarantine_status_route(
@@ -279,7 +287,8 @@ async fn retries_a_failed_check_once() {
 
     let version = client(&state, Some("org-key"))
         .get_upload_api_version(&version_request(Some(SHORT_ID)))
-        .await;
+        .await
+        .version;
 
     assert_eq!((version, uris(&state).len()), (UploadApiVersion::V2, 2));
 }
@@ -297,19 +306,20 @@ async fn reads_a_slow_answer_as_v1() {
 
     let version = client(&state, Some("org-key"))
         .get_upload_api_version(&version_request(Some(SHORT_ID)))
-        .await;
+        .await
+        .version;
 
     assert_eq!(version, UploadApiVersion::V1);
 }
 
 #[tokio::test]
-async fn does_not_ask_without_a_token_or_a_collection() {
+async fn does_not_ask_without_a_token_or_a_collection_and_a_repo() {
     let state = serve(vec![(
         VERSION_ROUTE,
         post(
             |State(state): State<SharedMockServerState>, headers: HeaderMap, uri: Uri| async move {
                 state.record_route_request(&headers, &uri, None);
-                Json(json!({"apiVersion": "v2"}))
+                Json(json!({"apiVersion": "v2", "testCollectionShortId": SHORT_ID}))
             },
         ),
     )])
@@ -322,17 +332,102 @@ async fn does_not_ask_without_a_token_or_a_collection() {
         public_repo_client
             .get_upload_api_version(&version_request(Some(SHORT_ID)))
             .await,
-        UploadApiVersion::V1
+        UploadApiDecision::default()
     );
-    for short_id in [None, Some("")] {
+    // Without a collection, only the repository lets Trunk infer one.
+    for repo in [
+        None,
+        Some(context::repo::RepoUrlParts {
+            name: String::new(),
+            ..repo()
+        }),
+    ] {
+        let request = message::GetUploadApiVersionRequest {
+            repo,
+            ..version_request(None)
+        };
         assert_eq!(
             client(&state, Some("org-key"))
-                .get_upload_api_version(&version_request(short_id))
+                .get_upload_api_version(&request)
                 .await,
-            UploadApiVersion::V1
+            UploadApiDecision::default()
         );
     }
     assert!(uris(&state).is_empty());
+}
+
+#[tokio::test]
+async fn uses_the_collection_inferred_for_a_run_without_one() {
+    for short_id in [None, Some("")] {
+        let (decision, state) = decide_for(
+            short_id,
+            (
+                StatusCode::OK,
+                r#"{"apiVersion":"v2","testCollectionShortId":"zQ8nP2mW","futureField":1}"#,
+            ),
+        )
+        .await;
+
+        assert_eq!(
+            decision,
+            UploadApiDecision {
+                version: UploadApiVersion::V2,
+                inferred_test_collection_short_id: Some(String::from("zQ8nP2mW")),
+                missing_test_collection: false,
+            }
+        );
+        assert_eq!(
+            bodies(&state)[0]["repo"],
+            json!({"host": "github.com", "owner": "acme", "name": "web"})
+        );
+    }
+}
+
+#[tokio::test]
+async fn reads_a_missing_collection_for_a_run_without_one() {
+    let answer = r#"{"apiVersion":"v1","missingTestCollection":true}"#;
+    for short_id in [None, Some("")] {
+        let (decision, _) = decide_for(short_id, (StatusCode::OK, answer)).await;
+        assert_eq!(
+            decision,
+            UploadApiDecision {
+                version: UploadApiVersion::V1,
+                inferred_test_collection_short_id: None,
+                missing_test_collection: true,
+            },
+            "{short_id:?}"
+        );
+    }
+    let (decision, _) = decide_for(Some(SHORT_ID), (StatusCode::OK, answer)).await;
+    assert_eq!(decision, UploadApiDecision::default());
+}
+
+#[tokio::test]
+async fn reads_v2_without_a_collection_as_v1() {
+    for answer in [
+        r#"{"apiVersion":"v2"}"#,
+        r#"{"apiVersion":"v2","testCollectionShortId":null}"#,
+        r#"{"apiVersion":"v2","testCollectionShortId":" "}"#,
+        r#"{"apiVersion":"v1","testCollectionShortId":"zQ8nP2mW"}"#,
+    ] {
+        let (decision, state) = decide_for(None, (StatusCode::OK, answer)).await;
+        assert_eq!(decision, UploadApiDecision::default(), "{answer}");
+        assert_eq!(bodies(&state).len(), 1, "{answer}");
+    }
+}
+
+#[tokio::test]
+async fn ignores_an_inferred_collection_when_the_run_names_one() {
+    let (decision, _) = decide_for(
+        Some(SHORT_ID),
+        (
+            StatusCode::OK,
+            r#"{"apiVersion":"v2","testCollectionShortId":"zQ8nP2mW"}"#,
+        ),
+    )
+    .await;
+
+    assert_eq!(decision, UploadApiDecision::from(UploadApiVersion::V2));
 }
 
 #[tokio::test]

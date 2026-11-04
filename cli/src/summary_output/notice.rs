@@ -11,16 +11,25 @@ pub struct Notice {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum NoticeKind {
-    /// A deprecated flag was passed.
+    /// A deprecated flag was passed, or the run relies on something 1.0.0 removes.
     Deprecation,
     /// Part of the Bazel BEP file couldn't be parsed.
     BepParseError,
+    /// The results weren't uploaded: the run named no test collection and Trunk has none for it.
+    UploadSkipped,
 }
 
 impl Notice {
     pub fn deprecation<T: Into<String>>(message: T) -> Self {
         Self {
             kind: NoticeKind::Deprecation,
+            message: message.into(),
+        }
+    }
+
+    pub fn upload_skipped<T: Into<String>>(message: T) -> Self {
+        Self {
+            kind: NoticeKind::UploadSkipped,
             message: message.into(),
         }
     }

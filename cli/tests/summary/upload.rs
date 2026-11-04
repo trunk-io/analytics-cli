@@ -227,6 +227,31 @@ fn prints_a_passing_run() {
 }
 
 #[test]
+fn prints_deprecation_notices_first() {
+    let mut result = upload_result(5);
+    result.notices = vec![
+        Notice::deprecation(
+            "Uploading to test collection zQ8nP2mW, inferred from the repository. Pass --test-collection-id zQ8nP2mW: analytics-cli 1.0.0 requires it.",
+        ),
+        Notice::bep_parse_error("not shown here"),
+    ];
+
+    assert_eq!(
+        upload_summary(&result),
+        [
+            "⚠️  Uploading to test collection zQ8nP2mW, inferred from the repository. Pass --test-collection-id zQ8nP2mW: analytics-cli 1.0.0 requires it.",
+            "",
+            "🏷️  Bundle Upload ID: 4b1d2c3e-5f60-4a7b-8c9d-0e1f2a3b4c5d",
+            "",
+            "📚 Test Report",
+            "   Total: 5   Pass: 5   Fail: 0   Quarantined: 0   Pass Ratio: 100.0%",
+            "",
+            "🎉 No test failures found!",
+        ]
+    );
+}
+
+#[test]
 fn prints_that_no_tests_were_found() {
     let result = upload_result(0);
 
