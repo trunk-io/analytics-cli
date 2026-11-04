@@ -9,7 +9,9 @@ use std::{
 
 use api::{
     client::ApiClient,
-    message::{self, QuarantineResolutionMode, UploadApiCaller, UploadApiVersion},
+    message::{
+        self, QuarantineResolutionMode, UploadApiCaller, UploadApiDecision, UploadApiVersion,
+    },
     quarantine::QuarantinedTests,
     urls::TestCaseGuidScope,
 };
@@ -32,7 +34,7 @@ use trunk_analytics_cli::{
     context::gather_initial_test_context,
     error_report::ErrorReport,
     summary_output::{
-        ErrorSummary, Quarantining, UploadCommand, UploadReport,
+        ErrorSummary, NoticeKind, Quarantining, UploadCommand, UploadReport,
         json::{self, Report},
         text::SummaryFileText,
     },
@@ -65,6 +67,12 @@ fn upload_api_version_cache_file_path(
     quarantine_disk_cache_dir().join(format!("upload_api_version_{cache_key}.json"))
 }
 
+fn requested_test_collection_short_id() -> Option<String> {
+    env::var(constants::TRUNK_TEST_COLLECTION_ID_ENV)
+        .ok()
+        .filter(|id| !id.trim().is_empty())
+}
+
 fn now_secs() -> Option<u64> {
     SystemTime::now()
         .duration_since(SystemTime::UNIX_EPOCH)
@@ -72,25 +80,33 @@ fn now_secs() -> Option<u64> {
         .map(|duration| duration.as_secs())
 }
 
-fn load_upload_api_version(cache_path: &Path, ttl_secs: u64) -> Option<UploadApiVersion> {
+fn load_upload_api_version(cache_path: &Path, ttl_secs: u64) -> Option<UploadApiDecision> {
     let entry: UploadApiVersionDiskCacheEntry =
         serde_json::from_reader(fs::File::open(cache_path).ok()?).ok()?;
     if now_secs()?.saturating_sub(entry.cached_at_secs) >= ttl_secs {
         return None;
     }
-    Some(if entry.v2 {
-        UploadApiVersion::V2
-    } else {
-        UploadApiVersion::V1
+    Some(UploadApiDecision {
+        version: if entry.v2 {
+            UploadApiVersion::V2
+        } else {
+            UploadApiVersion::V1
+        },
+        inferred_test_collection_short_id: entry.inferred_test_collection_short_id,
+        missing_test_collection: entry.missing_test_collection,
     })
 }
 
-fn save_upload_api_version(cache_path: &Path, upload_api_version: UploadApiVersion) {
+fn save_upload_api_version(cache_path: &Path, upload_api_decision: &UploadApiDecision) {
     let Some(cached_at_secs) = now_secs() else {
         return;
     };
     let entry = UploadApiVersionDiskCacheEntry {
-        v2: upload_api_version == UploadApiVersion::V2,
+        v2: upload_api_decision.version == UploadApiVersion::V2,
+        inferred_test_collection_short_id: upload_api_decision
+            .inferred_test_collection_short_id
+            .clone(),
+        missing_test_collection: upload_api_decision.missing_test_collection,
         cached_at_secs,
     };
     let written = cache_path
@@ -131,6 +147,11 @@ struct QuarantineConfigDiskCacheEntry {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct UploadApiVersionDiskCacheEntry {
     v2: bool,
+    /// The collection Trunk inferred for a run that names none, so every worker uses the same.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    inferred_test_collection_short_id: Option<String>,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    missing_test_collection: bool,
     cached_at_secs: u64,
 }
 
@@ -150,7 +171,7 @@ pub struct TestReport {
     quarantine_config: Option<QuarantineConfig>,
     quarantine_lookup_source: Option<QuarantineLookupSource>,
     quarantined_tests_disk_cache_ttl: Duration,
-    upload_api_version: Option<UploadApiVersion>,
+    upload_api_version: Option<UploadApiDecision>,
     codeowners: Option<CodeOwners>,
     variant: Option<String>,
     repo: Option<BundleRepo>,
@@ -490,8 +511,16 @@ impl MutTestReport {
         );
         match (api_client, bundle_repo) {
             (Ok(mut api_client), Ok(bundle_repo)) => {
+                let upload_api_decision = self.upload_api_version(&api_client, &bundle_repo.repo);
+                if upload_api_decision.missing_test_collection {
+                    tracing::debug!(
+                        "Not checking quarantine status: Trunk has no test collection for this run"
+                    );
+                    return IsQuarantinedResult::default();
+                }
                 api_client.set_upload_api_version(
-                    self.upload_api_version(&api_client, &bundle_repo.repo),
+                    upload_api_decision
+                        .version_for(requested_test_collection_short_id().as_deref()),
                 );
                 let variant =
                     env::var(constants::TRUNK_VARIANT_ENV).unwrap_or_else(|_| "".to_string());
@@ -550,10 +579,13 @@ impl MutTestReport {
         test_collection_short_id: Option<&str>,
     ) -> PathBuf {
         // v1 and v2 entries key their tests differently, so they must not share a file.
-        let version_suffix = match self.0.borrow().upload_api_version {
-            Some(UploadApiVersion::V2) => "#v2",
-            _ => "",
-        };
+        let version_suffix =
+            match self.0.borrow().upload_api_version.as_ref().map(|decision| {
+                decision.version_for(requested_test_collection_short_id().as_deref())
+            }) {
+                Some(UploadApiVersion::V2) => "#v2",
+                _ => "",
+            };
         // The collection id is part of the key: quarantine status now resolves
         // per test collection, so two runs in the same repo with different ids
         // must not share a cache entry.
@@ -674,9 +706,7 @@ impl MutTestReport {
             return;
         }
 
-        let test_collection_short_id = env::var(constants::TRUNK_TEST_COLLECTION_ID_ENV)
-            .ok()
-            .filter(|id| !id.is_empty());
+        let test_collection_short_id = self.test_collection_short_id();
 
         if let Some(cache_entry) = self.load_quarantine_config_from_disk_cache(
             &org_url_slug,
@@ -767,9 +797,9 @@ impl MutTestReport {
     /// Chosen once per run, so the quarantine lookups and the upload use the same API. Kept on
     /// disk with the quarantine cache's TTL, because a runner may check quarantine in several
     /// worker processes and upload from another.
-    fn upload_api_version(&self, api_client: &ApiClient, repo: &RepoUrlParts) -> UploadApiVersion {
-        if let Some(upload_api_version) = self.0.borrow().upload_api_version {
-            return upload_api_version;
+    fn upload_api_version(&self, api_client: &ApiClient, repo: &RepoUrlParts) -> UploadApiDecision {
+        if let Some(upload_api_decision) = self.0.borrow().upload_api_version.clone() {
+            return upload_api_decision;
         }
         let org_url_slug = self.get_org_url_slug();
         let test_collection_short_id = env::var(constants::TRUNK_TEST_COLLECTION_ID_ENV).ok();
@@ -779,9 +809,9 @@ impl MutTestReport {
             test_collection_short_id.as_deref(),
         );
         let ttl = self.0.borrow().quarantined_tests_disk_cache_ttl.as_secs();
-        if let Some(upload_api_version) = load_upload_api_version(&cache_path, ttl) {
-            self.0.borrow_mut().upload_api_version = Some(upload_api_version);
-            return upload_api_version;
+        if let Some(upload_api_decision) = load_upload_api_version(&cache_path, ttl) {
+            self.0.borrow_mut().upload_api_version = Some(upload_api_decision.clone());
+            return upload_api_decision;
         }
         let mut upload_args = trunk_analytics_cli::upload_command::UploadArgs::new(
             self.get_token(),
@@ -798,14 +828,28 @@ impl MutTestReport {
             &envs,
             UploadApiCaller::TestRunnerPlugin,
         );
-        let upload_api_version = tokio::runtime::Builder::new_multi_thread()
+        let upload_api_decision = tokio::runtime::Builder::new_multi_thread()
             .enable_all()
             .build()
             .unwrap()
             .block_on(api_client.get_upload_api_version(&request));
-        self.0.borrow_mut().upload_api_version = Some(upload_api_version);
-        save_upload_api_version(&cache_path, upload_api_version);
-        upload_api_version
+        self.0.borrow_mut().upload_api_version = Some(upload_api_decision.clone());
+        save_upload_api_version(&cache_path, &upload_api_decision);
+        upload_api_decision
+    }
+
+    /// The collection the run's quarantine lookups use: `TRUNK_TEST_COLLECTION_ID`, else the one
+    /// Trunk inferred from the repository. The upload applies the same rule in `run_upload`.
+    fn test_collection_short_id(&self) -> Option<String> {
+        let requested = requested_test_collection_short_id();
+        if requested.is_some() {
+            return requested;
+        }
+        self.0
+            .borrow()
+            .upload_api_version
+            .as_ref()
+            .and_then(|decision| decision.inferred_for(None).map(String::from))
     }
 
     fn get_org_url_slug(&self) -> String {
@@ -972,12 +1016,19 @@ impl MutTestReport {
                             quarantine_resolution_mode_override: Some(
                                 self.quarantine_resolution_mode(),
                             ),
-                            upload_api_version: self.0.borrow().upload_api_version,
+                            upload_api_version: self.0.borrow().upload_api_version.clone(),
                             caller: UploadApiCaller::TestRunnerPlugin,
                             ..Default::default()
                         },
                     )) {
                     Ok(upload_result) => {
+                        // On stderr, as `write_summary_file` does: the gem's logs reach the
+                        // console only at error level.
+                        for notice in &upload_result.notices {
+                            if notice.kind == NoticeKind::Deprecation {
+                                eprintln!("{}", notice.message);
+                            }
+                        }
                         if let Some(path) = &summary_output_file {
                             let mut report =
                                 UploadReport::new(&upload_result, UploadCommand::RSpec);

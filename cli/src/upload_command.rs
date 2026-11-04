@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use std::sync::mpsc::Sender;
 
 use api::client::{ApiClient, ApiErrorEndpoint};
-use api::message::{GetUploadApiVersionRequest, UploadApiCaller, UploadApiVersion};
+use api::message::{GetUploadApiVersionRequest, UploadApiCaller, UploadApiDecision};
 use api::urls::TestCaseGuidScope;
 use bundle::{BundleMeta, BundlerUtil, QuarantineResolutionMode, unzip_tarball};
 use clap::{ArgAction, Args};
@@ -498,8 +498,8 @@ pub struct RunUploadOptions {
         Option<proto::upload_metrics::trunk::QuarantineQueryResult>,
     pub quarantine_resolution_mode_override: Option<QuarantineResolutionMode>,
     /// The API a caller already chose for this run, so its quarantine lookup and the upload
-    /// use the same one. `None` asks Trunk.
-    pub upload_api_version: Option<UploadApiVersion>,
+    /// use the same one (and the same inferred collection). `None` asks Trunk.
+    pub upload_api_version: Option<UploadApiDecision>,
     pub caller: UploadApiCaller,
 }
 
@@ -518,7 +518,7 @@ impl Default for RunUploadOptions {
 }
 
 pub async fn run_upload(
-    upload_args: UploadArgs,
+    mut upload_args: UploadArgs,
     options: RunUploadOptions,
 ) -> anyhow::Result<UploadRunResult> {
     let RunUploadOptions {
@@ -609,10 +609,10 @@ pub async fn run_upload(
         )?
     };
 
-    let upload_api_version = match upload_api_version {
-        Some(upload_api_version) => upload_api_version,
+    let upload_api_decision = match upload_api_version {
+        Some(upload_api_decision) => upload_api_decision,
         // A dry run uploads nothing, so it has nothing to choose.
-        None if upload_args.dry_run => UploadApiVersion::V1,
+        None if upload_args.dry_run => UploadApiDecision::default(),
         None => {
             api_client
                 .get_upload_api_version(&upload_api_version_request(
@@ -624,7 +624,27 @@ pub async fn run_upload(
                 .await
         }
     };
+    let requested_test_collection_short_id = upload_args.test_collection_short_id.as_deref();
+    let upload_api_version = upload_api_decision.version_for(requested_test_collection_short_id);
+    let skip_upload = upload_api_decision.missing_test_collection
+        && requested_test_collection_short_id
+            .is_none_or(|test_collection_short_id| test_collection_short_id.trim().is_empty());
+    if let Some(inferred) = upload_api_decision
+        .inferred_for(requested_test_collection_short_id)
+        .map(String::from)
+    {
+        let message = inferred_test_collection_message(&inferred, caller);
+        tracing::warn!("{message}");
+        notices.push(Notice::deprecation(message));
+        upload_args.test_collection_short_id = Some(inferred);
+    }
+    if skip_upload {
+        let message = missing_test_collection_message(&meta.base_props.repo.repo, caller);
+        tracing::warn!("{message}");
+        notices.push(Notice::upload_skipped(message));
+    }
     api_client.set_upload_api_version(upload_api_version);
+    api_client.set_missing_test_collection(skip_upload);
 
     if let Some(bep_result) = &bep_result {
         notices.extend(bep_result.errors.iter().map(Notice::bep_parse_error));
@@ -727,16 +747,22 @@ pub async fn run_upload(
     meta.failed_tests = quarantine_context.failures.clone();
 
     let upload_started_at = chrono::Utc::now();
-    tracing::info!("Uploading test results...");
-    let upload_bundle_result = upload_bundle(
-        &mut meta,
-        upload_args.test_collection_short_id.clone(),
-        &api_client,
-        bep_result,
-        quarantine_context.exit_code,
-        upload_args.dry_run,
-    )
-    .await;
+    let upload_bundle_result = if skip_upload {
+        None
+    } else {
+        tracing::info!("Uploading test results...");
+        Some(
+            upload_bundle(
+                &mut meta,
+                upload_args.test_collection_short_id.clone(),
+                &api_client,
+                bep_result,
+                quarantine_context.exit_code,
+                upload_args.dry_run,
+            )
+            .await,
+        )
+    };
     let quarantine_query_result = quarantine_query_result_override
         .unwrap_or_else(|| quarantine_query_result(disable_quarantining, &quarantine_context));
     let upload_metrics = proto::upload_metrics::trunk::UploadMetrics {
@@ -763,7 +789,9 @@ pub async fn run_upload(
         .into(),
     };
     let mut request = api::message::TelemetryUploadMetricsRequest { upload_metrics };
-    if !upload_args.dry_run {
+    if !upload_args.dry_run
+        && let Some(upload_bundle_result) = &upload_bundle_result
+    {
         let telemetry_response;
         if let Some(err) = upload_bundle_result.as_ref().err() {
             request.upload_metrics.failed = true;
@@ -782,11 +810,12 @@ pub async fn run_upload(
         }
     }
 
-    if upload_bundle_result.is_err() {
+    if matches!(upload_bundle_result, Some(Err(_))) {
         tracing::error!("Failed to upload bundle");
     }
     let (guid_scope, error_report) = match upload_bundle_result {
-        Ok(uploaded) => {
+        None => (None, None),
+        Some(Ok(uploaded)) => {
             if upload_args.dry_run {
                 let curr_dir = env::current_dir()?;
                 let bundle_file = curr_dir.join(DRY_RUN_OUTPUT_DIR);
@@ -794,7 +823,7 @@ pub async fn run_upload(
             }
             (uploaded.guid_scope, None)
         }
-        Err(e) => (
+        Some(Err(e)) => (
             None,
             Some(ErrorReport::new(
                 e,
@@ -828,6 +857,40 @@ pub async fn run_upload(
         dry_run: upload_args.dry_run,
         disable_quarantining,
     })
+}
+
+/// The run goes on as if the user had named the collection Trunk inferred, until 1.0.0 requires it.
+pub fn inferred_test_collection_message(short_id: &str, caller: UploadApiCaller) -> String {
+    let how_to_pass = match caller {
+        UploadApiCaller::Cli => format!("Pass --test-collection-id {short_id}"),
+        UploadApiCaller::TestRunnerPlugin => {
+            format!("Set {}={short_id}", constants::TRUNK_TEST_COLLECTION_ID_ENV)
+        }
+    };
+    format!(
+        "Uploading to test collection {short_id}, inferred from the repository. {how_to_pass}: analytics-cli 1.0.0 requires it."
+    )
+}
+
+/// Trunk would drop the upload, since the org files every upload under a test collection.
+pub fn missing_test_collection_message(
+    repo: &context::repo::RepoUrlParts,
+    caller: UploadApiCaller,
+) -> String {
+    let how_to_pass = match caller {
+        UploadApiCaller::Cli => String::from("Pass --test-collection-id"),
+        UploadApiCaller::TestRunnerPlugin => {
+            format!("Set {}", constants::TRUNK_TEST_COLLECTION_ID_ENV)
+        }
+    };
+    let repo_name = if repo.owner.is_empty() && repo.name.is_empty() {
+        String::from("this repository")
+    } else {
+        format!("{}/{}", repo.owner, repo.name)
+    };
+    format!(
+        "Test results were not uploaded: this run names no test collection, and Trunk has none for {repo_name}. {how_to_pass} to upload them."
+    )
 }
 
 pub fn upload_api_version_request(
