@@ -332,14 +332,14 @@ async fn run(cli: Cli, render_sender: Sender<DisplayMessage>) -> anyhow::Result<
     }
 }
 
-fn to_trace_filter(filter: log::LevelFilter) -> tracing::Level {
+fn to_trace_filter(filter: log::LevelFilter) -> tracing::level_filters::LevelFilter {
     match filter {
-        log::LevelFilter::Debug => tracing::Level::DEBUG,
-        log::LevelFilter::Error => tracing::Level::ERROR,
-        log::LevelFilter::Info => tracing::Level::INFO,
-        log::LevelFilter::Off => tracing::Level::TRACE,
-        log::LevelFilter::Trace => tracing::Level::TRACE,
-        log::LevelFilter::Warn => tracing::Level::WARN,
+        log::LevelFilter::Debug => tracing::level_filters::LevelFilter::DEBUG,
+        log::LevelFilter::Error => tracing::level_filters::LevelFilter::ERROR,
+        log::LevelFilter::Info => tracing::level_filters::LevelFilter::INFO,
+        log::LevelFilter::Off => tracing::level_filters::LevelFilter::OFF,
+        log::LevelFilter::Trace => tracing::level_filters::LevelFilter::TRACE,
+        log::LevelFilter::Warn => tracing::level_filters::LevelFilter::WARN,
     }
 }
 
@@ -351,9 +351,12 @@ fn setup_logger(
 ) -> anyhow::Result<()> {
     let command_string = String::from(command_name);
     let sentry_layer = sentry_tracing::layer().event_mapper(move |event, context| {
+        // deprecation warnings are sent as events so we can see who still uses deprecated flags
+        let is_deprecation = *event.metadata().level() == tracing::Level::WARN
+            && event.metadata().fields().field("deprecated_flag").is_some();
         // trunk-ignore(clippy/match_ref_pats)
         match event.metadata().level() {
-            &tracing::Level::ERROR => {
+            level if *level == tracing::Level::ERROR || is_deprecation => {
                 let mut event = sentry_tracing::event_from_event(event, context);
                 event
                     .tags
@@ -380,16 +383,19 @@ fn setup_logger(
     });
 
     // make console layer toggle based on vebosity
+    // logs go to stderr so stdout is left for the command's output
+    let trace_filter = to_trace_filter(log_level_filter);
     let console_layer = tracing_subscriber::fmt::Layer::new()
         .with_target(true)
         .with_level(true)
-        .with_writer(std::io::stdout.with_max_level(to_trace_filter(log_level_filter)))
+        .with_writer(std::io::stderr)
         .with_filter(FilterFn::new(move |metadata| {
             !metadata
                 .fields()
                 .iter()
                 .any(|field| field.name() == "hidden_in_console")
-                && to_trace_filter(log_level_filter) > tracing::Level::INFO
+                && trace_filter > tracing::Level::INFO
+                && *metadata.level() <= trace_filter
         }));
 
     tracing_subscriber::registry()
