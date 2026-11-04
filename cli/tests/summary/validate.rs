@@ -1,8 +1,10 @@
 use clap::Parser;
-use display::end_output::EndOutput;
 use pretty_assertions::assert_eq;
 use superconsole::Line;
-use trunk_analytics_cli::validate_command::{ValidateArgs, run_validate};
+use trunk_analytics_cli::{
+    summary_output::{ValidateReport, text},
+    validate_command::{ValidateArgs, run_validate},
+};
 
 #[derive(Parser)]
 struct Validate {
@@ -10,18 +12,23 @@ struct Validate {
     args: ValidateArgs,
 }
 
-async fn validate_summary(args: &[&str]) -> Vec<String> {
+async fn validate_report(args: &[&str]) -> ValidateReport {
     let Validate { args } = Validate::parse_from(["validate"].iter().chain(args));
-    run_validate(args)
-        .await
-        .unwrap()
-        .output()
+    ValidateReport::new(&run_validate(args).await.unwrap())
+}
+
+fn unstyled(lines: anyhow::Result<Vec<Line>>) -> Vec<String> {
+    lines
         .unwrap()
         .iter()
         .map(Line::to_unstyled)
         // CODEOWNERS is printed as an absolute path.
         .map(|line| line.replace(env!("CARGO_MANIFEST_DIR"), "<cli>"))
         .collect()
+}
+
+async fn validate_summary(args: &[&str]) -> Vec<String> {
+    unstyled(text::render_validate(&validate_report(args).await))
 }
 
 #[tokio::test]
@@ -79,16 +86,22 @@ async fn prints_validation_errors_warnings_and_codeowners() {
 }
 
 #[tokio::test]
-async fn prints_bep_parse_errors_without_a_codeowners_file() {
+async fn prints_bep_parse_errors_as_notices_without_a_codeowners_file() {
+    let report = validate_report(&[
+        "--bazel-bep-path",
+        "test_fixtures/summary/bep/bep_with_parse_error",
+    ])
+    .await;
     assert_eq!(
-        validate_summary(&[
-            "--bazel-bep-path",
-            "test_fixtures/summary/bep/bep_with_parse_error"
-        ])
-        .await,
+        unstyled(text::render_notices(&report.notices)),
         [
-            "⚠️  BEP file had parse errors: [\"Error parsing build event: EOF while parsing a value at line 3 column 0\"]",
+            "⚠️  BEP file had a parse error: Error parsing build event: EOF while parsing a value at line 3 column 0",
             "",
+        ]
+    );
+    assert_eq!(
+        unstyled(text::render_validate(&report)),
+        [
             "📚 Validating 1 files:",
             "  Files matching: test_fixtures/summary/bep/test.xml:",
             "    test_fixtures/summary/bep/test.xml",
