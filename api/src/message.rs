@@ -123,6 +123,10 @@ pub struct GetUploadApiVersionResponse {
     /// repository. Older servers never send it.
     #[serde(default)]
     pub test_collection_short_id: Option<String>,
+    /// Sent only with `v1`, for a fully migrated org's run that named no collection when Trunk
+    /// could not infer one. Trunk would drop a v1 upload of that run. Older servers never send it.
+    #[serde(default)]
+    pub missing_test_collection: bool,
 }
 
 /// Which API a run uses and, on v2 for a run that named no test collection, the collection Trunk
@@ -131,6 +135,8 @@ pub struct GetUploadApiVersionResponse {
 pub struct UploadApiDecision {
     pub version: UploadApiVersion,
     pub inferred_test_collection_short_id: Option<String>,
+    /// The run named no collection and Trunk has none for it, so the upload is skipped.
+    pub missing_test_collection: bool,
 }
 
 impl UploadApiDecision {
@@ -160,7 +166,7 @@ impl From<UploadApiVersion> for UploadApiDecision {
     fn from(version: UploadApiVersion) -> Self {
         Self {
             version,
-            inferred_test_collection_short_id: None,
+            ..Self::default()
         }
     }
 }

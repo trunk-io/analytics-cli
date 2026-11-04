@@ -3801,6 +3801,47 @@ async fn upload_on_v2_to_the_collection_trunk_inferred() {
 
 // NOTE: must be multi threaded to start a mock server
 #[tokio::test(flavor = "multi_thread")]
+async fn skip_the_upload_when_trunk_has_no_collection_for_the_run() {
+    let temp_dir = tempdir().unwrap();
+    generate_mock_git_repo(&temp_dir);
+    generate_mock_valid_junit_xmls(&temp_dir);
+
+    let (mock_server_builder, v2_calls) =
+        v2_mock_server(serde_json::json!({"apiVersion": "v1", "missingTestCollection": true}));
+    let state = mock_server_builder.spawn_mock_server().await;
+
+    let output = CommandBuilder::upload(temp_dir.path(), state.host.clone())
+        .command()
+        .assert()
+        // The fixture's failures aren't quarantined, so the run fails either way.
+        .code(1)
+        .get_output()
+        .clone();
+
+    let console = format!(
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(
+        console.contains("Test results were not uploaded"),
+        "the run must say it skipped the upload: {console}"
+    );
+    assert!(v2_calls.lock().unwrap().is_empty());
+    let requests = state.requests.lock().unwrap().clone();
+    assert!(
+        !requests.iter().any(|request| matches!(
+            request,
+            RequestPayload::CreateBundleUpload(_)
+                | RequestPayload::S3Upload(_)
+                | RequestPayload::TelemetryUploadMetrics(_)
+        )),
+        "a skipped upload must not call the upload routes"
+    );
+}
+
+// NOTE: must be multi threaded to start a mock server
+#[tokio::test(flavor = "multi_thread")]
 async fn upload_on_v1_when_trunk_chooses_v2_but_names_no_collection() {
     let temp_dir = tempdir().unwrap();
     generate_mock_git_repo(&temp_dir);

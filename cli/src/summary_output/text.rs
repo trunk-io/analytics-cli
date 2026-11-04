@@ -181,9 +181,12 @@ pub fn render_upload(report: &UploadReport, options: &TextOptions) -> anyhow::Re
         output.push(Line::default());
     }
 
-    // The console shows tracing only when verbose, so a deprecation is shown here or not at all.
+    // The console shows tracing only when verbose, so these are shown here or not at all.
     for notice in &report.notices {
-        if notice.kind == NoticeKind::Deprecation {
+        if matches!(
+            notice.kind,
+            NoticeKind::Deprecation | NoticeKind::UploadSkipped
+        ) {
             output.push(Line::from_iter([Span::new_styled_lossy(
                 style(format!("⚠️  {}", notice.message)).with(Color::Yellow),
             )]));

@@ -93,6 +93,7 @@ fn load_upload_api_version(cache_path: &Path, ttl_secs: u64) -> Option<UploadApi
             UploadApiVersion::V1
         },
         inferred_test_collection_short_id: entry.inferred_test_collection_short_id,
+        missing_test_collection: entry.missing_test_collection,
     })
 }
 
@@ -105,6 +106,7 @@ fn save_upload_api_version(cache_path: &Path, upload_api_decision: &UploadApiDec
         inferred_test_collection_short_id: upload_api_decision
             .inferred_test_collection_short_id
             .clone(),
+        missing_test_collection: upload_api_decision.missing_test_collection,
         cached_at_secs,
     };
     let written = cache_path
@@ -148,6 +150,8 @@ struct UploadApiVersionDiskCacheEntry {
     /// The collection Trunk inferred for a run that names none, so every worker uses the same.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     inferred_test_collection_short_id: Option<String>,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    missing_test_collection: bool,
     cached_at_secs: u64,
 }
 

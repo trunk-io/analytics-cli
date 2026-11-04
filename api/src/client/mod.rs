@@ -238,7 +238,8 @@ impl ApiClient {
     /// retried once; any other answer is final.
     ///
     /// A run that names no collection asks too, by its repository: Trunk may answer `v2` with the
-    /// collection it inferred. A `v2` that names none is v1, since every v2 route needs one.
+    /// collection it inferred. A `v2` that names none is v1, since every v2 route needs one. A `v1`
+    /// with `missingTestCollection` means Trunk has no collection for the run at all.
     pub async fn get_upload_api_version(
         &self,
         request: &message::GetUploadApiVersionRequest,
@@ -260,12 +261,14 @@ impl ApiClient {
                     let answer = message::UploadApiDecision {
                         version: UploadApiVersion::V2,
                         inferred_test_collection_short_id: response.test_collection_short_id,
+                        ..message::UploadApiDecision::default()
                     };
                     let decision = message::UploadApiDecision {
                         version: answer.version_for(requested),
                         inferred_test_collection_short_id: answer
                             .inferred_for(requested)
                             .map(String::from),
+                        ..message::UploadApiDecision::default()
                     };
                     if decision.version == UploadApiVersion::V1 {
                         tracing::debug!(
@@ -274,7 +277,11 @@ impl ApiClient {
                     }
                     decision
                 }
-                Ok(_) => message::UploadApiDecision::default(),
+                Ok(response) => message::UploadApiDecision {
+                    missing_test_collection: response.missing_test_collection
+                        && requested.is_none(),
+                    ..message::UploadApiDecision::default()
+                },
                 Err(error) => {
                     tracing::debug!("Could not choose the Trunk API version, using v1: {error:?}");
                     message::UploadApiDecision::default()

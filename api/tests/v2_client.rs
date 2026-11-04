@@ -373,6 +373,7 @@ async fn uses_the_collection_inferred_for_a_run_without_one() {
             UploadApiDecision {
                 version: UploadApiVersion::V2,
                 inferred_test_collection_short_id: Some(String::from("zQ8nP2mW")),
+                missing_test_collection: false,
             }
         );
         assert_eq!(
@@ -380,6 +381,25 @@ async fn uses_the_collection_inferred_for_a_run_without_one() {
             json!({"host": "github.com", "owner": "acme", "name": "web"})
         );
     }
+}
+
+#[tokio::test]
+async fn reads_a_missing_collection_for_a_run_without_one() {
+    let answer = r#"{"apiVersion":"v1","missingTestCollection":true}"#;
+    for short_id in [None, Some("")] {
+        let (decision, _) = decide_for(short_id, (StatusCode::OK, answer)).await;
+        assert_eq!(
+            decision,
+            UploadApiDecision {
+                version: UploadApiVersion::V1,
+                inferred_test_collection_short_id: None,
+                missing_test_collection: true,
+            },
+            "{short_id:?}"
+        );
+    }
+    let (decision, _) = decide_for(Some(SHORT_ID), (StatusCode::OK, answer)).await;
+    assert_eq!(decision, UploadApiDecision::default());
 }
 
 #[tokio::test]

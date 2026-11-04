@@ -15,12 +15,21 @@ pub enum NoticeKind {
     Deprecation,
     /// Part of the Bazel BEP file couldn't be parsed.
     BepParseError,
+    /// The results weren't uploaded: the run named no test collection and Trunk has none for it.
+    UploadSkipped,
 }
 
 impl Notice {
     pub fn deprecation<T: Into<String>>(message: T) -> Self {
         Self {
             kind: NoticeKind::Deprecation,
+            message: message.into(),
+        }
+    }
+
+    pub fn upload_skipped<T: Into<String>>(message: T) -> Self {
+        Self {
+            kind: NoticeKind::UploadSkipped,
             message: message.into(),
         }
     }
