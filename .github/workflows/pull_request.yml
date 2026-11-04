@@ -61,6 +61,14 @@ jobs:
             runs-on: ubuntu-24.04-arm
             target: aarch64-unknown-linux-musl
 
+          - os-name: linux-ppc64le
+            runs-on: ubuntu-latest
+            target: powerpc64le-unknown-linux-gnu
+
+          - os-name: linux-s390x
+            runs-on: ubuntu-latest
+            target: s390x-unknown-linux-gnu
+
           - os-name: x86_64-darwin
             runs-on: macos-latest
             target: x86_64-apple-darwin
@@ -100,6 +108,9 @@ jobs:
 
       - name: Setup Rust & Cargo
         uses: ./.github/actions/setup_rust_cargo
+        with:
+          # Targets build in different images; a shared target/ runs one image's build scripts in another.
+          cache-key: ${{ matrix.platform.target }}
 
       - name: Build darwin target
         uses: ./.github/actions/build_cli_macos_target
