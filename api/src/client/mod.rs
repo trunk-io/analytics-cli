@@ -257,31 +257,7 @@ impl ApiClient {
             message::UploadApiDecision::default()
         } else {
             match self.request_upload_api_version(request).await {
-                Ok(response) if response.api_version == "v2" => {
-                    let answer = message::UploadApiDecision {
-                        version: UploadApiVersion::V2,
-                        inferred_test_collection_short_id: response.test_collection_short_id,
-                        ..message::UploadApiDecision::default()
-                    };
-                    let decision = message::UploadApiDecision {
-                        version: answer.version_for(requested),
-                        inferred_test_collection_short_id: answer
-                            .inferred_for(requested)
-                            .map(String::from),
-                        ..message::UploadApiDecision::default()
-                    };
-                    if decision.version == UploadApiVersion::V1 {
-                        tracing::debug!(
-                            "Trunk chose v2 but named no test collection for this run, using v1"
-                        );
-                    }
-                    decision
-                }
-                Ok(response) => message::UploadApiDecision {
-                    missing_test_collection: response.missing_test_collection
-                        && requested.is_none(),
-                    ..message::UploadApiDecision::default()
-                },
+                Ok(response) => message::UploadApiDecision::from_response(response, requested),
                 Err(error) => {
                     tracing::debug!("Could not choose the Trunk API version, using v1: {error:?}");
                     message::UploadApiDecision::default()

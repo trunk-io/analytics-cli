@@ -140,6 +140,42 @@ pub struct UploadApiDecision {
 }
 
 impl UploadApiDecision {
+    /// A run that named its collection takes the answer's version as it is. Only a run that named
+    /// none reads the other fields: the inferred collection with `v2`, `missingTestCollection` with
+    /// `v1`.
+    pub fn from_response(response: GetUploadApiVersionResponse, requested: Option<&str>) -> Self {
+        let v2 = response.api_version == "v2";
+        if requested.is_some_and(|id| !id.trim().is_empty()) {
+            return Self::from(if v2 {
+                UploadApiVersion::V2
+            } else {
+                UploadApiVersion::V1
+            });
+        }
+        if !v2 {
+            return Self {
+                missing_test_collection: response.missing_test_collection,
+                ..Self::default()
+            };
+        }
+        match response
+            .test_collection_short_id
+            .filter(|id| !id.trim().is_empty())
+        {
+            Some(inferred) => Self {
+                version: UploadApiVersion::V2,
+                inferred_test_collection_short_id: Some(inferred),
+                ..Self::default()
+            },
+            None => {
+                tracing::debug!(
+                    "Trunk chose v2 but named no test collection for this run, using v1"
+                );
+                Self::default()
+            }
+        }
+    }
+
     /// The inferred collection, when the run named none of its own and so uses it.
     pub fn inferred_for(&self, requested: Option<&str>) -> Option<&str> {
         match (self.version, requested.filter(|id| !id.trim().is_empty())) {
