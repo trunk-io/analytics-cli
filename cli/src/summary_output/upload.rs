@@ -35,6 +35,10 @@ pub struct UploadReport {
     pub upload_url: Option<String>,
     /// One entry per test report file.
     pub validations: Vec<FileValidation>,
+    /// Files whose results Trunk will drop for having old timestamps. `counts` includes their
+    /// tests.
+    #[serde(default)]
+    pub files_with_old_timestamps: usize,
     pub counts: TestCounts,
     pub quarantining: Quarantining,
     /// Failed tests that were quarantined, grouped like `failures`.
@@ -114,6 +118,9 @@ pub struct FileValidation {
     pub test_suite_count: Option<usize>,
     /// Null when the file couldn't be parsed.
     pub test_case_count: Option<usize>,
+    /// The file has a test older than 24 hours, so Trunk will drop all of its results.
+    #[serde(default)]
+    pub old_timestamps: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -179,6 +186,7 @@ impl UploadReport {
             UploadCommand::RSpec => None,
         };
         let bundle_upload_id = &result.meta.base_props.bundle_upload_id;
+        let validations = file_validations(&result.validations);
 
         Self {
             command,
@@ -186,7 +194,8 @@ impl UploadReport {
             dry_run: result.dry_run,
             bundle_upload_id: Some(bundle_upload_id.clone()).filter(|id| !id.is_empty()),
             upload_url: upload_url(result),
-            validations: file_validations(&result.validations),
+            files_with_old_timestamps: files_with_old_timestamps(&validations),
+            validations,
             counts,
             quarantining: quarantine_context.quarantining(result.disable_quarantining),
             quarantined: group(quarantined, |test| failed_test(result, test, true)),
@@ -226,6 +235,13 @@ impl TestCounts {
             pass_ratio: (total > 0).then(|| passed as f64 / total as f64),
         }
     }
+}
+
+pub(super) fn files_with_old_timestamps(validations: &[FileValidation]) -> usize {
+    validations
+        .iter()
+        .filter(|validation| validation.old_timestamps)
+        .count()
 }
 
 impl FileValidation {
@@ -336,6 +352,7 @@ fn file_validations(validations: &JunitReportValidations) -> Vec<FileValidation>
                 warnings: Vec::new(),
                 test_suite_count: None,
                 test_case_count: None,
+                old_timestamps: false,
             },
             Ok(validation) => {
                 let issues = validation.all_issues_flat();
@@ -353,6 +370,7 @@ fn file_validations(validations: &JunitReportValidations) -> Vec<FileValidation>
                     warnings: messages(JunitValidationLevel::SubOptimal),
                     test_suite_count: Some(validation.test_suites().len()),
                     test_case_count: Some(validation.test_cases().len()),
+                    old_timestamps: validation.has_old_timestamps(),
                 }
             }
         })
