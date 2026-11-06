@@ -61,6 +61,7 @@ pub struct MockServerState {
 pub struct RouteRequest {
     pub uri: String,
     pub authorization: Option<String>,
+    pub trunk_token: Option<String>,
     pub body: Option<serde_json::Value>,
 }
 
@@ -71,12 +72,16 @@ impl MockServerState {
         uri: &axum::http::Uri,
         body: Option<serde_json::Value>,
     ) {
+        let header = |name| {
+            headers
+                .get(name)
+                .and_then(|value| value.to_str().ok())
+                .map(String::from)
+        };
         self.route_requests.lock().unwrap().push(RouteRequest {
             uri: uri.to_string(),
-            authorization: headers
-                .get("authorization")
-                .and_then(|value| value.to_str().ok())
-                .map(String::from),
+            authorization: header("authorization"),
+            trunk_token: header("x-trunk-token"),
             body,
         });
     }
