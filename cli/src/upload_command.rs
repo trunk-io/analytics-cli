@@ -3,7 +3,7 @@ use std::env;
 use std::path::PathBuf;
 use std::sync::mpsc::Sender;
 
-use api::client::{ApiClient, ApiErrorEndpoint};
+use api::client::{ApiClient, ApiErrorEndpoint, GithubForkPullRequest};
 use api::message::{GetUploadApiVersionRequest, UploadApiCaller, UploadApiDecision};
 use api::urls::TestCaseGuidScope;
 use bundle::{BundleMeta, BundlerUtil, QuarantineResolutionMode, unzip_tarball};
@@ -116,7 +116,7 @@ pub struct UploadArgs {
     #[arg(
         long,
         env = constants::TRUNK_ALLOW_FORKED_PR_UPLOADS_ENV,
-        help = "Allow uploading from a forked pull request, which cannot read repository secrets. Requires --test-collection-id; the collection must have forked-PR uploads enabled in Trunk."
+        help = "Upload with no Trunk credential, as a forked pull request must since it cannot read repository secrets. Works with no credential on Trunk API v1. On Trunk API v2 it works only for a fork pull request on GitHub Actions, using the job's GITHUB_TOKEN: trunk-io/analytics-uploader passes it by default; when running the CLI directly, set `GITHUB_TOKEN: ${{ github.token }}` on the step. Requires --test-collection-id; the collection must have forked-PR uploads enabled in Trunk."
     )]
     pub allow_forked_pr_uploads: bool,
     #[arg(
@@ -590,6 +590,13 @@ pub async fn run_upload(
         &upload_args.org_url_slug,
         render_sender,
     )?;
+    if upload_args.allow_forked_pr_uploads
+        && let Some(pull_request) = env::var("GITHUB_EVENT_PATH")
+            .ok()
+            .and_then(|event_path| github_fork_pull_request(&event_path))
+    {
+        api_client.set_github_fork_pull_request(pull_request);
+    }
 
     let PreTestContext {
         mut meta,
@@ -643,7 +650,7 @@ pub async fn run_upload(
         tracing::warn!("{message}");
         notices.push(Notice::upload_skipped(message));
     }
-    api_client.set_upload_api_version(upload_api_version);
+    api_client.use_upload_api_version(upload_api_version).await;
     api_client.set_missing_test_collection(skip_upload);
 
     if let Some(bep_result) = &bep_result {
@@ -932,13 +939,37 @@ pub fn is_fork_pr(github_event_path: Option<&str>, envs: &context::env::EnvVars)
         .is_some_and(|number| !number.is_empty())
 }
 
-fn github_event_is_fork_pr(event_path: &str) -> Option<bool> {
-    let event: serde_json::Value =
+fn github_event_pull_request(event_path: &str) -> Option<serde_json::Value> {
+    let mut event: serde_json::Value =
         serde_json::from_reader(std::fs::File::open(event_path).ok()?).ok()?;
-    let pull_request = event.get("pull_request")?;
+    Some(event.get_mut("pull_request")?.take())
+}
+
+fn pull_request_is_from_fork(pull_request: &serde_json::Value) -> Option<bool> {
     let head = pull_request.pointer("/head/repo/full_name")?.as_str()?;
     let base = pull_request.pointer("/base/repo/full_name")?.as_str()?;
     Some(!head.eq_ignore_ascii_case(base))
+}
+
+fn github_event_is_fork_pr(event_path: &str) -> Option<bool> {
+    pull_request_is_from_fork(&github_event_pull_request(event_path)?)
+}
+
+/// The fork pull request a GitHub Actions run builds, with the job's `GITHUB_TOKEN`; `None` for
+/// any other run.
+fn github_fork_pull_request(event_path: &str) -> Option<GithubForkPullRequest> {
+    let pull_request = github_event_pull_request(event_path)?;
+    if !pull_request_is_from_fork(&pull_request)? {
+        return None;
+    }
+    Some(GithubForkPullRequest {
+        number: pull_request.get("number")?.as_u64()?,
+        head_sha: pull_request
+            .pointer("/head/sha")?
+            .as_str()?
+            .to_ascii_lowercase(),
+        github_token: env::var("GITHUB_TOKEN").ok(),
+    })
 }
 
 struct UploadedBundle {
