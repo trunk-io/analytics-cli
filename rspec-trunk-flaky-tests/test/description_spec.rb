@@ -115,6 +115,40 @@ RSpec.describe 'test names' do
     expect(names).to eq(['#<Class < StandardError> works'])
   end
 
+  it 'names a class whose .name is abstract' do
+    abstract = Class.new { def self.name = raise(NotImplementedError) }
+    names = names_of { RSpec.describe(abstract) { it('works') { expect(1).to eq(1) } } }
+
+    expect(names).to eq(['#<Class < Object> works'])
+  end
+
+  it 'does not ask a class whether it is a Module' do
+    typed = Class.new do
+      def self.name = 'Typed'
+      def self.is_a?(*) = raise('not a type check')
+    end
+    names = names_of { RSpec.describe('Lookup') { describe(typed) { it('works') { expect(1).to eq(1) } } } }
+
+    expect(names).to eq(['Lookup Typed works'])
+  end
+
+  it "uses core's #class and .superclass when they are overridden" do
+    proxy = Class.new do
+      def self.name = 'Proxy'
+      def class = raise('not a class')
+    end
+    looped = Class.new(StandardError)
+    looped.define_singleton_method(:superclass) { looped }
+    names = names_of do
+      RSpec.describe('Lookup') do
+        describe(proxy.new) { it('forwards') { expect(1).to eq(1) } }
+        describe(looped) { it('terminates') { expect(1).to eq(1) } }
+      end
+    end
+
+    expect(names).to eq(['Lookup #<Proxy> forwards', 'Lookup #<Class < StandardError> terminates'])
+  end
+
   it 'leaves strings alone, even with an address interpolated into them' do
     batch = Object.new
     names = names_of do

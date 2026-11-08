@@ -48,9 +48,10 @@ module RSpec
 
     CORE_METHODS = {
       name: [Module.instance_method(:name), String],
-      class: [Kernel.instance_method(:class), Module],
-      superclass: [Class.instance_method(:superclass), Class]
+      class: [Kernel.instance_method(:class), Module]
     }.freeze
+    CLASS_SUPERCLASS = Class.instance_method(:superclass)
+    KERNEL_IS_A = Kernel.instance_method(:is_a?)
 
     # Knapsack example detector instantiates all test cases in order to determine how to shard them
     # These instantiations should not generate test bundles, so we
@@ -188,11 +189,11 @@ module RSpec
 
       # As in RSpec: `describe Foo, '#bar'` is "Foo#bar", not "Foo #bar".
       def description_separator(parent_arg, child_arg)
-        parent_arg.is_a?(Module) && /^(?:#|::|\.)/.match?(child_arg.to_s) ? '' : ' '
+        core_is_a?(parent_arg, Module) && /^(?:#|::|\.)/.match?(child_arg.to_s) ? '' : ' '
       end
 
       def description_arg(arg)
-        if arg.is_a?(Module)
+        if core_is_a?(arg, Module)
           module_name(arg) || anonymous_module_name(arg)
         elsif default_to_s?(arg)
           klass = core_call(arg, :class)
@@ -203,10 +204,10 @@ module RSpec
       end
 
       def anonymous_module_name(mod)
-        return '#<Module>' unless mod.is_a?(Class)
+        return '#<Module>' unless core_is_a?(mod, Class)
 
-        superclass = core_call(mod, :superclass)
-        superclass = core_call(superclass, :superclass) while superclass && module_name(superclass).nil?
+        superclass = CLASS_SUPERCLASS.bind_call(mod)
+        superclass = CLASS_SUPERCLASS.bind_call(superclass) while superclass && module_name(superclass).nil?
         superclass ? "#<Class < #{module_name(superclass)}>" : '#<Class>'
       end
 
@@ -220,8 +221,14 @@ module RSpec
         core, type = CORE_METHODS.fetch(method_name)
         value = obj.public_send(method_name)
         value.is_a?(type) ? value : core.bind_call(obj)
-      rescue StandardError
+      rescue StandardError, NotImplementedError
         core.bind_call(obj)
+      end
+
+      def core_is_a?(obj, type)
+        KERNEL_IS_A.bind_call(obj, type)
+      rescue TypeError # a BasicObject
+        false
       end
 
       # Kernel's method, so an object whose own #method means something else
