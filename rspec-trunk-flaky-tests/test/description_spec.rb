@@ -3,6 +3,7 @@
 require 'rspec_trunk_flaky_tests'
 require_relative '../spec/spec_helper'
 require 'rspec/core/sandbox'
+require 'timeout'
 
 # Defines .name for something else, as some apps do.
 class DescriptionSpecBuilder
@@ -176,6 +177,63 @@ RSpec.describe 'test names' do
                                                      'Payroll DescriptionSpecUnnamed runs',
                                                      'Payroll #<Class:Integer> runs'
                                                    ])
+  end
+
+  # Kinds of describe arg, including ones whose own .name, .to_s, .is_a?, #class or
+  # .superclass behave unusually.
+  let(:describe_args) do
+    priced = Class.new { def self.to_s = 'Money (USD)' }
+    lying = Class.new do
+      def self.to_s = 'Lying'
+      def self.is_a?(type) = type == Module ? false : super
+    end
+    looped = Class.new(StandardError)
+    looped.define_singleton_method(:superclass) { looped }
+    abstract = Class.new
+    abstract.define_singleton_method(:name) { raise NotImplementedError }
+    [
+      [Integer], [Comparable], [Integer, '#to_s'], [Integer, '.sqrt'], [Integer, '::Inner'], [Comparable, 'with x'],
+      %w[a b], [:sym], [42], [1..2], [[1, 2]], ['', Integer], [Integer.singleton_class],
+      [DescriptionSpecBuilder], [DescriptionSpecBuilder, '#build'], [DescriptionSpecLabeled], [DescriptionSpecUnnamed],
+      [priced], [priced, '#run'], [lying, '#run'], [looped], [abstract],
+      [Class.new(StandardError) { def self.name = :tagged }], [Object.new], [Object.new.singleton_class], [Module.new],
+      [Class.new { def class = raise('not a class') }.new]
+    ]
+  end
+
+  # RSpec's full_description and ours for the args at the top level, nested in a group, and
+  # with a group nested under them.
+  def names_with_rspec(args)
+    shapes = [
+      -> { RSpec.describe(*args) { it('runs') {} } },
+      -> { RSpec.describe('Outer') { describe(*args) { it('runs') {} } } },
+      -> { RSpec.describe(*args) { describe('#child') { it('runs') {} } } }
+    ]
+    shapes.flat_map { |shape| examples_of(&shape) }.map { |e| [e.full_description, trunk_name(e)] }
+  end
+
+  def trunk_name(example)
+    Timeout.timeout(5) { RSpec::Trunk.full_description(example) }
+  end
+
+  it "names every kind of arg as RSpec does when RSpec's name has no address" do
+    aggregate_failures do
+      describe_args.each do |args|
+        names_with_rspec(args).each do |rspec, ours|
+          next if rspec.match?(/0x\h+/)
+
+          expect(ours).to eq(rspec), "#{args.inspect}: expected #{rspec.inspect}, got #{ours.inspect}"
+        end
+      end
+    end
+  end
+
+  it 'names every kind of arg without an address, and without raising or hanging' do
+    aggregate_failures do
+      describe_args.each do |args|
+        names_with_rspec(args).map(&:last).each { |ours| expect(ours).not_to match(/0x\h+/), args.inspect }
+      end
+    end
   end
 
   it 'leaves strings alone, even with an address interpolated into them' do
