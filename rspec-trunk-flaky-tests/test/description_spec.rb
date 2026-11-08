@@ -4,6 +4,15 @@ require 'rspec_trunk_flaky_tests'
 require_relative '../spec/spec_helper'
 require 'rspec/core/sandbox'
 
+# Defines .name for something else, as some apps do.
+class DescriptionSpecBuilder
+  class << self
+    private
+
+    def name(_key, _value) = raise('not a class name')
+  end
+end
+
 # Test names are built from description_args so that objects described by their
 # memory address get the same name on every run.
 #
@@ -81,6 +90,29 @@ RSpec.describe 'test names' do
     names = names_of { RSpec.describe(request.new) { it('routes') { expect(1).to eq(1) } } }
 
     expect(names).to eq(['#<Request> routes'])
+  end
+
+  it 'names a class whose .name is private and takes arguments as RSpec does' do
+    names = names_of do
+      RSpec.describe('Factory') do
+        describe(DescriptionSpecBuilder) { it('builds') { expect(1).to eq(1) } }
+        describe(DescriptionSpecBuilder.new) { it('is built') { expect(1).to eq(1) } }
+        describe(Class.new(DescriptionSpecBuilder)) { it('is a subclass') { expect(1).to eq(1) } }
+      end
+    end
+
+    expect(names).to eq([
+                          'Factory DescriptionSpecBuilder builds',
+                          'Factory #<DescriptionSpecBuilder> is built',
+                          'Factory #<Class < DescriptionSpecBuilder> is a subclass'
+                        ])
+  end
+
+  it 'names a class whose .name returns something other than a String by its anonymous name' do
+    tagged = Class.new(StandardError) { def self.name = :tagged }
+    names = names_of { RSpec.describe(tagged) { it('works') { expect(1).to eq(1) } } }
+
+    expect(names).to eq(['#<Class < StandardError> works'])
   end
 
   it 'leaves strings alone, even with an address interpolated into them' do

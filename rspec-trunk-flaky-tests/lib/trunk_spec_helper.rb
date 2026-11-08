@@ -46,6 +46,12 @@ module RSpec
   module Trunk
     ANSI_ESCAPE_PATTERN = %r{(?:\e[@-Z\\-_]|\e\[[0-?]*[ -/]*[@-~])}
 
+    CORE_METHODS = {
+      name: [Module.instance_method(:name), String],
+      class: [Kernel.instance_method(:class), Module],
+      superclass: [Class.instance_method(:superclass), Class]
+    }.freeze
+
     # Knapsack example detector instantiates all test cases in order to determine how to shard them
     # These instantiations should not generate test bundles, so we
     # disable the gem when running under knapsack_pro:rspec_test_example_detector
@@ -187,9 +193,10 @@ module RSpec
 
       def description_arg(arg)
         if arg.is_a?(Module)
-          arg.name || anonymous_module_name(arg)
+          module_name(arg) || anonymous_module_name(arg)
         elsif default_to_s?(arg)
-          "#<#{arg.class.name || anonymous_module_name(arg.class)}>"
+          klass = core_call(arg, :class)
+          "#<#{module_name(klass) || anonymous_module_name(klass)}>"
         else
           arg.to_s
         end
@@ -198,9 +205,23 @@ module RSpec
       def anonymous_module_name(mod)
         return '#<Module>' unless mod.is_a?(Class)
 
-        superclass = mod.superclass
-        superclass = superclass.superclass while superclass && superclass.name.nil?
-        superclass ? "#<Class < #{superclass.name}>" : '#<Class>'
+        superclass = core_call(mod, :superclass)
+        superclass = core_call(superclass, :superclass) while superclass && module_name(superclass).nil?
+        superclass ? "#<Class < #{module_name(superclass)}>" : '#<Class>'
+      end
+
+      def module_name(mod)
+        core_call(mod, :name)
+      end
+
+      # The arg's own method when it works as core's does, else core's: a class may define
+      # .name for something else (private, or taking arguments).
+      def core_call(obj, method_name)
+        core, type = CORE_METHODS.fetch(method_name)
+        value = obj.public_send(method_name)
+        value.is_a?(type) ? value : core.bind_call(obj)
+      rescue StandardError
+        core.bind_call(obj)
       end
 
       # Kernel's method, so an object whose own #method means something else
