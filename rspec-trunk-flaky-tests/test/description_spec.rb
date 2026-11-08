@@ -152,9 +152,16 @@ RSpec.describe 'test names' do
     expect(names).to eq(['Lookup #<Proxy> forwards', 'Lookup #<Class < StandardError> terminates'])
   end
 
-  it 'names a named class or a singleton class as RSpec does, whatever its own .name says' do
+  it 'names a class as RSpec does when that has no address, whatever its own .name says' do
+    priced = Class.new { def self.to_s = 'Money (USD)' }
+    lying = Class.new do
+      def self.to_s = 'Lying'
+      def self.is_a?(type) = type == Module ? false : super
+    end
     examples = examples_of do
       RSpec.describe('Payroll') do
+        describe(priced, '#run') { it('runs') { expect(1).to eq(1) } }
+        describe(lying, '#run') { it('runs') { expect(1).to eq(1) } }
         describe(DescriptionSpecLabeled) { it('runs') { expect(1).to eq(1) } }
         describe(DescriptionSpecUnnamed) { it('runs') { expect(1).to eq(1) } }
         describe(Integer.singleton_class) { it('runs') { expect(1).to eq(1) } }
@@ -163,6 +170,8 @@ RSpec.describe 'test names' do
 
     expect(examples.map { |e| RSpec::Trunk.full_description(e) }).to eq(examples.map(&:full_description))
     expect(examples.map(&:full_description)).to eq([
+                                                     'Payroll Money (USD)#run runs',
+                                                     'Payroll Lying #run runs',
                                                      'Payroll DescriptionSpecLabeled runs',
                                                      'Payroll DescriptionSpecUnnamed runs',
                                                      'Payroll #<Class:Integer> runs'

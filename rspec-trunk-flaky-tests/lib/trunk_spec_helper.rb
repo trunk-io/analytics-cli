@@ -191,14 +191,15 @@ module RSpec
 
       # As in RSpec: `describe Foo, '#bar'` is "Foo#bar", not "Foo #bar".
       def description_separator(parent_arg, child_arg)
-        core_is_a?(parent_arg, Module) && /^(?:#|::|\.)/.match?(child_arg.to_s) ? '' : ' '
+        parent_arg.is_a?(Module) && /^(?:#|::|\.)/.match?(child_arg.to_s) ? '' : ' '
       end
 
       def description_arg(arg)
         if core_is_a?(arg, Module)
-          module_description(arg)
+          module_description(arg, arg.to_s)
         elsif default_to_s?(arg)
-          "#<#{module_description(core_call(arg, :class))}>"
+          klass = core_call(arg, :class)
+          "#<#{module_description(klass, MODULE_TO_S.bind_call(klass))}>"
         else
           arg.to_s
         end
@@ -212,9 +213,9 @@ module RSpec
         superclass ? "#<Class < #{module_name(superclass)}>" : '#<Class>'
       end
 
-      # RSpec's (and so 0.16.1's) name for a module, unless it has an address in it.
-      def module_description(mod)
-        described = MODULE_TO_S.bind_call(mod)
+      # `described` is the module's #to_s, which is RSpec's (and so 0.16.1's) name for it,
+      # kept unless it has an address in it.
+      def module_description(mod, described)
         return described unless MEMORY_ADDRESS.match?(described)
 
         name = module_name(mod)
