@@ -13,6 +13,9 @@ class DescriptionSpecBuilder
   end
 end
 
+DescriptionSpecLabeled = Class.new { def self.name = 'Payroll Builder' }
+DescriptionSpecUnnamed = Class.new { def self.name = '' }
+
 # Test names are built from description_args so that objects described by their
 # memory address get the same name on every run.
 #
@@ -147,6 +150,23 @@ RSpec.describe 'test names' do
     end
 
     expect(names).to eq(['Lookup #<Proxy> forwards', 'Lookup #<Class < StandardError> terminates'])
+  end
+
+  it 'names a named class or a singleton class as RSpec does, whatever its own .name says' do
+    examples = examples_of do
+      RSpec.describe('Payroll') do
+        describe(DescriptionSpecLabeled) { it('runs') { expect(1).to eq(1) } }
+        describe(DescriptionSpecUnnamed) { it('runs') { expect(1).to eq(1) } }
+        describe(Integer.singleton_class) { it('runs') { expect(1).to eq(1) } }
+      end
+    end
+
+    expect(examples.map { |e| RSpec::Trunk.full_description(e) }).to eq(examples.map(&:full_description))
+    expect(examples.map(&:full_description)).to eq([
+                                                     'Payroll DescriptionSpecLabeled runs',
+                                                     'Payroll DescriptionSpecUnnamed runs',
+                                                     'Payroll #<Class:Integer> runs'
+                                                   ])
   end
 
   it 'leaves strings alone, even with an address interpolated into them' do

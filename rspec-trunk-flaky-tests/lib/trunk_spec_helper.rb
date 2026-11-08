@@ -52,6 +52,8 @@ module RSpec
     }.freeze
     CLASS_SUPERCLASS = Class.instance_method(:superclass)
     KERNEL_IS_A = Kernel.instance_method(:is_a?)
+    MODULE_TO_S = Module.instance_method(:to_s)
+    MEMORY_ADDRESS = /:0x\h+>/
 
     # Knapsack example detector instantiates all test cases in order to determine how to shard them
     # These instantiations should not generate test bundles, so we
@@ -194,10 +196,9 @@ module RSpec
 
       def description_arg(arg)
         if core_is_a?(arg, Module)
-          module_name(arg) || anonymous_module_name(arg)
+          module_description(arg)
         elsif default_to_s?(arg)
-          klass = core_call(arg, :class)
-          "#<#{module_name(klass) || anonymous_module_name(klass)}>"
+          "#<#{module_description(core_call(arg, :class))}>"
         else
           arg.to_s
         end
@@ -209,6 +210,15 @@ module RSpec
         superclass = CLASS_SUPERCLASS.bind_call(mod)
         superclass = CLASS_SUPERCLASS.bind_call(superclass) while superclass && module_name(superclass).nil?
         superclass ? "#<Class < #{module_name(superclass)}>" : '#<Class>'
+      end
+
+      # RSpec's (and so 0.16.1's) name for a module, unless it has an address in it.
+      def module_description(mod)
+        described = MODULE_TO_S.bind_call(mod)
+        return described unless MEMORY_ADDRESS.match?(described)
+
+        name = module_name(mod)
+        name.nil? || name.empty? ? anonymous_module_name(mod) : name
       end
 
       def module_name(mod)
