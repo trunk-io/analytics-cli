@@ -16,9 +16,9 @@ impl ApiClient {
     const QUARANTINE_STATUS_MAX_IDENTIFIERS: usize = 2_000;
     const ALL_QUARANTINED_TESTS_PAGE_SIZE: usize = 25_000;
 
-    /// Sets the API the run uses. A GitHub Actions fork PR run holds no v2 credential, so on v2 it
-    /// first swaps the job's `GITHUB_TOKEN` for a Trunk login, and stays on v1's collection lane if
-    /// that fails.
+    /// Sets the API the run uses, taking the decision route's answer as given. The one exception is a
+    /// GitHub Actions fork PR run, which holds no v2 credential: on v2 it swaps the job's
+    /// `GITHUB_TOKEN` for a Trunk login, and stays on v1's collection lane if that fails.
     pub async fn use_upload_api_version(&mut self, version: UploadApiVersion) {
         self.upload_api_version = match &self.github_fork_pull_request {
             Some(pull_request)
@@ -62,6 +62,7 @@ impl ApiClient {
             .build()
             .map_err(|error| error.to_string())?
             .post(url)
+            .header(Self::TRUNK_ALLOW_FORKED_PR_UPLOADS_HEADER, "true")
             .json(&message::GithubActionsForkLoginRequest {
                 github_token,
                 pull_request_number: pull_request.number,

@@ -768,6 +768,12 @@ fn login_route(
                   headers: HeaderMap,
                   uri: Uri,
                   Json(body): Json<Value>| async move {
+                assert_eq!(
+                    headers
+                        .get("x-trunk-allow-forked-pr-uploads")
+                        .and_then(|value| value.to_str().ok()),
+                    Some("true")
+                );
                 state.record_route_request(&headers, &uri, Some(body));
                 answer
             },
