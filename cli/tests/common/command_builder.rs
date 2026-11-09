@@ -27,6 +27,7 @@ pub struct UploadArgs {
     validation_report: Option<String>,
     dry_run: bool,
     public_repo_id: Option<String>,
+    forked_pr: bool,
 }
 
 impl UploadArgs {
@@ -53,6 +54,7 @@ impl UploadArgs {
             validation_report: None,
             dry_run: false,
             public_repo_id: None,
+            forked_pr: false,
         }
     }
 
@@ -64,6 +66,9 @@ impl UploadArgs {
             Some(public_repo_id) => {
                 auth_args.push(String::from("--public-repo-id"));
                 auth_args.push(public_repo_id.clone());
+            }
+            None if self.forked_pr => {
+                auth_args.push(String::from("--allow-forked-pr-uploads"));
             }
             None => {
                 auth_args.push(String::from("--token"));
@@ -577,6 +582,17 @@ impl<'b> CommandBuilder<'b> {
                 upload_args.public_repo_id = Some(new_value.to_string());
             }
             CommandType::Validate { .. } => {}
+        }
+        self
+    }
+
+    /// No credential, as a forked pull request's run has: `--allow-forked-pr-uploads` in place of
+    /// `--token`.
+    pub fn forked_pr(&mut self) -> &mut Self {
+        if let CommandType::Upload { upload_args, .. } | CommandType::Test { upload_args, .. } =
+            &mut self.command_type
+        {
+            upload_args.forked_pr = true;
         }
         self
     }
