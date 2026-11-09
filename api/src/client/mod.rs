@@ -4,7 +4,7 @@ use std::sync::mpsc::Sender;
 
 use constants::{DEFAULT_ORIGIN, TRUNK_PUBLIC_API_ADDRESS_ENV};
 use display::message::DisplayMessage;
-use http::{HeaderValue, header::HeaderMap};
+use http::{HeaderName, HeaderValue, header::HeaderMap};
 use reqwest::{Client, Response, StatusCode, header};
 use serde::de::DeserializeOwned;
 use tokio::fs;
@@ -53,14 +53,66 @@ pub struct ApiClient {
     pub telemetry_host: String,
     s3_client: Client,
     trunk_api_client: Client,
-    /// Only a client holding an API token can call v2, which takes it as a bearer credential.
+    /// Holds the run's v2 credential: an API token from the start, or a fork pull request's Trunk
+    /// login once it has one.
     trunk_api_v2_client: Option<Client>,
+    /// `--allow-forked-pr-uploads` with no token and no public repo id.
+    credential_free: bool,
+    /// A credential-free GitHub Actions fork PR run, which on v2 swaps its `GITHUB_TOKEN` for a login.
+    github_fork_pull_request: Option<GithubForkPullRequest>,
     telemetry_client: Client,
     version_path_prefix: String,
     org_url_slug: String,
     render_sender: Option<Sender<DisplayMessage>>,
     upload_api_version: UploadApiVersion,
     missing_test_collection: bool,
+}
+
+/// A GitHub Actions run of a pull request from a fork, as its event payload names it.
+pub struct GithubForkPullRequest {
+    pub number: u64,
+    /// `pull_request.head.sha`, not `GITHUB_SHA`, which is the merge commit on a PR run.
+    pub head_sha: String,
+    /// The job's `GITHUB_TOKEN`, when the step was given it.
+    pub github_token: Option<String>,
+}
+
+/// What a v2 call presents. The gateway takes only an API key on `Authorization`, so a Trunk login
+/// goes on `x-trunk-token` and the two are never sent together.
+pub(crate) enum V2Credential {
+    ApiKey(String),
+    TrunkLogin(String),
+}
+
+impl V2Credential {
+    const TRUNK_TOKEN_HEADER: HeaderName = HeaderName::from_static("x-trunk-token");
+
+    fn client(&self) -> anyhow::Result<Client> {
+        let (name, value, error) = match self {
+            Self::ApiKey(token) => (
+                header::AUTHORIZATION,
+                format!("Bearer {token}"),
+                "Trunk API token is not ASCII",
+            ),
+            Self::TrunkLogin(jwt) => (
+                Self::TRUNK_TOKEN_HEADER,
+                jwt.clone(),
+                "Trunk login is not ASCII",
+            ),
+        };
+        let mut value = HeaderValue::from_str(&value).map_err(|_| anyhow::Error::msg(error))?;
+        value.set_sensitive(true);
+        let mut headers = HeaderMap::new();
+        headers.append(
+            header::CONTENT_TYPE,
+            HeaderValue::from_static("application/json"),
+        );
+        headers.append(name, value);
+        Ok(Client::builder()
+            .timeout(ApiClient::TRUNK_API_TIMEOUT)
+            .default_headers(headers)
+            .build()?)
+    }
 }
 
 pub fn get_api_host() -> String {
@@ -94,8 +146,8 @@ impl ApiClient {
         // request. Fork PRs can't read repo secrets, so they rely on the public repo id.
         let api_token = api_token.filter(|token| !token.trim().is_empty());
         let public_repo_id = public_repo_id.filter(|id| !id.trim().is_empty());
-        // The forked-PR lane presents no credential at all: the collection id already in the
-        // request authorizes it, gated on that collection's opt-in server-side.
+        // The forked-PR lane presents no credential at all on v1: the collection id already in
+        // the request authorizes it, gated on that collection's opt-in server-side.
         if api_token.is_none() && public_repo_id.is_none() && !allow_forked_pr_uploads {
             return Err(anyhow::anyhow!(
                 "Either a Trunk API token, a public repo id, or --allow-forked-pr-uploads is required."
@@ -160,25 +212,11 @@ impl ApiClient {
             .build()?;
 
         let trunk_api_v2_client = api_token
-            .as_deref()
-            .map(|token| {
-                let mut headers = HeaderMap::new();
-                headers.append(
-                    header::CONTENT_TYPE,
-                    HeaderValue::from_static("application/json"),
-                );
-                headers.append(
-                    header::AUTHORIZATION,
-                    HeaderValue::from_str(&format!("Bearer {token}"))
-                        .map_err(|_| anyhow::Error::msg("Trunk API token is not ASCII"))?,
-                );
-                Client::builder()
-                    .timeout(Self::TRUNK_API_TIMEOUT)
-                    .default_headers(headers)
-                    .build()
-                    .map_err(anyhow::Error::from)
-            })
+            .clone()
+            .map(|token| V2Credential::ApiKey(token).client())
             .transpose()?;
+        let credential_free =
+            allow_forked_pr_uploads && api_token.is_none() && public_repo_id.is_none();
 
         let mut telemetry_client_default_headers = HeaderMap::new();
         telemetry_client_default_headers.append(
@@ -217,6 +255,8 @@ impl ApiClient {
             s3_client,
             trunk_api_client,
             trunk_api_v2_client,
+            credential_free,
+            github_fork_pull_request: None,
             telemetry_client,
             version_path_prefix,
             org_url_slug,
@@ -240,6 +280,13 @@ impl ApiClient {
         self.upload_api_version
     }
 
+    /// Lets a credential-free run of a GitHub Actions fork PR ask for v2. Ignored for any other run.
+    pub fn set_github_fork_pull_request(&mut self, pull_request: GithubForkPullRequest) {
+        if self.credential_free {
+            self.github_fork_pull_request = Some(pull_request);
+        }
+    }
+
     /// Which API the run's quarantine lookup and upload use. Every later call follows it.
     pub fn set_upload_api_version(&mut self, upload_api_version: UploadApiVersion) {
         self.upload_api_version = upload_api_version;
@@ -247,7 +294,8 @@ impl ApiClient {
 
     /// Asks Trunk whether this run uses v2. Anything but an explicit `v2`, a failed call
     /// included, is v1, so this never fails a run. A timeout, a connection error or a 5xx is
-    /// retried once; any other answer is final.
+    /// retried once; any other answer is final. Only a run with an API token or a credential-free
+    /// GitHub Actions fork PR run asks.
     ///
     /// A run that names no collection asks too, by its repository: Trunk may answer `v2` with the
     /// collection it inferred. A `v2` that names none is v1, since every v2 route needs one. A `v1`
@@ -265,7 +313,9 @@ impl ApiClient {
             .as_ref()
             .and_then(message::named_repo)
             .is_some();
-        let decision = if self.trunk_api_v2_client.is_none() || (requested.is_none() && !has_repo) {
+        let can_use_v2 =
+            self.trunk_api_v2_client.is_some() || self.github_fork_pull_request.is_some();
+        let decision = if !can_use_v2 || (requested.is_none() && !has_repo) {
             message::UploadApiDecision::default()
         } else {
             match self.request_upload_api_version(request).await {
