@@ -36,7 +36,9 @@ jobs:
           token: ${{ secrets.TRUNK_PROD_ORG_API_TOKEN }}
 
   build:
-    runs-on: ubuntu-latest
+    # ubuntu-26.04's libclang 21 makes rb-sys 0.9.124's bindgen emit opaque structs for Ruby 3.1's
+    # headers, so magnus 0.8.2 fails to compile. Unpin with the rb-sys/magnus upgrade (TRUNK-23633).
+    runs-on: ubuntu-24.04
     needs: [dynamic-ci-filter]
     if: >-
       !cancelled() &&
