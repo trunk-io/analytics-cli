@@ -386,6 +386,57 @@ async fn upload_bundle_falls_back_to_short_links_without_collection_ids() {
 
 // NOTE: must be multi threaded to start a mock server
 #[tokio::test(flavor = "multi_thread")]
+async fn failed_v2_upload_links_tests_by_the_quarantine_lookup_ids() {
+    use axum::routing::post;
+    use serde_json::{Value, json};
+
+    let temp_dir = tempdir().unwrap();
+    generate_mock_git_repo(&temp_dir);
+    generate_mock_valid_junit_xmls(&temp_dir);
+
+    let mut builder = MockServerBuilder::new();
+    builder.route(
+        "/v1/metrics/getUploadApiVersion",
+        post(|| async { Json(json!({"apiVersion": "v2"})) }),
+    );
+    builder.route(
+        "/v2/test-collections/:id/quarantine-status",
+        post(|Json(body): Json<Value>| async move {
+            let tests: Vec<Value> = body["testIdentifiers"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|identifier| json!({"clientTestId": identifier["id"], "quarantined": false}))
+                .collect();
+            Json(json!({
+                "testCollectionUuid": MOCK_TEST_COLLECTION_ID,
+                "repositoryId": MOCK_REPO_ID,
+                "quarantineEnabled": true,
+                "tests": tests,
+            }))
+        }),
+    );
+    builder.route(
+        "/v2/test-collections/:id/uploads",
+        post(|| async { (StatusCode::BAD_REQUEST, Json(json!({}))) }),
+    );
+    let state = builder.spawn_mock_server().await;
+
+    CommandBuilder::upload(temp_dir.path(), state.host.clone())
+        .command()
+        .arg("--test-collection-id")
+        .arg("tc_123")
+        .assert()
+        .failure()
+        .stdout(predicate::str::contains(
+            "/test-org/flaky-tests/collections/tc_123/tests/",
+        ))
+        .stdout(predicate::str::contains("/collections/tc_123/t/").not())
+        .stdout(predicate::str::contains("?repo=trunk-io%2Fanalytics-cli").not());
+}
+
+// NOTE: must be multi threaded to start a mock server
+#[tokio::test(flavor = "multi_thread")]
 async fn upload_bundle_prints_test_collection_upload_link() {
     let temp_dir = tempdir().unwrap();
     generate_mock_git_repo(&temp_dir);
