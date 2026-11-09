@@ -45,6 +45,7 @@ pub struct QuarantineContext {
     pub org_url_slug: String,
     pub fetch_status: QuarantineFetchStatus,
     pub quarantine_resolution_mode: QuarantineResolutionMode,
+    pub guid_scope: Option<TestCaseGuidScope>,
 }
 impl QuarantineContext {
     pub fn quarantining(&self, disable_quarantining: bool) -> Quarantining {
@@ -70,6 +71,7 @@ impl QuarantineContext {
             org_url_slug: String::default(),
             fetch_status: QuarantineFetchStatus::FetchSkipped,
             quarantine_resolution_mode: QuarantineResolutionMode::Unspecified,
+            guid_scope: None,
         }
     }
 
@@ -82,6 +84,7 @@ impl QuarantineContext {
             org_url_slug: String::default(),
             fetch_status: QuarantineFetchStatus::FetchFailed(error),
             quarantine_resolution_mode: QuarantineResolutionMode::Unspecified,
+            guid_scope: None,
         }
     }
 }
@@ -339,6 +342,7 @@ pub async fn gather_quarantine_context(
             failures: Vec::default(),
             fetch_status: QuarantineFetchStatus::FetchSkipped,
             quarantine_resolution_mode: QuarantineResolutionMode::Unspecified,
+            guid_scope: None,
         });
     }
 
@@ -396,6 +400,7 @@ pub async fn gather_quarantine_context(
             org_url_slug: request.org_url_slug.clone(),
             fetch_status: quarantine_fetch_status,
             quarantine_resolution_mode,
+            guid_scope,
         });
     } else {
         // quarantining is enabled, continue with quarantine process and update exit code
@@ -495,6 +500,7 @@ pub async fn gather_quarantine_context(
         org_url_slug: request.org_url_slug.clone(),
         fetch_status: quarantine_fetch_status,
         quarantine_resolution_mode,
+        guid_scope,
     })
 }
 
@@ -719,6 +725,7 @@ mod tests {
             org_url_slug: String::new(),
             fetch_status: QuarantineFetchStatus::FetchSucceeded,
             quarantine_resolution_mode: QuarantineResolutionMode::Unspecified,
+            guid_scope: None,
         };
         assert_eq!(
             quarantine_query_result(false, &success_ctx),
@@ -749,6 +756,7 @@ mod tests {
             repo: RepoUrlParts::default(),
             org_url_slug: String::new(),
             quarantine_resolution_mode: QuarantineResolutionMode::Unspecified,
+            guid_scope: None,
         };
         assert_eq!(
             quarantine_query_result(false, &repo_disabled_ctx),

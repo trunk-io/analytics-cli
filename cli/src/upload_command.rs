@@ -835,6 +835,8 @@ pub async fn run_upload(
             )),
         ),
     };
+    // A dry run or a failed upload has no upload ids, but a v2 quarantine lookup returns the same pair.
+    let guid_scope = guid_scope.or_else(|| quarantine_context.guid_scope.clone());
     if guid_scope.is_none() && upload_args.test_collection_short_id.is_some() {
         tracing::debug!(
             "No test collection ids returned for this upload; test links will use the short-link form"

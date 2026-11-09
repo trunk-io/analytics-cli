@@ -256,6 +256,23 @@ mod tests {
         );
     }
 
+    /// ADR-0019's `--no-repo` vector: the server names no repository with the nil UUID.
+    #[test]
+    fn test_collection_guid_url_generated_without_a_repo() {
+        let test_case = test_case_with_id("88e5353c-190c-5dce-9d06-0e66c3e062b1");
+        let ids = TestCaseGuidScope {
+            test_collection_id: String::from(COLLECTION_ID),
+            repo_id: Uuid::nil().to_string(),
+        };
+
+        assert_eq!(
+            test_case_url(&test_case, Some("tc_123"), Some(&ids)),
+            Ok(String::from(
+                "https://app.trunk-staging.io/bad-app-org/flaky-tests/collections/tc_123/tests/943a80af-66b0-84bb-ad01-56b3b72fe363"
+            )),
+        );
+    }
+
     #[test]
     fn test_collection_guid_url_falls_back_for_an_unparseable_server_id() {
         let ids = TestCaseGuidScope {
