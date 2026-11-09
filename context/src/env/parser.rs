@@ -761,21 +761,17 @@ impl ToString for BranchClass {
 }
 
 pub fn clean_branch(branch: &str) -> String {
-    let without_ref = ["refs/heads/", "refs/remotes/", "refs/"]
+    let mut name = ["refs/heads/", "refs/remotes/", "refs/"]
         .iter()
         .find_map(|prefix| branch.strip_prefix(prefix))
         .unwrap_or(branch);
-    let without_remotes = without_ref.strip_prefix("remotes/").unwrap_or(without_ref);
-    let without_origin = without_remotes
-        .strip_prefix("origin/")
-        .unwrap_or(without_remotes);
-    let new_branch = if without_origin.is_empty() {
-        branch
-    } else {
-        without_origin
-    };
+    name = name.strip_prefix("remotes/").unwrap_or(name);
+    name = name.strip_prefix("origin/").unwrap_or(name);
+    if name.is_empty() {
+        name = branch;
+    }
 
-    String::from(safe_truncate_string::<MAX_BRANCH_NAME_SIZE, _>(&new_branch))
+    String::from(safe_truncate_string::<MAX_BRANCH_NAME_SIZE, _>(&name))
 }
 
 /// Default `CIRCLE_BUILD_URL` for GitHub projects:
