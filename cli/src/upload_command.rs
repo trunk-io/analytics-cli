@@ -88,35 +88,31 @@ pub struct UploadArgs {
     /// a customer.
     #[arg(long, env = constants::TRUNK_ORG_URL_SLUG_ENV, help = "Organization url slug.")]
     pub org_url_slug: String,
+    /// Required on the command line. Kept an `Option` because the test-runner plugins build
+    /// `UploadArgs` without clap; `run_upload` refuses a run that names no collection.
     #[arg(
         long = "test-collection-id",
         env = constants::TRUNK_TEST_COLLECTION_ID_ENV,
-        help = "Optional 8 character alphanumeric ID for a test collection.",
-        required = false,
+        help = "ID of the test collection to upload to: 8 alphanumeric characters, shown on the collection's page in Trunk.",
+        required = true,
+        value_parser = clap::builder::NonEmptyStringValueParser::new(),
         num_args = 1
     )]
     pub test_collection_short_id: Option<String>,
     #[arg(
         long,
-        required_unless_present_any = ["public_repo_id", "allow_forked_pr_uploads"],
+        required_unless_present = "allow_forked_pr_uploads",
         env = constants::TRUNK_API_TOKEN_ENV,
         help = "Organization token. Defaults to TRUNK_API_TOKEN env var."
     )]
     pub token: Option<String>,
-    #[arg(
-        long,
-        required_unless_present_any = ["token", "allow_forked_pr_uploads"],
-        env = constants::TRUNK_PUBLIC_REPO_ID_ENV,
-        help = "Non-secret per-repo identifier, usable instead of --token on fork PRs where repo secrets are unavailable."
-    )]
-    pub public_repo_id: Option<String>,
     /// Opting in explicitly is what keeps a job whose token secret failed to interpolate failing
     /// loudly: without this, "no credential" would silently become an anonymous upload, and the
     /// fail-open behaviour on auth errors would hide it behind a green CI step.
     #[arg(
         long,
         env = constants::TRUNK_ALLOW_FORKED_PR_UPLOADS_ENV,
-        help = "Upload with no Trunk credential, as a forked pull request must since it cannot read repository secrets. Works with no credential on Trunk API v1. On Trunk API v2 it works only for a fork pull request on GitHub Actions, using the job's GITHUB_TOKEN: trunk-io/analytics-uploader passes it by default; when running the CLI directly, set `GITHUB_TOKEN: ${{ github.token }}` on the step. Requires --test-collection-id; the collection must have forked-PR uploads enabled in Trunk."
+        help = "Upload with no Trunk credential, as a forked pull request must since it cannot read repository secrets. Works with no credential on Trunk API v1. On Trunk API v2 it works only for a fork pull request on GitHub Actions, using the job's GITHUB_TOKEN: trunk-io/analytics-uploader passes it by default; when running the CLI directly, set `GITHUB_TOKEN: ${{ github.token }}` on the step. The collection must have forked-PR uploads enabled in Trunk."
     )]
     pub allow_forked_pr_uploads: bool,
     #[arg(
@@ -385,16 +381,6 @@ pub struct UploadArgs {
     pub show_failure_messages: bool,
     #[arg(
         long,
-        env = constants::TRUNK_HIDE_TEST_COLLECTION_LINKS_ENV,
-        help = "Show repo-scoped links in the CLI output instead of test collection links when a test collection ID is passed.",
-        required = false,
-        num_args = 0,
-        default_value = "false",
-        default_missing_value = "true"
-    )]
-    pub hide_test_collection_links: bool,
-    #[arg(
-        long,
         env = constants::TRUNK_SUMMARY_OUTPUT_FILE_ENV,
         help = "Also write the summary as JSON to this file, e.g. for a step that comments on the pull request.",
         required = false,
@@ -482,7 +468,6 @@ pub struct UploadRunResult {
     pub validation_report: ValidationReport,
     pub show_failure_messages: bool,
     pub test_collection_short_id: Option<String>,
-    pub hide_test_collection_links: bool,
     pub api_address: String,
     pub guid_scope: Option<TestCaseGuidScope>,
     pub notices: Vec<Notice>,
@@ -568,24 +553,21 @@ pub async fn run_upload(
         notices.push(Notice::deprecation(message));
     }
 
-    // Caught here rather than server-side: without a collection there is nothing for the forked
-    // lane to authorize against, and a 401 from a fork run is fail-open — a warning and a green
-    // step, which is exactly the silent misconfiguration this flag exists to prevent. Any error
-    // other than an InterruptingError would fail open the same way.
-    if upload_args.allow_forked_pr_uploads
-        && upload_args
-            .test_collection_short_id
-            .as_ref()
-            .is_none_or(|id| id.trim().is_empty())
+    // clap enforces this for `upload` and `test`; the test-runner plugins build `UploadArgs`
+    // themselves. An InterruptingError, since any other error fails open: a warning and a green
+    // step that hides a run whose results go nowhere.
+    if upload_args
+        .test_collection_short_id
+        .as_ref()
+        .is_none_or(|id| id.trim().is_empty())
     {
         return Err(anyhow::anyhow!(InterruptingError::new(
-            "--allow-forked-pr-uploads requires --test-collection-id: forked pull request uploads are authorized by the collection's own opt-in."
+            missing_test_collection_id_message(caller)
         )));
     }
 
     let mut api_client = ApiClient::new(
         upload_args.token.clone(),
-        upload_args.public_repo_id.clone(),
         upload_args.allow_forked_pr_uploads,
         &upload_args.org_url_slug,
         render_sender,
@@ -682,7 +664,6 @@ pub async fn run_upload(
             .test_collection_short_id
             .clone()
             .filter(|id| !id.is_empty()),
-        upload_args.hide_test_collection_links,
     )
     .await
     {
@@ -857,13 +838,24 @@ pub async fn run_upload(
         test_collection_short_id: upload_args
             .test_collection_short_id
             .filter(|id| !id.is_empty()),
-        hide_test_collection_links: upload_args.hide_test_collection_links,
         api_address: api_client.api_host.clone(),
         guid_scope,
         notices,
         dry_run: upload_args.dry_run,
         disable_quarantining,
     })
+}
+
+pub fn missing_test_collection_id_message(caller: UploadApiCaller) -> String {
+    let how_to_pass = match caller {
+        UploadApiCaller::Cli => String::from("Pass --test-collection-id"),
+        UploadApiCaller::TestRunnerPlugin => {
+            format!("Set {}", constants::TRUNK_TEST_COLLECTION_ID_ENV)
+        }
+    };
+    format!(
+        "This run names no test collection. {how_to_pass} to upload its test results; the ID is on the collection's page in Trunk."
+    )
 }
 
 /// The run goes on as if the user had named the collection Trunk inferred, until 1.0.0 requires it.

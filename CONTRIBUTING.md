@@ -52,7 +52,7 @@ For detailed build instructions for each supported package, see their respective
 
 ```bash
 cargo build
-./target/debug/trunk-analytics-cli upload --org-url-slug=trunk-io --token=${API_TOKEN} --junit-paths=junit.xml
+./target/debug/trunk-analytics-cli upload --org-url-slug=trunk-io --token=${API_TOKEN} --test-collection-id=${TEST_COLLECTION_ID} --junit-paths=junit.xml
 ```
 
 You can generate sample junit files by running
