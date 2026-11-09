@@ -3707,8 +3707,24 @@ async fn a_swift_test_xunit_file_reached_twice_is_uploaded_once() {
 const V2_UPLOAD_ID: &str = "f47ac10b-58cc-4372-a567-0e02b2c3d479";
 const V2_CREATED_AT: &str = "2026-10-06T16:00:00.000Z";
 
-// (route, collection short id, authorization header) per v2 call
-type V2Calls = Arc<Mutex<Vec<(String, String, Option<String>)>>>;
+type V2Call = (String, String, Option<String>, Option<String>);
+// (route, collection short id, authorization header, x-trunk-token header) per v2 call
+type V2Calls = Arc<Mutex<Vec<V2Call>>>;
+
+fn v2_call(route: &str, id: String, headers: &axum::http::HeaderMap) -> V2Call {
+    let header = |name| {
+        headers
+            .get(name)
+            .and_then(|value| value.to_str().ok())
+            .map(String::from)
+    };
+    (
+        String::from(route),
+        id,
+        header("authorization"),
+        header("x-trunk-token"),
+    )
+}
 
 /// A server whose decision route answers `decision`, and which serves the v2 quarantine lookup
 /// and upload, quarantining every failure.
@@ -3731,14 +3747,10 @@ fn v2_mock_server(decision: serde_json::Value) -> (MockServerBuilder, V2Calls) {
         post(move |Path(id): Path<String>, headers: axum::http::HeaderMap, Json(body): Json<Value>| {
             let calls = calls.clone();
             async move {
-                calls.lock().unwrap().push((
-                    String::from("quarantine-status"),
-                    id,
-                    headers
-                        .get("authorization")
-                        .and_then(|value| value.to_str().ok())
-                        .map(String::from),
-                ));
+                calls
+                    .lock()
+                    .unwrap()
+                    .push(v2_call("quarantine-status", id, &headers));
                 let tests: Vec<Value> = body["testIdentifiers"]
                     .as_array()
                     .unwrap()
@@ -3765,14 +3777,7 @@ fn v2_mock_server(decision: serde_json::Value) -> (MockServerBuilder, V2Calls) {
                   headers: axum::http::HeaderMap| {
                 let calls = calls.clone();
                 async move {
-                    calls.lock().unwrap().push((
-                        String::from("uploads"),
-                        id,
-                        headers
-                            .get("authorization")
-                            .and_then(|value| value.to_str().ok())
-                            .map(String::from),
-                    ));
+                    calls.lock().unwrap().push(v2_call("uploads", id, &headers));
                     (
                         StatusCode::CREATED,
                         Json(json!({
@@ -3792,7 +3797,7 @@ fn v2_mock_server(decision: serde_json::Value) -> (MockServerBuilder, V2Calls) {
     (mock_server_builder, v2_calls)
 }
 
-fn v2_calls_for(short_id: &str) -> Vec<(String, String, Option<String>)> {
+fn v2_calls_for(short_id: &str) -> Vec<V2Call> {
     ["quarantine-status", "uploads"]
         .into_iter()
         .map(|route| {
@@ -3800,9 +3805,51 @@ fn v2_calls_for(short_id: &str) -> Vec<(String, String, Option<String>)> {
                 String::from(route),
                 String::from(short_id),
                 Some(String::from("Bearer test-token")),
+                None,
             )
         })
         .collect()
+}
+
+/// Serves the GitHub Actions login with `answer`, recording each login request's body.
+fn github_actions_login_route(
+    mock_server_builder: &mut MockServerBuilder,
+    answer: (StatusCode, &'static str),
+) -> Arc<Mutex<Vec<serde_json::Value>>> {
+    use axum::routing::post;
+
+    let logins: Arc<Mutex<Vec<serde_json::Value>>> = Arc::default();
+    let recorded = logins.clone();
+    mock_server_builder.route(
+        "/v2/auth/github-actions/login",
+        post(
+            move |headers: axum::http::HeaderMap, Json(body): Json<serde_json::Value>| {
+                assert!(headers.get("authorization").is_none());
+                assert!(headers.get("x-trunk-token").is_none());
+                recorded.lock().unwrap().push(body);
+                async move { answer }
+            },
+        ),
+    );
+    logins
+}
+
+/// A GitHub Actions `pull_request` event payload for PR #42, from `head` into `acme/web`.
+fn github_pull_request_event(temp_dir: &tempfile::TempDir, head: &str) -> String {
+    let path = temp_dir.path().join("github-event.json");
+    std::fs::write(
+        &path,
+        serde_json::json!({
+            "pull_request": {
+                "number": 42,
+                "head": {"sha": FORK_HEAD_SHA.to_uppercase(), "repo": {"full_name": head}},
+                "base": {"repo": {"full_name": "acme/web"}},
+            }
+        })
+        .to_string(),
+    )
+    .unwrap();
+    path.to_string_lossy().into_owned()
 }
 
 fn assert_no_v1_calls(state: &SharedMockServerState) {
@@ -3984,6 +4031,231 @@ async fn upload_on_v1_when_trunk_chooses_v2_but_names_no_collection() {
             .any(|request| matches!(request, RequestPayload::CreateBundleUpload(_))),
         "the run must have uploaded on v1"
     );
+}
+
+const GITHUB_ACTIONS_LOGIN: &str = r#"{"jwt":"trunk-jwt","expiresAt":"2026-11-06T17:15:00Z","organization":{"id":"o","slug":"acme","name":"Acme"},"repository":{"id":"r","name":"acme/web"}}"#;
+const FORK_HEAD_SHA: &str = "0123456789abcdef0123456789abcdef01234567";
+const GITHUB_TOKEN: &str = "ghs_job-token";
+
+fn assert_uploaded_on_the_v1_collection_lane(state: &SharedMockServerState) {
+    let requests = state.requests.lock().unwrap().clone();
+    assert!(
+        requests
+            .iter()
+            .any(|request| matches!(request, RequestPayload::CreateBundleUpload(_))),
+        "the run must have uploaded on v1"
+    );
+    let headers = state.request_headers.lock().unwrap();
+    let upload_headers = headers.get("createBundleUpload").unwrap();
+    assert_eq!(
+        upload_headers
+            .get("x-trunk-allow-forked-pr-uploads")
+            .and_then(|value| value.to_str().ok()),
+        Some("true")
+    );
+    assert!(upload_headers.get("x-api-token").is_none());
+}
+
+// NOTE: must be multi threaded to start a mock server
+#[tokio::test(flavor = "multi_thread")]
+async fn upload_a_fork_pr_run_on_v2_with_its_github_actions_login() {
+    let temp_dir = tempdir().unwrap();
+    generate_mock_git_repo(&temp_dir);
+    generate_mock_valid_junit_xmls_with_failures(&temp_dir);
+
+    let (mut mock_server_builder, v2_calls) =
+        v2_mock_server(serde_json::json!({"apiVersion": "v2"}));
+    let logins = github_actions_login_route(
+        &mut mock_server_builder,
+        (StatusCode::OK, GITHUB_ACTIONS_LOGIN),
+    );
+    let state = mock_server_builder.spawn_mock_server().await;
+
+    CommandBuilder::upload(temp_dir.path(), state.host.clone())
+        .verbose(true)
+        .forked_pr()
+        .command()
+        .arg("--test-collection-id")
+        .arg("aB3xY9kQ")
+        .env(
+            "GITHUB_EVENT_PATH",
+            github_pull_request_event(&temp_dir, "someone/web"),
+        )
+        .env("GITHUB_TOKEN", GITHUB_TOKEN)
+        .assert()
+        // every failure is quarantined
+        .success()
+        .stderr(predicate::str::contains(GITHUB_TOKEN).not())
+        .stderr(predicate::str::contains("trunk-jwt").not());
+
+    assert_eq!(
+        logins.lock().unwrap().clone(),
+        vec![serde_json::json!({
+            "githubToken": GITHUB_TOKEN,
+            "pullRequestNumber": 42,
+            "sha": FORK_HEAD_SHA,
+        })]
+    );
+    assert_eq!(
+        v2_calls.lock().unwrap().clone(),
+        ["quarantine-status", "uploads"]
+            .into_iter()
+            .map(|route| (
+                String::from(route),
+                String::from("aB3xY9kQ"),
+                None,
+                Some(String::from("trunk-jwt")),
+            ))
+            .collect::<Vec<_>>()
+    );
+    assert_no_v1_calls(&state);
+}
+
+#[rstest::rstest]
+#[case::unauthorized(
+    StatusCode::UNAUTHORIZED,
+    r#"{"error":{"code":"UNAUTHENTICATED","message":"unauthenticated"}}"#,
+    "401 Unauthorized, UNAUTHENTICATED"
+)]
+#[case::moved_head(
+    StatusCode::UNPROCESSABLE_ENTITY,
+    r#"{"error":{"code":"SHA_NOT_PR_HEAD","message":"the head moved"}}"#,
+    "422 Unprocessable Entity, SHA_NOT_PR_HEAD"
+)]
+#[case::github_down(StatusCode::SERVICE_UNAVAILABLE, "", "503 Service Unavailable")]
+#[case::rate_limited(StatusCode::TOO_MANY_REQUESTS, "", "429 Too Many Requests")]
+#[tokio::test(flavor = "multi_thread")]
+async fn upload_a_fork_pr_run_on_v1_when_its_swap_is_refused(
+    #[case] status: StatusCode,
+    #[case] body: &'static str,
+    #[case] reason: &str,
+) {
+    let temp_dir = tempdir().unwrap();
+    generate_mock_git_repo(&temp_dir);
+    generate_mock_valid_junit_xmls(&temp_dir);
+
+    let (mut mock_server_builder, v2_calls) =
+        v2_mock_server(serde_json::json!({"apiVersion": "v2"}));
+    let logins = github_actions_login_route(&mut mock_server_builder, (status, body));
+    let state = mock_server_builder.spawn_mock_server().await;
+
+    CommandBuilder::upload(temp_dir.path(), state.host.clone())
+        .verbose(true)
+        .forked_pr()
+        .command()
+        .arg("--test-collection-id")
+        .arg("aB3xY9kQ")
+        .env("GITHUB_EVENT_PATH", github_pull_request_event(&temp_dir, "someone/web"))
+        .env("GITHUB_TOKEN", GITHUB_TOKEN)
+        .assert()
+        .stderr(predicate::str::contains(format!(
+            "Could not log in to the Trunk API v2 for this fork pull request (Trunk answered {reason}); uploading with Trunk API v1"
+        )))
+        .stderr(predicate::str::contains(GITHUB_TOKEN).not());
+
+    assert_eq!(logins.lock().unwrap().len(), 1);
+    assert!(v2_calls.lock().unwrap().is_empty());
+    assert_uploaded_on_the_v1_collection_lane(&state);
+}
+
+// NOTE: must be multi threaded to start a mock server
+#[tokio::test(flavor = "multi_thread")]
+async fn upload_a_fork_pr_run_without_github_token_on_v1() {
+    let temp_dir = tempdir().unwrap();
+    generate_mock_git_repo(&temp_dir);
+    generate_mock_valid_junit_xmls(&temp_dir);
+
+    let (mut mock_server_builder, v2_calls) =
+        v2_mock_server(serde_json::json!({"apiVersion": "v2"}));
+    let logins = github_actions_login_route(
+        &mut mock_server_builder,
+        (StatusCode::OK, GITHUB_ACTIONS_LOGIN),
+    );
+    let state = mock_server_builder.spawn_mock_server().await;
+
+    CommandBuilder::upload(temp_dir.path(), state.host.clone())
+        .verbose(true)
+        .forked_pr()
+        .command()
+        .arg("--test-collection-id")
+        .arg("aB3xY9kQ")
+        .env(
+            "GITHUB_EVENT_PATH",
+            github_pull_request_event(&temp_dir, "someone/web"),
+        )
+        .env_remove("GITHUB_TOKEN")
+        .assert()
+        .stderr(predicate::str::contains("(GITHUB_TOKEN is not set)"));
+
+    assert!(logins.lock().unwrap().is_empty());
+    assert!(v2_calls.lock().unwrap().is_empty());
+    assert_uploaded_on_the_v1_collection_lane(&state);
+}
+
+// NOTE: must be multi threaded to start a mock server
+#[tokio::test(flavor = "multi_thread")]
+async fn upload_a_credential_free_run_that_is_not_a_fork_pr_on_v1() {
+    let temp_dir = tempdir().unwrap();
+    generate_mock_git_repo(&temp_dir);
+    generate_mock_valid_junit_xmls(&temp_dir);
+
+    let (mut mock_server_builder, v2_calls) =
+        v2_mock_server(serde_json::json!({"apiVersion": "v2"}));
+    let logins = github_actions_login_route(
+        &mut mock_server_builder,
+        (StatusCode::OK, GITHUB_ACTIONS_LOGIN),
+    );
+    let state = mock_server_builder.spawn_mock_server().await;
+
+    CommandBuilder::upload(temp_dir.path(), state.host.clone())
+        .verbose(true)
+        .forked_pr()
+        .command()
+        .arg("--test-collection-id")
+        .arg("aB3xY9kQ")
+        .env(
+            "GITHUB_EVENT_PATH",
+            github_pull_request_event(&temp_dir, "acme/web"),
+        )
+        .env("GITHUB_TOKEN", GITHUB_TOKEN)
+        .assert();
+
+    assert!(logins.lock().unwrap().is_empty());
+    assert!(v2_calls.lock().unwrap().is_empty());
+    // Trunk would have answered v2, which this run has no credential for: it never asked.
+    assert_uploaded_on_the_v1_collection_lane(&state);
+}
+
+// NOTE: must be multi threaded to start a mock server
+#[tokio::test(flavor = "multi_thread")]
+async fn upload_with_a_token_and_allow_forked_pr_uploads_never_swaps() {
+    let temp_dir = tempdir().unwrap();
+    generate_mock_git_repo(&temp_dir);
+    generate_mock_valid_junit_xmls_with_failures(&temp_dir);
+
+    let (mut mock_server_builder, v2_calls) =
+        v2_mock_server(serde_json::json!({"apiVersion": "v2"}));
+    let logins = github_actions_login_route(
+        &mut mock_server_builder,
+        (StatusCode::OK, GITHUB_ACTIONS_LOGIN),
+    );
+    let state = mock_server_builder.spawn_mock_server().await;
+
+    CommandBuilder::upload(temp_dir.path(), state.host.clone())
+        .command()
+        .arg("--allow-forked-pr-uploads")
+        .arg("--test-collection-id")
+        .arg("aB3xY9kQ")
+        .env(
+            "GITHUB_EVENT_PATH",
+            github_pull_request_event(&temp_dir, "someone/web"),
+        )
+        .env("GITHUB_TOKEN", GITHUB_TOKEN)
+        .assert()
+        .success();
+
+    assert!(logins.lock().unwrap().is_empty());
+    assert_eq!(v2_calls.lock().unwrap().clone(), v2_calls_for("aB3xY9kQ"));
 }
 
 // A debug log emitted while setting up the API client, so it only shows up with `--verbose`.

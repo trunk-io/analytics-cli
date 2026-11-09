@@ -129,6 +129,28 @@ pub struct GetUploadApiVersionResponse {
     pub missing_test_collection: bool,
 }
 
+/// The fork lane's body for `POST /v2/auth/github-actions/login`. It holds the job's
+/// `GITHUB_TOKEN`, so it has no `Debug`.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GithubActionsForkLoginRequest<'a> {
+    pub github_token: &'a str,
+    pub pull_request_number: u64,
+    pub sha: &'a str,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GithubActionsLogin {
+    pub jwt: String,
+    pub expires_at: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct GithubActionsLoginRefusal {
+    pub error: ClientErrorBody,
+}
+
 /// Which API a run uses and, on v2 for a run that named no test collection, the collection Trunk
 /// inferred from its repository.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]

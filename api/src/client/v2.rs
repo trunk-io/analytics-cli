@@ -3,15 +3,97 @@ use std::collections::HashSet;
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use reqwest::{Client, StatusCode};
 
-use super::{ApiClient, CheckNotFound, CheckUnauthorized, StatusCodeHelp, status_code_help};
+use super::{
+    ApiClient, CheckNotFound, CheckUnauthorized, GithubForkPullRequest, StatusCodeHelp,
+    V2Credential, status_code_help,
+};
 use crate::call_api::CallApi;
-use crate::message;
+use crate::message::{self, UploadApiVersion};
 use crate::quarantine::{QuarantineLookup, QuarantinedTestSet, QuarantinedTests};
 use crate::urls::TestCaseGuidScope;
 
 impl ApiClient {
     const QUARANTINE_STATUS_MAX_IDENTIFIERS: usize = 2_000;
     const ALL_QUARANTINED_TESTS_PAGE_SIZE: usize = 25_000;
+
+    /// Sets the API the run uses, taking the decision route's answer as given. The one exception is a
+    /// GitHub Actions fork PR run, which holds no v2 credential: on v2 it swaps the job's
+    /// `GITHUB_TOKEN` for a Trunk login, and stays on v1's collection lane if that fails.
+    pub async fn use_upload_api_version(&mut self, version: UploadApiVersion) {
+        self.upload_api_version = match &self.github_fork_pull_request {
+            Some(pull_request)
+                if version == UploadApiVersion::V2 && self.trunk_api_v2_client.is_none() =>
+            {
+                match self.log_in_github_fork_pull_request(pull_request).await {
+                    Ok(client) => {
+                        self.trunk_api_v2_client = Some(client);
+                        UploadApiVersion::V2
+                    }
+                    Err(reason) => {
+                        tracing::warn!(
+                            "Could not log in to the Trunk API v2 for this fork pull request ({reason}); uploading with Trunk API v1"
+                        );
+                        UploadApiVersion::V1
+                    }
+                }
+            }
+            _ => version,
+        };
+    }
+
+    /// `POST /v2/auth/github-actions/login` with the job's `GITHUB_TOKEN`. The error is a reason
+    /// fit to log: it never holds the token, the login, or a parse error that could quote them.
+    async fn log_in_github_fork_pull_request(
+        &self,
+        pull_request: &GithubForkPullRequest,
+    ) -> Result<Client, String> {
+        let github_token = pull_request
+            .github_token
+            .as_deref()
+            .filter(|token| !token.trim().is_empty())
+            .ok_or("GITHUB_TOKEN is not set")?;
+        let mut url = url::Url::parse(&self.api_host).map_err(|error| error.to_string())?;
+        url.path_segments_mut()
+            .map_err(|_| format!("invalid Trunk API address {}", self.api_host))?
+            .pop_if_empty()
+            .extend(["v2", "auth", "github-actions", "login"]);
+        let response = Client::builder()
+            .timeout(Self::TRUNK_API_TIMEOUT)
+            .build()
+            .map_err(|error| error.to_string())?
+            .post(url)
+            .header(Self::TRUNK_ALLOW_FORKED_PR_UPLOADS_HEADER, "true")
+            .json(&message::GithubActionsForkLoginRequest {
+                github_token,
+                pull_request_number: pull_request.number,
+                sha: &pull_request.head_sha,
+            })
+            .send()
+            .await
+            .map_err(|error| format!("the request failed: {}", error.without_url()))?;
+        let status = response.status();
+        if status != StatusCode::OK {
+            let code = response
+                .json::<message::GithubActionsLoginRefusal>()
+                .await
+                .ok()
+                .and_then(|refusal| refusal.error.code);
+            return Err(match code {
+                Some(code) => format!("Trunk answered {status}, {code}"),
+                None => format!("Trunk answered {status}"),
+            });
+        }
+        let login = response
+            .json::<message::GithubActionsLogin>()
+            .await
+            .ok()
+            .filter(|login| !login.jwt.is_empty())
+            .ok_or("Trunk's answer could not be read")?;
+        tracing::debug!("Logged in to the Trunk API v2 until {}", login.expires_at);
+        V2Credential::TrunkLogin(login.jwt)
+            .client()
+            .map_err(|error| error.to_string())
+    }
 
     fn v2_client(&self) -> anyhow::Result<&Client> {
         self.trunk_api_v2_client
