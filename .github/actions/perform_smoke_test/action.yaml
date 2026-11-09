@@ -57,6 +57,7 @@ runs:
       run: |
         ./${{ inputs.cli-binary-location }} test \
         --org-url-slug trunk-staging-org \
+        --test-collection-id z2dzjLHm \
         --junit-paths "${{ github.workspace }}/target/**/*junit.xml" \
         --token ${{ inputs.staging-api-token }} \
         cargo nextest run -p smoke-test --profile ci
@@ -131,6 +132,7 @@ runs:
       run: |
         ./${{ inputs.cli-binary-location }} upload \
         --org-url-slug trunk-staging-org \
+        --test-collection-id z2dzjLHm \
         --junit-paths "${{ github.workspace }}/target/**/*junit.xml" \
         --public-repo-id NNSvcFXb \
         --use-uncloned-repo \
