@@ -150,15 +150,6 @@ pub struct UploadArgs {
         help = "Override the HEAD commit timestamp in seconds since Unix epoch (normally from git commit timestamp)."
     )]
     pub repo_head_commit_epoch: Option<String>,
-    #[arg(long, help = "Value to tag team owner of upload.", hide = true)]
-    pub team: Option<String>,
-    #[arg(
-        long,
-        help = "Print the files that would be uploaded to the server.",
-        hide = true,
-        required = false
-    )]
-    pub print_files: Option<bool>,
     #[arg(
         long,
         env = constants::TRUNK_CODEOWNERS_PATH_ENV,
@@ -186,16 +177,6 @@ pub struct UploadArgs {
     pub use_bazel_target_for_codeowners: bool,
     #[arg(
         long,
-        help = "Run commands with the quarantining step. Deprecated, prefer --disable-quarantining, which takes priority over this flag, to control quarantining.",
-        action = ArgAction::Set,
-        required = false,
-        require_equals = true,
-        num_args = 0..=1,
-        hide = true
-    )]
-    pub use_quarantining: Option<bool>,
-    #[arg(
-        long,
         env = constants::TRUNK_DISABLE_QUARANTINING_ENV,
         help = "Disable test quarantining. When disabled, all test failures will be reported and affect the exit code.",
         action = ArgAction::Set,
@@ -219,18 +200,6 @@ pub struct UploadArgs {
         default_missing_value = "true",
     )]
     pub allow_empty_test_results: bool,
-    #[arg(
-        long,
-        help = "Deprecated (does nothing, left in to avoid breaking existing flows)",
-        action = ArgAction::Set,
-        required = false,
-        require_equals = true,
-        num_args = 0..=1,
-        default_value = "false",
-        default_missing_value = "true",
-        hide = true,
-    )]
-    pub hide_banner: bool,
     #[arg(
         long,
         env = constants::TRUNK_DRY_RUN_ENV,
@@ -540,33 +509,6 @@ pub async fn run_upload(
     };
 
     let mut notices = Vec::new();
-    if upload_args.print_files.is_some() {
-        let message =
-            "The --print-files flag is deprecated and will be removed in a future version.";
-        tracing::warn!(deprecated_flag = "--print-files", "{message}");
-        notices.push(Notice::deprecation(message));
-    }
-
-    if let Some(team) = &upload_args.team {
-        if !team.is_empty() {
-            let message = "The --team flag is deprecated and will be removed in a future version.";
-            tracing::warn!(deprecated_flag = "--team", "{message}");
-            notices.push(Notice::deprecation(message));
-        }
-    }
-
-    if upload_args.hide_banner {
-        let message = "The --hide-banner flag is deprecated and does nothing. It will be removed in a future version.";
-        tracing::warn!(deprecated_flag = "--hide-banner", "{message}");
-        notices.push(Notice::deprecation(message));
-    }
-
-    if upload_args.use_quarantining.is_some() {
-        let message =
-            "The --use-quarantining flag is deprecated. Use --disable-quarantining instead.";
-        tracing::warn!(deprecated_flag = "--use-quarantining", "{message}");
-        notices.push(Notice::deprecation(message));
-    }
 
     // Caught here rather than server-side: without a collection there is nothing for the forked
     // lane to authorize against, and a 401 from a fork run is fail-open — a warning and a green
@@ -663,11 +605,9 @@ pub async fn run_upload(
         .test_process_exit_code
         .or_else(|| test_run_result.as_ref().map(|r| r.exit_code))
         .map(ExitCode::PassedThrough);
-    let disable_quarantining =
-        upload_args.disable_quarantining || !upload_args.use_quarantining.unwrap_or(true);
     let quarantine_context = match gather_exit_code_and_quarantined_tests_context(
         &mut meta,
-        disable_quarantining,
+        upload_args.disable_quarantining,
         &api_client,
         &file_set_builder,
         default_exit_code,
@@ -763,8 +703,9 @@ pub async fn run_upload(
             .await,
         )
     };
-    let quarantine_query_result = quarantine_query_result_override
-        .unwrap_or_else(|| quarantine_query_result(disable_quarantining, &quarantine_context));
+    let quarantine_query_result = quarantine_query_result_override.unwrap_or_else(|| {
+        quarantine_query_result(upload_args.disable_quarantining, &quarantine_context)
+    });
     let upload_metrics = proto::upload_metrics::trunk::UploadMetrics {
         client_version: Some(proto::upload_metrics::trunk::Semver {
             major: env!("CARGO_PKG_VERSION_MAJOR").parse().unwrap_or_default(),
@@ -855,7 +796,7 @@ pub async fn run_upload(
         guid_scope,
         notices,
         dry_run: upload_args.dry_run,
-        disable_quarantining,
+        disable_quarantining: upload_args.disable_quarantining,
     })
 }
 

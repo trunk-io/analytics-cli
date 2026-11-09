@@ -1051,9 +1051,7 @@ fn writes_the_report_as_json() {
         },
         failure("boots", "", None),
     ];
-    result.notices = vec![Notice::deprecation(
-        "The --team flag is deprecated and will be removed in a future version.",
-    )];
+    result.notices = vec![Notice::bep_parse_error("unexpected EOF")];
 
     assert_eq!(
         upload_json(&result),
@@ -1164,8 +1162,8 @@ fn writes_the_report_as_json() {
             "exitCode": 1,
             "notices": [
                 {
-                    "kind": "DEPRECATION",
-                    "message": "The --team flag is deprecated and will be removed in a future version.",
+                    "kind": "BEP_PARSE_ERROR",
+                    "message": "unexpected EOF",
                 },
             ],
         })

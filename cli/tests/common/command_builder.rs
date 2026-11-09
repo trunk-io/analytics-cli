@@ -13,7 +13,6 @@ pub struct UploadArgs {
     repo_head_commit_epoch: Option<String>,
     tags: Option<Vec<String>>,
     no_upload: Option<bool>,
-    team: Option<String>,
     codeowners_path: Option<String>,
     codeowners_type: Option<String>,
     use_bazel_target_for_codeowners: Option<bool>,
@@ -39,7 +38,6 @@ impl UploadArgs {
             repo_head_commit_epoch: None,
             tags: None,
             no_upload: None,
-            team: None,
             codeowners_path: None,
             codeowners_type: None,
             use_bazel_target_for_codeowners: None,
@@ -121,12 +119,6 @@ impl UploadArgs {
                     vec![]
                 }
             }))
-            .chain(
-                self.team
-                    .clone()
-                    .into_iter()
-                    .flat_map(|team: String| vec![String::from("--team"), team]),
-            )
             .chain(
                 self.codeowners_path
                     .clone()
