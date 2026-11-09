@@ -761,12 +761,21 @@ impl ToString for BranchClass {
 }
 
 pub fn clean_branch(branch: &str) -> String {
-    let new_branch = branch
-        .replace("refs/heads/", "")
-        .replace("refs/", "")
-        .replace("origin/", "");
+    let without_ref = ["refs/heads/", "refs/remotes/", "refs/"]
+        .iter()
+        .find_map(|prefix| branch.strip_prefix(prefix))
+        .unwrap_or(branch);
+    let without_remotes = without_ref.strip_prefix("remotes/").unwrap_or(without_ref);
+    let without_origin = without_remotes
+        .strip_prefix("origin/")
+        .unwrap_or(without_remotes);
+    let new_branch = if without_origin.is_empty() {
+        branch
+    } else {
+        without_origin
+    };
 
-    return String::from(safe_truncate_string::<MAX_BRANCH_NAME_SIZE, _>(&new_branch));
+    String::from(safe_truncate_string::<MAX_BRANCH_NAME_SIZE, _>(&new_branch))
 }
 
 /// Default `CIRCLE_BUILD_URL` for GitHub projects:
@@ -1038,4 +1047,30 @@ fn depot_ci_beats_github_actions() {
         (CIPlatform::DepotCI).prioritize(CIPlatform::GitHubActions),
         CIPlatform::DepotCI,
     );
+}
+
+#[cfg(test)]
+mod tests {
+    use super::clean_branch;
+
+    #[test]
+    fn test_clean_branch() {
+        for (input, expected) in [
+            ("main", "main"),
+            ("refs/heads/main", "main"),
+            ("refs/heads/origin/main", "main"),
+            ("refs/remotes/origin/release-x", "release-x"),
+            ("remotes/origin/release-x", "release-x"),
+            ("remotes/release-x", "release-x"),
+            ("origin/release-x", "release-x"),
+            ("refs/pull/123/merge", "pull/123/merge"),
+            ("refs/remotes/pull/123/merge", "pull/123/merge"),
+            ("feat/origin/x", "feat/origin/x"),
+            ("feat/refs/x", "feat/refs/x"),
+            ("remotes/", "remotes/"),
+            ("refs/remotes/origin/", "refs/remotes/origin/"),
+        ] {
+            assert_eq!(clean_branch(input), expected, "input: {input}");
+        }
+    }
 }
