@@ -45,6 +45,15 @@ module RSpec
   module Trunk
     ANSI_ESCAPE_PATTERN = %r{(?:\e[@-Z\\-_]|\e\[[0-?]*[ -/]*[@-~])}
 
+    CORE_METHODS = {
+      name: [Module.instance_method(:name), String],
+      class: [Kernel.instance_method(:class), Module]
+    }.freeze
+    CLASS_SUPERCLASS = Class.instance_method(:superclass)
+    KERNEL_IS_A = Kernel.instance_method(:is_a?)
+    MODULE_TO_S = Module.instance_method(:to_s)
+    MEMORY_ADDRESS = /:0x\h+>/
+
     # Knapsack example detector instantiates all test cases in order to determine how to shard them
     # These instantiations should not generate test bundles, so we
     # disable the gem when running under knapsack_pro:rspec_test_example_detector
@@ -180,21 +189,51 @@ module RSpec
       end
 
       def description_arg(arg)
-        if arg.is_a?(Module)
-          arg.name || anonymous_module_name(arg)
+        if core_is_a?(arg, Module)
+          module_description(arg, arg.to_s)
         elsif default_to_s?(arg)
-          "#<#{arg.class.name || anonymous_module_name(arg.class)}>"
+          klass = core_call(arg, :class)
+          "#<#{module_description(klass, MODULE_TO_S.bind_call(klass))}>"
         else
           arg.to_s
         end
       end
 
       def anonymous_module_name(mod)
-        return '#<Module>' unless mod.is_a?(Class)
+        return '#<Module>' unless core_is_a?(mod, Class)
 
-        superclass = mod.superclass
-        superclass = superclass.superclass while superclass && superclass.name.nil?
-        superclass ? "#<Class < #{superclass.name}>" : '#<Class>'
+        superclass = CLASS_SUPERCLASS.bind_call(mod)
+        superclass = CLASS_SUPERCLASS.bind_call(superclass) while superclass && module_name(superclass).nil?
+        superclass ? "#<Class < #{module_name(superclass)}>" : '#<Class>'
+      end
+
+      # `described` is the module's #to_s, which is RSpec's (and so 0.16.1's) name for it,
+      # kept unless it has an address in it.
+      def module_description(mod, described)
+        return described unless MEMORY_ADDRESS.match?(described)
+
+        name = module_name(mod)
+        name.nil? || name.empty? ? anonymous_module_name(mod) : name
+      end
+
+      def module_name(mod)
+        core_call(mod, :name)
+      end
+
+      # The arg's own method when it works as core's does, else core's: a class may define
+      # .name for something else (private, or taking arguments).
+      def core_call(obj, method_name)
+        core, type = CORE_METHODS.fetch(method_name)
+        value = obj.public_send(method_name)
+        value.is_a?(type) ? value : core.bind_call(obj)
+      rescue StandardError, NotImplementedError
+        core.bind_call(obj)
+      end
+
+      def core_is_a?(obj, type)
+        KERNEL_IS_A.bind_call(obj, type)
+      rescue TypeError # a BasicObject
+        false
       end
 
       # Kernel's method, so an object whose own #method means something else
