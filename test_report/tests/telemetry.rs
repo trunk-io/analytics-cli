@@ -2,8 +2,7 @@ mod common;
 
 use std::{env, thread};
 
-use api::message::{GetQuarantineConfigRequest, GetQuarantineConfigResponse};
-use axum::{Json, extract::State, http::StatusCode};
+use axum::{Json, http::StatusCode};
 use common::{clean_up_cache_files, cleanup_env_vars, setup_quarantine_disk_cache_dir};
 use constants::{
     TRUNK_API_CLIENT_RETRY_COUNT_ENV, TRUNK_API_TOKEN_ENV, TRUNK_DISABLE_QUARANTINING_ENV,
@@ -16,7 +15,7 @@ use serial_test::serial;
 use tempfile::tempdir;
 use test_report::report::{MutTestReport, Status};
 use test_utils::mock_git_repo::setup_repo_with_commit;
-use test_utils::mock_server::{MockServerBuilder, RequestPayload, SharedMockServerState};
+use test_utils::mock_server::{MockServerBuilder, RequestPayload, quarantined_test_list};
 
 fn assert_telemetry_quarantine_query_result(requests: &[RequestPayload], expected: &str) {
     let quarantine_query_result = requests
@@ -171,7 +170,7 @@ async fn telemetry_query_result_cached_on_publish() {
     let requests = state.requests.lock().unwrap().clone();
     let get_quarantine_config_count = requests
         .iter()
-        .filter(|req| matches!(req, RequestPayload::GetQuarantineConfig(_)))
+        .filter(|req| matches!(req, RequestPayload::AllQuarantinedTests(_)))
         .count();
     assert_eq!(
         get_quarantine_config_count, 1,
@@ -194,15 +193,9 @@ async fn telemetry_query_result_disabled_on_publish() {
 
     let state = {
         let mut builder = MockServerBuilder::new();
-        builder.set_get_quarantining_config_handler(
-            |_state: State<SharedMockServerState>, _req: Json<GetQuarantineConfigRequest>| async move {
-                Json(GetQuarantineConfigResponse {
-                    is_disabled: true,
-                    quarantined_tests: vec![],
-                    ..Default::default()
-                })
-            },
-        );
+        builder.set_all_quarantined_tests_handler(|| async {
+            Json(quarantined_test_list(false, Vec::<String>::new()))
+        });
         builder.spawn_mock_server().await
     };
 
@@ -272,13 +265,7 @@ async fn telemetry_query_result_failure_on_publish() {
 
     let state = {
         let mut builder = MockServerBuilder::new();
-        builder.set_get_quarantining_config_handler(
-            |Json(_): Json<GetQuarantineConfigRequest>| async {
-                Err::<Json<GetQuarantineConfigResponse>, StatusCode>(
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                )
-            },
-        );
+        builder.set_all_quarantined_tests_handler(|| async { StatusCode::INTERNAL_SERVER_ERROR });
         builder.spawn_mock_server().await
     };
 

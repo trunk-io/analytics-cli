@@ -61,7 +61,7 @@ You can generate sample junit files by running
 cargo run --bin junit-mock .
 ```
 
-You can change the API endpoint by setting `TRUNK_PUBLIC_API_ADDRESS=https://api.trunk.io`. To use localhost, you should use `TRUNK_PUBLIC_API_ADDRESS=http://localhost:9010 DEBUG_STRIP_VERSION_PREFIX=true`
+You can change the API endpoint by setting `TRUNK_PUBLIC_API_ADDRESS=https://api.trunk.io`. The CLI calls only the Trunk API v2 routes under it (`/v2/test-collections/...`). To use localhost, use `TRUNK_PUBLIC_API_ADDRESS=http://localhost:9010`.
 
 ## Test
 
