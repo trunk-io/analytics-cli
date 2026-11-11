@@ -110,16 +110,24 @@ pub fn render_error(error: &ErrorSummary) -> anyhow::Result<Vec<Line>> {
             return Ok(lines);
         }
         ErrorKind::Unauthorized => {
+            lines.extend([
+                Line::from_iter([Span::new_unstyled_lossy(
+                    error.message.as_deref().unwrap_or_default(),
+                )]),
+                Line::default(),
+            ]);
+            // The CLI's explanation of a refused key or JWT says what to fix, where the generic
+            // hint would point at the org slug.
+            if let Some(explanation) = &error.explanation {
+                lines.push(Line::from_iter([Span::new_unstyled_lossy(explanation)]));
+                return Ok(lines);
+            }
             let mut hint = Line::from_iter([Span::new_unstyled_lossy(format!(
                 "{UNAUTHORIZED_HINT} {}",
                 error.settings_url.as_deref().unwrap_or_default()
             ))]);
             hint.pad_left(2);
             lines.extend([
-                Line::from_iter([Span::new_unstyled_lossy(
-                    error.message.as_deref().unwrap_or_default(),
-                )]),
-                Line::default(),
                 Line::from_iter([Span::new_unstyled(UNAUTHORIZED_CONTEXT)?]),
                 hint,
             ]);

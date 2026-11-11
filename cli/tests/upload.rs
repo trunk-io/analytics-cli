@@ -299,7 +299,7 @@ async fn upload_bundle() {
         debug_props.command_line.ends_with(
             &expected_command_args
                 .join(" ")
-                .replace("test-token", "")
+                .replace("trunk_v2_test-token", "")
                 .replace("--token", "")
                 .trim()
         )
@@ -430,7 +430,7 @@ fn requires_a_test_collection_id(#[case] subcommand: &str) {
         "--org-url-slug",
         "test-org",
         "--token",
-        "test-token",
+        "trunk_v2_test-token",
     ]);
     if subcommand == "test" {
         command.arg("true");
@@ -459,7 +459,7 @@ fn refuses_a_blank_test_collection_id(
             "--org-url-slug",
             "test-org",
             "--token",
-            "test-token",
+            "trunk_v2_test-token",
         ])
         .args(args)
         .assert()
@@ -3550,7 +3550,7 @@ async fn upload_names_the_collection_and_sends_the_token_as_a_bearer() {
     for endpoint in ["quarantineStatus", "uploads"] {
         assert_eq!(
             credential_headers(&state, endpoint),
-            (Some(String::from("Bearer test-token")), None, None),
+            (Some(String::from("Bearer trunk_v2_test-token")), None, None),
             "{endpoint}"
         );
     }
@@ -3581,6 +3581,137 @@ async fn upload_names_the_collection_and_sends_the_token_as_a_bearer() {
             }),
         )
     );
+}
+
+// {"alg":"RS256","typ":"JWT"}.{"sub":"org-token:1","exp":1762880400}.signature, which expired at
+// 2025-11-11T17:00:00Z.
+const TRUNK_JWT: &str = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJvcmctdG9rZW46MSIsImV4cCI6MTc2Mjg4MDQwMH0.c2lnbmF0dXJl";
+
+// NOTE: must be multi threaded to start a mock server
+#[tokio::test(flavor = "multi_thread")]
+async fn upload_sends_a_trunk_jwt_on_x_trunk_token() {
+    let temp_dir = tempdir().unwrap();
+    generate_mock_git_repo(&temp_dir);
+    generate_mock_valid_junit_xmls_with_failures(&temp_dir);
+
+    let mut mock_server_builder = MockServerBuilder::new();
+    mock_server_builder.set_quarantine_status_handler(quarantine_all_handler);
+    let state = mock_server_builder.spawn_mock_server().await;
+
+    CommandBuilder::upload(temp_dir.path(), state.host.clone())
+        .token(TRUNK_JWT)
+        .command()
+        .assert()
+        // every failure is quarantined
+        .success();
+
+    for endpoint in ["quarantineStatus", "uploads"] {
+        assert_eq!(
+            credential_headers(&state, endpoint),
+            (None, Some(String::from(TRUNK_JWT)), None),
+            "{endpoint}"
+        );
+    }
+}
+
+#[rstest::rstest]
+#[case::hex("0123456789abcdef0123456789abcdef")]
+#[case::dots_but_not_a_jwt("org.token")]
+#[tokio::test(flavor = "multi_thread")]
+async fn refuses_an_organization_token_before_any_call(
+    #[case] token: &str,
+    #[values("upload", "test")] subcommand: &str,
+) {
+    let temp_dir = tempdir().unwrap();
+    generate_mock_git_repo(&temp_dir);
+    generate_mock_valid_junit_xmls(&temp_dir);
+    let state = MockServerBuilder::new().spawn_mock_server().await;
+
+    let mut command_builder = match subcommand {
+        "upload" => CommandBuilder::upload(temp_dir.path(), state.host.clone()),
+        _ => CommandBuilder::test(
+            temp_dir.path(),
+            state.host.clone(),
+            vec![
+                String::from("bash"),
+                String::from("-c"),
+                String::from("touch tests-ran"),
+            ],
+        ),
+    };
+    let assert = command_builder
+        .token(token)
+        .command()
+        .assert()
+        .code(ExitCode::Error.code());
+
+    let output = assert.get_output();
+    let output = format!(
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    for part in [
+        "This Trunk token is not a v2 API key. analytics-cli 1.0.0 needs a v2 API key",
+        "Settings → Developer → API Keys",
+        "Upload test results",
+        "pin analytics-cli 0.17.x",
+    ] {
+        assert!(output.contains(part), "{part:?} missing from {output}");
+    }
+    assert!(state.requests.lock().unwrap().is_empty());
+    assert!(!temp_dir.path().join("tests-ran").exists());
+}
+
+/// Serves `status` and `body` from every CLI endpoint.
+fn refusing_mock_server(status: StatusCode, body: &'static str) -> MockServerBuilder {
+    let mut mock_server_builder = MockServerBuilder::new();
+    mock_server_builder.set_quarantine_status_handler(move || async move { (status, body) });
+    mock_server_builder.set_create_test_upload_handler(move || async move { (status, body) });
+    mock_server_builder
+}
+
+// NOTE: must be multi threaded to start a mock server
+#[tokio::test(flavor = "multi_thread")]
+async fn upload_names_the_missing_upload_permission_on_a_403() {
+    let temp_dir = tempdir().unwrap();
+    generate_mock_git_repo(&temp_dir);
+    generate_mock_valid_junit_xmls(&temp_dir);
+    let state = refusing_mock_server(
+        StatusCode::FORBIDDEN,
+        r#"{"error":{"code":"INSUFFICIENT_PERMISSIONS","message":"You do not have permission to upload test results in this organization"}}"#,
+    )
+    .spawn_mock_server()
+    .await;
+
+    CommandBuilder::upload(temp_dir.path(), state.host.clone())
+        .command()
+        .assert()
+        .code(ExitCode::Error.code())
+        .stdout(predicate::str::contains(
+            "Trunk refused this API key: it lacks the Upload test results (`upload_test_results`) permission group. Grant it by editing the key in the Trunk web app under Settings → Developer → API Keys.",
+        ));
+}
+
+// NOTE: must be multi threaded to start a mock server
+#[tokio::test(flavor = "multi_thread")]
+async fn upload_says_a_trunk_jwt_has_expired_on_a_401() {
+    let temp_dir = tempdir().unwrap();
+    generate_mock_git_repo(&temp_dir);
+    generate_mock_valid_junit_xmls(&temp_dir);
+    let state = refusing_mock_server(StatusCode::UNAUTHORIZED, "Jwt is expired")
+        .spawn_mock_server()
+        .await;
+
+    CommandBuilder::upload(temp_dir.path(), state.host.clone())
+        .token(TRUNK_JWT)
+        .command()
+        .assert()
+        .code(ExitCode::Error.code())
+        .stdout(predicate::str::contains(
+            "Trunk did not accept this JWT: it is expired or invalid (it expired at 2025-11-11T17:00:00Z).",
+        ))
+        .stdout(predicate::str::contains("re-run `trunk login --api-key`"));
 }
 
 const GITHUB_ACTIONS_LOGIN: &str = r#"{"jwt":"trunk-jwt","expiresAt":"2026-11-06T17:15:00Z","organization":{"id":"o","slug":"acme","name":"Acme"},"repository":{"id":"r","name":"acme/web"}}"#;
@@ -3788,7 +3919,7 @@ async fn upload_with_a_token_and_allow_forked_pr_uploads_never_swaps() {
     assert!(logins.lock().unwrap().is_empty());
     assert_eq!(
         credential_headers(&state, "uploads"),
-        (Some(String::from("Bearer test-token")), None, None)
+        (Some(String::from("Bearer trunk_v2_test-token")), None, None)
     );
 }
 

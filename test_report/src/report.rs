@@ -9,6 +9,7 @@ use std::{
 
 use api::{
     client::ApiClient,
+    credential::{LegacyTokenRefused, TokenKind},
     message::{self, QuarantineResolutionMode},
     urls::TestCaseGuidScope,
 };
@@ -43,6 +44,12 @@ pub fn quarantine_disk_cache_dir() -> PathBuf {
     env::var(constants::TRUNK_QUARANTINE_DISK_CACHE_DIR_ENV)
         .map(PathBuf::from)
         .unwrap_or_else(|_| env::temp_dir().join(constants::CACHE_DIR))
+}
+
+/// Why the plugin refuses `token`, or `None` for a v2 API key or a Trunk JWT. The rspec gem asks
+/// before it turns on, since this crate's logs reach its console only at error level.
+pub fn token_refusal(token: String) -> Option<String> {
+    (TokenKind::of(&token) == TokenKind::Legacy).then(|| LegacyTokenRefused.to_string())
 }
 
 fn requested_test_collection_short_id() -> Option<String> {
@@ -408,6 +415,10 @@ impl MutTestReport {
             tracing::warn!("Not checking quarantine status because TRUNK_API_TOKEN is empty");
             return IsQuarantinedResult::default();
         }
+        if let Some(refusal) = token_refusal(token.clone()) {
+            tracing::warn!("Not checking quarantine status: {refusal}");
+            return IsQuarantinedResult::default();
+        }
         if org_url_slug.is_empty() {
             tracing::warn!("Not checking quarantine status because TRUNK_ORG_URL_SLUG is empty");
             return IsQuarantinedResult::default();
@@ -722,6 +733,10 @@ impl MutTestReport {
         let org_url_slug = self.get_org_url_slug();
         if token.is_empty() {
             tracing::warn!("Not publishing results because TRUNK_API_TOKEN is empty");
+            return false;
+        }
+        if let Some(refusal) = token_refusal(token.clone()) {
+            tracing::error!("Not publishing results: {refusal}");
             return false;
         }
         if org_url_slug.is_empty() {
@@ -1089,6 +1104,7 @@ pub fn ruby_init(ruby: &magnus::Ruby, namespace: magnus::RModule) -> Result<(), 
         "quarantine_lookup_error",
         magnus::method!(MutTestReport::quarantine_lookup_error, 0),
     )?;
+    namespace.define_module_function("token_refusal", magnus::function!(token_refusal, 1))?;
     Ok(())
 }
 

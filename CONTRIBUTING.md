@@ -55,6 +55,8 @@ cargo build
 ./target/debug/trunk-analytics-cli upload --org-url-slug=trunk-io --token=${API_TOKEN} --test-collection-id=${TEST_COLLECTION_ID} --junit-paths=junit.xml
 ```
 
+`API_TOKEN` is a v2 API key (`trunk_v2_...`) or a Trunk JWT from `trunk login --api-key`; the CLI refuses an organization token before any call. See [Credentials](README.md#credentials).
+
 You can generate sample junit files by running
 
 ```bash

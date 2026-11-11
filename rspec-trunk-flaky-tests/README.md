@@ -106,7 +106,7 @@ require 'trunk_spec_helper'
 
 ### Environment Variables
 
-For a complete list of environment variables that the gem accepts, see [`lib/trunk_spec_helper.rb`](lib/trunk_spec_helper.rb). The gem uses the same environment variables as the Trunk Analytics CLI for configuration overrides. `TRUNK_ORG_URL_SLUG` and `TRUNK_API_TOKEN` must be set to activate the plugin, and `TRUNK_TEST_COLLECTION_ID` too: with the first two set and no test collection, the plugin prints a warning and stays off.
+For a complete list of environment variables that the gem accepts, see [`lib/trunk_spec_helper.rb`](lib/trunk_spec_helper.rb). The gem uses the same environment variables as the Trunk Analytics CLI for configuration overrides. `TRUNK_ORG_URL_SLUG` and `TRUNK_API_TOKEN` must be set to activate the plugin, and `TRUNK_TEST_COLLECTION_ID` too: with the first two set and no test collection, the plugin prints a warning and stays off. `TRUNK_API_TOKEN` must be a v2 API key with the Upload test results permission, or a Trunk JWT from `trunk login --api-key` minted right before the run (it lasts 15 minutes); with an organization token, the plugin prints a warning and stays off. See [Credentials](../README.md#credentials).
 
 #### `TRUNK_QUARANTINE_QUERY_FAILURE_EXIT`
 

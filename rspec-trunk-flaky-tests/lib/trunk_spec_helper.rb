@@ -7,7 +7,8 @@
 #
 # Required environment variables:
 #   TRUNK_ORG_URL_SLUG - Your organization's URL slug
-#   TRUNK_API_TOKEN - Your API token for authentication
+#   TRUNK_API_TOKEN - A Trunk v2 API key (trunk_v2_...) with the Upload test results permission,
+#     or a Trunk JWT from `trunk login --api-key`; the organization token is refused
 #   TRUNK_TEST_COLLECTION_ID - The ID of the test collection to upload to
 #
 # Optional environment variables for repository metadata:
@@ -106,7 +107,18 @@ module RSpec
 
       def disabled?
         knapsack_detector_mode? || ENV['DISABLE_RSPEC_TRUNK_FLAKY_TESTS'] == 'true' ||
-          ENV['TRUNK_ORG_URL_SLUG'].nil? || ENV['TRUNK_API_TOKEN'].nil? || missing_test_collection?
+          ENV['TRUNK_ORG_URL_SLUG'].nil? || ENV['TRUNK_API_TOKEN'].nil? || missing_test_collection? ||
+          refused_token?
+      end
+
+      # 1.0.0 takes a v2 API key or a Trunk JWT, never the organization token. Warns for the same
+      # reason as missing_test_collection?.
+      def refused_token?
+        refusal = RSpec::Trunk.token_refusal(ENV.fetch('TRUNK_API_TOKEN'))
+        return false unless refusal
+
+        warn("Trunk Flaky Tests is disabled: #{refusal}")
+        true
       end
 
       # Warns rather than staying silent like the checks before it: a run with a token and a slug
