@@ -163,13 +163,18 @@ fn error_message(error: &ErrorSummary) -> String {
         }
         ErrorKind::Unauthorized => {
             lines.extend(error.message.clone());
-            lines.push(UNAUTHORIZED_CONTEXT.to_string());
-            lines.extend(
-                error
-                    .settings_url
-                    .as_ref()
-                    .map(|url| format!("{UNAUTHORIZED_HINT} {url}")),
-            );
+            match &error.explanation {
+                Some(explanation) => lines.push(explanation.clone()),
+                None => {
+                    lines.push(UNAUTHORIZED_CONTEXT.to_string());
+                    lines.extend(
+                        error
+                            .settings_url
+                            .as_ref()
+                            .map(|url| format!("{UNAUTHORIZED_HINT} {url}")),
+                    );
+                }
+            }
         }
         ErrorKind::GitRepository | ErrorKind::Interrupted | ErrorKind::Other => {
             match &error.message {
