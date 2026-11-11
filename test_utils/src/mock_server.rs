@@ -1,5 +1,5 @@
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     fs,
     io::Read,
     path::PathBuf,
@@ -7,31 +7,165 @@ use std::{
 };
 
 use api::message::{
-    CreateBundleUploadRequest, CreateBundleUploadResponse, GetQuarantineConfigRequest,
-    GetQuarantineConfigResponse,
+    CreatedTestUpload, QuarantineStatus, QuarantineStatusTest, QuarantinedTest, QuarantinedTestList,
 };
+use api::urls::TestCaseGuidScope;
 use axum::{
     Json, Router,
     body::Bytes,
-    extract::State,
+    extract::{Path, Query, State},
     handler::Handler,
     http::{HeaderMap, StatusCode},
     response::{IntoResponse, Response},
     routing::{MethodRouter, any, post, put},
 };
+use context::repo::RepoUrlParts;
 use proto::upload_metrics::trunk::UploadMetrics;
+use serde::Deserialize;
 use tempfile::tempdir;
 use tokio::{net::TcpListener, spawn};
 
 pub const MOCK_REPO_ID: &str = "7a1f0e3d-2b4c-4d5e-8f90-123456789abc";
 pub const MOCK_TEST_COLLECTION_ID: &str = "018f6d3a-6f2e-4c4a-9b1e-2f3a4b5c6d7e";
+pub const MOCK_UPLOAD_ID: &str = "82c6a6e5-f8ea-4d93-9a26-b8ab6ff8f6bc";
+pub const MOCK_UPLOAD_CREATED_AT: &str = "2026-05-10T12:34:56.000Z";
+
+pub const UPLOADS_ROUTE: &str = "/v2/test-collections/:id/uploads";
+pub const QUARANTINE_STATUS_ROUTE: &str = "/v2/test-collections/:id/quarantine-status";
+pub const ALL_QUARANTINED_TESTS_ROUTE: &str = "/v2/test-collections/:id/all-quarantined-tests";
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum RequestPayload {
-    CreateBundleUpload(CreateBundleUploadRequest),
-    GetQuarantineConfig(GetQuarantineConfigRequest),
+    CreateTestUpload(CreateTestUpload),
+    QuarantineStatus(QuarantineStatusLookup),
+    AllQuarantinedTests(AllQuarantinedTestsLookup),
     S3Upload(PathBuf),
     TelemetryUploadMetrics(UploadMetrics),
+}
+
+/// `POST /v2/test-collections/{id}/uploads`, with the collection from its path.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CreateTestUpload {
+    #[serde(skip)]
+    pub test_collection_short_id: String,
+    pub repo: Option<RepoUrlParts>,
+    pub remote_urls: Vec<String>,
+    pub client_version: String,
+    #[serde(default)]
+    pub external_id: Option<String>,
+}
+
+/// `POST /v2/test-collections/{id}/quarantine-status`, with the collection from its path.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct QuarantineStatusLookup {
+    #[serde(skip)]
+    pub test_collection_short_id: String,
+    pub repo: Option<RepoUrlParts>,
+    pub test_identifiers: Vec<QuarantineStatusIdentifier>,
+}
+
+impl QuarantineStatusLookup {
+    pub fn test_ids(&self) -> Vec<String> {
+        self.test_identifiers
+            .iter()
+            .map(|identifier| identifier.id.clone())
+            .collect()
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+pub struct QuarantineStatusIdentifier {
+    pub id: String,
+}
+
+/// `POST /v2/test-collections/{id}/all-quarantined-tests`, with the collection from its path and
+/// the cursor from its query.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AllQuarantinedTestsLookup {
+    #[serde(skip)]
+    pub test_collection_short_id: String,
+    #[serde(skip)]
+    pub cursor: Option<String>,
+    pub repo: Option<RepoUrlParts>,
+}
+
+/// The scope every mock response names, which a test runner's GUIDs are computed from.
+pub fn mock_test_case_guid_scope() -> TestCaseGuidScope {
+    TestCaseGuidScope {
+        test_collection_id: String::from(MOCK_TEST_COLLECTION_ID),
+        repo_id: String::from(MOCK_REPO_ID),
+    }
+}
+
+/// The GUID the mock scope gives a test id, as `all-quarantined-tests` lists it.
+pub fn mock_test_case_guid(test_id: &str) -> String {
+    mock_test_case_guid_scope()
+        .test_case_guid(test_id)
+        .expect("a test id is a UUID")
+        .to_string()
+}
+
+pub fn created_test_upload(host: &str) -> CreatedTestUpload {
+    CreatedTestUpload {
+        id: String::from(MOCK_UPLOAD_ID),
+        upload_url: format!("{host}/s3upload"),
+        test_collection_uuid: String::from(MOCK_TEST_COLLECTION_ID),
+        repository_id: String::from(MOCK_REPO_ID),
+        created_at: String::from(MOCK_UPLOAD_CREATED_AT),
+    }
+}
+
+/// A `quarantine-status` answer naming each looked-up test, quarantined when it is in
+/// `quarantined_test_ids`.
+pub fn quarantine_status<I, S>(
+    lookup: &QuarantineStatusLookup,
+    quarantine_enabled: bool,
+    quarantined_test_ids: I,
+) -> QuarantineStatus
+where
+    I: IntoIterator<Item = S>,
+    S: Into<String>,
+{
+    let quarantined: HashSet<String> = quarantined_test_ids.into_iter().map(Into::into).collect();
+    QuarantineStatus {
+        test_collection_uuid: String::from(MOCK_TEST_COLLECTION_ID),
+        repository_id: String::from(MOCK_REPO_ID),
+        quarantine_enabled,
+        tests: lookup
+            .test_ids()
+            .into_iter()
+            .map(|id| QuarantineStatusTest {
+                quarantined: quarantined.contains(&id),
+                client_test_id: Some(id),
+            })
+            .collect(),
+    }
+}
+
+/// A one-page `all-quarantined-tests` answer listing the GUIDs of `quarantined_test_ids`.
+pub fn quarantined_test_list<I, S>(
+    quarantine_enabled: bool,
+    quarantined_test_ids: I,
+) -> QuarantinedTestList
+where
+    I: IntoIterator<Item = S>,
+    S: AsRef<str>,
+{
+    QuarantinedTestList {
+        data: quarantined_test_ids
+            .into_iter()
+            .map(|id| QuarantinedTest {
+                test_id: mock_test_case_guid(id.as_ref()),
+            })
+            .collect(),
+        next_cursor: None,
+        test_collection_uuid: String::from(MOCK_TEST_COLLECTION_ID),
+        repository_id: String::from(MOCK_REPO_ID),
+        quarantine_enabled,
+    }
 }
 
 pub struct RespError {
@@ -48,7 +182,7 @@ impl IntoResponse for RespError {
 pub struct MockServerState {
     pub requests: Mutex<Vec<RequestPayload>>,
     /// Request headers captured per endpoint (keyed by endpoint name, e.g.
-    /// "createBundleUpload"), so tests can assert on auth headers.
+    /// "uploads", "quarantineStatus" or "allQuarantinedTests"), so tests can assert on auth headers.
     pub request_headers: Mutex<HashMap<String, HeaderMap>>,
     /// Requests to the routes added with `MockServerBuilder::route`, in arrival order. Those
     /// handlers are the test's own, so each pushes its request with `record_route_request`.
@@ -88,8 +222,9 @@ impl MockServerState {
 
 #[derive(Debug, Clone)]
 pub struct MockServerBuilder {
-    create_bundle_handler: MethodRouter<SharedMockServerState>,
-    get_quarantining_config_handler: MethodRouter<SharedMockServerState>,
+    create_test_upload_handler: MethodRouter<SharedMockServerState>,
+    quarantine_status_handler: MethodRouter<SharedMockServerState>,
+    all_quarantined_tests_handler: MethodRouter<SharedMockServerState>,
     s3_upload_handler: MethodRouter<SharedMockServerState>,
     telemetry_upload_metrics: MethodRouter<SharedMockServerState>,
     routes: Vec<(&'static str, MethodRouter<SharedMockServerState>)>,
@@ -98,15 +233,16 @@ pub struct MockServerBuilder {
 impl MockServerBuilder {
     pub fn new() -> Self {
         Self {
-            create_bundle_handler: post(create_bundle_handler),
-            get_quarantining_config_handler: post(get_quarantining_config_handler),
+            create_test_upload_handler: post(create_test_upload_handler),
+            quarantine_status_handler: post(quarantine_status_handler),
+            all_quarantined_tests_handler: post(all_quarantined_tests_handler),
             s3_upload_handler: put(s3_upload_handler),
             telemetry_upload_metrics: post(telemetry_upload_metrics_handler),
             routes: Vec::new(),
         }
     }
 
-    /// Serves `path` as well, such as a v2 route, which the builder has no default for.
+    /// Serves `path` with `method_router`, in place of the builder's default for it if it has one.
     pub fn route(
         &mut self,
         path: &'static str,
@@ -115,20 +251,28 @@ impl MockServerBuilder {
         self.routes.push((path, method_router));
     }
 
-    pub fn set_create_bundle_handler<H, T>(&mut self, handler: H)
+    pub fn set_create_test_upload_handler<H, T>(&mut self, handler: H)
     where
         H: Handler<T, SharedMockServerState>,
         T: 'static,
     {
-        self.create_bundle_handler = post(handler);
+        self.create_test_upload_handler = post(handler);
     }
 
-    pub fn set_get_quarantining_config_handler<H, T>(&mut self, handler: H)
+    pub fn set_quarantine_status_handler<H, T>(&mut self, handler: H)
     where
         H: Handler<T, SharedMockServerState>,
         T: 'static,
     {
-        self.get_quarantining_config_handler = post(handler);
+        self.quarantine_status_handler = post(handler);
+    }
+
+    pub fn set_all_quarantined_tests_handler<H, T>(&mut self, handler: H)
+    where
+        H: Handler<T, SharedMockServerState>,
+        T: 'static,
+    {
+        self.all_quarantined_tests_handler = post(handler);
     }
 
     pub fn set_s3_upload_handler<H, T>(&mut self, handler: H)
@@ -158,15 +302,23 @@ impl MockServerBuilder {
             ..Default::default()
         });
 
-        let mut app = Router::new()
-            .route("/v1/metrics/createBundleUpload", self.create_bundle_handler)
-            .route(
-                "/v1/metrics/getQuarantineConfig",
-                self.get_quarantining_config_handler,
-            )
-            .route("/s3upload", self.s3_upload_handler)
-            .route(api::otlp::CLI_TELEMETRY_PATH, self.telemetry_upload_metrics);
-
+        let defaults = [
+            (UPLOADS_ROUTE, self.create_test_upload_handler),
+            (QUARANTINE_STATUS_ROUTE, self.quarantine_status_handler),
+            (
+                ALL_QUARANTINED_TESTS_ROUTE,
+                self.all_quarantined_tests_handler,
+            ),
+            ("/s3upload", self.s3_upload_handler),
+            (api::otlp::CLI_TELEMETRY_PATH, self.telemetry_upload_metrics),
+        ];
+        let mut app = Router::new();
+        // A route the test serves itself replaces the default for that path.
+        for (path, method_router) in defaults {
+            if !self.routes.iter().any(|(route, _)| *route == path) {
+                app = app.route(path, method_router);
+            }
+        }
         for (path, method_router) in self.routes {
             app = app.route(path, method_router);
         }
@@ -201,60 +353,125 @@ impl Default for MockServerBuilder {
 
 pub type SharedMockServerState = Arc<MockServerState>;
 
-#[axum::debug_handler]
-pub async fn create_bundle_handler(
-    State(state): State<SharedMockServerState>,
-    headers: HeaderMap,
-    Json(create_bundle_upload_request): Json<CreateBundleUploadRequest>,
-) -> Json<CreateBundleUploadResponse> {
-    state
-        .request_headers
-        .lock()
-        .unwrap()
-        .insert(String::from("createBundleUpload"), headers);
-    state
-        .requests
-        .lock()
-        .unwrap()
-        .push(RequestPayload::CreateBundleUpload(
-            create_bundle_upload_request,
-        ));
-    let host = &state.host;
-    Json(CreateBundleUploadResponse {
-        id: String::from("test-bundle-upload-id"),
-        id_v2: String::from("test-bundle-upload-id-v2"),
-        url: format!("{host}/s3upload"),
-        key: String::from("unused"),
-        test_collection_bundle_meta_id: Some(String::from("82c6a6e5-f8ea-4d93-9a26-b8ab6ff8f6bc")),
-        test_collection_bundle_meta_created_at: Some(String::from("2026-05-10T12:34:56.000Z")),
-        repo_id: Some(String::from(MOCK_REPO_ID)),
-        test_collection_id: Some(String::from(MOCK_TEST_COLLECTION_ID)),
-    })
+impl MockServerState {
+    fn record(&self, endpoint: &str, headers: HeaderMap, payload: RequestPayload) {
+        self.request_headers
+            .lock()
+            .unwrap()
+            .insert(String::from(endpoint), headers);
+        self.requests.lock().unwrap().push(payload);
+    }
+
+    /// Records a create-upload request the way the default handler does, for a test's own handler.
+    pub fn record_create_test_upload(
+        &self,
+        headers: HeaderMap,
+        test_collection_short_id: String,
+        mut request: CreateTestUpload,
+    ) {
+        request.test_collection_short_id = test_collection_short_id;
+        self.record(
+            "uploads",
+            headers,
+            RequestPayload::CreateTestUpload(request),
+        );
+    }
+
+    /// Records a quarantine-status request the way the default handler does, for a test's own
+    /// handler.
+    pub fn record_quarantine_status(
+        &self,
+        headers: HeaderMap,
+        test_collection_short_id: String,
+        mut lookup: QuarantineStatusLookup,
+    ) -> QuarantineStatusLookup {
+        lookup.test_collection_short_id = test_collection_short_id;
+        self.record(
+            "quarantineStatus",
+            headers,
+            RequestPayload::QuarantineStatus(lookup.clone()),
+        );
+        lookup
+    }
+
+    /// Records an all-quarantined-tests request the way the default handler does, for a test's
+    /// own handler.
+    pub fn record_all_quarantined_tests(
+        &self,
+        headers: HeaderMap,
+        test_collection_short_id: String,
+        query: HashMap<String, String>,
+        mut lookup: AllQuarantinedTestsLookup,
+    ) {
+        lookup.test_collection_short_id = test_collection_short_id;
+        lookup.cursor = query.get("cursor").cloned();
+        self.record(
+            "allQuarantinedTests",
+            headers,
+            RequestPayload::AllQuarantinedTests(lookup),
+        );
+    }
 }
 
 #[axum::debug_handler]
-pub async fn get_quarantining_config_handler(
+pub async fn create_test_upload_handler(
     State(state): State<SharedMockServerState>,
+    Path(test_collection_short_id): Path<String>,
     headers: HeaderMap,
-    Json(get_quarantine_config_request): Json<GetQuarantineConfigRequest>,
-) -> Json<GetQuarantineConfigResponse> {
-    state
-        .request_headers
-        .lock()
-        .unwrap()
-        .insert(String::from("getQuarantineConfig"), headers);
-    state
-        .requests
-        .lock()
-        .unwrap()
-        .push(RequestPayload::GetQuarantineConfig(
-            get_quarantine_config_request,
-        ));
-    Json(GetQuarantineConfigResponse {
-        is_disabled: false,
-        quarantined_tests: Vec::new(),
-        ..Default::default()
-    })
+    Json(request): Json<CreateTestUpload>,
+) -> (StatusCode, Json<CreatedTestUpload>) {
+    state.record_create_test_upload(headers, test_collection_short_id, request);
+    (StatusCode::CREATED, Json(created_test_upload(&state.host)))
+}
+
+/// Answers that quarantining is on and no looked-up test is quarantined.
+#[axum::debug_handler]
+pub async fn quarantine_status_handler(
+    State(state): State<SharedMockServerState>,
+    Path(test_collection_short_id): Path<String>,
+    headers: HeaderMap,
+    Json(lookup): Json<QuarantineStatusLookup>,
+) -> Json<QuarantineStatus> {
+    let lookup = state.record_quarantine_status(headers, test_collection_short_id, lookup);
+    Json(quarantine_status(&lookup, true, Vec::<String>::new()))
+}
+
+/// Answers that quarantining is on and every looked-up test is quarantined.
+#[axum::debug_handler]
+pub async fn quarantine_all_handler(
+    State(state): State<SharedMockServerState>,
+    Path(test_collection_short_id): Path<String>,
+    headers: HeaderMap,
+    Json(lookup): Json<QuarantineStatusLookup>,
+) -> Json<QuarantineStatus> {
+    let lookup = state.record_quarantine_status(headers, test_collection_short_id, lookup);
+    let test_ids = lookup.test_ids();
+    Json(quarantine_status(&lookup, true, test_ids))
+}
+
+/// Answers that quarantining is off.
+#[axum::debug_handler]
+pub async fn quarantining_disabled_handler(
+    State(state): State<SharedMockServerState>,
+    Path(test_collection_short_id): Path<String>,
+    headers: HeaderMap,
+    Json(lookup): Json<QuarantineStatusLookup>,
+) -> Json<QuarantineStatus> {
+    let lookup = state.record_quarantine_status(headers, test_collection_short_id, lookup);
+    Json(quarantine_status(&lookup, false, Vec::<String>::new()))
+}
+
+/// Answers that quarantining is on and no test is quarantined.
+#[axum::debug_handler]
+pub async fn all_quarantined_tests_handler(
+    State(state): State<SharedMockServerState>,
+    Path(test_collection_short_id): Path<String>,
+    Query(query): Query<HashMap<String, String>>,
+    headers: HeaderMap,
+    Json(lookup): Json<AllQuarantinedTestsLookup>,
+) -> Json<QuarantinedTestList> {
+    state.record_all_quarantined_tests(headers, test_collection_short_id, query, lookup);
+    Json(quarantined_test_list(true, Vec::<String>::new()))
 }
 
 #[axum::debug_handler]

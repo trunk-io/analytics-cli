@@ -11,7 +11,6 @@ use std::{
     thread,
 };
 
-use api::message::{GetQuarantineConfigRequest, GetQuarantineConfigResponse};
 use assert_matches::assert_matches;
 use axum::{Json, http::StatusCode};
 use bundle::{BundleMeta, FileSetType};
@@ -32,7 +31,9 @@ use serial_test::serial;
 use tempfile::{TempDir, tempdir};
 use test_report::report::{MutTestReport, Status};
 use test_utils::mock_git_repo::setup_repo_with_commit;
-use test_utils::mock_server::{MockServerBuilder, RequestPayload};
+use test_utils::mock_server::{
+    MOCK_UPLOAD_ID, MockServerBuilder, RequestPayload, quarantined_test_list,
+};
 
 fn generate_mock_codeowners<T: AsRef<Path>>(directory: T) {
     const CODEOWNERS: &str = r#"
@@ -122,23 +123,18 @@ async fn publish_uploads_test_report() {
     let requests = state.requests.lock().unwrap().clone();
     assert_eq!(requests.len(), 4);
     let mut requests_iter = requests.iter();
-    let get_quarantine_config_request = assert_matches!(&requests_iter.next().unwrap(), RequestPayload::GetQuarantineConfig(d) => d);
-    assert_eq!(get_quarantine_config_request.org_url_slug, "test-org");
+    let all_quarantined_tests_request = assert_matches!(&requests_iter.next().unwrap(), RequestPayload::AllQuarantinedTests(d) => d);
     assert_eq!(
-        get_quarantine_config_request.repo,
-        RepoUrlParts {
+        all_quarantined_tests_request.repo,
+        Some(RepoUrlParts {
             host: "github.com".into(),
             owner: "trunk-io".into(),
             name: "analytics-cli".into()
-        }
+        })
     );
-    assert_eq!(get_quarantine_config_request.test_identifiers, vec![]);
-    assert_eq!(
-        get_quarantine_config_request.remote_urls,
-        vec!["https://github.com/trunk-io/analytics-cli.git"]
-    );
-    // validate we only send one get quarantine config request
-    assert_matches!(&requests_iter.next().unwrap(), RequestPayload::CreateBundleUpload(d) => d);
+    assert_eq!(all_quarantined_tests_request.cursor, None);
+    // validate we only send one quarantine lookup
+    assert_matches!(&requests_iter.next().unwrap(), RequestPayload::CreateTestUpload(d) => d);
     let tar_extract_directory =
         assert_matches!(&requests_iter.next().unwrap(), RequestPayload::S3Upload(d) => d);
     let file = fs::File::open(tar_extract_directory.join("meta.json")).unwrap();
@@ -166,7 +162,7 @@ async fn publish_uploads_test_report() {
         base_props.repo.repo_head_author_email,
         "your.email@example.com"
     );
-    assert_eq!(base_props.bundle_upload_id, "test-bundle-upload-id");
+    assert_eq!(base_props.bundle_upload_id, MOCK_UPLOAD_ID);
     assert_eq!(base_props.tags, &[]);
     assert_eq!(base_props.file_sets.len(), 1);
     assert_eq!(base_props.envs.get("CI"), Some(&String::from("1")));
@@ -454,11 +450,11 @@ async fn publish_environment_variable_overrides() {
     thread_join_handle.join().unwrap();
 
     let requests = state.requests.lock().unwrap().clone();
-    // Should have: CreateBundleUpload, S3Upload, TelemetryUploadMetrics
+    // Should have: CreateTestUpload, S3Upload, TelemetryUploadMetrics
     assert!(requests.len() >= 2, "Expected at least 2 requests");
 
     let mut requests_iter = requests.iter();
-    assert_matches!(&requests_iter.next().unwrap(), RequestPayload::CreateBundleUpload(d) => d);
+    assert_matches!(&requests_iter.next().unwrap(), RequestPayload::CreateTestUpload(d) => d);
 
     let tar_extract_directory =
         assert_matches!(&requests_iter.next().unwrap(), RequestPayload::S3Upload(d) => d);
@@ -588,7 +584,7 @@ async fn publish_variant_priority_constructor_over_env() {
     let mut requests_iter = requests.iter();
     assert_matches!(
         &requests_iter.next().unwrap(),
-        RequestPayload::CreateBundleUpload(_)
+        RequestPayload::CreateTestUpload(_)
     );
 
     assert_matches!(&requests_iter.next().unwrap(), RequestPayload::S3Upload(_));
@@ -705,11 +701,7 @@ async fn publish_writes_a_failed_quarantine_lookup_to_summary_output_file() {
     let temp_dir = tempdir().unwrap();
     let state = {
         let mut builder = MockServerBuilder::new();
-        builder.set_get_quarantining_config_handler(
-            |Json(_): Json<GetQuarantineConfigRequest>| async {
-                Err::<Json<GetQuarantineConfigResponse>, StatusCode>(StatusCode::BAD_REQUEST)
-            },
-        );
+        builder.set_all_quarantined_tests_handler(|| async { StatusCode::BAD_REQUEST });
         builder.spawn_mock_server().await
     };
     let summary_path = set_up_summary_output_file(&temp_dir, &state.host);
@@ -728,14 +720,9 @@ async fn publish_writes_that_quarantining_is_disabled_for_the_repo_to_summary_ou
     let temp_dir = tempdir().unwrap();
     let state = {
         let mut builder = MockServerBuilder::new();
-        builder.set_get_quarantining_config_handler(
-            |Json(_): Json<GetQuarantineConfigRequest>| async {
-                Json(GetQuarantineConfigResponse {
-                    is_disabled: true,
-                    ..Default::default()
-                })
-            },
-        );
+        builder.set_all_quarantined_tests_handler(|| async {
+            Json(quarantined_test_list(false, Vec::<String>::new()))
+        });
         builder.spawn_mock_server().await
     };
     let summary_path = set_up_summary_output_file(&temp_dir, &state.host);

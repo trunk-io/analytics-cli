@@ -230,9 +230,8 @@ fn prints_notices_apart_from_the_summary() {
     let mut result = upload_result(5);
     result.notices = vec![
         Notice::deprecation(
-            "Uploading to test collection zQ8nP2mW, inferred from the repository. Pass --test-collection-id zQ8nP2mW: analytics-cli 1.0.0 requires it.",
+            "The --team flag is deprecated and will be removed in a future version.",
         ),
-        Notice::upload_skipped("Test results were not uploaded."),
         Notice::bep_parse_error("unexpected EOF"),
     ];
     let report = UploadReport::new(&result, UploadCommand::Upload);
@@ -244,8 +243,7 @@ fn prints_notices_apart_from_the_summary() {
             .map(Line::to_unstyled)
             .collect::<Vec<_>>(),
         [
-            "⚠️  Uploading to test collection zQ8nP2mW, inferred from the repository. Pass --test-collection-id zQ8nP2mW: analytics-cli 1.0.0 requires it.",
-            "⚠️  Test results were not uploaded.",
+            "⚠️  The --team flag is deprecated and will be removed in a future version.",
             "⚠️  BEP file had a parse error: unexpected EOF",
             "",
         ]

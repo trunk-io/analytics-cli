@@ -4,13 +4,11 @@ use std::path::PathBuf;
 use std::sync::mpsc::Sender;
 
 use api::client::{ApiClient, ApiErrorEndpoint, GithubForkPullRequest};
-use api::message::{GetUploadApiVersionRequest, UploadApiCaller, UploadApiDecision};
 use api::urls::TestCaseGuidScope;
 use bundle::{BundleMeta, BundlerUtil, QuarantineResolutionMode, unzip_tarball};
 use clap::{ArgAction, Args};
 use codeowners::OwnersSource;
 use context::bazel_bep::common::BepParseResult;
-use context::env::parser::CIPlatform;
 use display::message::DisplayMessage;
 use tempfile::TempDir;
 
@@ -112,7 +110,7 @@ pub struct UploadArgs {
     #[arg(
         long,
         env = constants::TRUNK_ALLOW_FORKED_PR_UPLOADS_ENV,
-        help = "Upload with no Trunk credential, as a forked pull request must since it cannot read repository secrets. Works with no credential on Trunk API v1. On Trunk API v2 it works only for a fork pull request on GitHub Actions, using the job's GITHUB_TOKEN: trunk-io/analytics-uploader passes it by default; when running the CLI directly, set `GITHUB_TOKEN: ${{ github.token }}` on the step. The collection must have forked-PR uploads enabled in Trunk."
+        help = "Upload with no Trunk credential, as a forked pull request must since it cannot read repository secrets. Works only for a fork pull request on GitHub Actions, using the job's GITHUB_TOKEN: trunk-io/analytics-uploader passes it by default; when running the CLI directly, set `GITHUB_TOKEN: ${{ github.token }}` on the step. The collection must have forked-PR uploads enabled in Trunk."
     )]
     pub allow_forked_pr_uploads: bool,
     #[arg(
@@ -451,10 +449,17 @@ pub struct RunUploadOptions {
     pub quarantine_query_result_override:
         Option<proto::upload_metrics::trunk::QuarantineQueryResult>,
     pub quarantine_resolution_mode_override: Option<QuarantineResolutionMode>,
-    /// The API a caller already chose for this run, so its quarantine lookup and the upload
-    /// use the same one (and the same inferred collection). `None` asks Trunk.
-    pub upload_api_version: Option<UploadApiDecision>,
-    pub caller: UploadApiCaller,
+    pub caller: UploadCaller,
+}
+
+/// Who runs the upload, which decides how its messages name a setting.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum UploadCaller {
+    /// `trunk-analytics-cli upload` or `test`, which take flags.
+    #[default]
+    Cli,
+    /// A test-runner plugin, which reads the environment.
+    TestRunnerPlugin,
 }
 
 impl Default for RunUploadOptions {
@@ -465,14 +470,13 @@ impl Default for RunUploadOptions {
             render_sender: None,
             quarantine_query_result_override: None,
             quarantine_resolution_mode_override: None,
-            upload_api_version: None,
-            caller: UploadApiCaller::Cli,
+            caller: UploadCaller::Cli,
         }
     }
 }
 
 pub async fn run_upload(
-    mut upload_args: UploadArgs,
+    upload_args: UploadArgs,
     options: RunUploadOptions,
 ) -> anyhow::Result<UploadRunResult> {
     let RunUploadOptions {
@@ -481,7 +485,6 @@ pub async fn run_upload(
         render_sender,
         quarantine_query_result_override,
         quarantine_resolution_mode_override,
-        upload_api_version,
         caller,
     } = options;
     // grab the exec start if provided (`test` subcommand) or use the current time
@@ -540,42 +543,10 @@ pub async fn run_upload(
         )?
     };
 
-    let upload_api_decision = match upload_api_version {
-        Some(upload_api_decision) => upload_api_decision,
-        // A dry run uploads nothing, so it has nothing to choose.
-        None if upload_args.dry_run => UploadApiDecision::default(),
-        None => {
-            api_client
-                .get_upload_api_version(&upload_api_version_request(
-                    &upload_args,
-                    &meta.base_props.repo.repo,
-                    &meta.base_props.envs,
-                    caller,
-                ))
-                .await
-        }
-    };
-    let requested_test_collection_short_id = upload_args.test_collection_short_id.as_deref();
-    let upload_api_version = upload_api_decision.version_for(requested_test_collection_short_id);
-    let skip_upload = upload_api_decision.missing_test_collection
-        && requested_test_collection_short_id
-            .is_none_or(|test_collection_short_id| test_collection_short_id.trim().is_empty());
-    if let Some(inferred) = upload_api_decision
-        .inferred_for(requested_test_collection_short_id)
-        .map(String::from)
-    {
-        let message = inferred_test_collection_message(&inferred, caller);
-        tracing::warn!("{message}");
-        notices.push(Notice::deprecation(message));
-        upload_args.test_collection_short_id = Some(inferred);
+    // A dry run makes no call, so it has nothing to log in for.
+    if !upload_args.dry_run {
+        api_client.log_in_github_fork_pull_request().await;
     }
-    if skip_upload {
-        let message = missing_test_collection_message(&meta.base_props.repo.repo, caller);
-        tracing::warn!("{message}");
-        notices.push(Notice::upload_skipped(message));
-    }
-    api_client.use_upload_api_version(upload_api_version).await;
-    api_client.set_missing_test_collection(skip_upload);
 
     if let Some(bep_result) = &bep_result {
         notices.extend(bep_result.errors.iter().map(Notice::bep_parse_error));
@@ -675,22 +646,16 @@ pub async fn run_upload(
     meta.failed_tests = quarantine_context.failures.clone();
 
     let upload_started_at = chrono::Utc::now();
-    let upload_bundle_result = if skip_upload {
-        None
-    } else {
-        tracing::info!("Uploading test results...");
-        Some(
-            upload_bundle(
-                &mut meta,
-                upload_args.test_collection_short_id.clone(),
-                &api_client,
-                bep_result,
-                quarantine_context.exit_code,
-                upload_args.dry_run,
-            )
-            .await,
-        )
-    };
+    tracing::info!("Uploading test results...");
+    let upload_bundle_result = upload_bundle(
+        &mut meta,
+        upload_args.test_collection_short_id.clone(),
+        &api_client,
+        bep_result,
+        quarantine_context.exit_code,
+        upload_args.dry_run,
+    )
+    .await;
     let quarantine_query_result = quarantine_query_result_override.unwrap_or_else(|| {
         quarantine_query_result(upload_args.disable_quarantining, &quarantine_context)
     });
@@ -718,9 +683,7 @@ pub async fn run_upload(
         .into(),
     };
     let mut request = api::message::TelemetryUploadMetricsRequest { upload_metrics };
-    if !upload_args.dry_run
-        && let Some(upload_bundle_result) = &upload_bundle_result
-    {
+    if !upload_args.dry_run {
         let telemetry_response;
         if let Some(err) = upload_bundle_result.as_ref().err() {
             request.upload_metrics.failed = true;
@@ -739,12 +702,11 @@ pub async fn run_upload(
         }
     }
 
-    if matches!(upload_bundle_result, Some(Err(_))) {
+    if upload_bundle_result.is_err() {
         tracing::error!("Failed to upload bundle");
     }
     let (guid_scope, error_report) = match upload_bundle_result {
-        None => (None, None),
-        Some(Ok(uploaded)) => {
+        Ok(uploaded) => {
             if upload_args.dry_run {
                 let curr_dir = env::current_dir()?;
                 let bundle_file = curr_dir.join(DRY_RUN_OUTPUT_DIR);
@@ -752,7 +714,7 @@ pub async fn run_upload(
             }
             (uploaded.guid_scope, None)
         }
-        Some(Err(e)) => (
+        Err(e) => (
             None,
             Some(ErrorReport::new(
                 e,
@@ -789,89 +751,16 @@ pub async fn run_upload(
     })
 }
 
-pub fn missing_test_collection_id_message(caller: UploadApiCaller) -> String {
+pub fn missing_test_collection_id_message(caller: UploadCaller) -> String {
     let how_to_pass = match caller {
-        UploadApiCaller::Cli => String::from("Pass --test-collection-id"),
-        UploadApiCaller::TestRunnerPlugin => {
+        UploadCaller::Cli => String::from("Pass --test-collection-id"),
+        UploadCaller::TestRunnerPlugin => {
             format!("Set {}", constants::TRUNK_TEST_COLLECTION_ID_ENV)
         }
     };
     format!(
         "This run names no test collection. {how_to_pass} to upload its test results; the ID is on the collection's page in Trunk."
     )
-}
-
-/// The run goes on as if the user had named the collection Trunk inferred, until 1.0.0 requires it.
-pub fn inferred_test_collection_message(short_id: &str, caller: UploadApiCaller) -> String {
-    let how_to_pass = match caller {
-        UploadApiCaller::Cli => format!("Pass --test-collection-id {short_id}"),
-        UploadApiCaller::TestRunnerPlugin => {
-            format!("Set {}={short_id}", constants::TRUNK_TEST_COLLECTION_ID_ENV)
-        }
-    };
-    format!(
-        "Uploading to test collection {short_id}, inferred from the repository. {how_to_pass}: analytics-cli 1.0.0 requires it."
-    )
-}
-
-/// Trunk would drop the upload, since the org files every upload under a test collection.
-pub fn missing_test_collection_message(
-    repo: &context::repo::RepoUrlParts,
-    caller: UploadApiCaller,
-) -> String {
-    let how_to_pass = match caller {
-        UploadApiCaller::Cli => String::from("Pass --test-collection-id"),
-        UploadApiCaller::TestRunnerPlugin => {
-            format!("Set {}", constants::TRUNK_TEST_COLLECTION_ID_ENV)
-        }
-    };
-    let repo_name = if repo.owner.is_empty() && repo.name.is_empty() {
-        String::from("this repository")
-    } else {
-        format!("{}/{}", repo.owner, repo.name)
-    };
-    format!(
-        "Test results were not uploaded: this run names no test collection, and Trunk has none for {repo_name}. {how_to_pass} to upload them."
-    )
-}
-
-pub fn upload_api_version_request(
-    upload_args: &UploadArgs,
-    repo: &context::repo::RepoUrlParts,
-    envs: &context::env::EnvVars,
-    caller: UploadApiCaller,
-) -> GetUploadApiVersionRequest {
-    let ci_provider: &str = CIPlatform::from(envs).into();
-    GetUploadApiVersionRequest {
-        cli_version: env!("CARGO_PKG_VERSION").to_string(),
-        org_slug: upload_args.org_url_slug.clone(),
-        test_collection_short_id: upload_args
-            .test_collection_short_id
-            .clone()
-            .filter(|id| !id.is_empty()),
-        repo: Some(repo.clone()),
-        ci_provider: Some(ci_provider.to_string()),
-        // The captured envs leave the event path out, so it is read from the process too.
-        is_fork_pr: is_fork_pr(
-            envs.get("GITHUB_EVENT_PATH")
-                .cloned()
-                .or_else(|| env::var("GITHUB_EVENT_PATH").ok())
-                .as_deref(),
-            envs,
-        ),
-        caller,
-    }
-}
-
-/// Whether the run builds a pull request from another repository. Fork runs usually have no API
-/// token and so never ask; this catches the ones that do, such as `pull_request_target`.
-pub fn is_fork_pr(github_event_path: Option<&str>, envs: &context::env::EnvVars) -> bool {
-    if let Some(event_path) = github_event_path {
-        return github_event_is_fork_pr(event_path).unwrap_or(false);
-    }
-    // CircleCI sets CIRCLE_PR_NUMBER only for a pull request from a fork.
-    envs.get("CIRCLE_PR_NUMBER")
-        .is_some_and(|number| !number.is_empty())
 }
 
 fn github_event_pull_request(event_path: &str) -> Option<serde_json::Value> {
@@ -884,10 +773,6 @@ fn pull_request_is_from_fork(pull_request: &serde_json::Value) -> Option<bool> {
     let head = pull_request.pointer("/head/repo/full_name")?.as_str()?;
     let base = pull_request.pointer("/base/repo/full_name")?.as_str()?;
     Some(!head.eq_ignore_ascii_case(base))
-}
-
-fn github_event_is_fork_pr(event_path: &str) -> Option<bool> {
-    pull_request_is_from_fork(&github_event_pull_request(event_path)?)
 }
 
 /// The fork pull request a GitHub Actions run builds, with the job's `GITHUB_TOKEN`; `None` for
@@ -984,9 +869,7 @@ pub fn get_bundle_upload_id_message(bundle_upload_id: &str) -> String {
 
 #[cfg(test)]
 mod fork_pr_tests {
-    use std::collections::HashMap;
-
-    use super::is_fork_pr;
+    use super::github_fork_pull_request;
 
     fn github_event(head: &str, base: &str) -> tempfile::NamedTempFile {
         let file = tempfile::NamedTempFile::new().unwrap();
@@ -994,7 +877,8 @@ mod fork_pr_tests {
             file.path(),
             serde_json::json!({
                 "pull_request": {
-                    "head": {"repo": {"full_name": head}},
+                    "number": 42,
+                    "head": {"sha": "ABCDEF0123", "repo": {"full_name": head}},
                     "base": {"repo": {"full_name": base}},
                 }
             })
@@ -1002,13 +886,6 @@ mod fork_pr_tests {
         )
         .unwrap();
         file
-    }
-
-    fn envs(pairs: &[(&str, &str)]) -> HashMap<String, String> {
-        pairs
-            .iter()
-            .map(|(key, value)| (key.to_string(), value.to_string()))
-            .collect()
     }
 
     #[test]
@@ -1019,20 +896,11 @@ mod fork_pr_tests {
         std::fs::write(push.path(), r#"{"ref": "refs/heads/main"}"#).unwrap();
 
         assert_eq!(
-            [&fork, &same, &push].map(|event| is_fork_pr(event.path().to_str(), &HashMap::new())),
-            [true, false, false]
-        );
-    }
-
-    #[test]
-    fn reads_circleci_pr_number_as_a_fork() {
-        assert_eq!(
-            [
-                envs(&[("CIRCLE_PR_NUMBER", "42")]),
-                envs(&[("CIRCLE_PR_NUMBER", "")]),
-            ]
-            .map(|envs| is_fork_pr(None, &envs)),
-            [true, false]
+            [&fork, &same, &push].map(|event| github_fork_pull_request(
+                event.path().to_str().unwrap()
+            )
+            .map(|pull_request| (pull_request.number, pull_request.head_sha))),
+            [Some((42, String::from("abcdef0123"))), None, None]
         );
     }
 }

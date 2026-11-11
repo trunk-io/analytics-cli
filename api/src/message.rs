@@ -20,23 +20,12 @@ pub struct CreateBundleUploadResponse {
     pub id: String,
     pub id_v2: String,
     pub url: String,
-    pub key: String,
     pub test_collection_bundle_meta_id: Option<String>,
     pub test_collection_bundle_meta_created_at: Option<String>,
     #[serde(default)]
     pub repo_id: Option<String>,
     #[serde(default)]
     pub test_collection_id: Option<String>,
-}
-
-#[derive(Debug, Serialize, Clone, Deserialize, Default)]
-#[serde(rename_all = "camelCase")]
-pub struct GetQuarantineConfigResponse {
-    pub is_disabled: bool,
-    #[serde(rename = "testIds")]
-    pub quarantined_tests: Vec<String>,
-    #[serde(default)]
-    pub quarantine_resolution_mode: QuarantineResolutionMode,
 }
 
 #[derive(Debug, Serialize, Clone, Deserialize, PartialEq, Eq)]
@@ -50,83 +39,24 @@ pub struct GetQuarantineConfigRequest {
     pub test_collection_short_id: Option<String>,
 }
 
-#[derive(Debug, Serialize, Clone, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "camelCase")]
-pub struct CreateBundleUploadIntentRequest {
-    pub repo: RepoUrlParts,
-    pub org_url_slug: String,
-    pub client_version: String,
-}
-
-#[derive(Debug, Serialize, Clone, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "camelCase")]
-pub struct CreateBundleUploadIntentResponse {
-    pub repo: RepoUrlParts,
-    pub org_url_slug: String,
-    pub client_version: String,
-}
-
 #[derive(Debug, Serialize, Clone, Deserialize, PartialEq)]
 pub struct TelemetryUploadMetricsRequest {
     pub upload_metrics: proto::upload_metrics::trunk::UploadMetrics,
 }
 
-/// A 4xx body the API sends for an error it explains itself; the CLI prints `message` as given.
+/// The API's 4xx envelope, `{"error": {"code", "message"}}`.
+#[derive(Debug, Deserialize)]
+pub struct ClientErrorEnvelope {
+    pub error: ClientErrorBody,
+}
+
+/// An error the API explains itself; the CLI prints `message` as given.
 #[derive(Debug, Deserialize)]
 pub struct ClientErrorBody {
     #[serde(default)]
     pub code: Option<String>,
     #[serde(default)]
     pub message: Option<String>,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum UploadApiVersion {
-    #[default]
-    V1,
-    V2,
-}
-
-impl UploadApiVersion {
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            Self::V1 => "v1",
-            Self::V2 => "v2",
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
-#[serde(rename_all = "kebab-case")]
-pub enum UploadApiCaller {
-    Cli,
-    TestRunnerPlugin,
-}
-
-#[derive(Debug, Serialize, Clone, PartialEq, Eq)]
-#[serde(rename_all = "camelCase")]
-pub struct GetUploadApiVersionRequest {
-    pub cli_version: String,
-    pub org_slug: String,
-    pub test_collection_short_id: Option<String>,
-    pub repo: Option<RepoUrlParts>,
-    pub ci_provider: Option<String>,
-    pub is_fork_pr: bool,
-    pub caller: UploadApiCaller,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct GetUploadApiVersionResponse {
-    pub api_version: String,
-    /// Sent only with `v2`, for a run that named no collection, when Trunk inferred one from the
-    /// repository. Older servers never send it.
-    #[serde(default)]
-    pub test_collection_short_id: Option<String>,
-    /// Sent only with `v1`, for a fully migrated org's run that named no collection when Trunk
-    /// could not infer one. Trunk would drop a v1 upload of that run. Older servers never send it.
-    #[serde(default)]
-    pub missing_test_collection: bool,
 }
 
 /// The fork lane's body for `POST /v2/auth/github-actions/login`. It holds the job's
@@ -144,89 +74,6 @@ pub struct GithubActionsForkLoginRequest<'a> {
 pub struct GithubActionsLogin {
     pub jwt: String,
     pub expires_at: String,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct GithubActionsLoginRefusal {
-    pub error: ClientErrorBody,
-}
-
-/// Which API a run uses and, on v2 for a run that named no test collection, the collection Trunk
-/// inferred from its repository.
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct UploadApiDecision {
-    pub version: UploadApiVersion,
-    pub inferred_test_collection_short_id: Option<String>,
-    /// The run named no collection and Trunk has none for it, so the upload is skipped.
-    pub missing_test_collection: bool,
-}
-
-impl UploadApiDecision {
-    /// A run that named its collection takes the answer's version as it is. Only a run that named
-    /// none reads the other fields: the inferred collection with `v2`, `missingTestCollection` with
-    /// `v1`.
-    pub fn from_response(response: GetUploadApiVersionResponse, requested: Option<&str>) -> Self {
-        let v2 = response.api_version == "v2";
-        if requested.is_some_and(|id| !id.trim().is_empty()) {
-            return Self::from(if v2 {
-                UploadApiVersion::V2
-            } else {
-                UploadApiVersion::V1
-            });
-        }
-        if !v2 {
-            return Self {
-                missing_test_collection: response.missing_test_collection,
-                ..Self::default()
-            };
-        }
-        match response
-            .test_collection_short_id
-            .filter(|id| !id.trim().is_empty())
-        {
-            Some(inferred) => Self {
-                version: UploadApiVersion::V2,
-                inferred_test_collection_short_id: Some(inferred),
-                ..Self::default()
-            },
-            None => {
-                tracing::debug!(
-                    "Trunk chose v2 but named no test collection for this run, using v1"
-                );
-                Self::default()
-            }
-        }
-    }
-
-    /// The inferred collection, when the run named none of its own and so uses it.
-    pub fn inferred_for(&self, requested: Option<&str>) -> Option<&str> {
-        match (self.version, requested.filter(|id| !id.trim().is_empty())) {
-            (UploadApiVersion::V2, None) => self
-                .inferred_test_collection_short_id
-                .as_deref()
-                .filter(|id| !id.trim().is_empty()),
-            _ => None,
-        }
-    }
-
-    /// Every v2 route is scoped to a collection, so v2 with none named and none inferred is v1.
-    pub fn version_for(&self, requested: Option<&str>) -> UploadApiVersion {
-        let has_collection = requested.is_some_and(|id| !id.trim().is_empty())
-            || self.inferred_for(requested).is_some();
-        match self.version {
-            UploadApiVersion::V2 if has_collection => UploadApiVersion::V2,
-            _ => UploadApiVersion::V1,
-        }
-    }
-}
-
-impl From<UploadApiVersion> for UploadApiDecision {
-    fn from(version: UploadApiVersion) -> Self {
-        Self {
-            version,
-            ..Self::default()
-        }
-    }
 }
 
 #[derive(Debug, Serialize, Clone, PartialEq, Eq)]
@@ -250,7 +97,7 @@ impl<'a> From<&'a CreateBundleUploadRequest> for CreateTestUploadRequest<'a> {
     }
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct CreatedTestUpload {
     pub id: String,
@@ -304,7 +151,7 @@ impl From<&Test> for QuarantineStatusIdentifier {
     }
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct QuarantineStatus {
     pub test_collection_uuid: String,
@@ -313,14 +160,14 @@ pub struct QuarantineStatus {
     pub tests: Vec<QuarantineStatusTest>,
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct QuarantineStatusTest {
     pub client_test_id: Option<String>,
     pub quarantined: bool,
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct QuarantinedTestList {
     pub data: Vec<QuarantinedTest>,
@@ -330,7 +177,7 @@ pub struct QuarantinedTestList {
     pub quarantine_enabled: bool,
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct QuarantinedTest {
     pub test_id: String,
