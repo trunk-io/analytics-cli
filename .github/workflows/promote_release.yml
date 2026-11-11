@@ -6,8 +6,12 @@ on:
       # trunk-ignore(checkov/CKV_GHA_7)
       version:
         type: string
-        description: Already-released version to make latest (on GitHub and at trunk.io/releases/analytics-cli/prod/channel.json)
+        description: Already-released version to make latest for its major (channel-<major>.json), and overall (channel.json and GitHub) when it is the newest
         required: true
+      allow-downgrade:
+        type: boolean
+        description: Move the pointers even to an older version (a rollback)
+        default: false
 concurrency: ${{ github.workflow }}
 
 permissions:
@@ -22,6 +26,7 @@ jobs:
       id-token: write
     env:
       VERSION: ${{ inputs.version }}
+      ALLOW_DOWNGRADE: ${{ inputs.allow-downgrade }}
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v4
@@ -64,8 +69,15 @@ jobs:
       # S3 moves first: its preconditions (the role, a complete manifest) are the ones that fail in
       # practice, and when they do GitHub has not moved either. Both steps are idempotent, so if the
       # GitHub edit fails afterwards, re-running this workflow converges the two.
-      - name: Point channel.json at ${{ inputs.version }}
+      - name: Point channel.json and channel-<major>.json at ${{ inputs.version }}
+        id: s3
         run: .github/scripts/set-latest-in-s3.sh "${VERSION}"
 
       - name: Mark ${{ inputs.version }} latest on GitHub
+        if: steps.s3.outputs.global_moved == 'true'
         run: gh release edit "${VERSION}" --prerelease=false --latest
+
+      # A backport of an older major is published but must not take GitHub's latest from the newer one.
+      - name: Mark ${{ inputs.version }} released on GitHub
+        if: steps.s3.outputs.global_moved != 'true'
+        run: gh release edit "${VERSION}" --prerelease=false --latest=false

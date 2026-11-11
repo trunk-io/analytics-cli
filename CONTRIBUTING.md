@@ -145,12 +145,14 @@ The pattern is:
 Releases are published in two places: GitHub releases, and `https://trunk.io/releases/analytics-cli/prod/` (the `trunk-releases` S3 bucket). Trunk's own consumers (the `analytics-uploader` action and the `trunk` CLI's `flakytests` command) read the S3 copy. GitHub releases stay, because the frozen legacy `trunk` launcher and customers' own scripts download from them.
 
 1. **Cut**: run the `Release` workflow with the version. It builds, smoke-tests, creates a GitHub **prerelease**, and uploads the same assets to `releases/analytics-cli/prod/<version>/`. A version is immutable once published.
-2. **Promote**: run the `Promote Release` workflow with the version. It points `releases/analytics-cli/prod/channel.json` at it and marks it latest on GitHub. Do **not** mark a release latest in the GitHub UI, since that leaves `channel.json` behind.
+2. **Promote**: run the `Promote Release` workflow with the version. It points `channel-<major>.json` at it. If it is the newest release overall, it also points `channel.json` at it and marks it latest on GitHub. So promoting a 0.x backport after 1.x moves only `channel-0.json`. A pointer never moves back unless you tick `allow-downgrade`, for a rollback. Do **not** mark a release latest in the GitHub UI, since that leaves the pointers behind.
 3. **Backfill**: run `Mirror Releases to S3` to copy releases that predate the S3 lane (or that a failed run left incomplete). Pass space-separated tags or `all`. Re-running it is safe because complete versions are skipped. Each download is first checked against the sha256 digest GitHub recorded for it; releases from before June 2025 have no digest and are copied unchecked.
 
 Layout under `releases/analytics-cli/prod/`:
 
-- `channel.json`: `{"latest": "<version>"}`, the only mutable object (`Cache-Control: max-age=60`).
+- `channel.json`: `{"latest": "<version>"}`, the newest release overall. Read by the `trunk` CLI and the docs.
+- `channel-<major>.json`: the same shape, for the newest release of one major version (`channel-0.json`, `channel-1.json`). Each analytics-uploader major reads its own, so `@v2` stays on 0.x.
+- Both are written with `Cache-Control: max-age=60` and are the only mutable objects.
 - `<version>/<asset>`: each GitHub release asset under the same filename, e.g. `trunk-analytics-cli-x86_64-unknown-linux.tar.gz`.
 - `<version>/manifest.json`: `{"version": "<version>", "artifacts": {"<asset>": {"sha256": "<hex>"}}}`, uploaded last, so its presence means the version is complete.
 
