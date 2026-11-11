@@ -53,6 +53,6 @@ jobs:
             rm -rf "${dir}"
           done
 
-      - name: Point channel.json at GitHub's latest release
+      - name: Point channel.json and channel-<major>.json at GitHub's latest release
         if: inputs.set-latest-to-github-latest
         run: .github/scripts/set-latest-in-s3.sh "$(gh release view --json tagName --jq .tagName)"
