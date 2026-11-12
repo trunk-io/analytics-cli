@@ -1,9 +1,11 @@
 mod common;
 
+use std::{fs, io::Write, path::PathBuf};
+
 use common::{
     command_builder::CommandBuilder,
     utils::{
-        generate_mock_codeowners, generate_mock_invalid_junit_xmls,
+        generate_mock_bazel_bep, generate_mock_codeowners, generate_mock_invalid_junit_xmls,
         generate_mock_missing_filepath_suboptimal_junit_xmls, generate_mock_suboptimal_junit_xmls,
         generate_mock_valid_junit_xmls, write_junit_xml_to_dir,
     },
@@ -13,7 +15,7 @@ use superconsole::{
     Line, Span,
     style::{Color, Stylize, style},
 };
-use tempfile::tempdir;
+use tempfile::{TempDir, tempdir};
 
 #[test]
 fn validate_success() {
@@ -222,22 +224,28 @@ fn validate_missing_filepath_suboptimal_junits() {
     println!("{assert}");
 }
 
+/// A BEP ending in a truncated event, which the run reports as a notice.
+fn generate_mock_bazel_bep_with_parse_error(directory: &TempDir) -> PathBuf {
+    let bep_path = generate_mock_bazel_bep(directory);
+    let mut bep = fs::OpenOptions::new().append(true).open(&bep_path).unwrap();
+    bep.write_all(b"\n{\"id\":{\"testResult\":").unwrap();
+    bep_path
+}
+
 #[test]
 fn validate_writes_summary_to_stdout_and_notices_to_stderr() {
     let temp_dir = tempdir().unwrap();
-    generate_mock_valid_junit_xmls(&temp_dir);
+    let bep_path = generate_mock_bazel_bep_with_parse_error(&temp_dir);
 
     let assert = CommandBuilder::validate(temp_dir.path())
-        .extra_args(&["--hide-banner"])
+        .bazel_bep_path(bep_path.to_str().unwrap())
         .command()
         .assert()
         .success()
         .stdout(predicate::str::contains("Checking for codeowners file..."))
         .stderr(predicate::str::contains("Checking for codeowners file...").not())
-        .stderr(predicate::str::contains(
-            "The --hide-banner flag is deprecated",
-        ))
-        .stdout(predicate::str::contains("deprecated").not());
+        .stderr(predicate::str::contains("BEP file had a parse error"))
+        .stdout(predicate::str::contains("BEP file had a parse error").not());
 
     println!("{assert}");
 }
@@ -245,24 +253,40 @@ fn validate_writes_summary_to_stdout_and_notices_to_stderr() {
 #[test]
 fn validate_prints_only_the_json_summary_on_stdout() {
     let temp_dir = tempdir().unwrap();
-    generate_mock_valid_junit_xmls(&temp_dir);
+    let bep_path = generate_mock_bazel_bep_with_parse_error(&temp_dir);
     generate_mock_codeowners(&temp_dir);
 
     let assert = CommandBuilder::validate(temp_dir.path())
+        .bazel_bep_path(bep_path.to_str().unwrap())
         .command()
-        .args(["--output-format", "json", "--hide-banner", "--verbose"])
+        .args(["--output-format", "json", "--verbose"])
         .assert()
         .success()
         .stderr(predicate::str::contains("Starting trunk-analytics-cli"))
-        .stderr(predicate::str::contains(
-            "⚠️  The --hide-banner flag is deprecated",
-        ));
+        .stderr(predicate::str::contains("⚠️  BEP file had a parse error"));
 
     let summary: serde_json::Value = serde_json::from_slice(&assert.get_output().stdout).unwrap();
     assert_eq!(summary["schemaVersion"], 1);
     assert_eq!(summary["type"], "VALIDATE");
     assert_eq!(summary["counts"]["files"], 1);
     assert_eq!(summary["exitCode"], 0);
+    assert_eq!(summary["notices"][0]["kind"], "BEP_PARSE_ERROR");
+}
+
+/// analytics-cli 1.0.0 removed `--hide-banner`; clap rejects it rather than ignoring it.
+#[test]
+fn validate_rejects_hide_banner() {
+    let temp_dir = tempdir().unwrap();
+    for flag in ["--hide-banner", "--hide-banner=true"] {
+        CommandBuilder::validate(temp_dir.path())
+            .command()
+            .arg(flag)
+            .assert()
+            .code(2)
+            .stderr(predicate::str::contains(
+                "unexpected argument '--hide-banner' found",
+            ));
+    }
 }
 
 #[test]
