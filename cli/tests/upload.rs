@@ -1755,15 +1755,12 @@ async fn upload_prints_only_the_json_summary_on_stdout() {
     let assert = CommandBuilder::upload(temp_dir.path(), state.host.clone())
         .verbose(true)
         .command()
-        .args(["--output-format", "json", "--hide-banner"])
+        .args(["--output-format", "json"])
         .arg("--summary-output-file")
         .arg(&summary_path)
         .assert()
         .code(ExitCode::Failure.code())
         .stderr(predicate::str::contains("Starting trunk-analytics-cli"))
-        .stderr(predicate::str::contains(
-            "⚠️  The --hide-banner flag is deprecated",
-        ))
         .stderr(predicate::str::contains("taking longer than expected"))
         .stderr(predicate::str::contains("Summary written to"));
 
@@ -4120,19 +4117,13 @@ async fn upload_verbose_logs_go_to_stderr() {
     let assert = CommandBuilder::upload(temp_dir.path(), state.host.clone())
         .verbose(true)
         .command()
-        .arg("--team")
-        .arg("some-team")
         .assert();
 
     println!("{assert}");
     // stdout is kept free of logs so it can carry machine-readable output
     assert
         .stdout(predicate::str::contains(DEBUG_LOG_MARKER).not())
-        .stderr(predicate::str::contains(DEBUG_LOG_MARKER))
-        .stderr(predicate::str::contains(
-            "The --team flag is deprecated and will be removed in a future version.",
-        ))
-        .stderr(predicate::str::contains("WARN"));
+        .stderr(predicate::str::contains(DEBUG_LOG_MARKER));
 }
 
 // NOTE: must be multi threaded to start a mock server
@@ -4155,22 +4146,73 @@ async fn upload_quietest_verbosity_logs_nothing() {
         .stderr(predicate::str::contains(DEBUG_LOG_MARKER).not());
 }
 
+/// A BEP ending in a truncated event, which the run reports as a notice.
+fn generate_mock_bazel_bep_with_parse_error(directory: &tempfile::TempDir) -> std::path::PathBuf {
+    let bep_path = generate_mock_bazel_bep(directory);
+    let mut bep = fs::OpenOptions::new().append(true).open(&bep_path).unwrap();
+    bep.write_all(b"\n{\"id\":{\"testResult\":").unwrap();
+    bep_path
+}
+
 #[tokio::test(flavor = "multi_thread")]
 async fn upload_writes_summary_to_stdout_and_notices_to_stderr() {
     let temp_dir = tempdir().unwrap();
     generate_mock_git_repo(&temp_dir);
-    generate_mock_valid_junit_xmls(&temp_dir);
+    let bep_path = generate_mock_bazel_bep_with_parse_error(&temp_dir);
 
     let state = MockServerBuilder::new().spawn_mock_server().await;
 
     CommandBuilder::upload(temp_dir.path(), state.host.clone())
-        .extra_args(&["--hide-banner"])
+        .bazel_bep_path(bep_path.to_str().unwrap())
         .command()
         .assert()
         .stdout(predicate::str::contains("📚 Test Report"))
         .stderr(predicate::str::contains("📚 Test Report").not())
-        .stderr(predicate::str::contains(
-            "The --hide-banner flag is deprecated",
-        ))
-        .stdout(predicate::str::contains("deprecated").not());
+        .stderr(predicate::str::contains("BEP file had a parse error"))
+        .stdout(predicate::str::contains("BEP file had a parse error").not());
+}
+
+const FLAGS_REMOVED_IN_1_0_0: [&[&str]; 6] = [
+    &["--team", "some-team"],
+    &["--print-files", "true"],
+    &["--hide-banner"],
+    &["--hide-banner=true"],
+    &["--use-quarantining"],
+    &["--use-quarantining=false"],
+];
+
+/// analytics-cli 1.0.0 removed these deprecated flags; clap rejects them rather than ignoring them.
+#[test]
+fn upload_rejects_flags_removed_in_1_0_0() {
+    let temp_dir = tempdir().unwrap();
+    for flag in FLAGS_REMOVED_IN_1_0_0 {
+        CommandBuilder::upload(temp_dir.path(), String::from("http://localhost:1"))
+            .command()
+            .args(flag)
+            .assert()
+            .code(2)
+            .stderr(predicate::str::contains(format!(
+                "unexpected argument '{}' found",
+                flag[0].split('=').next().unwrap()
+            )));
+    }
+}
+
+/// `test` takes an unknown flag as the start of the test command, so a removed flag fails the run
+/// as a test command that can't be run instead of as a clap error.
+#[test]
+fn test_fails_on_flags_removed_in_1_0_0() {
+    let temp_dir = tempdir().unwrap();
+    for flag in FLAGS_REMOVED_IN_1_0_0 {
+        CommandBuilder::test(temp_dir.path(), String::from("http://localhost:1"), vec![])
+            .command()
+            .args(flag)
+            .arg("true")
+            .assert()
+            .code(ExitCode::Error.code())
+            .stderr(predicate::str::contains(format!(
+                "Couldn't run the test command `{}",
+                flag[0]
+            )));
+    }
 }

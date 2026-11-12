@@ -1,7 +1,7 @@
 use std::{collections::BTreeMap, io::BufReader, path::PathBuf};
 
 use bundle::{FileSet, FileSetBuilder, FileSetTestRunnerReport};
-use clap::{ArgAction, Args, arg};
+use clap::Args;
 use codeowners::{CodeOwners, OwnersSource};
 use context::{
     bazel_bep::{common::BepParseResult, parser::BazelBepParser},
@@ -19,7 +19,7 @@ use context::{
 use quick_junit::Report;
 
 use crate::{
-    context::fall_back_to_binary_parse, error_report::InterruptingError, summary_output::Notice,
+    context::fall_back_to_binary_parse, error_report::InterruptingError,
     upload_command::CodeownersType,
 };
 
@@ -62,18 +62,6 @@ pub struct ValidateArgs {
         help = "Specify CODEOWNERS parser type ('github' or 'gitlab'). Optional; when unset, codeowners type will be inferred."
     )]
     pub codeowners_type: Option<CodeownersType>,
-    #[arg(
-        long,
-        help = "Deprecated (does nothing, left in to avoid breaking existing flows)",
-        action = ArgAction::Set,
-        required = false,
-        require_equals = true,
-        num_args = 0..=1,
-        default_value = "false",
-        default_missing_value = "true",
-        hide = true,
-    )]
-    pub hide_banner: bool,
 }
 
 #[derive(Debug)]
@@ -118,7 +106,6 @@ pub struct ValidateRunResult {
     pub(crate) file_parse_issues: Vec<ParseIssues>,
     pub(crate) test_issues: Vec<TestIssues>,
     pub(crate) codeowners_issues: Option<CodeownersIssues>,
-    pub(crate) notices: Vec<Notice>,
 }
 
 fn parse_test_report(
@@ -156,13 +143,6 @@ fn flatten_glob(glob_text: &str) -> Vec<String> {
 }
 
 pub async fn run_validate(validate_args: ValidateArgs) -> anyhow::Result<ValidateRunResult> {
-    let mut notices = Vec::new();
-    if validate_args.hide_banner {
-        let message = "The --hide-banner flag is deprecated and does nothing. It will be removed in a future version.";
-        tracing::error!("{message}");
-        notices.push(Notice::deprecation(message));
-    }
-
     let ValidateArgs {
         junit_paths,
         bazel_bep_path,
@@ -215,7 +195,6 @@ pub async fn run_validate(validate_args: ValidateArgs) -> anyhow::Result<Validat
         codeowners_path,
         codeowners_type.map(OwnersSource::from),
         bep_validate_result,
-        notices,
     )
     .await
 }
@@ -237,7 +216,6 @@ async fn validate(
     codeowners_path: Option<String>,
     codeowners_type: Option<OwnersSource>,
     bep_result: Option<BepValidateResult>,
-    notices: Vec<Notice>,
 ) -> anyhow::Result<ValidateRunResult> {
     let current_dir = std::env::current_dir()
         .ok()
@@ -306,7 +284,6 @@ async fn validate(
         file_parse_issues,
         test_issues,
         codeowners_issues,
-        notices,
     })
 }
 
