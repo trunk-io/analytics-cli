@@ -391,7 +391,11 @@ async fn failed_v2_upload_links_tests_by_the_quarantine_lookup_ids() {
 
     let temp_dir = tempdir().unwrap();
     generate_mock_git_repo(&temp_dir);
-    generate_mock_valid_junit_xmls(&temp_dir);
+    fs::copy(
+        get_test_file_path("test_fixtures/junit0_fail.xml"),
+        temp_dir.path().join("junit.xml"),
+    )
+    .unwrap();
 
     let mut builder = MockServerBuilder::new();
     builder.route(
@@ -421,15 +425,19 @@ async fn failed_v2_upload_links_tests_by_the_quarantine_lookup_ids() {
     );
     let state = builder.spawn_mock_server().await;
 
+    // The GUID hashes MOCK_TEST_COLLECTION_ID, MOCK_REPO_ID and the id of junit0_fail.xml's one test.
     CommandBuilder::upload(temp_dir.path(), state.host.clone())
+        .junit_paths("junit.xml")
         .command()
         .arg("--test-collection-id")
         .arg("tc_123")
         .assert()
         .failure()
-        .stdout(predicate::str::contains(
-            "/test-org/flaky-tests/collections/tc_123/tests/",
-        ))
+        .stdout(predicate::str::contains(format!(
+            "{}/test-org/flaky-tests/collections/tc_123/tests/ae979ba6-6f93-8657-9f84-0265e5ac404c",
+            state.host
+        )))
+        .stdout(predicate::str::contains("/tests/").count(1))
         .stdout(predicate::str::contains("/collections/tc_123/t/").not())
         .stdout(predicate::str::contains("?repo=trunk-io%2Fanalytics-cli").not());
 }
