@@ -146,8 +146,8 @@ fn annotates_each_failure_that_was_not_quarantined() {
         upload_annotations(&result),
         [
             "::error::2 tests failed and were not quarantined, using exit code: 1",
-            "::error file=src/math.rs,title=Math%2C Tests%3A unit/subtracts::Failed%0Ahttps://app.trunk.io/test-org/flaky-tests/test/subtracts-id?repo=trunk-io%252Fanalytics-cli",
-            "::error title=MathTests/divides::expected 1, got 2%0A100%25 wrong%0Ahttps://app.trunk.io/test-org/flaky-tests/test/divides-id?repo=trunk-io%252Fanalytics-cli",
+            "::error file=src/math.rs,title=Math%2C Tests%3A unit/subtracts::Failed%0Ahttps://app.trunk.io/test-org/flaky-tests/collections/abc123/t/subtracts-id?repo=trunk-io%252Fanalytics-cli",
+            "::error title=MathTests/divides::expected 1, got 2%0A100%25 wrong%0Ahttps://app.trunk.io/test-org/flaky-tests/collections/abc123/t/divides-id?repo=trunk-io%252Fanalytics-cli",
         ]
     );
 }

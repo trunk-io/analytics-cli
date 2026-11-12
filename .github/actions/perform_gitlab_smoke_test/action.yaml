@@ -42,10 +42,10 @@ runs:
       run: |
         ./${{ inputs.cli-binary-location }} test \
         --org-url-slug trunk-staging-org \
-        --test-collection-id z2dzjLHm \
         --junit-paths "${{ github.workspace }}/target/**/*junit.xml" \
         --token ${{ inputs.staging-api-token }} \
         --repo-url https://gitlab.com/trunk-staging-org/analytics-cli-fake-gitlab/ \
+        --test-collection-id z2dzjLHm \
         cargo nextest run -p smoke-test --profile ci
 
     - name: Run tests on production
@@ -95,10 +95,10 @@ runs:
       run: |
         ./${{ inputs.cli-binary-location }} upload \
         --org-url-slug trunk-staging-org \
-        --test-collection-id z2dzjLHm \
         --junit-paths "${{ github.workspace }}/target/**/*junit.xml" \
         --token ${{ inputs.staging-api-token }} \
-        --repo-url https://gitlab.com/trunk-staging-org/analytics-cli-fake-gitlab/
+        --repo-url https://gitlab.com/trunk-staging-org/analytics-cli-fake-gitlab/ \
+        --test-collection-id z2dzjLHm
 
     - name: Upload to production
       if: inputs.environment-type == 'production' || inputs.environment-type == 'both'
