@@ -106,7 +106,7 @@ require 'trunk_spec_helper'
 
 ### Environment Variables
 
-For a complete list of environment variables that the gem accepts, see [`lib/trunk_spec_helper.rb`](lib/trunk_spec_helper.rb). The gem uses the same environment variables as the Trunk Analytics CLI for configuration overrides. `TRUNK_ORG_URL_SLUG` and `TRUNK_API_TOKEN` must be set to activate the plugin.
+For a complete list of environment variables that the gem accepts, see [`lib/trunk_spec_helper.rb`](lib/trunk_spec_helper.rb). The gem uses the same environment variables as the Trunk Analytics CLI for configuration overrides. `TRUNK_ORG_URL_SLUG` and `TRUNK_API_TOKEN` must be set to activate the plugin, and `TRUNK_TEST_COLLECTION_ID` too: with the first two set and no test collection, the plugin prints a warning and stays off.
 
 #### `TRUNK_QUARANTINE_QUERY_FAILURE_EXIT`
 
@@ -147,7 +147,7 @@ This will create an `internal.bin` file in the `./test-results` directory (relat
 After generating the `internal.bin` file, you can upload it using the Trunk Analytics CLI. The CLI supports taking `internal.bin` files as input when running the upload command:
 
 ```bash
-trunk upload --test-reports ./test-results/internal.bin
+trunk upload --test-reports ./test-results/internal.bin --test-collection-id <TEST_COLLECTION_ID>
 ```
 
 The CLI will automatically detect that the file is an `internal.bin` file (by its `.bin` extension) and process it accordingly, allowing you to still benefit from quarantining and other features.

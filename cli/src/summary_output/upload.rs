@@ -275,14 +275,11 @@ impl Outcome {
     }
 }
 
-/// Link to this upload's page, when the run is in test-collection link mode. Gated on
-/// `test_collection_short_id` rather than `base_props.test_collection.short_id` so an
-/// exported-but-blank collection id can't yield a malformed `/collections//uploads/`
-/// link. The payload supplies both halves of the key the canonical route is keyed on.
+/// Link to this upload's page. Gated on `test_collection_short_id` rather than
+/// `base_props.test_collection.short_id` so an exported-but-blank collection id can't yield a
+/// malformed `/collections//uploads/` link. The payload supplies both halves of the key the
+/// canonical route is keyed on.
 fn upload_url(result: &UploadRunResult) -> Option<String> {
-    if result.hide_test_collection_links {
-        return None;
-    }
     let short_id = result.test_collection_short_id.as_deref()?;
     let test_collection = result.meta.base_props.test_collection.as_ref()?;
     url_for_upload(
@@ -296,18 +293,20 @@ fn upload_url(result: &UploadRunResult) -> Option<String> {
 }
 
 fn failed_test(result: &UploadRunResult, test: &Test, quarantined: bool) -> FailedTest {
-    let show_collection_links = !result.hide_test_collection_links;
-    let link = url_for_test_case(
-        &result.api_address,
-        &result.quarantine_context.org_url_slug,
-        &result.quarantine_context.repo,
-        test,
-        result
-            .test_collection_short_id
-            .as_deref()
-            .filter(|_| show_collection_links),
-        result.guid_scope.as_ref().filter(|_| show_collection_links),
-    );
+    let link = result
+        .test_collection_short_id
+        .as_deref()
+        .and_then(|test_collection_short_id| {
+            url_for_test_case(
+                &result.api_address,
+                &result.quarantine_context.org_url_slug,
+                &result.quarantine_context.repo,
+                test,
+                test_collection_short_id,
+                result.guid_scope.as_ref(),
+            )
+            .ok()
+        });
     FailedTest {
         name: test.name.clone(),
         suite: test.parent_name.clone(),
@@ -318,7 +317,7 @@ fn failed_test(result: &UploadRunResult, test: &Test, quarantined: bool) -> Fail
         failure_message: test.failure_message_attribute.clone(),
         failure_text: test.failure_text.clone(),
         quarantined,
-        link: link.ok(),
+        link,
     }
 }
 

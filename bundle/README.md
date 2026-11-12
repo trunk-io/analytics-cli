@@ -19,13 +19,13 @@ To inspect the contents of `internal.bin`, you first need to obtain the file. Th
 When running the upload command with the `--dry-run` flag:
 
 ```bash
-trunk upload --dry-run --junit-path test-results.xml
+trunk upload --dry-run --junit-path test-results.xml --test-collection-id <TEST_COLLECTION_ID>
 ```
 
 Alternatively, you can use the `TRUNK_DRY_RUN` environment variable:
 
 ```bash
-TRUNK_DRY_RUN=true trunk upload --junit-path test-results.xml
+TRUNK_DRY_RUN=true trunk upload --junit-path test-results.xml --test-collection-id <TEST_COLLECTION_ID>
 ```
 
 This will create a `bundle_upload` directory in your current working directory. The `internal.bin` file will be located at the top level of this directory:

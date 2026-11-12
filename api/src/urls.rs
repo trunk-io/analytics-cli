@@ -20,27 +20,21 @@ pub fn url_for_test_case(
     org_url_slug: &String,
     repo: &RepoUrlParts,
     test_case: &Test,
-    test_collection_short_id: Option<&str>,
+    test_collection_short_id: &str,
     guid_scope: Option<&TestCaseGuidScope>,
 ) -> Result<String, ParseError> {
     let mut url = Url::parse(convert_to_app_url(public_api_address).as_str())?;
 
-    let guid_path = match (test_collection_short_id, guid_scope) {
-        (Some(short_id), Some(ids)) => test_case_guid(ids, test_case)
-            .map(|guid| collection_test_guid_path(org_url_slug, short_id, &guid)),
-        _ => None,
-    };
-    // No `?repo=`: the GUID resolves the whole identity tuple, unlike both short-link forms.
+    let guid_path = guid_scope
+        .and_then(|ids| test_case_guid(ids, test_case))
+        .map(|guid| collection_test_guid_path(org_url_slug, test_collection_short_id, &guid));
+    // No `?repo=`: the GUID resolves the whole identity tuple, unlike the short-link form.
     if let Some(path) = guid_path {
         url.set_path(path.as_str());
         return Ok(url.to_string());
     }
 
-    let path = match test_collection_short_id {
-        Some(short_id) => collection_test_path(org_url_slug, short_id, test_case),
-        None => test_path(org_url_slug, test_case),
-    };
-    url.set_path(path.as_str());
+    url.set_path(collection_test_path(org_url_slug, test_collection_short_id, test_case).as_str());
     url.set_query(Some(repo_query(repo).as_str()));
     Ok(url.to_string())
 }
@@ -99,10 +93,6 @@ pub fn url_for_upload(
 
 fn convert_to_app_url(public_api_address: &str) -> String {
     public_api_address.replace("https://api.", "https://app.")
-}
-
-fn test_path(org_url_slug: &String, test_case: &Test) -> String {
-    format!("{}/flaky-tests/test/{}", org_url_slug, test_case.id)
 }
 
 fn collection_test_guid_path(org_url_slug: &str, short_id: &str, guid: &Uuid) -> String {
@@ -169,7 +159,7 @@ mod tests {
 
     fn test_case_url(
         test_case: &Test,
-        short_id: Option<&str>,
+        short_id: &str,
         guid_scope: Option<&TestCaseGuidScope>,
     ) -> Result<String, ParseError> {
         url_for_test_case(
@@ -180,16 +170,6 @@ mod tests {
             short_id,
             guid_scope,
         )
-    }
-
-    #[test]
-    fn test_url_generated() {
-        assert_eq!(
-            test_case_url(&test_case(), None, None),
-            Ok(String::from(
-                "https://app.trunk-staging.io/bad-app-org/flaky-tests/test/c33a7f64-8f3e-5db9-b37b-2ea870d2441b?repo=bad-app%2Fios-app"
-            )),
-        );
     }
 
     const UPLOAD_ID: &str = "c8034184-a9c2-5c53-be91-ef38ffb90df9";
@@ -237,7 +217,7 @@ mod tests {
     #[test]
     fn test_collection_url_generated() {
         assert_eq!(
-            test_case_url(&test_case(), Some("tc_123"), None),
+            test_case_url(&test_case(), "tc_123", None),
             Ok(String::from(
                 "https://app.trunk-staging.io/bad-app-org/flaky-tests/collections/tc_123/t/c33a7f64-8f3e-5db9-b37b-2ea870d2441b?repo=bad-app%2Fios-app"
             )),
@@ -249,7 +229,7 @@ mod tests {
         let test_case = test_case_with_id("88e5353c-190c-5dce-9d06-0e66c3e062b1");
 
         assert_eq!(
-            test_case_url(&test_case, Some("tc_123"), Some(&test_guid_scope())),
+            test_case_url(&test_case, "tc_123", Some(&test_guid_scope())),
             Ok(String::from(
                 "https://app.trunk-staging.io/bad-app-org/flaky-tests/collections/tc_123/tests/bfeebcf4-72d1-887d-8bcd-788d0dec7f97"
             )),
@@ -264,16 +244,8 @@ mod tests {
         };
 
         assert_eq!(
-            test_case_url(&test_case(), Some("tc_123"), Some(&ids)),
-            test_case_url(&test_case(), Some("tc_123"), None),
-        );
-    }
-
-    #[test]
-    fn test_repo_scoped_url_ignores_the_guid_scope() {
-        assert_eq!(
-            test_case_url(&test_case(), None, Some(&test_guid_scope())),
-            test_case_url(&test_case(), None, None),
+            test_case_url(&test_case(), "tc_123", Some(&ids)),
+            test_case_url(&test_case(), "tc_123", None),
         );
     }
 }

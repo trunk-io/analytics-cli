@@ -97,8 +97,7 @@ pub(super) fn upload_result(num_tests: usize) -> UploadRunResult {
         validations: JunitReportValidations::new(BTreeMap::new()),
         validation_report: ValidationReport::Limited,
         show_failure_messages: false,
-        test_collection_short_id: None,
-        hide_test_collection_links: false,
+        test_collection_short_id: Some(String::from("abc123")),
         api_address: String::from("https://api.trunk.io"),
         guid_scope: None,
         notices: Vec::new(),
@@ -328,9 +327,9 @@ fn prints_failures_that_were_all_quarantined() {
             "",
             "  📁 src/math.rs",
             "    MathTests/adds",
-            "      ⤷ https://app.trunk.io/test-org/flaky-tests/test/adds-id?repo=trunk-io%2Fanalytics-cli",
+            "      ⤷ https://app.trunk.io/test-org/flaky-tests/collections/abc123/t/adds-id?repo=trunk-io%2Fanalytics-cli",
             "    MathTests/subtracts",
-            "      ⤷ https://app.trunk.io/test-org/flaky-tests/test/subtracts-id?repo=trunk-io%2Fanalytics-cli",
+            "      ⤷ https://app.trunk.io/test-org/flaky-tests/collections/abc123/t/subtracts-id?repo=trunk-io%2Fanalytics-cli",
             "  ",
             "",
             "🎉 All test failures were quarantined, overriding exit code to be exit_success (0)",
@@ -364,16 +363,16 @@ fn prints_failures_that_were_not_quarantined() {
             "",
             "  📁 src/math.rs",
             "    MathTests/adds",
-            "      ⤷ https://app.trunk.io/test-org/flaky-tests/test/adds-id?repo=trunk-io%2Fanalytics-cli",
+            "      ⤷ https://app.trunk.io/test-org/flaky-tests/collections/abc123/t/adds-id?repo=trunk-io%2Fanalytics-cli",
             "  ",
             "",
             "❌ 2 tests failed and were not quarantined",
             "",
             "  📁 src/math.rs",
             "    MathTests/subtracts",
-            "      ⤷ https://app.trunk.io/test-org/flaky-tests/test/subtracts-id?repo=trunk-io%2Fanalytics-cli",
+            "      ⤷ https://app.trunk.io/test-org/flaky-tests/collections/abc123/t/subtracts-id?repo=trunk-io%2Fanalytics-cli",
             "    MathTests/divides",
-            "      ⤷ https://app.trunk.io/test-org/flaky-tests/test/divides-id?repo=trunk-io%2Fanalytics-cli",
+            "      ⤷ https://app.trunk.io/test-org/flaky-tests/collections/abc123/t/divides-id?repo=trunk-io%2Fanalytics-cli",
             "  ",
             "",
             "⚠️  Some test failures were not quarantined, using exit code: 1",
@@ -402,7 +401,7 @@ fn prints_a_warning_when_the_quarantine_lookup_failed() {
             "",
             "  📦 MathTests",
             "    MathTests/adds",
-            "      ⤷ https://app.trunk.io/test-org/flaky-tests/test/adds-id?repo=trunk-io%2Fanalytics-cli",
+            "      ⤷ https://app.trunk.io/test-org/flaky-tests/collections/abc123/t/adds-id?repo=trunk-io%2Fanalytics-cli",
             "  ",
             "",
             "⚠️  Some test failures were not quarantined, using exit code: 1",
@@ -472,7 +471,7 @@ fn proceeds_past_an_upload_error() {
             "",
             "  📦 MathTests",
             "    MathTests/adds",
-            "      ⤷ https://app.trunk.io/test-org/flaky-tests/test/adds-id?repo=trunk-io%2Fanalytics-cli",
+            "      ⤷ https://app.trunk.io/test-org/flaky-tests/collections/abc123/t/adds-id?repo=trunk-io%2Fanalytics-cli",
             "  ",
             "",
             "⚠️  Some test failures were not quarantined, using exit code: 1",
@@ -647,7 +646,7 @@ fn prints_long_failure_messages_when_asked() {
             "",
             "  📦 MathTests",
             "    MathTests/adds",
-            "      ⤷ https://app.trunk.io/test-org/flaky-tests/test/adds-id?repo=trunk-io%2Fanalytics-cli",
+            "      ⤷ https://app.trunk.io/test-org/flaky-tests/collections/abc123/t/adds-id?repo=trunk-io%2Fanalytics-cli",
             "      Failure: ",
             "         assertion `left == right` failed",
             "             left: 1",
@@ -735,40 +734,6 @@ fn links_tests_by_short_link_without_collection_ids() {
 }
 
 #[test]
-fn prints_the_bundle_upload_id_when_collection_links_are_hidden() {
-    let mut result = in_collection(upload_result(2));
-    result.hide_test_collection_links = true;
-    result.quarantine_context.exit_code = ExitCode::Failure;
-    result.quarantine_context.failures = vec![Test {
-        id: String::from("c33a7f64-8f3e-5db9-b37b-2ea870d2441b"),
-        ..failure("adds", "MathTests", None)
-    }];
-    result.guid_scope = Some(TestCaseGuidScope {
-        test_collection_id: String::from("9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d"),
-        repo_id: String::from("1f2e3d4c-5b6a-4978-8a6b-5c4d3e2f1a0b"),
-    });
-
-    assert_eq!(
-        upload_summary(&result),
-        [
-            "🏷️  Bundle Upload ID: 4b1d2c3e-5f60-4a7b-8c9d-0e1f2a3b4c5d",
-            "",
-            "📚 Test Report",
-            "   Total: 2   Pass: 1   Fail: 1   Quarantined: 0   Pass Ratio: 50.0%",
-            "",
-            "❌ 1 test failed and was not quarantined",
-            "",
-            "  📦 MathTests",
-            "    MathTests/adds",
-            "      ⤷ https://app.trunk.io/test-org/flaky-tests/test/c33a7f64-8f3e-5db9-b37b-2ea870d2441b?repo=trunk-io%2Fanalytics-cli",
-            "  ",
-            "",
-            "⚠️  Some test failures were not quarantined, using exit code: 1",
-        ]
-    );
-}
-
-#[test]
 fn omits_the_upload_line_without_a_bundle_upload_id() {
     let mut result = upload_result(5);
     result.meta.base_props.bundle_upload_id = String::new();
@@ -810,25 +775,25 @@ fn groups_failures_by_file_then_suite_then_neither() {
             "",
             "  📁 src/a.rs",
             "    formats",
-            "      ⤷ https://app.trunk.io/test-org/flaky-tests/test/formats-id?repo=trunk-io%2Fanalytics-cli",
+            "      ⤷ https://app.trunk.io/test-org/flaky-tests/collections/abc123/t/formats-id?repo=trunk-io%2Fanalytics-cli",
             "  ",
             "  📁 src/date.rs",
             "    DateTests/parses_dates",
-            "      ⤷ https://app.trunk.io/test-org/flaky-tests/test/parses_dates-id?repo=trunk-io%2Fanalytics-cli",
+            "      ⤷ https://app.trunk.io/test-org/flaky-tests/collections/abc123/t/parses_dates-id?repo=trunk-io%2Fanalytics-cli",
             "    TimeTests/parses_times",
-            "      ⤷ https://app.trunk.io/test-org/flaky-tests/test/parses_times-id?repo=trunk-io%2Fanalytics-cli",
+            "      ⤷ https://app.trunk.io/test-org/flaky-tests/collections/abc123/t/parses_times-id?repo=trunk-io%2Fanalytics-cli",
             "  ",
             "  📦 MathTests",
             "    MathTests/adds",
-            "      ⤷ https://app.trunk.io/test-org/flaky-tests/test/adds-id?repo=trunk-io%2Fanalytics-cli",
+            "      ⤷ https://app.trunk.io/test-org/flaky-tests/collections/abc123/t/adds-id?repo=trunk-io%2Fanalytics-cli",
             "    MathTests/subtracts",
-            "      ⤷ https://app.trunk.io/test-org/flaky-tests/test/subtracts-id?repo=trunk-io%2Fanalytics-cli",
+            "      ⤷ https://app.trunk.io/test-org/flaky-tests/collections/abc123/t/subtracts-id?repo=trunk-io%2Fanalytics-cli",
             "  ",
             "  🔍 Other",
             "    loads",
-            "      ⤷ https://app.trunk.io/test-org/flaky-tests/test/loads-id?repo=trunk-io%2Fanalytics-cli",
+            "      ⤷ https://app.trunk.io/test-org/flaky-tests/collections/abc123/t/loads-id?repo=trunk-io%2Fanalytics-cli",
             "    boots",
-            "      ⤷ https://app.trunk.io/test-org/flaky-tests/test/boots-id?repo=trunk-io%2Fanalytics-cli",
+            "      ⤷ https://app.trunk.io/test-org/flaky-tests/collections/abc123/t/boots-id?repo=trunk-io%2Fanalytics-cli",
             "  ",
             "",
             "⚠️  Some test failures were not quarantined, using exit code: 1",
@@ -857,11 +822,11 @@ fn shows_three_failures_per_group() {
             "",
             "  📁 src/math.rs",
             "    MathTests/adds",
-            "      ⤷ https://app.trunk.io/test-org/flaky-tests/test/adds-id?repo=trunk-io%2Fanalytics-cli",
+            "      ⤷ https://app.trunk.io/test-org/flaky-tests/collections/abc123/t/adds-id?repo=trunk-io%2Fanalytics-cli",
             "    MathTests/subtracts",
-            "      ⤷ https://app.trunk.io/test-org/flaky-tests/test/subtracts-id?repo=trunk-io%2Fanalytics-cli",
+            "      ⤷ https://app.trunk.io/test-org/flaky-tests/collections/abc123/t/subtracts-id?repo=trunk-io%2Fanalytics-cli",
             "    MathTests/multiplies",
-            "      ⤷ https://app.trunk.io/test-org/flaky-tests/test/multiplies-id?repo=trunk-io%2Fanalytics-cli",
+            "      ⤷ https://app.trunk.io/test-org/flaky-tests/collections/abc123/t/multiplies-id?repo=trunk-io%2Fanalytics-cli",
             "    …and 2 more failures in this group",
             "  ",
             "",
