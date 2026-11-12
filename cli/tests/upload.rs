@@ -3711,7 +3711,7 @@ async fn upload_says_a_trunk_jwt_has_expired_on_a_401() {
         .stdout(predicate::str::contains(
             "Trunk did not accept this JWT: it is expired or invalid (it expired at 2025-11-11T17:00:00Z).",
         ))
-        .stdout(predicate::str::contains("re-run `trunk login --api-key`"));
+        .stdout(predicate::str::contains("get a new one right before the upload"));
 }
 
 const GITHUB_ACTIONS_LOGIN: &str = r#"{"jwt":"trunk-jwt","expiresAt":"2026-11-06T17:15:00Z","organization":{"id":"o","slug":"acme","name":"Acme"},"repository":{"id":"r","name":"acme/web"}}"#;

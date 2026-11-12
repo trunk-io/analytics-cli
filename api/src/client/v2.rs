@@ -139,7 +139,7 @@ impl ApiClient {
                     _ => String::new(),
                 };
                 format!(
-                    "Trunk did not accept this JWT: it is expired or invalid{expired}. A JWT from `trunk login --api-key` lasts 15 minutes, so re-run `trunk login --api-key` right before the upload step (trunk-io/analytics-uploader v3 does), or pass a v2 API key with --token or TRUNK_API_TOKEN instead."
+                    "Trunk did not accept this JWT: it is expired or invalid{expired}. A Trunk JWT lasts at most 15 minutes, and the one `trunk flakytests upload` passes can have about a minute left, so get a new one right before the upload, or pass a v2 API key with --token or TRUNK_API_TOKEN instead."
                 )
             }
             (Some(StatusCode::UNAUTHORIZED), Some(RunCredential::ApiKey)) => String::from(

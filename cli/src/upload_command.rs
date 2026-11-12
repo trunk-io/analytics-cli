@@ -102,7 +102,7 @@ pub struct UploadArgs {
         long,
         required_unless_present = "allow_forked_pr_uploads",
         env = constants::TRUNK_API_TOKEN_ENV,
-        help = "A Trunk v2 API key (trunk_v2_...) with the Upload test results permission, from Settings → Developer → API Keys in the Trunk web app; or a Trunk JWT from `trunk login --api-key`, which lasts 15 minutes, so mint it right before this step. The organization token is refused: pin analytics-cli 0.17.x to keep using it. Defaults to TRUNK_API_TOKEN env var."
+        help = "A Trunk v2 API key (trunk_v2_...) with the Upload test results permission, from Settings → Developer → API Keys in the Trunk web app; or a Trunk JWT, which `trunk flakytests upload` sets for you from a key stored with `trunk auth api-key set` and which can have about a minute left, so it suits only the upload itself. The organization token is refused: pin analytics-cli 0.17.x to keep using it. Defaults to TRUNK_API_TOKEN env var."
     )]
     pub token: Option<String>,
     /// Opting in explicitly is what keeps a job whose token secret failed to interpolate failing
