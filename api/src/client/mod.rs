@@ -62,8 +62,8 @@ pub struct ApiClient {
     github_fork_pull_request: Option<GithubForkPullRequest>,
     /// Why a fork pull request's login failed, for the error every later call returns.
     github_fork_login_failure: Option<String>,
-    /// The run's API token, for the CLI telemetry route; `None` without one (a fork pull request
-    /// has no token, and the gateway refuses its GitHub Actions login there).
+    /// The run's v2 API key or Trunk JWT, for the CLI telemetry route; `None` without one (a fork
+    /// pull request has neither, and the gateway refuses its GitHub Actions login there).
     telemetry_client: Option<Client>,
     org_url_slug: String,
     render_sender: Option<Sender<DisplayMessage>>,
@@ -191,7 +191,6 @@ impl ApiClient {
             },
         };
         let credential_free = allow_forked_pr_uploads && api_token.is_none();
-
 
         let mut s3_client_default_headers = HeaderMap::new();
         s3_client_default_headers.append(

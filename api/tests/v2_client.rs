@@ -899,7 +899,7 @@ async fn says_a_jwt_has_expired_on_a_401() {
             "{message}"
         );
         for part in [
-            "re-run `trunk login --api-key` right before the upload step",
+            "get a new one right before the upload",
             "pass a v2 API key with --token or TRUNK_API_TOKEN",
         ] {
             assert!(message.contains(part), "{message}");

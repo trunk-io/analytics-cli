@@ -13,7 +13,7 @@ pub const API_KEY_PREFIX: &str = "trunk_v2_";
 pub enum TokenKind {
     /// A v2 API key, sent as `Authorization: Bearer`.
     ApiKey,
-    /// A Trunk JWT, such as `trunk login --api-key` prints, sent on `x-trunk-token`. Sent as a
+    /// A Trunk JWT, such as `trunk flakytests upload` passes, sent on `x-trunk-token`. Sent as a
     /// bearer it would reach the gateway's API key lookup and fail.
     Jwt,
     /// Anything else, which 1.0.0 reads as the organization token it no longer takes.
