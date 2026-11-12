@@ -246,7 +246,7 @@ mod tests {
         };
 
         assert_eq!(
-            test_case_url(&test_case, Some("tc_123"), Some(&ids)),
+            test_case_url(&test_case, "tc_123", Some(&ids)),
             Ok(String::from(
                 "https://app.trunk-staging.io/bad-app-org/flaky-tests/collections/tc_123/tests/943a80af-66b0-84bb-ad01-56b3b72fe363"
             )),
