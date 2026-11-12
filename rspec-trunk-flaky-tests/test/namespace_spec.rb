@@ -70,6 +70,7 @@ RSpec.describe 'global namespace' do
     env = {
       'TRUNK_ORG_URL_SLUG' => 'namespace-spec',
       'TRUNK_API_TOKEN' => 'namespace-spec',
+      'TRUNK_TEST_COLLECTION_ID' => 'namespace-spec',
       'DISABLE_RSPEC_TRUNK_FLAKY_TESTS' => nil
     }
     stdout, stderr, status = Open3.capture3(env, RbConfig.ruby, '-I', lib_dir, '-e', probe)

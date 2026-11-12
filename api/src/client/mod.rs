@@ -56,7 +56,7 @@ pub struct ApiClient {
     /// Holds the run's v2 credential: an API token from the start, or a fork pull request's Trunk
     /// login once it has one.
     trunk_api_v2_client: Option<Client>,
-    /// `--allow-forked-pr-uploads` with no token and no public repo id.
+    /// `--allow-forked-pr-uploads` with no token.
     credential_free: bool,
     /// A credential-free GitHub Actions fork PR run, which on v2 swaps its `GITHUB_TOKEN` for a login.
     github_fork_pull_request: Option<GithubForkPullRequest>,
@@ -130,27 +130,22 @@ impl ApiClient {
     // This should always be fast
     const TRUNK_TELEMETRY_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(1);
     const TRUNK_API_TOKEN_HEADER: &'static str = "x-api-token";
-    const TRUNK_PUBLIC_REPO_ID_HEADER: &'static str = "x-trunk-public-repo-id";
     const TRUNK_ALLOW_FORKED_PR_UPLOADS_HEADER: &'static str = "x-trunk-allow-forked-pr-uploads";
 
     pub fn new(
         api_token: Option<String>,
-        public_repo_id: Option<String>,
         allow_forked_pr_uploads: bool,
         org_url_slug: impl AsRef<str>,
         render_sender: Option<Sender<DisplayMessage>>,
     ) -> anyhow::Result<ApiClient> {
         let org_url_slug = String::from(org_url_slug.as_ref());
 
-        // Either a secret API token or a non-secret public repo id authenticates the
-        // request. Fork PRs can't read repo secrets, so they rely on the public repo id.
         let api_token = api_token.filter(|token| !token.trim().is_empty());
-        let public_repo_id = public_repo_id.filter(|id| !id.trim().is_empty());
         // The forked-PR lane presents no credential at all on v1: the collection id already in
         // the request authorizes it, gated on that collection's opt-in server-side.
-        if api_token.is_none() && public_repo_id.is_none() && !allow_forked_pr_uploads {
+        if api_token.is_none() && !allow_forked_pr_uploads {
             return Err(anyhow::anyhow!(
-                "Either a Trunk API token, a public repo id, or --allow-forked-pr-uploads is required."
+                "Either a Trunk API token or --allow-forked-pr-uploads is required."
             ));
         }
 
@@ -159,13 +154,6 @@ impl ApiClient {
             .map(|token| {
                 HeaderValue::from_str(token)
                     .map_err(|_| anyhow::Error::msg("Trunk API token is not ASCII"))
-            })
-            .transpose()?;
-        let public_repo_id_header_value = public_repo_id
-            .as_deref()
-            .map(|id| {
-                HeaderValue::from_str(id)
-                    .map_err(|_| anyhow::Error::msg("Trunk public repo id is not ASCII"))
             })
             .transpose()?;
 
@@ -193,12 +181,6 @@ impl ApiClient {
             trunk_api_client_default_headers
                 .append(Self::TRUNK_API_TOKEN_HEADER, api_token_header_value);
         }
-        if let Some(public_repo_id_header_value) = public_repo_id_header_value {
-            trunk_api_client_default_headers.append(
-                Self::TRUNK_PUBLIC_REPO_ID_HEADER,
-                public_repo_id_header_value,
-            );
-        }
         if allow_forked_pr_uploads {
             trunk_api_client_default_headers.append(
                 Self::TRUNK_ALLOW_FORKED_PR_UPLOADS_HEADER,
@@ -215,8 +197,7 @@ impl ApiClient {
             .clone()
             .map(|token| V2Credential::ApiKey(token).client())
             .transpose()?;
-        let credential_free =
-            allow_forked_pr_uploads && api_token.is_none() && public_repo_id.is_none();
+        let credential_free = allow_forked_pr_uploads && api_token.is_none();
 
         let mut telemetry_client_default_headers = HeaderMap::new();
         telemetry_client_default_headers.append(
@@ -751,14 +732,8 @@ mod tests {
 
         let state = mock_server_builder.spawn_mock_server().await;
 
-        let mut api_client = ApiClient::new(
-            Some(String::from("mock-token")),
-            None,
-            false,
-            "mock-org",
-            None,
-        )
-        .unwrap();
+        let mut api_client =
+            ApiClient::new(Some(String::from("mock-token")), false, "mock-org", None).unwrap();
         api_client.api_host.clone_from(&state.host);
 
         assert!(
@@ -806,14 +781,8 @@ mod tests {
 
         let state = mock_server_builder.spawn_mock_server().await;
 
-        let mut api_client = ApiClient::new(
-            Some(String::from("mock-token")),
-            None,
-            false,
-            "mock-org",
-            None,
-        )
-        .unwrap();
+        let mut api_client =
+            ApiClient::new(Some(String::from("mock-token")), false, "mock-org", None).unwrap();
         api_client.api_host.clone_from(&state.host);
 
         assert!(
@@ -856,14 +825,8 @@ mod tests {
 
         let state = mock_server_builder.spawn_mock_server().await;
 
-        let mut api_client = ApiClient::new(
-            Some(String::from("mock-token")),
-            None,
-            false,
-            "mock-org",
-            None,
-        )
-        .unwrap();
+        let mut api_client =
+            ApiClient::new(Some(String::from("mock-token")), false, "mock-org", None).unwrap();
         api_client.api_host.clone_from(&state.host);
 
         assert!(
@@ -889,103 +852,19 @@ mod tests {
     }
 
     #[test]
-    fn requires_a_token_or_public_repo_id() {
-        // Neither credential is an error.
-        let err = ApiClient::new(None, None, false, "mock-org", None)
+    fn requires_a_token_or_allow_forked_pr_uploads() {
+        let err = ApiClient::new(None, false, "mock-org", None)
             .err()
             .expect("expected an error when no credentials are provided");
-        assert!(err.to_string().contains(
-            "Either a Trunk API token, a public repo id, or --allow-forked-pr-uploads is required"
-        ));
-
-        // Blank values are treated as absent.
         assert!(
-            ApiClient::new(
-                Some(String::from("   ")),
-                Some(String::from("   ")),
-                false,
-                "mock-org",
-                None
-            )
-            .is_err()
+            err.to_string()
+                .contains("Either a Trunk API token or --allow-forked-pr-uploads is required")
         );
 
-        // A token alone is sufficient - no public repo id required.
-        assert!(ApiClient::new(Some(String::from("token")), None, false, "mock-org", None).is_ok());
+        // A blank token is treated as absent.
+        assert!(ApiClient::new(Some(String::from("   ")), false, "mock-org", None).is_err());
 
-        // A public repo id alone is sufficient - no token required.
-        assert!(
-            ApiClient::new(
-                None,
-                Some(String::from("public-repo-id")),
-                false,
-                "mock-org",
-                None
-            )
-            .is_ok()
-        );
-    }
-
-    #[tokio::test(start_paused = true)]
-    async fn sends_public_repo_id_header_in_place_of_token() {
-        let mut mock_server_builder = MockServerBuilder::new();
-
-        lazy_static! {
-            static ref CAPTURED_HEADERS: Arc<Mutex<HeaderMap>> =
-                Arc::new(Mutex::new(HeaderMap::new()));
-        }
-
-        let quarantining_config_handler = move |headers: HeaderMap| async move {
-            *CAPTURED_HEADERS.lock().unwrap() = headers;
-            Response::builder()
-                .status(StatusCode::NOT_FOUND)
-                .body(String::from(
-                    r#"{ "status_code": 404, "error": "not found" }"#,
-                ))
-                .unwrap()
-        };
-        mock_server_builder.set_get_quarantining_config_handler(quarantining_config_handler);
-
-        let state = mock_server_builder.spawn_mock_server().await;
-
-        let mut api_client = ApiClient::new(
-            None,
-            Some(String::from("public-repo-id-123")),
-            false,
-            "mock-org",
-            None,
-        )
-        .unwrap();
-        api_client.api_host.clone_from(&state.host);
-
-        // The call itself errors (404) - we only care about the headers it sent.
-        let _ = api_client
-            .get_quarantining_config(&message::GetQuarantineConfigRequest {
-                repo: context::repo::RepoUrlParts {
-                    host: String::from("host"),
-                    owner: String::from("owner"),
-                    name: String::from("name"),
-                },
-                org_url_slug: String::from("org_url_slug"),
-                test_identifiers: vec![],
-                remote_urls: vec![],
-                test_collection_short_id: None,
-            })
-            .await;
-
-        let headers = CAPTURED_HEADERS.lock().unwrap();
-        assert_eq!(
-            headers
-                .get(super::ApiClient::TRUNK_PUBLIC_REPO_ID_HEADER)
-                .and_then(|value| value.to_str().ok()),
-            Some("public-repo-id-123")
-        );
-        assert!(
-            headers
-                .get(super::ApiClient::TRUNK_API_TOKEN_HEADER)
-                .is_none(),
-            "token header should be absent when only a public repo id is provided"
-        );
+        assert!(ApiClient::new(Some(String::from("token")), false, "mock-org", None).is_ok());
     }
 
     #[tokio::test]
@@ -1010,7 +889,7 @@ mod tests {
 
         let state = mock_server_builder.spawn_mock_server().await;
 
-        let mut api_client = ApiClient::new(None, None, true, "mock-org", None).unwrap();
+        let mut api_client = ApiClient::new(None, true, "mock-org", None).unwrap();
         api_client.api_host.clone_from(&state.host);
 
         let _ = api_client
@@ -1039,16 +918,13 @@ mod tests {
         assert!(
             headers
                 .get(super::ApiClient::TRUNK_API_TOKEN_HEADER)
-                .is_none()
-                && headers
-                    .get(super::ApiClient::TRUNK_PUBLIC_REPO_ID_HEADER)
-                    .is_none(),
+                .is_none(),
             "no credential header should be sent on the forked-PR lane"
         );
     }
 
     #[test]
     fn allow_forked_pr_uploads_satisfies_the_credential_requirement() {
-        assert!(ApiClient::new(None, None, true, "mock-org", None).is_ok());
+        assert!(ApiClient::new(None, true, "mock-org", None).is_ok());
     }
 }

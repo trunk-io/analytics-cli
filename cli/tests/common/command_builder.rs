@@ -1,9 +1,13 @@
 use std::{collections::HashMap, path::Path};
 
 use assert_cmd::{Command, cargo};
-use constants::{TRUNK_API_CLIENT_RETRY_COUNT_ENV, TRUNK_PUBLIC_API_ADDRESS_ENV};
+use constants::{
+    TRUNK_API_CLIENT_RETRY_COUNT_ENV, TRUNK_PUBLIC_API_ADDRESS_ENV, TRUNK_TEST_COLLECTION_ID_ENV,
+};
 
 const DEFAULT_JUNIT_PATHS: &str = "./*";
+/// Set through the environment, so a test passing `--test-collection-id` overrides it.
+pub const DEFAULT_TEST_COLLECTION_ID: &str = "dEfault1";
 
 pub struct UploadArgs {
     repo_root: Option<String>,
@@ -26,7 +30,6 @@ pub struct UploadArgs {
     verbose: Option<bool>,
     validation_report: Option<String>,
     dry_run: bool,
-    public_repo_id: Option<String>,
     forked_pr: bool,
 }
 
@@ -53,30 +56,19 @@ impl UploadArgs {
             verbose: None,
             validation_report: None,
             dry_run: false,
-            public_repo_id: None,
             forked_pr: false,
         }
     }
 
     pub fn build_args(&self) -> Vec<String> {
-        // A public repo id is an alternative to the token, so when one is set we send it
-        // in place of --token (mirroring a fork-PR run that has no repo secrets).
-        let mut auth_args = vec![String::from("--org-url-slug"), String::from("test-org")];
-        match &self.public_repo_id {
-            Some(public_repo_id) => {
-                auth_args.push(String::from("--public-repo-id"));
-                auth_args.push(public_repo_id.clone());
-            }
-            None if self.forked_pr => {
-                auth_args.push(String::from("--allow-forked-pr-uploads"));
-            }
-            None => {
-                auth_args.push(String::from("--token"));
-                auth_args.push(String::from("test-token"));
-            }
-        }
-        auth_args
+        let auth_args = if self.forked_pr {
+            vec![String::from("--allow-forked-pr-uploads")]
+        } else {
+            vec![String::from("--token"), String::from("test-token")]
+        };
+        vec![String::from("--org-url-slug"), String::from("test-org")]
             .into_iter()
+            .chain(auth_args)
             .chain(
                 self.repo_root
                     .clone()
@@ -287,14 +279,18 @@ impl CommandType {
 
     pub fn build_envs(&self) -> HashMap<String, String> {
         match self {
-            CommandType::Upload { server_host, .. } => HashMap::from([(
-                String::from(TRUNK_PUBLIC_API_ADDRESS_ENV),
-                server_host.clone(),
-            )]),
-            CommandType::Test { server_host, .. } => HashMap::from([(
-                String::from(TRUNK_PUBLIC_API_ADDRESS_ENV),
-                server_host.clone(),
-            )]),
+            CommandType::Upload { server_host, .. } | CommandType::Test { server_host, .. } => {
+                HashMap::from([
+                    (
+                        String::from(TRUNK_PUBLIC_API_ADDRESS_ENV),
+                        server_host.clone(),
+                    ),
+                    (
+                        String::from(TRUNK_TEST_COLLECTION_ID_ENV),
+                        String::from(DEFAULT_TEST_COLLECTION_ID),
+                    ),
+                ])
+            }
             CommandType::Validate { .. } => {
                 let empty: HashMap<String, String> = HashMap::new();
                 empty
@@ -570,19 +566,6 @@ impl<'b> CommandBuilder<'b> {
 
     pub fn use_uncloned_repo(&mut self, new_flag: bool) -> &mut Self {
         self.command_type.use_uncloned_repo(new_flag);
-        self
-    }
-
-    pub fn public_repo_id(&mut self, new_value: &str) -> &mut Self {
-        match &mut self.command_type {
-            CommandType::Upload { upload_args, .. } => {
-                upload_args.public_repo_id = Some(new_value.to_string());
-            }
-            CommandType::Test { upload_args, .. } => {
-                upload_args.public_repo_id = Some(new_value.to_string());
-            }
-            CommandType::Validate { .. } => {}
-        }
         self
     }
 

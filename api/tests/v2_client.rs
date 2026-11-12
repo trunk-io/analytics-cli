@@ -36,7 +36,7 @@ async fn serve(routes: Routes) -> SharedMockServerState {
 }
 
 fn client(state: &SharedMockServerState, token: Option<&str>) -> ApiClient {
-    let mut client = ApiClient::new(token.map(String::from), None, false, "acme", None).unwrap();
+    let mut client = ApiClient::new(token.map(String::from), false, "acme", None).unwrap();
     client.api_host.clone_from(&state.host);
     client
 }
@@ -325,11 +325,10 @@ async fn does_not_ask_without_a_token_or_a_collection_and_a_repo() {
     )])
     .await;
 
-    let mut public_repo_client =
-        ApiClient::new(None, Some(String::from("public-id")), false, "acme", None).unwrap();
-    public_repo_client.api_host.clone_from(&state.host);
+    let mut credential_free_client = ApiClient::new(None, true, "acme", None).unwrap();
+    credential_free_client.api_host.clone_from(&state.host);
     assert_eq!(
-        public_repo_client
+        credential_free_client
             .get_upload_api_version(&version_request(Some(SHORT_ID)))
             .await,
         UploadApiDecision::default()
@@ -730,7 +729,7 @@ fn fork_pull_request(github_token: Option<&str>) -> GithubForkPullRequest {
 }
 
 fn fork_pr_client(state: &SharedMockServerState, github_token: Option<&str>) -> ApiClient {
-    let mut client = ApiClient::new(None, None, true, "acme", None).unwrap();
+    let mut client = ApiClient::new(None, true, "acme", None).unwrap();
     client.api_host.clone_from(&state.host);
     client.set_github_fork_pull_request(fork_pull_request(github_token));
     client
@@ -963,7 +962,7 @@ async fn a_credential_free_run_that_is_not_a_fork_pr_never_asks() {
         login_route((StatusCode::OK, LOGIN)),
     ])
     .await;
-    let mut client = ApiClient::new(None, None, true, "acme", None).unwrap();
+    let mut client = ApiClient::new(None, true, "acme", None).unwrap();
     client.api_host.clone_from(&state.host);
 
     let decision = client
@@ -978,8 +977,7 @@ async fn a_credential_free_run_that_is_not_a_fork_pr_never_asks() {
 #[tokio::test]
 async fn a_run_with_a_token_never_swaps() {
     let state = serve(vec![login_route((StatusCode::OK, LOGIN)), uploads_route()]).await;
-    let mut client =
-        ApiClient::new(Some(String::from("org-key")), None, true, "acme", None).unwrap();
+    let mut client = ApiClient::new(Some(String::from("org-key")), true, "acme", None).unwrap();
     client.api_host.clone_from(&state.host);
     client.set_github_fork_pull_request(fork_pull_request(Some("ghs_job-token")));
 
