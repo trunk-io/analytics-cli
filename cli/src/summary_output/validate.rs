@@ -73,10 +73,11 @@ impl ValidateReport {
         let has_errors = validations
             .iter()
             .any(|validation| validation.parse_error.is_some() || !validation.errors.is_empty());
-        let mut notices = result.notices.clone();
-        if let Some(bep_result) = &result.bep_result {
-            notices.extend(bep_result.errors.iter().map(Notice::bep_parse_error));
-        }
+        let notices = result
+            .bep_result
+            .iter()
+            .flat_map(|bep_result| bep_result.errors.iter().map(Notice::bep_parse_error))
+            .collect();
 
         Self {
             counts: ValidationCounts::new(&matched_files, &validations),
