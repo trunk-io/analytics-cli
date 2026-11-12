@@ -8,6 +8,7 @@
 # Required environment variables:
 #   TRUNK_ORG_URL_SLUG - Your organization's URL slug
 #   TRUNK_API_TOKEN - Your API token for authentication
+#   TRUNK_TEST_COLLECTION_ID - The ID of the test collection to upload to
 #
 # Optional environment variables for repository metadata:
 #   TRUNK_REPO_ROOT - Path to repository root
@@ -20,7 +21,6 @@
 #
 # Optional environment variables for configuration:
 #   TRUNK_CODEOWNERS_PATH - Path to CODEOWNERS file
-#   TRUNK_TEST_COLLECTION_ID - Optional 8 character alphanumeric ID for a test collection
 #   TRUNK_VARIANT - Variant name for test results (e.g., 'linux', 'pr-123')
 #   TRUNK_DISABLE_QUARANTINING - Set to 'true' to disable quarantining
 #   TRUNK_ALLOW_EMPTY_TEST_RESULTS - Set to 'true' to allow empty results
@@ -106,7 +106,17 @@ module RSpec
 
       def disabled?
         knapsack_detector_mode? || ENV['DISABLE_RSPEC_TRUNK_FLAKY_TESTS'] == 'true' ||
-          ENV['TRUNK_ORG_URL_SLUG'].nil? || ENV['TRUNK_API_TOKEN'].nil?
+          ENV['TRUNK_ORG_URL_SLUG'].nil? || ENV['TRUNK_API_TOKEN'].nil? || missing_test_collection?
+      end
+
+      # Warns rather than staying silent like the checks before it: a run with a token and a slug
+      # means to upload, and the native extension's own warnings never reach the console.
+      def missing_test_collection?
+        return false unless ENV.fetch('TRUNK_TEST_COLLECTION_ID', '').strip.empty?
+
+        warn('Trunk Flaky Tests is disabled: this run names no test collection. Set ' \
+             "TRUNK_TEST_COLLECTION_ID to upload its test results; the ID is on the collection's page in Trunk.")
+        true
       end
 
       def knapsack_detector_mode?

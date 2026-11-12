@@ -7,6 +7,7 @@ use api::message::{
     CreateBundleUploadRequest, CreateBundleUploadResponse, GetQuarantineConfigRequest,
     GetQuarantineConfigResponse,
 };
+use assert_cmd::{Command, cargo};
 use assert_matches::assert_matches;
 use axum::body::{Body, Bytes};
 use axum::response::IntoResponse;
@@ -19,7 +20,7 @@ use clap::Parser;
 mod common;
 
 use codeowners::CodeOwners;
-use common::command_builder::CommandBuilder;
+use common::command_builder::{CommandBuilder, DEFAULT_TEST_COLLECTION_ID};
 #[cfg(unix)]
 use common::utils::{
     LINKED_WORKSPACE_CASES_PER_PACKAGE, generate_mock_linked_workspace, write_junit_xml_to_dir,
@@ -60,7 +61,7 @@ use test_utils::{
     },
 };
 use trunk_analytics_cli::exit_code::ExitCode;
-use trunk_analytics_cli::upload_command::{DRY_RUN_OUTPUT_DIR, get_bundle_upload_id_message};
+use trunk_analytics_cli::upload_command::DRY_RUN_OUTPUT_DIR;
 
 // The mock JUnit generator adds a random number of reruns per test, so the number of
 // `TestCaseRun`s equals the test cases plus every parsed rerun/flaky attempt. Mirror
@@ -408,72 +409,93 @@ async fn upload_bundle_prints_test_collection_upload_link() {
         .stdout(predicate::str::contains("Bundle Upload ID:").not());
 }
 
-// NOTE: must be multi threaded to start a mock server
-#[tokio::test(flavor = "multi_thread")]
-async fn upload_bundle_prints_bare_upload_id_when_links_hidden() {
-    let temp_dir = tempdir().unwrap();
-    generate_mock_git_repo(&temp_dir);
-    generate_mock_valid_junit_xmls(&temp_dir);
-
-    let state = MockServerBuilder::new().spawn_mock_server().await;
-
-    let assert = CommandBuilder::upload(temp_dir.path(), state.host.clone())
-        .command()
-        .env("TRUNK_HIDE_TEST_COLLECTION_LINKS", "true")
-        .arg("--test-collection-id")
-        .arg("tc_123")
-        .assert()
-        .failure();
-
-    assert
-        .stdout(predicate::str::contains(
-            get_bundle_upload_id_message("test-bundle-upload-id").as_str(),
-        ))
-        .stdout(predicate::str::contains("/flaky-tests/collections/tc_123/uploads/").not());
+#[rstest::rstest]
+#[case::upload("upload")]
+#[case::test("test")]
+fn requires_a_test_collection_id(#[case] subcommand: &str) {
+    let mut command = Command::new(cargo::cargo_bin!());
+    command.env_remove("TRUNK_TEST_COLLECTION_ID").args([
+        subcommand,
+        "--junit-paths",
+        "./*",
+        "--org-url-slug",
+        "test-org",
+        "--token",
+        "test-token",
+    ]);
+    if subcommand == "test" {
+        command.arg("true");
+    }
+    command.assert().failure().stderr(predicate::str::contains(
+        "the following required arguments were not provided:\n  --test-collection-id <TEST_COLLECTION_SHORT_ID>",
+    ));
 }
 
-// NOTE: must be multi threaded to start a mock server
-#[tokio::test(flavor = "multi_thread")]
-async fn upload_bundle_hides_test_collection_links_when_env_set() {
-    let temp_dir = tempdir().unwrap();
-    generate_mock_git_repo(&temp_dir);
-    generate_mock_valid_junit_xmls(&temp_dir);
-
-    let state = MockServerBuilder::new().spawn_mock_server().await;
-
-    let assert = CommandBuilder::upload(temp_dir.path(), state.host.clone())
-        .command()
-        .env("TRUNK_HIDE_TEST_COLLECTION_LINKS", "true")
-        .arg("--test-collection-id")
-        .arg("tc_123")
+#[rstest::rstest]
+// An exported-but-blank env var, common in CI, counts as missing.
+#[case::blank_env(&[], &[("TRUNK_TEST_COLLECTION_ID", "")], "--test-collection-id <TEST_COLLECTION_SHORT_ID>")]
+#[case::empty_flag(&["--test-collection-id", ""], &[], "a value is required for '--test-collection-id <TEST_COLLECTION_SHORT_ID>'")]
+fn refuses_a_blank_test_collection_id(
+    #[case] args: &[&str],
+    #[case] envs: &[(&str, &str)],
+    #[case] error: &str,
+) {
+    Command::new(cargo::cargo_bin!())
+        .env_remove("TRUNK_TEST_COLLECTION_ID")
+        .envs(envs.iter().copied())
+        .args([
+            "upload",
+            "--junit-paths",
+            "./*",
+            "--org-url-slug",
+            "test-org",
+            "--token",
+            "test-token",
+        ])
+        .args(args)
         .assert()
-        .failure();
-
-    assert
-        .stdout(predicate::str::contains("/test-org/flaky-tests/test/"))
-        .stdout(predicate::str::contains("/flaky-tests/collections/").not());
+        .failure()
+        .stderr(predicate::str::contains(error));
 }
 
-// NOTE: must be multi threaded to start a mock server
-#[tokio::test(flavor = "multi_thread")]
-async fn upload_bundle_without_test_collection_id_prints_repo_links() {
-    let temp_dir = tempdir().unwrap();
-    generate_mock_git_repo(&temp_dir);
-    generate_mock_valid_junit_xmls(&temp_dir);
-
-    let state = MockServerBuilder::new().spawn_mock_server().await;
-
-    let assert = CommandBuilder::upload(temp_dir.path(), state.host.clone())
-        .command()
-        // an exported-but-blank env var (common in CI) must not produce a
-        // malformed /collections//t/ link
-        .env("TRUNK_TEST_COLLECTION_ID", "")
+#[test]
+fn public_repo_id_is_gone() {
+    Command::new(cargo::cargo_bin!())
+        .args([
+            "upload",
+            "--junit-paths",
+            "./*",
+            "--org-url-slug",
+            "test-org",
+            "--test-collection-id",
+            "tc_123",
+            "--public-repo-id",
+            "public-repo-id-123",
+        ])
         .assert()
-        .failure();
+        .failure()
+        .stderr(predicate::str::contains(
+            "unexpected argument '--public-repo-id' found",
+        ));
 
-    assert
-        .stdout(predicate::str::contains("/test-org/flaky-tests/test/"))
-        .stdout(predicate::str::contains("/flaky-tests/collections/").not());
+    // Its env var no longer stands in for a token.
+    Command::new(cargo::cargo_bin!())
+        .env_remove("TRUNK_API_TOKEN")
+        .env("TRUNK_PUBLIC_REPO_ID", "public-repo-id-123")
+        .args([
+            "upload",
+            "--junit-paths",
+            "./*",
+            "--org-url-slug",
+            "test-org",
+            "--test-collection-id",
+            "tc_123",
+        ])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains(
+            "the following required arguments were not provided:\n  --token <TOKEN>",
+        ));
 }
 
 // NOTE: must be multi threaded to start a mock server
@@ -535,51 +557,6 @@ async fn upload_bundle_records_quarantine_resolution_mode() {
     );
 }
 
-// NOTE: must be multi threaded to start a mock server
-#[tokio::test(flavor = "multi_thread")]
-async fn upload_bundle_with_public_repo_id() {
-    let temp_dir = tempdir().unwrap();
-    generate_mock_git_repo(&temp_dir);
-    generate_mock_valid_junit_xmls(&temp_dir);
-    generate_mock_codeowners(&temp_dir);
-
-    let state = MockServerBuilder::new().spawn_mock_server().await;
-
-    let mut command_builder = CommandBuilder::upload(temp_dir.path(), state.host.clone());
-    // Authenticate with a public repo id instead of a token (the fork-PR path).
-    command_builder.public_repo_id("public-repo-id-123");
-
-    command_builder.command().assert();
-
-    // The bundle still uploads even though we used a public repo id rather than a token.
-    let requests = state.requests.lock().unwrap().clone();
-    assert!(
-        requests
-            .iter()
-            .any(|request| matches!(request, RequestPayload::CreateBundleUpload(_))),
-        "expected a createBundleUpload request"
-    );
-
-    // Both authenticated endpoints must carry the public repo id header and no token.
-    let headers = state.request_headers.lock().unwrap();
-    for endpoint in ["createBundleUpload", "getQuarantineConfig"] {
-        let endpoint_headers = headers
-            .get(endpoint)
-            .unwrap_or_else(|| panic!("no captured headers for {endpoint}"));
-        assert_eq!(
-            endpoint_headers
-                .get("x-trunk-public-repo-id")
-                .and_then(|value| value.to_str().ok()),
-            Some("public-repo-id-123"),
-            "{endpoint} should send the public repo id header"
-        );
-        assert!(
-            endpoint_headers.get("x-api-token").is_none(),
-            "{endpoint} should not send a token when using a public repo id"
-        );
-    }
-}
-
 #[tokio::test(flavor = "multi_thread")]
 async fn upload_bundle_using_bep() {
     let temp_dir = tempdir().unwrap();
@@ -605,7 +582,13 @@ async fn upload_bundle_using_bep() {
     let bundle_meta: BundleMeta = serde_json::from_reader(meta_json).unwrap();
 
     assert!(!bundle_meta.base_props.file_sets.is_empty());
-    assert_eq!(bundle_meta.base_props.test_collection, None);
+    assert_eq!(
+        bundle_meta
+            .base_props
+            .test_collection
+            .map(|collection| collection.short_id),
+        Some(String::from(DEFAULT_TEST_COLLECTION_ID))
+    );
     let mut expected_runs = 0usize;
     bundle_meta
         .base_props
@@ -1488,29 +1471,6 @@ async fn upload_bundle_no_files_allow_missing_junit_files() {
     }
 }
 
-#[rstest::rstest]
-#[case::without_a_test_collection(&[])]
-#[case::with_a_blank_test_collection(&["--test-collection-id", " "])]
-#[tokio::test(flavor = "multi_thread")]
-async fn upload_fails_when_forked_pr_uploads_have_no_test_collection(#[case] extra_args: &[&str]) {
-    let temp_dir = tempdir().unwrap();
-    generate_mock_git_repo(&temp_dir);
-
-    let state = MockServerBuilder::new().spawn_mock_server().await;
-
-    CommandBuilder::upload(temp_dir.path(), state.host.clone())
-        .command()
-        .arg("--allow-forked-pr-uploads")
-        .args(extra_args)
-        .assert()
-        .code(ExitCode::Error.code())
-        .stderr(predicate::str::contains(
-            "--allow-forked-pr-uploads requires --test-collection-id",
-        ));
-
-    assert!(state.requests.lock().unwrap().is_empty());
-}
-
 #[tokio::test(flavor = "multi_thread")]
 async fn upload_bundle_invalid_repo_root() {
     let temp_dir = tempdir().unwrap();
@@ -1614,7 +1574,7 @@ async fn upload_writes_summary_output_file() {
             failure["link"]
                 .as_str()
                 .unwrap()
-                .contains("/flaky-tests/test/")
+                .contains("/flaky-tests/collections/dEfault1/")
         );
     }
 }
@@ -3917,119 +3877,6 @@ async fn upload_on_v2_when_trunk_chooses_it() {
                 bundle_meta_created_at: String::from(V2_CREATED_AT),
             }),
         )
-    );
-}
-
-// NOTE: must be multi threaded to start a mock server
-#[tokio::test(flavor = "multi_thread")]
-async fn upload_on_v2_to_the_collection_trunk_inferred() {
-    let temp_dir = tempdir().unwrap();
-    generate_mock_git_repo(&temp_dir);
-    generate_mock_valid_junit_xmls_with_failures(&temp_dir);
-
-    let (mock_server_builder, v2_calls) = v2_mock_server(serde_json::json!({
-        "apiVersion": "v2",
-        "testCollectionShortId": INFERRED_SHORT_ID,
-    }));
-    let state = mock_server_builder.spawn_mock_server().await;
-
-    CommandBuilder::upload(temp_dir.path(), state.host.clone())
-        .command()
-        .assert()
-        // every failure is quarantined, by the inferred collection
-        .success()
-        .stderr(predicate::str::contains(format!(
-            "Uploading to test collection {INFERRED_SHORT_ID}, inferred from the repository. Pass --test-collection-id {INFERRED_SHORT_ID}: analytics-cli 1.0.0 requires it."
-        )));
-
-    assert_eq!(
-        v2_calls.lock().unwrap().clone(),
-        v2_calls_for(INFERRED_SHORT_ID)
-    );
-    assert_no_v1_calls(&state);
-    let requests = state.requests.lock().unwrap().clone();
-    let tar_extract_directory = requests
-        .iter()
-        .find_map(|request| match request {
-            RequestPayload::S3Upload(directory) => Some(directory),
-            _ => None,
-        })
-        .expect("the bundle must have been uploaded");
-    let file = fs::File::open(tar_extract_directory.join("meta.json")).unwrap();
-    let bundle_meta: BundleMeta = serde_json::from_reader(BufReader::new(file)).unwrap();
-    assert_eq!(
-        bundle_meta
-            .base_props
-            .test_collection
-            .map(|collection| collection.short_id),
-        Some(String::from(INFERRED_SHORT_ID))
-    );
-}
-
-// NOTE: must be multi threaded to start a mock server
-#[tokio::test(flavor = "multi_thread")]
-async fn skip_the_upload_when_trunk_has_no_collection_for_the_run() {
-    let temp_dir = tempdir().unwrap();
-    generate_mock_git_repo(&temp_dir);
-    generate_mock_valid_junit_xmls(&temp_dir);
-
-    let (mock_server_builder, v2_calls) =
-        v2_mock_server(serde_json::json!({"apiVersion": "v1", "missingTestCollection": true}));
-    let state = mock_server_builder.spawn_mock_server().await;
-
-    let output = CommandBuilder::upload(temp_dir.path(), state.host.clone())
-        .command()
-        .assert()
-        // The fixture's failures aren't quarantined, so the run fails either way.
-        .code(1)
-        .get_output()
-        .clone();
-
-    let console = format!(
-        "{}{}",
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr)
-    );
-    assert!(
-        console.contains("Test results were not uploaded"),
-        "the run must say it skipped the upload: {console}"
-    );
-    assert!(v2_calls.lock().unwrap().is_empty());
-    let requests = state.requests.lock().unwrap().clone();
-    assert!(
-        !requests.iter().any(|request| matches!(
-            request,
-            RequestPayload::CreateBundleUpload(_)
-                | RequestPayload::S3Upload(_)
-                | RequestPayload::TelemetryUploadMetrics(_)
-                | RequestPayload::GetQuarantineConfig(_)
-        )),
-        "a run Trunk has no collection for must not call v1"
-    );
-}
-
-// NOTE: must be multi threaded to start a mock server
-#[tokio::test(flavor = "multi_thread")]
-async fn upload_on_v1_when_trunk_chooses_v2_but_names_no_collection() {
-    let temp_dir = tempdir().unwrap();
-    generate_mock_git_repo(&temp_dir);
-    generate_mock_valid_junit_xmls(&temp_dir);
-
-    let (mock_server_builder, v2_calls) = v2_mock_server(serde_json::json!({"apiVersion": "v2"}));
-    let state = mock_server_builder.spawn_mock_server().await;
-
-    CommandBuilder::upload(temp_dir.path(), state.host.clone())
-        .command()
-        .assert()
-        .stderr(predicate::str::contains("inferred from the repository").not());
-
-    assert!(v2_calls.lock().unwrap().is_empty());
-    let requests = state.requests.lock().unwrap().clone();
-    assert!(
-        requests
-            .iter()
-            .any(|request| matches!(request, RequestPayload::CreateBundleUpload(_))),
-        "the run must have uploaded on v1"
     );
 }
 

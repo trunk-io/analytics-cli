@@ -495,7 +495,13 @@ impl MutTestReport {
             tracing::warn!("Not checking quarantine status because TRUNK_ORG_URL_SLUG is empty");
             return IsQuarantinedResult::default();
         }
-        let api_client = ApiClient::new(Some(token), None, false, org_url_slug.clone(), None);
+        if requested_test_collection_short_id().is_none() {
+            tracing::warn!(
+                "Not checking quarantine status because TRUNK_TEST_COLLECTION_ID is empty"
+            );
+            return IsQuarantinedResult::default();
+        }
+        let api_client = ApiClient::new(Some(token), false, org_url_slug.clone(), None);
         let use_uncloned_repo = env::var(constants::TRUNK_USE_UNCLONED_REPO_ENV)
             .ok()
             .and_then(|v| v.parse().ok())
@@ -881,6 +887,10 @@ impl MutTestReport {
             tracing::warn!("Not publishing results because TRUNK_ORG_URL_SLUG is empty");
             return false;
         }
+        if requested_test_collection_short_id().is_none() {
+            tracing::warn!("Not publishing results because TRUNK_TEST_COLLECTION_ID is empty");
+            return false;
+        }
 
         let variant = env::var(constants::TRUNK_VARIANT_ENV).ok();
         let summary_output_file = env::var(constants::TRUNK_SUMMARY_OUTPUT_FILE_ENV)
@@ -992,7 +1002,6 @@ impl MutTestReport {
             upload_args.use_uncloned_repo,
         ) && let Ok(api_client) = ApiClient::new(
             upload_args.token.clone(),
-            None,
             false,
             upload_args.org_url_slug.clone(),
             None,

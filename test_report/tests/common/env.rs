@@ -13,7 +13,10 @@ use constants::{
 use tempfile::TempDir;
 use test_report::report::quarantine_disk_cache_dir;
 
-/// Cleans up all TRUNK_* and CI-related environment variables to avoid test interference.
+pub const DEFAULT_TEST_COLLECTION_ID: &str = "dEfault1";
+
+/// Cleans up all TRUNK_* and CI-related environment variables to avoid test interference, and
+/// names the test collection every run requires.
 pub fn cleanup_env_vars() {
     unsafe {
         env::remove_var(TRUNK_PUBLIC_API_ADDRESS_ENV);
@@ -37,7 +40,7 @@ pub fn cleanup_env_vars() {
         env::remove_var(TRUNK_QUARANTINED_TESTS_DISK_CACHE_TTL_SECS_ENV);
         env::remove_var(TRUNK_API_CLIENT_RETRY_COUNT_ENV);
         env::remove_var(TRUNK_QUARANTINE_DISK_CACHE_DIR_ENV);
-        env::remove_var(TRUNK_TEST_COLLECTION_ID_ENV);
+        env::set_var(TRUNK_TEST_COLLECTION_ID_ENV, DEFAULT_TEST_COLLECTION_ID);
         env::remove_var(TRUNK_SUMMARY_OUTPUT_FILE_ENV);
     }
 }
