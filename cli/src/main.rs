@@ -430,12 +430,8 @@ fn setup_logger(
 ) -> anyhow::Result<()> {
     let command_string = String::from(command_name);
     let sentry_layer = sentry_tracing::layer().event_mapper(move |event, context| {
-        // deprecation warnings are sent as events so we can see who still uses deprecated flags
-        let is_deprecation = *event.metadata().level() == tracing::Level::WARN
-            && event.metadata().fields().field("deprecated_flag").is_some();
-        // trunk-ignore(clippy/match_ref_pats)
-        match event.metadata().level() {
-            level if *level == tracing::Level::ERROR || is_deprecation => {
+        match *event.metadata().level() {
+            tracing::Level::ERROR => {
                 let mut event = sentry_tracing::event_from_event(event, context);
                 event
                     .tags
@@ -448,13 +444,13 @@ fn setup_logger(
                     .insert(String::from("repo_root"), repo_root.clone());
                 sentry_tracing::EventMapping::Event(event)
             }
-            &tracing::Level::WARN => sentry_tracing::EventMapping::Breadcrumb(
+            tracing::Level::WARN => sentry_tracing::EventMapping::Breadcrumb(
                 sentry_tracing::breadcrumb_from_event(event, context),
             ),
-            &tracing::Level::INFO => sentry_tracing::EventMapping::Breadcrumb(
+            tracing::Level::INFO => sentry_tracing::EventMapping::Breadcrumb(
                 sentry_tracing::breadcrumb_from_event(event, context),
             ),
-            &tracing::Level::DEBUG => sentry_tracing::EventMapping::Breadcrumb(
+            tracing::Level::DEBUG => sentry_tracing::EventMapping::Breadcrumb(
                 sentry_tracing::breadcrumb_from_event(event, context),
             ),
             _ => sentry_tracing::EventMapping::Ignore,
