@@ -316,7 +316,6 @@ pub async fn gather_quarantine_context(
     failed_tests_extractor: Option<FailedTestsExtractor>,
     test_run_exit_code: Option<ExitCode>,
     variant: &String,
-    hide_test_collection_links: bool,
 ) -> anyhow::Result<QuarantineContext> {
     let failed_tests_extractor = failed_tests_extractor.unwrap_or_else(|| {
         FailedTestsExtractor::new(
@@ -435,7 +434,6 @@ pub async fn gather_quarantine_context(
                 quarantined_failure,
                 request,
                 api_client,
-                hide_test_collection_links,
                 guid_scope.as_ref(),
             )
         });
@@ -447,15 +445,9 @@ pub async fn gather_quarantine_context(
             failures.len(),
             pluralize("failure", quarantined_failures.len() as isize, false),
         );
-        failures.iter().for_each(|failure| {
-            log_failure(
-                failure,
-                request,
-                api_client,
-                hide_test_collection_links,
-                guid_scope.as_ref(),
-            )
-        });
+        failures
+            .iter()
+            .for_each(|failure| log_failure(failure, request, api_client, guid_scope.as_ref()));
     }
     let quarantined_failure_count = quarantined_failures.len();
     quarantine_results.quarantine_results = quarantined_failures;
@@ -502,26 +494,26 @@ fn log_failure(
     failure: &Test,
     request: &api::message::GetQuarantineConfigRequest,
     api_client: &ApiClient,
-    hide_test_collection_links: bool,
     guid_scope: Option<&TestCaseGuidScope>,
 ) {
-    let test_collection_short_id = request
-        .test_collection_short_id
-        .as_deref()
-        .filter(|_| !hide_test_collection_links);
     // On v1 the upload has not been created yet, so there are no ids to mint a GUID from;
     // v2's quarantine lookup returns them.
-    let url = match url_for_test_case(
-        &api_client.api_host,
-        &request.org_url_slug,
-        &request.repo,
-        failure,
-        test_collection_short_id,
-        guid_scope,
-    ) {
-        Ok(url) => format!("Learn more > {}", url),
-        Err(_) => String::from(""),
-    };
+    let url = request
+        .test_collection_short_id
+        .as_deref()
+        .and_then(|test_collection_short_id| {
+            url_for_test_case(
+                &api_client.api_host,
+                &request.org_url_slug,
+                &request.repo,
+                failure,
+                test_collection_short_id,
+                guid_scope,
+            )
+            .ok()
+        })
+        .map(|url| format!("Learn more > {}", url))
+        .unwrap_or_default();
     tracing::info!("\t{} -> {} {}", failure.parent_name, failure.name, url,);
 }
 
