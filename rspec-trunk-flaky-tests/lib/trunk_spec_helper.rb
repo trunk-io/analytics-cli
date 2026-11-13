@@ -8,7 +8,7 @@
 # Required environment variables:
 #   TRUNK_ORG_URL_SLUG - Your organization's URL slug
 #   TRUNK_API_TOKEN - A Trunk v2 API key (trunk_v2_...) with the Upload test results permission,
-#     or a Trunk JWT from `trunk login --api-key`; the organization token is refused
+#     or a Trunk JWT that outlasts the run; the organization token is refused
 #   TRUNK_TEST_COLLECTION_ID - The ID of the test collection to upload to
 #
 # Optional environment variables for repository metadata:
