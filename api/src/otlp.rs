@@ -1,14 +1,14 @@
-//! The upload's own telemetry as one OTLP JSON log record, for sawmill-api's CLI telemetry route
-//! (`/v2/cloud/telemetry/v1/logs`, TRUNK-23773). The route keeps only the attribute names listed
-//! for `trunk-analytics-cli` in trunk-cloud's `apps/sawmill-api-rs/src/cli_telemetry.rs` and stamps
-//! the org itself, so a name added here is dropped until it is added there too.
+//! The upload's own telemetry as one OTLP JSON log record, for public-api's CLI telemetry route
+//! (`/v2/telemetry/v1/logs`, TRUNK-23773). The route keeps only the attribute names listed for
+//! `trunk-analytics-cli` in trunk2's `ts/apps/public-api` and stamps the org itself, so a name
+//! added here is dropped until it is added there too.
 
 use proto::upload_metrics::trunk::{
     QuarantineQueryResult, QuarantineResolutionMode, UploadMetrics,
 };
 use serde_json::{Value, json};
 
-pub const CLI_TELEMETRY_PATH: &str = "/v2/cloud/telemetry/v1/logs";
+pub const CLI_TELEMETRY_PATH: &str = "/v2/telemetry/v1/logs";
 pub const SERVICE_NAME: &str = "trunk-analytics-cli";
 pub const COMMAND: &str = "upload";
 
