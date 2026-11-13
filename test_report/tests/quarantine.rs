@@ -651,15 +651,16 @@ async fn quarantine_lookup_failed_when_endpoint_fails() {
         env::set_var(TRUNK_API_CLIENT_RETRY_COUNT_ENV, "0");
     }
 
-    let result = thread::spawn(|| {
+    let (result, lookup_error) = thread::spawn(|| {
         let test_report = MutTestReport::new("test".into(), "test-command".into(), None);
-        test_report.is_quarantined(
+        let result = test_report.is_quarantined(
             None,
             Some("test-name".to_string()),
             Some("test-parent-name".to_string()),
             Some("TestClass".to_string()),
             Some("test_file.rs".to_string()),
-        )
+        );
+        (result, test_report.quarantine_lookup_error())
     })
     .join()
     .unwrap();
@@ -677,6 +678,11 @@ async fn quarantine_lookup_failed_when_endpoint_fails() {
         "Test should not be quarantined"
     );
     assert!(!bool::from(result), "Test should not be quarantined");
+    let lookup_error = lookup_error.expect("the failed lookup should keep its reason");
+    assert!(
+        lookup_error.contains("500 Internal Server Error"),
+        "the reason should name the response status: {lookup_error}"
+    );
 }
 
 #[tokio::test(flavor = "multi_thread")]

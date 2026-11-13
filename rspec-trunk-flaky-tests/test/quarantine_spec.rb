@@ -59,6 +59,19 @@ RSpec.describe 'quarantine outcomes' do
     end
   end
 
+  it 'prints why the quarantine lookup failed' do
+    output = nil
+    TrunkHarness.with_trunk(:failed) do
+      RSpec.describe('sandboxed') { it('fails') { raise 'the real failure' } }.run(RSpec::Core::NullReporter)
+      output = $stdout.string
+    end
+
+    expect(output).to include(
+      "Failed to check quarantining status, no failures will be quarantined\e[0m\n" \
+      "\e[33m  Reason: #{TrunkHarness::LOOKUP_ERROR}"
+    )
+  end
+
   context 'when TRUNK_DISABLE_QUARANTINING is true' do
     around do |example|
       previous = ENV.fetch('TRUNK_DISABLE_QUARANTINING', nil)
