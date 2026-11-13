@@ -170,6 +170,7 @@ pub struct TestReport {
     started_at: SystemTime,
     quarantine_config: Option<QuarantineConfig>,
     quarantine_lookup_source: Option<QuarantineLookupSource>,
+    quarantine_lookup_error: Option<String>,
     quarantined_tests_disk_cache_ttl: Duration,
     upload_api_version: Option<UploadApiDecision>,
     codeowners: Option<CodeOwners>,
@@ -348,6 +349,7 @@ impl MutTestReport {
             started_at,
             quarantine_config: None,
             quarantine_lookup_source: None,
+            quarantine_lookup_error: None,
             quarantined_tests_disk_cache_ttl,
             upload_api_version: None,
             codeowners,
@@ -701,6 +703,11 @@ impl MutTestReport {
         }
     }
 
+    /// Why the quarantine lookup failed, for a test runner to print. `None` unless it did.
+    pub fn quarantine_lookup_error(&self) -> Option<String> {
+        self.0.borrow().quarantine_lookup_error.clone()
+    }
+
     fn populate_quarantined_tests(
         &self,
         api_client: &ApiClient,
@@ -778,6 +785,7 @@ impl MutTestReport {
                     err
                 );
                 self.record_quarantine_lookup_source(QuarantineLookupSource::Failed);
+                self.0.borrow_mut().quarantine_lookup_error = Some(format!("{err:#}"));
                 (false, true)
             }
         };
@@ -1260,6 +1268,10 @@ pub fn ruby_init(ruby: &magnus::Ruby, namespace: magnus::RModule) -> Result<(), 
     test_report.define_method(
         "is_quarantined",
         magnus::method!(MutTestReport::is_quarantined, 5),
+    )?;
+    test_report.define_method(
+        "quarantine_lookup_error",
+        magnus::method!(MutTestReport::quarantine_lookup_error, 0),
     )?;
     Ok(())
 }

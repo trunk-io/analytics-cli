@@ -7,6 +7,7 @@ require 'stringio'
 # them here is safe: they change nothing unless RSpec::Trunk.current_run is set.
 module TrunkHarness
   LookupResult = Struct.new(:quarantine_lookup_failed, :quarantining_disabled_for_repo, :test_is_quarantined)
+  LOOKUP_ERROR = 'Error in get quarantine config endpoint: HTTP status client error (403 Forbidden)'
 
   # Stands in for the native TestReport.
   class FakeReport
@@ -23,6 +24,10 @@ module TrunkHarness
     def is_quarantined(*)
       @lookups += 1
       @result
+    end
+
+    def quarantine_lookup_error
+      LOOKUP_ERROR if @result.quarantine_lookup_failed
     end
 
     def add_test(*args)

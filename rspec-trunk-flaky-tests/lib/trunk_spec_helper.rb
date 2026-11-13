@@ -344,6 +344,8 @@ module RSpec
         if result.quarantine_lookup_failed
           unless lookup_failed?
             puts Colors.yellow('Failed to check quarantining status, no failures will be quarantined')
+            reason = report.quarantine_lookup_error
+            puts Colors.yellow("  Reason: #{reason}") if reason
             @lookup_failed = true
           end
           abort_run(example, exception) if Trunk.quarantine_query_failure_exit?
