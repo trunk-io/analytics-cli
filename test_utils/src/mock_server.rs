@@ -19,7 +19,6 @@ use axum::{
     response::{IntoResponse, Response},
     routing::{MethodRouter, any, post, put},
 };
-use prost::Message;
 use proto::upload_metrics::trunk::UploadMetrics;
 use tempfile::tempdir;
 use tokio::{net::TcpListener, spawn};
@@ -166,10 +165,7 @@ impl MockServerBuilder {
                 self.get_quarantining_config_handler,
             )
             .route("/s3upload", self.s3_upload_handler)
-            .route(
-                "/v1/flakytests-cli/upload-metrics",
-                self.telemetry_upload_metrics,
-            );
+            .route(api::otlp::CLI_TELEMETRY_PATH, self.telemetry_upload_metrics);
 
         for (path, method_router) in self.routes {
             app = app.route(path, method_router);
@@ -266,8 +262,10 @@ pub async fn telemetry_upload_metrics_handler(
     State(state): State<SharedMockServerState>,
     bytes: Bytes,
 ) -> Response<String> {
-    let upload_metrics = proto::upload_metrics::trunk::UploadMetrics::decode(bytes);
-    if let Ok(upload_metrics) = upload_metrics {
+    let upload_metrics = serde_json::from_slice::<serde_json::Value>(&bytes)
+        .ok()
+        .and_then(|logs| upload_metrics_from_otlp(&logs));
+    if let Some(upload_metrics) = upload_metrics {
         state
             .requests
             .lock()
@@ -303,4 +301,52 @@ pub async fn s3_upload_handler(
         .unwrap()
         .push(RequestPayload::S3Upload(tar_extract_directory.into_path()));
     Response::new(String::from("OK"))
+}
+
+/// The fields of `UploadMetrics` that `api::otlp::upload_metrics_logs` writes, read back from the
+/// OTLP JSON it sent, so the tests check what reaches the wire. `None` unless the body is one
+/// `trunk-analytics-cli` record.
+pub fn upload_metrics_from_otlp(logs: &serde_json::Value) -> Option<UploadMetrics> {
+    use api::otlp;
+    use proto::upload_metrics::trunk::{QuarantineQueryResult, QuarantineResolutionMode, Repo};
+
+    let resource_logs = &logs["resourceLogs"][0];
+    let attribute = |list: &serde_json::Value, key: &str| -> Option<serde_json::Value> {
+        list.as_array()?
+            .iter()
+            .find(|attribute| attribute["key"] == key)
+            .map(|attribute| attribute["value"].clone())
+    };
+    if attribute(&resource_logs["resource"]["attributes"], "service.name")?["stringValue"]
+        != otlp::SERVICE_NAME
+    {
+        return None;
+    }
+    let record = &resource_logs["scopeLogs"][0]["logRecords"][0]["attributes"];
+    let text = |key: &str| {
+        attribute(record, key)
+            .and_then(|value| value["stringValue"].as_str().map(str::to_owned))
+            .unwrap_or_default()
+    };
+    let upper = |key: &str| text(key).to_uppercase();
+    Some(UploadMetrics {
+        failed: attribute(record, otlp::FAILED_ATTRIBUTE)?["boolValue"].as_bool()?,
+        failure_reason: text(otlp::FAILURE_REASON_ATTRIBUTE),
+        quarantine_query_result: QuarantineQueryResult::from_str_name(&format!(
+            "QUARANTINE_QUERY_RESULT_{}",
+            upper(otlp::QUARANTINE_QUERY_RESULT_ATTRIBUTE)
+        ))?
+        .into(),
+        quarantine_resolution_mode: QuarantineResolutionMode::from_str_name(&format!(
+            "QUARANTINE_RESOLUTION_MODE_{}",
+            upper(otlp::QUARANTINE_RESOLUTION_MODE_ATTRIBUTE)
+        ))?
+        .into(),
+        repo: Some(Repo {
+            host: text(otlp::REPOSITORY_HOST_ATTRIBUTE),
+            owner: text(otlp::REPOSITORY_OWNER_ATTRIBUTE),
+            name: text(otlp::REPOSITORY_NAME_ATTRIBUTE),
+        }),
+        ..UploadMetrics::default()
+    })
 }
