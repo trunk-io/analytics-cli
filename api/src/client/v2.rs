@@ -4,46 +4,44 @@ use base64::{Engine as _, engine::general_purpose::STANDARD};
 use reqwest::{Client, StatusCode};
 
 use super::{
-    ApiClient, CheckNotFound, CheckUnauthorized, GithubForkPullRequest, StatusCodeHelp,
-    V2Credential, status_code_help,
+    ApiClient, CheckUnauthorized, GithubForkPullRequest, StatusCodeHelp, V2Credential,
+    status_code_help,
 };
 use crate::call_api::CallApi;
-use crate::message::{self, UploadApiVersion};
-use crate::quarantine::{QuarantineLookup, QuarantinedTestSet, QuarantinedTests};
+use crate::message;
+use crate::quarantine::{QuarantineLookup, QuarantinedTestSet};
 use crate::urls::TestCaseGuidScope;
 
 impl ApiClient {
     const QUARANTINE_STATUS_MAX_IDENTIFIERS: usize = 2_000;
+    const CREDENTIAL_FREE_NOT_A_FORK_PR: &'static str = "--allow-forked-pr-uploads without a Trunk API token uploads only from a GitHub Actions run of a pull request from a fork; test results will not be uploaded.";
     const ALL_QUARANTINED_TESTS_PAGE_SIZE: usize = 25_000;
 
-    /// Sets the API the run uses, taking the decision route's answer as given. The one exception is a
-    /// GitHub Actions fork PR run, which holds no v2 credential: on v2 it swaps the job's
-    /// `GITHUB_TOKEN` for a Trunk login, and stays on v1's collection lane if that fails.
-    pub async fn use_upload_api_version(&mut self, version: UploadApiVersion) {
-        self.upload_api_version = match &self.github_fork_pull_request {
-            Some(pull_request)
-                if version == UploadApiVersion::V2 && self.trunk_api_v2_client.is_none() =>
-            {
-                match self.log_in_github_fork_pull_request(pull_request).await {
-                    Ok(client) => {
-                        self.trunk_api_v2_client = Some(client);
-                        UploadApiVersion::V2
-                    }
-                    Err(reason) => {
-                        tracing::warn!(
-                            "Could not log in to the Trunk API v2 for this fork pull request ({reason}); uploading with Trunk API v1"
-                        );
-                        UploadApiVersion::V1
-                    }
-                }
-            }
-            _ => version,
+    /// Swaps a credential-free GitHub Actions fork PR run's `GITHUB_TOKEN` for a Trunk login. Any
+    /// other run already holds its credential, or has none to swap. A failed swap is kept, and
+    /// every later call fails with its reason.
+    pub async fn log_in_github_fork_pull_request(&mut self) {
+        if self.trunk_api_v2_client.is_some() {
+            return;
+        }
+        let Some(pull_request) = &self.github_fork_pull_request else {
+            tracing::warn!("{}", Self::CREDENTIAL_FREE_NOT_A_FORK_PR);
+            return;
         };
+        match self.github_actions_login(pull_request).await {
+            Ok(client) => self.trunk_api_v2_client = Some(client),
+            Err(reason) => {
+                tracing::warn!(
+                    "Could not log in to Trunk for this fork pull request ({reason}); test results will not be uploaded"
+                );
+                self.github_fork_login_failure = Some(reason);
+            }
+        }
     }
 
     /// `POST /v2/auth/github-actions/login` with the job's `GITHUB_TOKEN`. The error is a reason
     /// fit to log: it never holds the token, the login, or a parse error that could quote them.
-    async fn log_in_github_fork_pull_request(
+    async fn github_actions_login(
         &self,
         pull_request: &GithubForkPullRequest,
     ) -> Result<Client, String> {
@@ -74,7 +72,7 @@ impl ApiClient {
         let status = response.status();
         if status != StatusCode::OK {
             let code = response
-                .json::<message::GithubActionsLoginRefusal>()
+                .json::<message::ClientErrorEnvelope>()
                 .await
                 .ok()
                 .and_then(|refusal| refusal.error.code);
@@ -96,9 +94,16 @@ impl ApiClient {
     }
 
     fn v2_client(&self) -> anyhow::Result<&Client> {
-        self.trunk_api_v2_client
-            .as_ref()
-            .ok_or_else(|| anyhow::anyhow!("The Trunk API v2 needs a Trunk API token."))
+        if let Some(client) = &self.trunk_api_v2_client {
+            return Ok(client);
+        }
+        Err(match &self.github_fork_login_failure {
+            Some(reason) => {
+                anyhow::anyhow!("Could not log in to Trunk for this fork pull request ({reason}).")
+            }
+            None if self.credential_free => anyhow::anyhow!(Self::CREDENTIAL_FREE_NOT_A_FORK_PR),
+            None => anyhow::anyhow!("The Trunk API needs a Trunk API token."),
+        })
     }
 
     fn v2_test_collection_url(
@@ -132,7 +137,6 @@ impl ApiClient {
                     response,
                     StatusCodeHelp {
                         check_unauthorized: CheckUnauthorized::Check,
-                        check_not_found: CheckNotFound::DoNotCheck,
                         create_error_message: |response| {
                             if response.status() == StatusCode::NOT_FOUND {
                                 String::from("Test collection not found.")
@@ -167,7 +171,6 @@ impl ApiClient {
             id: upload.id.clone(),
             id_v2,
             url: upload.upload_url,
-            key: String::new(),
             test_collection_bundle_meta_id: Some(upload.id),
             test_collection_bundle_meta_created_at: Some(upload.created_at),
             repo_id: Some(upload.repository_id),
@@ -227,7 +230,6 @@ impl ApiClient {
                     response,
                     StatusCodeHelp {
                         check_unauthorized: CheckUnauthorized::Check,
-                        check_not_found: CheckNotFound::DoNotCheck,
                         create_error_message: |response| {
                             if response.status() == StatusCode::NOT_FOUND {
                                 String::from("Test collection not found.")
@@ -285,7 +287,6 @@ impl ApiClient {
                         response,
                         StatusCodeHelp {
                             check_unauthorized: CheckUnauthorized::Check,
-                            check_not_found: CheckNotFound::DoNotCheck,
                             create_error_message: |response| {
                                 if response.status() == StatusCode::NOT_FOUND {
                                     String::from("Test collection not found.")
@@ -332,10 +333,8 @@ impl ApiClient {
                         is_disabled: !*quarantine_enabled,
                         quarantine_resolution_mode:
                             message::QuarantineResolutionMode::TestCollection,
-                        tests: QuarantinedTests::ByTestCaseGuid {
-                            scope: scope.clone(),
-                            guids,
-                        },
+                        scope: scope.clone(),
+                        guids,
                     });
                 }
             }

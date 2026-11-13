@@ -2,8 +2,11 @@ mod common;
 
 use std::{env, fs, thread};
 
-use api::message::{GetQuarantineConfigRequest, GetQuarantineConfigResponse};
-use axum::{Json, extract::State, http::StatusCode};
+use axum::{
+    Json,
+    extract::{Path, Query, State},
+    http::{HeaderMap, StatusCode},
+};
 use bundle::Test;
 use common::{clean_up_cache_files, cleanup_env_vars, setup_quarantine_disk_cache_dir};
 use constants::{
@@ -18,7 +21,10 @@ use serial_test::serial;
 use tempfile::tempdir;
 use test_report::report::MutTestReport;
 use test_utils::mock_git_repo::setup_repo_with_commit;
-use test_utils::mock_server::{MockServerBuilder, RequestPayload, SharedMockServerState};
+use test_utils::mock_server::{
+    AllQuarantinedTestsLookup, MockServerBuilder, RequestPayload, SharedMockServerState,
+    quarantined_test_list,
+};
 
 #[tokio::test(flavor = "multi_thread")]
 #[serial]
@@ -107,21 +113,16 @@ async fn quarantine_variant_impacts_quarantining() {
 
     // Create a custom mock server handler that returns quarantined tests
     // We need to return both IDs: one for "without ID" case and one for "with ID" case
-    use api::message::GetQuarantineConfigResponse;
     let state = {
         let mut builder = MockServerBuilder::new();
-        let expected_id_v1 = expected_test_id_variant1.clone();
-        let expected_id_v1_from_base = expected_test_id_variant1_from_base.clone();
-        builder.set_get_quarantining_config_handler(
-            move |_state: State<SharedMockServerState>,
-                  _req: Json<api::message::GetQuarantineConfigRequest>| async move {
-                Json(GetQuarantineConfigResponse {
-                    is_disabled: false,
-                    quarantined_tests: vec![expected_id_v1, expected_id_v1_from_base],
-                    ..Default::default()
-                })
-            },
-        );
+        let quarantined = [
+            expected_test_id_variant1.clone(),
+            expected_test_id_variant1_from_base.clone(),
+        ];
+        builder.set_all_quarantined_tests_handler(move || {
+            let quarantined = quarantined.clone();
+            async move { Json(quarantined_test_list(true, quarantined)) }
+        });
         builder.spawn_mock_server().await
     };
 
@@ -384,27 +385,23 @@ async fn quarantine_disk_cache() {
     }
 
     // test_id_1 and test_id_2 are quarantined
-    use api::message::GetQuarantineConfigResponse;
-    let computed_test_id_1_clone = computed_test_id_1.clone();
-    let computed_test_id_2_clone = computed_test_id_2.clone();
+    let quarantined = [computed_test_id_1.clone(), computed_test_id_2.clone()];
     let state = {
         let mut builder = MockServerBuilder::new();
-        builder.set_get_quarantining_config_handler(
-            move |state: State<SharedMockServerState>,
-                  req: Json<api::message::GetQuarantineConfigRequest>| async move {
-                state
-                    .requests
-                    .lock()
-                    .unwrap()
-                    .push(RequestPayload::GetQuarantineConfig(req.0));
-                Json(GetQuarantineConfigResponse {
-                    is_disabled: false,
-                    quarantined_tests: vec![
-                        computed_test_id_1_clone.clone(),
-                        computed_test_id_2_clone.clone(),
-                    ],
-                    ..Default::default()
-                })
+        builder.set_all_quarantined_tests_handler(
+            move |State(state): State<SharedMockServerState>,
+                  Path(test_collection_short_id): Path<String>,
+                  Query(query): Query<std::collections::HashMap<String, String>>,
+                  headers: HeaderMap,
+                  Json(lookup): Json<AllQuarantinedTestsLookup>| {
+                state.record_all_quarantined_tests(
+                    headers,
+                    test_collection_short_id,
+                    query,
+                    lookup,
+                );
+                let quarantined = quarantined.clone();
+                async move { Json(quarantined_test_list(true, quarantined)) }
             },
         );
         builder.spawn_mock_server().await
@@ -467,21 +464,20 @@ async fn quarantine_disk_cache() {
         let requests = state.requests.lock().unwrap();
         let get_quarantine_config_count = requests
             .iter()
-            .filter(|req| matches!(req, RequestPayload::GetQuarantineConfig(_)))
+            .filter(|req| matches!(req, RequestPayload::AllQuarantinedTests(_)))
             .count();
         assert_eq!(
             get_quarantine_config_count, 1,
-            "get_quarantine_config should be called only once across two test reports with the same repo"
+            "all-quarantined-tests should be called only once across two test reports with the same repo"
         );
         let get_quarantine_config_request = requests
             .iter()
             .find_map(|req| match req {
-                RequestPayload::GetQuarantineConfig(req) => Some(req),
+                RequestPayload::AllQuarantinedTests(req) => Some(req),
                 _ => None,
             })
             .unwrap();
-        assert_eq!(get_quarantine_config_request.org_url_slug, "test-org");
-        assert_eq!(get_quarantine_config_request.repo, repo_1,);
+        assert_eq!(get_quarantine_config_request.repo, Some(repo_1));
     }
 
     // third test report with different repo - should make a new API call due to cache miss
@@ -516,21 +512,21 @@ async fn quarantine_disk_cache() {
         let requests = state.requests.lock().unwrap();
         let get_quarantine_config_count = requests
             .iter()
-            .filter(|req| matches!(req, RequestPayload::GetQuarantineConfig(_)))
+            .filter(|req| matches!(req, RequestPayload::AllQuarantinedTests(_)))
             .count();
         assert_eq!(
             get_quarantine_config_count, 2,
-            "get_quarantine_config should be called twice: once for test-repo-1 and once for test-repo-2"
+            "all-quarantined-tests should be called twice: once for test-repo-1 and once for test-repo-2"
         );
         let get_quarantine_config_requests: Vec<_> = requests
             .iter()
             .filter_map(|req| match req {
-                RequestPayload::GetQuarantineConfig(req) => Some(req),
+                RequestPayload::AllQuarantinedTests(req) => Some(req),
                 _ => None,
             })
             .collect();
         assert_eq!(get_quarantine_config_requests.len(), 2);
-        assert_eq!(get_quarantine_config_requests[1].repo, repo_2,);
+        assert_eq!(get_quarantine_config_requests[1].repo, Some(repo_2));
     }
 }
 #[tokio::test(flavor = "multi_thread")]
@@ -559,16 +555,9 @@ async fn quarantine_disabled_for_repo() {
 
     let state = {
         let mut builder = MockServerBuilder::new();
-        builder.set_get_quarantining_config_handler(
-            move |_state: State<SharedMockServerState>,
-                  _req: Json<GetQuarantineConfigRequest>| async move {
-                Json(GetQuarantineConfigResponse {
-                    is_disabled: true,
-                    quarantined_tests: vec![],
-                    ..Default::default()
-                })
-            },
-        );
+        builder.set_all_quarantined_tests_handler(|| async {
+            Json(quarantined_test_list(false, Vec::<String>::new()))
+        });
         builder.spawn_mock_server().await
     };
 
@@ -634,13 +623,7 @@ async fn quarantine_lookup_failed_when_endpoint_fails() {
 
     let state = {
         let mut builder = MockServerBuilder::new();
-        builder.set_get_quarantining_config_handler(
-            |Json(_): Json<GetQuarantineConfigRequest>| async {
-                Err::<Json<GetQuarantineConfigResponse>, StatusCode>(
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                )
-            },
-        );
+        builder.set_all_quarantined_tests_handler(|| async { StatusCode::INTERNAL_SERVER_ERROR });
         builder.spawn_mock_server().await
     };
 
@@ -688,7 +671,7 @@ async fn quarantine_lookup_failed_when_endpoint_fails() {
 #[tokio::test(flavor = "multi_thread")]
 #[serial]
 async fn v2_matches_a_test_by_its_computed_test_id() {
-    use axum::routing::{get, post};
+    use axum::routing::post;
     use context::meta::id::gen_test_case_guid;
     use serde_json::json;
     use uuid::Uuid;
@@ -730,13 +713,6 @@ async fn v2_matches_a_test_by_its_computed_test_id() {
 
     let state = {
         let mut builder = MockServerBuilder::new();
-        builder.set_get_quarantining_config_handler(|| async {
-            (StatusCode::INTERNAL_SERVER_ERROR, "v1 must not be called")
-        });
-        builder.route(
-            "/v1/metrics/getUploadApiVersion",
-            post(|| async { Json(json!({"apiVersion": "v2"})) }),
-        );
         // The list carries the scope, so a runner makes no status call.
         builder.route(
             "/v2/test-collections/:id/quarantine-status",
@@ -800,37 +776,12 @@ async fn v2_matches_a_test_by_its_computed_test_id() {
 #[tokio::test(flavor = "multi_thread")]
 #[serial]
 async fn makes_no_calls_without_a_test_collection_id() {
-    use std::sync::{
-        Arc,
-        atomic::{AtomicUsize, Ordering},
-    };
-
-    use axum::routing::post;
-    use serde_json::json;
-
     cleanup_env_vars();
     let temp_dir = tempdir().unwrap();
     setup_quarantine_disk_cache_dir(&temp_dir);
     let _ = env::set_current_dir(&temp_dir);
 
-    let calls = Arc::new(AtomicUsize::new(0));
-    let state = {
-        let mut builder = MockServerBuilder::new();
-        let quarantine_calls = calls.clone();
-        builder.set_get_quarantining_config_handler(move || {
-            quarantine_calls.fetch_add(1, Ordering::SeqCst);
-            async { (StatusCode::INTERNAL_SERVER_ERROR, "must not be called") }
-        });
-        let version_calls = calls.clone();
-        builder.route(
-            "/v1/metrics/getUploadApiVersion",
-            post(move || {
-                version_calls.fetch_add(1, Ordering::SeqCst);
-                async { Json(json!({"apiVersion": "v1"})) }
-            }),
-        );
-        builder.spawn_mock_server().await
-    };
+    let state = MockServerBuilder::new().spawn_mock_server().await;
 
     unsafe {
         env::set_var(TRUNK_PUBLIC_API_ADDRESS_ENV, &state.host);
@@ -865,70 +816,5 @@ async fn makes_no_calls_without_a_test_collection_id() {
     assert!(!result.test_is_quarantined);
     assert!(!result.quarantine_lookup_failed);
     assert!(!published);
-    assert_eq!(calls.load(Ordering::SeqCst), 0);
     assert!(state.requests.lock().unwrap().is_empty());
-}
-
-#[tokio::test(flavor = "multi_thread")]
-#[serial]
-async fn shares_the_api_version_choice_across_processes() {
-    use std::sync::{
-        Arc,
-        atomic::{AtomicUsize, Ordering},
-    };
-
-    use axum::routing::post;
-    use serde_json::json;
-
-    cleanup_env_vars();
-    let temp_dir = tempdir().unwrap();
-    setup_quarantine_disk_cache_dir(&temp_dir);
-    let _ = env::set_current_dir(&temp_dir);
-
-    let version_calls = Arc::new(AtomicUsize::new(0));
-    let state = {
-        let mut builder = MockServerBuilder::new();
-        let calls = version_calls.clone();
-        builder.route(
-            "/v1/metrics/getUploadApiVersion",
-            post(move || {
-                calls.fetch_add(1, Ordering::SeqCst);
-                async { Json(json!({"apiVersion": "v1"})) }
-            }),
-        );
-        builder.spawn_mock_server().await
-    };
-
-    unsafe {
-        env::set_var(TRUNK_PUBLIC_API_ADDRESS_ENV, &state.host);
-        env::set_var(TRUNK_API_TOKEN_ENV, "test-token");
-        env::set_var(TRUNK_ORG_URL_SLUG_ENV, "test-org");
-        env::set_var(
-            TRUNK_REPO_URL_ENV,
-            "https://github.com/test-org/test-repo.git",
-        );
-        env::set_var(TRUNK_USE_UNCLONED_REPO_ENV, "true");
-        env::set_var(TRUNK_REPO_HEAD_SHA_ENV, "");
-        env::set_var(TRUNK_REPO_HEAD_BRANCH_ENV, "");
-        env::set_var(TRUNK_REPO_HEAD_AUTHOR_NAME_ENV, "");
-        env::set_var(TRUNK_QUARANTINED_TESTS_DISK_CACHE_TTL_SECS_ENV, "300");
-        env::set_var(constants::TRUNK_TEST_COLLECTION_ID_ENV, "aB3xY9kQ");
-    }
-
-    // Each report stands for a worker process: it shares nothing with the other but the disk.
-    for _ in 0..2 {
-        thread::spawn(|| {
-            MutTestReport::new("test".into(), "test-command".into(), None).is_quarantined(
-                None,
-                Some("test-name".to_string()),
-                Some("test-parent-name".to_string()),
-                None,
-                None,
-            )
-        })
-        .join()
-        .unwrap();
-    }
-
-    assert_eq!(version_calls.load(Ordering::SeqCst), 1);
 }

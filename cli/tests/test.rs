@@ -3,12 +3,7 @@ use std::{
     io::BufReader,
 };
 
-use api::message::{
-    CreateBundleUploadRequest, CreateBundleUploadResponse, GetQuarantineConfigRequest,
-    GetQuarantineConfigResponse,
-};
 use assert_matches::assert_matches;
-use axum::{Json, extract::State};
 use bundle::BundleMeta;
 mod common;
 
@@ -22,9 +17,7 @@ use common::{
 use context::{bazel_bep::parser::BazelBepParser, junit::parser::JunitParser};
 use predicates::prelude::*;
 use tempfile::tempdir;
-use test_utils::mock_server::{
-    MOCK_REPO_ID, MOCK_TEST_COLLECTION_ID, MockServerBuilder, RequestPayload, SharedMockServerState,
-};
+use test_utils::mock_server::{MockServerBuilder, RequestPayload, quarantine_all_handler};
 use trunk_analytics_cli::exit_code::ExitCode;
 
 // NOTE: must be multi threaded to start a mock server
@@ -107,7 +100,7 @@ async fn test_run_test_with_really_long_command() {
     // First request should be create bundle upload
     assert_matches!(
         requests_iter.next().unwrap(),
-        RequestPayload::CreateBundleUpload(_)
+        RequestPayload::CreateTestUpload(_)
     );
 
     // Second request should be s3 upload
@@ -168,7 +161,7 @@ async fn test_command_fails_with_no_junit_files_no_quarantine_successful_upload(
 
     assert!(matches!(
         requests_iter.next().unwrap(),
-        RequestPayload::CreateBundleUpload(..)
+        RequestPayload::CreateTestUpload(..)
     ));
 
     let tar_extract_directory =
@@ -253,7 +246,7 @@ async fn test_command_succeeds_with_bundle_using_bep() {
 
     let requests = state.requests.lock().unwrap().clone();
     assert_eq!(requests.len(), 3);
-    assert_matches!(requests[0], RequestPayload::CreateBundleUpload(_));
+    assert_matches!(requests[0], RequestPayload::CreateTestUpload(_));
     let tar_extract_directory = assert_matches!(&requests[1], RequestPayload::S3Upload(d) => d);
     assert_matches!(requests[2], RequestPayload::TelemetryUploadMetrics(_));
 
@@ -282,44 +275,8 @@ async fn quarantining_resets_fail_code() {
 
     let mut mock_server_builder = MockServerBuilder::new();
 
-    mock_server_builder.set_get_quarantining_config_handler(
-        |Json(get_quarantine_bulk_test_status_request): Json<GetQuarantineConfigRequest>| {
-            let test_ids = get_quarantine_bulk_test_status_request
-                .test_identifiers
-                .into_iter()
-                .map(|t| t.id)
-                .collect::<Vec<_>>();
-            async move {
-                Json(GetQuarantineConfigResponse {
-                    is_disabled: false,
-                    quarantined_tests: test_ids,
-                    ..Default::default()
-                })
-            }
-        },
-    );
+    mock_server_builder.set_quarantine_status_handler(quarantine_all_handler);
 
-    mock_server_builder.set_create_bundle_handler(
-        |State(state): State<SharedMockServerState>, _: Json<CreateBundleUploadRequest>| {
-            async move {
-                let host = &state.host.clone();
-                Ok::<axum::Json<CreateBundleUploadResponse>, String>(Json(CreateBundleUploadResponse {
-                    id: String::from("test-bundle-upload-id"),
-                    id_v2: String::from("test-bundle-upload-id-v2"),
-                    url: format!("{host}/s3upload"),
-                    key: String::from("unused"),
-                    test_collection_bundle_meta_id: Some(String::from(
-                        "82c6a6e5-f8ea-4d93-9a26-b8ab6ff8f6bc",
-                    )),
-                    test_collection_bundle_meta_created_at: Some(String::from(
-                        "2026-05-10T12:34:56.000Z",
-                    )),
-                    repo_id: Some(String::from(MOCK_REPO_ID)),
-                    test_collection_id: Some(String::from(MOCK_TEST_COLLECTION_ID)),
-                }))
-            }
-        },
-    );
     let state = mock_server_builder.spawn_mock_server().await;
 
     CommandBuilder::test(
@@ -345,44 +302,8 @@ async fn quarantining_not_active_when_disable_quarantining_set() {
 
     let mut mock_server_builder = MockServerBuilder::new();
 
-    mock_server_builder.set_get_quarantining_config_handler(
-        |Json(get_quarantine_bulk_test_status_request): Json<GetQuarantineConfigRequest>| {
-            let test_ids = get_quarantine_bulk_test_status_request
-                .test_identifiers
-                .into_iter()
-                .map(|t| t.id)
-                .collect::<Vec<_>>();
-            async move {
-                Json(GetQuarantineConfigResponse {
-                    is_disabled: false,
-                    quarantined_tests: test_ids,
-                    ..Default::default()
-                })
-            }
-        },
-    );
+    mock_server_builder.set_quarantine_status_handler(quarantine_all_handler);
 
-    mock_server_builder.set_create_bundle_handler(
-        |State(state): State<SharedMockServerState>, _: Json<CreateBundleUploadRequest>| {
-            async move {
-                let host = &state.host.clone();
-                Ok::<axum::Json<CreateBundleUploadResponse>, String>(Json(CreateBundleUploadResponse {
-                    id: String::from("test-bundle-upload-id"),
-                    id_v2: String::from("test-bundle-upload-id-v2"),
-                    url: format!("{host}/s3upload"),
-                    key: String::from("unused"),
-                    test_collection_bundle_meta_id: Some(String::from(
-                        "82c6a6e5-f8ea-4d93-9a26-b8ab6ff8f6bc",
-                    )),
-                    test_collection_bundle_meta_created_at: Some(String::from(
-                        "2026-05-10T12:34:56.000Z",
-                    )),
-                    repo_id: Some(String::from(MOCK_REPO_ID)),
-                    test_collection_id: Some(String::from(MOCK_TEST_COLLECTION_ID)),
-                }))
-            }
-        },
-    );
     let state = mock_server_builder.spawn_mock_server().await;
 
     CommandBuilder::test(
@@ -409,44 +330,8 @@ async fn quarantining_not_active_when_disable_true_but_use_true() {
 
     let mut mock_server_builder = MockServerBuilder::new();
 
-    mock_server_builder.set_get_quarantining_config_handler(
-        |Json(get_quarantine_bulk_test_status_request): Json<GetQuarantineConfigRequest>| {
-            let test_ids = get_quarantine_bulk_test_status_request
-                .test_identifiers
-                .into_iter()
-                .map(|t| t.id)
-                .collect::<Vec<_>>();
-            async move {
-                Json(GetQuarantineConfigResponse {
-                    is_disabled: false,
-                    quarantined_tests: test_ids,
-                    ..Default::default()
-                })
-            }
-        },
-    );
+    mock_server_builder.set_quarantine_status_handler(quarantine_all_handler);
 
-    mock_server_builder.set_create_bundle_handler(
-        |State(state): State<SharedMockServerState>, _: Json<CreateBundleUploadRequest>| {
-            async move {
-                let host = &state.host.clone();
-                Ok::<axum::Json<CreateBundleUploadResponse>, String>(Json(CreateBundleUploadResponse {
-                    id: String::from("test-bundle-upload-id"),
-                    id_v2: String::from("test-bundle-upload-id-v2"),
-                    url: format!("{host}/s3upload"),
-                    key: String::from("unused"),
-                    test_collection_bundle_meta_id: Some(String::from(
-                        "82c6a6e5-f8ea-4d93-9a26-b8ab6ff8f6bc",
-                    )),
-                    test_collection_bundle_meta_created_at: Some(String::from(
-                        "2026-05-10T12:34:56.000Z",
-                    )),
-                    repo_id: Some(String::from(MOCK_REPO_ID)),
-                    test_collection_id: Some(String::from(MOCK_TEST_COLLECTION_ID)),
-                }))
-            }
-        },
-    );
     let state = mock_server_builder.spawn_mock_server().await;
 
     CommandBuilder::test(

@@ -123,24 +123,6 @@ runs:
         --token ${{ inputs.staging-api-token }} \
         --test-collection-id Gtnr7BWl # analytics-cli-repo-wide: https://app.trunk-staging.io/trunk-staging-org/flaky-tests/collections/Gtnr7BWl/monitors
 
-    - name: Upload to staging from a forked pull request
-      id: staging-upload-forked-pr
-      if: always() && steps.staging-test-run.outcome == 'success' && (inputs.environment-type == 'staging' || inputs.environment-type == 'both')
-      env:
-        TRUNK_PUBLIC_API_ADDRESS: https://api.trunk-staging.io
-      shell: bash
-      run: |
-        ./${{ inputs.cli-binary-location }} upload \
-        --org-url-slug trunk-staging-org \
-        --junit-paths "${{ github.workspace }}/target/**/*junit.xml" \
-        --allow-forked-pr-uploads \
-        --use-uncloned-repo \
-        --repo-url https://github.com/trunk-io/flake-farm-staging-fork-prs.git \
-        --repo-head-sha ${{ github.sha }} \
-        --repo-head-branch refs/heads/main \
-        --repo-head-author-name "Trunk Smoke Test" \
-        --test-collection-id z2dzjLHm
-
     # upload with variant should fail because we treat variant as a separate test
     - name: Upload to staging with variant
       id: staging-upload-with-variant
@@ -171,9 +153,9 @@ runs:
       shell: bash
       run: |
         if [ "${{ inputs.test-variants }}" == "true" ]; then
-          echo "staging-success=${{ (steps.staging-upload.outcome == 'success' && steps.staging-upload-repo-wide.outcome == 'success' && steps.staging-upload-forked-pr.outcome == 'success' && steps.staging-upload-with-variant.outcome == 'success' && (inputs.environment-type == 'staging' || inputs.environment-type == 'both')) || inputs.environment-type == 'production' }}" >> $GITHUB_OUTPUT
+          echo "staging-success=${{ (steps.staging-upload.outcome == 'success' && steps.staging-upload-repo-wide.outcome == 'success' && steps.staging-upload-with-variant.outcome == 'success' && (inputs.environment-type == 'staging' || inputs.environment-type == 'both')) || inputs.environment-type == 'production' }}" >> $GITHUB_OUTPUT
         else
-          echo "staging-success=${{ (steps.staging-upload.outcome == 'success' && steps.staging-upload-repo-wide.outcome == 'success' && steps.staging-upload-forked-pr.outcome == 'success' && (inputs.environment-type == 'staging' || inputs.environment-type == 'both')) || inputs.environment-type == 'production' }}" >> $GITHUB_OUTPUT
+          echo "staging-success=${{ (steps.staging-upload.outcome == 'success' && steps.staging-upload-repo-wide.outcome == 'success' && (inputs.environment-type == 'staging' || inputs.environment-type == 'both')) || inputs.environment-type == 'production' }}" >> $GITHUB_OUTPUT
         fi
 
     - name: Run tests on production
@@ -230,24 +212,6 @@ runs:
         --token ${{ inputs.production-api-token }} \
         --test-collection-id 4B2wfoEU
 
-    - name: Upload to production from a forked pull request
-      id: production-upload-forked-pr
-      if: always() && steps.production-test-run.outcome == 'success' && (inputs.environment-type == 'production' || inputs.environment-type == 'both')
-      env:
-        TRUNK_PUBLIC_API_ADDRESS: https://api.trunk.io
-      shell: bash
-      run: |
-        ./${{ inputs.cli-binary-location }} upload \
-        --org-url-slug trunk \
-        --junit-paths "${{ github.workspace }}/target/**/*junit.xml" \
-        --allow-forked-pr-uploads \
-        --use-uncloned-repo \
-        --repo-url https://github.com/trunk-io/flake-farm-staging-fork-prs.git \
-        --repo-head-sha ${{ github.sha }} \
-        --repo-head-branch refs/heads/main \
-        --repo-head-author-name "Trunk Smoke Test" \
-        --test-collection-id 4B2wfoEU
-
     # upload with variant should fail because we treat variant as a separate test
     - name: Upload to production with variant
       id: production-upload-with-variant
@@ -278,7 +242,7 @@ runs:
       shell: bash
       run: |
         if [ "${{ inputs.test-variants }}" == "true" ]; then
-          echo "production-success=${{ (steps.production-upload.outcome == 'success' && steps.production-upload-forked-pr.outcome == 'success' && steps.production-upload-with-variant.outcome == 'success' && (inputs.environment-type == 'production' || inputs.environment-type == 'both')) || inputs.environment-type == 'staging' }}" >> $GITHUB_OUTPUT
+          echo "production-success=${{ (steps.production-upload.outcome == 'success' && steps.production-upload-with-variant.outcome == 'success' && (inputs.environment-type == 'production' || inputs.environment-type == 'both')) || inputs.environment-type == 'staging' }}" >> $GITHUB_OUTPUT
         else
-          echo "production-success=${{ (steps.production-upload.outcome == 'success' && steps.production-upload-forked-pr.outcome == 'success' && (inputs.environment-type == 'production' || inputs.environment-type == 'both')) || inputs.environment-type == 'staging' }}" >> $GITHUB_OUTPUT
+          echo "production-success=${{ (steps.production-upload.outcome == 'success' && (inputs.environment-type == 'production' || inputs.environment-type == 'both')) || inputs.environment-type == 'staging' }}" >> $GITHUB_OUTPUT
         fi

@@ -8,7 +8,7 @@ use http::StatusCode;
 use tokio::time::{self, Instant};
 use tokio_retry::{Action, strategy::ExponentialBackoff};
 
-use crate::client::{NOT_FOUND_CONTEXT, UNAUTHORIZED_CONTEXT};
+use crate::client::UNAUTHORIZED_CONTEXT;
 
 // Tokio-retry uses base ^ retry * factor formula.
 // This will give us 2s, 4s, 8s, 16s, 32s
@@ -104,7 +104,6 @@ impl AbortableRetry for anyhow::Error {
     fn should_retry(&self) -> bool {
         let self_text = format!("{self}");
         !self_text.contains(UNAUTHORIZED_CONTEXT)
-            && !self_text.contains(NOT_FOUND_CONTEXT)
             && self.chain().fold(true, |acc: bool, cause| {
                 let cause_should_retry =
                     if let Some(reqwest_error) = cause.downcast_ref::<reqwest::Error>() {
@@ -280,7 +279,7 @@ mod tests {
         RETRY_COUNT_DEFAULT, retry_with_deadline,
     };
     use crate::client::{
-        CheckNotFound, CheckUnauthorized, ClientErrorExplanation, StatusCodeHelp, status_code_help,
+        CheckUnauthorized, ClientErrorExplanation, StatusCodeHelp, status_code_help,
     };
     #[derive(Debug, Serialize, Clone, Deserialize, PartialEq, Eq)]
     struct EmptyResponse {}
@@ -476,7 +475,6 @@ mod tests {
                     response,
                     StatusCodeHelp {
                         check_unauthorized: CheckUnauthorized::DoNotCheck,
-                        check_not_found: CheckNotFound::Check,
                         create_error_message: |_e| String::from("Test message"),
                         api_host: "mock_host",
                         org_url_slug: "mock_url_slug",
@@ -503,7 +501,6 @@ mod tests {
             Response::from(http_response),
             StatusCodeHelp {
                 check_unauthorized: CheckUnauthorized::Check,
-                check_not_found: CheckNotFound::Check,
                 create_error_message: |_e| String::from("Test message"),
                 api_host: "mock_host",
                 org_url_slug: "mock_url_slug",
@@ -519,7 +516,7 @@ mod tests {
 
     #[tokio::test]
     async fn carries_the_api_client_error_message() {
-        let body = json!({"code": "SOME_CODE", "message": "Pass --test-collection-id."});
+        let body = json!({"error": {"code": "SOME_CODE", "message": "Pass --test-collection-id."}});
         let error = status_code_help_for(400, body.to_string()).await;
 
         assert_eq!(error.to_string(), "Pass --test-collection-id.");
@@ -543,8 +540,8 @@ mod tests {
     #[tokio::test]
     async fn names_the_code_when_the_api_sends_no_message() {
         for body in [
-            json!({"code": "SOME_CODE"}),
-            json!({"code": "SOME_CODE", "message": "  "}),
+            json!({"error": {"code": "SOME_CODE"}}),
+            json!({"error": {"code": "SOME_CODE", "message": "  "}}),
         ] {
             let error = status_code_help_for(400, body.to_string()).await;
 
@@ -564,7 +561,7 @@ mod tests {
 
     #[tokio::test]
     async fn truncates_an_overlong_client_error_message() {
-        let body = json!({"code": "SOME_CODE", "message": "é".repeat(3000)});
+        let body = json!({"error": {"code": "SOME_CODE", "message": "é".repeat(3000)}});
         let error = status_code_help_for(400, body.to_string()).await;
 
         assert_eq!(error.to_string(), format!("{}…", "é".repeat(2048)));
@@ -574,7 +571,8 @@ mod tests {
     async fn leaves_a_body_without_a_code_or_message_unexplained() {
         for body in [
             json!({}).to_string(),
-            json!({"code": " ", "message": ""}).to_string(),
+            json!({"error": {"code": " ", "message": ""}}).to_string(),
+            json!({"code": "SOME_CODE", "message": "Not the envelope."}).to_string(),
             String::from("Bad Request"),
             String::new(),
         ] {
