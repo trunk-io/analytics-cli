@@ -4,6 +4,7 @@ use std::path::PathBuf;
 use std::sync::mpsc::Sender;
 
 use api::client::{ApiClient, ApiErrorEndpoint, GithubForkPullRequest};
+use api::credential::{LegacyTokenRefused, TokenKind};
 use api::urls::TestCaseGuidScope;
 use bundle::{BundleMeta, BundlerUtil, QuarantineResolutionMode, unzip_tarball};
 use clap::{ArgAction, Args};
@@ -101,7 +102,7 @@ pub struct UploadArgs {
         long,
         required_unless_present = "allow_forked_pr_uploads",
         env = constants::TRUNK_API_TOKEN_ENV,
-        help = "Organization token. Defaults to TRUNK_API_TOKEN env var."
+        help = "A Trunk v2 API key (trunk_v2_...) with the Upload test results permission, from Settings → Developer → API Keys in the Trunk web app; or a Trunk JWT, which `trunk flakytests upload` sets for you from a key stored with `trunk auth api-key set` and which can have about a minute left, so it suits only the upload itself. The organization token is refused: pin analytics-cli 0.17.x to keep using it. Defaults to TRUNK_API_TOKEN env var."
     )]
     pub token: Option<String>,
     /// Opting in explicitly is what keeps a job whose token secret failed to interpolate failing
@@ -516,7 +517,8 @@ pub async fn run_upload(
         upload_args.allow_forked_pr_uploads,
         &upload_args.org_url_slug,
         render_sender,
-    )?;
+    )
+    .map_err(refusal_interrupts)?;
     if upload_args.allow_forked_pr_uploads
         && let Some(pull_request) = env::var("GITHUB_EVENT_PATH")
             .ok()
@@ -749,6 +751,25 @@ pub async fn run_upload(
         dry_run: upload_args.dry_run,
         disable_quarantining: upload_args.disable_quarantining,
     })
+}
+
+/// Refuses a token that is neither a v2 API key nor a Trunk JWT, before the run calls Trunk or, for
+/// `test`, runs its tests. An InterruptingError, since any other error fails open: a green step
+/// whose results go nowhere.
+pub fn refuse_a_legacy_token(token: Option<&str>) -> anyhow::Result<()> {
+    match token.filter(|token| !token.trim().is_empty()) {
+        Some(token) if TokenKind::of(token) == TokenKind::Legacy => {
+            Err(refusal_interrupts(anyhow::Error::new(LegacyTokenRefused)))
+        }
+        _ => Ok(()),
+    }
+}
+
+fn refusal_interrupts(error: anyhow::Error) -> anyhow::Error {
+    match error.downcast_ref::<LegacyTokenRefused>() {
+        Some(refusal) => anyhow::anyhow!(InterruptingError::new(refusal.to_string())),
+        None => error,
+    }
 }
 
 pub fn missing_test_collection_id_message(caller: UploadCaller) -> String {

@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 
-use api::client::{ApiClient, GithubForkPullRequest};
+use api::client::{ApiClient, ClientErrorExplanation, GithubForkPullRequest};
+use api::credential::LegacyTokenRefused;
 use api::message;
 use api::quarantine::{QuarantineLookup, QuarantinedTestSet};
 use api::urls::TestCaseGuidScope;
@@ -41,7 +42,7 @@ fn client(state: &SharedMockServerState, token: Option<&str>) -> ApiClient {
 }
 
 fn v2_client(state: &SharedMockServerState) -> ApiClient {
-    client(state, Some("org-key"))
+    client(state, Some("trunk_v2_org-key"))
 }
 
 fn uris(state: &SharedMockServerState) -> Vec<String> {
@@ -258,7 +259,7 @@ async fn creates_a_v2_upload() {
     );
     assert_eq!(
         authorization(&state),
-        vec![Some(String::from("Bearer org-key"))]
+        vec![Some(String::from("Bearer trunk_v2_org-key"))]
     );
     assert_eq!(
         bodies(&state),
@@ -306,7 +307,7 @@ async fn looks_up_failures_in_batches_of_2000() {
     );
     assert_eq!(
         authorization(&state),
-        vec![Some(String::from("Bearer org-key")); 2]
+        vec![Some(String::from("Bearer trunk_v2_org-key")); 2]
     );
 }
 
@@ -675,7 +676,8 @@ async fn a_fork_pr_run_without_github_token_makes_no_request() {
 #[tokio::test]
 async fn a_run_with_a_token_never_swaps() {
     let state = serve(vec![login_route((StatusCode::OK, LOGIN)), uploads_route()]).await;
-    let mut client = ApiClient::new(Some(String::from("org-key")), true, "acme", None).unwrap();
+    let mut client =
+        ApiClient::new(Some(String::from("trunk_v2_org-key")), true, "acme", None).unwrap();
     client.api_host.clone_from(&state.host);
     client.set_github_fork_pull_request(fork_pull_request(Some("ghs_job-token")));
 
@@ -697,8 +699,221 @@ async fn a_run_with_a_token_never_swaps() {
             .collect::<Vec<_>>(),
         vec![(
             format!("/v2/test-collections/{SHORT_ID}/uploads"),
-            Some(String::from("Bearer org-key")),
+            Some(String::from("Bearer trunk_v2_org-key")),
             None
         )]
     );
+}
+
+// {"alg":"RS256","typ":"JWT"}.{"sub":"org-token:1","exp":1762880400}.signature, which expired at
+// 2025-11-11T17:00:00Z.
+const EXPIRED_JWT: &str = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJvcmctdG9rZW46MSIsImV4cCI6MTc2Mjg4MDQwMH0.c2lnbmF0dXJl";
+
+fn credential_headers(
+    state: &SharedMockServerState,
+) -> Vec<(String, Option<String>, Option<String>)> {
+    state
+        .route_requests
+        .lock()
+        .unwrap()
+        .iter()
+        .map(|request| {
+            (
+                request.uri.split('?').next().unwrap().to_string(),
+                request.authorization.clone(),
+                request.trunk_token.clone(),
+            )
+        })
+        .collect()
+}
+
+#[tokio::test]
+async fn sends_a_jwt_on_x_trunk_token_and_never_as_a_bearer() {
+    let state = serve(vec![
+        quarantine_status_route(true),
+        all_quarantined_tests_route(true),
+        uploads_route(),
+    ])
+    .await;
+    let client = client(&state, Some(EXPIRED_JWT));
+
+    client
+        .get_quarantining_config(&quarantine_request(vec![failure(0)]))
+        .await
+        .unwrap();
+    client
+        .get_quarantined_test_set(&quarantine_request(vec![]))
+        .await
+        .unwrap();
+    client
+        .create_bundle_upload(&upload_request())
+        .await
+        .unwrap();
+
+    let with_jwt = |path: String| (path, None, Some(String::from(EXPIRED_JWT)));
+    assert_eq!(
+        credential_headers(&state),
+        vec![
+            with_jwt(format!("/v2/test-collections/{SHORT_ID}/quarantine-status")),
+            with_jwt(format!(
+                "/v2/test-collections/{SHORT_ID}/all-quarantined-tests"
+            )),
+            with_jwt(format!(
+                "/v2/test-collections/{SHORT_ID}/all-quarantined-tests"
+            )),
+            with_jwt(format!("/v2/test-collections/{SHORT_ID}/uploads")),
+        ]
+    );
+}
+
+#[tokio::test]
+async fn sends_an_api_key_as_a_bearer_and_never_on_x_trunk_token() {
+    let state = serve(vec![quarantine_status_route(true), uploads_route()]).await;
+    // Surrounding whitespace, as a secret pasted with a newline has, is not sent.
+    let client = client(&state, Some(" trunk_v2_org-key\n"));
+
+    client
+        .get_quarantining_config(&quarantine_request(vec![failure(0)]))
+        .await
+        .unwrap();
+    client
+        .create_bundle_upload(&upload_request())
+        .await
+        .unwrap();
+
+    let with_key = |path: String| (path, Some(String::from("Bearer trunk_v2_org-key")), None);
+    assert_eq!(
+        credential_headers(&state),
+        vec![
+            with_key(format!("/v2/test-collections/{SHORT_ID}/quarantine-status")),
+            with_key(format!("/v2/test-collections/{SHORT_ID}/uploads")),
+        ]
+    );
+}
+
+#[test]
+fn refuses_an_organization_token_before_any_call() {
+    for token in ["0123456789abcdef0123456789abcdef", "org.token", "a.b.c.d"] {
+        let error = ApiClient::new(Some(String::from(token)), false, "acme", None)
+            .err()
+            .unwrap_or_else(|| panic!("{token:?} must be refused"));
+
+        assert_eq!(
+            error.downcast_ref::<LegacyTokenRefused>(),
+            Some(&LegacyTokenRefused),
+            "{token:?}"
+        );
+        let message = error.to_string();
+        for part in [
+            "analytics-cli 1.0.0 needs a v2 API key",
+            "Settings → Developer → API Keys",
+            "Upload test results",
+            "pin analytics-cli 0.17.x",
+        ] {
+            assert!(message.contains(part), "{message}");
+        }
+    }
+}
+
+fn refusing_route(
+    route: &'static str,
+    status: StatusCode,
+    body: &'static str,
+) -> (&'static str, MethodRouter<SharedMockServerState>) {
+    (route, post(move || async move { (status, body) }))
+}
+
+const INSUFFICIENT_PERMISSIONS: &str = r#"{"error":{"code":"INSUFFICIENT_PERMISSIONS","message":"You do not have permission to upload test results in this organization"}}"#;
+
+/// Each CLI endpoint's error for `status` and `body`, called with `token`.
+async fn refusals(token: &str, status: StatusCode, body: &'static str) -> Vec<String> {
+    let state = serve(vec![
+        refusing_route(UPLOADS_ROUTE, status, body),
+        refusing_route(STATUS_ROUTE, status, body),
+        refusing_route(LIST_ROUTE, status, body),
+    ])
+    .await;
+    let client = client(&state, Some(token));
+    vec![
+        client
+            .create_bundle_upload(&upload_request())
+            .await
+            .unwrap_err(),
+        client
+            .get_quarantining_config(&quarantine_request(vec![failure(0)]))
+            .await
+            .unwrap_err(),
+        client
+            .get_quarantined_test_set(&quarantine_request(vec![]))
+            .await
+            .unwrap_err(),
+    ]
+    .into_iter()
+    .map(|error| {
+        error
+            .downcast_ref::<ClientErrorExplanation>()
+            .and_then(|explanation| explanation.message.clone())
+            .unwrap_or_default()
+    })
+    .collect()
+}
+
+#[tokio::test]
+async fn names_the_missing_upload_permission_on_a_403() {
+    for (token, refused) in [
+        ("trunk_v2_org-key", "Trunk refused this API key: it lacks"),
+        (
+            EXPIRED_JWT,
+            "Trunk refused this JWT: the API key it was minted from lacks",
+        ),
+    ] {
+        for message in refusals(token, StatusCode::FORBIDDEN, INSUFFICIENT_PERMISSIONS).await {
+            assert!(message.starts_with(refused), "{message}");
+            assert!(
+                message.contains(
+                    "the Upload test results (`upload_test_results`) permission group. Grant it by editing the key in the Trunk web app under Settings → Developer → API Keys."
+                ),
+                "{message}"
+            );
+        }
+    }
+}
+
+#[tokio::test]
+async fn keeps_the_api_explanation_of_any_other_403() {
+    let body = r#"{"error":{"code":"SOMETHING_ELSE","message":"Not for you."}}"#;
+    assert_eq!(
+        refusals("trunk_v2_org-key", StatusCode::FORBIDDEN, body).await,
+        vec![String::from("Not for you."); 3]
+    );
+}
+
+#[tokio::test]
+async fn says_a_jwt_has_expired_on_a_401() {
+    // The edge refuses an expired JWT before public-api sees it, with no envelope.
+    for message in refusals(EXPIRED_JWT, StatusCode::UNAUTHORIZED, "Jwt is expired").await {
+        assert!(
+            message.starts_with(
+                "Trunk did not accept this JWT: it is expired or invalid (it expired at 2025-11-11T17:00:00Z)."
+            ),
+            "{message}"
+        );
+        for part in [
+            "get a new one right before the upload",
+            "pass a v2 API key with --token or TRUNK_API_TOKEN",
+        ] {
+            assert!(message.contains(part), "{message}");
+        }
+    }
+}
+
+#[tokio::test]
+async fn says_an_api_key_was_not_accepted_on_a_401() {
+    let body = r#"{"error":{"code":"INVALID_TOKEN","message":"Invalid token"}}"#;
+    for message in refusals("trunk_v2_org-key", StatusCode::UNAUTHORIZED, body).await {
+        assert!(
+            message.starts_with("Trunk did not accept this API key"),
+            "{message}"
+        );
+    }
 }

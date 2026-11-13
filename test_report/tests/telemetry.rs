@@ -39,7 +39,7 @@ fn assert_telemetry_quarantine_query_result(
 fn set_mock_api_env(api_host: &str) {
     unsafe {
         env::set_var(TRUNK_PUBLIC_API_ADDRESS_ENV, api_host);
-        env::set_var(TRUNK_API_TOKEN_ENV, "test-token");
+        env::set_var(TRUNK_API_TOKEN_ENV, "trunk_v2_test-token");
     }
 }
 

@@ -10,6 +10,7 @@ use serde::de::DeserializeOwned;
 use tokio::fs;
 
 use crate::call_api::CallApi;
+use crate::credential::{self, LegacyTokenRefused, TokenKind};
 use crate::message;
 use crate::quarantine::{QuarantineLookup, QuarantinedTestSet};
 
@@ -53,14 +54,16 @@ pub struct ApiClient {
     /// Holds the run's credential: an API token from the start, or a fork pull request's Trunk
     /// login once it has one.
     trunk_api_v2_client: Option<Client>,
+    /// What `trunk_api_v2_client` presents, for the message when Trunk refuses it.
+    credential: Option<RunCredential>,
     /// `--allow-forked-pr-uploads` with no token.
     credential_free: bool,
     /// A credential-free GitHub Actions fork PR run, which swaps its `GITHUB_TOKEN` for a login.
     github_fork_pull_request: Option<GithubForkPullRequest>,
     /// Why a fork pull request's login failed, for the error every later call returns.
     github_fork_login_failure: Option<String>,
-    /// The run's API token, for the CLI telemetry route; `None` without one (a fork pull request
-    /// has no token, and the gateway refuses its GitHub Actions login there).
+    /// The run's v2 API key or Trunk JWT, for the CLI telemetry route; `None` without one (a fork
+    /// pull request has neither, and the gateway refuses its GitHub Actions login there).
     telemetry_client: Option<Client>,
     org_url_slug: String,
     render_sender: Option<Sender<DisplayMessage>>,
@@ -75,11 +78,23 @@ pub struct GithubForkPullRequest {
     pub github_token: Option<String>,
 }
 
-/// What a v2 call presents. The gateway takes only an API key on `Authorization`, so a Trunk login
+/// What a v2 call presents. The gateway takes only an API key on `Authorization`, so a Trunk JWT
 /// goes on `x-trunk-token` and the two are never sent together.
 pub(crate) enum V2Credential {
     ApiKey(String),
-    TrunkLogin(String),
+    Jwt(String),
+}
+
+/// Where the run's credential came from.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum RunCredential {
+    ApiKey,
+    /// A Trunk JWT passed as the token, with its `exp` when it has one.
+    Jwt {
+        expires_at: Option<chrono::DateTime<chrono::Utc>>,
+    },
+    /// A fork pull request's GitHub Actions login.
+    GithubActionsLogin,
 }
 
 impl V2Credential {
@@ -96,10 +111,10 @@ impl V2Credential {
                 format!("Bearer {token}"),
                 "Trunk API token is not ASCII",
             ),
-            Self::TrunkLogin(jwt) => (
+            Self::Jwt(jwt) => (
                 Self::TRUNK_TOKEN_HEADER,
                 jwt.clone(),
-                "Trunk login is not ASCII",
+                "Trunk JWT is not ASCII",
             ),
         };
         let mut value = HeaderValue::from_str(&value).map_err(|_| anyhow::Error::msg(error))?;
@@ -130,6 +145,8 @@ impl ApiClient {
     const TRUNK_TELEMETRY_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(1);
     const TRUNK_ALLOW_FORKED_PR_UPLOADS_HEADER: &'static str = "x-trunk-allow-forked-pr-uploads";
 
+    /// Refuses a token that is neither a v2 API key nor a Trunk JWT with `LegacyTokenRefused`,
+    /// before any call.
     pub fn new(
         api_token: Option<String>,
         allow_forked_pr_uploads: bool,
@@ -138,7 +155,9 @@ impl ApiClient {
     ) -> anyhow::Result<ApiClient> {
         let org_url_slug = String::from(org_url_slug.as_ref());
 
-        let api_token = api_token.filter(|token| !token.trim().is_empty());
+        let api_token = api_token
+            .map(|token| token.trim().to_owned())
+            .filter(|token| !token.is_empty());
         if api_token.is_none() && !allow_forked_pr_uploads {
             return Err(anyhow::anyhow!(
                 "Either a Trunk API token or --allow-forked-pr-uploads is required."
@@ -148,18 +167,30 @@ impl ApiClient {
         let api_host = get_api_host();
         tracing::debug!("Using public api address {}", api_host);
 
-        let trunk_api_v2_client = api_token
-            .clone()
-            .map(|token| V2Credential::ApiKey(token).client())
-            .transpose()?;
+        let (trunk_api_v2_client, telemetry_client, credential) = match api_token.clone() {
+            None => (None, None, None),
+            Some(token) => match TokenKind::of(&token) {
+                TokenKind::ApiKey => {
+                    let v2 = V2Credential::ApiKey(token);
+                    (
+                        Some(v2.client()?),
+                        Some(v2.client_with_timeout(Self::TRUNK_TELEMETRY_TIMEOUT)?),
+                        Some(RunCredential::ApiKey),
+                    )
+                }
+                TokenKind::Jwt => {
+                    let expires_at = credential::jwt_expiry(&token);
+                    let v2 = V2Credential::Jwt(token);
+                    (
+                        Some(v2.client()?),
+                        Some(v2.client_with_timeout(Self::TRUNK_TELEMETRY_TIMEOUT)?),
+                        Some(RunCredential::Jwt { expires_at }),
+                    )
+                }
+                TokenKind::Legacy => return Err(anyhow::Error::new(LegacyTokenRefused)),
+            },
+        };
         let credential_free = allow_forked_pr_uploads && api_token.is_none();
-
-        let telemetry_client = api_token
-            .clone()
-            .map(|token| {
-                V2Credential::ApiKey(token).client_with_timeout(Self::TRUNK_TELEMETRY_TIMEOUT)
-            })
-            .transpose()?;
 
         let mut s3_client_default_headers = HeaderMap::new();
         s3_client_default_headers.append(
@@ -174,6 +205,7 @@ impl ApiClient {
             api_host,
             s3_client,
             trunk_api_v2_client,
+            credential,
             credential_free,
             github_fork_pull_request: None,
             github_fork_login_failure: None,
@@ -344,8 +376,8 @@ pub(crate) enum CheckUnauthorized {
 }
 
 pub(crate) const UNAUTHORIZED_CONTEXT: &str = concat!(
-    "Your Trunk token may be incorrect - find it on the Trunk app ",
-    "(Settings -> Manage Organization -> Organization API Token -> View).",
+    "Your Trunk API key may be incorrect - find it in the Trunk app ",
+    "(Settings -> Developer -> API Keys).",
 );
 
 /// The API's explanation of a client error, kept in the error chain so the error report can
@@ -559,8 +591,13 @@ mod tests {
 
         let state = mock_server_builder.spawn_mock_server().await;
 
-        let mut api_client =
-            ApiClient::new(Some(String::from("mock-token")), false, "mock-org", None).unwrap();
+        let mut api_client = ApiClient::new(
+            Some(String::from("trunk_v2_mock-token")),
+            false,
+            "mock-org",
+            None,
+        )
+        .unwrap();
         api_client.api_host.clone_from(&state.host);
 
         let error = api_client
@@ -591,8 +628,13 @@ mod tests {
 
         let state = mock_server_builder.spawn_mock_server().await;
 
-        let mut api_client =
-            ApiClient::new(Some(String::from("mock-token")), false, "mock-org", None).unwrap();
+        let mut api_client = ApiClient::new(
+            Some(String::from("trunk_v2_mock-token")),
+            false,
+            "mock-org",
+            None,
+        )
+        .unwrap();
         api_client.api_host.clone_from(&state.host);
 
         let error = api_client
@@ -618,8 +660,13 @@ mod tests {
 
         let state = mock_server_builder.spawn_mock_server().await;
 
-        let mut api_client =
-            ApiClient::new(Some(String::from("mock-token")), false, "mock-org", None).unwrap();
+        let mut api_client = ApiClient::new(
+            Some(String::from("trunk_v2_mock-token")),
+            false,
+            "mock-org",
+            None,
+        )
+        .unwrap();
         api_client.api_host.clone_from(&state.host);
 
         let error = api_client
@@ -642,7 +689,15 @@ mod tests {
         // A blank token is treated as absent.
         assert!(ApiClient::new(Some(String::from("   ")), false, "mock-org", None).is_err());
 
-        assert!(ApiClient::new(Some(String::from("token")), false, "mock-org", None).is_ok());
+        assert!(
+            ApiClient::new(
+                Some(String::from("trunk_v2_token")),
+                false,
+                "mock-org",
+                None
+            )
+            .is_ok()
+        );
     }
 
     #[test]

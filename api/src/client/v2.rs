@@ -4,13 +4,16 @@ use base64::{Engine as _, engine::general_purpose::STANDARD};
 use reqwest::{Client, StatusCode};
 
 use super::{
-    ApiClient, CheckUnauthorized, GithubForkPullRequest, StatusCodeHelp, V2Credential,
-    status_code_help,
+    ApiClient, CheckUnauthorized, ClientErrorExplanation, GithubForkPullRequest, RunCredential,
+    StatusCodeHelp, V2Credential, status_code_help,
 };
 use crate::call_api::CallApi;
 use crate::message;
 use crate::quarantine::{QuarantineLookup, QuarantinedTestSet};
 use crate::urls::TestCaseGuidScope;
+
+const INSUFFICIENT_PERMISSIONS: &str = "INSUFFICIENT_PERMISSIONS";
+const MISSING_UPLOAD_PERMISSION: &str = "lacks the Upload test results (`upload_test_results`) permission group. Grant it by editing the key in the Trunk web app under Settings → Developer → API Keys.";
 
 impl ApiClient {
     const QUARANTINE_STATUS_MAX_IDENTIFIERS: usize = 2_000;
@@ -29,7 +32,10 @@ impl ApiClient {
             return;
         };
         match self.github_actions_login(pull_request).await {
-            Ok(client) => self.trunk_api_v2_client = Some(client),
+            Ok(client) => {
+                self.trunk_api_v2_client = Some(client);
+                self.credential = Some(RunCredential::GithubActionsLogin);
+            }
             Err(reason) => {
                 tracing::warn!(
                     "Could not log in to Trunk for this fork pull request ({reason}); test results will not be uploaded"
@@ -88,9 +94,63 @@ impl ApiClient {
             .filter(|login| !login.jwt.is_empty())
             .ok_or("Trunk's answer could not be read")?;
         tracing::debug!("Logged in to the Trunk API v2 until {}", login.expires_at);
-        V2Credential::TrunkLogin(login.jwt)
+        V2Credential::Jwt(login.jwt)
             .client()
             .map_err(|error| error.to_string())
+    }
+
+    /// Puts the CLI's own explanation on a 401 or a 403 the run's credential earned, in place of a
+    /// bare status: what is wrong with the key or JWT, and how to fix it.
+    fn explain_credential_refusal(&self, error: anyhow::Error) -> anyhow::Error {
+        let status = error
+            .root_cause()
+            .downcast_ref::<reqwest::Error>()
+            .and_then(reqwest::Error::status);
+        let code = error
+            .downcast_ref::<ClientErrorExplanation>()
+            .and_then(|explanation| explanation.code.clone());
+        let insufficient_permissions = code.as_deref() == Some(INSUFFICIENT_PERMISSIONS);
+        let message = match (status, self.credential) {
+            (Some(StatusCode::FORBIDDEN), Some(RunCredential::ApiKey))
+                if insufficient_permissions =>
+            {
+                format!("Trunk refused this API key: it {MISSING_UPLOAD_PERMISSION}")
+            }
+            (Some(StatusCode::FORBIDDEN), Some(RunCredential::Jwt { .. }))
+                if insufficient_permissions =>
+            {
+                format!(
+                    "Trunk refused this JWT: the API key it was minted from {MISSING_UPLOAD_PERMISSION}"
+                )
+            }
+            (Some(StatusCode::FORBIDDEN), Some(RunCredential::GithubActionsLogin))
+                if insufficient_permissions =>
+            {
+                String::from(
+                    "Trunk refused this fork pull request's upload: the test collection must have forked-PR uploads enabled.",
+                )
+            }
+            (Some(StatusCode::UNAUTHORIZED), Some(RunCredential::Jwt { expires_at })) => {
+                let expired = match expires_at {
+                    Some(expires_at) if expires_at <= chrono::Utc::now() => format!(
+                        " (it expired at {})",
+                        expires_at.to_rfc3339_opts(chrono::SecondsFormat::Secs, true)
+                    ),
+                    _ => String::new(),
+                };
+                format!(
+                    "Trunk did not accept this JWT: it is expired or invalid{expired}. A Trunk JWT lasts at most 15 minutes, and the one `trunk flakytests upload` passes can have about a minute left, so get a new one right before the upload, or pass a v2 API key with --token or TRUNK_API_TOKEN instead."
+                )
+            }
+            (Some(StatusCode::UNAUTHORIZED), Some(RunCredential::ApiKey)) => String::from(
+                "Trunk did not accept this API key: it may be mistyped, revoked or deleted. Check it in the Trunk web app under Settings → Developer → API Keys.",
+            ),
+            _ => return error,
+        };
+        error.context(ClientErrorExplanation {
+            code,
+            message: Some(message),
+        })
     }
 
     fn v2_client(&self) -> anyhow::Result<&Client> {
@@ -160,7 +220,8 @@ impl ApiClient {
             render_sender: self.render_sender.clone(),
         }
         .call_api()
-        .await?;
+        .await
+        .map_err(|error| self.explain_credential_refusal(error))?;
 
         let id_v2 = STANDARD.encode(serde_json::to_vec(&message::BundleUploadIdV2 {
             id: &upload.id,
@@ -254,6 +315,7 @@ impl ApiClient {
         }
         .call_api()
         .await
+        .map_err(|error| self.explain_credential_refusal(error))
     }
 
     pub(super) async fn get_all_quarantined_tests(
@@ -310,7 +372,8 @@ impl ApiClient {
                 render_sender: self.render_sender.clone(),
             }
             .call_api()
-            .await?;
+            .await
+            .map_err(|error| self.explain_credential_refusal(error))?;
             guids.extend(page.data.into_iter().map(|test| test.test_id));
             // Every page carries the same scope, so the first page's is the list's.
             let (scope, quarantine_enabled) = scope.get_or_insert((

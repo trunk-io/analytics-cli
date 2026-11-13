@@ -6,6 +6,8 @@ use constants::{
 };
 
 const DEFAULT_JUNIT_PATHS: &str = "./*";
+/// A v2 API key, which `--token` takes unless a test passes another with `token`.
+pub const DEFAULT_TOKEN: &str = "trunk_v2_test-token";
 /// Set through the environment, so a test passing `--test-collection-id` overrides it.
 pub const DEFAULT_TEST_COLLECTION_ID: &str = "dEfault1";
 
@@ -30,6 +32,7 @@ pub struct UploadArgs {
     validation_report: Option<String>,
     dry_run: bool,
     forked_pr: bool,
+    token: String,
 }
 
 impl UploadArgs {
@@ -55,6 +58,7 @@ impl UploadArgs {
             validation_report: None,
             dry_run: false,
             forked_pr: false,
+            token: String::from(DEFAULT_TOKEN),
         }
     }
 
@@ -62,7 +66,7 @@ impl UploadArgs {
         let auth_args = if self.forked_pr {
             vec![String::from("--allow-forked-pr-uploads")]
         } else {
-            vec![String::from("--token"), String::from("test-token")]
+            vec![String::from("--token"), self.token.clone()]
         };
         vec![String::from("--org-url-slug"), String::from("test-org")]
             .into_iter()
@@ -568,6 +572,16 @@ impl<'b> CommandBuilder<'b> {
             &mut self.command_type
         {
             upload_args.forked_pr = true;
+        }
+        self
+    }
+
+    /// Passes `token` with `--token` in place of `DEFAULT_TOKEN`.
+    pub fn token(&mut self, token: &str) -> &mut Self {
+        if let CommandType::Upload { upload_args, .. } | CommandType::Test { upload_args, .. } =
+            &mut self.command_type
+        {
+            upload_args.token = String::from(token);
         }
         self
     }
