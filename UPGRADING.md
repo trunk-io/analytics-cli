@@ -48,7 +48,7 @@ analytics-cli 1.0.0 uses only the Trunk API v2. It uploads only to test collecti
 
 ### Network
 
-1.0.0 sends its telemetry to `api.trunk.io` (`/v2/cloud/telemetry/v1/logs`), the host it already uploads to, instead of `telemetry.trunk.io`. A firewall allowlist needs only `api.trunk.io` and the storage host uploads go to.
+1.0.0 sends its telemetry to `api.trunk.io` (`/v2/telemetry/v1/logs`), the host it already uploads to, instead of `telemetry.trunk.io`. A firewall allowlist needs only `api.trunk.io` and the storage host uploads go to.
 
 ## Test-runner plugins
 
