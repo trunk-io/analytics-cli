@@ -50,7 +50,6 @@ impl std::error::Error for ApiErrorEndpoint {}
 
 pub struct ApiClient {
     pub api_host: String,
-    pub telemetry_host: String,
     s3_client: Client,
     trunk_api_client: Client,
     /// Holds the run's v2 credential: an API token from the start, or a fork pull request's Trunk
@@ -60,7 +59,9 @@ pub struct ApiClient {
     credential_free: bool,
     /// A credential-free GitHub Actions fork PR run, which on v2 swaps its `GITHUB_TOKEN` for a login.
     github_fork_pull_request: Option<GithubForkPullRequest>,
-    telemetry_client: Client,
+    /// The run's API token, for the CLI telemetry route; `None` without one (a fork pull request
+    /// has no token, and the gateway refuses its GitHub Actions login there).
+    telemetry_client: Option<Client>,
     version_path_prefix: String,
     org_url_slug: String,
     render_sender: Option<Sender<DisplayMessage>>,
@@ -88,6 +89,10 @@ impl V2Credential {
     const TRUNK_TOKEN_HEADER: HeaderName = HeaderName::from_static("x-trunk-token");
 
     fn client(&self) -> anyhow::Result<Client> {
+        self.client_with_timeout(ApiClient::TRUNK_API_TIMEOUT)
+    }
+
+    fn client_with_timeout(&self, timeout: std::time::Duration) -> anyhow::Result<Client> {
         let (name, value, error) = match self {
             Self::ApiKey(token) => (
                 header::AUTHORIZATION,
@@ -109,7 +114,7 @@ impl V2Credential {
         );
         headers.append(name, value);
         Ok(Client::builder()
-            .timeout(ApiClient::TRUNK_API_TIMEOUT)
+            .timeout(timeout)
             .default_headers(headers)
             .build()?)
     }
@@ -160,18 +165,6 @@ impl ApiClient {
         let api_host = get_api_host();
         tracing::debug!("Using public api address {}", api_host);
 
-        let telemetry_host = if api_host.contains("https://") {
-            format!(
-                "https://telemetry.{}",
-                api_host.split("https://").nth(1).unwrap_or_default()
-            )
-        } else {
-            // If the api_host is not https, we default to the api host
-            // this happens when the api_host is localhost and we are running
-            // inside of test environments
-            api_host.clone()
-        };
-
         let mut trunk_api_client_default_headers = HeaderMap::new();
         trunk_api_client_default_headers.append(
             header::CONTENT_TYPE,
@@ -199,21 +192,12 @@ impl ApiClient {
             .transpose()?;
         let credential_free = allow_forked_pr_uploads && api_token.is_none();
 
-        let mut telemetry_client_default_headers = HeaderMap::new();
-        telemetry_client_default_headers.append(
-            header::CONTENT_TYPE,
-            HeaderValue::from_static("application/x-protobuf"),
-        );
-
-        if let Some(api_token_header_value) = api_token_header_value {
-            telemetry_client_default_headers
-                .append(Self::TRUNK_API_TOKEN_HEADER, api_token_header_value);
-        }
-
-        let telemetry_client = Client::builder()
-            .timeout(Self::TRUNK_TELEMETRY_TIMEOUT)
-            .default_headers(telemetry_client_default_headers)
-            .build()?;
+        let telemetry_client = api_token
+            .clone()
+            .map(|token| {
+                V2Credential::ApiKey(token).client_with_timeout(Self::TRUNK_TELEMETRY_TIMEOUT)
+            })
+            .transpose()?;
 
         let mut s3_client_default_headers = HeaderMap::new();
         s3_client_default_headers.append(
@@ -231,7 +215,6 @@ impl ApiClient {
         };
 
         Ok(ApiClient {
-            telemetry_host,
             api_host,
             s3_client,
             trunk_api_client,
@@ -443,18 +426,25 @@ impl ApiClient {
         &self,
         request: &message::TelemetryUploadMetricsRequest,
     ) -> anyhow::Result<()> {
+        let Some(telemetry_client) = &self.telemetry_client else {
+            return Ok(());
+        };
+        let environment = if self.api_host == DEFAULT_ORIGIN {
+            "production"
+        } else {
+            "staging"
+        };
         CallApi {
             action: || async {
                 if std::env::var("DISABLE_TELEMETRY").is_ok() {
                     return Ok(());
                 }
-                let response = self
-                    .telemetry_client
-                    .post(format!(
-                        "{}{}/flakytests-cli/upload-metrics",
-                        self.telemetry_host, self.version_path_prefix
+                let response = telemetry_client
+                    .post(format!("{}{}", self.api_host, crate::otlp::CLI_TELEMETRY_PATH))
+                    .json(&crate::otlp::upload_metrics_logs(
+                        &request.upload_metrics,
+                        environment,
                     ))
-                    .body(prost::Message::encode_to_vec(&request.upload_metrics))
                     .send()
                     .await?;
 
