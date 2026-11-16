@@ -31,7 +31,7 @@ use trunk_analytics_cli::{
     context::gather_initial_test_context,
     error_report::ErrorReport,
     summary_output::{
-        ErrorSummary, NoticeKind, Quarantining, UploadCommand, UploadReport,
+        ErrorSummary, Quarantining, UploadCommand, UploadReport,
         json::{self, Report},
         text::SummaryFileText,
     },
@@ -857,11 +857,6 @@ impl MutTestReport {
                     Ok(upload_result) => {
                         // On stderr, as `write_summary_file` does: the gem's logs reach the
                         // console only at error level.
-                        for notice in &upload_result.notices {
-                            if notice.kind == NoticeKind::Deprecation {
-                                eprintln!("{}", notice.message);
-                            }
-                        }
                         if let Some(path) = &summary_output_file {
                             let mut report =
                                 UploadReport::new(&upload_result, UploadCommand::RSpec);
