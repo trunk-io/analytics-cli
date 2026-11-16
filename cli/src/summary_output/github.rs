@@ -117,7 +117,9 @@ fn failures_message(report: &UploadReport) -> String {
         Quarantining::DisabledViaCli => {
             Some("Quarantining was turned off with --disable-quarantining")
         }
-        Quarantining::DisabledViaApi => Some("Quarantining is turned off for this repo in Trunk"),
+        Quarantining::DisabledViaApi => {
+            Some("Quarantining is turned off for this test collection in Trunk")
+        }
         Quarantining::Checked | Quarantining::NotNeeded => None,
     };
     if let Some(reason) = reason {

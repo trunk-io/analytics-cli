@@ -141,7 +141,7 @@ pub enum Quarantining {
     NotNeeded,
     /// Turned off for this run with `--disable-quarantining`.
     DisabledViaCli,
-    /// Turned off for the repo in Trunk.
+    /// Turned off for the test collection in Trunk.
     DisabledViaApi,
     /// Trunk couldn't say which tests are quarantined, so no failed test counts as quarantined.
     LookupFailed,
