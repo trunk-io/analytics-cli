@@ -91,20 +91,29 @@ impl From<TestResult> for BindingsReport {
             test_build_information,
         }: TestResult,
     ) -> Self {
-        let parent_name_map: HashMap<String, Vec<BindingsTestCase>> = test_case_runs
-            .into_iter()
-            .map(BindingsTestCase::from)
-            .fold(HashMap::new(), |mut acc, testcase| {
-                if let Some(parent_name) = testcase.extra.get("parent_name") {
-                    if let Some(parent_name_vec) = acc.get_mut(parent_name) {
-                        parent_name_vec.push(testcase);
-                    } else {
-                        acc.insert(parent_name.to_string(), vec![testcase]);
+        // Suites keep the order their first test case appears in, so converting the same
+        // `TestResult` twice gives the same suite order. Ingestion hashes each run's
+        // position into its id, so a random order re-writes a redelivered upload's runs
+        // under new ids.
+        let (parent_names, _) = test_case_runs.into_iter().map(BindingsTestCase::from).fold(
+            (
+                Vec::<(String, Vec<BindingsTestCase>)>::new(),
+                HashMap::<String, usize>::new(),
+            ),
+            |(mut suites, mut index), testcase| {
+                if let Some(parent_name) = testcase.extra.get("parent_name").cloned() {
+                    match index.get(&parent_name) {
+                        Some(&i) => suites[i].1.push(testcase),
+                        None => {
+                            index.insert(parent_name.clone(), suites.len());
+                            suites.push((parent_name, vec![testcase]));
+                        }
                     }
                 }
-                acc
-            });
-        let test_suites: Vec<BindingsTestSuite> = parent_name_map
+                (suites, index)
+            },
+        );
+        let test_suites: Vec<BindingsTestSuite> = parent_names
             .into_iter()
             .map(|(name, testcases)| {
                 let tests = testcases.len();
@@ -753,6 +762,46 @@ mod tests {
             valid_test_case2.codeowners,
             Some(vec!["@user2".to_string()]),
             "codeowners for test_name2 should be preserved"
+        );
+    }
+
+    #[cfg(feature = "bindings")]
+    #[test]
+    fn test_result_suites_keep_first_appearance_order() {
+        let parent_names = ["zeta", "alpha", "mu", "alpha", "beta", "zeta"];
+        let test_result = TestResult {
+            test_case_runs: parent_names
+                .iter()
+                .enumerate()
+                .map(|(i, parent_name)| TestCaseRun {
+                    name: format!("case_{i}"),
+                    parent_name: (*parent_name).to_string(),
+                    status: TestCaseRunStatus::Success.into(),
+                    ..Default::default()
+                })
+                .collect(),
+            ..Default::default()
+        };
+
+        let suites: Vec<(String, Vec<String>)> = BindingsReport::from(test_result)
+            .test_suites
+            .into_iter()
+            .map(|suite| {
+                (
+                    suite.name,
+                    suite.test_cases.into_iter().map(|tc| tc.name).collect(),
+                )
+            })
+            .collect();
+
+        assert_eq!(
+            suites,
+            vec![
+                ("zeta".into(), vec!["case_0".into(), "case_5".into()]),
+                ("alpha".into(), vec!["case_1".into(), "case_3".into()]),
+                ("mu".into(), vec!["case_2".into()]),
+                ("beta".into(), vec!["case_4".into()]),
+            ]
         );
     }
 }
