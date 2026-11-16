@@ -269,7 +269,7 @@ jobs:
           target/${{ matrix.platform.target }}/release/trunk-analytics-cli upload \
              --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
              --org-url-slug trunk-staging-org \
-             --token ${{ secrets.TRUNK_STAGING_ORG_API_TOKEN }} \
+             --token ${{ secrets.TRUNK_STAGING_API_V2_TOKEN }} \
              --test-process-exit-code ${{ steps.extract.outputs.test-step-outcome }} \
              --test-collection-id 2tYJWMu7 \
              --variant ${{ matrix.platform.target }}
@@ -286,7 +286,7 @@ jobs:
           target/${{ matrix.platform.target }}/release/trunk-analytics-cli upload \
              --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
              --org-url-slug trunk-staging-org \
-             --token ${{ secrets.TRUNK_STAGING_ORG_API_TOKEN }} \
+             --token ${{ secrets.TRUNK_STAGING_API_V2_TOKEN }} \
              --test-process-exit-code ${{ steps.extract.outputs.test-step-outcome }} \
              --test-collection-id Gtnr7BWl \
              --variant ${{ matrix.platform.target }}
@@ -302,7 +302,7 @@ jobs:
           target/${{ matrix.platform.target }}/release/trunk-analytics-cli upload \
             --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
             --org-url-slug trunk \
-            --token ${{ secrets.TRUNK_PROD_ORG_API_TOKEN }} \
+            --token ${{ secrets.TRUNK_PROD_API_V2_TOKEN }} \
             --test-collection-id EWhNPVic \
             --variant ${{ matrix.platform.target }}
             # analytics-cli-pr: https://app.trunk.io/trunk/flaky-tests/collections/EWhNPVic/monitors
