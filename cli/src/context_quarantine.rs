@@ -345,33 +345,31 @@ pub async fn gather_quarantine_context(
         });
     }
 
-    let (quarantine_config, quarantine_fetch_status) = if api_client.missing_test_collection() {
-        tracing::debug!("Skipping quarantine check: Trunk has no test collection for this run.");
-        (None, QuarantineFetchStatus::FetchSkipped)
-    } else if !failed_tests_extractor.failed_tests().is_empty()
-        && file_set_builder
-            .file_sets()
-            .iter()
-            // internal files track quarantine status directly, so we don't need to check them
-            .any(|file_set| file_set.file_set_type == FileSetType::Junit)
-    {
-        tracing::info!("Checking if failed tests can be quarantined");
-        match api_client.get_quarantining_config(request).await {
-            anyhow::Result::Ok(response) => {
-                if let Some(line) = response
-                    .quarantine_resolution_mode
-                    .resolution_log_line(request.test_collection_short_id.as_deref(), &request.repo)
-                {
-                    tracing::info!("{line}");
+    let (quarantine_config, quarantine_fetch_status) =
+        if !failed_tests_extractor.failed_tests().is_empty()
+            && file_set_builder
+                .file_sets()
+                .iter()
+                // internal files track quarantine status directly, so we don't need to check them
+                .any(|file_set| file_set.file_set_type == FileSetType::Junit)
+        {
+            tracing::info!("Checking if failed tests can be quarantined");
+            match api_client.get_quarantining_config(request).await {
+                anyhow::Result::Ok(response) => {
+                    if let Some(line) = response.quarantine_resolution_mode.resolution_log_line(
+                        request.test_collection_short_id.as_deref(),
+                        &request.repo,
+                    ) {
+                        tracing::info!("{line}");
+                    }
+                    (Some(response), QuarantineFetchStatus::FetchSucceeded)
                 }
-                (Some(response), QuarantineFetchStatus::FetchSucceeded)
+                anyhow::Result::Err(error) => (None, QuarantineFetchStatus::FetchFailed(error)),
             }
-            anyhow::Result::Err(error) => (None, QuarantineFetchStatus::FetchFailed(error)),
-        }
-    } else {
-        tracing::debug!("Skipping quarantine check.");
-        (None, QuarantineFetchStatus::FetchSkipped)
-    };
+        } else {
+            tracing::debug!("Skipping quarantine check.");
+            (None, QuarantineFetchStatus::FetchSkipped)
+        };
 
     let quarantine_resolution_mode = quarantine_config
         .as_ref()
@@ -502,8 +500,7 @@ fn log_failure(
     api_client: &ApiClient,
     guid_scope: Option<&TestCaseGuidScope>,
 ) {
-    // On v1 the upload has not been created yet, so there are no ids to mint a GUID from;
-    // v2's quarantine lookup returns them.
+    // The upload has not been created yet; the quarantine lookup returns the ids a GUID needs.
     let url = request
         .test_collection_short_id
         .as_deref()

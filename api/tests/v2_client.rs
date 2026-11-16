@@ -1,8 +1,8 @@
-use std::{collections::HashSet, time::Duration};
+use std::collections::HashSet;
 
 use api::client::{ApiClient, GithubForkPullRequest};
-use api::message::{self, UploadApiCaller, UploadApiDecision, UploadApiVersion};
-use api::quarantine::{QuarantineLookup, QuarantinedTestSet, QuarantinedTests};
+use api::message;
+use api::quarantine::{QuarantineLookup, QuarantinedTestSet};
 use api::urls::TestCaseGuidScope;
 use axum::{
     Json,
@@ -14,13 +14,12 @@ use axum::{
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use bundle::Test;
 use serde_json::{Value, json};
-use test_utils::mock_server::{MockServerBuilder, RequestPayload, SharedMockServerState};
+use test_utils::mock_server::{MockServerBuilder, SharedMockServerState};
 
 const SHORT_ID: &str = "aB3xY9kQ";
 const COLLECTION_UUID: &str = "204b6c93-1c51-4e0f-a13c-e07b9bc60688";
 const REPO_ID: &str = "7a1f0e3d-2b4c-4d5e-8f90-123456789abc";
 
-const VERSION_ROUTE: &str = "/v1/metrics/getUploadApiVersion";
 const UPLOADS_ROUTE: &str = "/v2/test-collections/:id/uploads";
 const STATUS_ROUTE: &str = "/v2/test-collections/:id/quarantine-status";
 const LIST_ROUTE: &str = "/v2/test-collections/:id/all-quarantined-tests";
@@ -42,9 +41,7 @@ fn client(state: &SharedMockServerState, token: Option<&str>) -> ApiClient {
 }
 
 fn v2_client(state: &SharedMockServerState) -> ApiClient {
-    let mut client = client(state, Some("org-key"));
-    client.set_upload_api_version(UploadApiVersion::V2);
-    client
+    client(state, Some("org-key"))
 }
 
 fn uris(state: &SharedMockServerState) -> Vec<String> {
@@ -85,18 +82,6 @@ fn repo() -> context::repo::RepoUrlParts {
     }
 }
 
-fn version_request(short_id: Option<&str>) -> message::GetUploadApiVersionRequest {
-    message::GetUploadApiVersionRequest {
-        cli_version: String::from("0.17.0"),
-        org_slug: String::from("acme"),
-        test_collection_short_id: short_id.map(String::from),
-        repo: Some(repo()),
-        ci_provider: Some(String::from("GitHubActions")),
-        is_fork_pr: false,
-        caller: UploadApiCaller::TestRunnerPlugin,
-    }
-}
-
 fn quarantine_request(test_identifiers: Vec<Test>) -> message::GetQuarantineConfigRequest {
     message::GetQuarantineConfigRequest {
         repo: repo(),
@@ -128,34 +113,6 @@ fn scope() -> TestCaseGuidScope {
         test_collection_id: String::from(COLLECTION_UUID),
         repo_id: String::from(REPO_ID),
     }
-}
-
-async fn decide(answer: (StatusCode, &'static str)) -> (UploadApiVersion, SharedMockServerState) {
-    let (decision, state) = decide_for(Some(SHORT_ID), answer).await;
-    (decision.version, state)
-}
-
-async fn decide_for(
-    short_id: Option<&str>,
-    answer: (StatusCode, &'static str),
-) -> (UploadApiDecision, SharedMockServerState) {
-    let state = serve(vec![(
-        VERSION_ROUTE,
-        post(
-            move |State(state): State<SharedMockServerState>,
-                  headers: HeaderMap,
-                  uri: Uri,
-                  Json(body): Json<Value>| async move {
-                state.record_route_request(&headers, &uri, Some(body));
-                answer
-            },
-        ),
-    )])
-    .await;
-    let decision = client(&state, Some("org-key"))
-        .get_upload_api_version(&version_request(short_id))
-        .await;
-    (decision, state)
 }
 
 fn quarantine_status_route(
@@ -228,205 +185,6 @@ fn all_quarantined_tests_route(
             },
         ),
     )
-}
-
-#[tokio::test]
-async fn sends_the_run_and_reads_an_explicit_v2() {
-    let (version, state) = decide((StatusCode::OK, r#"{"apiVersion":"v2"}"#)).await;
-
-    assert_eq!(version, UploadApiVersion::V2);
-    assert_eq!(
-        bodies(&state),
-        vec![json!({
-            "cliVersion": "0.17.0",
-            "orgSlug": "acme",
-            "testCollectionShortId": SHORT_ID,
-            "repo": {"host": "github.com", "owner": "acme", "name": "web"},
-            "ciProvider": "GitHubActions",
-            "isForkPr": false,
-            "caller": "test-runner-plugin",
-        })]
-    );
-}
-
-#[tokio::test]
-async fn reads_any_other_answer_as_v1() {
-    for (answer, attempts) in [
-        ((StatusCode::OK, r#"{"apiVersion":"v1"}"#), 1),
-        ((StatusCode::OK, r#"{"apiVersion":"v3"}"#), 1),
-        ((StatusCode::OK, "not json"), 1),
-        ((StatusCode::UNAUTHORIZED, ""), 1),
-        // Only a 5xx, a timeout or a failed connection is worth a second attempt.
-        (
-            (StatusCode::INTERNAL_SERVER_ERROR, r#"{"apiVersion":"v2"}"#),
-            2,
-        ),
-    ] {
-        let (version, state) = decide(answer).await;
-        assert_eq!(version, UploadApiVersion::V1, "{answer:?}");
-        assert_eq!(bodies(&state).len(), attempts, "{answer:?}");
-    }
-}
-
-#[tokio::test]
-async fn retries_a_failed_check_once() {
-    let state = serve(vec![(
-        VERSION_ROUTE,
-        post(
-            |State(state): State<SharedMockServerState>, headers: HeaderMap, uri: Uri| async move {
-                state.record_route_request(&headers, &uri, None);
-                if state.route_requests.lock().unwrap().len() == 1 {
-                    StatusCode::SERVICE_UNAVAILABLE.into_response()
-                } else {
-                    Json(json!({"apiVersion": "v2"})).into_response()
-                }
-            },
-        ),
-    )])
-    .await;
-
-    let version = client(&state, Some("org-key"))
-        .get_upload_api_version(&version_request(Some(SHORT_ID)))
-        .await
-        .version;
-
-    assert_eq!((version, uris(&state).len()), (UploadApiVersion::V2, 2));
-}
-
-#[tokio::test(start_paused = true)]
-async fn reads_a_slow_answer_as_v1() {
-    let state = serve(vec![(
-        VERSION_ROUTE,
-        post(|| async {
-            tokio::time::sleep(Duration::from_secs(3)).await;
-            Json(json!({"apiVersion": "v2"}))
-        }),
-    )])
-    .await;
-
-    let version = client(&state, Some("org-key"))
-        .get_upload_api_version(&version_request(Some(SHORT_ID)))
-        .await
-        .version;
-
-    assert_eq!(version, UploadApiVersion::V1);
-}
-
-#[tokio::test]
-async fn does_not_ask_without_a_token_or_a_collection_and_a_repo() {
-    let state = serve(vec![(
-        VERSION_ROUTE,
-        post(
-            |State(state): State<SharedMockServerState>, headers: HeaderMap, uri: Uri| async move {
-                state.record_route_request(&headers, &uri, None);
-                Json(json!({"apiVersion": "v2", "testCollectionShortId": SHORT_ID}))
-            },
-        ),
-    )])
-    .await;
-
-    let mut credential_free_client = ApiClient::new(None, true, "acme", None).unwrap();
-    credential_free_client.api_host.clone_from(&state.host);
-    assert_eq!(
-        credential_free_client
-            .get_upload_api_version(&version_request(Some(SHORT_ID)))
-            .await,
-        UploadApiDecision::default()
-    );
-    // Without a collection, only the repository lets Trunk infer one.
-    for repo in [
-        None,
-        Some(context::repo::RepoUrlParts {
-            name: String::new(),
-            ..repo()
-        }),
-    ] {
-        let request = message::GetUploadApiVersionRequest {
-            repo,
-            ..version_request(None)
-        };
-        assert_eq!(
-            client(&state, Some("org-key"))
-                .get_upload_api_version(&request)
-                .await,
-            UploadApiDecision::default()
-        );
-    }
-    assert!(uris(&state).is_empty());
-}
-
-#[tokio::test]
-async fn uses_the_collection_inferred_for_a_run_without_one() {
-    for short_id in [None, Some("")] {
-        let (decision, state) = decide_for(
-            short_id,
-            (
-                StatusCode::OK,
-                r#"{"apiVersion":"v2","testCollectionShortId":"zQ8nP2mW","futureField":1}"#,
-            ),
-        )
-        .await;
-
-        assert_eq!(
-            decision,
-            UploadApiDecision {
-                version: UploadApiVersion::V2,
-                inferred_test_collection_short_id: Some(String::from("zQ8nP2mW")),
-                missing_test_collection: false,
-            }
-        );
-        assert_eq!(
-            bodies(&state)[0]["repo"],
-            json!({"host": "github.com", "owner": "acme", "name": "web"})
-        );
-    }
-}
-
-#[tokio::test]
-async fn reads_a_missing_collection_for_a_run_without_one() {
-    let answer = r#"{"apiVersion":"v1","missingTestCollection":true}"#;
-    for short_id in [None, Some("")] {
-        let (decision, _) = decide_for(short_id, (StatusCode::OK, answer)).await;
-        assert_eq!(
-            decision,
-            UploadApiDecision {
-                version: UploadApiVersion::V1,
-                inferred_test_collection_short_id: None,
-                missing_test_collection: true,
-            },
-            "{short_id:?}"
-        );
-    }
-    let (decision, _) = decide_for(Some(SHORT_ID), (StatusCode::OK, answer)).await;
-    assert_eq!(decision, UploadApiDecision::default());
-}
-
-#[tokio::test]
-async fn reads_v2_without_a_collection_as_v1() {
-    for answer in [
-        r#"{"apiVersion":"v2"}"#,
-        r#"{"apiVersion":"v2","testCollectionShortId":null}"#,
-        r#"{"apiVersion":"v2","testCollectionShortId":" "}"#,
-        r#"{"apiVersion":"v1","testCollectionShortId":"zQ8nP2mW"}"#,
-    ] {
-        let (decision, state) = decide_for(None, (StatusCode::OK, answer)).await;
-        assert_eq!(decision, UploadApiDecision::default(), "{answer}");
-        assert_eq!(bodies(&state).len(), 1, "{answer}");
-    }
-}
-
-#[tokio::test]
-async fn ignores_an_inferred_collection_when_the_run_names_one() {
-    let (decision, _) = decide_for(
-        Some(SHORT_ID),
-        (
-            StatusCode::OK,
-            r#"{"apiVersion":"v2","testCollectionShortId":"zQ8nP2mW"}"#,
-        ),
-    )
-    .await;
-
-    assert_eq!(decision, UploadApiDecision::from(UploadApiVersion::V2));
 }
 
 #[tokio::test]
@@ -586,13 +344,11 @@ async fn pages_the_whole_quarantined_set_with_no_status_call() {
         QuarantinedTestSet {
             is_disabled: false,
             quarantine_resolution_mode: message::QuarantineResolutionMode::TestCollection,
-            tests: QuarantinedTests::ByTestCaseGuid {
-                scope: scope(),
-                guids: HashSet::from([
-                    String::from("bfeebcf4-72d1-887d-8bcd-788d0dec7f97"),
-                    String::from("0f7f61f2-0000-8000-8000-000000000000"),
-                ]),
-            },
+            scope: scope(),
+            guids: HashSet::from([
+                String::from("bfeebcf4-72d1-887d-8bcd-788d0dec7f97"),
+                String::from("0f7f61f2-0000-8000-8000-000000000000"),
+            ]),
         }
     );
     assert_eq!(
@@ -640,14 +396,8 @@ async fn reads_quarantining_off_from_the_list() {
         .unwrap();
 
     assert_eq!(
-        (set.is_disabled, set.tests),
-        (
-            true,
-            QuarantinedTests::ByTestCaseGuid {
-                scope: scope(),
-                guids: HashSet::new(),
-            },
-        )
+        (set.is_disabled, set.scope, set.guids),
+        (true, scope(), HashSet::new())
     );
     assert_eq!(uris(&state).len(), 1);
 }
@@ -681,7 +431,7 @@ async fn stops_paging_on_a_repeated_cursor() {
 }
 
 #[tokio::test]
-async fn reports_a_failed_v2_lookup_without_falling_back_to_v1() {
+async fn reports_a_failed_lookup() {
     let state = serve(vec![(
         STATUS_ROUTE,
         post(
@@ -706,15 +456,6 @@ async fn reports_a_failed_v2_lookup_without_falling_back_to_v1() {
         uris(&state),
         vec![format!("/v2/test-collections/{SHORT_ID}/quarantine-status")]
     );
-    // The builder serves v1's lookup, so a fallback would have reached it.
-    assert!(
-        !state
-            .requests
-            .lock()
-            .unwrap()
-            .iter()
-            .any(|request| matches!(request, RequestPayload::GetQuarantineConfig(_)))
-    );
 }
 
 const LOGIN_ROUTE: &str = "/v2/auth/github-actions/login";
@@ -733,28 +474,6 @@ fn fork_pr_client(state: &SharedMockServerState, github_token: Option<&str>) -> 
     client.api_host.clone_from(&state.host);
     client.set_github_fork_pull_request(fork_pull_request(github_token));
     client
-}
-
-fn version_route(
-    answer: (StatusCode, &'static str),
-) -> (&'static str, MethodRouter<SharedMockServerState>) {
-    (
-        VERSION_ROUTE,
-        post(
-            move |State(state): State<SharedMockServerState>, headers: HeaderMap, uri: Uri| async move {
-                // A fork PR run asks as v1's collection lane does: the opt-in and no credential.
-                assert_eq!(
-                    headers
-                        .get("x-trunk-allow-forked-pr-uploads")
-                        .and_then(|value| value.to_str().ok()),
-                    Some("true")
-                );
-                assert!(headers.get("x-api-token").is_none());
-                state.record_route_request(&headers, &uri, None);
-                answer
-            },
-        ),
-    )
 }
 
 fn login_route(
@@ -817,9 +536,8 @@ fn upload_request() -> message::CreateBundleUploadRequest {
 }
 
 #[tokio::test]
-async fn a_fork_pr_run_on_v2_swaps_its_github_token_and_sends_the_login_on_x_trunk_token() {
+async fn a_fork_pr_run_swaps_its_github_token_and_sends_the_login_on_x_trunk_token() {
     let state = serve(vec![
-        version_route((StatusCode::OK, r#"{"apiVersion":"v2"}"#)),
         login_route((StatusCode::OK, LOGIN)),
         quarantine_status_route(true),
         all_quarantined_tests_route(true),
@@ -828,11 +546,7 @@ async fn a_fork_pr_run_on_v2_swaps_its_github_token_and_sends_the_login_on_x_tru
     .await;
     let mut client = fork_pr_client(&state, Some("ghs_job-token"));
 
-    let decision = client
-        .get_upload_api_version(&version_request(Some(SHORT_ID)))
-        .await;
-    client.use_upload_api_version(decision.version).await;
-    assert_eq!(client.upload_api_version(), UploadApiVersion::V2);
+    client.log_in_github_fork_pull_request().await;
     client
         .get_quarantining_config(&quarantine_request(vec![failure(0)]))
         .await
@@ -859,7 +573,6 @@ async fn a_fork_pr_run_on_v2_swaps_its_github_token_and_sends_the_login_on_x_tru
             ))
             .collect::<Vec<_>>(),
         vec![
-            (String::from(VERSION_ROUTE), None, None),
             (String::from(LOGIN_ROUTE), None, None),
             with_login(format!("/v2/test-collections/{SHORT_ID}/quarantine-status")),
             with_login(format!(
@@ -872,7 +585,7 @@ async fn a_fork_pr_run_on_v2_swaps_its_github_token_and_sends_the_login_on_x_tru
         ]
     );
     assert_eq!(
-        requests[1].body,
+        requests[0].body,
         Some(json!({
             "githubToken": "ghs_job-token",
             "pullRequestNumber": 42,
@@ -882,96 +595,81 @@ async fn a_fork_pr_run_on_v2_swaps_its_github_token_and_sends_the_login_on_x_tru
 }
 
 #[tokio::test]
-async fn a_fork_pr_run_stays_on_v1_when_the_swap_is_refused() {
-    for answer in [
+async fn a_fork_pr_run_whose_swap_is_refused_fails_every_call_with_the_reason() {
+    for (answer, reason) in [
         (
-            StatusCode::BAD_REQUEST,
-            r#"{"error":{"code":"INVALID_ARGUMENT","message":"bad"}}"#,
+            (
+                StatusCode::BAD_REQUEST,
+                r#"{"error":{"code":"INVALID_ARGUMENT","message":"bad"}}"#,
+            ),
+            "Trunk answered 400 Bad Request, INVALID_ARGUMENT",
         ),
         (
-            StatusCode::UNAUTHORIZED,
-            r#"{"error":{"code":"UNAUTHENTICATED","message":"no"}}"#,
+            (
+                StatusCode::UNAUTHORIZED,
+                r#"{"error":{"code":"UNAUTHENTICATED","message":"no"}}"#,
+            ),
+            "Trunk answered 401 Unauthorized, UNAUTHENTICATED",
         ),
         (
-            StatusCode::UNPROCESSABLE_ENTITY,
-            r#"{"error":{"code":"SHA_NOT_PR_HEAD","message":"moved"}}"#,
+            (
+                StatusCode::UNPROCESSABLE_ENTITY,
+                r#"{"error":{"code":"SHA_NOT_PR_HEAD","message":"moved"}}"#,
+            ),
+            "Trunk answered 422 Unprocessable Entity, SHA_NOT_PR_HEAD",
         ),
-        (StatusCode::BAD_GATEWAY, ""),
-        (StatusCode::SERVICE_UNAVAILABLE, ""),
-        (StatusCode::TOO_MANY_REQUESTS, ""),
-        (StatusCode::OK, r#"{"expiresAt":"2026-11-06T17:15:00Z"}"#),
+        (
+            (StatusCode::BAD_GATEWAY, ""),
+            "Trunk answered 502 Bad Gateway",
+        ),
+        (
+            (StatusCode::SERVICE_UNAVAILABLE, ""),
+            "Trunk answered 503 Service Unavailable",
+        ),
+        (
+            (StatusCode::TOO_MANY_REQUESTS, ""),
+            "Trunk answered 429 Too Many Requests",
+        ),
+        (
+            (StatusCode::OK, r#"{"expiresAt":"2026-11-06T17:15:00Z"}"#),
+            "Trunk's answer could not be read",
+        ),
     ] {
-        let state = serve(vec![login_route(answer)]).await;
+        let state = serve(vec![login_route(answer), uploads_route()]).await;
         let mut client = fork_pr_client(&state, Some("ghs_job-token"));
 
-        client.use_upload_api_version(UploadApiVersion::V2).await;
+        client.log_in_github_fork_pull_request().await;
+        let error = client
+            .create_bundle_upload(&upload_request())
+            .await
+            .unwrap_err();
 
-        assert_eq!(
-            client.upload_api_version(),
-            UploadApiVersion::V1,
-            "{answer:?}"
+        assert!(
+            format!("{error:?}").contains(reason),
+            "{answer:?}: {error:?}"
         );
         assert_eq!(uris(&state), vec![LOGIN_ROUTE], "{answer:?}");
     }
 }
 
 #[tokio::test]
-async fn a_fork_pr_run_without_github_token_stays_on_v1_without_a_swap() {
+async fn a_fork_pr_run_without_github_token_makes_no_request() {
     for github_token in [None, Some(""), Some("  ")] {
-        let state = serve(vec![login_route((StatusCode::OK, LOGIN))]).await;
+        let state = serve(vec![login_route((StatusCode::OK, LOGIN)), uploads_route()]).await;
         let mut client = fork_pr_client(&state, github_token);
 
-        client.use_upload_api_version(UploadApiVersion::V2).await;
+        client.log_in_github_fork_pull_request().await;
+        let error = client
+            .create_bundle_upload(&upload_request())
+            .await
+            .unwrap_err();
 
-        assert_eq!(client.upload_api_version(), UploadApiVersion::V1);
+        assert!(
+            format!("{error:?}").contains("GITHUB_TOKEN is not set"),
+            "{github_token:?}: {error:?}"
+        );
         assert!(uris(&state).is_empty(), "{github_token:?}");
     }
-}
-
-#[tokio::test]
-async fn a_fork_pr_run_does_not_swap_on_v1() {
-    for answer in [
-        (StatusCode::OK, r#"{"apiVersion":"v1"}"#),
-        (StatusCode::UNAUTHORIZED, ""),
-    ] {
-        let state = serve(vec![
-            version_route(answer),
-            login_route((StatusCode::OK, LOGIN)),
-        ])
-        .await;
-        let mut client = fork_pr_client(&state, Some("ghs_job-token"));
-
-        let decision = client
-            .get_upload_api_version(&version_request(Some(SHORT_ID)))
-            .await;
-        client.use_upload_api_version(decision.version).await;
-
-        assert_eq!(
-            client.upload_api_version(),
-            UploadApiVersion::V1,
-            "{answer:?}"
-        );
-        assert_eq!(uris(&state), vec![VERSION_ROUTE], "{answer:?}");
-    }
-}
-
-#[tokio::test]
-async fn a_credential_free_run_that_is_not_a_fork_pr_never_asks() {
-    let state = serve(vec![
-        version_route((StatusCode::OK, r#"{"apiVersion":"v2"}"#)),
-        login_route((StatusCode::OK, LOGIN)),
-    ])
-    .await;
-    let mut client = ApiClient::new(None, true, "acme", None).unwrap();
-    client.api_host.clone_from(&state.host);
-
-    let decision = client
-        .get_upload_api_version(&version_request(Some(SHORT_ID)))
-        .await;
-    client.use_upload_api_version(decision.version).await;
-
-    assert_eq!(client.upload_api_version(), UploadApiVersion::V1);
-    assert!(uris(&state).is_empty());
 }
 
 #[tokio::test]
@@ -981,7 +679,7 @@ async fn a_run_with_a_token_never_swaps() {
     client.api_host.clone_from(&state.host);
     client.set_github_fork_pull_request(fork_pull_request(Some("ghs_job-token")));
 
-    client.use_upload_api_version(UploadApiVersion::V2).await;
+    client.log_in_github_fork_pull_request().await;
     client
         .create_bundle_upload(&upload_request())
         .await
