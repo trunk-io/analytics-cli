@@ -19,8 +19,6 @@ use axum::{
     response::{IntoResponse, Response},
     routing::{MethodRouter, any, post, put},
 };
-use prost::Message;
-use proto::upload_metrics::trunk::UploadMetrics;
 use tempfile::tempdir;
 use tokio::{net::TcpListener, spawn};
 
@@ -32,7 +30,46 @@ pub enum RequestPayload {
     CreateBundleUpload(CreateBundleUploadRequest),
     GetQuarantineConfig(GetQuarantineConfigRequest),
     S3Upload(PathBuf),
-    TelemetryUploadMetrics(UploadMetrics),
+    TelemetryUploadMetrics(TelemetryUploadMetrics),
+}
+
+/// What one OTLP metrics request from the CLI says, read back from the wire.
+#[derive(Debug, Clone, PartialEq)]
+pub struct TelemetryUploadMetrics {
+    pub status: String,
+    pub failure_reason: String,
+    pub quarantine_query_result: String,
+    pub repo_owner: String,
+    pub repo_name: String,
+    pub upload_duration: Option<DurationObservation>,
+    pub run_duration: Option<DurationObservation>,
+}
+
+/// One duration histogram's single observation.
+#[derive(Debug, Clone, PartialEq)]
+pub struct DurationObservation {
+    pub status: String,
+    pub seconds: f64,
+    /// The index of the one bucket counting it.
+    pub bucket: usize,
+    pub explicit_bounds: Vec<f64>,
+}
+
+impl DurationObservation {
+    /// Whether `bucket` is the OTLP bucket for `seconds`: bucket `i` counts values in
+    /// `(bounds[i - 1], bounds[i]]`.
+    pub fn is_in_its_bucket(&self) -> bool {
+        let lower = self
+            .bucket
+            .checked_sub(1)
+            .map_or(f64::NEG_INFINITY, |index| self.explicit_bounds[index]);
+        let upper = self
+            .explicit_bounds
+            .get(self.bucket)
+            .copied()
+            .unwrap_or(f64::INFINITY);
+        lower < self.seconds && self.seconds <= upper
+    }
 }
 
 pub struct RespError {
@@ -167,7 +204,7 @@ impl MockServerBuilder {
             )
             .route("/s3upload", self.s3_upload_handler)
             .route(
-                "/v1/flakytests-cli/upload-metrics",
+                api::otlp::CLI_TELEMETRY_METRICS_PATH,
                 self.telemetry_upload_metrics,
             );
 
@@ -266,8 +303,10 @@ pub async fn telemetry_upload_metrics_handler(
     State(state): State<SharedMockServerState>,
     bytes: Bytes,
 ) -> Response<String> {
-    let upload_metrics = proto::upload_metrics::trunk::UploadMetrics::decode(bytes);
-    if let Ok(upload_metrics) = upload_metrics {
+    let upload_metrics = serde_json::from_slice::<serde_json::Value>(&bytes)
+        .ok()
+        .and_then(|request| telemetry_upload_metrics_from_otlp(&request));
+    if let Some(upload_metrics) = upload_metrics {
         state
             .requests
             .lock()
@@ -303,4 +342,96 @@ pub async fn s3_upload_handler(
         .unwrap()
         .push(RequestPayload::S3Upload(tar_extract_directory.into_path()));
     Response::new(String::from("OK"))
+}
+
+/// The CLI's OTLP metrics request read back, so the tests check what reaches the wire. `None`
+/// unless the body is one `trunk-analytics-cli` resource whose metrics have the names, types,
+/// units and temporality `api::otlp` promises, each with one data point.
+pub fn telemetry_upload_metrics_from_otlp(
+    request: &serde_json::Value,
+) -> Option<TelemetryUploadMetrics> {
+    use api::otlp;
+    use serde_json::Value;
+
+    let attribute = |list: &Value, key: &str| -> Option<String> {
+        list.as_array()?
+            .iter()
+            .find(|attribute| attribute["key"] == key)?["value"]["stringValue"]
+            .as_str()
+            .map(str::to_owned)
+    };
+    let resource_metrics = request["resourceMetrics"].as_array()?;
+    let [resource_metrics] = resource_metrics.as_slice() else {
+        return None;
+    };
+    if attribute(&resource_metrics["resource"]["attributes"], "service.name")? != otlp::SERVICE_NAME
+    {
+        return None;
+    }
+    let metrics = resource_metrics["scopeMetrics"][0]["metrics"].as_array()?;
+    let metric = |name: &str| metrics.iter().find(|metric| metric["name"] == name);
+    let single_point = |data: &Value| -> Option<Value> {
+        if data["aggregationTemporality"] != 1 {
+            return None;
+        }
+        match data["dataPoints"].as_array()?.as_slice() {
+            [point] => Some(point.clone()),
+            _ => None,
+        }
+    };
+
+    let uploads = metric(otlp::UPLOADS_METRIC)?;
+    if uploads["unit"] != otlp::UPLOADS_UNIT || uploads["sum"]["isMonotonic"] != true {
+        return None;
+    }
+    let point = single_point(&uploads["sum"])?;
+    if point["asInt"] != "1" {
+        return None;
+    }
+    let labels = &point["attributes"];
+
+    let duration = |name: &str| -> Option<Option<DurationObservation>> {
+        let Some(histogram) = metric(name) else {
+            return Some(None);
+        };
+        if histogram["unit"] != otlp::DURATION_UNIT {
+            return None;
+        }
+        let point = single_point(&histogram["histogram"])?;
+        let seconds = point["sum"].as_f64()?;
+        if point["count"] != "1"
+            || point["min"].as_f64()? != seconds
+            || point["max"].as_f64()? != seconds
+        {
+            return None;
+        }
+        let explicit_bounds = point["explicitBounds"]
+            .as_array()?
+            .iter()
+            .map(Value::as_f64)
+            .collect::<Option<Vec<_>>>()?;
+        let counts = point["bucketCounts"].as_array()?;
+        if counts.len() != explicit_bounds.len() + 1
+            || counts.iter().filter(|count| *count == "1").count() != 1
+            || counts.iter().any(|count| *count != "0" && *count != "1")
+        {
+            return None;
+        }
+        Some(Some(DurationObservation {
+            status: attribute(&point["attributes"], otlp::STATUS_ATTRIBUTE)?,
+            seconds,
+            bucket: counts.iter().position(|count| count == "1")?,
+            explicit_bounds,
+        }))
+    };
+
+    Some(TelemetryUploadMetrics {
+        status: attribute(labels, otlp::STATUS_ATTRIBUTE)?,
+        failure_reason: attribute(labels, otlp::FAILURE_REASON_ATTRIBUTE)?,
+        quarantine_query_result: attribute(labels, otlp::QUARANTINE_QUERY_RESULT_ATTRIBUTE)?,
+        repo_owner: attribute(labels, otlp::REPOSITORY_OWNER_ATTRIBUTE)?,
+        repo_name: attribute(labels, otlp::REPOSITORY_NAME_ATTRIBUTE)?,
+        upload_duration: duration(otlp::UPLOAD_DURATION_METRIC)?,
+        run_duration: duration(otlp::RUN_DURATION_METRIC)?,
+    })
 }
