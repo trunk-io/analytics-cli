@@ -439,11 +439,13 @@ impl ApiClient {
                 if std::env::var("DISABLE_TELEMETRY").is_ok() {
                     return Ok(());
                 }
+                let now = chrono::Utc::now();
                 let response = telemetry_client
-                    .post(format!("{}{}", self.api_host, crate::otlp::CLI_TELEMETRY_PATH))
-                    .json(&crate::otlp::upload_metrics_logs(
+                    .post(format!("{}{}", self.api_host, crate::otlp::CLI_TELEMETRY_METRICS_PATH))
+                    .json(&crate::otlp::upload_metrics_request(
                         &request.upload_metrics,
                         environment,
+                        crate::otlp::unix_nanos(now.timestamp(), now.timestamp_subsec_nanos() as i32),
                     ))
                     .send()
                     .await?;
