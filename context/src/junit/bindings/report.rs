@@ -1,6 +1,7 @@
 use std::{collections::HashMap, time::Duration};
 
 use chrono::{DateTime, TimeDelta};
+use indexmap::IndexMap;
 use proto::test_context::test_run::{TestBuildResult, TestResult};
 #[cfg(feature = "pyo3")]
 use pyo3::prelude::*;
@@ -91,26 +92,17 @@ impl From<TestResult> for BindingsReport {
             test_build_information,
         }: TestResult,
     ) -> Self {
-        // Suites keep the order their first test case appears in, so converting the same
-        // `TestResult` twice gives the same suite order. Ingestion hashes each run's
-        // position into its id, so a random order re-writes a redelivered upload's runs
-        // under new ids.
-        let (parent_names, _) = test_case_runs.into_iter().map(BindingsTestCase::from).fold(
-            (
-                Vec::<(String, Vec<BindingsTestCase>)>::new(),
-                HashMap::<String, usize>::new(),
-            ),
-            |(mut suites, mut index), testcase| {
-                if let Some(parent_name) = testcase.extra.get("parent_name").cloned() {
-                    match index.get(&parent_name) {
-                        Some(&i) => suites[i].1.push(testcase),
-                        None => {
-                            index.insert(parent_name.clone(), suites.len());
-                            suites.push((parent_name, vec![testcase]));
-                        }
-                    }
+        // An `IndexMap` keeps suites in the order their first test case appears, so converting
+        // the same `TestResult` twice gives the same suite order. Ingestion hashes each run's
+        // position into its id, so a random order re-writes a redelivered upload's runs under
+        // new ids.
+        let parent_names = test_case_runs.into_iter().map(BindingsTestCase::from).fold(
+            IndexMap::<String, Vec<BindingsTestCase>>::new(),
+            |mut acc, testcase| {
+                if let Some(parent_name) = testcase.extra.get("parent_name") {
+                    acc.entry(parent_name.clone()).or_default().push(testcase);
                 }
-                (suites, index)
+                acc
             },
         );
         let test_suites: Vec<BindingsTestSuite> = parent_names
