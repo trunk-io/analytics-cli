@@ -12,29 +12,22 @@ use constants::{
     TRUNK_REPO_HEAD_BRANCH_ENV, TRUNK_REPO_HEAD_SHA_ENV, TRUNK_REPO_URL_ENV,
     TRUNK_USE_UNCLONED_REPO_ENV,
 };
-use proto::upload_metrics::trunk::QuarantineQueryResult;
 use serial_test::serial;
 use tempfile::tempdir;
 use test_report::report::{MutTestReport, Status};
 use test_utils::mock_git_repo::setup_repo_with_commit;
 use test_utils::mock_server::{MockServerBuilder, RequestPayload, SharedMockServerState};
 
-fn assert_telemetry_quarantine_query_result(
-    requests: &[RequestPayload],
-    expected: QuarantineQueryResult,
-) {
+fn assert_telemetry_quarantine_query_result(requests: &[RequestPayload], expected: &str) {
     let quarantine_query_result = requests
         .iter()
         .rev()
         .find_map(|req| match req {
-            RequestPayload::TelemetryUploadMetrics(ur) => Some(ur.quarantine_query_result),
+            RequestPayload::TelemetryUploadMetrics(ur) => Some(ur.quarantine_query_result.clone()),
             _ => None,
         })
         .expect("expected telemetry upload metrics request");
-    assert_eq!(
-        QuarantineQueryResult::try_from(quarantine_query_result).unwrap(),
-        expected
-    );
+    assert_eq!(quarantine_query_result, expected);
 }
 
 fn set_mock_api_env(api_host: &str) {
@@ -110,7 +103,7 @@ async fn telemetry_query_result_success_on_publish() {
     .unwrap();
 
     let requests = state.requests.lock().unwrap().clone();
-    assert_telemetry_quarantine_query_result(&requests, QuarantineQueryResult::Success);
+    assert_telemetry_quarantine_query_result(&requests, "success");
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -133,7 +126,7 @@ async fn telemetry_query_result_skipped_without_lookup_on_publish() {
     .unwrap();
 
     let requests = state.requests.lock().unwrap().clone();
-    assert_telemetry_quarantine_query_result(&requests, QuarantineQueryResult::Skipped);
+    assert_telemetry_quarantine_query_result(&requests, "skipped");
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -185,7 +178,7 @@ async fn telemetry_query_result_cached_on_publish() {
         "second report should use disk cache during suite"
     );
     // Checks the last telemetry call
-    assert_telemetry_quarantine_query_result(&requests, QuarantineQueryResult::Cached);
+    assert_telemetry_quarantine_query_result(&requests, "cached");
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -233,7 +226,7 @@ async fn telemetry_query_result_disabled_on_publish() {
     .unwrap();
 
     let requests = state.requests.lock().unwrap().clone();
-    assert_telemetry_quarantine_query_result(&requests, QuarantineQueryResult::Disabled);
+    assert_telemetry_quarantine_query_result(&requests, "disabled");
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -261,7 +254,7 @@ async fn telemetry_query_result_disabled_by_env_on_publish() {
     .unwrap();
 
     let requests = state.requests.lock().unwrap().clone();
-    assert_telemetry_quarantine_query_result(&requests, QuarantineQueryResult::Disabled);
+    assert_telemetry_quarantine_query_result(&requests, "disabled");
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -310,5 +303,5 @@ async fn telemetry_query_result_failure_on_publish() {
     .unwrap();
 
     let requests = state.requests.lock().unwrap().clone();
-    assert_telemetry_quarantine_query_result(&requests, QuarantineQueryResult::Failure);
+    assert_telemetry_quarantine_query_result(&requests, "failure");
 }

@@ -7,6 +7,7 @@ use api::message::{
     CreateBundleUploadRequest, CreateBundleUploadResponse, GetQuarantineConfigRequest,
     GetQuarantineConfigResponse,
 };
+use api::otlp::DURATION_BOUNDS_SECONDS;
 use assert_cmd::{Command, cargo};
 use assert_matches::assert_matches;
 use axum::body::{Body, Bytes};
@@ -49,7 +50,6 @@ use lazy_static::lazy_static;
 use predicates::prelude::*;
 use pretty_assertions::assert_eq;
 use prost::Message;
-use proto::upload_metrics::trunk::QuarantineQueryResult;
 use tempfile::tempdir;
 #[cfg(target_os = "macos")]
 use test_utils::inputs::unpack_archive_to_dir;
@@ -57,7 +57,7 @@ use test_utils::{
     inputs::get_test_file_path,
     mock_server::{
         MOCK_REPO_ID, MOCK_TEST_COLLECTION_ID, MockServerBuilder, RequestPayload,
-        SharedMockServerState,
+        SharedMockServerState, TelemetryUploadMetrics,
     },
 };
 use trunk_analytics_cli::exit_code::ExitCode;
@@ -601,18 +601,6 @@ async fn upload_bundle_records_quarantine_resolution_mode() {
         bundle_meta.base_props.quarantine_resolution_mode,
         QuarantineResolutionMode::TestCollection,
         "the resolution mode must be persisted in meta.json"
-    );
-
-    let upload_metrics = requests
-        .iter()
-        .find_map(|request| match request {
-            RequestPayload::TelemetryUploadMetrics(metrics) => Some(metrics),
-            _ => None,
-        })
-        .expect("telemetry must have been sent");
-    assert_eq!(
-        upload_metrics.quarantine_resolution_mode,
-        i32::from(proto::upload_metrics::trunk::QuarantineResolutionMode::TestCollection)
     );
 }
 
@@ -2115,6 +2103,19 @@ async fn is_not_ok_on_bad_request() {
         .stdout(predicate::str::contains("error"));
 }
 
+fn assert_durations_are_bucketed(metrics: &TelemetryUploadMetrics) {
+    for duration in [&metrics.upload_duration, &metrics.run_duration] {
+        let duration = duration.as_ref().expect("both durations must be sent");
+        assert_eq!(duration.status, metrics.status);
+        assert_eq!(duration.explicit_bounds, DURATION_BOUNDS_SECONDS);
+        assert!(duration.is_in_its_bucket(), "{duration:?}");
+    }
+    assert!(
+        metrics.run_duration.as_ref().unwrap().seconds
+            >= metrics.upload_duration.as_ref().unwrap().seconds
+    );
+}
+
 #[tokio::test(flavor = "multi_thread")]
 async fn telemetry_upload_metrics_on_upload_failure() {
     let temp_dir = tempdir().unwrap();
@@ -2140,16 +2141,12 @@ async fn telemetry_upload_metrics_on_upload_failure() {
 
     let telemetry_request =
         assert_matches!(requests.last().unwrap(), RequestPayload::TelemetryUploadMetrics(ur) => ur);
-    let telemetry_request_repo = telemetry_request.repo.clone().unwrap();
-    assert!(telemetry_request.failed);
-    assert_eq!(telemetry_request_repo.host, "github.com");
-    assert_eq!(telemetry_request_repo.owner, "trunk-io");
-    assert_eq!(telemetry_request_repo.name, "analytics-cli");
+    assert_eq!(telemetry_request.status, "failed");
+    assert_eq!(telemetry_request.repo_owner, "trunk-io");
+    assert_eq!(telemetry_request.repo_name, "analytics-cli");
     assert_eq!(telemetry_request.failure_reason, "400_bad_request");
-    assert_eq!(
-        QuarantineQueryResult::try_from(telemetry_request.quarantine_query_result).unwrap(),
-        QuarantineQueryResult::Disabled
-    );
+    assert_eq!(telemetry_request.quarantine_query_result, "disabled");
+    assert_durations_are_bucketed(telemetry_request);
 
     // HINT: View CLI output with `cargo test -- --nocapture`
     println!("{assert}");
@@ -2175,16 +2172,12 @@ async fn telemetry_upload_metrics_on_upload_success() {
 
     let telemetry_request =
         assert_matches!(requests.last().unwrap(), RequestPayload::TelemetryUploadMetrics(ur) => ur);
-    let telemetry_request_repo = telemetry_request.repo.clone().unwrap();
-    assert!(!telemetry_request.failed);
-    assert_eq!(telemetry_request_repo.host, "github.com");
-    assert_eq!(telemetry_request_repo.owner, "trunk-io");
-    assert_eq!(telemetry_request_repo.name, "analytics-cli");
-    assert_eq!(telemetry_request.failure_reason, "");
-    assert_eq!(
-        QuarantineQueryResult::try_from(telemetry_request.quarantine_query_result).unwrap(),
-        QuarantineQueryResult::Disabled
-    );
+    assert_eq!(telemetry_request.status, "success");
+    assert_eq!(telemetry_request.repo_owner, "trunk-io");
+    assert_eq!(telemetry_request.repo_name, "analytics-cli");
+    assert_eq!(telemetry_request.failure_reason, "unknown");
+    assert_eq!(telemetry_request.quarantine_query_result, "disabled");
+    assert_durations_are_bucketed(telemetry_request);
 
     // HINT: View CLI output with `cargo test -- --nocapture`
     println!("{assert}");
@@ -2208,14 +2201,11 @@ async fn telemetry_upload_metrics_quarantine_query_result_success() {
         .iter()
         .rev()
         .find_map(|req| match req {
-            RequestPayload::TelemetryUploadMetrics(ur) => Some(ur.quarantine_query_result),
+            RequestPayload::TelemetryUploadMetrics(ur) => Some(ur.quarantine_query_result.clone()),
             _ => None,
         })
         .expect("telemetry upload metrics request");
-    assert_eq!(
-        QuarantineQueryResult::try_from(quarantine_query_result).unwrap(),
-        QuarantineQueryResult::Success
-    );
+    assert_eq!(quarantine_query_result, "success");
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -2242,14 +2232,11 @@ async fn telemetry_upload_metrics_quarantine_query_result_failure() {
         .iter()
         .rev()
         .find_map(|req| match req {
-            RequestPayload::TelemetryUploadMetrics(ur) => Some(ur.quarantine_query_result),
+            RequestPayload::TelemetryUploadMetrics(ur) => Some(ur.quarantine_query_result.clone()),
             _ => None,
         })
         .expect("telemetry upload metrics request");
-    assert_eq!(
-        QuarantineQueryResult::try_from(quarantine_query_result).unwrap(),
-        QuarantineQueryResult::Failure
-    );
+    assert_eq!(quarantine_query_result, "failure");
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -2291,14 +2278,11 @@ async fn telemetry_upload_metrics_quarantine_query_result_skipped() {
         .iter()
         .rev()
         .find_map(|req| match req {
-            RequestPayload::TelemetryUploadMetrics(ur) => Some(ur.quarantine_query_result),
+            RequestPayload::TelemetryUploadMetrics(ur) => Some(ur.quarantine_query_result.clone()),
             _ => None,
         })
         .expect("telemetry upload metrics request");
-    assert_eq!(
-        QuarantineQueryResult::try_from(quarantine_query_result).unwrap(),
-        QuarantineQueryResult::Skipped
-    );
+    assert_eq!(quarantine_query_result, "skipped");
 }
 
 #[tokio::test(flavor = "multi_thread")]
