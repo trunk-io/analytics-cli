@@ -229,10 +229,8 @@ fn prints_a_passing_run() {
 fn prints_notices_apart_from_the_summary() {
     let mut result = upload_result(5);
     result.notices = vec![
-        Notice::deprecation(
-            "The --team flag is deprecated and will be removed in a future version.",
-        ),
         Notice::bep_parse_error("unexpected EOF"),
+        Notice::bep_parse_error("invalid wire type"),
     ];
     let report = UploadReport::new(&result, UploadCommand::Upload);
 
@@ -243,8 +241,8 @@ fn prints_notices_apart_from_the_summary() {
             .map(Line::to_unstyled)
             .collect::<Vec<_>>(),
         [
-            "⚠️  The --team flag is deprecated and will be removed in a future version.",
             "⚠️  BEP file had a parse error: unexpected EOF",
+            "⚠️  BEP file had a parse error: invalid wire type",
             "",
         ]
     );

@@ -566,7 +566,6 @@ pub fn render_notices(notices: &[Notice]) -> anyhow::Result<Vec<Line>> {
     let mut output: Vec<Line> = Vec::new();
     for notice in notices {
         let prefix = match notice.kind {
-            NoticeKind::Deprecation => "⚠️  ",
             NoticeKind::BepParseError => "⚠️  BEP file had a parse error: ",
         };
         output.push(Line::from_iter([

@@ -49,7 +49,7 @@ pub struct UploadReport {
     /// The code the CLI exits with. Left out by the RSpec gem, where RSpec decides the exit code.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub exit_code: Option<ExitCode>,
-    /// Warnings that didn't stop the run, such as a deprecated flag.
+    /// Warnings that didn't stop the run, such as a Bazel BEP parse error.
     pub notices: Vec<Notice>,
 }
 

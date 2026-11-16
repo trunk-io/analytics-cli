@@ -11,20 +11,11 @@ pub struct Notice {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum NoticeKind {
-    /// The run relies on something 1.0.0 removes.
-    Deprecation,
     /// Part of the Bazel BEP file couldn't be parsed.
     BepParseError,
 }
 
 impl Notice {
-    pub fn deprecation<T: Into<String>>(message: T) -> Self {
-        Self {
-            kind: NoticeKind::Deprecation,
-            message: message.into(),
-        }
-    }
-
     pub fn bep_parse_error<T: Into<String>>(message: T) -> Self {
         Self {
             kind: NoticeKind::BepParseError,
