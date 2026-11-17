@@ -234,6 +234,22 @@ fn warns_about_an_upload_error_before_the_failures() {
 }
 
 #[test]
+fn warns_with_the_reason_an_upload_failed() {
+    let mut result = upload_result(3);
+    result.error_report = Some(ErrorReport::new(
+        anyhow::anyhow!("uploads only from a pull request from a fork")
+            .context("Failed to create bundle upload"),
+        String::from("test-org"),
+        Some(String::from(UPLOAD_ERROR_MESSAGE)),
+    ));
+
+    assert_eq!(
+        upload_annotations(&result)[0],
+        "::warning::There was an unexpected error that occurred while uploading test results%0AFailed to create bundle upload: uploads only from a pull request from a fork",
+    );
+}
+
+#[test]
 fn warns_that_results_with_old_timestamps_will_be_dropped() {
     let mut result = upload_result(5);
     result.validations = old_timestamp_validations(2);

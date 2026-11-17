@@ -138,10 +138,8 @@ pub fn render_error(error: &ErrorSummary) -> anyhow::Result<Vec<Line>> {
     if let Some(message) = &error.message {
         lines.push(Line::from_iter([Span::new_unstyled_lossy(message)]));
         lines.push(Line::default());
-        if let Some(explanation) = &error.explanation {
-            lines.push(Line::from_iter([Span::new_unstyled_lossy(explanation)]));
-            lines.push(Line::default());
-        }
+        lines.push(Line::from_iter([Span::new_unstyled_lossy(error.reason())]));
+        lines.push(Line::default());
     } else {
         lines.push(Line::from_iter([Span::new_unstyled_lossy(&error.error)]));
     }
