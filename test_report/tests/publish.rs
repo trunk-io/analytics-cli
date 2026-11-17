@@ -59,7 +59,7 @@ async fn publish_uploads_test_report() {
         env::set_var(TRUNK_PUBLIC_API_ADDRESS_ENV, &state.host);
         env::set_var("CI", "1");
         env::set_var("GITHUB_JOB", "test-job");
-        env::set_var(TRUNK_API_TOKEN_ENV, "test-token");
+        env::set_var(TRUNK_API_TOKEN_ENV, "trunk_v2_test-token");
         env::set_var(TRUNK_ORG_URL_SLUG_ENV, "test-org");
         env::set_var(TRUNK_QUARANTINED_TESTS_DISK_CACHE_TTL_SECS_ENV, "0");
     }
@@ -394,7 +394,7 @@ async fn publish_environment_variable_overrides() {
     unsafe {
         // Set all TRUNK_* environment variables to override defaults
         env::set_var(TRUNK_PUBLIC_API_ADDRESS_ENV, &state.host);
-        env::set_var(TRUNK_API_TOKEN_ENV, "test-token");
+        env::set_var(TRUNK_API_TOKEN_ENV, "trunk_v2_test-token");
         env::set_var(TRUNK_ORG_URL_SLUG_ENV, "test-org");
         // Don't set TRUNK_REPO_ROOT when using uncloned repo mode as they conflict
         env::set_var(
@@ -533,7 +533,7 @@ async fn publish_variant_priority_constructor_over_env() {
     unsafe {
         // Set environment variables
         env::set_var(TRUNK_PUBLIC_API_ADDRESS_ENV, &state.host);
-        env::set_var(TRUNK_API_TOKEN_ENV, "test-token");
+        env::set_var(TRUNK_API_TOKEN_ENV, "trunk_v2_test-token");
         env::set_var(TRUNK_ORG_URL_SLUG_ENV, "test-org");
         env::set_var(
             TRUNK_REPO_URL_ENV,
@@ -603,7 +603,7 @@ fn set_up_summary_output_file(temp_dir: &TempDir, host: &str) -> PathBuf {
     let summary_path = temp_dir.path().join("summary.json");
     unsafe {
         env::set_var(TRUNK_PUBLIC_API_ADDRESS_ENV, host);
-        env::set_var(TRUNK_API_TOKEN_ENV, "test-token");
+        env::set_var(TRUNK_API_TOKEN_ENV, "trunk_v2_test-token");
         env::set_var(TRUNK_ORG_URL_SLUG_ENV, "test-org");
         env::set_var(TRUNK_QUARANTINED_TESTS_DISK_CACHE_TTL_SECS_ENV, "0");
         env::set_var(TRUNK_SUMMARY_OUTPUT_FILE_ENV, &summary_path);
@@ -744,7 +744,7 @@ async fn publish_writes_an_error_to_summary_output_file() {
     let state = MockServerBuilder::new().spawn_mock_server().await;
     unsafe {
         env::set_var(TRUNK_PUBLIC_API_ADDRESS_ENV, &state.host);
-        env::set_var(TRUNK_API_TOKEN_ENV, "test-token");
+        env::set_var(TRUNK_API_TOKEN_ENV, "trunk_v2_test-token");
         env::set_var(TRUNK_ORG_URL_SLUG_ENV, "test-org");
         env::set_var(TRUNK_REPO_ROOT_ENV, temp_dir.path());
         env::set_var(TRUNK_SUMMARY_OUTPUT_FILE_ENV, &summary_path);

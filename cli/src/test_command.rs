@@ -17,7 +17,9 @@ use crate::{
     context::{gather_debug_props, gather_initial_test_context},
     error_report::InterruptingError,
     exit_code::ExitCode,
-    upload_command::{RunUploadOptions, UploadArgs, UploadRunResult, run_upload},
+    upload_command::{
+        RunUploadOptions, UploadArgs, UploadRunResult, refuse_a_legacy_token, run_upload,
+    },
 };
 
 #[derive(Args, Clone, Debug)]
@@ -67,6 +69,7 @@ pub async fn run_test(
     }: TestArgs,
     render_sender: Sender<DisplayMessage>,
 ) -> anyhow::Result<UploadRunResult> {
+    refuse_a_legacy_token(upload_args.token.as_deref())?;
     let token = upload_args.token.clone().unwrap_or_default();
     let mut test_run_result = run_test_command(&command, render_sender.clone()).await?;
     let test_context = gather_initial_test_context(

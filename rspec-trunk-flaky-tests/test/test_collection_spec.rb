@@ -19,7 +19,7 @@ RSpec.describe 'TRUNK_TEST_COLLECTION_ID' do
   def load_gem(test_collection_id)
     env = {
       'TRUNK_ORG_URL_SLUG' => 'test-collection-spec',
-      'TRUNK_API_TOKEN' => 'test-collection-spec',
+      'TRUNK_API_TOKEN' => 'trunk_v2_test-collection-spec',
       'TRUNK_TEST_COLLECTION_ID' => test_collection_id,
       'DISABLE_RSPEC_TRUNK_FLAKY_TESTS' => nil
     }

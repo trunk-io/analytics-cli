@@ -128,7 +128,7 @@ async fn quarantine_variant_impacts_quarantining() {
 
     unsafe {
         env::set_var(TRUNK_PUBLIC_API_ADDRESS_ENV, &state.host);
-        env::set_var(TRUNK_API_TOKEN_ENV, "test-token");
+        env::set_var(TRUNK_API_TOKEN_ENV, "trunk_v2_test-token");
         env::set_var(TRUNK_ORG_URL_SLUG_ENV, "test-org");
         env::set_var(TRUNK_USE_UNCLONED_REPO_ENV, "false");
         env::set_var(TRUNK_QUARANTINED_TESTS_DISK_CACHE_TTL_SECS_ENV, "0");
@@ -409,7 +409,7 @@ async fn quarantine_disk_cache() {
 
     unsafe {
         env::set_var(TRUNK_PUBLIC_API_ADDRESS_ENV, &state.host);
-        env::set_var(TRUNK_API_TOKEN_ENV, "test-token");
+        env::set_var(TRUNK_API_TOKEN_ENV, "trunk_v2_test-token");
     }
 
     let (test_1_is_quarantined, test_3_is_quarantined) = thread::spawn(|| {
@@ -563,7 +563,7 @@ async fn quarantine_disabled_for_repo() {
 
     unsafe {
         env::set_var(TRUNK_PUBLIC_API_ADDRESS_ENV, &state.host);
-        env::set_var(TRUNK_API_TOKEN_ENV, "test-token");
+        env::set_var(TRUNK_API_TOKEN_ENV, "trunk_v2_test-token");
         env::set_var(TRUNK_QUARANTINED_TESTS_DISK_CACHE_TTL_SECS_ENV, "0");
     }
 
@@ -629,7 +629,7 @@ async fn quarantine_lookup_failed_when_endpoint_fails() {
 
     unsafe {
         env::set_var(TRUNK_PUBLIC_API_ADDRESS_ENV, &state.host);
-        env::set_var(TRUNK_API_TOKEN_ENV, "test-token");
+        env::set_var(TRUNK_API_TOKEN_ENV, "trunk_v2_test-token");
         env::set_var(TRUNK_QUARANTINED_TESTS_DISK_CACHE_TTL_SECS_ENV, "0");
         env::set_var(TRUNK_API_CLIENT_RETRY_COUNT_ENV, "0");
     }
@@ -736,7 +736,7 @@ async fn v2_matches_a_test_by_its_computed_test_id() {
 
     unsafe {
         env::set_var(TRUNK_PUBLIC_API_ADDRESS_ENV, &state.host);
-        env::set_var(TRUNK_API_TOKEN_ENV, "test-token");
+        env::set_var(TRUNK_API_TOKEN_ENV, "trunk_v2_test-token");
         env::set_var(TRUNK_ORG_URL_SLUG_ENV, "test-org");
         env::set_var(
             TRUNK_REPO_URL_ENV,
@@ -785,7 +785,7 @@ async fn makes_no_calls_without_a_test_collection_id() {
 
     unsafe {
         env::set_var(TRUNK_PUBLIC_API_ADDRESS_ENV, &state.host);
-        env::set_var(TRUNK_API_TOKEN_ENV, "test-token");
+        env::set_var(TRUNK_API_TOKEN_ENV, "trunk_v2_test-token");
         env::set_var(TRUNK_ORG_URL_SLUG_ENV, "test-org");
         env::set_var(
             TRUNK_REPO_URL_ENV,
@@ -817,4 +817,62 @@ async fn makes_no_calls_without_a_test_collection_id() {
     assert!(!result.quarantine_lookup_failed);
     assert!(!published);
     assert!(state.requests.lock().unwrap().is_empty());
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[serial]
+async fn makes_no_calls_with_an_organization_token() {
+    cleanup_env_vars();
+    let temp_dir = tempdir().unwrap();
+    setup_quarantine_disk_cache_dir(&temp_dir);
+    let _ = env::set_current_dir(&temp_dir);
+
+    let state = MockServerBuilder::new().spawn_mock_server().await;
+
+    unsafe {
+        env::set_var(TRUNK_PUBLIC_API_ADDRESS_ENV, &state.host);
+        env::set_var(TRUNK_API_TOKEN_ENV, "0123456789abcdef0123456789abcdef");
+        env::set_var(TRUNK_ORG_URL_SLUG_ENV, "test-org");
+        env::set_var(
+            TRUNK_REPO_URL_ENV,
+            "https://github.com/test-org/test-repo.git",
+        );
+        env::set_var(TRUNK_USE_UNCLONED_REPO_ENV, "true");
+        env::set_var(TRUNK_REPO_HEAD_SHA_ENV, "");
+        env::set_var(TRUNK_REPO_HEAD_BRANCH_ENV, "");
+        env::set_var(TRUNK_REPO_HEAD_AUTHOR_NAME_ENV, "");
+    }
+
+    let (result, published) = thread::spawn(|| {
+        let test_report = MutTestReport::new("test".into(), "test-command".into(), None);
+        let result = test_report.is_quarantined(
+            None,
+            Some("quarantined".to_string()),
+            Some("test-parent-name".to_string()),
+            None,
+            None,
+        );
+        (result, test_report.publish())
+    })
+    .join()
+    .unwrap();
+
+    assert!(!result.test_is_quarantined);
+    assert!(!result.quarantine_lookup_failed);
+    assert!(!published);
+    assert!(state.requests.lock().unwrap().is_empty());
+}
+
+#[test]
+fn refuses_only_an_organization_token() {
+    use test_report::report::token_refusal;
+
+    let refusal = token_refusal(String::from("0123456789abcdef0123456789abcdef")).unwrap();
+    assert!(
+        refusal.contains("analytics-cli 1.0.0 needs a v2 API key"),
+        "{refusal}"
+    );
+    for token in ["trunk_v2_AbC123", "eyJhbGciOiJSUzI1NiJ9.eyJleHAiOjF9.c2ln"] {
+        assert_eq!(token_refusal(String::from(token)), None, "{token}");
+    }
 }
