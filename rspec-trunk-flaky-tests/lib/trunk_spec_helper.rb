@@ -56,6 +56,9 @@ module RSpec
     MODULE_TO_S = Module.instance_method(:to_s)
     MEMORY_ADDRESS = /:0x\h+>/
 
+    # Raised when Trunk is configured to upload but can't: see .check_configuration!.
+    class ConfigurationError < StandardError; end
+
     # Knapsack example detector instantiates all test cases in order to determine how to shard them
     # These instantiations should not generate test bundles, so we
     # disable the gem when running under knapsack_pro:rspec_test_example_detector
@@ -82,6 +85,7 @@ module RSpec
       def setup
         return if current_run || disabled?
 
+        check_configuration!
         run = @current_run = Run.new
         RSpec::Core::Example.prepend(ExampleExtension)
         RSpec::Core::ExampleGroup.singleton_class.prepend(ExampleGroupExtension)
@@ -105,30 +109,28 @@ module RSpec
         config.reporter.register_listener AnalyticsListener.new(run), :example_finished, :close
       end
 
+      # An empty token counts as none: it is what a fork pull request's missing secret turns into.
       def disabled?
         knapsack_detector_mode? || ENV['DISABLE_RSPEC_TRUNK_FLAKY_TESTS'] == 'true' ||
-          ENV['TRUNK_ORG_URL_SLUG'].nil? || ENV['TRUNK_API_TOKEN'].nil? || missing_test_collection? ||
-          refused_token?
+          ENV['TRUNK_ORG_URL_SLUG'].nil? || ENV.fetch('TRUNK_API_TOKEN', '').strip.empty?
       end
 
-      # 1.0.0 takes a v2 API key or a Trunk JWT, never the organization token. Warns for the same
-      # reason as missing_test_collection?.
-      def refused_token?
+      # A run with a token and a slug means to upload, so one that can't is an error rather than a
+      # warning: a warning leaves the build green while uploads and quarantining stop, which is how
+      # a dependency bot's upgrade to 1.0.0 would merge unnoticed. Raised while spec_helper loads,
+      # so RSpec runs no examples and exits non-zero, as the CLI's `test` command does.
+      def check_configuration!
+        if ENV.fetch('TRUNK_TEST_COLLECTION_ID', '').strip.empty?
+          configuration_error!('this run names no test collection. Set TRUNK_TEST_COLLECTION_ID to upload its ' \
+                               "test results; the ID is on the collection's page in Trunk.")
+        end
         refusal = RSpec::Trunk.token_refusal(ENV.fetch('TRUNK_API_TOKEN'))
-        return false unless refusal
-
-        warn("Trunk Flaky Tests is disabled: #{refusal}")
-        true
+        configuration_error!(refusal) if refusal
       end
 
-      # Warns rather than staying silent like the checks before it: a run with a token and a slug
-      # means to upload, and the native extension's own warnings never reach the console.
-      def missing_test_collection?
-        return false unless ENV.fetch('TRUNK_TEST_COLLECTION_ID', '').strip.empty?
-
-        warn('Trunk Flaky Tests is disabled: this run names no test collection. Set ' \
-             "TRUNK_TEST_COLLECTION_ID to upload its test results; the ID is on the collection's page in Trunk.")
-        true
+      def configuration_error!(reason)
+        raise ConfigurationError, "Trunk Flaky Tests: #{reason} To run without Trunk, set " \
+                                  'DISABLE_RSPEC_TRUNK_FLAKY_TESTS=true.'
       end
 
       def knapsack_detector_mode?
