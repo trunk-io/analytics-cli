@@ -56,6 +56,33 @@ fn prints_a_client_error_explanation_beneath_the_base_message() {
 }
 
 #[test]
+fn prints_the_error_and_its_causes_beneath_the_base_message() {
+    let error = anyhow::anyhow!(
+        "--allow-forked-pr-uploads without a Trunk API token uploads only from a GitHub Actions run of a pull request from a fork; test results will not be uploaded."
+    )
+    .context("Failed to create bundle upload");
+    let report = ErrorReport::new(
+        error,
+        String::from("fake-org-slug"),
+        Some(String::from("There was an unexpected error")),
+    );
+
+    assert_eq!(
+        error_summary(&report),
+        [
+            "Error Encountered",
+            "There was an unexpected error",
+            "",
+            "Failed to create bundle upload: --allow-forked-pr-uploads without a Trunk API token uploads only from a GitHub Actions run of a pull request from a fork; test results will not be uploaded.",
+            "",
+            "For more help, contact us at https://slack.trunk.io/",
+            "",
+            "Errors occurred during execution, using quarantining exit code",
+        ]
+    );
+}
+
+#[test]
 fn prints_connection_refused_beneath_the_base_message() {
     let report = ErrorReport::new(
         connection_refused_error(),
