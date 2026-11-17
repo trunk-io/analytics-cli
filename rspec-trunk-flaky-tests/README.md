@@ -106,7 +106,7 @@ require 'trunk_spec_helper'
 
 ### Environment Variables
 
-For a complete list of environment variables that the gem accepts, see [`lib/trunk_spec_helper.rb`](lib/trunk_spec_helper.rb). The gem uses the same environment variables as the Trunk Analytics CLI for configuration overrides. `TRUNK_ORG_URL_SLUG` and a non-empty `TRUNK_API_TOKEN` activate the plugin; without either it stays off. Once active it needs `TRUNK_TEST_COLLECTION_ID` too, and `TRUNK_API_TOKEN` must be a v2 API key with the Upload test results permission, or a Trunk JWT that outlasts the run (one lasts at most 15 minutes). With no test collection, or with an organization token, loading the plugin raises `RSpec::Trunk::ConfigurationError`, so RSpec runs no examples and exits non-zero; set `DISABLE_RSPEC_TRUNK_FLAKY_TESTS=true` to run without Trunk. See [Credentials](../README.md#credentials).
+For a complete list of environment variables that the gem accepts, see [`lib/trunk_spec_helper.rb`](lib/trunk_spec_helper.rb). The gem uses the same environment variables as the Trunk Analytics CLI for configuration overrides. `TRUNK_ORG_URL_SLUG` and a non-empty `TRUNK_API_TOKEN` activate the plugin; without either it stays off. Once active it needs `TRUNK_TEST_COLLECTION_ID` too, and `TRUNK_API_TOKEN` must be a v2 API key with the Upload test results permission. With no test collection, or with an organization token, loading the plugin raises `RSpec::Trunk::ConfigurationError`, so RSpec runs no examples and exits non-zero; set `DISABLE_RSPEC_TRUNK_FLAKY_TESTS=true` to run without Trunk. See [Credentials](../README.md#credentials).
 
 #### `TRUNK_QUARANTINE_QUERY_FAILURE_EXIT`
 
