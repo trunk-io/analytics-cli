@@ -202,7 +202,7 @@ fn writes_an_error_as_json() {
         serde_json::from_str::<serde_json::Value>(&Report::Error(&error).to_json().unwrap())
             .unwrap(),
         serde_json::json!({
-            "schemaVersion": 1,
+            "schemaVersion": 2,
             "type": "ERROR",
             "kind": "OTHER",
             "message": null,

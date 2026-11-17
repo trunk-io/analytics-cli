@@ -472,7 +472,7 @@ async fn test_command_writes_summary_output_file() {
 
     let summary: serde_json::Value =
         serde_json::from_reader(File::open(&summary_path).unwrap()).unwrap();
-    assert_eq!(summary["schemaVersion"], 1);
+    assert_eq!(summary["schemaVersion"], 2);
     assert_eq!(summary["type"], "UPLOAD");
     assert_eq!(summary["exitCode"], 1);
 }

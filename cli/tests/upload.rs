@@ -1437,7 +1437,7 @@ async fn upload_writes_summary_output_file() {
         )));
 
     let summary = read_summary_output_file(&summary_path);
-    assert_eq!(summary["schemaVersion"], 1);
+    assert_eq!(summary["schemaVersion"], 2);
     assert_eq!(summary["type"], "UPLOAD");
     assert_eq!(summary["dryRun"], false);
     assert_eq!(summary["quarantining"], "CHECKED");
@@ -1594,7 +1594,7 @@ async fn upload_writes_an_error_to_summary_output_file() {
         .code(ExitCode::Error.code());
 
     let summary = read_summary_output_file(&summary_path);
-    assert_eq!(summary["schemaVersion"], 1);
+    assert_eq!(summary["schemaVersion"], 2);
     assert_eq!(summary["type"], "ERROR");
     assert_eq!(summary["kind"], "GIT_REPOSITORY");
     assert_eq!(summary["exitCode"], ExitCode::Error.code());
@@ -1676,7 +1676,7 @@ async fn upload_prints_a_json_error_on_stdout() {
         .stderr(predicate::str::contains("Error Encountered"));
 
     let summary: serde_json::Value = serde_json::from_slice(&assert.get_output().stdout).unwrap();
-    assert_eq!(summary["schemaVersion"], 1);
+    assert_eq!(summary["schemaVersion"], 2);
     assert_eq!(summary["type"], "ERROR");
     assert_eq!(summary["kind"], "GIT_REPOSITORY");
     assert_eq!(summary["exitCode"], ExitCode::Error.code());
