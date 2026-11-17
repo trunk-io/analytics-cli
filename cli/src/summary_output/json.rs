@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use super::{ErrorSummary, UploadReport, ValidateReport};
 
-pub const SCHEMA_VERSION: u32 = 1;
+pub const SCHEMA_VERSION: u32 = 2;
 
 #[derive(Debug, Clone, Copy, Serialize, JsonSchema)]
 #[serde(tag = "type", rename_all = "SCREAMING_SNAKE_CASE")]

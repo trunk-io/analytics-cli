@@ -373,7 +373,7 @@ fn render_groups(groups: &[FailureGroup], options: &TextOptions) -> anyhow::Resu
             let link = test
                 .link
                 .clone()
-                .ok_or_else(|| anyhow::anyhow!("Unable to link to test {}", test.id))?;
+                .ok_or_else(|| anyhow::anyhow!("Unable to link to test {}", test.name))?;
             let mut link_output = Line::from_iter([
                 Span::new_unstyled("⤷ ")?,
                 hyperlink_span(link, Attribute::Underlined)?,

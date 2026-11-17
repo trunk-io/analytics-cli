@@ -63,10 +63,10 @@ fn reads_back_the_summary_it_wrote() {
 
 #[test]
 fn rejects_a_newer_schema_version() {
-    let error = r#"{"schemaVersion": 2, "type": "ERROR"}"#.parse::<json::Summary>().unwrap_err();
+    let error = r#"{"schemaVersion": 3, "type": "ERROR"}"#.parse::<json::Summary>().unwrap_err();
     assert_eq!(
         error.to_string(),
-        "schemaVersion 2 is newer than this CLI understands (1)"
+        "schemaVersion 3 is newer than this CLI understands (2)"
     );
     assert!("{}".parse::<json::Summary>().is_err());
 }
@@ -80,7 +80,7 @@ fn reads_a_newer_schema_version_that_still_parses() {
     ));
     let mut written: serde_json::Value =
         serde_json::from_str(&Report::Error(&error).to_json().unwrap()).unwrap();
-    written["schemaVersion"] = serde_json::json!(2);
+    written["schemaVersion"] = serde_json::json!(3);
     written["kind"] = serde_json::json!("SOME_NEW_KIND");
     written["someNewField"] = serde_json::json!(true);
 
