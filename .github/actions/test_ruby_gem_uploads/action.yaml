@@ -255,7 +255,9 @@ runs:
       env:
         TRUNK_QUARANTINE_QUERY_FAILURE_EXIT: "true"
         TRUNK_ORG_URL_SLUG: fake-org
-        TRUNK_API_TOKEN: fake-token
+        # A fake v2 API key: an organization token would leave the gem off.
+        # trunk-ignore(checkov/CKV_SECRET_6)
+        TRUNK_API_TOKEN: trunk_v2_fake-token
         TRUNK_TEST_COLLECTION_ID: tc_fake
         TRUNK_QUARANTINED_TESTS_DISK_CACHE_TTL_SECS: "0"
         TRUNK_API_CLIENT_RETRY_COUNT: "0"

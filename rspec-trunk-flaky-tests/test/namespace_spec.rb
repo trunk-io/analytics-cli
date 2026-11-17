@@ -69,7 +69,7 @@ RSpec.describe 'global namespace' do
   it 'defines nothing outside RSpec::Trunk' do
     env = {
       'TRUNK_ORG_URL_SLUG' => 'namespace-spec',
-      'TRUNK_API_TOKEN' => 'namespace-spec',
+      'TRUNK_API_TOKEN' => 'trunk_v2_namespace-spec',
       'TRUNK_TEST_COLLECTION_ID' => 'namespace-spec',
       'DISABLE_RSPEC_TRUNK_FLAKY_TESTS' => nil
     }

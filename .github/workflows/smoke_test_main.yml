@@ -128,8 +128,8 @@ jobs:
         uses: ./.github/actions/perform_smoke_test
         with:
           cli-binary-location: ${{ matrix.platform.binary-name }}
-          staging-api-token: ${{ secrets.TRUNK_STAGING_ORG_API_TOKEN }}
-          production-api-token: ${{ secrets.TRUNK_PROD_ORG_API_TOKEN }}
+          staging-api-token: ${{ secrets.TRUNK_STAGING_API_V2_TOKEN }}
+          production-api-token: ${{ secrets.TRUNK_PROD_API_V2_TOKEN }}
           environment-type: ${{ (github.event.action == 'production-release' && 'production') || (github.event.action == 'staging-release' && 'staging') || 'both' }}
           test-variants: "true"
 
@@ -137,8 +137,8 @@ jobs:
         uses: ./.github/actions/perform_gitlab_smoke_test
         with:
           cli-binary-location: ${{ matrix.platform.binary-name }}
-          staging-api-token: ${{ secrets.TRUNK_STAGING_ORG_API_TOKEN }}
-          production-api-token: ${{ secrets.TRUNK_PROD_ORG_API_TOKEN }}
+          staging-api-token: ${{ secrets.TRUNK_STAGING_API_V2_TOKEN }}
+          production-api-token: ${{ secrets.TRUNK_PROD_API_V2_TOKEN }}
           environment-type: ${{ (github.event.action == 'production-release' && 'production') || (github.event.action == 'staging-release' && 'staging') || 'both' }}
 
   build_ruby_gem:
@@ -223,7 +223,7 @@ jobs:
         uses: ./.github/actions/test_ruby_gem_uploads
         with:
           ruby-version: "4.0"
-          trunk-token: ${{ secrets.TRUNK_STAGING_ORG_API_TOKEN }}
+          trunk-token: ${{ secrets.TRUNK_STAGING_API_V2_TOKEN }}
           trunk-public-api-address: https://api.trunk-staging.io
           trunk-org-slug: trunk-staging-org
           # analytics-cli-ruby-gem: https://app.trunk-staging.io/trunk-staging-org/flaky-tests/collections/T5yKSn9h/monitors
@@ -253,7 +253,7 @@ jobs:
         uses: ./.github/actions/test_ruby_gem_uploads
         with:
           ruby-version: "4.0"
-          trunk-token: ${{ secrets.TRUNK_PROD_ORG_API_TOKEN }}
+          trunk-token: ${{ secrets.TRUNK_PROD_API_V2_TOKEN }}
           trunk-public-api-address: https://api.trunk.io
           trunk-org-slug: trunk
           # analytics-cli-ruby-gem: https://app.trunk.io/trunk/flaky-tests/collections/BiBP2neA/monitors
