@@ -94,8 +94,10 @@ pub struct FailedTest {
     pub suite: String,
     pub class_name: Option<String>,
     pub file: Option<String>,
-    /// Trunk's ID for the test.
-    pub id: String,
+    /// Trunk's ID for the test, the `testId` the Flaky Tests API takes. Null when Trunk didn't
+    /// name the test collection and repository for this run, such as a dry run whose quarantine
+    /// lookup failed.
+    pub id: Option<String>,
     pub variant: Option<String>,
     /// The failure's `message` attribute.
     pub failure_message: Option<String>,
@@ -312,7 +314,11 @@ fn failed_test(result: &UploadRunResult, test: &Test, quarantined: bool) -> Fail
         suite: test.parent_name.clone(),
         class_name: test.class_name.clone(),
         file: test.file.clone(),
-        id: test.id.clone(),
+        id: result
+            .guid_scope
+            .as_ref()
+            .and_then(|scope| scope.test_case_guid(&test.id))
+            .map(|guid| guid.to_string()),
         variant: test.variant.clone(),
         failure_message: test.failure_message_attribute.clone(),
         failure_text: test.failure_text.clone(),

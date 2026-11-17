@@ -975,6 +975,27 @@ fn upload_json(result: &UploadRunResult) -> serde_json::Value {
 }
 
 #[test]
+fn ids_a_failed_test_by_its_test_case_guid() {
+    let mut result = in_collection(upload_result(2));
+    result.quarantine_context.exit_code = ExitCode::Failure;
+    result.quarantine_context.failures = vec![Test {
+        id: String::from("c33a7f64-8f3e-5db9-b37b-2ea870d2441b"),
+        ..failure("adds", "MathTests", None)
+    }];
+    result.guid_scope = Some(TestCaseGuidScope {
+        test_collection_id: String::from("9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d"),
+        repo_id: String::from("1f2e3d4c-5b6a-4978-8a6b-5c4d3e2f1a0b"),
+    });
+
+    let test = &upload_json(&result)["failures"][0]["tests"][0];
+    assert_eq!(test["id"], "81d0929e-fc06-8b61-8506-991d8ebc51ea");
+    assert_eq!(
+        test["link"],
+        "https://app.trunk.io/test-org/flaky-tests/collections/abc123/tests/81d0929e-fc06-8b61-8506-991d8ebc51ea"
+    );
+}
+
+#[test]
 fn writes_the_report_as_json() {
     let mut result = in_collection(upload_result(10));
     result.error_report = Some(ErrorReport::new(
@@ -1017,7 +1038,7 @@ fn writes_the_report_as_json() {
     assert_eq!(
         upload_json(&result),
         serde_json::json!({
-            "schemaVersion": 1,
+            "schemaVersion": 2,
             "type": "UPLOAD",
             "command": "UPLOAD",
             "error": {
@@ -1073,7 +1094,7 @@ fn writes_the_report_as_json() {
                             "suite": "MathTests",
                             "className": null,
                             "file": "src/math.rs",
-                            "id": "adds-id",
+                            "id": null,
                             "variant": null,
                             "failureMessage": null,
                             "failureText": null,
@@ -1092,7 +1113,7 @@ fn writes_the_report_as_json() {
                             "suite": "MathTests",
                             "className": "Math",
                             "file": "src/math.rs",
-                            "id": "subtracts-id",
+                            "id": null,
                             "variant": "linux",
                             "failureMessage": "expected 1, got 2",
                             "failureText": "at src/math.rs:12",
@@ -1109,7 +1130,7 @@ fn writes_the_report_as_json() {
                             "suite": "",
                             "className": null,
                             "file": null,
-                            "id": "boots-id",
+                            "id": null,
                             "variant": null,
                             "failureMessage": null,
                             "failureText": null,

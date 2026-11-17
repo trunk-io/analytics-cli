@@ -46,6 +46,7 @@ From trunk CLI 0.0.14, `trunk flakytests` runs the newest analytics-cli 1.x unle
 - The summary goes to **stdout**; logs, notices and progress go to stderr. A script that reads only stderr loses the summary.
 - `--output-format json` (or `TRUNK_OUTPUT_FORMAT=json`) on `upload` and `validate` prints the summary as the JSON that `--summary-output-file` writes.
 - Test links point at the test in its test collection. The old repository-scoped test links are gone.
+- In the JSON summary, a failed test's `id` is now the test's ID in the Flaky Tests API (the `testId` that `GET /v2/tests/{testId}` takes), and it is `null` when Trunk couldn't identify the test's collection for the run. `schemaVersion` is now 2.
 
 ### Network
 
