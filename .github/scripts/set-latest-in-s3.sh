@@ -2,6 +2,7 @@
 # Point releases/analytics-cli/prod/channel.json and channel-<major>.json at an already-published
 # version. These are the only mutable objects in the prefix. Each pointer only moves forward
 # (unless ALLOW_DOWNGRADE=true), so a 0.x backport after 1.0.0 moves channel-0.json alone.
+# PROMOTE_LATEST=false leaves channel.json alone too.
 #
 # Usage: set-latest-in-s3.sh <version>
 set -euo pipefail
@@ -10,6 +11,7 @@ shopt -s inherit_errexit
 bucket="${BUCKET:-trunk-releases}"
 prefix="${PREFIX:-releases/analytics-cli/prod}"
 allow_downgrade="${ALLOW_DOWNGRADE:-false}"
+promote_latest="${PROMOTE_LATEST:-true}"
 version="${1:?usage: set-latest-in-s3.sh <version>}"
 
 if [[ ! ${version} =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
@@ -63,7 +65,12 @@ move_pointer() {
 }
 
 major_result="$(move_pointer "channel-${major}.json")"
-global_result="$(move_pointer "channel.json")"
+if [[ ${promote_latest} == "true" ]]; then
+	global_result="$(move_pointer "channel.json")"
+else
+	echo "https://trunk.io/${prefix}/channel.json stays put: not promoting latest" >&2
+	global_result=kept
+fi
 
 if [[ ${major_result} == kept && ${global_result} == kept ]]; then
 	echo "::warning::${version} moved no pointer; both already point at a newer version"
