@@ -946,6 +946,7 @@ dependencies = [
  "codeowners",
  "constants",
  "gix",
+ "indexmap 2.12.0",
  "itertools 0.14.0",
  "js-sys",
  "junit-mock",
