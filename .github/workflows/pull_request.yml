@@ -192,6 +192,14 @@ jobs:
         with:
           lfs: "true"
 
+      # pyo3 links whatever `python3` the runner has, and the macOS image's 3.15 ships no
+      # libpython to link against; pin the version setup_build_pyo3 uses.
+      - name: Set up Python (macOS)
+        if: ${{ contains(matrix.platform.os-name, 'darwin') }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.13
+
       - name: Setup Rust & Cargo
         uses: ./.github/actions/setup_rust_cargo
 
