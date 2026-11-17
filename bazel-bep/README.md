@@ -6,6 +6,8 @@ Original protos found [here](https://github.com/bazelbuild/bazel/blob/master/src
 
 The protos in `proto/` are from **Bazel 9.0.1**.
 
+The JSON parser skips fields and enum values these protos don't have (`ignore_unknown_fields`, `ignore_unknown_enum_variants` in `build.rs`), so a newer Bazel's JSON still parses; an unknown enum value reads as the enum's default. Update the protos when we need what a new Bazel adds.
+
 ## Updating Protos for New Bazel Versions
 
 ### Current Situation
