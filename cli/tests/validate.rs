@@ -266,7 +266,7 @@ fn validate_prints_only_the_json_summary_on_stdout() {
         .stderr(predicate::str::contains("⚠️  BEP file had a parse error"));
 
     let summary: serde_json::Value = serde_json::from_slice(&assert.get_output().stdout).unwrap();
-    assert_eq!(summary["schemaVersion"], 1);
+    assert_eq!(summary["schemaVersion"], 2);
     assert_eq!(summary["type"], "VALIDATE");
     assert_eq!(summary["counts"]["files"], 1);
     assert_eq!(summary["exitCode"], 0);

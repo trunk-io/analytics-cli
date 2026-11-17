@@ -660,7 +660,7 @@ async fn publish_writes_summary_output_file() {
     assert!(publish_a_passing_and_a_failing_test(true));
 
     let summary = read_summary_output_file(&summary_path);
-    assert_eq!(summary["schemaVersion"], 1);
+    assert_eq!(summary["schemaVersion"], 2);
     assert_eq!(summary["type"], "UPLOAD");
     assert_eq!(
         summary["counts"],
@@ -758,7 +758,7 @@ async fn publish_writes_an_error_to_summary_output_file() {
     .unwrap();
 
     let summary = read_summary_output_file(&summary_path);
-    assert_eq!(summary["schemaVersion"], 1);
+    assert_eq!(summary["schemaVersion"], 2);
     assert_eq!(summary["type"], "ERROR");
     assert_eq!(summary["kind"], "GIT_REPOSITORY");
 }
