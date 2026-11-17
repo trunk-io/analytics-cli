@@ -226,17 +226,7 @@ pub fn gather_initial_test_context(
             quarantine_resolution_mode: QuarantineResolutionMode::Unspecified,
         },
         failed_tests: Vec::with_capacity(0),
-        variant: upload_args.variant.as_ref().map(|v| {
-            if v.len() > 64 {
-                tracing::warn!(
-                    "Variant '{}' exceeds 64 character limit and will be truncated",
-                    v
-                );
-                v[..64].to_string()
-            } else {
-                v.clone()
-            }
-        }),
+        variant: upload_args.variant.clone(),
         internal_bundled_file: None,
     };
 
@@ -1159,7 +1149,7 @@ mod tests {
     use crate::upload_command::UploadArgs;
 
     #[test]
-    fn test_variant_truncation() {
+    fn test_variant_is_not_truncated() {
         let mut upload_args = UploadArgs::new(
             "test-token".to_string(),
             "test-org".to_string(),
@@ -1168,46 +1158,26 @@ mod tests {
             true,
         );
 
-        // Test case 1: Variant under 64 characters
-        upload_args.variant = Some("short-variant".to_string());
-        let context = gather_initial_test_context(
-            upload_args.clone(),
-            BundleMetaDebugProps {
-                command_line: "test".to_string(),
-                trunk_envs: HashMap::new(),
-            },
-        )
-        .unwrap();
-        assert_eq!(context.meta.variant, Some("short-variant".to_string()));
-
-        // Test case 2: Variant exactly 64 characters
-        let long_variant = "a".repeat(64);
-        upload_args.variant = Some(long_variant.clone());
-        let context = gather_initial_test_context(
-            upload_args.clone(),
-            BundleMetaDebugProps {
-                command_line: "test".to_string(),
-                trunk_envs: HashMap::new(),
-            },
-        )
-        .unwrap();
-        assert_eq!(context.meta.variant, Some(long_variant));
-
-        // Test case 3: Variant over 64 characters
-        let very_long_variant = "a".repeat(100);
-        upload_args.variant = Some(very_long_variant.clone());
-        let context = gather_initial_test_context(
-            upload_args,
-            BundleMetaDebugProps {
-                command_line: "test".to_string(),
-                trunk_envs: HashMap::new(),
-            },
-        )
-        .unwrap();
-        assert_eq!(
-            context.meta.variant,
-            Some(very_long_variant[..64].to_string())
-        );
+        // Evergreen build variant names are often longer than 64 characters, and non-ASCII names
+        // must not be split inside a character.
+        for variant in [
+            "short-variant".to_string(),
+            "a".repeat(64),
+            "enterprise-amazon-linux2023-arm64-all-feature-flags-extra-system-deps-sharded-clusters"
+                .to_string(),
+            "é".repeat(100),
+        ] {
+            upload_args.variant = Some(variant.clone());
+            let context = gather_initial_test_context(
+                upload_args.clone(),
+                BundleMetaDebugProps {
+                    command_line: "test".to_string(),
+                    trunk_envs: HashMap::new(),
+                },
+            )
+            .unwrap();
+            assert_eq!(context.meta.variant, Some(variant));
+        }
     }
 
     #[test]
