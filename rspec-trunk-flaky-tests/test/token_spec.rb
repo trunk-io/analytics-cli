@@ -33,9 +33,9 @@ RSpec.describe 'TRUNK_API_TOKEN' do
       expect(status).to be_success, stderr
       expect(stdout.lines.last.strip).to eq('disabled')
       expect(stderr).to include('Trunk Flaky Tests is disabled: This Trunk token is not a v2 API key.')
-      expect(stderr).to include('Settings → Developer → API Keys')
+      expect(stderr).to include('https://app.trunk.io/settings/developer/api-tokens')
       expect(stderr).to include('Upload test results')
-      expect(stderr).to include('pin analytics-cli 0.17.x')
+      expect(stderr).to include('until December 1, 2027, pin analytics-cli 0.17.x')
     end
   end
 

@@ -3637,9 +3637,9 @@ async fn refuses_an_organization_token_before_any_call(
     );
     for part in [
         "This Trunk token is not a v2 API key. analytics-cli 1.0.0 needs a v2 API key",
-        "Settings → Developer → API Keys",
+        "https://app.trunk.io/settings/developer/api-tokens",
         "Upload test results",
-        "pin analytics-cli 0.17.x",
+        "until December 1, 2027, pin analytics-cli 0.17.x",
     ] {
         assert!(output.contains(part), "{part:?} missing from {output}");
     }
@@ -3673,7 +3673,7 @@ async fn upload_names_the_missing_upload_permission_on_a_403() {
         .assert()
         .code(ExitCode::Error.code())
         .stdout(predicate::str::contains(
-            "Trunk refused this API key: it lacks the Upload test results (`upload_test_results`) permission group. Grant it by editing the key in the Trunk web app under Settings → Developer → API Keys.",
+            "Trunk refused this API key: it lacks the Upload test results (`upload_test_results`) permission group. Grant it by editing the key at https://app.trunk.io/settings/developer/api-tokens.",
         ));
 }
 

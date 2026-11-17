@@ -378,8 +378,8 @@ pub(crate) enum CheckUnauthorized {
 }
 
 pub(crate) const UNAUTHORIZED_CONTEXT: &str = concat!(
-    "Your Trunk API key may be incorrect - find it in the Trunk app ",
-    "(Settings -> Developer -> API Keys).",
+    "Your Trunk API key may be incorrect - check it at ",
+    "https://app.trunk.io/settings/developer/api-tokens.",
 );
 
 /// The API's explanation of a client error, kept in the error chain so the error report can

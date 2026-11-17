@@ -806,9 +806,9 @@ fn refuses_an_organization_token_before_any_call() {
         let message = error.to_string();
         for part in [
             "analytics-cli 1.0.0 needs a v2 API key",
-            "Settings → Developer → API Keys",
+            "https://app.trunk.io/settings/developer/api-tokens",
             "Upload test results",
-            "pin analytics-cli 0.17.x",
+            "until December 1, 2027, pin analytics-cli 0.17.x",
         ] {
             assert!(message.contains(part), "{message}");
         }
@@ -871,7 +871,7 @@ async fn names_the_missing_upload_permission_on_a_403() {
             assert!(message.starts_with(refused), "{message}");
             assert!(
                 message.contains(
-                    "the Upload test results (`upload_test_results`) permission group. Grant it by editing the key in the Trunk web app under Settings → Developer → API Keys."
+                    "the Upload test results (`upload_test_results`) permission group. Grant it by editing the key at https://app.trunk.io/settings/developer/api-tokens."
                 ),
                 "{message}"
             );

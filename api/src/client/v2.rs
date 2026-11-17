@@ -13,7 +13,7 @@ use crate::quarantine::{QuarantineLookup, QuarantinedTestSet};
 use crate::urls::TestCaseGuidScope;
 
 const INSUFFICIENT_PERMISSIONS: &str = "INSUFFICIENT_PERMISSIONS";
-const MISSING_UPLOAD_PERMISSION: &str = "lacks the Upload test results (`upload_test_results`) permission group. Grant it by editing the key in the Trunk web app under Settings → Developer → API Keys.";
+const MISSING_UPLOAD_PERMISSION: &str = "lacks the Upload test results (`upload_test_results`) permission group. Grant it by editing the key at https://app.trunk.io/settings/developer/api-tokens.";
 
 impl ApiClient {
     const QUARANTINE_STATUS_MAX_IDENTIFIERS: usize = 2_000;
@@ -143,7 +143,7 @@ impl ApiClient {
                 )
             }
             (Some(StatusCode::UNAUTHORIZED), Some(RunCredential::ApiKey)) => String::from(
-                "Trunk did not accept this API key: it may be mistyped, revoked or deleted. Check it in the Trunk web app under Settings → Developer → API Keys.",
+                "Trunk did not accept this API key: it may be mistyped, revoked or deleted. Check it at https://app.trunk.io/settings/developer/api-tokens.",
             ),
             _ => return error,
         };

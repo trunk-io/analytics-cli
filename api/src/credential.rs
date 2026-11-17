@@ -70,10 +70,10 @@ impl fmt::Display for LegacyTokenRefused {
 impl std::error::Error for LegacyTokenRefused {}
 
 pub const LEGACY_TOKEN_MESSAGE: &str = concat!(
-    "This Trunk token is not a v2 API key. analytics-cli 1.0.0 needs a v2 API key: create one in ",
-    "the Trunk web app under Settings → Developer → API Keys, give it the Upload test results ",
-    "permission, and pass it with --token or TRUNK_API_TOKEN. To keep using your organization ",
-    "token, pin analytics-cli 0.17.x.",
+    "This Trunk token is not a v2 API key. analytics-cli 1.0.0 needs a v2 API key: create one at ",
+    "https://app.trunk.io/settings/developer/api-tokens, give it the Upload test results permission, and pass it ",
+    "with --token or TRUNK_API_TOKEN. To keep using your organization token until December 1, 2027, ",
+    "pin analytics-cli 0.17.x.",
 );
 
 #[cfg(test)]
