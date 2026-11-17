@@ -74,6 +74,16 @@ impl From<BindingsJunitReportValidation> for JunitReportValidation {
     }
 }
 
+impl BindingsJunitReportValidation {
+    pub fn test_suites(&self) -> &[JunitTestSuiteValidation] {
+        &self.test_suites
+    }
+
+    pub fn valid_test_suites(&self) -> &[BindingsTestSuite] {
+        &self.valid_test_suites
+    }
+}
+
 #[cfg_attr(feature = "pyo3", gen_stub_pymethods, pymethods)]
 #[cfg_attr(feature = "wasm", wasm_bindgen)]
 impl BindingsJunitReportValidation {
