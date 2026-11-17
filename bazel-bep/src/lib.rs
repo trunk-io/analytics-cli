@@ -63,6 +63,10 @@ pub(crate) mod blaze {
             "/blaze.invocation_policy.serde.rs"
         ));
     }
+    pub mod strategy_policy {
+        include!(concat!(env!("OUT_DIR"), "/blaze.strategy_policy.rs"));
+        include!(concat!(env!("OUT_DIR"), "/blaze.strategy_policy.serde.rs"));
+    }
 }
 
 pub(crate) mod command_line {

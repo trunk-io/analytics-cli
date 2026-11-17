@@ -50,6 +50,7 @@ mod tests {
     const FLAKY_SUMMARY_EXAMPLE: &str = "test_fixtures/bep_flaky_summary";
     const RETRIES_EXAMPLE: &str = "test_fixtures/bep_retries";
     const UNKNOWN_FIELDS_EXAMPLE: &str = "test_fixtures/bep_unknown_fields.json";
+    const BAZEL_9_EXAMPLE: &str = "test_fixtures/bep_bazel_9.json";
 
     #[test]
     fn test_parse_bep_with_unknown_fields() {
@@ -66,6 +67,22 @@ mod tests {
         );
         assert_eq!(parse_result.xml_file_counts(), (1, 0));
         assert!(parse_result.errors.is_empty());
+    }
+
+    #[test]
+    fn test_parse_bazel_9_json_bep() {
+        let input_file = get_test_file_path(BAZEL_9_EXAMPLE);
+        let mut parser = BazelBepParser::new(input_file);
+        let parse_result = parser.parse().unwrap();
+
+        assert_eq!(
+            parse_result.uncached_xml_files(),
+            vec![JunitReportFileWithTestRunnerReport {
+                junit_path: "/tmp/hello_test/test.xml".to_string(),
+                test_runner_report: None
+            }]
+        );
+        assert!(parse_result.errors.is_empty(), "{:?}", parse_result.errors);
     }
 
     #[test]
