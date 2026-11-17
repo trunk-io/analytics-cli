@@ -8,7 +8,11 @@ analytics-cli 1.0.0 uses only the Trunk API v2. It uploads only to test collecti
 
 - **v3** installs the trunk CLI and runs `trunk flakytests`, which resolves analytics-cli 1.x. Move to it to get 1.0.0.
 - **v2.1.8 and later**, and the floating `@v2` tag, stay on 0.x: their `latest` reads `channel-0.json`.
-- **v2.1.7 and earlier, pinned by SHA or exact tag,** resolve `latest` to the newest release and so get 1.0.0. Their uploads then fail with an organization token, without `test-collection-id`, or with the `quarantine` or `hide-banner` input set, which they pass as flags 1.0.0 removed. Move to v2.1.8 or v3 before 1.0.0 is the latest release, or set `cli-version: 0.17.0`.
+- **v2.1.7 and earlier, pinned by SHA or exact tag,** follow `channel.json` or GitHub's latest release. Both stay on 0.17.x until 1.0.0 is promoted to latest overall, which is a separate step after the 1.0.0 release. From then on these versions get 1.0.0, and their uploads fail with an organization token, without `test-collection-id`, or with the `quarantine` or `hide-banner` input set, which they pass as flags 1.0.0 removed. Move to v2.1.8 or v3 before then, or set `cli-version: 0.17.0`.
+
+## If you use the trunk CLI
+
+From trunk CLI 0.0.14, `trunk flakytests` runs the newest analytics-cli 1.x unless `TRUNK_ANALYTICS_CLI_VERSION` pins a version. Earlier trunk CLI versions follow `channel.json`, so they stay on 0.17.x until 1.0.0 is promoted to latest; run `trunk update` to get 0.0.14.
 
 ## What you have to change
 
@@ -23,7 +27,7 @@ analytics-cli 1.0.0 uses only the Trunk API v2. It uploads only to test collecti
 
 ### Test collection
 
-`--test-collection-id` / `TRUNK_TEST_COLLECTION_ID` is required for `upload` and `test`. A blank value counts as missing. 0.17.x inferred the collection from the repository; 1.0.0 does not. The rspec gem stays off, with a warning, without one.
+`--test-collection-id` / `TRUNK_TEST_COLLECTION_ID` is required for `upload` and `test`. A blank value counts as missing. 0.17.x inferred the collection from the repository; 1.0.0 does not. The rspec gem fails the run without one (see Test-runner plugins).
 
 ### Removed flags and variables
 
@@ -52,4 +56,9 @@ analytics-cli 1.0.0 uses only the Trunk API v2. It uploads only to test collecti
 
 ## Test-runner plugins
 
-`test_report` and the rspec gem share the CLI's API client, so the same rules apply: a v2 API key (or a JWT that outlasts the run) and `TRUNK_TEST_COLLECTION_ID`. Without either, the gem prints a warning and stays off.
+`test_report` and the rspec gem share the CLI's API client, so the same rules apply: a v2 API key (or a JWT that outlasts the run) and `TRUNK_TEST_COLLECTION_ID`.
+
+The rspec gem 1.0.0 **fails the run** when it is set up to upload but can't: with `TRUNK_ORG_URL_SLUG` and a token set, a missing `TRUNK_TEST_COLLECTION_ID` or an organization token raises `RSpec::Trunk::ConfigurationError` while `spec_helper` loads, so no examples run and RSpec exits non-zero. 0.17.x only warned and turned itself off.
+
+- To run without Trunk, set `DISABLE_RSPEC_TRUNK_FLAKY_TESTS=true`. An empty `TRUNK_API_TOKEN`, such as a fork pull request's missing secret, still turns the gem off quietly.
+- The gem is published to RubyGems with each release, with no separate promotion step, so an unpinned `gem 'rspec_trunk_flaky_tests'` or a Dependabot or Renovate bump picks up 1.0.0 as soon as it is released. Pin `gem 'rspec_trunk_flaky_tests', '~> 0.17.0'` to stay on 0.17.x while you move.
