@@ -2,7 +2,7 @@
 
 analytics-cli 1.0.0 uses only the Trunk API v2. It uploads only to test collections and takes only a v2 API key or a Trunk JWT. Most runs need three changes: a v2 API key, a test collection id, and no removed flags.
 
-0.17.x stays available. Pin it to keep the organization token while you move: it gets important fixes on the `0.17.x` branch, and no new features.
+0.17.x stays available and keeps taking the organization token until December 1, 2027. Pin it while you move: it gets important fixes on the `0.17.x` branch, and no new features.
 
 ## If you use analytics-uploader
 
@@ -16,7 +16,7 @@ analytics-cli 1.0.0 uses only the Trunk API v2. It uploads only to test collecti
 
 `--token` / `TRUNK_API_TOKEN` must hold one of:
 
-- **A v2 API key** (`trunk_v2_...`) with the **Upload test results** permission. Create it in the Trunk web app under Settings → Developer → API Keys.
+- **A v2 API key** (`trunk_v2_...`) with the **Upload test results** permission. Create it at https://app.trunk.io/settings/developer/api-tokens.
 - **A Trunk JWT**, such as the one `trunk flakytests upload` passes. A JWT lasts at most 15 minutes and the CLI does not refresh it, so use a v2 API key for a long `test` run or a test-runner plugin.
 
   1.0.0 refuses the organization token before it calls Trunk; `test` refuses before it runs your tests. A key without Upload test results gets a `403` that names the permission. See [Credentials](README.md#credentials).
