@@ -250,7 +250,7 @@ jobs:
         shell: bash
         run: |
           sudo apt-get update
-          sudo apt-get install -y qemu-user-static binfmt-support \
+          sudo apt-get install -y qemu-user-binfmt \
             libc6-${{ matrix.type.qemu-deb-arch }}-cross libgcc-s1-${{ matrix.type.qemu-deb-arch }}-cross
           echo "QEMU_LD_PREFIX=/usr/${{ matrix.type.qemu-triple }}" >> "$GITHUB_ENV"
           chmod +x trunk-analytics-cli/trunk-analytics-cli
