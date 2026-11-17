@@ -163,9 +163,12 @@ jobs:
             runs-on: macos-latest
             target: aarch64-apple-darwin
 
+          # The tests run as Linux binaries on this leg too, and the Windows binary can't run
+          # here (the release workflow's Windows smoke test runs it), so the Linux CLI uploads.
           - os-name: windows-x86_64
-            runs-on: public-amd64-4xlarge-dind-germany
+            runs-on: ubuntu-latest
             target: x86_64-pc-windows-gnu
+            upload-binary: x86_64-unknown-linux-musl
 
     runs-on: ${{ matrix.platform.runs-on }}
     steps:
@@ -222,7 +225,7 @@ jobs:
       # `swift` and `swiftc` into /usr/local/bin and leaves the rest of the toolchain reachable
       # only through $SWIFT_PATH. Without this the swift-test-xunit tests find no server.
       - name: Put the Swift toolchain on PATH
-        if: ${{ startsWith(matrix.platform.os-name, 'linux-') }}
+        if: ${{ !contains(matrix.platform.os-name, 'darwin') }}
         shell: bash
         run: |
           if [[ -z "${SWIFT_PATH:-}" ]]; then
@@ -236,10 +239,10 @@ jobs:
         id: tests
         continue-on-error: true
         env:
-          # macOS finds the server through `xcrun`, and the step above puts it on `PATH` for
-          # Linux -- so anywhere but the self-hosted Windows runner, which has no Swift at all,
-          # a missing server means the environment broke rather than that these should skip.
-          REQUIRE_LANGUAGE_SERVER: ${{ matrix.platform.os-name != 'windows-x86_64' && '1' || '' }}
+          # macOS finds the server through `xcrun`, and the step above puts it on `PATH`
+          # everywhere else, so a missing server means the environment broke rather than that
+          # these should skip.
+          REQUIRE_LANGUAGE_SERVER: "1"
         with:
           target: ${{ matrix.platform.target }}
           codecov-token: ${{ secrets.CODECOV_TOKEN }}
@@ -247,13 +250,12 @@ jobs:
       - name: Download built binary
         uses: actions/download-artifact@v4
         with:
-          name: binary-${{ matrix.platform.target }}
-          path: target/${{ matrix.platform.target }}/release/
+          name: binary-${{ matrix.platform.upload-binary || matrix.platform.target }}
+          path: target/${{ matrix.platform.upload-binary || matrix.platform.target }}/release/
 
       - name: Make binary executable
         shell: bash
-        if: ${{ !contains(matrix.platform.os-name, 'windows') }}
-        run: chmod +x target/${{ matrix.platform.target }}/release/trunk-analytics-cli
+        run: chmod +x target/${{ matrix.platform.upload-binary || matrix.platform.target }}/release/trunk-analytics-cli
 
       - name: Extract step outcome
         shell: bash
@@ -270,11 +272,9 @@ jobs:
         env:
           TRUNK_PUBLIC_API_ADDRESS: https://api.trunk-staging.io
         shell: bash
-        # Skip Windows builds - can't run Windows binaries on Linux runners
-        # Windows binaries are tested in the release workflow on actual Windows runners
-        if: ${{ !contains(matrix.platform.target, 'illumos') && !contains(matrix.platform.os-name, 'windows') }}
+        if: ${{ !contains(matrix.platform.target, 'illumos') }}
         run: |
-          target/${{ matrix.platform.target }}/release/trunk-analytics-cli upload \
+          target/${{ matrix.platform.upload-binary || matrix.platform.target }}/release/trunk-analytics-cli upload \
              --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
              --org-url-slug trunk-staging-org \
              --token ${{ secrets.TRUNK_STAGING_API_V2_TOKEN }} \
@@ -287,11 +287,9 @@ jobs:
         env:
           TRUNK_PUBLIC_API_ADDRESS: https://api.trunk-staging.io
         shell: bash
-        # Skip Windows builds - can't run Windows binaries on Linux runners
-        # Windows binaries are tested in the release workflow on actual Windows runners
-        if: ${{ !contains(matrix.platform.target, 'illumos') && !contains(matrix.platform.os-name, 'windows') }}
+        if: ${{ !contains(matrix.platform.target, 'illumos') }}
         run: |
-          target/${{ matrix.platform.target }}/release/trunk-analytics-cli upload \
+          target/${{ matrix.platform.upload-binary || matrix.platform.target }}/release/trunk-analytics-cli upload \
              --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
              --org-url-slug trunk-staging-org \
              --token ${{ secrets.TRUNK_STAGING_API_V2_TOKEN }} \
@@ -303,11 +301,9 @@ jobs:
       # Repo monitors: https://app.trunk.io/trunk/flaky-tests/repo/d442f488-c374-4913-af40-d0eae875b5cb/monitor
       - name: Upload results to prod using built CLI
         shell: bash
-        # Skip Windows builds - can't run Windows binaries on Linux runners
-        # Windows binaries are tested in the release workflow on actual Windows runners
-        if: ${{ !contains(matrix.platform.target, 'illumos') && !contains(matrix.platform.os-name, 'windows') }}
+        if: ${{ !contains(matrix.platform.target, 'illumos') }}
         run: |
-          target/${{ matrix.platform.target }}/release/trunk-analytics-cli upload \
+          target/${{ matrix.platform.upload-binary || matrix.platform.target }}/release/trunk-analytics-cli upload \
             --junit-paths ${{ github.workspace }}/target/**/*junit.xml \
             --org-url-slug trunk \
             --token ${{ secrets.TRUNK_PROD_API_V2_TOKEN }} \
