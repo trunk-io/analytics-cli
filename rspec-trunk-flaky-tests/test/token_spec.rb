@@ -26,16 +26,29 @@ RSpec.describe 'TRUNK_API_TOKEN' do
     Open3.capture3(env, RbConfig.ruby, '-I', lib_dir, '-e', probe)
   end
 
-  ['0123456789abcdef0123456789abcdef', 'a.b', ''].each do |token|
-    it "disables Trunk and says why for an organization token like #{token.inspect}" do
+  ['0123456789abcdef0123456789abcdef', 'a.b'].each do |token|
+    it "refuses to load, and says why, for an organization token like #{token.inspect}" do
+      stdout, stderr, status = load_gem(token)
+
+      expect(status).not_to be_success
+      expect(stdout).to be_empty
+      expect(stderr).to include('RSpec::Trunk::ConfigurationError')
+      expect(stderr).to include('Trunk Flaky Tests: This Trunk token is not a v2 API key.')
+      expect(stderr).to include('https://app.trunk.io/settings/developer/api-tokens')
+      expect(stderr).to include('Upload test results')
+      expect(stderr).to include('until December 1, 2027, pin analytics-cli 0.17.x')
+      expect(stderr).to include('To run without Trunk, set DISABLE_RSPEC_TRUNK_FLAKY_TESTS=true.')
+    end
+  end
+
+  # A fork pull request's missing secret arrives as an empty string.
+  [nil, '', ' '].each do |token|
+    it "stays off quietly with no token, like #{token.inspect}" do
       stdout, stderr, status = load_gem(token)
 
       expect(status).to be_success, stderr
       expect(stdout.lines.last.strip).to eq('disabled')
-      expect(stderr).to include('Trunk Flaky Tests is disabled: This Trunk token is not a v2 API key.')
-      expect(stderr).to include('https://app.trunk.io/settings/developer/api-tokens')
-      expect(stderr).to include('Upload test results')
-      expect(stderr).to include('until December 1, 2027, pin analytics-cli 0.17.x')
+      expect(stderr).not_to include('Trunk Flaky Tests')
     end
   end
 
@@ -45,7 +58,7 @@ RSpec.describe 'TRUNK_API_TOKEN' do
 
       expect(status).to be_success, stderr
       expect(stdout.lines.last.strip).to eq('enabled')
-      expect(stderr).not_to include('Trunk Flaky Tests is disabled')
+      expect(stderr).not_to include('Trunk Flaky Tests')
     end
   end
 end
