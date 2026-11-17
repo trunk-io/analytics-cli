@@ -1,13 +1,19 @@
 name: Promote Release
-run-name: Promote ${{ inputs.version }} to latest
+run-name: Promote ${{ inputs.version }}${{ inputs.promote-latest && ' to latest' || ' for its major' }}
 on:
   workflow_dispatch:
     inputs:
       # trunk-ignore(checkov/CKV_GHA_7)
       version:
         type: string
-        description: Already-released version to make latest for its major (channel-<major>.json), and overall (channel.json and GitHub) when it is the newest
+        description: Already-released version to make latest for its major (channel-<major>.json)
         required: true
+      # Off: channel.json and GitHub's latest stay put, so analytics-uploader v2.1.7 and older,
+      # which follow one of them, keep the previous release.
+      promote-latest:
+        type: boolean
+        description: Promote latest — also point channel.json and GitHub's latest release at this version, when it is the newest
+        default: false
       allow-downgrade:
         type: boolean
         description: Move the pointers even to an older version (a rollback)
@@ -27,6 +33,7 @@ jobs:
     env:
       VERSION: ${{ inputs.version }}
       ALLOW_DOWNGRADE: ${{ inputs.allow-downgrade }}
+      PROMOTE_LATEST: ${{ inputs.promote-latest }}
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v4
@@ -69,7 +76,7 @@ jobs:
       # S3 moves first: its preconditions (the role, a complete manifest) are the ones that fail in
       # practice, and when they do GitHub has not moved either. Both steps are idempotent, so if the
       # GitHub edit fails afterwards, re-running this workflow converges the two.
-      - name: Point channel.json and channel-<major>.json at ${{ inputs.version }}
+      - name: Point channel-<major>.json, and channel.json if promoting latest, at ${{ inputs.version }}
         id: s3
         run: .github/scripts/set-latest-in-s3.sh "${VERSION}"
 
@@ -77,7 +84,8 @@ jobs:
         if: steps.s3.outputs.global_moved == 'true'
         run: gh release edit "${VERSION}" --prerelease=false --latest
 
-      # A backport of an older major is published but must not take GitHub's latest from the newer one.
+      # A backport of an older major, or a release not promoted to latest, is published but must not
+      # take GitHub's latest.
       - name: Mark ${{ inputs.version }} released on GitHub
         if: steps.s3.outputs.global_moved != 'true'
         run: gh release edit "${VERSION}" --prerelease=false --latest=false
