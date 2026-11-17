@@ -43,4 +43,15 @@ impl ErrorSummary {
             exit_code: context.exit_code,
         }
     }
+
+    /// What went wrong, for a reader who already has `message`: Trunk's explanation when its API
+    /// gave one, else the error with its causes.
+    pub fn reason(&self) -> String {
+        self.explanation.clone().unwrap_or_else(|| {
+            std::iter::once(self.error.as_str())
+                .chain(self.causes.iter().map(String::as_str))
+                .collect::<Vec<_>>()
+                .join(": ")
+        })
+    }
 }

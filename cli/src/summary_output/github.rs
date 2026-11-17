@@ -182,7 +182,7 @@ fn error_message(error: &ErrorSummary) -> String {
             match &error.message {
                 Some(message) => {
                     lines.push(message.clone());
-                    lines.extend(error.explanation.clone());
+                    lines.push(error.reason());
                 }
                 None => lines.push(error.error.clone()),
             }
