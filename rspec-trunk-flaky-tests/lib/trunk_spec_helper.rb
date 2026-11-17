@@ -546,7 +546,8 @@ module RSpec
           puts Colors.yellow('Note: TRUNK_DISABLE_QUARANTINING is set. Test failures were not quarantined.')
         end
         if @run.quarantining_disabled?
-          puts Colors.yellow('Note: Quarantining is disabled for this test collection. Test failures were not quarantined.')
+          puts Colors.yellow('Note: Quarantining is disabled for this test collection. ' \
+                             'Test failures were not quarantined.')
         end
         if @run.lookup_failed?
           puts Colors.yellow('Note: Failed to check quarantining status. Test failures were not quarantined.')
