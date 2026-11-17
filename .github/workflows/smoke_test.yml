@@ -24,6 +24,8 @@ jobs:
     outputs:
       release: ${{ steps.set-releases.outputs.release }}
       rspec_release: ${{ steps.set-releases.outputs.rspec_release }}
+      cli_v2: ${{ steps.set-releases.outputs.cli_v2 }}
+      rspec_v2: ${{ steps.set-releases.outputs.rspec_v2 }}
     steps:
       - name: Get Latest Release
         id: get-latest-release
@@ -58,6 +60,11 @@ jobs:
 
           echo "release=$RELEASE" >> $GITHUB_OUTPUT
           echo "rspec_release=$RSPEC_RELEASE" >> $GITHUB_OUTPUT
+
+          # Releases before 1.0.0 read --token only as an organization token.
+          major() { echo "${1#v}" | cut -d. -f1; }
+          echo "cli_v2=$([ "$(major "$RELEASE")" -ge 1 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          echo "rspec_v2=$([ "$(major "$RSPEC_RELEASE")" -ge 1 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
           echo "Using RELEASE: $RELEASE"
           echo "Using RSPEC_RELEASE: $RSPEC_RELEASE"
   build_cli:
@@ -122,8 +129,8 @@ jobs:
         uses: ./.github/actions/perform_smoke_test
         with:
           cli-binary-location: ${{ matrix.platform.binary-name }}
-          staging-api-token: ${{ secrets.TRUNK_STAGING_API_V2_TOKEN }}
-          production-api-token: ${{ secrets.TRUNK_PROD_API_V2_TOKEN }}
+          staging-api-token: ${{ needs.determine_releases.outputs.cli_v2 == 'true' && secrets.TRUNK_STAGING_API_V2_TOKEN || secrets.TRUNK_STAGING_ORG_API_TOKEN }}
+          production-api-token: ${{ needs.determine_releases.outputs.cli_v2 == 'true' && secrets.TRUNK_PROD_API_V2_TOKEN || secrets.TRUNK_PROD_ORG_API_TOKEN }}
           environment-type: ${{ (github.event.action == 'production-release' && 'production') || (github.event.action == 'staging-release' && 'staging') || 'both' }}
 
   download_ruby_gem:
@@ -155,7 +162,7 @@ jobs:
   test_ruby_gem_staging:
     name: Test Ruby gem on staging
     runs-on: ubuntu-latest
-    needs: download_ruby_gem
+    needs: [determine_releases, download_ruby_gem]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -170,7 +177,7 @@ jobs:
         uses: ./.github/actions/test_ruby_gem_uploads
         with:
           ruby-version: "3.4"
-          trunk-token: ${{ secrets.TRUNK_STAGING_API_V2_TOKEN }}
+          trunk-token: ${{ needs.determine_releases.outputs.rspec_v2 == 'true' && secrets.TRUNK_STAGING_API_V2_TOKEN || secrets.TRUNK_STAGING_ORG_API_TOKEN }}
           trunk-public-api-address: https://api.trunk-staging.io
           trunk-org-slug: trunk-staging-org
           # analytics-cli-ruby-gem: https://app.trunk-staging.io/trunk-staging-org/flaky-tests/collections/T5yKSn9h/monitors
@@ -182,7 +189,7 @@ jobs:
   test_ruby_gem_production:
     name: Test Ruby gem on production
     runs-on: ubuntu-latest
-    needs: download_ruby_gem
+    needs: [determine_releases, download_ruby_gem]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -197,7 +204,7 @@ jobs:
         uses: ./.github/actions/test_ruby_gem_uploads
         with:
           ruby-version: "3.4"
-          trunk-token: ${{ secrets.TRUNK_PROD_API_V2_TOKEN }}
+          trunk-token: ${{ needs.determine_releases.outputs.rspec_v2 == 'true' && secrets.TRUNK_PROD_API_V2_TOKEN || secrets.TRUNK_PROD_ORG_API_TOKEN }}
           trunk-public-api-address: https://api.trunk.io
           trunk-org-slug: trunk
           # analytics-cli-ruby-gem: https://app.trunk.io/trunk/flaky-tests/collections/BiBP2neA/monitors
