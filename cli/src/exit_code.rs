@@ -15,7 +15,7 @@ use strum::{EnumIter, EnumMessage, IntoEnumIterator};
 pub enum ExitCode {
     /// Tests passed, every failure was quarantined, or validate found no errors. upload also
     /// exits 0 when tests failed if quarantining is turned off (by --disable-quarantining or
-    /// for the repo in Trunk) or no test reports were found. Errors connecting to Trunk, and
+    /// for the test collection in Trunk) or no test reports were found. Errors connecting to Trunk, and
     /// errors the CLI doesn't recognize, also exit 0 so that they don't fail your CI job.
     Success,
     /// Tests failed and weren't quarantined, and upload wasn't given --test-process-exit-code.
