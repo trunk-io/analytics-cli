@@ -195,7 +195,7 @@ module RSpec
 
       def inclusion_line(metadata, file)
         Array(metadata[:shared_group_inclusion_backtrace]).reverse_each do |frame|
-          path, line = frame.inclusion_location.sub(/:in .+\z/m, '').match(/\A(.+):(\d+)\z/)&.captures
+          path, line = frame.inclusion_location.to_s.sub(/:in .+\z/m, '').match(/\A(.+):(\d+)\z/)&.captures
           return line.to_i if path && RSpec::Core::Metadata.relative_path(path) == file
         end
         nil

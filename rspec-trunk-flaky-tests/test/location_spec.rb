@@ -3,12 +3,15 @@
 require 'rspec_trunk_flaky_tests'
 require_relative '../spec/spec_helper'
 require_relative 'support/location_helpers'
+require 'rails/version'
+require 'rswag/specs'
 require 'rspec/core/sandbox'
 
 # trunk-ignore(rubocop/Metrics/BlockLength)
 RSpec.describe 'reported test location' do
   spec_file = './test/location_spec.rb'
   helpers_file = './test/support/location_helpers.rb'
+  rswag_file = Rswag::Specs::ExampleGroupHelpers.instance_method(:run_test!).source_location.first
   lines = {}
 
   # trunk-ignore(rubocop/Metrics/AbcSize,rubocop/Metrics/MethodLength)
@@ -16,7 +19,7 @@ RSpec.describe 'reported test location' do
     examples = nil
     RSpec::Core::Sandbox.sandboxed do |_config|
       group = RSpec.describe('API') do
-        extend LocationHelpers
+        extend Rswag::Specs::ExampleGroupHelpers
         shared_examples('shared', &LocationHelpers::SHARED_EXAMPLES)
         lines[:own] = __LINE__ + 1
         it('is its own') { expect(1).to eq(1) }
@@ -26,8 +29,12 @@ RSpec.describe 'reported test location' do
           lines[:include_examples] = __LINE__ + 1
           include_examples 'shared'
         end
-        lines[:response] = __LINE__ + 1
-        context('response 200') { run_test! }
+        path('/users') do
+          get('lists users') do
+            lines[:response] = __LINE__ + 1
+            response('200', 'ok') { run_test! }
+          end
+        end
       end
       group.run(RSpec::Core::NullReporter)
       examples = group.descendants.flat_map(&:examples)
@@ -51,7 +58,7 @@ RSpec.describe 'reported test location' do
         'API is its own' => [spec_file, lines[:own]],
         'API behaves like shared is shared' => [spec_file, lines[:it_behaves_like]],
         'API included is shared' => [spec_file, lines[:include_examples]],
-        'API response 200 returns a 200 response' => [spec_file, lines[:response]]
+        'API /users get ok returns a 200 response' => [spec_file, lines[:response]]
       )
     end
 
@@ -59,10 +66,10 @@ RSpec.describe 'reported test location' do
       example = nil
       RSpec::Core::Sandbox.sandboxed do |_config|
         group = RSpec.describe('API') do
-          extend LocationHelpers
-          run_test!
+          extend Rswag::Specs::ExampleGroupHelpers
+          path('/users') { get('lists users') { response('200', 'ok') { run_test! } } }
         end
-        example = group.examples.first
+        example = group.descendants.flat_map(&:examples).first
       end
       expect(RSpec::Trunk.file_and_classname(example)).to eq([spec_file, 'test.location_spec'])
     end
@@ -72,7 +79,7 @@ RSpec.describe 'reported test location' do
     let(:report_spec_location) { nil }
 
     it 'reports each example where it is defined' do
-      expect(locations.values.map(&:first)).to eq([spec_file, helpers_file, helpers_file, helpers_file])
+      expect(locations.values.map(&:first)).to eq([spec_file, helpers_file, helpers_file, rswag_file])
       expect(locations['API is its own']).to eq([spec_file, lines[:own]])
     end
   end
