@@ -107,7 +107,7 @@ fn capture_env_vars(pr_number: Option<usize>) -> HashMap<String, String> {
             tracing::debug!("Not running in GitHub Actions or no external ID found");
         }
         Err(e) => {
-            tracing::error!("Failed to extract GitHub Actions external ID: {}", e);
+            tracing::warn!("Failed to extract GitHub Actions external ID: {}", e);
         }
     };
 
