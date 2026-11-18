@@ -4,19 +4,8 @@
 //!
 //! To learn what does what check out [bazel's docs](https://bazel.build/remote/bep)
 
+pub use prost;
 pub use prost_types;
-
-#[cfg(feature = "client")]
-#[cfg_attr(docsrs, doc(cfg(feature = "client")))]
-pub mod client {
-    pub use super::google::devtools::build::v1::publish_build_event_client::*;
-}
-
-#[cfg(feature = "server")]
-#[cfg_attr(docsrs, doc(cfg(feature = "server")))]
-pub mod server {
-    pub use super::google::devtools::build::v1::publish_build_event_server::*;
-}
 
 pub mod types {
     pub mod build_event_stream {

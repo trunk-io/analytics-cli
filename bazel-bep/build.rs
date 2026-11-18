@@ -16,28 +16,23 @@ fn main() -> io::Result<()> {
 
     let descriptor_path = PathBuf::from(env::var("OUT_DIR").unwrap()).join("proto_descriptor.bin");
 
-    let compiler = tonic_build::configure();
-    #[cfg(not(feature = "client"))]
-    let compiler = compiler.build_client(false);
-    #[cfg(not(feature = "server"))]
-    let compiler = compiler.build_server(false);
-
     let file_descriptors = protox::compile(&protos, ["proto/"]).unwrap();
     let file_descriptors_bytes = file_descriptors.encode_to_vec();
 
     fs::write(&descriptor_path, &file_descriptors_bytes).unwrap();
 
-    compiler
+    prost_build::Config::new()
         .file_descriptor_set_path(&descriptor_path)
         .skip_protoc_run()
-        .compile_well_known_types(true)
+        .compile_well_known_types()
         // Override prost-types with pbjson-types
         .extern_path(".google.protobuf", "::pbjson_types")
-        .compile(&protos, &["proto/"])?;
+        .compile_protos(&protos, &["proto/"])?;
 
     pbjson_build::Builder::new()
         .register_descriptors(&file_descriptors_bytes)?
         .ignore_unknown_fields()
+        .ignore_unknown_enum_variants()
         .build(&["."])?;
 
     Ok(())

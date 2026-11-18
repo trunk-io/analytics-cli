@@ -51,6 +51,7 @@ mod tests {
     const RETRIES_EXAMPLE: &str = "test_fixtures/bep_retries";
     const UNKNOWN_FIELDS_EXAMPLE: &str = "test_fixtures/bep_unknown_fields.json";
     const BAZEL_9_EXAMPLE: &str = "test_fixtures/bep_bazel_9.json";
+    const UNKNOWN_ENUM_VALUES_EXAMPLE: &str = "test_fixtures/bep_unknown_enum_values.json";
 
     #[test]
     fn test_parse_bep_with_unknown_fields() {
@@ -72,6 +73,22 @@ mod tests {
     #[test]
     fn test_parse_bazel_9_json_bep() {
         let input_file = get_test_file_path(BAZEL_9_EXAMPLE);
+        let mut parser = BazelBepParser::new(input_file);
+        let parse_result = parser.parse().unwrap();
+
+        assert_eq!(
+            parse_result.uncached_xml_files(),
+            vec![JunitReportFileWithTestRunnerReport {
+                junit_path: "/tmp/hello_test/test.xml".to_string(),
+                test_runner_report: None
+            }]
+        );
+        assert!(parse_result.errors.is_empty(), "{:?}", parse_result.errors);
+    }
+
+    #[test]
+    fn test_parse_json_bep_with_unknown_enum_values() {
+        let input_file = get_test_file_path(UNKNOWN_ENUM_VALUES_EXAMPLE);
         let mut parser = BazelBepParser::new(input_file);
         let parse_result = parser.parse().unwrap();
 

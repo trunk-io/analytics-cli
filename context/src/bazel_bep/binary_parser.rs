@@ -1,9 +1,9 @@
 use std::io::Read;
 use std::path::PathBuf;
 
+use bazel_bep::prost::Message;
+use bazel_bep::prost::bytes::Buf;
 use bazel_bep::types::build_event_stream::BuildEvent;
-use prost::Message;
-use prost::bytes::Buf;
 
 use crate::bazel_bep::common::BepParseResult;
 
