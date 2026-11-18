@@ -208,7 +208,7 @@ pub struct UploadArgs {
     #[arg(
         long,
         env = constants::TRUNK_VARIANT_ENV,
-        help = "Variant name for the test results (e.g., 'linux', 'macos', 'pr'). Used to group test runs. Max 64 characters.",
+        help = "Variant name for the test results (e.g., 'linux', 'macos', 'pr'). Used to group test runs.",
         required = false,
         num_args = 1
     )]
