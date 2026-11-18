@@ -256,44 +256,10 @@ message BuildEventId {
   // Identifier of an event providing convenience symlinks information.
   message ConvenienceSymlinksIdentifiedId {}
 
-  // Identifier of an event signalling that the coverage actions are finished.
-  message CoverageActionsFinishedId {}
-
   // Identifier of an event providing the ExecRequest of a run command.
   message ExecRequestId {}
 
-  // BUILDBUDDY-SPECIFIC EVENTS BELOW
-
-  // Identifier of an event providing a list of bazel commands that are
-  // run as part of a BuildBuddy workflow.
-  message WorkflowConfiguredId {}
-
-  // Identifier of an event providing the status of a completed invocation
-  // within a BuildBuddy workflow.
-  //
-  // A workflow action can specify multiple bazel commands, creating a
-  // "sub-invocation" for each one. There will be one of these events generated
-  // for each of those Bazel commands, where the invocation ID here refers to
-  // the invocation ID of the Bazel command that was completed.
-  message WorkflowCommandCompletedId {
-   // Invocation ID of the command that was completed.
-   string invocation_id = 1;
-  }
-
-  // Identifier of an event providing a list of commands that are
-  // run as children of this invocation.
-  message ChildInvocationsConfiguredId {}
-
-  // Identifier of an event providing the status of a completed child
-  // invocation.
-  message ChildInvocationCompletedId {
-   // Invocation ID of the command that was completed.
-   string invocation_id = 1;
-  }
-
-  // Identifier of an event providing metadata on a runnable target such as
-  // default arguments and runtime files.
-  message RunTargetAnalyzedId {}
+  reserved 27;
 
   oneof id {
     UnknownBuildEventId unknown = 1;
@@ -323,17 +289,7 @@ message BuildEventId {
     WorkspaceConfigId workspace = 23;
     BuildMetadataId build_metadata = 24;
     ConvenienceSymlinksIdentifiedId convenience_symlinks_identified = 25;
-    CoverageActionsFinishedId coverage_actions_finished = 27;
     ExecRequestId exec_request = 28;
-    // BUILDBUDDY EVENTS BELOW
-    // Starting at field #1000 to avoid conflicting with potential future
-    // additions to Bazel's build event protocol.
-
-    WorkflowConfiguredId workflow_configured = 1000;
-    WorkflowCommandCompletedId workflow_command_completed = 1001;
-    ChildInvocationsConfiguredId child_invocations_configured = 1002;
-    ChildInvocationCompletedId child_invocation_completed = 1003;
-    RunTargetAnalyzedId run_target_analyzed = 1004;
   }
 }
 
@@ -440,6 +396,12 @@ message BuildStarted {
 
   // The process ID of the Bazel server.
   int64 server_pid = 8;
+
+  // The short hostname of the machine where the build is running.
+  string host = 10;
+
+  // The username of the user who started the build.
+  string user = 11;
 }
 
 // Configuration related to the blaze workspace and output tree.
@@ -585,13 +547,6 @@ message File {
   int64 length = 6;
 }
 
-message Tree {
-  // Where the tree is to be planted.
-  string name = 1;
-  // Bytestream URI for the tree digest.
-  string uri = 2;
-}
-
 // Payload of a message to describe a set of files, usually build artifacts, to
 // be referred to later by their name. In this way, files that occur identically
 // as outputs of several targets have to be named only once.
@@ -608,6 +563,8 @@ message NamedSetOfFiles {
 // failing; however, consumers of the build-event protocol must not assume
 // that only failed actions are posted.
 message ActionExecuted {
+  reserved 10;
+
   bool success = 1;
 
   // The mnemonic of the action that was executed
@@ -635,10 +592,6 @@ message ActionExecuted {
 
   // The command-line of the action, if the action is a command.
   repeated string command_line = 9;
-
-  // List of paths to log files
-  repeated File action_metadata_logs = 10;
-
 
   // Only populated if success = false, and sometimes not even then.
   failure_details.FailureDetail failure_detail = 11;
@@ -904,7 +857,15 @@ message TargetSummary {
   // Conjunction of TargetComplete events for this target, including aspects.
   bool overall_build_success = 1;
 
-  // Repeats TestSummary's overall_status if available.
+  // For non-test targets, set to NO_STATUS. For test targets, identical to
+  // TestSummary.overall_status.
+  //
+  // There are some cases where the `build` command on a test target succeeds,
+  // but the `test` command on the same target results in FAILED_TO_BUILD. In
+  // such cases, TargetComplete.overall_build_success is true, but this field is
+  // FAILED_TO_BUILD, and TestSummary may be missing.
+  // TODO - b/186996003: TestSummary is a child of TargetComplete and should be
+  //  posted.
   TestStatus overall_test_status = 2;
 }
 
@@ -1107,6 +1068,9 @@ message BuildMetrics {
     // The elapsed wall time in milliseconds until the first action execution
     // started (excluding workspace status actions).
     int64 actions_execution_start_in_ms = 5;
+
+    // The elapsed wall time in milliseconds that the critical path took.
+    google.protobuf.Duration critical_path_time = 6;
   }
   TimingMetrics timing_metrics = 5;
 
@@ -1403,6 +1367,25 @@ message BuildMetrics {
   }
 
   DynamicExecutionMetrics dynamic_execution_metrics = 12;
+
+  // Statistics about remote analysis caching
+  message RemoteAnalysisCacheStatistics {
+    int64 cache_hits = 1;
+    int64 cache_misses = 2;
+    int64 value_store_value_bytes_received = 3;
+    int64 value_store_value_bytes_sent = 4;
+    int64 value_store_key_bytes_sent = 5;
+    int64 value_store_write_ops = 6;
+    int64 value_store_read_ops_successful = 7;
+    int64 value_store_read_ops_not_found = 8;
+    int64 value_store_read_batches = 10;
+    int64 value_store_write_batches = 11;
+    int64 analysis_cache_bytes_received = 12;
+    int64 analysis_cache_key_bytes_sent = 13;
+    int64 analysis_cache_ops = 14;
+    int64 analysis_cache_batches = 15;
+  }
+  RemoteAnalysisCacheStatistics remote_analysis_cache_statistics = 13;
 }
 
 // Event providing additional statistics/logs after completion of the build.
@@ -1466,158 +1449,6 @@ message EnvironmentVariable {
   bytes value = 2;
 }
 
-// BUILDBUDDY-SPECIFIC EVENTS BELOW
-
-// Event describing a workflow invocation as well as the bazel commands to be
-// run by the workflow.
-message WorkflowConfigured {
-  // ID of the BuildBuddy workflow.
-  // Example: "WF1234"
-  string workflow_id = 1;
-
-  // Action name as defined in `buildbuddy.yaml`.
-  // Example: "Test all targets"
-  string action_name = 2;
-
-  reserved 3;
-
-  // Webhook event name that triggered the action. Can be one of "push" or
-  // "pull_request".
-  string action_trigger_event = 4;
-
-  // Metadata for a Bazel invocation created by this workflow action. Each
-  // workflow action creates one invocation for the top-level workflow, and
-  // multiple "sub-invocations," one for each Bazel command in the workflow.
-  // Each of these represents one of the sub-invocations.
-  message InvocationMetadata {
-    // Bazel invocation ID (UUIDV4) for a sub-invocation created by a workflow
-    // action. Should not be set for bazel commands that do not create
-    // invocations, such as `bazel version`.
-    // Example: "86083af6-4699-4957-a0a3-d6a806104bb3"
-    string invocation_id = 1;
-
-    // Bazel command as specified in `buildbuddy.yaml`.
-    // Example: "test //..."
-    string bazel_command = 2;
-  }
-
-  // Bazel commands invoked by the workflow action.
-  repeated InvocationMetadata invocation = 5;
-
-  // The repo that was pushed in order to trigger the worflow.
-  // Ex: "https://github.com/some-user/acme"
-  string pushed_repo_url = 6;
-
-  // The branch that was pushed in order to trigger the workflow.
-  // Ex: "feature"
-  string pushed_branch = 7;
-
-  // The commit SHA of the pushed branch.
-  // Ex: "a051dad04f8b07fb3514585bdb66a8f15a37328e"
-  string commit_sha = 8;
-
-  // The repo into which the pushed branch is being merged (for PRs),
-  // or the pushed_repo_url (for push events).
-  // Ex: "https://github.com/acme-inc/acme"
-  string target_repo_url = 9;
-
-  // The branch into which the pushed branch is being merged (for PRs),
-  // or the pushed_branch (for push events).
-  string target_branch = 10;
-
-  // The OS on which the workflow is running.
-  // Adheres to the same naming convention as GOOS in golang.
-  string os = 11;
-
-  // The CPU architecture on which the workflow is running.
-  // Adheres to the same naming convention as GOARCH in golang.
-  string arch = 12;
-
-  // This formerly held the workflow's configured container image. It was
-  // dropped from protocol so that the event could be published earlier.
-  reserved 13;
-}
-
-// Event describing a workflow command that completed.
-// Note: the event ID holds the invocation ID that identifies the command.
-// Next Tag: 6
-message WorkflowCommandCompleted {
-  // The overall status of the command. A command was successful if and only if
-  // this value is equal to 0.
-  int32 exit_code = 1;
-
-  // Start time of the workflow command, in milliseconds since epoch.
-  //
-  // Deprecated. Use start_time instead.
-  int64 start_time_millis = 2 [deprecated = true];
-
-  // Start time of the workflow command
-  google.protobuf.Timestamp start_time = 4;
-
-  // How long it took for the workflow to complete, in milliseconds.
-  //
-  // Deprecated. Use duration instead.
-  int64 duration_millis = 3 [deprecated = true];
-
-  // How long it took for the workflow to complete.
-  google.protobuf.Duration duration = 5;
-}
-
-message ChildInvocationsConfigured {
-  // Metadata for a child Bazel invocation spawned from the current invocation.
-  message InvocationMetadata {
-    // Bazel invocation ID (UUIDV4) for a sub-invocation.
-    // Should not be set for bazel commands that do not create invocations, such
-    // as `bazel version`. Example: "86083af6-4699-4957-a0a3-d6a806104bb3"
-    string invocation_id = 1;
-
-    // Bazel command.
-    // Example: "test //..."
-    string bazel_command = 2;
-  }
-
-  // Child Bazel invocations.
-  repeated InvocationMetadata invocation = 1;
-}
-
-// Event describing completion of a child invocation.
-// Note: the event ID holds the invocation ID that identifies the command.
-// Next Tag: 6
-message ChildInvocationCompleted {
-  // The overall status of the command. A command was successful if and only if
-  // this value is equal to 0.
-  int32 exit_code = 1;
-
-  // Start time of the invocation, in milliseconds since epoch.
-  //
-  // Deprecated. Use start_time instead.
-  int64 start_time_millis = 2 [deprecated = true];
-
-  // Start time of the invocation
-  google.protobuf.Timestamp start_time = 4;
-
-  // How long it took for the invocation to complete, in milliseconds.
-  //
-  // Deprecated. Use duration instead.
-  int64 duration_millis = 3;
-
-  // How long it took for the invocation to complete.
-  google.protobuf.Duration duration = 5;
-}
-
-// Event describing the runtime properties of a runnable target.
-message RunTargetAnalyzed {
-  // Default arguments configured for the target, typically in the BUILD file.
-  // e.g. [--monitoring_port=8888, --max_shutdown_duration=30s]
-  repeated string arguments = 1;
-  // Path to the root of the runfiles directory.
-  string runfiles_root = 2;
-  // Any runtime file dependencies for the runnable target.
-  repeated File runfiles = 3;
-  // Any runtime directory dependencies for the runnable target.
-  repeated Tree runfileDirectories = 4;
-}
-
 // Message describing a build event. Events will have an identifier that
 // is unique within a given build invocation; they also announce follow-up
 // events as children. More details, which are specific to the kind of event
@@ -1654,15 +1485,5 @@ message BuildEvent {
     BuildMetadata build_metadata = 26;
     ConvenienceSymlinksIdentified convenience_symlinks_identified = 27;
     ExecRequestConstructed exec_request = 29;
-
-    // BUILDBUDDY-SPECIFIC EVENTS BELOW.
-    // Starting at field #1000 to avoid conflicting with potential future
-    // additions to Bazel's build event protocol.
-
-    WorkflowConfigured workflow_configured = 1000;
-    WorkflowCommandCompleted workflow_command_completed = 1001;
-    ChildInvocationsConfigured child_invocations_configured = 1002;
-    ChildInvocationCompleted child_invocation_completed = 1003;
-    RunTargetAnalyzed run_target_analyzed = 1004;
   }
 }

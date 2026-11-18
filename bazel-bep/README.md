@@ -4,6 +4,8 @@ Based on [crate](https://crates.io/crates/bazel-bep), [repo](https://github.com/
 
 Original protos found [here](https://github.com/bazelbuild/bazel/blob/master/src/main/java/com/google/devtools/build/lib/buildeventstream/proto/build_event_stream.proto)
 
+The protos in `proto/` are from **Bazel 9.0.1**.
+
 ## Updating Protos for New Bazel Versions
 
 ### Current Situation
@@ -27,14 +29,11 @@ When a new Bazel version is released, follow these steps to update the proto def
    - Check the [Bazel releases page](https://github.com/bazelbuild/bazel/releases) for the latest version
    - The proto files are located in the Bazel repository at:
      - `src/main/java/com/google/devtools/build/lib/buildeventstream/proto/build_event_stream.proto`
-     - `src/main/java/com/google/devtools/build/lib/buildeventstream/proto/action_cache.proto`
-     - `src/main/java/com/google/devtools/build/lib/buildeventstream/proto/command_line.proto`
-     - `src/main/java/com/google/devtools/build/lib/buildeventstream/proto/failure_details.proto`
-     - `src/main/java/com/google/devtools/build/lib/buildeventstream/proto/package_load_metrics.proto`
-     - `src/main/java/com/google/devtools/build/lib/buildeventstream/proto/publish_build_event.proto`
-     - `src/main/java/com/google/devtools/build/lib/buildeventstream/proto/build_events.proto`
-     - `src/main/java/com/google/devtools/build/lib/buildeventstream/proto/option_filters.proto`
-     - `src/main/java/com/google/devtools/build/lib/buildeventstream/proto/invocation_policy.proto`
+     - `src/main/java/com/google/devtools/build/lib/packages/metrics/package_load_metrics.proto`
+     - `src/main/protobuf/`: `action_cache.proto`, `command_line.proto`, `failure_details.proto`, `invocation_policy.proto`, `option_filters.proto` and `strategy_policy.proto`
+     - `third_party/googleapis/google/devtools/build/v1/`: `build_events.proto` and `publish_build_event.proto`
+   - Every file sits directly in `bazel-bep/proto/`, so rewrite each `import "src/main/…/<name>.proto"` to `import "<name>.proto"`.
+   - A new proto package needs a module in `src/lib.rs`, as `blaze.strategy_policy` has.
 
 2. **Download the updated proto files**
 
