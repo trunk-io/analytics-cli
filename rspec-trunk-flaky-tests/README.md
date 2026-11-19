@@ -126,6 +126,12 @@ When set to a file path, the gem writes a JSON summary of the run to that file a
 TRUNK_SUMMARY_OUTPUT_FILE=tmp/trunk-summary.json bundle exec rspec
 ```
 
+#### `TRUNK_REPORT_SPEC_LOCATION`
+
+When set to `true`, an example defined outside its spec file, such as a shared example or rswag's `run_test!`, is reported at the spec file RSpec reruns it from, and its code owners come from that file. The line is the `it_behaves_like` or `include_examples` call, or else the enclosing group in the spec. Other examples are unchanged.
+
+The file is part of a test's id, so turning this on gives most of those examples new ids in Trunk, with no history, and quarantines set on their old ids no longer apply to them.
+
 #### `TRUNK_LOCAL_UPLOAD_DIR` (Experimental)
 
 > **⚠️ Experimental Feature**: This feature is experimental. Please reach out to support@trunk.io before attempting to use it.

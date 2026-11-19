@@ -32,6 +32,8 @@
 #   TRUNK_QUARANTINED_TESTS_DISK_CACHE_TTL_SECS - Time to cache quarantined tests on disk (in seconds)
 #   TRUNK_QUARANTINE_QUERY_FAILURE_EXIT - Set to 'true' to abort the RSpec run when quarantine
 #     lookup fails (remaining examples are skipped)
+#   TRUNK_REPORT_SPEC_LOCATION - Set to 'true' to report an example defined outside its spec file
+#     (a shared example, or one a library defines) at the spec file RSpec reruns it from
 #   DISABLE_RSPEC_TRUNK_FLAKY_TESTS - Set to 'true' to completely disable Trunk
 #
 require 'rspec/core'
@@ -145,6 +147,10 @@ module RSpec
         ENV['TRUNK_DISABLE_QUARANTINING'] == 'true'
       end
 
+      def report_spec_location?
+        ENV['TRUNK_REPORT_SPEC_LOCATION'] == 'true'
+      end
+
       def command_line
         "#{$PROGRAM_NAME} #{ARGV.join(' ')}"
       end
@@ -173,8 +179,31 @@ module RSpec
 
       # The escaped file path and the dotted classname derived from it.
       def file_and_classname(example)
-        file = escape(example.metadata[:file_path])
+        file = escape(location(example).first)
         [file, file.sub(%r{\.[^/.]+\Z}, '').gsub('/', '.').gsub(/\A\.+|\.+\Z/, '')]
+      end
+
+      # The file and line the example is reported at. With TRUNK_REPORT_SPEC_LOCATION, an example
+      # defined outside its spec file is reported at the line in the spec that brought it in.
+      def location(example)
+        metadata = example.metadata
+        file = metadata[:rerun_file_path]
+        return [metadata[:file_path], metadata[:line_number]] if !report_spec_location? || metadata[:file_path] == file
+
+        [file, inclusion_line(metadata, file) || group_line(example, file) || metadata[:line_number]]
+      end
+
+      def inclusion_line(metadata, file)
+        Array(metadata[:shared_group_inclusion_backtrace]).reverse_each do |frame|
+          path, line = frame.inclusion_location.to_s.sub(/:in .+\z/m, '').match(/\A(.+):(\d+)\z/)&.captures
+          return line.to_i if path && RSpec::Core::Metadata.relative_path(path) == file
+        end
+        nil
+      end
+
+      def group_line(example, file)
+        group = example.example_group.parent_groups.find { |parent| parent.metadata[:file_path] == file }
+        group&.metadata&.fetch(:line_number)
       end
 
       def parent_name(example)
@@ -598,7 +627,7 @@ module RSpec
         # TODO: should we use concatenated string or alias when auto-generated description?
         name = Trunk.full_description(example)
         file, classname = Trunk.file_and_classname(example)
-        line = example.metadata[:line_number]
+        line = Trunk.location(example).last
         started_at = example.execution_result.started_at.to_f
         finished_at = example.execution_result.finished_at.to_f
 

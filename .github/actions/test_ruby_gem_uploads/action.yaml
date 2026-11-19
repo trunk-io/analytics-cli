@@ -108,6 +108,7 @@ runs:
         # Read the version from gem metadata (robust to the platform suffix).
         GEM_VERSION=$(ruby -e "require 'rubygems/package'; puts Gem::Package.new(ARGV[0]).spec.version" "${GEM_FILE}")
         echo "Extracted version: ${GEM_VERSION}"
+        GEM_PLATFORM=$(ruby -e "require 'rubygems/package'; puts Gem::Package.new(ARGV[0]).spec.platform" "${GEM_FILE}")
 
         gem install "${GEM_FILE}" --local
         # Unpack the specific gem file directly, not from installed gems
@@ -118,9 +119,13 @@ runs:
 
         sed -i.bak "/gem 'rspec_trunk_flaky_tests'.*/d" Gemfile && rm -f Gemfile.bak
         bundle install
+        # The built gem exists for one platform, but a dependency with native builds (nokogiri)
+        # puts every platform it ships for in the lockfile, so lock to the gem's platform alone.
+        bundle lock --add-platform "${GEM_PLATFORM}"
+        OTHER_PLATFORMS=$(ruby -rbundler -e 'puts Bundler::LockfileParser.new(File.read("Gemfile.lock")).platforms.map(&:to_s) - [ARGV[0]]' "${GEM_PLATFORM}")
+        [ -z "${OTHER_PLATFORMS}" ] || bundle lock --remove-platform ${OTHER_PLATFORMS}
         echo "gem 'rspec_trunk_flaky_tests', '${GEM_VERSION}', :path => './rspec_trunk_flaky_tests'" >> Gemfile
 
-        bundle lock --remove-platform ruby || true
         bundle install --gemfile Gemfile --local
 
     - name: Run regular tests
