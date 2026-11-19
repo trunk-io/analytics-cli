@@ -12,5 +12,5 @@ runs:
 
     - uses: ruby/setup-ruby@v1
       with:
-        ruby-version: "3.1"
+        ruby-version: "3.3"
         working-directory: rspec-trunk-flaky-tests
